@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Header } from '../ui/Header';
 import { Timer, BarChart3, Video } from 'lucide-react';
 import { api } from '../../services/api';
@@ -27,6 +27,8 @@ const DEFAULT_SET_TEMPLATE: Array<{ reps: number; weight: number }> = [
   { reps: 8, weight: 80 },
   { reps: 8, weight: 80 },
 ];
+const REST_WINDOW_MIN_SECONDS = 60;
+const REST_WINDOW_MAX_SECONDS = 120;
 
 const createInitialSets = (plannedSets?: number): SetData[] => {
   const requested = Number(plannedSets);
@@ -66,6 +68,13 @@ export function TrackerScreen({
   const [showAnalytics, setShowAnalytics] = useState(false);
   const [isResting, setIsResting] = useState(false);
   const [restTime, setRestTime] = useState(0);
+  const [restReminderText, setRestReminderText] = useState<string | null>(null);
+  const restReminderLock = useRef(false);
+  const [notificationSettings, setNotificationSettings] = useState({
+    coachMessages: true,
+    restTimer: true,
+    missionChallenge: true,
+  });
 
   useEffect(() => {
     if (savedSets && savedSets.length > 0) {
@@ -95,6 +104,86 @@ export function TrackerScreen({
     return () => clearInterval(interval);
   }, [isResting]);
 
+  useEffect(() => {
+    const loadNotificationSettings = async () => {
+      const userId = Number(user?.id || 0);
+      const cached = localStorage.getItem('notificationSettings');
+      if (cached) {
+        try {
+          setNotificationSettings((prev) => ({ ...prev, ...JSON.parse(cached) }));
+        } catch {
+          // ignore malformed cache
+        }
+      }
+
+      if (!userId) return;
+      try {
+        const remote = await api.getNotificationSettings(userId);
+        const next = {
+          coachMessages: !!remote?.coachMessages,
+          restTimer: !!remote?.restTimer,
+          missionChallenge: !!remote?.missionChallenge,
+        };
+        setNotificationSettings(next);
+        localStorage.setItem('notificationSettings', JSON.stringify(next));
+      } catch {
+        // Keep defaults/cached values.
+      }
+    };
+
+    void loadNotificationSettings();
+  }, [user?.id]);
+
+  const sendRestReminder = (message: string) => {
+    if (!notificationSettings.restTimer) return;
+    setRestReminderText(message);
+
+    if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
+      navigator.vibrate(200);
+    }
+
+    if (typeof window === 'undefined' || !('Notification' in window)) return;
+
+    const showBrowserNotification = () => {
+      try {
+        new Notification('Gorella Rest Timer', {
+          body: message,
+          tag: 'rest-timeout-reminder',
+        });
+      } catch {
+        // Ignore browser notification errors and keep the in-app reminder.
+      }
+    };
+
+    if (Notification.permission === 'granted') {
+      showBrowserNotification();
+      return;
+    }
+
+    if (Notification.permission === 'default') {
+      void Notification.requestPermission().then((permission) => {
+        if (permission === 'granted') showBrowserNotification();
+      }).catch(() => {
+        // Ignore permission request failures.
+      });
+    }
+  };
+
+  useEffect(() => {
+    if (!notificationSettings.restTimer) return;
+    if (!isResting) return;
+    if (restTime <= REST_WINDOW_MAX_SECONDS) return;
+    if (restReminderLock.current) return;
+
+    const nextSet = sets.find((set) => !set.completed)?.set;
+    if (!nextSet) return;
+
+    restReminderLock.current = true;
+    sendRestReminder(
+      `Rest exceeded 2:00 on ${exerciseName}. Start set ${nextSet} now.`,
+    );
+  }, [exerciseName, isResting, notificationSettings.restTimer, restTime, sets]);
+
   const persistSets = (nextSets: SetData[]) => {
     setSets(nextSets);
     onSaveSets?.(nextSets);
@@ -123,18 +212,32 @@ export function TrackerScreen({
               duration: setDuration,
               restTime: restTime
             });
+            window.dispatchEvent(new CustomEvent('gamification-updated'));
           } catch (error) {
             console.error('Failed to save workout set:', error);
           }
         }
 
-        // Start rest timer
-        setRestTime(0);
-        setIsResting(true);
+        const hasMoreSets = newSets.some((s) => !s.completed);
+        if (hasMoreSets) {
+          // Start rest timer between sets.
+          setRestTime(0);
+          setRestReminderText(null);
+          restReminderLock.current = false;
+          setIsResting(true);
+        } else {
+          // All sets done for this exercise.
+          setRestTime(0);
+          setRestReminderText(null);
+          restReminderLock.current = false;
+          setIsResting(false);
+        }
       }
     } else {
       // Stop rest timer and start set timer
       setIsResting(false);
+      setRestReminderText(null);
+      restReminderLock.current = false;
       setSetStartTime(time);
     }
     setIsRunning(!isRunning);
@@ -255,6 +358,39 @@ export function TrackerScreen({
               </button>
 
             </div>
+
+            {isResting && (
+              <div className={`mb-4 rounded-xl border p-3 ${
+                restTime > REST_WINDOW_MAX_SECONDS
+                  ? 'border-red-500/50 bg-red-500/10'
+                  : restTime >= REST_WINDOW_MIN_SECONDS
+                    ? 'border-green-500/40 bg-green-500/10'
+                    : 'border-white/10 bg-card'
+              }`}>
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-white font-semibold">Rest Timer: {formatTime(restTime)}</span>
+                  <span className="text-text-secondary">Target 01:00 - 02:00</span>
+                </div>
+                {restTime > REST_WINDOW_MAX_SECONDS && (
+                  <p className="text-xs text-red-300 mt-2">Rest is over 2 minutes. Start your next set.</p>
+                )}
+              </div>
+            )}
+
+            {restReminderText && (
+              <div className="mb-4 rounded-xl border border-accent/40 bg-accent/10 p-3">
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-sm text-white">{restReminderText}</p>
+                  <button
+                    onClick={() => setRestReminderText(null)}
+                    className="text-xs text-accent hover:text-white transition-colors"
+                    type="button"
+                  >
+                    Dismiss
+                  </button>
+                </div>
+              </div>
+            )}
 
             <h3 className="text-xs font-bold text-text-secondary uppercase tracking-wider mb-4">
               Effective sets

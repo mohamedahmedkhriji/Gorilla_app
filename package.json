@@ -9,9 +9,10 @@
     "lint": "eslint . --ext .js,.jsx,.ts,.tsx",
     "preview": "npx vite preview",
     "server": "node server/index.js",
-    "dev:server": "nodemon server/index.js",
+    "dev:server": "node --watch server/index.js",
     "start": "concurrently \"npm run server\" \"npm run dev\"",
-    "seed:plans": "node server/scripts/seedWorkoutPlans.js"
+    "seed:plans": "node server/scripts/seedWorkoutPlans.js",
+    "backfill:workout-catalog": "node server/scripts/backfillWorkoutSetCatalogIds.js"
   },
   "dependencies": {
     "@emotion/react": "^11.13.3",

@@ -32,7 +32,7 @@ export function Progress() {
   return (
     <div className="relative pb-24">
       <div className="space-y-6">
-        <ProgressDashboard onViewReport={() => setView('report')} onNavigate={setView} />
+        <ProgressDashboard onViewReport={() => setView('report')} />
 
         <div className="px-6">
           <OverloadPlanning />

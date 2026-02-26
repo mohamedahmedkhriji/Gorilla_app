@@ -1,7 +1,8 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Card } from '../ui/Card';
 import { Target } from 'lucide-react';
 import { api } from '../../services/api';
+import { getCachedNotificationSettings, sendBrowserNotification } from '../../services/appNotifications';
 
 interface ActiveMissionsCardProps {
   onClick: () => void;
@@ -9,20 +10,63 @@ interface ActiveMissionsCardProps {
 
 export function ActiveMissionsCard({ onClick }: ActiveMissionsCardProps) {
   const [missions, setMissions] = useState<any[]>([]);
-  const userId = parseInt(localStorage.getItem('appUserId') || localStorage.getItem('userId') || '0');
+  const completedSnapshotRef = useRef<{ missions: number; challenges: number } | null>(null);
+  const appUser = JSON.parse(localStorage.getItem('appUser') || localStorage.getItem('user') || '{}');
+  const userId = parseInt(String(appUser?.id || localStorage.getItem('appUserId') || localStorage.getItem('userId') || '0'), 10);
 
   useEffect(() => {
     const fetchMissions = async () => {
+      if (!userId || userId <= 0) {
+        setMissions([]);
+        return;
+      }
       try {
-        const data = await api.getUserMissions(userId);
+        const [data, summary] = await Promise.all([
+          api.getUserMissions(userId),
+          api.getGamificationSummary(userId),
+        ]);
+
         if (Array.isArray(data)) {
           setMissions(data.filter(m => !m.completed).slice(0, 5));
         }
+
+        const completedMissions = Number(summary?.completedMissions || 0);
+        const completedChallenges = Number(summary?.completedChallenges || 0);
+        if (completedSnapshotRef.current) {
+          const notificationSettings = getCachedNotificationSettings();
+          if (notificationSettings.missionChallenge) {
+            if (completedMissions > completedSnapshotRef.current.missions) {
+              sendBrowserNotification('Mission completed', {
+                body: 'Great job. You just completed a mission.',
+                tag: 'mission-complete',
+              });
+            }
+            if (completedChallenges > completedSnapshotRef.current.challenges) {
+              sendBrowserNotification('Challenge completed', {
+                body: 'Awesome. You just completed a challenge.',
+                tag: 'challenge-complete',
+              });
+            }
+          }
+        }
+        completedSnapshotRef.current = { missions: completedMissions, challenges: completedChallenges };
       } catch (error) {
         console.error('Error fetching missions:', error);
       }
     };
-    fetchMissions();
+
+    const handleGamificationUpdated = () => {
+      void fetchMissions();
+    };
+
+    void fetchMissions();
+    window.addEventListener('gamification-updated', handleGamificationUpdated);
+    window.addEventListener('focus', handleGamificationUpdated);
+
+    return () => {
+      window.removeEventListener('gamification-updated', handleGamificationUpdated);
+      window.removeEventListener('focus', handleGamificationUpdated);
+    };
   }, [userId]);
 
   return (

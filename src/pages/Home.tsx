@@ -48,6 +48,7 @@ export function Home({ onNavigate }: HomeProps) {
   const [todayWorkoutData, setTodayWorkoutData] = useState<any>(null);
   const [workoutProgress, setWorkoutProgress] = useState(0);
   const [programProgress, setProgramProgress] = useState<any>(null);
+  const [showShopComingSoon, setShowShopComingSoon] = useState(false);
 
   useEffect(() => {
     // Get user name from localStorage
@@ -414,10 +415,32 @@ export function Home({ onNavigate }: HomeProps) {
           <GhostButton onClick={() => setView('nutrition')}>
             My Nutrition
           </GhostButton>
-          <GhostButton onClick={() => onNavigate('progress')}>
-            View History
+          <GhostButton onClick={() => setShowShopComingSoon(true)}>
+            Shop
           </GhostButton>
         </motion.div>
+
+        {showShopComingSoon && (
+          <div
+            className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-6"
+            onClick={() => setShowShopComingSoon(false)}
+          >
+            <div
+              className="w-full max-w-sm bg-card border border-white/10 rounded-2xl p-5 text-center"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <h3 className="text-lg font-bold text-white">Shop</h3>
+              <p className="text-sm text-text-secondary mt-2">Coming soon</p>
+              <button
+                type="button"
+                onClick={() => setShowShopComingSoon(false)}
+                className="mt-4 w-full bg-accent text-black py-2.5 rounded-lg font-semibold hover:bg-accent/90 transition-colors"
+              >
+                OK
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Agenda */}
         <AgendaSection userProgram={userProgram} />

@@ -25,6 +25,21 @@ export const socketService = {
     socket.emit('sendMessage', { senderId, senderType, receiverId, receiverType, message });
   },
 
+  sendTyping: (
+    senderId: number,
+    senderType: 'user' | 'coach',
+    receiverId: number,
+    receiverType: 'user' | 'coach',
+    isTyping: boolean,
+  ) => {
+    socket.emit(isTyping ? 'typing' : 'stopTyping', {
+      senderId,
+      senderType,
+      receiverId,
+      receiverType,
+    });
+  },
+
   onNewMessage: (callback: (message: any) => void) => {
     const handler = (msg: any) => {
       console.log('New message received:', msg);
@@ -38,8 +53,17 @@ export const socketService = {
     };
   },
 
+  onTyping: (callback: (payload: any) => void) => {
+    const handler = (payload: any) => callback(payload);
+    socket.on('typing', handler);
+    return () => {
+      socket.off('typing', handler);
+    };
+  },
+
   disconnect: () => {
     socket.off('newMessage');
+    socket.off('typing');
     socket.off('messageError');
   }
 };

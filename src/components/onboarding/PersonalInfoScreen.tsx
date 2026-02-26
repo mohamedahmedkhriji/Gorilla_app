@@ -43,10 +43,6 @@ export function PersonalInfoScreen({ onNext, onDataChange }: PersonalInfoScreenP
           {
             value: 'Female',
             label: 'Female'
-          },
-          {
-            value: 'Other',
-            label: 'Other'
           }]
           } />
 

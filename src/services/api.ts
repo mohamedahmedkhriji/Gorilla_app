@@ -1,5 +1,22 @@
 const API_URL = 'http://localhost:5001/api';
 
+const parseApiResponse = async (res: Response, fallbackError = 'Request failed') => {
+  const contentType = res.headers.get('content-type') || '';
+  if (!contentType.includes('application/json')) {
+    const text = await res.text();
+    throw new Error(
+      `Server returned non-JSON response (status ${res.status}). ` +
+      `If you just changed backend routes, restart backend. Response: ${text.slice(0, 120)}`
+    );
+  }
+
+  const data = await res.json();
+  if (!res.ok) {
+    throw new Error(data?.error || fallbackError);
+  }
+  return data;
+};
+
 export const api = {
   login: async (email: string, password: string, role: string) => {
     const res = await fetch(`${API_URL}/auth/login`, {
@@ -16,7 +33,11 @@ export const api = {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data)
     });
-    return res.json();
+    const body = await res.json();
+    if (!res.ok || body?.error) {
+      throw new Error(body?.error || 'Failed to create user');
+    }
+    return body;
   },
 
   getAllGyms: async () => {
@@ -66,6 +87,122 @@ export const api = {
     return res.json();
   },
 
+  generatePersonalizedProgram: async (userId: number, payload: any = {}) => {
+    const res = await fetch(`${API_URL}/user/${userId}/program/generate-personalized`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    return res.json();
+  },
+
+  saveCustomProgram: async (userId: number, payload: any = {}) => {
+    const res = await fetch(`${API_URL}/user/${userId}/program/custom`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    return parseApiResponse(res, 'Failed to save custom plan');
+  },
+
+  requestCustomProgramApproval: async (userId: number, payload: any = {}) => {
+    const res = await fetch(`${API_URL}/user/${userId}/program/custom/request`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    return parseApiResponse(res, 'Failed to submit custom plan for coach review');
+  },
+
+  getCoachProgramChangeRequests: async (coachId: number, status = '') => {
+    const params = new URLSearchParams();
+    if (status) params.set('status', status);
+    const query = params.toString();
+    const res = await fetch(`${API_URL}/coach/${coachId}/program-requests${query ? `?${query}` : ''}`);
+    return parseApiResponse(res, 'Failed to load coach program requests');
+  },
+
+  approveCoachProgramChangeRequest: async (coachId: number, requestId: number, reason = '') => {
+    const res = await fetch(`${API_URL}/coach/${coachId}/program-requests/${requestId}/approve`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ reason }),
+    });
+    return parseApiResponse(res, 'Failed to approve program request');
+  },
+
+  rejectCoachProgramChangeRequest: async (coachId: number, requestId: number, reason = '') => {
+    const res = await fetch(`${API_URL}/coach/${coachId}/program-requests/${requestId}/reject`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ reason }),
+    });
+    return parseApiResponse(res, 'Failed to reject program request');
+  },
+
+  adaptProgramBiWeekly: async (userId: number) => {
+    const res = await fetch(`${API_URL}/user/${userId}/program/adapt-biweekly`, {
+      method: 'POST',
+    });
+    return res.json();
+  },
+
+  getStrengthProgress: async (userId: number, weeks = 8) => {
+    const res = await fetch(`${API_URL}/progress/strength/${userId}?weeks=${weeks}`);
+    const contentType = res.headers.get('content-type') || '';
+    if (!contentType.includes('application/json')) {
+      const text = await res.text();
+      throw new Error(`Strength API returned non-JSON response (status ${res.status}): ${text.slice(0, 120)}`);
+    }
+    const data = await res.json();
+    if (!res.ok) {
+      throw new Error(data?.error || `Strength API request failed (${res.status})`);
+    }
+    return data;
+  },
+
+  getMuscleDistribution: async (userId: number, days = 30) => {
+    const res = await fetch(`${API_URL}/progress/muscle-distribution/${userId}?days=${days}`);
+    const contentType = res.headers.get('content-type') || '';
+    if (!contentType.includes('application/json')) {
+      const text = await res.text();
+      throw new Error(`Muscle API returned non-JSON response (status ${res.status}): ${text.slice(0, 120)}`);
+    }
+    const data = await res.json();
+    if (!res.ok) {
+      throw new Error(data?.error || `Muscle API request failed (${res.status})`);
+    }
+    return data;
+  },
+
+  getBiWeeklyReport: async (userId: number) => {
+    const res = await fetch(`${API_URL}/progress/bi-weekly-report/${userId}`);
+    const contentType = res.headers.get('content-type') || '';
+    if (!contentType.includes('application/json')) {
+      const text = await res.text();
+      throw new Error(`Bi-weekly API returned non-JSON response (status ${res.status}): ${text.slice(0, 120)}`);
+    }
+    const data = await res.json();
+    if (!res.ok) {
+      throw new Error(data?.error || `Bi-weekly API request failed (${res.status})`);
+    }
+    return data;
+  },
+
+  getOverloadPlan: async (userId: number) => {
+    const res = await fetch(`${API_URL}/progress/overload/${userId}`);
+    const contentType = res.headers.get('content-type') || '';
+    if (!contentType.includes('application/json')) {
+      const text = await res.text();
+      throw new Error(`Overload API returned non-JSON response (status ${res.status}): ${text.slice(0, 120)}`);
+    }
+    const data = await res.json();
+    if (!res.ok) {
+      throw new Error(data?.error || `Overload API request failed (${res.status})`);
+    }
+    return data;
+  },
+
   getRecoveryStatus: async (userId: number) => {
     const res = await fetch(`${API_URL}/user/${userId}/recovery`);
     return res.json();
@@ -113,6 +250,58 @@ export const api = {
     return res.json();
   },
 
+  clearNotifications: async (userId: number) => {
+    const res = await fetch(`${API_URL}/notifications/${userId}`, {
+      method: 'DELETE'
+    });
+    return res.json();
+  },
+
+  getNotificationSettings: async (userId: number) => {
+    const res = await fetch(`${API_URL}/notification-settings/${userId}`);
+    let data: any = null;
+    try {
+      data = await res.json();
+    } catch {
+      data = null;
+    }
+    if (res.status === 404) {
+      return {
+        coachMessages: true,
+        restTimer: true,
+        missionChallenge: true,
+      };
+    }
+    if (!res.ok) {
+      throw new Error(data?.error || 'Failed to fetch notification settings');
+    }
+    return data;
+  },
+
+  updateNotificationSettings: async (
+    userId: number,
+    data: { coachMessages: boolean; restTimer: boolean; missionChallenge: boolean },
+  ) => {
+    const res = await fetch(`${API_URL}/notification-settings/${userId}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
+    let body: any = null;
+    try {
+      body = await res.json();
+    } catch {
+      body = null;
+    }
+    if (res.status === 404) {
+      throw new Error('Notification settings endpoint not found. Restart backend server.');
+    }
+    if (!res.ok) {
+      throw new Error(body?.error || 'Failed to update notification settings');
+    }
+    return body;
+  },
+
   getMessages: async (userId: number, coachId: number) => {
     const res = await fetch(`${API_URL}/messages/${userId}/${coachId}`);
     return res.json();
@@ -134,6 +323,20 @@ export const api = {
 
   getAllUsers: async () => {
     const res = await fetch(`${API_URL}/users`);
+    return res.json();
+  },
+
+  getExerciseCatalogFilters: async () => {
+    const res = await fetch(`${API_URL}/exercises/catalog/filters`);
+    return res.json();
+  },
+
+  getExerciseCatalog: async (filter = 'All', search = '', limit = 300) => {
+    const params = new URLSearchParams();
+    if (filter) params.set('filter', filter);
+    if (search) params.set('search', search);
+    params.set('limit', String(limit));
+    const res = await fetch(`${API_URL}/exercises/catalog?${params.toString()}`);
     return res.json();
   },
 
@@ -166,6 +369,30 @@ export const api = {
     return res.json();
   },
 
+  getUserChallenges: async (userId: number) => {
+    const res = await fetch(`${API_URL}/challenges/${userId}`);
+    return res.json();
+  },
+
+  getChallengeHistory: async (userId: number) => {
+    const res = await fetch(`${API_URL}/challenges/${userId}/history`);
+    return res.json();
+  },
+
+  getGamificationSummary: async (userId: number) => {
+    const res = await fetch(`${API_URL}/gamification/${userId}/summary`);
+    return res.json();
+  },
+
+  getLeaderboard: async (userId: number, period: 'monthly' | 'alltime' = 'alltime') => {
+    const res = await fetch(`${API_URL}/leaderboard/${userId}?period=${period}`);
+    const data = await res.json();
+    if (!res.ok) {
+      throw new Error(data?.error || 'Failed to fetch leaderboard');
+    }
+    return data;
+  },
+
   updateProfilePicture: async (userId: number, profilePicture: string) => {
     const res = await fetch(`${API_URL}/profile/${userId}/picture`, {
       method: 'PUT',
@@ -186,5 +413,60 @@ export const api = {
       throw new Error(data?.error || 'Failed to fetch profile picture');
     }
     return data;
-  }
+  },
+
+  getProfileDetails: async (userId: number) => {
+    const res = await fetch(`${API_URL}/profile/${userId}/details`);
+    const data = await res.json();
+    if (!res.ok) {
+      throw new Error(data?.error || 'Failed to fetch profile details');
+    }
+    return data;
+  },
+
+  updateProfileDetails: async (userId: number, payload: any) => {
+    const res = await fetch(`${API_URL}/profile/${userId}/details`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      throw new Error(data?.error || 'Failed to update profile details');
+    }
+    return data;
+  },
+
+  updateProfilePassword: async (
+    userId: number,
+    payload: { oldPassword: string; newPassword: string; confirmPassword: string },
+  ) => {
+    const res = await fetch(`${API_URL}/profile/${userId}/password`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      throw new Error(data?.error || 'Failed to update password');
+    }
+    return data;
+  },
+
+  getProfileStats: async (userId: number) => {
+    const res = await fetch(`${API_URL}/profile/${userId}/stats`);
+    const contentType = res.headers.get('content-type') || '';
+    if (!contentType.includes('application/json')) {
+      if (res.status === 404) {
+        return { completedExercises: 0, firstCompletedAt: null, rankPosition: 0, totalMembers: 0 };
+      }
+      const text = await res.text();
+      throw new Error(`Profile stats API returned non-JSON response (status ${res.status}): ${text.slice(0, 120)}`);
+    }
+    const data = await res.json();
+    if (!res.ok) {
+      throw new Error(data?.error || 'Failed to fetch profile stats');
+    }
+    return data;
+  },
 };

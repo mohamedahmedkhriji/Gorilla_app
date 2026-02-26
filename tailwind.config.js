@@ -8,12 +8,20 @@ export default {
   theme: {
     extend: {
       colors: {
-        background: '#1A1A1A', // Lighter dark background
-        card: '#242424',       // Lighter dark charcoal
-        accent: '#BFFF00',     // Neon Lime Green
-        'text-primary': '#FFFFFF',
-        'text-secondary': 'rgba(255, 255, 255, 0.7)',
-        'text-tertiary': 'rgba(255, 255, 255, 0.4)',
+        background: 'rgb(var(--color-background) / <alpha-value>)',
+        'background-secondary': 'rgb(var(--color-background-secondary) / <alpha-value>)',
+        'section-background': 'rgb(var(--color-section-background) / <alpha-value>)',
+        card: 'rgb(var(--color-card) / <alpha-value>)',
+        accent: 'rgb(var(--color-accent) / <alpha-value>)',
+        'accent-dark': 'rgb(var(--color-accent-dark) / <alpha-value>)',
+        'accent-soft': 'rgb(var(--color-accent-soft-bg) / <alpha-value>)',
+        'text-primary': 'rgb(var(--color-text-primary) / <alpha-value>)',
+        'text-secondary': 'rgb(var(--color-text-secondary) / <alpha-value>)',
+        'text-tertiary': 'rgb(var(--color-text-tertiary) / <alpha-value>)',
+        success: 'rgb(var(--color-success) / <alpha-value>)',
+        error: 'rgb(var(--color-error) / <alpha-value>)',
+        info: 'rgb(var(--color-info) / <alpha-value>)',
+        purple: 'rgb(var(--color-purple) / <alpha-value>)',
       },
       fontFamily: {
         sans: [
@@ -27,7 +35,7 @@ export default {
         ],
       },
       boxShadow: {
-        'glow': '0 0 20px rgba(191, 255, 0, 0.3)',
+        'glow': '0 0 20px rgb(var(--color-accent) / 0.3)',
       }
     },
   },

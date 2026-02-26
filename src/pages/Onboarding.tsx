@@ -1,4 +1,4 @@
-import React, { useState, Component } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { OnboardingLayout } from '../components/onboarding/OnboardingLayout';
 import { WelcomeScreen } from '../components/onboarding/WelcomeScreen';
 import { PersonalInfoScreen } from '../components/onboarding/PersonalInfoScreen';
@@ -23,7 +23,7 @@ export function Onboarding({ onComplete }: OnboardingProps) {
   const next = () => setStep((s) => s + 1);
   const back = () => setStep((s) => s - 1);
   
-  const handleComplete = async () => {
+  const handleComplete = useCallback(async () => {
     try {
       const user = JSON.parse(localStorage.getItem('appUser') || localStorage.getItem('user') || '{}');
       user.onboarding_completed = true;
@@ -36,7 +36,7 @@ export function Onboarding({ onComplete }: OnboardingProps) {
       console.error('Error:', error);
       onComplete();
     }
-  };
+  }, [onComplete]);
   const steps = [
   {
     component: WelcomeScreen,
@@ -78,11 +78,14 @@ export function Onboarding({ onComplete }: OnboardingProps) {
   }];
 
   const CurrentComponent = steps[step]?.component;
-  
-  if (!CurrentComponent) {
-    handleComplete();
-    return null;
-  }
+
+  useEffect(() => {
+    if (!CurrentComponent) {
+      void handleComplete();
+    }
+  }, [CurrentComponent, handleComplete]);
+
+  if (!CurrentComponent) return null;
   
   return (
     <OnboardingLayout

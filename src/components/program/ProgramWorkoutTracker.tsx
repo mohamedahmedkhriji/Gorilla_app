@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { ArrowLeft, Check, Plus, Trash2, Timer, TrendingUp } from 'lucide-react';
+import { api } from '../../services/api';
 
 interface ProgramWorkoutTrackerProps {
   day: any;
@@ -53,7 +54,7 @@ export const ProgramWorkoutTracker: React.FC<ProgramWorkoutTrackerProps> = ({ da
     setExercises(updated);
   };
 
-  const handleFinish = () => {
+  const handleFinish = async () => {
     const workoutData = {
       date: new Date(),
       weekNumber,
@@ -68,6 +69,44 @@ export const ProgramWorkoutTracker: React.FC<ProgramWorkoutTrackerProps> = ({ da
 
     const activeProgram = JSON.parse(localStorage.getItem('activeProgram') || '{}');
     localStorage.setItem('activeProgram', JSON.stringify({ ...activeProgram, lastWorkout: new Date() }));
+
+    const user = JSON.parse(localStorage.getItem('appUser') || localStorage.getItem('user') || '{}');
+    const userId = Number(user?.id || 0);
+
+    if (userId > 0) {
+      try {
+        const saves: Promise<any>[] = [];
+
+        exercises.forEach((exercise: any) => {
+          const exerciseName = String(exercise?.name || exercise?.exerciseName || '').trim();
+          if (!exerciseName) return;
+
+          const setsList = Array.isArray(exercise?.sets) ? exercise.sets : [];
+          setsList.forEach((set: any, idx: number) => {
+            if (!set?.completed) return;
+            saves.push(
+              api.saveWorkoutSet({
+                userId,
+                exerciseName,
+                setNumber: idx + 1,
+                reps: Number(set?.reps || 0),
+                weight: Number(set?.weight || 0),
+                completed: true,
+              }),
+            );
+          });
+        });
+
+        if (saves.length) {
+          await Promise.allSettled(saves);
+          window.dispatchEvent(new CustomEvent('gamification-updated'));
+          localStorage.setItem('recoveryNeedsUpdate', 'true');
+          window.dispatchEvent(new CustomEvent('recovery-updated'));
+        }
+      } catch (error) {
+        console.error('Failed to persist program workout sets:', error);
+      }
+    }
 
     onComplete();
   };

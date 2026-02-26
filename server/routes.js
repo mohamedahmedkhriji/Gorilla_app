@@ -1,5 +1,6 @@
 import express from 'express';
 import pool from './database.js';
+import { adaptProgramBiWeekly, generatePersonalizedProgram } from './services/planGenerator.js';
 
 const router = express.Router();
 
@@ -198,6 +199,34 @@ const parseMuscleGroups = (rawValue) => {
   return [];
 };
 
+const normalizeExerciseLookupName = (value = '') =>
+  String(value ?? '')
+    .replace(/[\u200B-\u200D\uFEFF]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim();
+
+const normalizeCatalogRecoveryMuscle = (muscle = '') => {
+  const key = String(muscle || '').trim().toLowerCase();
+  if (!key) return null;
+
+  if (/(chest|pector)/.test(key)) return 'Chest';
+  if (/(lat|back|trap|rhomboid|erector|spine|middle back|lower back|upper back)/.test(key)) return 'Back';
+  if (/(quad|quadricep|thigh|leg extension|front leg)/.test(key)) return 'Quadriceps';
+  if (/(hamstring|glute|adductor|abductor|hip|posterior chain)/.test(key)) return 'Hamstrings';
+  if (/(shoulder|delt)/.test(key)) return 'Shoulders';
+  if (/(bicep)/.test(key)) return 'Biceps';
+  if (/(tricep)/.test(key)) return 'Triceps';
+  if (/(forearm|wrist|grip)/.test(key)) return 'Forearms';
+  if (/(calf)/.test(key)) return 'Calves';
+  if (/(abs|abdom|core|oblique|serratus)/.test(key)) return 'Abs';
+  if (/legs?/.test(key)) return 'Quadriceps';
+
+  return normalizeMuscleName(key);
+};
+
 const inferMusclesFromExerciseName = (exerciseName = '') => {
   const name = String(exerciseName).toLowerCase();
 
@@ -215,6 +244,124 @@ const inferMusclesFromExerciseName = (exerciseName = '') => {
   return [...new Set(matches.map(normalizeMuscleName).filter(Boolean))];
 };
 
+const deriveIntensityFromRpe = (rpeValue) => {
+  const normalized = Number(rpeValue);
+  if (!Number.isFinite(normalized)) return 'moderate';
+  if (normalized >= 8) return 'high';
+  if (normalized <= 5) return 'low';
+  return 'moderate';
+};
+
+const deriveVolumeFromSetCount = (setCount) => {
+  const count = Number(setCount || 0);
+  if (count >= 5) return 'high';
+  if (count <= 2) return 'low';
+  return 'moderate';
+};
+
+const computeCatalogRecoveryLoadMultiplier = (profile = {}, loadFactor = 1) => {
+  const systemic = Number(profile.systemicStressScore ?? 1);
+  const cns = Number(profile.cnsLoadScore ?? 1);
+  const weightedStress = (systemic * 0.65) + (cns * 0.35);
+  const raw = weightedStress * Number(loadFactor || 1);
+  if (!Number.isFinite(raw) || raw <= 0) return 1;
+  return Math.max(0.5, Math.min(2.5, Number(raw.toFixed(3))));
+};
+
+const resolveCatalogIdsByNormalizedNames = async (normalizedNames = []) => {
+  const uniqueNames = [...new Set(normalizedNames.map((name) => String(name || '').trim()).filter(Boolean))];
+  const mapping = new Map();
+  if (!uniqueNames.length) return mapping;
+
+  // Keep IN queries bounded to avoid oversized statements.
+  const chunkSize = 200;
+  for (let i = 0; i < uniqueNames.length; i += chunkSize) {
+    const chunk = uniqueNames.slice(i, i + chunkSize);
+    const placeholders = chunk.map(() => '?').join(', ');
+    const [rows] = await pool.execute(
+      `SELECT resolved.normalized_name, MIN(resolved.exercise_catalog_id) AS exercise_catalog_id
+       FROM (
+         SELECT ea.alias_normalized AS normalized_name, ea.exercise_catalog_id
+         FROM exercise_aliases ea
+         WHERE ea.alias_normalized IN (${placeholders})
+         UNION ALL
+         SELECT ec.normalized_name AS normalized_name, ec.id AS exercise_catalog_id
+         FROM exercise_catalog ec
+         WHERE ec.normalized_name IN (${placeholders}) AND ec.is_active = 1
+       ) resolved
+       GROUP BY resolved.normalized_name`,
+      [...chunk, ...chunk],
+    );
+
+    rows.forEach((row) => {
+      const key = String(row.normalized_name || '').trim();
+      const value = Number(row.exercise_catalog_id || 0);
+      if (key && value > 0) mapping.set(key, value);
+    });
+  }
+
+  return mapping;
+};
+
+const getCatalogRecoveryContexts = async (catalogIds = []) => {
+  const ids = [...new Set(catalogIds.map((id) => Number(id)).filter((id) => Number.isFinite(id) && id > 0))];
+  const contexts = new Map();
+  if (!ids.length) return contexts;
+
+  const placeholders = ids.map(() => '?').join(', ');
+  const [rows] = await pool.execute(
+    `SELECT
+       ec.id AS exercise_catalog_id,
+       ec.body_part,
+       ecm.muscle_group,
+       COALESCE(ecm.load_factor, 1) AS load_factor,
+       COALESCE(erp.systemic_stress_score, 1) AS systemic_stress_score,
+       COALESCE(erp.cns_load_score, 1) AS cns_load_score,
+       COALESCE(erp.eccentric_bias_score, 1) AS eccentric_bias_score
+     FROM exercise_catalog ec
+     LEFT JOIN exercise_catalog_muscles ecm ON ecm.exercise_catalog_id = ec.id
+     LEFT JOIN exercise_recovery_profile erp ON erp.exercise_catalog_id = ec.id
+     WHERE ec.id IN (${placeholders})`,
+    ids,
+  );
+
+  rows.forEach((row) => {
+    const catalogId = Number(row.exercise_catalog_id || 0);
+    if (!catalogId) return;
+
+    if (!contexts.has(catalogId)) {
+      contexts.set(catalogId, {
+        musclesByName: new Map(),
+        profile: {
+          systemicStressScore: Number(row.systemic_stress_score || 1),
+          cnsLoadScore: Number(row.cns_load_score || 1),
+          eccentricBiasScore: Number(row.eccentric_bias_score || 1),
+        },
+      });
+    }
+
+    const context = contexts.get(catalogId);
+    const normalizedMuscle = normalizeCatalogRecoveryMuscle(row.muscle_group || row.body_part || '');
+    if (!normalizedMuscle) return;
+
+    const currentLoad = context.musclesByName.get(normalizedMuscle) || 0;
+    const nextLoad = Math.max(currentLoad, Number(row.load_factor || 1));
+    context.musclesByName.set(normalizedMuscle, nextLoad);
+  });
+
+  contexts.forEach((context, catalogId) => {
+    contexts.set(catalogId, {
+      profile: context.profile,
+      muscles: Array.from(context.musclesByName.entries()).map(([muscle, loadFactor]) => ({
+        muscle,
+        loadFactor,
+      })),
+    });
+  });
+
+  return contexts;
+};
+
 const calculateRecoveryHours = ({
   muscleGroup,
   intensity = 'moderate',
@@ -225,6 +372,7 @@ const calculateRecoveryHours = ({
   nutritionQuality = 'optimal',
   stressLevel = 'moderate',
   proteinIntake = null,
+  loadMultiplier = 1,
 }) => {
   const canonicalMuscle = normalizeMuscleName(muscleGroup) || 'Chest';
   const base = BASE_RECOVERY_TIMES[canonicalMuscle] || 48;
@@ -238,6 +386,7 @@ const calculateRecoveryHours = ({
   hours *= NUTRITION_FACTORS[nutritionQuality] || 1.0;
   hours *= STRESS_FACTORS[stressLevel] || 1.0;
   hours *= getProteinFactor(proteinIntake);
+  hours *= Number.isFinite(Number(loadMultiplier)) ? Number(loadMultiplier) : 1;
 
   return Number(Math.max(12, hours).toFixed(2));
 };
@@ -321,6 +470,806 @@ const clampWorkoutDays = (days, fallback = 4) => {
   return Math.max(2, Math.min(6, Math.round(n)));
 };
 
+const RANK_TIERS = [
+  { name: 'Bronze', minPoints: 0 },
+  { name: 'Silver', minPoints: 150 },
+  { name: 'Gold', minPoints: 400 },
+  { name: 'Platinum', minPoints: 800 },
+  { name: 'Diamond', minPoints: 1400 },
+  { name: 'Elite', minPoints: 2200 },
+];
+
+const clampPercentage = (value) => Math.max(0, Math.min(100, Number(value || 0)));
+
+const getRankFromPoints = (points = 0) => {
+  const normalized = Math.max(0, Math.round(Number(points || 0)));
+  const matched = [...RANK_TIERS].reverse().find((tier) => normalized >= tier.minPoints);
+  return matched?.name || 'Bronze';
+};
+
+const getNextRankInfo = (points = 0) => {
+  const normalized = Math.max(0, Math.round(Number(points || 0)));
+  const next = RANK_TIERS.find((tier) => normalized < tier.minPoints);
+  if (!next) return null;
+  return {
+    name: next.name,
+    minPoints: next.minPoints,
+    pointsNeeded: Math.max(0, next.minPoints - normalized),
+  };
+};
+
+const getStartOfDay = (base = new Date()) => {
+  const d = new Date(base);
+  d.setHours(0, 0, 0, 0);
+  return d;
+};
+
+const getEndOfDay = (base = new Date()) => {
+  const d = new Date(base);
+  d.setHours(23, 59, 59, 999);
+  return d;
+};
+
+const getStartOfWeek = (base = new Date()) => {
+  const d = getStartOfDay(base);
+  const day = (d.getDay() + 6) % 7; // Monday = 0
+  d.setDate(d.getDate() - day);
+  return d;
+};
+
+const getEndOfWeek = (base = new Date()) => {
+  const d = getStartOfWeek(base);
+  d.setDate(d.getDate() + 6);
+  d.setHours(23, 59, 59, 999);
+  return d;
+};
+
+const getDailyInstanceKey = (base = new Date()) => formatDateISO(base);
+const getWeeklyInstanceKey = (base = new Date()) => `week:${formatDateISO(getStartOfWeek(base))}`;
+
+const estimateRecoveryScoreFromFactors = ({
+  sleepHours = 7,
+  nutritionQuality = 'optimal',
+  stressLevel = 'moderate',
+  proteinIntake = null,
+}) => {
+  const sleep = Number(sleepHours || 0);
+  const protein = Number(proteinIntake || 0);
+
+  const sleepScore = sleep >= 8 ? 40 : sleep >= 7 ? 34 : sleep >= 6 ? 26 : 16;
+  const nutritionScore = nutritionQuality === 'optimal' ? 28 : 18;
+  const stressScore = stressLevel === 'low' ? 24 : stressLevel === 'moderate' ? 16 : 8;
+  const proteinScore = protein >= 1.6 ? 8 : protein >= 1.0 ? 6 : 3;
+
+  return clampPercentage(Math.round(sleepScore + nutritionScore + stressScore + proteinScore));
+};
+
+const getMetricValue = (metrics, metricKey) => {
+  const key = String(metricKey || '').toLowerCase().trim();
+  return Math.max(0, Number(metrics?.[key] || 0));
+};
+
+const WEEKLY_ACTIVE_MISSION_TARGET = 5;
+
+const ensureNotificationSettingsInfrastructure = async () => {
+  await pool.execute(
+    `CREATE TABLE IF NOT EXISTS user_notification_settings (
+      user_id INT UNSIGNED PRIMARY KEY,
+      coach_messages TINYINT(1) NOT NULL DEFAULT 1,
+      rest_timer TINYINT(1) NOT NULL DEFAULT 1,
+      mission_challenge TINYINT(1) NOT NULL DEFAULT 1,
+      updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      CONSTRAINT fk_notification_settings_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    ) ENGINE=InnoDB`,
+  );
+};
+
+const ensureGamificationInfrastructure = async () => {
+  await pool.execute(
+    `CREATE TABLE IF NOT EXISTS missions (
+      id INT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
+      title VARCHAR(255) NOT NULL,
+      description TEXT NULL,
+      mission_type ENUM('daily', 'weekly', 'monthly', 'achievement') NOT NULL,
+      category VARCHAR(50) NULL,
+      metric_key VARCHAR(100) NULL,
+      target_value INT UNSIGNED NOT NULL DEFAULT 1,
+      points_reward INT NOT NULL DEFAULT 0,
+      badge_icon VARCHAR(100) NULL,
+      is_active TINYINT(1) NOT NULL DEFAULT 1,
+      starts_at DATETIME NULL,
+      expires_at DATETIME NULL,
+      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      INDEX idx_missions_active (is_active),
+      INDEX idx_missions_type (mission_type)
+    ) ENGINE=InnoDB`
+  );
+
+  await pool.execute(
+    `CREATE TABLE IF NOT EXISTS user_missions (
+      id BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
+      user_id INT UNSIGNED NOT NULL,
+      mission_id INT UNSIGNED NOT NULL,
+      instance_key VARCHAR(30) NOT NULL DEFAULT 'default',
+      current_progress INT UNSIGNED NOT NULL DEFAULT 0,
+      baseline_value INT UNSIGNED NOT NULL DEFAULT 0,
+      target_value INT UNSIGNED NOT NULL,
+      status ENUM('active', 'completed', 'expired') NOT NULL DEFAULT 'active',
+      completed_at DATETIME NULL,
+      expires_at DATETIME NULL,
+      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      CONSTRAINT fk_user_missions_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+      CONSTRAINT fk_user_missions_mission FOREIGN KEY (mission_id) REFERENCES missions(id) ON DELETE CASCADE,
+      UNIQUE KEY uk_user_missions_unique_instance (user_id, mission_id, instance_key),
+      INDEX idx_user_missions_user_status (user_id, status)
+    ) ENGINE=InnoDB`
+  );
+
+  const [baselineColumnRows] = await pool.execute(
+    `SELECT 1
+     FROM information_schema.columns
+     WHERE table_schema = DATABASE()
+       AND table_name = 'user_missions'
+       AND column_name = 'baseline_value'
+     LIMIT 1`,
+  );
+
+  if (!baselineColumnRows.length) {
+    await pool.execute(
+      `ALTER TABLE user_missions
+       ADD COLUMN baseline_value INT UNSIGNED NOT NULL DEFAULT 0 AFTER current_progress`,
+    );
+  }
+
+  await pool.execute(
+    `CREATE TABLE IF NOT EXISTS challenge_templates (
+      id INT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
+      title VARCHAR(255) NOT NULL,
+      description TEXT NULL,
+      challenge_type ENUM('daily', 'weekly') NOT NULL,
+      category VARCHAR(50) NULL,
+      metric_key VARCHAR(100) NOT NULL,
+      target_value INT UNSIGNED NOT NULL DEFAULT 1,
+      points_reward INT NOT NULL DEFAULT 0,
+      is_active TINYINT(1) NOT NULL DEFAULT 1,
+      starts_at DATETIME NULL,
+      expires_at DATETIME NULL,
+      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      INDEX idx_challenge_templates_active_type (is_active, challenge_type)
+    ) ENGINE=InnoDB`
+  );
+
+  await pool.execute(
+    `CREATE TABLE IF NOT EXISTS user_challenges (
+      id BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
+      user_id INT UNSIGNED NOT NULL,
+      challenge_template_id INT UNSIGNED NOT NULL,
+      instance_key VARCHAR(30) NOT NULL,
+      current_progress INT UNSIGNED NOT NULL DEFAULT 0,
+      target_value INT UNSIGNED NOT NULL,
+      status ENUM('active', 'completed', 'expired') NOT NULL DEFAULT 'active',
+      completed_at DATETIME NULL,
+      expires_at DATETIME NULL,
+      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      CONSTRAINT fk_user_challenges_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+      CONSTRAINT fk_user_challenges_template FOREIGN KEY (challenge_template_id) REFERENCES challenge_templates(id) ON DELETE CASCADE,
+      UNIQUE KEY uk_user_challenges_instance (user_id, challenge_template_id, instance_key),
+      INDEX idx_user_challenges_user_status (user_id, status)
+    ) ENGINE=InnoDB`
+  );
+
+  const missionSeeds = [
+    {
+      title: 'Workout Starter',
+      description: 'Complete 5 workout days',
+      missionType: 'weekly',
+      category: 'workout',
+      metricKey: 'workouts_completed',
+      targetValue: 5,
+      pointsReward: 20,
+      badgeIcon: 'flame',
+    },
+    {
+      title: 'Getting Started',
+      description: 'Complete 10 workout days',
+      missionType: 'weekly',
+      category: 'workout',
+      metricKey: 'workouts_completed',
+      targetValue: 10,
+      pointsReward: 50,
+      badgeIcon: 'dumbbell',
+    },
+    {
+      title: 'Workout Machine',
+      description: 'Complete 20 workout days',
+      missionType: 'weekly',
+      category: 'workout',
+      metricKey: 'workouts_completed',
+      targetValue: 20,
+      pointsReward: 90,
+      badgeIcon: 'zap',
+    },
+    {
+      title: 'Recovery Habit',
+      description: 'Log recovery on 5 days',
+      missionType: 'weekly',
+      category: 'recovery',
+      metricKey: 'recovery_logs_total',
+      targetValue: 5,
+      pointsReward: 25,
+      badgeIcon: 'heart',
+    },
+    {
+      title: 'Recovery Master',
+      description: 'Log recovery on 12 days',
+      missionType: 'weekly',
+      category: 'recovery',
+      metricKey: 'recovery_logs_total',
+      targetValue: 12,
+      pointsReward: 55,
+      badgeIcon: 'heart-pulse',
+    },
+    {
+      title: 'Streak Starter',
+      description: 'Reach a 3-day recovery streak',
+      missionType: 'weekly',
+      category: 'recovery',
+      metricKey: 'recovery_streak_days',
+      targetValue: 3,
+      pointsReward: 20,
+      badgeIcon: 'sparkles',
+    },
+    {
+      title: 'Streak Warrior',
+      description: 'Reach a 7-day recovery streak',
+      missionType: 'weekly',
+      category: 'recovery',
+      metricKey: 'recovery_streak_days',
+      targetValue: 7,
+      pointsReward: 45,
+      badgeIcon: 'shield',
+    },
+    {
+      title: 'Consistency King',
+      description: 'Train for 30 workout days',
+      missionType: 'monthly',
+      category: 'streak',
+      metricKey: 'training_days',
+      targetValue: 30,
+      pointsReward: 100,
+      badgeIcon: 'crown',
+    },
+  ];
+
+  for (const seed of missionSeeds) {
+    await pool.execute(
+      `INSERT INTO missions
+         (title, description, mission_type, category, metric_key, target_value, points_reward, badge_icon, is_active)
+       SELECT ?, ?, ?, ?, ?, ?, ?, ?, 1
+       WHERE NOT EXISTS (
+         SELECT 1 FROM missions WHERE title = ?
+       )`,
+      [
+        seed.title,
+        seed.description,
+        seed.missionType,
+        seed.category,
+        seed.metricKey,
+        seed.targetValue,
+        seed.pointsReward,
+        seed.badgeIcon,
+        seed.title,
+      ],
+    );
+  }
+
+  await pool.execute(
+    `UPDATE missions
+     SET description = 'Complete 10 workouts', metric_key = 'workouts_completed', target_value = 10
+     WHERE title = 'Getting Started'`,
+  );
+
+  await pool.execute(
+    `UPDATE missions
+     SET description = 'Complete 5 workouts', metric_key = 'workouts_completed', target_value = 5
+     WHERE title = 'Workout Starter'`,
+  );
+
+  await pool.execute(
+    `UPDATE missions
+     SET description = 'Complete 20 workouts', metric_key = 'workouts_completed', target_value = 20
+     WHERE title = 'Workout Machine'`,
+  );
+
+  await pool.execute(
+    `INSERT INTO challenge_templates (title, description, challenge_type, category, metric_key, target_value, points_reward, is_active)
+     SELECT 'Daily Iron Habit', 'Complete at least one workout today', 'daily', 'workout', 'workout_days_today', 1, 15, 1
+     WHERE NOT EXISTS (
+       SELECT 1 FROM challenge_templates WHERE metric_key = 'workout_days_today' AND challenge_type = 'daily'
+     )`
+  );
+
+  await pool.execute(
+    `INSERT INTO challenge_templates (title, description, challenge_type, category, metric_key, target_value, points_reward, is_active)
+     SELECT 'Daily Recovery Check', 'Submit your recovery check-in today', 'daily', 'recovery', 'recovery_logs_today', 1, 10, 1
+     WHERE NOT EXISTS (
+       SELECT 1 FROM challenge_templates WHERE metric_key = 'recovery_logs_today' AND challenge_type = 'daily'
+     )`
+  );
+
+  await pool.execute(
+    `INSERT INTO challenge_templates (title, description, challenge_type, category, metric_key, target_value, points_reward, is_active)
+     SELECT 'Weekly Workout Consistency', 'Train on 4 different days this week', 'weekly', 'workout', 'workout_days_this_week', 4, 45, 1
+     WHERE NOT EXISTS (
+       SELECT 1 FROM challenge_templates WHERE metric_key = 'workout_days_this_week' AND challenge_type = 'weekly'
+     )`
+  );
+
+  await pool.execute(
+    `INSERT INTO challenge_templates (title, description, challenge_type, category, metric_key, target_value, points_reward, is_active)
+     SELECT 'Weekly Recovery Discipline', 'Log recovery on 5 days this week', 'weekly', 'recovery', 'recovery_logs_this_week', 5, 35, 1
+     WHERE NOT EXISTS (
+       SELECT 1 FROM challenge_templates WHERE metric_key = 'recovery_logs_this_week' AND challenge_type = 'weekly'
+     )`
+  );
+};
+
+const gamificationReady = ensureGamificationInfrastructure()
+  .catch((error) => {
+    console.error('Failed to initialize gamification infrastructure:', error?.message || error);
+    throw error;
+  });
+
+const collectUserGamificationMetrics = async (userId, baseDate = new Date()) => {
+  const startOfWeek = formatDateISO(getStartOfWeek(baseDate));
+  const endOfWeek = formatDateISO(getEndOfWeek(baseDate));
+
+  const [
+    [workoutCompletionRows],
+    [trainingDaysRows],
+    [workoutTodayRows],
+    [workoutWeekRows],
+    [recoveryTotalRows],
+    [recoveryTodayRows],
+    [recoveryWeekRows],
+    [recoveryDateRows],
+  ] = await Promise.all([
+    pool.execute(
+      `SELECT COUNT(
+          DISTINCT COALESCE(
+            CONCAT('session:', session_id),
+            CONCAT('day_exercise:', DATE(created_at), '|', LOWER(TRIM(exercise_name)))
+          )
+        ) AS c
+       FROM workout_sets
+       WHERE user_id = ? AND completed = 1`,
+      [userId],
+    ),
+    pool.execute(
+      `SELECT COUNT(DISTINCT DATE(created_at)) AS c
+       FROM workout_sets
+       WHERE user_id = ? AND completed = 1`,
+      [userId],
+    ),
+    pool.execute(
+      `SELECT COUNT(DISTINCT DATE(created_at)) AS c
+       FROM workout_sets
+       WHERE user_id = ? AND completed = 1 AND DATE(created_at) = CURDATE()`,
+      [userId],
+    ),
+    pool.execute(
+      `SELECT COUNT(DISTINCT DATE(created_at)) AS c
+       FROM workout_sets
+       WHERE user_id = ? AND completed = 1 AND DATE(created_at) BETWEEN ? AND ?`,
+      [userId, startOfWeek, endOfWeek],
+    ),
+    pool.execute(
+      `SELECT COUNT(DISTINCT DATE(recorded_at)) AS c
+       FROM recovery_history
+       WHERE user_id = ?`,
+      [userId],
+    ),
+    pool.execute(
+      `SELECT COUNT(DISTINCT DATE(recorded_at)) AS c
+       FROM recovery_history
+       WHERE user_id = ? AND DATE(recorded_at) = CURDATE()`,
+      [userId],
+    ),
+    pool.execute(
+      `SELECT COUNT(DISTINCT DATE(recorded_at)) AS c
+       FROM recovery_history
+       WHERE user_id = ? AND DATE(recorded_at) BETWEEN ? AND ?`,
+      [userId, startOfWeek, endOfWeek],
+    ),
+    pool.execute(
+      `SELECT DISTINCT DATE(recorded_at) AS log_date
+       FROM recovery_history
+       WHERE user_id = ?
+       ORDER BY log_date DESC
+       LIMIT 180`,
+      [userId],
+    ),
+  ]);
+
+  const recoveryDateSet = new Set(
+    recoveryDateRows
+      .map((row) => row.log_date ? formatDateISO(row.log_date) : null)
+      .filter(Boolean),
+  );
+
+  let recoveryStreakDays = 0;
+  const cursor = getStartOfDay(baseDate);
+  for (let i = 0; i < 180; i += 1) {
+    const key = formatDateISO(cursor);
+    if (!recoveryDateSet.has(key)) break;
+    recoveryStreakDays += 1;
+    cursor.setDate(cursor.getDate() - 1);
+  }
+
+  const workoutsCompleted = Number(workoutCompletionRows[0]?.c || 0);
+  const trainingDays = Number(trainingDaysRows[0]?.c || 0);
+  const workoutDaysToday = Number(workoutTodayRows[0]?.c || 0);
+  const workoutDaysThisWeek = Number(workoutWeekRows[0]?.c || 0);
+  const recoveryLogsTotal = Number(recoveryTotalRows[0]?.c || 0);
+  const recoveryLogsToday = Number(recoveryTodayRows[0]?.c || 0);
+  const recoveryLogsThisWeek = Number(recoveryWeekRows[0]?.c || 0);
+
+  return {
+    workouts_completed: workoutsCompleted,
+    training_days: trainingDays,
+    workout_days_today: workoutDaysToday,
+    workout_days_this_week: workoutDaysThisWeek,
+    recovery_logs_total: recoveryLogsTotal,
+    recovery_logs_today: recoveryLogsToday,
+    recovery_logs_this_week: recoveryLogsThisWeek,
+    recovery_streak_days: recoveryStreakDays,
+  };
+};
+
+const assignWeeklyMissionSlots = async (userId, metrics, now = new Date()) => {
+  const currentWeekKey = getWeeklyInstanceKey(now);
+
+  const [userMissionRows] = await pool.execute(
+    `SELECT mission_id, instance_key, status
+     FROM user_missions
+     WHERE user_id = ?`,
+    [userId],
+  );
+
+  const activeRows = userMissionRows.filter((row) => row.status === 'active');
+  const hasAnyAssignments = userMissionRows.length > 0;
+  const hasAssignmentThisWeek = userMissionRows.some((row) => row.instance_key === currentWeekKey);
+
+  let slotsToFill = 0;
+  if (!hasAnyAssignments) {
+    slotsToFill = WEEKLY_ACTIVE_MISSION_TARGET;
+  } else if (activeRows.length < WEEKLY_ACTIVE_MISSION_TARGET && !hasAssignmentThisWeek) {
+    slotsToFill = WEEKLY_ACTIVE_MISSION_TARGET - activeRows.length;
+  }
+
+  if (slotsToFill <= 0) return;
+
+  const [missionTemplates] = await pool.execute(
+    `SELECT id, metric_key, target_value, expires_at
+     FROM missions
+     WHERE is_active = 1
+       AND (starts_at IS NULL OR starts_at <= NOW())
+       AND (expires_at IS NULL OR expires_at >= NOW())
+     ORDER BY id ASC`,
+  );
+
+  if (!missionTemplates.length) return;
+
+  const activeMissionIds = new Set(activeRows.map((row) => Number(row.mission_id)));
+  let candidates = missionTemplates.filter((mission) => !activeMissionIds.has(Number(mission.id)));
+  if (candidates.length < slotsToFill) {
+    candidates = missionTemplates;
+  }
+
+  const selectedMissions = candidates.slice(0, slotsToFill);
+
+  for (const mission of selectedMissions) {
+    const target = Math.max(1, Number(mission.target_value || 1));
+    const baselineValue = Math.floor(getMetricValue(metrics, mission.metric_key));
+
+    await pool.execute(
+      `INSERT INTO user_missions
+         (user_id, mission_id, instance_key, current_progress, baseline_value, target_value, status, completed_at, expires_at)
+       VALUES (?, ?, ?, 0, ?, ?, 'active', NULL, ?)
+       ON DUPLICATE KEY UPDATE
+         updated_at = CURRENT_TIMESTAMP`,
+      [
+        userId,
+        Number(mission.id),
+        currentWeekKey,
+        baselineValue,
+        target,
+        mission.expires_at || null,
+      ],
+    );
+  }
+};
+
+const syncUserMissionProgress = async (userId, metrics, now = new Date()) => {
+  await assignWeeklyMissionSlots(userId, metrics, now);
+
+  const [rows] = await pool.execute(
+    `SELECT
+       um.id AS user_mission_id,
+       um.mission_id,
+       um.instance_key,
+       um.current_progress,
+       um.baseline_value,
+       um.target_value,
+       um.status,
+       um.completed_at,
+       um.created_at,
+       m.title,
+       m.description,
+       m.points_reward,
+       m.mission_type,
+       m.metric_key
+     FROM user_missions um
+     JOIN missions m ON m.id = um.mission_id
+     WHERE um.user_id = ?
+     ORDER BY FIELD(um.status, 'active', 'completed', 'expired'), um.created_at DESC, um.id DESC`,
+    [userId],
+  );
+
+  if (!rows.length) return [];
+
+  const normalized = [];
+
+  for (const row of rows) {
+    const target = Math.max(1, Number(row.target_value || 1));
+    const baseline = Math.max(0, Number(row.baseline_value || 0));
+    const currentMetric = Math.floor(getMetricValue(metrics, row.metric_key));
+
+    const computedProgress = row.status === 'completed'
+      ? Math.max(Number(row.current_progress || target), target)
+      : Math.max(0, currentMetric - baseline);
+
+    const completed = row.status === 'completed' || computedProgress >= target;
+    const status = completed ? 'completed' : 'active';
+    const finalProgress = completed ? Math.max(target, computedProgress) : computedProgress;
+    const completedAt = completed ? (row.completed_at || now) : null;
+
+    const shouldUpdate = Number(row.current_progress || 0) !== finalProgress
+      || String(row.status || '') !== status
+      || (!!row.completed_at) !== (!!completedAt);
+
+    if (shouldUpdate) {
+      await pool.execute(
+        `UPDATE user_missions
+         SET current_progress = ?,
+             status = ?,
+             completed_at = ?,
+             updated_at = CURRENT_TIMESTAMP
+         WHERE id = ?`,
+        [finalProgress, status, completedAt, Number(row.user_mission_id)],
+      );
+    }
+
+    normalized.push({
+      id: Number(row.user_mission_id),
+      mission_id: Number(row.mission_id),
+      instance_key: row.instance_key,
+      title: row.title,
+      description: row.description,
+      points_reward: Number(row.points_reward || 0),
+      progress: finalProgress,
+      target,
+      completed,
+      remaining: Math.max(0, target - finalProgress),
+      completed_at: completedAt || null,
+      status,
+      mission_type: row.mission_type,
+      metric_key: row.metric_key,
+      created_at: row.created_at,
+    });
+  }
+
+  return normalized;
+};
+
+const syncUserChallengeProgress = async (userId, metrics, now = new Date()) => {
+  const [templateRows] = await pool.execute(
+    `SELECT id, title, description, challenge_type, category, metric_key, target_value, points_reward, starts_at, expires_at
+     FROM challenge_templates
+     WHERE is_active = 1
+       AND (starts_at IS NULL OR starts_at <= NOW())
+       AND (expires_at IS NULL OR expires_at >= NOW())
+     ORDER BY FIELD(challenge_type, 'daily', 'weekly'), id ASC`,
+  );
+
+  if (!templateRows.length) return [];
+
+  const templateIds = templateRows.map((row) => Number(row.id));
+  const templatePlaceholders = templateIds.map(() => '?').join(', ');
+  const [existingRows] = await pool.execute(
+    `SELECT challenge_template_id, instance_key, current_progress, target_value, status, completed_at
+     FROM user_challenges
+     WHERE user_id = ? AND challenge_template_id IN (${templatePlaceholders})`,
+    [userId, ...templateIds],
+  );
+
+  const existingByTemplateAndKey = new Map(
+    existingRows.map((row) => [`${Number(row.challenge_template_id)}:${row.instance_key}`, row]),
+  );
+
+  const dailyKey = getDailyInstanceKey(now);
+  const weeklyKey = getWeeklyInstanceKey(now);
+  const endOfToday = getEndOfDay(now);
+  const endOfThisWeek = getEndOfWeek(now);
+
+  const normalized = [];
+
+  for (const template of templateRows) {
+    const templateId = Number(template.id);
+    const challengeType = String(template.challenge_type || '').toLowerCase();
+    const instanceKey = challengeType === 'daily'
+      ? dailyKey
+      : challengeType === 'weekly'
+        ? weeklyKey
+        : 'default';
+
+    const key = `${templateId}:${instanceKey}`;
+    const existing = existingByTemplateAndKey.get(key);
+    const target = Math.max(1, Number(template.target_value || 1));
+    const progress = Math.floor(getMetricValue(metrics, template.metric_key));
+    const alreadyCompleted = existing?.status === 'completed';
+    const completed = alreadyCompleted || progress >= target;
+    const status = completed ? 'completed' : 'active';
+    const completedAt = completed ? (existing?.completed_at || now) : null;
+    const expiresAt = challengeType === 'daily'
+      ? endOfToday
+      : challengeType === 'weekly'
+        ? endOfThisWeek
+        : template.expires_at || null;
+
+    await pool.execute(
+      `INSERT INTO user_challenges
+         (user_id, challenge_template_id, instance_key, current_progress, target_value, status, completed_at, expires_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+       ON DUPLICATE KEY UPDATE
+         current_progress = VALUES(current_progress),
+         target_value = VALUES(target_value),
+         status = CASE
+           WHEN user_challenges.status = 'completed' THEN 'completed'
+           ELSE VALUES(status)
+         END,
+         completed_at = CASE
+           WHEN user_challenges.completed_at IS NOT NULL THEN user_challenges.completed_at
+           WHEN VALUES(status) = 'completed' THEN VALUES(completed_at)
+           ELSE NULL
+         END,
+         expires_at = VALUES(expires_at),
+         updated_at = CURRENT_TIMESTAMP`,
+      [
+        userId,
+        templateId,
+        instanceKey,
+        progress,
+        target,
+        status,
+        completedAt,
+        expiresAt,
+      ],
+    );
+
+    normalized.push({
+      id: templateId,
+      title: template.title,
+      description: template.description,
+      challenge_type: challengeType,
+      category: template.category || null,
+      metric_key: template.metric_key,
+      points_reward: Number(template.points_reward || 0),
+      instance_key: instanceKey,
+      progress,
+      target,
+      completed,
+      remaining: Math.max(0, target - progress),
+      completed_at: completedAt || null,
+      status: completed ? 'completed' : 'active',
+    });
+  }
+
+  return normalized;
+};
+
+const updateUserPointsAndRank = async (userId, metrics) => {
+  const [
+    [missionPointRows],
+    [challengePointRows],
+    [completedMissionRows],
+    [completedChallengeRows],
+  ] = await Promise.all([
+    pool.execute(
+      `SELECT COALESCE(SUM(m.points_reward), 0) AS total_points
+       FROM user_missions um
+       JOIN missions m ON m.id = um.mission_id
+       WHERE um.user_id = ? AND um.status = 'completed'`,
+      [userId],
+    ),
+    pool.execute(
+      `SELECT COALESCE(SUM(ct.points_reward), 0) AS total_points
+       FROM user_challenges uc
+       JOIN challenge_templates ct ON ct.id = uc.challenge_template_id
+       WHERE uc.user_id = ? AND uc.status = 'completed'`,
+      [userId],
+    ),
+    pool.execute(
+      `SELECT COUNT(*) AS completed_count
+       FROM user_missions
+       WHERE user_id = ? AND status = 'completed'`,
+      [userId],
+    ),
+    pool.execute(
+      `SELECT COUNT(*) AS completed_count
+       FROM user_challenges
+       WHERE user_id = ? AND status = 'completed'`,
+      [userId],
+    ),
+  ]);
+
+  const missionPoints = Number(missionPointRows[0]?.total_points || 0);
+  const challengePoints = Number(challengePointRows[0]?.total_points || 0);
+  const totalPoints = missionPoints + challengePoints;
+  const totalWorkouts = Math.max(0, Math.floor(Number(metrics.training_days || 0)));
+  const rank = getRankFromPoints(totalPoints);
+
+  await pool.execute(
+    `UPDATE users
+     SET total_points = ?, total_workouts = ?, rank = ?
+     WHERE id = ?`,
+    [totalPoints, totalWorkouts, rank, userId],
+  );
+
+  return {
+    totalPoints,
+    totalWorkouts,
+    rank,
+    missionPoints,
+    challengePoints,
+    completedMissions: Number(completedMissionRows[0]?.completed_count || 0),
+    completedChallenges: Number(completedChallengeRows[0]?.completed_count || 0),
+    nextRank: getNextRankInfo(totalPoints),
+  };
+};
+
+const refreshGamificationForUser = async (userId, baseDate = new Date()) => {
+  const normalizedUserId = Number(userId);
+  if (!Number.isFinite(normalizedUserId) || normalizedUserId <= 0) return null;
+
+  await gamificationReady;
+
+  const [userRows] = await pool.execute(
+    `SELECT id, role
+     FROM users
+     WHERE id = ?
+     LIMIT 1`,
+    [normalizedUserId],
+  );
+
+  if (!userRows.length) return null;
+
+  const metrics = await collectUserGamificationMetrics(normalizedUserId, baseDate);
+  const missions = await syncUserMissionProgress(normalizedUserId, metrics, baseDate);
+  const challenges = await syncUserChallengeProgress(normalizedUserId, metrics, baseDate);
+  const summary = await updateUserPointsAndRank(normalizedUserId, metrics);
+
+  return {
+    userId: normalizedUserId,
+    metrics,
+    missions,
+    challenges,
+    ...summary,
+  };
+};
+
 const WEEKDAY_BY_DAYS_PER_WEEK = {
   2: ['monday', 'thursday'],
   3: ['monday', 'wednesday', 'friday'],
@@ -328,6 +1277,23 @@ const WEEKDAY_BY_DAYS_PER_WEEK = {
   5: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday'],
   6: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'],
   7: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'],
+};
+
+const PROGRAM_DAY_ORDER = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
+const PROGRAM_DAY_SET = new Set(PROGRAM_DAY_ORDER);
+
+const normalizeProgramDayName = (raw) => {
+  const key = String(raw || '').trim().toLowerCase();
+  if (!key) return null;
+  if (PROGRAM_DAY_SET.has(key)) return key;
+  if (key.startsWith('mon')) return 'monday';
+  if (key.startsWith('tue')) return 'tuesday';
+  if (key.startsWith('wed')) return 'wednesday';
+  if (key.startsWith('thu')) return 'thursday';
+  if (key.startsWith('fri')) return 'friday';
+  if (key.startsWith('sat')) return 'saturday';
+  if (key.startsWith('sun')) return 'sunday';
+  return null;
 };
 
 const normalizeProgramWorkouts = (workouts, daysPerWeek = 4) => {
@@ -352,38 +1318,301 @@ const normalizeProgramWorkouts = (workouts, daysPerWeek = 4) => {
   });
 };
 
-const getPreferredProgramType = (workoutDays) => {
-  if (workoutDays <= 3) return 'full_body';
-  if (workoutDays === 4) return 'upper_lower';
-  if (workoutDays >= 6) return 'push_pull_legs';
-  return 'custom';
+const safeParseJson = (rawValue, fallback) => {
+  if (rawValue == null) return fallback;
+  if (typeof rawValue === 'object') return rawValue;
+  if (typeof rawValue !== 'string') return fallback;
+  try {
+    return JSON.parse(rawValue);
+  } catch {
+    return fallback;
+  }
 };
 
-const pickBestTemplateProgram = async (conn, { workoutDays, goal, experienceLevel }) => {
-  const [rows] = await conn.execute(
-    `SELECT id, name, program_type, goal, experience_level, days_per_week, cycle_weeks
-     FROM programs
-     WHERE is_template = 1 AND is_active = 1`,
+const buildCustomProgramDraft = async (conn, userId, rawPayload = {}) => {
+  const [userRows] = await conn.execute(
+    `SELECT id, gym_id, coach_id, name, fitness_goal, experience_level
+     FROM users
+     WHERE id = ?
+     LIMIT 1`,
+    [userId],
   );
+  if (!userRows.length) {
+    throw new Error('User not found');
+  }
 
-  if (!rows.length) return null;
+  const cycleWeeks = Math.round(Number(rawPayload.cycleWeeks || 0));
+  if (!Number.isFinite(cycleWeeks) || cycleWeeks < 2 || cycleWeeks > 8) {
+    throw new Error('cycleWeeks must be between 2 and 8');
+  }
 
-  const preferredType = getPreferredProgramType(workoutDays);
-  const scored = rows
-    .map((row) => {
-      let score = 100 - Math.abs(Number(row.days_per_week || 4) - workoutDays) * 25;
-      if (row.program_type === preferredType) score += 25;
-      if (goal && row.goal === goal) score += 20;
-      if (!row.experience_level || row.experience_level === experienceLevel) score += 10;
-      if (workoutDays >= 5 && row.program_type === 'custom') score += 5;
-      return { row, score };
-    })
-    .sort((a, b) => b.score - a.score);
+  const selectedDaysRaw = Array.isArray(rawPayload.selectedDays)
+    ? rawPayload.selectedDays
+    : Array.isArray(rawPayload.days)
+      ? rawPayload.days
+      : [];
 
-  return scored[0]?.row || null;
+  const selectedDays = [
+    ...new Set(
+      selectedDaysRaw
+        .map((day) => normalizeProgramDayName(day))
+        .filter(Boolean),
+    ),
+  ];
+  if (!selectedDays.length) {
+    throw new Error('At least one valid training day is required');
+  }
+
+  const weeklyWorkoutsRaw = Array.isArray(rawPayload.weeklyWorkouts)
+    ? rawPayload.weeklyWorkouts
+    : Array.isArray(rawPayload.workouts)
+      ? rawPayload.workouts
+      : [];
+  const workoutTemplateByDay = new Map();
+  weeklyWorkoutsRaw.forEach((workout) => {
+    const dayName = normalizeProgramDayName(workout?.dayName || workout?.day || workout?.weekday);
+    if (!dayName || !selectedDays.includes(dayName)) return;
+    workoutTemplateByDay.set(dayName, workout);
+  });
+
+  const templatesByDay = new Map();
+  const catalogIds = [];
+
+  for (const dayName of selectedDays) {
+    const template = workoutTemplateByDay.get(dayName);
+    if (!template) {
+      throw new Error(`Missing workout template for ${dayName}`);
+    }
+
+    const rawExercises = Array.isArray(template.exercises) ? template.exercises : [];
+    if (!rawExercises.length) {
+      throw new Error(`At least one exercise is required for ${dayName}`);
+    }
+
+    const normalizedExercises = [];
+    for (let index = 0; index < rawExercises.length; index += 1) {
+      const exercise = rawExercises[index];
+      const sets = Math.round(Number(exercise?.sets || 0));
+      if (!Number.isFinite(sets) || sets < 1 || sets > 10) {
+        throw new Error(`Invalid sets on ${dayName} exercise #${index + 1}. Allowed: 1..10.`);
+      }
+
+      const reps = String(exercise?.reps || '').trim() || '8-12';
+      if (reps.length > 20) {
+        throw new Error(`Reps is too long on ${dayName} exercise #${index + 1}.`);
+      }
+
+      const restSecondsRaw = Number(exercise?.restSeconds ?? exercise?.rest ?? 90);
+      const restSeconds = Number.isFinite(restSecondsRaw)
+        ? Math.max(30, Math.min(600, Math.round(restSecondsRaw)))
+        : 90;
+
+      const exerciseCatalogId = Number(exercise?.exerciseCatalogId || 0) || null;
+      const inputName = String(exercise?.exerciseName || exercise?.name || '').trim();
+      if (!exerciseCatalogId && !inputName) {
+        throw new Error(`Exercise name is required on ${dayName} exercise #${index + 1}.`);
+      }
+      if (exerciseCatalogId) catalogIds.push(exerciseCatalogId);
+
+      normalizedExercises.push({
+        orderIndex: index + 1,
+        exerciseCatalogId,
+        inputName,
+        sets,
+        reps,
+        restSeconds,
+        notes: exercise?.notes ? String(exercise.notes).trim() : null,
+      });
+    }
+
+    templatesByDay.set(dayName, {
+      workoutName: String(template?.workoutName || template?.name || dayName).trim() || dayName,
+      workoutType: template?.workoutType ? String(template.workoutType).trim() : null,
+      notes: template?.notes ? String(template.notes).trim() : null,
+      exercises: normalizedExercises,
+    });
+  }
+
+  const catalogById = new Map();
+  const uniqueCatalogIds = [...new Set(catalogIds)].filter((id) => Number.isFinite(id) && id > 0);
+  if (uniqueCatalogIds.length) {
+    const placeholders = uniqueCatalogIds.map(() => '?').join(', ');
+    const [catalogRows] = await conn.execute(
+      `SELECT id, canonical_name, body_part
+       FROM exercise_catalog
+       WHERE id IN (${placeholders}) AND is_active = 1`,
+      uniqueCatalogIds,
+    );
+    catalogRows.forEach((row) => {
+      catalogById.set(Number(row.id), {
+        name: String(row.canonical_name || '').trim(),
+        bodyPart: row.body_part ? String(row.body_part).trim() : null,
+      });
+    });
+  }
+
+  for (const dayName of selectedDays) {
+    const dayTemplate = templatesByDay.get(dayName);
+    for (const exercise of dayTemplate.exercises) {
+      if (exercise.exerciseCatalogId && !catalogById.has(Number(exercise.exerciseCatalogId))) {
+        throw new Error(`Exercise catalog id ${exercise.exerciseCatalogId} for ${dayName} is invalid or inactive`);
+      }
+    }
+  }
+
+  const user = userRows[0];
+  const goal = normalizeGoalEnum(user.fitness_goal);
+  const experienceLevel = normalizeExperienceEnum(user.experience_level) || 'intermediate';
+  const planNameInput = String(rawPayload.planName || rawPayload.name || '').trim();
+  const planName = planNameInput || `Custom ${cycleWeeks}-Week Plan`;
+  const description = String(rawPayload.description || '').trim() || `User-customized ${cycleWeeks}-week plan`;
+  const weeklyWorkouts = selectedDays.map((dayName) => {
+    const dayTemplate = templatesByDay.get(dayName);
+    return {
+      dayName,
+      workoutName: dayTemplate.workoutName,
+      workoutType: dayTemplate.workoutType || 'Custom',
+      notes: dayTemplate.notes || null,
+      exercises: dayTemplate.exercises.map((exercise) => ({
+        exerciseCatalogId: exercise.exerciseCatalogId || null,
+        exerciseName: exercise.inputName || null,
+        sets: exercise.sets,
+        reps: exercise.reps,
+        restSeconds: exercise.restSeconds,
+        notes: exercise.notes || null,
+      })),
+    };
+  });
+
+  return {
+    user,
+    goal,
+    experienceLevel,
+    planName,
+    description,
+    cycleWeeks,
+    selectedDays,
+    templatesByDay,
+    catalogById,
+    weeklyWorkouts,
+  };
 };
 
-const assignProgramToUser = async (conn, { userId, programId, reason = 'user_request', note = null }) => {
+const persistCustomProgramDraft = async (
+  conn,
+  {
+    userId,
+    draft,
+    assignmentReason = 'user_request',
+    assignmentNote = null,
+    assignmentSource = 'manual',
+  },
+) => {
+  const [programInsert] = await conn.execute(
+    `INSERT INTO programs
+      (gym_id, created_by_user_id, target_user_id, name, description, program_type, goal, experience_level, days_per_week, cycle_weeks, is_template, is_active)
+     VALUES (?, ?, ?, ?, ?, 'custom', ?, ?, ?, ?, 0, 1)`,
+    [
+      draft.user.gym_id || null,
+      userId,
+      userId,
+      draft.planName.slice(0, 255),
+      draft.description,
+      draft.goal,
+      draft.experienceLevel,
+      draft.selectedDays.length,
+      draft.cycleWeeks,
+    ],
+  );
+  const programId = Number(programInsert.insertId);
+
+  let dayOrder = 0;
+  for (let week = 1; week <= draft.cycleWeeks; week += 1) {
+    for (const dayName of draft.selectedDays) {
+      const dayTemplate = draft.templatesByDay.get(dayName);
+      dayOrder += 1;
+
+      const workoutDisplayName = String(dayTemplate.workoutName || dayName).trim();
+      const workoutName = `Week ${week} - ${workoutDisplayName}`;
+      const estimatedDurationMinutes = Math.max(
+        25,
+        Math.min(180, Math.round((dayTemplate.exercises.length * 11) + 18)),
+      );
+
+      const [workoutInsert] = await conn.execute(
+        `INSERT INTO workouts
+          (program_id, workout_name, workout_type, day_order, day_name, estimated_duration_minutes, notes)
+         VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        [
+          programId,
+          workoutName.slice(0, 255),
+          String(dayTemplate.workoutType || 'Custom').slice(0, 100),
+          dayOrder,
+          dayName,
+          estimatedDurationMinutes,
+          dayTemplate.notes,
+        ],
+      );
+      const workoutId = Number(workoutInsert.insertId);
+
+      for (const exercise of dayTemplate.exercises) {
+        const catalogMatch = exercise.exerciseCatalogId
+          ? draft.catalogById.get(Number(exercise.exerciseCatalogId))
+          : null;
+        const exerciseName = (catalogMatch?.name || exercise.inputName).slice(0, 255);
+        const muscleGroupSnapshot = catalogMatch?.bodyPart || null;
+
+        await conn.execute(
+          `INSERT INTO workout_exercises
+            (workout_id, exercise_id, order_index, exercise_name_snapshot, muscle_group_snapshot, target_sets, target_reps, target_weight, rest_seconds, tempo, rpe_target, notes)
+           VALUES (?, NULL, ?, ?, ?, ?, ?, NULL, ?, NULL, NULL, ?)`,
+          [
+            workoutId,
+            exercise.orderIndex,
+            exerciseName,
+            muscleGroupSnapshot,
+            exercise.sets,
+            exercise.reps,
+            exercise.restSeconds,
+            exercise.notes,
+          ],
+        );
+      }
+    }
+  }
+
+  const assignment = await assignProgramToUser(conn, {
+    userId,
+    programId,
+    reason: assignmentReason,
+    note: assignmentNote || `User custom plan: ${draft.cycleWeeks} weeks, ${draft.selectedDays.length} days/week`,
+    assignmentSource,
+  });
+
+  return {
+    programId,
+    assignment,
+    assignedProgram: {
+      id: programId,
+      name: draft.planName,
+      programType: 'custom',
+      goal: draft.goal,
+      daysPerWeek: draft.selectedDays.length,
+      cycleWeeks: draft.cycleWeeks,
+    },
+  };
+};
+
+const assignProgramToUser = async (
+  conn,
+  {
+    userId,
+    programId,
+    reason = 'user_request',
+    note = null,
+    assignmentSource = 'ai',
+  },
+) => {
   const rotationWeeks = 8;
   const startDate = new Date();
   const nextRotationDate = new Date(startDate);
@@ -425,8 +1654,8 @@ const assignProgramToUser = async (conn, { userId, programId, reason = 'user_req
   const [insertResult] = await conn.execute(
     `INSERT INTO program_assignments
       (user_id, program_id, assigned_by_user_id, assignment_source, rotation_weeks, auto_rotate_enabled, coach_override_allowed, start_date, next_rotation_date, status, notes)
-     VALUES (?, ?, NULL, 'ai', ?, 1, 1, ?, ?, 'active', ?)`,
-    [userId, programId, rotationWeeks, startDateStr, nextRotationDateStr, note],
+     VALUES (?, ?, NULL, ?, ?, 1, 1, ?, ?, 'active', ?)`,
+    [userId, programId, assignmentSource, rotationWeeks, startDateStr, nextRotationDateStr, note],
   );
 
   if (active) {
@@ -472,6 +1701,18 @@ const computeWorkoutStreak = (dateRows) => {
   }
 
   return streak;
+};
+
+const normalizeCatalogMuscleGroup = (raw) => {
+  const key = String(raw || '').trim().toLowerCase();
+  if (!key) return 'Other';
+  if (/(chest|pector)/.test(key)) return 'Chest';
+  if (/(back|lat|trap|rhomboid|erector)/.test(key)) return 'Back';
+  if (/(quad|hamstring|glute|calf|leg)/.test(key)) return 'Legs';
+  if (/(shoulder|delt)/.test(key)) return 'Shoulders';
+  if (/(bicep|tricep|forearm|arm)/.test(key)) return 'Arms';
+  if (/(abs|abdom|core|oblique)/.test(key)) return 'Abs';
+  return 'Other';
 };
 
 // =========================
@@ -654,8 +1895,9 @@ router.get('/users', async (_req, res) => {
 // =========================
 
 router.post('/user/onboarding', async (req, res) => {
-  const conn = await pool.getConnection();
+  let conn;
   try {
+    conn = await pool.getConnection();
     await conn.beginTransaction();
 
     const {
@@ -670,6 +1912,9 @@ router.post('/user/onboarding', async (req, res) => {
       experienceLevel,
       gymId,
       gym_id,
+      equipment,
+      availableEquipment,
+      equipmentList,
     } = req.body;
 
     const normalizedUserId = toNumber(userId);
@@ -727,43 +1972,497 @@ router.post('/user/onboarding', async (req, res) => {
       ],
     );
 
-    const selectedTemplate = await pickBestTemplateProgram(conn, {
-      workoutDays: normalizedDays,
+    const generatedProgram = await generatePersonalizedProgram(conn, {
+      userId: normalizedUserId,
+      gymId: normalizedGymId,
       goal: normalizedGoal,
-      experienceLevel: normalizedExperience,
+      experienceLevel: normalizedExperience || 'intermediate',
+      daysPerWeek: normalizedDays,
+      cycleWeeks: 12,
+      equipment: equipment || availableEquipment || equipmentList || null,
+      notes: `Generated from onboarding: goal=${normalizedGoal}, days=${normalizedDays}, level=${normalizedExperience || 'unknown'}`,
     });
 
-    let assignmentInfo = null;
-    if (selectedTemplate) {
-      assignmentInfo = await assignProgramToUser(conn, {
-        userId: normalizedUserId,
-        programId: selectedTemplate.id,
-        reason: 'user_request',
-        note: `Auto-assigned from onboarding: goal=${normalizedGoal}, days=${normalizedDays}, level=${normalizedExperience || 'unknown'}`,
-      });
-    }
+    const assignmentInfo = await assignProgramToUser(conn, {
+      userId: normalizedUserId,
+      programId: generatedProgram.programId,
+      reason: 'user_request',
+      note: `Auto-generated plan from onboarding: goal=${normalizedGoal}, days=${normalizedDays}, level=${normalizedExperience || 'unknown'}`,
+    });
 
     await conn.commit();
 
     return res.json({
       success: true,
-      assignedProgram: selectedTemplate
-        ? {
-            id: selectedTemplate.id,
-            name: selectedTemplate.name,
-            programType: selectedTemplate.program_type,
-            goal: selectedTemplate.goal,
-            daysPerWeek: selectedTemplate.days_per_week,
-            cycleWeeks: selectedTemplate.cycle_weeks,
-          }
-        : null,
+      assignedProgram: {
+        id: generatedProgram.programId,
+        name: generatedProgram.name,
+        programType: generatedProgram.programType,
+        goal: generatedProgram.goal,
+        daysPerWeek: generatedProgram.daysPerWeek,
+        cycleWeeks: generatedProgram.cycleWeeks,
+      },
       assignment: assignmentInfo,
     });
   } catch (error) {
-    await conn.rollback();
-    return res.status(500).json({ error: error.message });
+    if (conn) await conn.rollback();
+    return res.status(500).json({ error: error?.message || 'Failed to save onboarding and generate plan' });
   } finally {
-    conn.release();
+    if (conn) conn.release();
+  }
+});
+
+router.post('/user/:userId/program/generate-personalized', async (req, res) => {
+  let conn;
+  try {
+    conn = await pool.getConnection();
+    await conn.beginTransaction();
+    const userId = Number(req.params.userId);
+    if (!Number.isFinite(userId) || userId <= 0) {
+      await conn.rollback();
+      return res.status(400).json({ error: 'Invalid userId' });
+    }
+
+    const [userRows] = await conn.execute(
+      `SELECT id, gym_id, fitness_goal, experience_level
+       FROM users
+       WHERE id = ?
+       LIMIT 1`,
+      [userId],
+    );
+    if (!userRows.length) {
+      await conn.rollback();
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    const user = userRows[0];
+    const goal = normalizeGoalEnum(req.body.goal || user.fitness_goal);
+    const level = normalizeExperienceEnum(req.body.experienceLevel || user.experience_level) || 'intermediate';
+    const daysPerWeek = clampWorkoutDays(req.body.workoutDays, 4);
+    const cycleWeeks = Math.max(8, Math.min(24, Number(req.body.cycleWeeks || 12)));
+
+    const generatedProgram = await generatePersonalizedProgram(conn, {
+      userId,
+      gymId: user.gym_id || null,
+      goal,
+      experienceLevel: level,
+      daysPerWeek,
+      cycleWeeks,
+      equipment: req.body.equipment || req.body.availableEquipment || req.body.equipmentList || null,
+      notes: `Manual generation request (goal=${goal}, days=${daysPerWeek}, level=${level})`,
+    });
+
+    const assignment = await assignProgramToUser(conn, {
+      userId,
+      programId: generatedProgram.programId,
+      reason: 'user_request',
+      note: 'Manual personalized generation endpoint',
+    });
+
+    await conn.commit();
+    return res.json({
+      success: true,
+      assignedProgram: {
+        id: generatedProgram.programId,
+        name: generatedProgram.name,
+        goal: generatedProgram.goal,
+        programType: generatedProgram.programType,
+        daysPerWeek: generatedProgram.daysPerWeek,
+        cycleWeeks: generatedProgram.cycleWeeks,
+      },
+      assignment,
+    });
+  } catch (error) {
+    if (conn) await conn.rollback();
+    return res.status(500).json({ error: error?.message || 'Failed to generate personalized program' });
+  } finally {
+    if (conn) conn.release();
+  }
+});
+
+router.post('/user/:userId/program/custom', async (req, res) => {
+  let conn;
+  try {
+    conn = await pool.getConnection();
+    await conn.beginTransaction();
+
+    const userId = Number(req.params.userId);
+    if (!Number.isFinite(userId) || userId <= 0) {
+      await conn.rollback();
+      return res.status(400).json({ error: 'Invalid userId' });
+    }
+    let draft;
+    try {
+      draft = await buildCustomProgramDraft(conn, userId, req.body);
+    } catch (validationError) {
+      await conn.rollback();
+      const message = validationError?.message || 'Invalid custom plan payload';
+      if (message === 'User not found') {
+        return res.status(404).json({ error: message });
+      }
+      return res.status(400).json({ error: message });
+    }
+
+    const result = await persistCustomProgramDraft(conn, {
+      userId,
+      draft,
+      assignmentReason: 'user_request',
+      assignmentNote: `User custom plan: ${draft.cycleWeeks} weeks, ${draft.selectedDays.length} days/week`,
+      assignmentSource: 'manual',
+    });
+
+    await conn.commit();
+    return res.json({
+      success: true,
+      assignedProgram: result.assignedProgram,
+      assignment: result.assignment,
+    });
+  } catch (error) {
+    if (conn) await conn.rollback();
+    return res.status(500).json({ error: error?.message || 'Failed to save custom plan' });
+  } finally {
+    if (conn) conn.release();
+  }
+});
+
+router.post('/user/:userId/program/custom/request', async (req, res) => {
+  let conn;
+  try {
+    conn = await pool.getConnection();
+    await conn.beginTransaction();
+
+    const userId = Number(req.params.userId);
+    if (!Number.isFinite(userId) || userId <= 0) {
+      await conn.rollback();
+      return res.status(400).json({ error: 'Invalid userId' });
+    }
+
+    let draft;
+    try {
+      draft = await buildCustomProgramDraft(conn, userId, req.body);
+    } catch (validationError) {
+      await conn.rollback();
+      const message = validationError?.message || 'Invalid custom plan payload';
+      if (message === 'User not found') {
+        return res.status(404).json({ error: message });
+      }
+      return res.status(400).json({ error: message });
+    }
+
+    const coachId = Number(draft.user.coach_id || 0);
+    if (!coachId) {
+      await conn.rollback();
+      return res.status(400).json({ error: 'No coach assigned to this user' });
+    }
+
+    const [insertResult] = await conn.execute(
+      `INSERT INTO program_change_requests
+        (user_id, coach_id, plan_name, description, cycle_weeks, selected_days_json, weekly_workouts_json, status)
+       VALUES (?, ?, ?, ?, ?, ?, ?, 'pending')`,
+      [
+        userId,
+        coachId,
+        draft.planName.slice(0, 255),
+        draft.description,
+        draft.cycleWeeks,
+        JSON.stringify(draft.selectedDays),
+        JSON.stringify(draft.weeklyWorkouts),
+      ],
+    );
+    const requestId = Number(insertResult.insertId);
+
+    await conn.execute(
+      `INSERT INTO notifications (user_id, type, title, message, data)
+       VALUES (?, 'plan_review_request', 'Plan review request', ?, JSON_OBJECT('requestId', ?, 'userId', ?, 'planName', ?, 'cycleWeeks', ?))`,
+      [
+        coachId,
+        `${draft.user.name || 'User'} sent a custom plan for approval.`,
+        requestId,
+        userId,
+        draft.planName.slice(0, 255),
+        draft.cycleWeeks,
+      ],
+    );
+
+    await conn.commit();
+    return res.json({
+      success: true,
+      request: {
+        id: requestId,
+        status: 'pending',
+        userId,
+        coachId,
+        planName: draft.planName,
+        cycleWeeks: draft.cycleWeeks,
+      },
+    });
+  } catch (error) {
+    if (conn) await conn.rollback();
+    return res.status(500).json({ error: error?.message || 'Failed to submit plan review request' });
+  } finally {
+    if (conn) conn.release();
+  }
+});
+
+router.get('/coach/:coachId/program-requests', async (req, res) => {
+  try {
+    const coachId = Number(req.params.coachId);
+    if (!Number.isFinite(coachId) || coachId <= 0) {
+      return res.status(400).json({ error: 'Invalid coachId' });
+    }
+
+    const status = String(req.query.status || '').trim().toLowerCase();
+    const allowedStatuses = new Set(['pending', 'approved', 'rejected', 'cancelled']);
+    const useStatusFilter = allowedStatuses.has(status);
+
+    const [rows] = await pool.execute(
+      `SELECT
+         pcr.id,
+         pcr.user_id,
+         pcr.coach_id,
+         pcr.plan_name,
+         pcr.description,
+         pcr.cycle_weeks,
+         pcr.selected_days_json,
+         pcr.weekly_workouts_json,
+         pcr.status,
+         pcr.review_notes,
+         pcr.approved_program_id,
+         pcr.reviewed_by,
+         pcr.reviewed_at,
+         pcr.created_at,
+         pcr.updated_at,
+         u.name AS user_name,
+         u.email AS user_email
+       FROM program_change_requests pcr
+       JOIN users u ON u.id = pcr.user_id
+       WHERE pcr.coach_id = ?
+         AND (? = 0 OR pcr.status = ?)
+       ORDER BY (pcr.status = 'pending') DESC, pcr.created_at DESC
+       LIMIT 200`,
+      [coachId, useStatusFilter ? 1 : 0, status],
+    );
+
+    const requests = rows.map((row) => {
+      const selectedDays = safeParseJson(row.selected_days_json, []);
+      const weeklyWorkouts = safeParseJson(row.weekly_workouts_json, []);
+      return {
+        id: Number(row.id),
+        userId: Number(row.user_id),
+        userName: row.user_name || 'User',
+        userEmail: row.user_email || '',
+        coachId: Number(row.coach_id),
+        planName: row.plan_name || 'Custom Plan',
+        description: row.description || '',
+        cycleWeeks: Number(row.cycle_weeks || 0),
+        selectedDays: Array.isArray(selectedDays) ? selectedDays : [],
+        weeklyWorkouts: Array.isArray(weeklyWorkouts) ? weeklyWorkouts : [],
+        status: String(row.status || 'pending'),
+        reviewNotes: row.review_notes || null,
+        approvedProgramId: row.approved_program_id ? Number(row.approved_program_id) : null,
+        reviewedBy: row.reviewed_by ? Number(row.reviewed_by) : null,
+        reviewedAt: row.reviewed_at || null,
+        createdAt: row.created_at,
+        updatedAt: row.updated_at,
+      };
+    });
+
+    return res.json({
+      requests,
+      pendingCount: requests.filter((request) => request.status === 'pending').length,
+    });
+  } catch (error) {
+    return res.status(500).json({ error: error?.message || 'Failed to load program requests' });
+  }
+});
+
+router.post('/coach/:coachId/program-requests/:requestId/approve', async (req, res) => {
+  let conn;
+  try {
+    conn = await pool.getConnection();
+    await conn.beginTransaction();
+
+    const coachId = Number(req.params.coachId);
+    const requestId = Number(req.params.requestId);
+    if (!Number.isFinite(coachId) || coachId <= 0 || !Number.isFinite(requestId) || requestId <= 0) {
+      await conn.rollback();
+      return res.status(400).json({ error: 'Invalid coachId or requestId' });
+    }
+
+    const [rows] = await conn.execute(
+      `SELECT id, user_id, coach_id, plan_name, description, cycle_weeks, selected_days_json, weekly_workouts_json, status
+       FROM program_change_requests
+       WHERE id = ? AND coach_id = ?
+       LIMIT 1
+       FOR UPDATE`,
+      [requestId, coachId],
+    );
+    if (!rows.length) {
+      await conn.rollback();
+      return res.status(404).json({ error: 'Program request not found' });
+    }
+
+    const request = rows[0];
+    if (String(request.status) !== 'pending') {
+      await conn.rollback();
+      return res.status(400).json({ error: 'Only pending requests can be approved' });
+    }
+
+    const selectedDays = safeParseJson(request.selected_days_json, []);
+    const weeklyWorkouts = safeParseJson(request.weekly_workouts_json, []);
+
+    const payload = {
+      planName: request.plan_name,
+      description: request.description,
+      cycleWeeks: Number(request.cycle_weeks || 0),
+      selectedDays: Array.isArray(selectedDays) ? selectedDays : [],
+      weeklyWorkouts: Array.isArray(weeklyWorkouts) ? weeklyWorkouts : [],
+    };
+
+    let draft;
+    try {
+      draft = await buildCustomProgramDraft(conn, Number(request.user_id), payload);
+    } catch (validationError) {
+      await conn.rollback();
+      return res.status(400).json({
+        error: validationError?.message || 'Plan request payload is no longer valid. Please ask user to resubmit.',
+      });
+    }
+
+    const result = await persistCustomProgramDraft(conn, {
+      userId: Number(request.user_id),
+      draft,
+      assignmentReason: 'coach_approved',
+      assignmentNote: `Coach approved custom plan request #${requestId}`,
+      assignmentSource: 'coach',
+    });
+
+    await conn.execute(
+      `UPDATE program_change_requests
+       SET status = 'approved',
+           approved_program_id = ?,
+           review_notes = ?,
+           reviewed_by = ?,
+           reviewed_at = NOW()
+       WHERE id = ?`,
+      [result.programId, String(req.body?.reason || '').trim() || null, coachId, requestId],
+    );
+
+    await conn.execute(
+      `INSERT INTO notifications (user_id, type, title, message, data)
+       VALUES (?, 'plan_review_approved', 'Plan approved', ?, JSON_OBJECT('requestId', ?, 'programId', ?, 'planName', ?))`,
+      [
+        Number(request.user_id),
+        'Your coach approved your custom plan and activated it.',
+        requestId,
+        result.programId,
+        draft.planName.slice(0, 255),
+      ],
+    );
+
+    await conn.commit();
+    return res.json({
+      success: true,
+      requestId,
+      status: 'approved',
+      assignedProgram: result.assignedProgram,
+      assignment: result.assignment,
+    });
+  } catch (error) {
+    if (conn) await conn.rollback();
+    return res.status(500).json({ error: error?.message || 'Failed to approve program request' });
+  } finally {
+    if (conn) conn.release();
+  }
+});
+
+router.post('/coach/:coachId/program-requests/:requestId/reject', async (req, res) => {
+  let conn;
+  try {
+    conn = await pool.getConnection();
+    await conn.beginTransaction();
+
+    const coachId = Number(req.params.coachId);
+    const requestId = Number(req.params.requestId);
+    if (!Number.isFinite(coachId) || coachId <= 0 || !Number.isFinite(requestId) || requestId <= 0) {
+      await conn.rollback();
+      return res.status(400).json({ error: 'Invalid coachId or requestId' });
+    }
+
+    const [rows] = await conn.execute(
+      `SELECT id, user_id, status
+       FROM program_change_requests
+       WHERE id = ? AND coach_id = ?
+       LIMIT 1
+       FOR UPDATE`,
+      [requestId, coachId],
+    );
+    if (!rows.length) {
+      await conn.rollback();
+      return res.status(404).json({ error: 'Program request not found' });
+    }
+
+    const request = rows[0];
+    if (String(request.status) !== 'pending') {
+      await conn.rollback();
+      return res.status(400).json({ error: 'Only pending requests can be rejected' });
+    }
+
+    const reviewNotes = String(req.body?.reason || '').trim();
+    await conn.execute(
+      `UPDATE program_change_requests
+       SET status = 'rejected',
+           review_notes = ?,
+           reviewed_by = ?,
+           reviewed_at = NOW()
+       WHERE id = ?`,
+      [reviewNotes || null, coachId, requestId],
+    );
+
+    await conn.execute(
+      `INSERT INTO notifications (user_id, type, title, message, data)
+       VALUES (?, 'plan_review_rejected', 'Plan not approved', ?, JSON_OBJECT('requestId', ?, 'reason', ?))`,
+      [
+        Number(request.user_id),
+        reviewNotes ? `Your coach rejected your plan: ${reviewNotes}` : 'Your coach rejected your custom plan request.',
+        requestId,
+        reviewNotes || null,
+      ],
+    );
+
+    await conn.commit();
+    return res.json({
+      success: true,
+      requestId,
+      status: 'rejected',
+    });
+  } catch (error) {
+    if (conn) await conn.rollback();
+    return res.status(500).json({ error: error?.message || 'Failed to reject program request' });
+  } finally {
+    if (conn) conn.release();
+  }
+});
+
+router.post('/user/:userId/program/adapt-biweekly', async (req, res) => {
+  let conn;
+  try {
+    conn = await pool.getConnection();
+    await conn.beginTransaction();
+    const userId = Number(req.params.userId);
+    if (!Number.isFinite(userId) || userId <= 0) {
+      await conn.rollback();
+      return res.status(400).json({ error: 'Invalid userId' });
+    }
+
+    const result = await adaptProgramBiWeekly(conn, { userId });
+    await conn.commit();
+    return res.json({ success: true, ...result });
+  } catch (error) {
+    if (conn) await conn.rollback();
+    return res.status(500).json({ error: error?.message || 'Failed to adapt program bi-weekly' });
+  } finally {
+    if (conn) conn.release();
   }
 });
 
@@ -778,6 +2477,177 @@ router.get('/profile/:userId/picture', async (req, res) => {
     const [rows] = await pool.execute(`SELECT ${profileImageColumn} AS profile_picture FROM users WHERE id = ?`, [userId]);
     if (!rows.length) return res.status(404).json({ error: 'User not found' });
     return res.json({ profilePicture: rows[0].profile_picture || null });
+  } catch (error) {
+    return res.status(500).json({ error: error.message });
+  }
+});
+
+router.get('/profile/:userId/details', async (req, res) => {
+  try {
+    const userId = toNumber(req.params.userId);
+    if (!userId || userId <= 0) {
+      return res.status(400).json({ error: 'Invalid userId' });
+    }
+
+    const [rows] = await pool.execute(
+      `SELECT
+          id,
+          name,
+          email,
+          age,
+          gender,
+          height_cm,
+          weight_kg,
+          primary_goal,
+          fitness_goal,
+          experience_level
+       FROM users
+       WHERE id = ?
+       LIMIT 1`,
+      [userId],
+    );
+
+    if (!rows.length) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    const row = rows[0];
+    return res.json({
+      id: Number(row.id),
+      name: row.name || '',
+      email: row.email || '',
+      age: row.age == null ? null : Number(row.age),
+      gender: row.gender || null,
+      heightCm: row.height_cm == null ? null : Number(row.height_cm),
+      weightKg: row.weight_kg == null ? null : Number(row.weight_kg),
+      primaryGoal: row.primary_goal || '',
+      fitnessGoal: row.fitness_goal || '',
+      experienceLevel: row.experience_level || '',
+    });
+  } catch (error) {
+    return res.status(500).json({ error: error.message });
+  }
+});
+
+router.put('/profile/:userId/details', async (req, res) => {
+  try {
+    const userId = toNumber(req.params.userId);
+    if (!userId || userId <= 0) {
+      return res.status(400).json({ error: 'Invalid userId' });
+    }
+
+    const name = String(req.body?.name || '').trim();
+    const email = String(req.body?.email || '').trim();
+    const age = req.body?.age === '' || req.body?.age == null ? null : toNumber(req.body.age, null);
+    const gender = normalizeGenderEnum(req.body?.gender);
+    const heightCm = req.body?.heightCm === '' || req.body?.heightCm == null ? null : toNumber(req.body.heightCm, null);
+    const weightKg = req.body?.weightKg === '' || req.body?.weightKg == null ? null : toNumber(req.body.weightKg, null);
+    const primaryGoal = String(req.body?.primaryGoal || '').trim();
+    const fitnessGoal = String(req.body?.fitnessGoal || '').trim();
+    const experienceLevel = normalizeExperienceEnum(req.body?.experienceLevel);
+
+    if (!name) {
+      return res.status(400).json({ error: 'Name is required' });
+    }
+    if (!email) {
+      return res.status(400).json({ error: 'Email is required' });
+    }
+    if (age != null && (age < 10 || age > 100)) {
+      return res.status(400).json({ error: 'Age must be between 10 and 100' });
+    }
+    if (heightCm != null && (heightCm < 100 || heightCm > 260)) {
+      return res.status(400).json({ error: 'Height must be between 100 and 260 cm' });
+    }
+    if (weightKg != null && (weightKg < 25 || weightKg > 350)) {
+      return res.status(400).json({ error: 'Weight must be between 25 and 350 kg' });
+    }
+
+    const [result] = await pool.execute(
+      `UPDATE users
+       SET
+         name = ?,
+         email = ?,
+         age = ?,
+         gender = ?,
+         height_cm = ?,
+         weight_kg = ?,
+         primary_goal = ?,
+         fitness_goal = ?,
+         experience_level = ?
+       WHERE id = ?`,
+      [
+        name,
+        email,
+        age,
+        gender,
+        heightCm,
+        weightKg,
+        primaryGoal || null,
+        fitnessGoal || null,
+        experienceLevel,
+        userId,
+      ],
+    );
+
+    if (!result.affectedRows) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    return res.json({ success: true });
+  } catch (error) {
+    if (error.code === 'ER_DUP_ENTRY') {
+      return res.status(409).json({ error: 'Email already exists' });
+    }
+    return res.status(500).json({ error: error.message });
+  }
+});
+
+router.put('/profile/:userId/password', async (req, res) => {
+  try {
+    const userId = toNumber(req.params.userId);
+    if (!userId || userId <= 0) {
+      return res.status(400).json({ error: 'Invalid userId' });
+    }
+
+    const oldPassword = String(req.body?.oldPassword || '');
+    const newPassword = String(req.body?.newPassword || '');
+    const confirmPassword = String(req.body?.confirmPassword || '');
+
+    if (!oldPassword || !newPassword || !confirmPassword) {
+      return res.status(400).json({ error: 'Old password, new password and confirm password are required' });
+    }
+    if (newPassword.length < 6) {
+      return res.status(400).json({ error: 'New password must be at least 6 characters' });
+    }
+    if (newPassword !== confirmPassword) {
+      return res.status(400).json({ error: 'Confirm password does not match new password' });
+    }
+
+    const [rows] = await pool.execute(
+      `SELECT id, password
+       FROM users
+       WHERE id = ?
+       LIMIT 1`,
+      [userId],
+    );
+
+    if (!rows.length) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    const currentPassword = String(rows[0].password || '');
+    if (currentPassword !== oldPassword) {
+      return res.status(400).json({ error: 'Old password is incorrect' });
+    }
+
+    await pool.execute(
+      `UPDATE users
+       SET password = ?
+       WHERE id = ?`,
+      [newPassword, userId],
+    );
+
+    return res.json({ success: true });
   } catch (error) {
     return res.status(500).json({ error: error.message });
   }
@@ -828,6 +2698,176 @@ router.put('/profile/:userId/picture', async (req, res) => {
     }
 
     return res.json({ success: true });
+  } catch (error) {
+    return res.status(500).json({ error: error.message });
+  }
+});
+
+router.get('/profile/:userId/stats', async (req, res) => {
+  try {
+    const { userId } = req.params;
+
+    const [userRows] = await pool.execute(
+      `SELECT id, gym_id, total_points
+       FROM users
+       WHERE id = ?
+       LIMIT 1`,
+      [userId],
+    );
+
+    if (!userRows.length) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    const currentUser = userRows[0];
+    const gymId = currentUser.gym_id;
+    const totalPoints = Number(currentUser.total_points || 0);
+
+    const [rows] = await pool.execute(
+      `SELECT
+          COUNT(DISTINCT CONCAT(DATE(created_at), '|', LOWER(TRIM(exercise_name)))) AS completed_exercises,
+          MIN(created_at) AS first_completed_at
+       FROM workout_sets
+       WHERE user_id = ? AND completed = 1`,
+      [userId],
+    );
+
+    const rankScopeWhere = gymId
+      ? `role = 'user' AND is_active = 1 AND gym_id = ?`
+      : `role = 'user' AND is_active = 1`;
+
+    const rankParams = gymId
+      ? [gymId, totalPoints, totalPoints, currentUser.id]
+      : [totalPoints, totalPoints, currentUser.id];
+
+    const membersParams = gymId ? [gymId] : [];
+
+    const [rankRows] = await pool.execute(
+      `SELECT
+         1 + COUNT(*) AS rank_position
+       FROM users
+       WHERE ${rankScopeWhere}
+         AND (total_points > ? OR (total_points = ? AND id < ?))`,
+      rankParams,
+    );
+
+    const [membersRows] = await pool.execute(
+      `SELECT COUNT(*) AS total_members
+       FROM users
+       WHERE ${rankScopeWhere}`,
+      membersParams,
+    );
+
+    const stats = rows[0] || {};
+    const nextRank = getNextRankInfo(totalPoints);
+    return res.json({
+      completedExercises: Number(stats.completed_exercises || 0),
+      firstCompletedAt: stats.first_completed_at || null,
+      rankPosition: Number(rankRows[0]?.rank_position || 0),
+      totalMembers: Number(membersRows[0]?.total_members || 0),
+      totalPoints,
+      rank: getRankFromPoints(totalPoints),
+      nextRank,
+    });
+  } catch (error) {
+    return res.status(500).json({ error: error.message });
+  }
+});
+
+router.get('/leaderboard/:userId', async (req, res) => {
+  try {
+    const userId = toNumber(req.params.userId);
+    if (!userId || userId <= 0) {
+      return res.status(400).json({ error: 'Invalid userId' });
+    }
+
+    const period = String(req.query.period || 'alltime').toLowerCase();
+    if (!['monthly', 'alltime'].includes(period)) {
+      return res.status(400).json({ error: "Invalid period. Use 'monthly' or 'alltime'" });
+    }
+
+    const profileImageColumn = await getProfileImageColumn();
+    if (!profileImageColumn) {
+      return res.status(500).json({ error: 'No profile image column found on users table' });
+    }
+
+    const [userRows] = await pool.execute(
+      `SELECT id, gym_id
+       FROM users
+       WHERE id = ?
+       LIMIT 1`,
+      [userId],
+    );
+
+    if (!userRows.length) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    const gymId = userRows[0].gym_id;
+    const scopeWhere = gymId
+      ? `u.role = 'user' AND u.is_active = 1 AND u.gym_id = ?`
+      : `u.role = 'user' AND u.is_active = 1`;
+    const scopeParams = gymId ? [gymId] : [];
+
+    let query = '';
+    if (period === 'monthly') {
+      query = `
+        SELECT
+          u.id,
+          u.name,
+          u.gym_id,
+          ${profileImageColumn} AS profile_picture,
+          COALESCE(monthly_missions.points, 0) + COALESCE(monthly_challenges.points, 0) AS points,
+          COALESCE(u.total_points, 0) AS total_points
+        FROM users u
+        LEFT JOIN (
+          SELECT um.user_id, SUM(m.points_reward) AS points
+          FROM user_missions um
+          JOIN missions m ON m.id = um.mission_id
+          WHERE um.status = 'completed'
+            AND um.completed_at >= DATE_FORMAT(NOW(), '%Y-%m-01')
+            AND um.completed_at < DATE_ADD(DATE_FORMAT(NOW(), '%Y-%m-01'), INTERVAL 1 MONTH)
+          GROUP BY um.user_id
+        ) monthly_missions ON monthly_missions.user_id = u.id
+        LEFT JOIN (
+          SELECT uc.user_id, SUM(ct.points_reward) AS points
+          FROM user_challenges uc
+          JOIN challenge_templates ct ON ct.id = uc.challenge_template_id
+          WHERE uc.status = 'completed'
+            AND uc.completed_at >= DATE_FORMAT(NOW(), '%Y-%m-01')
+            AND uc.completed_at < DATE_ADD(DATE_FORMAT(NOW(), '%Y-%m-01'), INTERVAL 1 MONTH)
+          GROUP BY uc.user_id
+        ) monthly_challenges ON monthly_challenges.user_id = u.id
+        WHERE ${scopeWhere}
+        ORDER BY points DESC, u.id ASC
+      `;
+    } else {
+      query = `
+        SELECT
+          u.id,
+          u.name,
+          u.gym_id,
+          ${profileImageColumn} AS profile_picture,
+          COALESCE(u.total_points, 0) AS points,
+          COALESCE(u.total_points, 0) AS total_points
+        FROM users u
+        WHERE ${scopeWhere}
+        ORDER BY points DESC, u.id ASC
+      `;
+    }
+
+    const [rows] = await pool.execute(query, scopeParams);
+
+    const leaderboard = rows.map((row, index) => ({
+      id: Number(row.id),
+      name: row.name || 'User',
+      profile_picture: row.profile_picture || null,
+      points: Number(row.points || 0),
+      total_points: Number(row.total_points || 0),
+      rank: index + 1,
+    }));
+
+    return res.json({ period, leaderboard });
   } catch (error) {
     return res.status(500).json({ error: error.message });
   }
@@ -1042,6 +3082,14 @@ router.get('/user/:userId/program-progress', async (req, res) => {
     }
 
     const currentWeek = getCurrentWeek(assignment.start_date, assignment.cycle_weeks);
+    let adaptationInfo = null;
+    if (currentWeek % 2 === 0) {
+      try {
+        adaptationInfo = await adaptProgramBiWeekly(pool, { userId: Number(userId), trigger: 'auto_progress_poll' });
+      } catch {
+        adaptationInfo = null;
+      }
+    }
     const plannedWorkouts = Number(assignment.cycle_weeks || 0) * Number(assignment.days_per_week || 0);
     const workoutsPlannedThisWeek = Number(assignment.days_per_week || 0);
 
@@ -1154,6 +3202,7 @@ router.get('/user/:userId/program-progress', async (req, res) => {
         rank: userRows[0]?.rank || 'Bronze',
         volumeLoadLast30Days: Number(volumeRows[0]?.volume_load || 0),
         setsLoggedLast30Days: Number(volumeRows[0]?.sets_logged || 0),
+        adaptationInfo,
       },
     });
   } catch (error) {
@@ -1293,7 +3342,10 @@ router.get('/user/:userId/recovery', async (req, res) => {
 
 router.post('/user/:userId/recovery', async (req, res) => {
   try {
-    const { userId } = req.params;
+    const userId = toNumber(req.params.userId);
+    if (!userId || userId <= 0) {
+      return res.status(400).json({ error: 'Invalid userId' });
+    }
     const { sleepHours, nutritionQuality, stressLevel, proteinIntake, supplements } = req.body;
 
     let normalizedProteinIntake = proteinIntake;
@@ -1326,7 +3378,34 @@ router.post('/user/:userId/recovery', async (req, res) => {
       [userId, sleepHours || 7, normalizedNutrition, normalizedStress, normalizedProteinIntake, supplements || null]
     );
 
-    return res.json({ success: true });
+    const recoveryScore = estimateRecoveryScoreFromFactors({
+      sleepHours: sleepHours || 7,
+      nutritionQuality: normalizedNutrition,
+      stressLevel: normalizedStress,
+      proteinIntake: normalizedProteinIntake,
+    });
+
+    await pool.execute(
+      `INSERT INTO recovery_history
+         (user_id, overall_recovery_score, sleep_hours, nutrition_quality, stress_level)
+       VALUES (?, ?, ?, ?, ?)`,
+      [userId, recoveryScore, sleepHours || 7, normalizedNutrition, normalizedStress],
+    );
+
+    const gamification = await refreshGamificationForUser(userId);
+
+    return res.json({
+      success: true,
+      recoveryScore,
+      gamification: gamification
+        ? {
+            totalPoints: gamification.totalPoints,
+            rank: gamification.rank,
+            completedMissions: gamification.completedMissions,
+            completedChallenges: gamification.completedChallenges,
+          }
+        : null,
+    });
   } catch (error) {
     return res.status(500).json({ error: error.message });
   }
@@ -1334,23 +3413,105 @@ router.post('/user/:userId/recovery', async (req, res) => {
 
 router.post('/user/:userId/recovery/recalculate-today', async (req, res) => {
   try {
-    const { userId } = req.params;
+    const userId = toNumber(req.params.userId);
+    if (!userId || userId <= 0) {
+      return res.status(400).json({ error: 'Invalid userId' });
+    }
 
     const [setRows] = await pool.execute(
       `SELECT
+          id,
           exercise_name,
-          COUNT(*) AS set_count,
-          AVG(COALESCE(rpe, 7)) AS avg_rpe,
-          MAX(created_at) AS last_logged_at
+          exercise_catalog_id,
+          COALESCE(rpe, 7) AS rpe,
+          created_at
        FROM workout_sets
-       WHERE user_id = ? AND DATE(created_at) = CURDATE() AND completed = 1
-       GROUP BY exercise_name`,
+       WHERE user_id = ? AND DATE(created_at) = CURDATE() AND completed = 1`,
       [userId],
     );
 
     if (!setRows.length) {
       return res.json({ success: true, muscles: [] });
     }
+
+    const unresolvedNames = [
+      ...new Set(
+        setRows
+          .filter((row) => !row.exercise_catalog_id)
+          .map((row) => normalizeExerciseLookupName(row.exercise_name))
+          .filter(Boolean),
+      ),
+    ];
+    const catalogIdByName = unresolvedNames.length
+      ? await resolveCatalogIdsByNormalizedNames(unresolvedNames)
+      : new Map();
+
+    const workoutSetBackfills = [];
+    const exercisesByKey = new Map();
+
+    setRows.forEach((row) => {
+      const existingCatalogId = toNumber(row.exercise_catalog_id, null);
+      const normalizedName = normalizeExerciseLookupName(row.exercise_name);
+      const resolvedCatalogId = existingCatalogId || catalogIdByName.get(normalizedName) || null;
+
+      if (!existingCatalogId && resolvedCatalogId && row.id) {
+        workoutSetBackfills.push({
+          id: Number(row.id),
+          catalogId: resolvedCatalogId,
+        });
+      }
+
+      const key = resolvedCatalogId
+        ? `catalog:${resolvedCatalogId}`
+        : `name:${normalizedName || String(row.exercise_name || '').toLowerCase()}`;
+
+      if (!exercisesByKey.has(key)) {
+        exercisesByKey.set(key, {
+          catalogId: resolvedCatalogId,
+          setCount: 0,
+          totalRpe: 0,
+          rpeSamples: 0,
+          lastLoggedAt: row.created_at,
+        });
+      }
+
+      const summary = exercisesByKey.get(key);
+      summary.setCount += 1;
+      summary.totalRpe += Number(row.rpe || 7);
+      summary.rpeSamples += 1;
+      if (
+        !summary.lastLoggedAt
+        || new Date(row.created_at).getTime() > new Date(summary.lastLoggedAt).getTime()
+      ) {
+        summary.lastLoggedAt = row.created_at;
+      }
+      summary.catalogId = summary.catalogId || resolvedCatalogId;
+    });
+
+    if (workoutSetBackfills.length) {
+      await Promise.all(
+        workoutSetBackfills.map((entry) => (
+          pool.execute(
+            'UPDATE workout_sets SET exercise_catalog_id = ? WHERE id = ? AND exercise_catalog_id IS NULL',
+            [entry.catalogId, entry.id],
+          )
+        )),
+      );
+    }
+
+    const catalogIds = [
+      ...new Set(
+        Array.from(exercisesByKey.values())
+          .map((exercise) => Number(exercise.catalogId || 0))
+          .filter((catalogId) => catalogId > 0),
+      ),
+    ];
+
+    if (!catalogIds.length) {
+      return res.json({ success: true, muscles: [] });
+    }
+
+    const recoveryContextByCatalogId = await getCatalogRecoveryContexts(catalogIds);
 
     const [factorRows] = await pool.execute(
       `SELECT
@@ -1369,48 +3530,51 @@ router.post('/user/:userId/recovery/recalculate-today', async (req, res) => {
     const factors = factorRows[0] || {};
     const byMuscle = new Map();
 
-    setRows.forEach((row) => {
-      const muscles = inferMusclesFromExerciseName(row.exercise_name);
-      if (!muscles.length) return;
+    exercisesByKey.forEach((exercise) => {
+      if (!exercise.catalogId) return;
 
-      const rpeValue = Number(row.avg_rpe);
-      const inferredIntensity = Number.isFinite(rpeValue)
-        ? (rpeValue >= 8 ? 'high' : rpeValue <= 5 ? 'low' : 'moderate')
-        : 'moderate';
+      const context = recoveryContextByCatalogId.get(Number(exercise.catalogId));
+      if (!context || !context.muscles.length) return;
 
-      const setCount = Number(row.set_count || 0);
-      const inferredVolume = setCount >= 5
-        ? 'high'
-        : setCount <= 2
-          ? 'low'
-          : 'moderate';
+      const avgRpe = exercise.rpeSamples
+        ? (exercise.totalRpe / exercise.rpeSamples)
+        : 7;
+      const inferredIntensity = deriveIntensityFromRpe(avgRpe);
+      const inferredVolume = deriveVolumeFromSetCount(exercise.setCount);
+      const eccentricFocus = Number(context.profile.eccentricBiasScore || 1) >= 1.05;
 
-      muscles.forEach((muscle) => {
+      context.muscles.forEach((muscleEntry) => {
+        const loadMultiplier = computeCatalogRecoveryLoadMultiplier(
+          context.profile,
+          muscleEntry.loadFactor,
+        );
+
         const hoursNeeded = calculateRecoveryHours({
-          muscleGroup: muscle,
+          muscleGroup: muscleEntry.muscle,
           intensity: inferredIntensity,
           volume: inferredVolume,
-          eccentricFocus: false,
+          eccentricFocus,
           age: factors.age ?? null,
           sleepHours: Number(factors.sleep_hours ?? 7),
           nutritionQuality: factors.nutrition_quality || 'optimal',
           stressLevel: factors.stress_level || 'moderate',
           proteinIntake: factors.protein_intake ?? null,
+          loadMultiplier,
         });
 
-        const existing = byMuscle.get(muscle);
+        const existing = byMuscle.get(muscleEntry.muscle);
         if (!existing) {
-          byMuscle.set(muscle, {
+          byMuscle.set(muscleEntry.muscle, {
             hoursNeeded,
-            lastWorked: row.last_logged_at,
+            lastWorked: exercise.lastLoggedAt,
           });
           return;
         }
 
-        byMuscle.set(muscle, {
+        byMuscle.set(muscleEntry.muscle, {
           hoursNeeded: Math.max(existing.hoursNeeded, hoursNeeded),
-          lastWorked: new Date(row.last_logged_at).getTime() > new Date(existing.lastWorked).getTime()
-            ? row.last_logged_at
+          lastWorked: new Date(exercise.lastLoggedAt).getTime() > new Date(existing.lastWorked).getTime()
+            ? exercise.lastLoggedAt
             : existing.lastWorked,
         });
       });
@@ -1435,12 +3599,22 @@ router.post('/user/:userId/recovery/recalculate-today', async (req, res) => {
 
     await Promise.all(updates);
 
+    const gamification = await refreshGamificationForUser(userId);
+
     return res.json({
       success: true,
       muscles: Array.from(byMuscle.entries()).map(([muscle, value]) => ({
         muscle,
         hoursNeeded: value.hoursNeeded,
       })),
+      gamification: gamification
+        ? {
+            totalPoints: gamification.totalPoints,
+            rank: gamification.rank,
+            completedMissions: gamification.completedMissions,
+            completedChallenges: gamification.completedChallenges,
+          }
+        : null,
     });
   } catch (error) {
     return res.status(500).json({ error: error.message });
@@ -1449,8 +3623,11 @@ router.post('/user/:userId/recovery/recalculate-today', async (req, res) => {
 
 router.post('/workouts/:workoutId/recovery', async (req, res) => {
   try {
-    const { workoutId } = req.params;
-    const { userId } = req.body;
+    const workoutId = toNumber(req.params.workoutId);
+    const userId = toNumber(req.body.userId);
+    if (!workoutId || workoutId <= 0 || !userId || userId <= 0) {
+      return res.status(400).json({ error: 'Invalid workoutId or userId' });
+    }
 
     const [workoutRows] = await pool.execute(
       'SELECT * FROM workout_sessions WHERE id = ? AND user_id = ? LIMIT 1',
@@ -1516,7 +3693,20 @@ router.post('/workouts/:workoutId/recovery', async (req, res) => {
       perMuscle.push({ muscle, recoveryHours });
     }
 
-    return res.json({ success: true, muscles: perMuscle });
+    const gamification = await refreshGamificationForUser(userId);
+
+    return res.json({
+      success: true,
+      muscles: perMuscle,
+      gamification: gamification
+        ? {
+            totalPoints: gamification.totalPoints,
+            rank: gamification.rank,
+            completedMissions: gamification.completedMissions,
+            completedChallenges: gamification.completedChallenges,
+          }
+        : null,
+    });
   } catch (error) {
     return res.status(500).json({ error: error.message });
   }
@@ -1623,35 +3813,100 @@ router.put('/notifications/:notificationId/read', async (req, res) => {
   }
 });
 
+router.delete('/notifications/:userId', async (req, res) => {
+  try {
+    const userId = toNumber(req.params.userId);
+    if (!userId || userId <= 0) {
+      return res.status(400).json({ error: 'Invalid userId' });
+    }
+
+    const [result] = await pool.execute('DELETE FROM notifications WHERE user_id = ?', [userId]);
+    return res.json({
+      success: true,
+      deletedCount: Number(result?.affectedRows || 0),
+    });
+  } catch (error) {
+    return res.status(500).json({ error: error.message });
+  }
+});
+
+router.get('/notification-settings/:userId', async (req, res) => {
+  try {
+    const userId = toNumber(req.params.userId);
+    if (!userId || userId <= 0) {
+      return res.status(400).json({ error: 'Invalid userId' });
+    }
+
+    await ensureNotificationSettingsInfrastructure();
+    const [rows] = await pool.execute(
+      `SELECT coach_messages, rest_timer, mission_challenge
+       FROM user_notification_settings
+       WHERE user_id = ?
+       LIMIT 1`,
+      [userId],
+    );
+
+    if (!rows.length) {
+      return res.json({
+        coachMessages: true,
+        restTimer: true,
+        missionChallenge: true,
+      });
+    }
+
+    const row = rows[0];
+    return res.json({
+      coachMessages: !!row.coach_messages,
+      restTimer: !!row.rest_timer,
+      missionChallenge: !!row.mission_challenge,
+    });
+  } catch (error) {
+    return res.status(500).json({ error: error.message });
+  }
+});
+
+router.put('/notification-settings/:userId', async (req, res) => {
+  try {
+    const userId = toNumber(req.params.userId);
+    if (!userId || userId <= 0) {
+      return res.status(400).json({ error: 'Invalid userId' });
+    }
+
+    await ensureNotificationSettingsInfrastructure();
+    const coachMessages = req.body?.coachMessages === undefined ? true : !!req.body.coachMessages;
+    const restTimer = req.body?.restTimer === undefined ? true : !!req.body.restTimer;
+    const missionChallenge = req.body?.missionChallenge === undefined ? true : !!req.body.missionChallenge;
+
+    await pool.execute(
+      `INSERT INTO user_notification_settings (user_id, coach_messages, rest_timer, mission_challenge)
+       VALUES (?, ?, ?, ?)
+       ON DUPLICATE KEY UPDATE
+         coach_messages = VALUES(coach_messages),
+         rest_timer = VALUES(rest_timer),
+         mission_challenge = VALUES(mission_challenge),
+         updated_at = CURRENT_TIMESTAMP`,
+      [userId, coachMessages ? 1 : 0, restTimer ? 1 : 0, missionChallenge ? 1 : 0],
+    );
+
+    return res.json({ success: true, coachMessages, restTimer, missionChallenge });
+  } catch (error) {
+    return res.status(500).json({ error: error.message });
+  }
+});
+
 // =========================
 // MISSIONS
 // =========================
 
 router.get('/missions/:userId', async (req, res) => {
   try {
-    const { userId } = req.params;
+    const userId = toNumber(req.params.userId);
+    if (!userId || userId <= 0) {
+      return res.status(400).json({ error: 'Invalid userId' });
+    }
 
-    const [rows] = await pool.execute(
-      `SELECT
-          m.id,
-          m.title,
-          m.description,
-          m.points_reward,
-          COALESCE(um.current_progress, 0) AS progress,
-          COALESCE(um.target_value, m.target_value) AS target,
-          CASE WHEN COALESCE(um.status, 'active') = 'completed' THEN 1 ELSE 0 END AS completed,
-          GREATEST(COALESCE(um.target_value, m.target_value) - COALESCE(um.current_progress, 0), 0) AS remaining,
-          um.completed_at,
-          um.status
-       FROM missions m
-       LEFT JOIN user_missions um
-         ON um.mission_id = m.id AND um.user_id = ?
-       WHERE m.is_active = 1
-       ORDER BY m.id ASC`,
-      [userId]
-    );
-
-    return res.json(rows.map((r) => ({ ...r, completed: !!r.completed })));
+    const refreshed = await refreshGamificationForUser(userId);
+    return res.json(refreshed?.missions || []);
   } catch (error) {
     return res.status(500).json({ error: error.message });
   }
@@ -1659,7 +3914,10 @@ router.get('/missions/:userId', async (req, res) => {
 
 router.get('/missions/:userId/history', async (req, res) => {
   try {
-    const { userId } = req.params;
+    const userId = toNumber(req.params.userId);
+    if (!userId || userId <= 0) {
+      return res.status(400).json({ error: 'Invalid userId' });
+    }
 
     const [rows] = await pool.execute(
       `SELECT m.title, m.points_reward, um.completed_at,
@@ -1678,8 +3936,535 @@ router.get('/missions/:userId/history', async (req, res) => {
 });
 
 // =========================
+// CHALLENGES
+// =========================
+
+router.get('/challenges/:userId', async (req, res) => {
+  try {
+    const userId = toNumber(req.params.userId);
+    if (!userId || userId <= 0) {
+      return res.status(400).json({ error: 'Invalid userId' });
+    }
+
+    const refreshed = await refreshGamificationForUser(userId);
+    const challenges = refreshed?.challenges || [];
+
+    return res.json({
+      daily: challenges.filter((c) => c.challenge_type === 'daily'),
+      weekly: challenges.filter((c) => c.challenge_type === 'weekly'),
+      totals: {
+        completed: challenges.filter((c) => c.completed).length,
+        active: challenges.filter((c) => !c.completed).length,
+      },
+    });
+  } catch (error) {
+    return res.status(500).json({ error: error.message });
+  }
+});
+
+router.get('/challenges/:userId/history', async (req, res) => {
+  try {
+    const userId = toNumber(req.params.userId);
+    if (!userId || userId <= 0) {
+      return res.status(400).json({ error: 'Invalid userId' });
+    }
+
+    const [rows] = await pool.execute(
+      `SELECT
+          ct.title,
+          ct.challenge_type,
+          ct.points_reward,
+          uc.instance_key,
+          uc.completed_at,
+          DATE_FORMAT(uc.completed_at, '%M %Y') AS period
+       FROM user_challenges uc
+       JOIN challenge_templates ct ON ct.id = uc.challenge_template_id
+       WHERE uc.user_id = ? AND uc.status = 'completed' AND uc.completed_at IS NOT NULL
+       ORDER BY uc.completed_at DESC`,
+      [userId],
+    );
+
+    return res.json(rows);
+  } catch (error) {
+    return res.status(500).json({ error: error.message });
+  }
+});
+
+router.get('/gamification/:userId/summary', async (req, res) => {
+  try {
+    const userId = toNumber(req.params.userId);
+    if (!userId || userId <= 0) {
+      return res.status(400).json({ error: 'Invalid userId' });
+    }
+
+    const refreshed = await refreshGamificationForUser(userId);
+    if (!refreshed) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    return res.json({
+      userId: refreshed.userId,
+      totalPoints: refreshed.totalPoints,
+      missionPoints: refreshed.missionPoints,
+      challengePoints: refreshed.challengePoints,
+      rank: refreshed.rank,
+      nextRank: refreshed.nextRank,
+      totalWorkouts: refreshed.totalWorkouts,
+      completedMissions: refreshed.completedMissions,
+      completedChallenges: refreshed.completedChallenges,
+      activeMissions: refreshed.missions.filter((m) => !m.completed).length,
+      activeChallenges: refreshed.challenges.filter((c) => !c.completed).length,
+    });
+  } catch (error) {
+    return res.status(500).json({ error: error.message });
+  }
+});
+
+router.get('/gamification/:userId/debug-metrics', async (req, res) => {
+  try {
+    const userId = toNumber(req.params.userId);
+    if (!userId || userId <= 0) {
+      return res.status(400).json({ error: 'Invalid userId' });
+    }
+    await gamificationReady;
+    const metrics = await collectUserGamificationMetrics(userId, new Date());
+    return res.json({ userId, metrics });
+  } catch (error) {
+    return res.status(500).json({ error: error.message });
+  }
+});
+
+// =========================
 // WORKOUT SETS / HISTORY
 // =========================
+
+router.get('/progress/strength/:userId', async (req, res) => {
+  try {
+    const userId = Number(req.params.userId);
+    if (!Number.isFinite(userId) || userId <= 0) {
+      return res.status(400).json({ error: 'Invalid userId' });
+    }
+
+    const requestedWeeks = Number(req.query.weeks || 8);
+    const weeks = Math.min(24, Math.max(4, Number.isFinite(requestedWeeks) ? requestedWeeks : 8));
+
+    const [rows] = await pool.execute(
+      `SELECT
+         agg.yw AS year_week,
+         agg.week_start AS week_start,
+         ROUND(AVG(agg.best_e1rm), 2) AS avg_e1rm
+       FROM (
+         SELECT
+           YEARWEEK(created_at, 1) AS yw,
+           DATE_SUB(DATE(created_at), INTERVAL WEEKDAY(created_at) DAY) AS week_start,
+           exercise_name,
+           MAX(weight * (1 + (reps / 30.0))) AS best_e1rm
+         FROM workout_sets
+         WHERE user_id = ?
+           AND completed = 1
+           AND weight IS NOT NULL
+           AND weight > 0
+           AND reps IS NOT NULL
+           AND reps BETWEEN 1 AND 12
+           AND created_at >= DATE_SUB(CURDATE(), INTERVAL ? WEEK)
+         GROUP BY YEARWEEK(created_at, 1), DATE_SUB(DATE(created_at), INTERVAL WEEKDAY(created_at) DAY), exercise_name
+       ) agg
+       GROUP BY agg.yw, agg.week_start
+       ORDER BY agg.yw ASC`,
+      [userId, weeks],
+    );
+
+    const series = rows.map((row) => ({
+      yearWeek: Number(row.year_week),
+      weekStart: row.week_start,
+      avgE1RM: Number(row.avg_e1rm || 0),
+    }));
+
+    if (!series.length) {
+      return res.json({
+        weeks: [],
+        summary: {
+          weeksRequested: weeks,
+          baselineAvgE1RM: null,
+          currentAvgE1RM: null,
+          percentChange: 0,
+        },
+      });
+    }
+
+    const baseline = Number(series[0].avgE1RM || 0);
+    const current = Number(series[series.length - 1].avgE1RM || 0);
+    const percentChange = baseline > 0
+      ? Number((((current - baseline) / baseline) * 100).toFixed(1))
+      : 0;
+
+    return res.json({
+      weeks: series,
+      summary: {
+        weeksRequested: weeks,
+        baselineAvgE1RM: baseline,
+        currentAvgE1RM: current,
+        percentChange,
+      },
+    });
+  } catch (error) {
+    return res.status(500).json({ error: error.message });
+  }
+});
+
+router.get('/progress/muscle-distribution/:userId', async (req, res) => {
+  try {
+    const userId = Number(req.params.userId);
+    if (!Number.isFinite(userId) || userId <= 0) {
+      return res.status(400).json({ error: 'Invalid userId' });
+    }
+
+    const requestedDays = Number(req.query.days || 30);
+    const days = Math.min(365, Math.max(7, Number.isFinite(requestedDays) ? requestedDays : 30));
+
+    const [rows] = await pool.execute(
+      `SELECT
+         exercise_name,
+         COUNT(*) AS set_count,
+         COALESCE(SUM(CASE
+           WHEN weight IS NOT NULL AND reps IS NOT NULL THEN (weight * reps)
+           ELSE 0
+         END), 0) AS volume_load
+       FROM workout_sets
+       WHERE user_id = ?
+         AND completed = 1
+         AND created_at >= DATE_SUB(NOW(), INTERVAL ? DAY)
+       GROUP BY exercise_name`,
+      [userId, days],
+    );
+
+    const byMuscle = new Map();
+
+    rows.forEach((row) => {
+      const muscles = inferMusclesFromExerciseName(row.exercise_name);
+      if (!muscles.length) return;
+
+      const volumeLoad = Number(row.volume_load || 0);
+      const setCount = Number(row.set_count || 0);
+      // If no weight/reps are logged, keep a small proxy so the muscle still appears.
+      const totalContribution = volumeLoad > 0 ? volumeLoad : (setCount * 100);
+      const perMuscleContribution = totalContribution / muscles.length;
+
+      muscles.forEach((muscle) => {
+        byMuscle.set(
+          muscle,
+          Number((byMuscle.get(muscle) || 0) + perMuscleContribution),
+        );
+      });
+    });
+
+    const total = Array.from(byMuscle.values()).reduce((sum, value) => sum + Number(value || 0), 0);
+
+    const distribution = Array.from(byMuscle.entries())
+      .map(([muscle, value]) => ({
+        muscle,
+        value: Number(value.toFixed(2)),
+        percent: total > 0 ? Number(((value / total) * 100).toFixed(1)) : 0,
+      }))
+      .sort((a, b) => b.percent - a.percent);
+
+    return res.json({
+      distribution,
+      summary: {
+        days,
+        totalValue: Number(total.toFixed(2)),
+      },
+    });
+  } catch (error) {
+    return res.status(500).json({ error: error.message });
+  }
+});
+
+router.get('/progress/bi-weekly-report/:userId', async (req, res) => {
+  try {
+    const userId = Number(req.params.userId);
+    if (!Number.isFinite(userId) || userId <= 0) {
+      return res.status(400).json({ error: 'Invalid userId' });
+    }
+
+    const days = 14;
+    const halfDays = 7;
+
+    const [programRows] = await pool.execute(
+      `SELECT p.days_per_week
+       FROM program_assignments pa
+       JOIN programs p ON p.id = pa.program_id
+       WHERE pa.user_id = ? AND pa.status = 'active'
+       ORDER BY pa.created_at DESC
+       LIMIT 1`,
+      [userId],
+    );
+
+    const daysPerWeek = Number(programRows[0]?.days_per_week || 0);
+    const plannedSessions = daysPerWeek > 0 ? Math.max(1, Math.round((daysPerWeek / 7) * days)) : 0;
+
+    const [completedRows] = await pool.execute(
+      `SELECT COUNT(DISTINCT DATE(created_at)) AS completed_days
+       FROM workout_sets
+       WHERE user_id = ?
+         AND completed = 1
+         AND created_at >= DATE_SUB(NOW(), INTERVAL ? DAY)`,
+      [userId, days],
+    );
+    const completedSessions = Number(completedRows[0]?.completed_days || 0);
+    const consistency = plannedSessions > 0
+      ? Math.max(0, Math.min(100, Math.round((completedSessions / plannedSessions) * 100)))
+      : 0;
+
+    const [volumeRows] = await pool.execute(
+      `SELECT COALESCE(SUM(CASE
+          WHEN weight IS NOT NULL AND reps IS NOT NULL THEN (weight * reps)
+          ELSE 0
+        END), 0) AS volume_load
+       FROM workout_sets
+       WHERE user_id = ?
+         AND completed = 1
+         AND created_at >= DATE_SUB(NOW(), INTERVAL ? DAY)`,
+      [userId, days],
+    );
+    const totalVolume14d = Number(volumeRows[0]?.volume_load || 0);
+
+    const [strengthRows] = await pool.execute(
+      `SELECT
+          exercise_name,
+          DATE(created_at) AS logged_day,
+          MAX(weight * (1 + (reps / 30.0))) AS best_e1rm
+       FROM workout_sets
+       WHERE user_id = ?
+         AND completed = 1
+         AND weight IS NOT NULL AND weight > 0
+         AND reps IS NOT NULL AND reps BETWEEN 1 AND 12
+         AND created_at >= DATE_SUB(NOW(), INTERVAL ? DAY)
+       GROUP BY exercise_name, DATE(created_at)`,
+      [userId, days],
+    );
+
+    const cutoff = Date.now() - (halfDays * 24 * 60 * 60 * 1000);
+    const byExercise = new Map();
+
+    strengthRows.forEach((row) => {
+      const exerciseName = String(row.exercise_name || '').trim();
+      if (!exerciseName) return;
+
+      const ts = new Date(row.logged_day).getTime();
+      const bucket = ts >= cutoff ? 'current' : 'previous';
+      const entry = byExercise.get(exerciseName) || { previous: [], current: [] };
+      entry[bucket].push(Number(row.best_e1rm || 0));
+      byExercise.set(exerciseName, entry);
+    });
+
+    const improvements = [];
+    byExercise.forEach((value, exerciseName) => {
+      if (!value.previous.length || !value.current.length) return;
+      const prevAvg = value.previous.reduce((a, b) => a + b, 0) / value.previous.length;
+      const currAvg = value.current.reduce((a, b) => a + b, 0) / value.current.length;
+      const deltaKg = Number((currAvg - prevAvg).toFixed(1));
+      if (deltaKg <= 0) return;
+      improvements.push({
+        title: exerciseName,
+        detail: `+${deltaKg}kg increase in 1RM estimate`,
+        delta: deltaKg,
+      });
+    });
+
+    improvements.sort((a, b) => b.delta - a.delta);
+
+    const [sleepRows] = await pool.execute(
+      `SELECT
+          AVG(CASE WHEN recorded_at >= DATE_SUB(NOW(), INTERVAL ? DAY) THEN sleep_hours END) AS avg_recent_sleep,
+          AVG(CASE WHEN recorded_at < DATE_SUB(NOW(), INTERVAL ? DAY)
+                    AND recorded_at >= DATE_SUB(NOW(), INTERVAL ? DAY)
+                   THEN sleep_hours END) AS avg_previous_sleep
+       FROM recovery_history
+       WHERE user_id = ?
+         AND recorded_at >= DATE_SUB(NOW(), INTERVAL ? DAY)`,
+      [halfDays, halfDays, days, userId, days],
+    );
+    const recentSleep = Number(sleepRows[0]?.avg_recent_sleep || 0);
+    const prevSleep = Number(sleepRows[0]?.avg_previous_sleep || 0);
+    if (recentSleep > 0 && prevSleep > 0 && recentSleep > prevSleep) {
+      improvements.push({
+        title: 'Sleep Quality',
+        detail: `Avg. ${recentSleep.toFixed(1)}hrs (up from ${prevSleep.toFixed(1)}hrs)`,
+        delta: Number((recentSleep - prevSleep).toFixed(1)),
+      });
+    }
+
+    const [distRows] = await pool.execute(
+      `SELECT exercise_name, COUNT(*) AS set_count
+       FROM workout_sets
+       WHERE user_id = ?
+         AND completed = 1
+         AND created_at >= DATE_SUB(NOW(), INTERVAL ? DAY)
+       GROUP BY exercise_name`,
+      [userId, days],
+    );
+
+    const muscleBuckets = new Map([
+      ['Chest', 0],
+      ['Back', 0],
+      ['Quadriceps', 0],
+      ['Hamstrings', 0],
+      ['Shoulders', 0],
+      ['Arms', 0],
+      ['Abs', 0],
+    ]);
+
+    distRows.forEach((row) => {
+      const muscles = inferMusclesFromExerciseName(row.exercise_name);
+      const setCount = Number(row.set_count || 0);
+      if (!muscles.length || setCount <= 0) return;
+      const share = setCount / muscles.length;
+      muscles.forEach((muscle) => {
+        const normalized = muscle === 'Biceps' || muscle === 'Triceps' || muscle === 'Forearms'
+          ? 'Arms'
+          : muscle;
+        if (!muscleBuckets.has(normalized)) return;
+        muscleBuckets.set(normalized, Number(muscleBuckets.get(normalized) || 0) + share);
+      });
+    });
+
+    const focusTarget = Array.from(muscleBuckets.entries())
+      .sort((a, b) => a[1] - b[1])[0]?.[0] || 'Legs';
+
+    const [statusRows] = await pool.execute(
+      `SELECT muscle_group, hours_needed, last_worked
+       FROM muscle_recovery_status
+       WHERE user_id = ?`,
+      [userId],
+    );
+
+    let avgRecovery = 100;
+    if (statusRows.length) {
+      const scores = statusRows.map((row) => calculateDynamicRecovery(row.last_worked, row.hours_needed).score);
+      avgRecovery = Math.round(scores.reduce((a, b) => a + b, 0) / scores.length);
+    }
+
+    const summary = `Consistency ${consistency}% over the last ${days} days. ${
+      improvements.length
+        ? `Biggest lift gain: ${improvements[0].title} (${improvements[0].detail}).`
+        : 'You maintained baseline strength with no major regressions.'
+    } Recovery average is ${avgRecovery}%, and total volume logged is ${(totalVolume14d / 1000).toFixed(1)}t.`;
+
+    const nextFocus = [];
+    nextFocus.push({
+      title: `${focusTarget} Volume`,
+      detail: `Increase ${focusTarget.toLowerCase()} training volume by 2-4 working sets next week.`,
+    });
+
+    if (consistency < 80) {
+      nextFocus.push({
+        title: 'Plan Adherence',
+        detail: 'Hit all scheduled training days this week to improve momentum and results.',
+      });
+    }
+
+    if (avgRecovery < 70) {
+      nextFocus.push({
+        title: 'Recovery',
+        detail: 'Prioritize sleep and reduce intensity on fatigued muscle groups for 2-3 days.',
+      });
+    }
+
+    return res.json({
+      periodDays: days,
+      summary,
+      metrics: {
+        consistency,
+        completedSessions,
+        plannedSessions,
+        totalVolume14d,
+        avgRecovery,
+      },
+      improvements: improvements.slice(0, 3).map(({ title, detail }) => ({ title, detail })),
+      nextFocus: nextFocus.slice(0, 3),
+    });
+  } catch (error) {
+    return res.status(500).json({ error: error.message });
+  }
+});
+
+router.get('/progress/overload/:userId', async (req, res) => {
+  try {
+    const userId = Number(req.params.userId);
+    if (!Number.isFinite(userId) || userId <= 0) {
+      return res.status(400).json({ error: 'Invalid userId' });
+    }
+
+    const [rows] = await pool.execute(
+      `SELECT
+          exercise_name,
+          MAX(created_at) AS last_logged_at,
+          ROUND(AVG(COALESCE(rpe, 7)), 2) AS avg_rpe,
+          MAX(COALESCE(weight, 0)) AS max_weight,
+          MAX(COALESCE(reps, 0)) AS max_reps,
+          COUNT(*) AS set_count
+       FROM workout_sets
+       WHERE user_id = ?
+         AND completed = 1
+         AND created_at >= DATE_SUB(NOW(), INTERVAL 28 DAY)
+       GROUP BY exercise_name
+       HAVING COUNT(*) >= 2
+       ORDER BY MAX(created_at) DESC
+       LIMIT 12`,
+      [userId],
+    );
+
+    const isRepBasedExercise = (name = '') => {
+      const key = String(name).toLowerCase();
+      return /pull[\s-]?up|chin[\s-]?up|plank|push[\s-]?up|dip/.test(key);
+    };
+
+    const isLowerBodyExercise = (name = '') => {
+      const key = String(name).toLowerCase();
+      return /squat|deadlift|leg|lunge|hip thrust|glute|hamstring|calf/.test(key);
+    };
+
+    const recommendations = rows.map((row) => {
+      const exerciseName = String(row.exercise_name || '').trim();
+      const avgRpe = Number(row.avg_rpe || 7);
+      const maxWeight = Number(row.max_weight || 0);
+      const maxReps = Number(row.max_reps || 0);
+
+      if (isRepBasedExercise(exerciseName) || maxWeight <= 0) {
+        const repIncrease = avgRpe <= 8 ? 1 : 0;
+        return {
+          name: exerciseName,
+          current: `${Math.max(1, maxReps)} reps`,
+          next: repIncrease > 0 ? `+${repIncrease} rep` : '+0 rep',
+          direction: 'up',
+        };
+      }
+
+      const kgIncrease = isLowerBodyExercise(exerciseName) ? 5 : 2.5;
+      const canIncrease = avgRpe <= 8.5;
+      return {
+        name: exerciseName,
+        current: `${Number(maxWeight.toFixed(1))}kg`,
+        next: canIncrease ? `+${kgIncrease}kg` : '+0kg',
+        direction: 'up',
+      };
+    });
+
+    const filtered = recommendations
+      .filter((rec) => !rec.next.startsWith('+0'))
+      .slice(0, 3);
+
+    return res.json({
+      recommendations: filtered,
+      meta: {
+        sourceDays: 28,
+      },
+    });
+  } catch (error) {
+    return res.status(500).json({ error: error.message });
+  }
+});
 
 router.post('/workout-sets', async (req, res) => {
   try {
@@ -1688,6 +4473,7 @@ router.post('/workout-sets', async (req, res) => {
       sessionId = null,
       workoutExerciseId = null,
       exerciseName,
+      exerciseCatalogId = null,
       setNumber,
       weight,
       reps,
@@ -1699,15 +4485,26 @@ router.post('/workout-sets', async (req, res) => {
       applyRecovery = false,
     } = req.body;
 
-    if (!userId || !exerciseName || !setNumber) {
+    const normalizedUserId = toNumber(userId);
+    if (!normalizedUserId || !exerciseName || !setNumber) {
       return res.status(400).json({ error: 'userId, exerciseName and setNumber are required' });
+    }
+
+    const explicitCatalogId = toNumber(exerciseCatalogId, null);
+    const normalizedExerciseName = normalizeExerciseLookupName(exerciseName);
+    let resolvedCatalogId = explicitCatalogId && explicitCatalogId > 0 ? explicitCatalogId : null;
+
+    if (!resolvedCatalogId && normalizedExerciseName) {
+      const resolvedByName = await resolveCatalogIdsByNormalizedNames([normalizedExerciseName]);
+      resolvedCatalogId = resolvedByName.get(normalizedExerciseName) || null;
     }
 
     await pool.execute(
       `INSERT INTO workout_sets
-         (user_id, session_id, workout_exercise_id, exercise_name, set_number, weight, reps, rpe, duration_seconds, rest_seconds, completed, notes)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+         (user_id, session_id, workout_exercise_id, exercise_name, exercise_catalog_id, set_number, weight, reps, rpe, duration_seconds, rest_seconds, completed, notes)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
        ON DUPLICATE KEY UPDATE
+         exercise_catalog_id = COALESCE(VALUES(exercise_catalog_id), exercise_catalog_id),
          weight = VALUES(weight),
          reps = VALUES(reps),
          rpe = VALUES(rpe),
@@ -1715,13 +4512,29 @@ router.post('/workout-sets', async (req, res) => {
          rest_seconds = VALUES(rest_seconds),
          completed = VALUES(completed),
          notes = VALUES(notes)`,
-      [userId, sessionId, workoutExerciseId, exerciseName, setNumber, weight || null, reps || null, rpe, duration, restTime, completed ? 1 : 0, notes]
+      [
+        normalizedUserId,
+        sessionId,
+        workoutExerciseId,
+        exerciseName,
+        resolvedCatalogId,
+        setNumber,
+        weight || null,
+        reps || null,
+        rpe,
+        duration,
+        restTime,
+        completed ? 1 : 0,
+        notes,
+      ],
     );
 
     // Optional recovery rebuild (used only when explicitly requested).
-    if (completed && applyRecovery === true) {
-      const muscles = inferMusclesFromExerciseName(exerciseName);
-      if (muscles.length) {
+    if (completed && applyRecovery === true && resolvedCatalogId) {
+      const recoveryContextByCatalogId = await getCatalogRecoveryContexts([resolvedCatalogId]);
+      const context = recoveryContextByCatalogId.get(resolvedCatalogId);
+
+      if (context && context.muscles.length) {
         const [factorRows] = await pool.execute(
           `SELECT
               u.age,
@@ -1733,51 +4546,65 @@ router.post('/workout-sets', async (req, res) => {
            LEFT JOIN recovery_factors rf ON rf.user_id = u.id
            WHERE u.id = ?
            LIMIT 1`,
-          [userId],
+          [normalizedUserId],
         );
 
         const factors = factorRows[0] || {};
-        const rpeValue = Number(rpe);
-        const inferredIntensity = Number.isFinite(rpeValue)
-          ? (rpeValue >= 8 ? 'high' : rpeValue <= 5 ? 'low' : 'moderate')
-          : 'moderate';
-        const inferredVolume = Number(setNumber) >= 5
-          ? 'high'
-          : Number(setNumber) <= 2
-            ? 'low'
-            : 'moderate';
+        const inferredIntensity = deriveIntensityFromRpe(rpe);
+        const inferredVolume = deriveVolumeFromSetCount(setNumber);
+        const eccentricFocus = Number(context.profile.eccentricBiasScore || 1) >= 1.05;
 
         await Promise.all(
-          muscles.map(async (muscle) => {
+          context.muscles.map(async (muscleEntry) => {
+            const loadMultiplier = computeCatalogRecoveryLoadMultiplier(
+              context.profile,
+              muscleEntry.loadFactor,
+            );
             const hoursNeeded = calculateRecoveryHours({
-              muscleGroup: muscle,
+              muscleGroup: muscleEntry.muscle,
               intensity: inferredIntensity,
               volume: inferredVolume,
-              eccentricFocus: false,
+              eccentricFocus,
               age: factors.age ?? null,
               sleepHours: Number(factors.sleep_hours ?? 7),
               nutritionQuality: factors.nutrition_quality || 'optimal',
               stressLevel: factors.stress_level || 'moderate',
               proteinIntake: factors.protein_intake ?? null,
+              loadMultiplier,
             });
 
             await pool.execute(
               `INSERT INTO muscle_recovery_status
                  (user_id, muscle_group, recovery_percentage, hours_needed, hours_elapsed, last_worked)
                VALUES (?, ?, 0, ?, 0, NOW())
-               ON DUPLICATE KEY UPDATE
-                 recovery_percentage = 0,
-                 hours_needed = GREATEST(hours_needed, VALUES(hours_needed)),
-                 hours_elapsed = 0,
-                 last_worked = NOW()`,
-              [userId, muscle, hoursNeeded],
+                ON DUPLICATE KEY UPDATE
+                  recovery_percentage = 0,
+                  hours_needed = GREATEST(hours_needed, VALUES(hours_needed)),
+                  hours_elapsed = 0,
+                  last_worked = NOW()`,
+              [normalizedUserId, muscleEntry.muscle, hoursNeeded],
             );
           }),
         );
       }
     }
 
-    return res.json({ success: true });
+    const gamification = completed
+      ? await refreshGamificationForUser(normalizedUserId)
+      : null;
+
+    return res.json({
+      success: true,
+      exerciseCatalogId: resolvedCatalogId || null,
+      gamification: gamification
+        ? {
+            totalPoints: gamification.totalPoints,
+            rank: gamification.rank,
+            completedMissions: gamification.completedMissions,
+            completedChallenges: gamification.completedChallenges,
+          }
+        : null,
+    });
   } catch (error) {
     return res.status(500).json({ error: error.message });
   }
@@ -1815,6 +4642,86 @@ router.get('/workout-sets/today/:userId', async (req, res) => {
     );
 
     return res.json(rows);
+  } catch (error) {
+    return res.status(500).json({ error: error.message });
+  }
+});
+
+router.get('/exercises/catalog/filters', async (_req, res) => {
+  try {
+    const [rows] = await pool.execute(
+      `SELECT body_part
+       FROM exercise_catalog
+       WHERE is_active = 1`,
+    );
+
+    const buckets = new Set(['All']);
+    rows.forEach((row) => {
+      const group = normalizeCatalogMuscleGroup(row.body_part);
+      if (group !== 'Other') buckets.add(group);
+    });
+
+    const preferredOrder = ['All', 'Chest', 'Back', 'Legs', 'Shoulders', 'Arms', 'Abs'];
+    const filters = preferredOrder.filter((f) => buckets.has(f));
+    return res.json({ filters });
+  } catch (error) {
+    return res.status(500).json({ error: error.message });
+  }
+});
+
+router.get('/exercises/catalog', async (req, res) => {
+  try {
+    const limitRaw = Number(req.query.limit || 200);
+    const limit = Math.min(500, Math.max(1, Number.isFinite(limitRaw) ? limitRaw : 200));
+    const filter = String(req.query.filter || 'All').trim();
+    const search = String(req.query.search || '').trim().toLowerCase();
+
+    const whereParts = ['ec.is_active = 1'];
+    const params = [];
+
+    if (search) {
+      whereParts.push('(LOWER(ec.canonical_name) LIKE ? OR LOWER(COALESCE(ec.description, \'\')) LIKE ?)');
+      params.push(`%${search}%`, `%${search}%`);
+    }
+
+    const filterLower = filter.toLowerCase();
+    if (filterLower !== 'all') {
+      if (filterLower === 'chest') whereParts.push(`LOWER(COALESCE(ec.body_part, '')) REGEXP 'chest|pector'`);
+      else if (filterLower === 'back') whereParts.push(`LOWER(COALESCE(ec.body_part, '')) REGEXP 'back|lat|trap|rhomboid|erector'`);
+      else if (filterLower === 'legs') whereParts.push(`LOWER(COALESCE(ec.body_part, '')) REGEXP 'quad|hamstring|glute|calf|leg'`);
+      else if (filterLower === 'shoulders') whereParts.push(`LOWER(COALESCE(ec.body_part, '')) REGEXP 'shoulder|delt'`);
+      else if (filterLower === 'arms') whereParts.push(`LOWER(COALESCE(ec.body_part, '')) REGEXP 'bicep|tricep|forearm|arm'`);
+      else if (filterLower === 'abs') whereParts.push(`LOWER(COALESCE(ec.body_part, '')) REGEXP 'abs|abdom|core|oblique'`);
+    }
+
+    const [rows] = await pool.execute(
+      `SELECT
+         ec.id,
+         ec.canonical_name,
+         ec.body_part,
+         ec.description,
+         ec.equipment,
+         ec.level,
+         ec.exercise_type
+       FROM exercise_catalog ec
+       WHERE ${whereParts.join(' AND ')}
+       ORDER BY ec.canonical_name ASC
+       LIMIT ?`,
+      [...params, limit],
+    );
+
+    const normalized = rows.map((row) => ({
+      id: Number(row.id),
+      name: row.canonical_name,
+      muscle: normalizeCatalogMuscleGroup(row.body_part),
+      bodyPart: row.body_part || null,
+      description: row.description || null,
+      equipment: row.equipment || null,
+      level: row.level || null,
+      type: row.exercise_type || null,
+    }));
+
+    return res.json({ exercises: normalized });
   } catch (error) {
     return res.status(500).json({ error: error.message });
   }

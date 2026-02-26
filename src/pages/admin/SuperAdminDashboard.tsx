@@ -21,7 +21,11 @@ type GrowthPoint = {
   users: number;
 };
 
-export const SuperAdminDashboard: React.FC = () => {
+interface SuperAdminDashboardProps {
+  onLogout?: () => void;
+}
+
+export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({ onLogout }) => {
   const timeRanges: Array<'week' | 'month' | 'year'> = ['week', 'month', 'year'];
   const [view, setView] = useState<'dashboard' | 'users' | 'revenue' | 'gyms' | 'growth' | 'breakdown' | 'coaches'>('dashboard');
   const [timeRange, setTimeRange] = useState<'week' | 'month' | 'year'>('month');
@@ -81,7 +85,17 @@ export const SuperAdminDashboard: React.FC = () => {
           <p className="text-gray-400 text-sm">Platform overview and analytics</p>
         </div>
         <button
-          onClick={() => window.location.href = '/admin.html'}
+          onClick={() => {
+            if (onLogout) {
+              onLogout();
+              return;
+            }
+            localStorage.removeItem('adminUser');
+            localStorage.removeItem('adminUserId');
+            localStorage.removeItem('coach');
+            localStorage.removeItem('coachId');
+            window.location.href = '/admin.html';
+          }}
           className="flex items-center gap-2 bg-red-500 hover:bg-red-600 px-3 md:px-4 py-2 rounded-lg transition-colors text-sm w-fit"
         >
           <LogOut size={18} />

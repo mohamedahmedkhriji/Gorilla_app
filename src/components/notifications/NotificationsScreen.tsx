@@ -1,84 +1,207 @@
-import React from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Header } from '../ui/Header';
 import { Card } from '../ui/Card';
-import { Dumbbell, Battery, TrendingUp, Trophy, Gift } from 'lucide-react';
+import { Bell, Dumbbell, MessageSquare, Trophy, Gift, TrendingUp } from 'lucide-react';
+import { api } from '../../services/api';
+
 interface NotificationsScreenProps {
   onBack: () => void;
 }
+
+interface AppNotification {
+  id: number;
+  type: string;
+  title: string;
+  message: string;
+  created_at: string;
+  unread?: boolean;
+}
+
+const iconByType: Record<string, { icon: React.ComponentType<{ size?: number; className?: string }>; color: string; bg: string }> = {
+  message: { icon: MessageSquare, color: 'text-blue-500', bg: 'bg-blue-500/10' },
+  friend_request: { icon: Dumbbell, color: 'text-accent', bg: 'bg-accent/10' },
+  plan_review_request: { icon: Bell, color: 'text-yellow-500', bg: 'bg-yellow-500/10' },
+  plan_review_approved: { icon: Trophy, color: 'text-green-500', bg: 'bg-green-500/10' },
+  plan_review_rejected: { icon: Gift, color: 'text-red-500', bg: 'bg-red-500/10' },
+};
+
+const formatTimeAgo = (value: string) => {
+  const ts = new Date(value).getTime();
+  if (!Number.isFinite(ts)) return '';
+  const diffMs = Date.now() - ts;
+  const diffMin = Math.floor(diffMs / (1000 * 60));
+  if (diffMin < 1) return 'Just now';
+  if (diffMin < 60) return `${diffMin}m ago`;
+  const diffHr = Math.floor(diffMin / 60);
+  if (diffHr < 24) return `${diffHr}h ago`;
+  const diffDay = Math.floor(diffHr / 24);
+  if (diffDay < 7) return `${diffDay}d ago`;
+  return new Date(value).toLocaleDateString();
+};
+
 export function NotificationsScreen({ onBack }: NotificationsScreenProps) {
-  const notifications = [
-  {
-    icon: Dumbbell,
-    color: 'text-accent',
-    bg: 'bg-accent/10',
-    title: 'Workout Reminder',
-    msg: 'Time to crush Upper Power!',
-    time: '2h ago'
-  },
-  {
-    icon: Battery,
-    color: 'text-yellow-500',
-    bg: 'bg-yellow-500/10',
-    title: 'Rest Day',
-    msg: 'Take it easy today. Recovery is key.',
-    time: 'Yesterday'
-  },
-  {
-    icon: TrendingUp,
-    color: 'text-accent',
-    bg: 'bg-accent/10',
-    title: 'Overload Achieved',
-    msg: 'You increased your Bench Press volume!',
-    time: 'Yesterday'
-  },
-  {
-    icon: Trophy,
-    color: 'text-yellow-500',
-    bg: 'bg-yellow-500/10',
-    title: 'Rank Up',
-    msg: 'You reached Gold Tier!',
-    time: '2 days ago'
-  },
-  {
-    icon: Gift,
-    color: 'text-purple-500',
-    bg: 'bg-purple-500/10',
-    title: 'Reward Unlocked',
-    msg: 'You earned a 10% discount code.',
-    time: '3 days ago'
-  }];
+  const [loading, setLoading] = useState(true);
+  const [clearing, setClearing] = useState(false);
+  const [showClearConfirm, setShowClearConfirm] = useState(false);
+  const [error, setError] = useState('');
+  const [items, setItems] = useState<AppNotification[]>([]);
+
+  const userId = useMemo(() => {
+    const user = JSON.parse(localStorage.getItem('appUser') || localStorage.getItem('user') || '{}');
+    return Number(localStorage.getItem('appUserId') || localStorage.getItem('userId') || user?.id || 0);
+  }, []);
+
+  const fetchNotifications = async () => {
+    if (!userId) {
+      setError('No active user session found.');
+      setLoading(false);
+      return;
+    }
+    try {
+      setError('');
+      const data = await api.getNotifications(userId);
+      setItems(Array.isArray(data) ? data : []);
+    } catch (e: any) {
+      setError(e?.message || 'Failed to load notifications');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    void fetchNotifications();
+    const refresh = window.setInterval(() => {
+      void fetchNotifications();
+    }, 10000);
+    return () => window.clearInterval(refresh);
+  }, [userId]);
+
+  const markAsRead = async (notificationId: number) => {
+    try {
+      await api.markNotificationRead(notificationId);
+      setItems((prev) => prev.map((item) => (
+        item.id === notificationId ? { ...item, unread: false } : item
+      )));
+    } catch (e) {
+      console.error('Failed to mark notification as read:', e);
+    }
+  };
+
+  const handleClearAll = async () => {
+    if (!userId || !items.length || clearing) return;
+
+    try {
+      setClearing(true);
+      await api.clearNotifications(userId);
+      setItems([]);
+      setShowClearConfirm(false);
+    } catch (e: any) {
+      setError(e?.message || 'Failed to clear notifications');
+    } finally {
+      setClearing(false);
+    }
+  };
 
   return (
     <div className="flex-1 flex flex-col bg-background min-h-screen pb-24">
       <div className="px-6 pt-2">
-        <Header title="Notifications" onBack={onBack} />
+        <Header
+          title="Notifications"
+          onBack={onBack}
+          rightElement={
+            <button
+              type="button"
+              onClick={() => setShowClearConfirm(true)}
+              disabled={clearing || items.length === 0}
+              className="text-[11px] sm:text-xs px-2.5 sm:px-3 py-1.5 rounded-lg border border-red-500/30 text-red-400 hover:bg-red-500/10 disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              {clearing ? 'Clearing...' : 'Clear All'}
+            </button>
+          }
+        />
       </div>
 
-      <div className="px-6 space-y-3">
-        {notifications.map((notif, i) => {
-          const Icon = notif.icon;
+      <div className="px-4 sm:px-6 space-y-3">
+        {loading && <div className="text-sm text-text-secondary">Loading notifications...</div>}
+        {!loading && error && (
+          <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-3 text-sm text-red-400">{error}</div>
+        )}
+        {!loading && !error && items.length === 0 && (
+          <div className="text-sm text-text-secondary">No notifications yet.</div>
+        )}
+
+        {!loading && !error && items.map((notif) => {
+          const visual = iconByType[notif.type] || { icon: TrendingUp, color: 'text-accent', bg: 'bg-accent/10' };
+          const Icon = visual.icon;
+
           return (
-            <Card key={i} className="p-4 flex gap-4">
-              <div
-                className={`w-10 h-10 rounded-full ${notif.bg} flex items-center justify-center ${notif.color} shrink-0`}>
-
-                <Icon size={20} />
-              </div>
-              <div className="flex-1">
-                <div className="flex justify-between items-start">
-                  <h4 className="font-bold text-white text-sm">
-                    {notif.title}
-                  </h4>
-                  <span className="text-[10px] text-text-tertiary">
-                    {notif.time}
-                  </span>
+            <button
+              key={notif.id}
+              type="button"
+              onClick={() => {
+                if (notif.unread) {
+                  void markAsRead(notif.id);
+                }
+              }}
+              className="w-full text-left"
+            >
+              <Card className={`p-3 sm:p-4 flex gap-3 sm:gap-4 transition-colors ${notif.unread ? 'border-accent/30' : ''}`}>
+                <div className={`w-9 h-9 sm:w-10 sm:h-10 rounded-full ${visual.bg} flex items-center justify-center ${visual.color} shrink-0`}>
+                  <Icon size={18} />
                 </div>
-                <p className="text-xs text-text-secondary mt-1">{notif.msg}</p>
-              </div>
-            </Card>);
-
+                <div className="flex-1 min-w-0">
+                  <div className="flex justify-between items-start gap-2">
+                    <h4 className="font-bold text-white text-sm leading-snug break-words [overflow-wrap:anywhere]">
+                      {notif.title}
+                    </h4>
+                    <span className="text-[10px] text-text-tertiary shrink-0">{formatTimeAgo(notif.created_at)}</span>
+                  </div>
+                  <p className="text-xs sm:text-sm text-text-secondary mt-1 leading-relaxed break-words [overflow-wrap:anywhere]">
+                    {notif.message}
+                  </p>
+                </div>
+              </Card>
+            </button>
+          );
         })}
       </div>
-    </div>);
 
+      {showClearConfirm && (
+        <div
+          className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4"
+          onClick={() => {
+            if (!clearing) setShowClearConfirm(false);
+          }}
+        >
+          <div
+            className="w-full max-w-sm bg-card border border-white/10 rounded-2xl p-4 space-y-3"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="text-white font-semibold text-base">Remove all notifications?</h3>
+            <p className="text-sm text-text-secondary">
+              This will permanently delete all notifications.
+            </p>
+            <div className="grid grid-cols-2 gap-2 pt-1">
+              <button
+                type="button"
+                disabled={clearing}
+                onClick={() => setShowClearConfirm(false)}
+                className="w-full rounded-xl py-2.5 bg-white/5 border border-white/10 text-text-primary hover:bg-white/10 disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={clearing}
+                onClick={() => void handleClearAll()}
+                className="w-full rounded-xl py-2.5 bg-accent text-black border border-accent/40 hover:bg-accent/90 disabled:opacity-50"
+              >
+                {clearing ? 'Removing...' : 'Remove All'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
 }

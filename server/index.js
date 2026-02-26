@@ -12,18 +12,63 @@ const app = express();
 const PORT = process.env.PORT || 5001;
 const ALLOWED_ORIGIN = process.env.CLIENT_URL || 'http://localhost:5173';
 
+const isAllowedOrigin = (origin) => {
+  // Allow non-browser clients/tools with no Origin header.
+  if (!origin) return true;
+  if (origin === ALLOWED_ORIGIN) return true;
+  return /^https?:\/\/localhost:\d+$/i.test(origin) || /^https?:\/\/127\.0\.0\.1:\d+$/i.test(origin);
+};
+
 const server = http.createServer(app);
+
+const ensureNotificationSettingsTable = async () => {
+  await pool.execute(
+    `CREATE TABLE IF NOT EXISTS user_notification_settings (
+      user_id INT UNSIGNED PRIMARY KEY,
+      coach_messages TINYINT(1) NOT NULL DEFAULT 1,
+      rest_timer TINYINT(1) NOT NULL DEFAULT 1,
+      mission_challenge TINYINT(1) NOT NULL DEFAULT 1,
+      updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      CONSTRAINT fk_notification_settings_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    ) ENGINE=InnoDB`,
+  );
+};
+
+const isNotificationEnabled = async (userId, key) => {
+  await ensureNotificationSettingsTable();
+  const [rows] = await pool.execute(
+    `SELECT coach_messages, rest_timer, mission_challenge
+     FROM user_notification_settings
+     WHERE user_id = ?
+     LIMIT 1`,
+    [userId],
+  );
+  if (!rows.length) return true;
+
+  const row = rows[0];
+  if (key === 'coach_messages') return !!row.coach_messages;
+  if (key === 'rest_timer') return !!row.rest_timer;
+  if (key === 'mission_challenge') return !!row.mission_challenge;
+  return true;
+};
 
 const io = new SocketIOServer(server, {
   cors: {
-    origin: ['http://localhost:5173', 'http://localhost:5174', ALLOWED_ORIGIN],
+    origin: (origin, callback) => {
+      callback(null, isAllowedOrigin(origin));
+    },
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
     credentials: true,
   },
 });
 
 // Middleware
-app.use(cors({ origin: ['http://localhost:5173', 'http://localhost:5174', ALLOWED_ORIGIN], credentials: true }));
+app.use(cors({
+  origin: (origin, callback) => {
+    callback(null, isAllowedOrigin(origin));
+  },
+  credentials: true,
+}));
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ limit: '10mb', extended: true }));
 
@@ -39,6 +84,28 @@ io.on('connection', (socket) => {
     if (!id || !type) return;
     socket.join(`user-${id}`);
     socket.join(`${type}-${id}`);
+  });
+
+  socket.on('typing', ({ senderId, senderType, receiverId, receiverType }) => {
+    if (!senderId || !senderType || !receiverId || !receiverType) return;
+    io.to(`user-${receiverId}`).to(`${receiverType}-${receiverId}`).emit('typing', {
+      sender_id: senderId,
+      sender_type: senderType,
+      receiver_id: receiverId,
+      receiver_type: receiverType,
+      is_typing: true,
+    });
+  });
+
+  socket.on('stopTyping', ({ senderId, senderType, receiverId, receiverType }) => {
+    if (!senderId || !senderType || !receiverId || !receiverType) return;
+    io.to(`user-${receiverId}`).to(`${receiverType}-${receiverId}`).emit('typing', {
+      sender_id: senderId,
+      sender_type: senderType,
+      receiver_id: receiverId,
+      receiver_type: receiverType,
+      is_typing: false,
+    });
   });
 
   socket.on('sendMessage', async (payload) => {
@@ -96,11 +163,14 @@ io.on('connection', (socket) => {
       emitToParticipant(senderId, senderType, 'newMessage', outgoing);
       emitToParticipant(receiverId, receiverType, 'newMessage', outgoing);
 
-      await pool.execute(
-        `INSERT INTO notifications (user_id, type, title, message, data, is_read)
-         VALUES (?, 'message', 'New message', ?, JSON_OBJECT('senderId', ?, 'senderType', ?), 0)`,
-        [receiverId, cleanMessage, senderId, senderType]
-      );
+      const coachMessageNotificationsEnabled = await isNotificationEnabled(receiverId, 'coach_messages');
+      if (coachMessageNotificationsEnabled) {
+        await pool.execute(
+          `INSERT INTO notifications (user_id, type, title, message, data, is_read)
+           VALUES (?, 'message', 'New message', ?, JSON_OBJECT('senderId', ?, 'senderType', ?), 0)`,
+          [receiverId, cleanMessage, senderId, senderType]
+        );
+      }
     } catch (error) {
       socket.emit('messageError', { error: error.message || 'Failed to send message' });
     }

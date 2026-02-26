@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Header } from '../ui/Header';
 import { Trophy, Medal, Award, User } from 'lucide-react';
 import { api } from '../../services/api';
@@ -10,11 +10,18 @@ interface LeaderboardScreenProps {
 interface LeaderboardUser {
   id: string;
   name: string;
-  avatar: string;
-  profilePicture?: string;
   points: number;
   rank: number;
   level: number;
+  profilePicture: string | null;
+}
+
+interface LeaderboardApiRow {
+  id?: number | string;
+  name?: string;
+  points?: number | string;
+  rank?: number | string;
+  profile_picture?: string | null;
 }
 
 const getLevelFromPoints = (points: number) => {
@@ -25,46 +32,62 @@ const getLevelFromPoints = (points: number) => {
   return 1;
 };
 
+const isValidImageDataUrl = (value: string | null | undefined) =>
+  typeof value === 'string' && value.startsWith('data:image/') && value.includes(';base64,');
+
 export function LeaderboardScreen({ onBack }: LeaderboardScreenProps) {
-  const [tab, setTab] = useState<'week' | 'alltime'>('week');
+  const [tab, setTab] = useState<'monthly' | 'alltime'>('monthly');
+  const [leaderboard, setLeaderboard] = useState<LeaderboardUser[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
   const currentUser = JSON.parse(localStorage.getItem('appUser') || localStorage.getItem('user') || '{}');
-  const currentUserId = currentUser.id;
-  const [currentUserProfilePicture, setCurrentUserProfilePicture] = useState<string | null>(null);
-  const isValidImageDataUrl = (value: string | null | undefined) =>
-    typeof value === 'string' && value.startsWith('data:image/') && value.includes(';base64,');
-  
+  const currentUserId = String(currentUser?.id || '');
+
   useEffect(() => {
-    const fetchCurrentUserProfilePicture = async () => {
-      if (currentUserId) {
-        try {
-          const result = await api.getProfilePicture(currentUserId);
-          setCurrentUserProfilePicture(isValidImageDataUrl(result.profilePicture) ? result.profilePicture : null);
-        } catch (error) {
-          console.error('Failed to load leaderboard profile picture:', error);
-          setCurrentUserProfilePicture(null);
-        }
+    const fetchLeaderboard = async () => {
+      if (!currentUser?.id) {
+        setLeaderboard([]);
+        return;
+      }
+
+      setLoading(true);
+      setError(null);
+      try {
+        const result = await api.getLeaderboard(Number(currentUser.id), tab);
+        const normalized = Array.isArray(result?.leaderboard)
+          ? result.leaderboard.map((row: LeaderboardApiRow) => {
+              const points = Number(row?.points || 0);
+              return {
+                id: String(row?.id || ''),
+                name: row?.name || 'User',
+                points,
+                rank: Number(row?.rank || 0),
+                level: getLevelFromPoints(points),
+                profilePicture: isValidImageDataUrl(row?.profile_picture) ? row.profile_picture : null,
+              };
+            })
+          : [];
+        setLeaderboard(normalized);
+      } catch (err) {
+        console.error('Failed to load leaderboard:', err);
+        setError('Failed to load leaderboard');
+        setLeaderboard([]);
+      } finally {
+        setLoading(false);
       }
     };
-    fetchCurrentUserProfilePicture();
-  }, [currentUserId]);
-  
-  const [leaderboard] = useState<LeaderboardUser[]>([
-    { id: '1', name: 'You', avatar: '👤', points: 1800, rank: 1, level: getLevelFromPoints(1800) },
-    { id: '2', name: 'Alex Johnson', avatar: '👤', points: 1320, rank: 2, level: getLevelFromPoints(1320) },
-    { id: '3', name: 'Sarah FitQueen', avatar: '👤', points: 980, rank: 3, level: getLevelFromPoints(980) },
-    { id: '4', name: 'Mike Beast', avatar: '👤', points: 750, rank: 4, level: getLevelFromPoints(750) },
-    { id: '5', name: 'Emma Strong', avatar: '👤', points: 620, rank: 5, level: getLevelFromPoints(620) },
-    { id: '6', name: 'David Power', avatar: '👤', points: 480, rank: 6, level: getLevelFromPoints(480) },
-    { id: '7', name: 'Lisa Gains', avatar: '👤', points: 350, rank: 7, level: getLevelFromPoints(350) },
-    { id: '8', name: 'Tom Lifter', avatar: '👤', points: 280, rank: 8, level: getLevelFromPoints(280) },
-  ]);
 
-  const maxPoints = Math.max(...leaderboard.map(u => u.points));
-  
-  const getBarWidth = (points: number) => {
-    return (points / maxPoints) * 100;
-  };
-  
+    fetchLeaderboard();
+  }, [currentUser?.id, tab]);
+
+  const maxPoints = useMemo(
+    () => (leaderboard.length ? Math.max(...leaderboard.map((u) => u.points)) : 0),
+    [leaderboard],
+  );
+
+  const getBarWidth = (points: number) => (maxPoints > 0 ? (points / maxPoints) * 100 : 0);
+
   const getBarColor = (rank: number) => {
     if (rank === 1) return 'from-red-500 to-orange-500';
     if (rank === 2) return 'from-orange-500 to-yellow-500';
@@ -86,78 +109,79 @@ export function LeaderboardScreen({ onBack }: LeaderboardScreenProps) {
       </div>
 
       <div className="px-6 pt-4">
-        {/* Toggle Tabs */}
         <div className="flex gap-2 mb-6 bg-card rounded-xl p-1 border border-white/5">
           <button
-            onClick={() => setTab('week')}
+            onClick={() => setTab('monthly')}
             className={`flex-1 py-2 rounded-lg text-sm font-bold transition-colors ${
-              tab === 'week' ? 'bg-accent text-black' : 'text-text-secondary'
-            }`}>
-            This Week
+              tab === 'monthly' ? 'bg-accent text-black' : 'text-text-secondary'
+            }`}
+          >
+            Monthly
           </button>
           <button
             onClick={() => setTab('alltime')}
             className={`flex-1 py-2 rounded-lg text-sm font-bold transition-colors ${
               tab === 'alltime' ? 'bg-accent text-black' : 'text-text-secondary'
-            }`}>
+            }`}
+          >
             All Time
           </button>
         </div>
 
-        <div className="space-y-3">
-          {leaderboard.map((user) => (
-            <div
-              key={user.id}
-              className={`rounded-xl p-4 border-2 ${
-                user.id === String(currentUserId)
-                  ? 'bg-accent/5 border-accent'
-                  : `bg-card ${getCardBorder(user.rank)}`
-              }`}>
-              <div className="flex items-center gap-3 mb-3">
-                {/* Rank */}
-                <div className="w-8 flex items-center justify-center">
-                  {user.rank === 1 && <Trophy className="text-yellow-500" size={20} />}
-                  {user.rank === 2 && <Medal className="text-gray-400" size={20} />}
-                  {user.rank === 3 && <Award className="text-orange-600" size={20} />}
-                  {user.rank > 3 && <span className="text-text-secondary font-bold text-sm">#{user.rank}</span>}
-                </div>
-                
-                {/* Avatar */}
-                <div className="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center text-xl overflow-hidden">
-                  {user.id === String(currentUserId) && currentUserProfilePicture ? (
-                    <img src={currentUserProfilePicture} alt="Profile" className="w-full h-full object-cover" />
-                  ) : user.id === String(currentUserId) ? (
-                    <User size={20} className="text-text-tertiary" />
-                  ) : (
-                    user.avatar
-                  )}
-                </div>
-                
-                {/* Name & Level */}
-                <div className="flex-1">
-                  <h4 className={`font-bold text-sm ${user.id === String(currentUserId) ? 'text-accent' : 'text-white'}`}>
-                    {user.name}
-                  </h4>
-                  <p className="text-xs text-text-secondary">Level {user.level}</p>
+        {loading && <p className="text-sm text-text-secondary">Loading leaderboard...</p>}
+        {!loading && error && <p className="text-sm text-red-400">{error}</p>}
+        {!loading && !error && leaderboard.length === 0 && (
+          <p className="text-sm text-text-secondary">No leaderboard data found.</p>
+        )}
+
+        {!loading && !error && leaderboard.length > 0 && (
+          <div className="space-y-3">
+            {leaderboard.map((user) => (
+              <div
+                key={user.id}
+                className={`rounded-xl p-4 border-2 ${
+                  user.id === currentUserId ? 'bg-accent/5 border-accent' : `bg-card ${getCardBorder(user.rank)}`
+                }`}
+              >
+                <div className="flex items-center gap-3 mb-3">
+                  <div className="w-8 flex items-center justify-center">
+                    {user.rank === 1 && <Trophy className="text-yellow-500" size={20} />}
+                    {user.rank === 2 && <Medal className="text-gray-400" size={20} />}
+                    {user.rank === 3 && <Award className="text-orange-600" size={20} />}
+                    {user.rank > 3 && <span className="text-text-secondary font-bold text-sm">#{user.rank}</span>}
+                  </div>
+
+                  <div className="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center text-xl overflow-hidden">
+                    {user.profilePicture ? (
+                      <img src={user.profilePicture} alt="Profile" className="w-full h-full object-cover" />
+                    ) : (
+                      <User size={20} className="text-text-tertiary" />
+                    )}
+                  </div>
+
+                  <div className="flex-1">
+                    <h4 className={`font-bold text-sm ${user.id === currentUserId ? 'text-accent' : 'text-white'}`}>
+                      {user.name}
+                    </h4>
+                    <p className="text-xs text-text-secondary">Level {user.level}</p>
+                  </div>
+
+                  <div className="text-right">
+                    <p className="text-lg font-bold text-white">{user.points}</p>
+                    <p className="text-xs text-text-secondary">pts</p>
+                  </div>
                 </div>
 
-                {/* Points */}
-                <div className="text-right">
-                  <p className="text-lg font-bold text-white">{user.points}</p>
-                  <p className="text-xs text-text-secondary">pts</p>
+                <div className="relative h-2 bg-white/5 rounded-full overflow-hidden">
+                  <div
+                    className={`h-full bg-gradient-to-r ${getBarColor(user.rank)} rounded-full transition-all duration-500`}
+                    style={{ width: `${getBarWidth(user.points)}%` }}
+                  />
                 </div>
               </div>
-              
-              {/* Progress Bar */}
-              <div className="relative h-2 bg-white/5 rounded-full overflow-hidden">
-                <div
-                  className={`h-full bg-gradient-to-r ${getBarColor(user.rank)} rounded-full transition-all duration-500`}
-                  style={{ width: `${getBarWidth(user.points)}%` }}
-                />
-              </div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );

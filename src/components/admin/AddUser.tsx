@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ArrowLeft, UserPlus, X } from 'lucide-react';
+import { ArrowLeft, UserPlus } from 'lucide-react';
 import { api } from '../../services/api';
 
 interface AddUserProps {
@@ -29,8 +29,9 @@ export const AddUser: React.FC<AddUserProps> = ({ onBack }) => {
     try {
       // Get coach data from localStorage
       const coachData = JSON.parse(localStorage.getItem('coach') || '{}');
-      const coachId = localStorage.getItem('coachId');
-      const gymId = coachData.gym?.[0]; // Get gym ID from coach data
+      const adminUser = JSON.parse(localStorage.getItem('adminUser') || '{}');
+      const coachId = Number(localStorage.getItem('coachId') || coachData.id || adminUser.id || 0);
+      const gymId = Number(coachData.gym?.[0] || adminUser.gym_id || 0); // Get gym ID from coach data
 
       if (!coachId || !gymId) {
         throw new Error('Coach or gym information not found');

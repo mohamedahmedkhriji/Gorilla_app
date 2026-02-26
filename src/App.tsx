@@ -59,7 +59,7 @@ export function App() {
       case 'progress':
         return <Progress />;
       case 'profile':
-        return <Profile />;
+        return <Profile onNavigateTab={handleNavigate} />;
       default:
         return <Home onNavigate={(tab) => handleNavigate(tab, workoutDay)} />;
     }

@@ -20,9 +20,11 @@ export function GhostButton({
       }}
       onClick={onClick}
       className={`
+        ghost-button
         w-full py-4 px-6 rounded-xl
         text-accent font-medium text-base
         border border-accent/30
+        bg-transparent
         flex items-center justify-center
         transition-colors duration-200
         hover:border-accent

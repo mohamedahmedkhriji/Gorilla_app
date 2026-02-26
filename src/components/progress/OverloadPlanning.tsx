@@ -1,23 +1,43 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Card } from '../ui/Card';
 import { TrendingUp, ArrowUp } from 'lucide-react';
+import { api } from '../../services/api';
+
+interface OverloadRecommendation {
+  name: string;
+  current: string;
+  next: string;
+}
+
 export function OverloadPlanning() {
-  const recommendations = [
-  {
-    name: 'Bench Press',
-    current: '60kg',
-    next: '+2.5kg'
-  },
-  {
-    name: 'Squat',
-    current: '100kg',
-    next: '+5kg'
-  },
-  {
-    name: 'Pull Ups',
-    current: '8 reps',
-    next: '+1 rep'
-  }];
+  const [recommendations, setRecommendations] = useState<OverloadRecommendation[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const user = JSON.parse(localStorage.getItem('appUser') || localStorage.getItem('user') || '{}');
+    const localUserId = Number(localStorage.getItem('appUserId') || localStorage.getItem('userId') || 0);
+    const parsedUserId = Number(user?.id || 0);
+    const userId = localUserId || parsedUserId;
+
+    if (!userId) {
+      setLoading(false);
+      return;
+    }
+
+    const loadOverloadPlan = async () => {
+      try {
+        const data = await api.getOverloadPlan(userId);
+        const list = Array.isArray(data?.recommendations) ? data.recommendations : [];
+        setRecommendations(list.slice(0, 3));
+      } catch (error) {
+        console.error('Failed to load overload plan:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadOverloadPlan();
+  }, []);
 
   return (
     <Card className="bg-gradient-to-br from-card to-accent/5 border-accent/20">
@@ -27,6 +47,12 @@ export function OverloadPlanning() {
       </div>
 
       <div className="space-y-3">
+        {!loading && recommendations.length === 0 && (
+          <div className="p-3 bg-black/20 rounded-xl border border-white/5 text-xs text-text-secondary">
+            No overload recommendations yet. Log more sets to generate your next progression targets.
+          </div>
+        )}
+
         {recommendations.map((rec, i) =>
         <div
           key={i}

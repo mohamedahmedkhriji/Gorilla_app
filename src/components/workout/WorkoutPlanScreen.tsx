@@ -1,7 +1,7 @@
 import React from 'react';
 import { Header } from '../ui/Header';
 import { Card } from '../ui/Card';
-import { Play, Check } from 'lucide-react';
+import { Play } from 'lucide-react';
 
 interface WorkoutPlanScreenProps {
   onBack: () => void;
@@ -68,7 +68,6 @@ export function WorkoutPlanScreen({ onBack, onExerciseClick, workoutDay, complet
                 <div className="flex-1">
                   <div className="flex items-center gap-2 mb-1">
                     <h4 className="font-bold text-white">{exercise.name}</h4>
-                    {isCompleted && <Check size={16} className="text-green-500" />}
                   </div>
                   <div className="flex gap-4 text-xs text-text-secondary">
                     <span>{exercise.sets} sets</span>

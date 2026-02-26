@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Dumbbell } from 'lucide-react';
 import { CoachDashboard } from './CoachDashboard';
 import { SuperAdminDashboard } from './SuperAdminDashboard';
@@ -12,6 +12,28 @@ export const AdminLogin: React.FC = () => {
   const [role, setRole] = useState<UserRole>(null);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    const savedAdminUser = JSON.parse(localStorage.getItem('adminUser') || '{}');
+    if (savedAdminUser?.role === 'coach') {
+      setRole('coach');
+      return;
+    }
+    if (savedAdminUser?.role === 'gym_owner') {
+      setRole('gym_owner');
+    }
+  }, []);
+
+  const handleLogout = () => {
+    localStorage.removeItem('adminUser');
+    localStorage.removeItem('adminUserId');
+    localStorage.removeItem('coach');
+    localStorage.removeItem('coachId');
+    setRole(null);
+    setEmail('');
+    setPassword('');
+    setError('');
+  };
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -37,6 +59,9 @@ export const AdminLogin: React.FC = () => {
         };
         localStorage.setItem('coach', JSON.stringify(coachPayload));
         localStorage.setItem('coachId', String(result.user.id));
+      } else {
+        localStorage.removeItem('coach');
+        localStorage.removeItem('coachId');
       }
       
       if (result.user.role === 'coach') {
@@ -54,11 +79,11 @@ export const AdminLogin: React.FC = () => {
   };
 
   if (role === 'coach') {
-    return <CoachDashboard />;
+    return <CoachDashboard onLogout={handleLogout} />;
   }
 
   if (role === 'gym_owner') {
-    return <SuperAdminDashboard />;
+    return <SuperAdminDashboard onLogout={handleLogout} />;
   }
 
   return (
