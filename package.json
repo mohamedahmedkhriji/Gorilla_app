@@ -12,7 +12,8 @@
     "dev:server": "node --watch server/index.js",
     "start": "concurrently \"npm run server\" \"npm run dev\"",
     "seed:plans": "node server/scripts/seedWorkoutPlans.js",
-    "backfill:workout-catalog": "node server/scripts/backfillWorkoutSetCatalogIds.js"
+    "backfill:workout-catalog": "node server/scripts/backfillWorkoutSetCatalogIds.js",
+    "migrate:sql": "node server/scripts/runMigration.js"
   },
   "dependencies": {
     "@emotion/react": "^11.13.3",

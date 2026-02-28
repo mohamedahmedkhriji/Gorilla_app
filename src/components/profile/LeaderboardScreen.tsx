@@ -103,7 +103,7 @@ export function LeaderboardScreen({ onBack }: LeaderboardScreenProps) {
   };
 
   return (
-    <div className="flex-1 flex flex-col h-full bg-background pb-24">
+    <div className="flex-1 flex flex-col min-h-screen bg-background pb-24">
       <div className="px-6 pt-2">
         <Header title="Leaderboard" onBack={onBack} />
       </div>

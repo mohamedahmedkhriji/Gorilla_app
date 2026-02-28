@@ -1,46 +1,40 @@
 import React from 'react';
 import { Card } from '../ui/Card';
 import { Dumbbell, BookOpen, ChevronRight } from 'lucide-react';
+
 interface EducationSectionProps {
   onExercises: () => void;
   onBooks: () => void;
 }
-export function EducationSection({
-  onExercises,
-  onBooks
-}: EducationSectionProps) {
+
+export function EducationSection({ onExercises, onBooks }: EducationSectionProps) {
   return (
     <div className="space-y-3">
-      <h3 className="text-sm font-bold text-text-secondary uppercase tracking-wider px-1">
-        Education
-      </h3>
-      <div className="grid grid-cols-2 gap-4">
-        <Card
-          onClick={onExercises}
-          className="p-4 cursor-pointer border border-accent/30 hover:border-accent transition-colors group">
+      <h3 className="text-[11px] font-semibold text-text-secondary uppercase tracking-[0.15em] px-1">Learning Hub</h3>
 
-          <div className="w-10 h-10 rounded-full bg-blue-500/10 flex items-center justify-center text-blue-500 mb-3">
-            <Dumbbell size={20} />
+      <div className="grid grid-cols-2 gap-4">
+        <Card onClick={onExercises} className="p-4 cursor-pointer border border-white/15 hover:border-info/35 transition-colors group">
+          <div className="w-10 h-10 rounded-2xl bg-info/15 border border-info/35 flex items-center justify-center text-info mb-3">
+            <Dumbbell size={18} />
           </div>
-          <div className="font-bold text-white mb-1">Exercise Library</div>
-          <div className="text-xs text-text-secondary flex items-center gap-1">
-            Browse All <ChevronRight size={10} />
+          <div className="text-xl leading-none text-white mb-1">Exercises</div>
+          <div className="text-[11px] text-text-secondary uppercase tracking-[0.09em] flex items-center gap-1">
+            Browse
+            <ChevronRight size={10} />
           </div>
         </Card>
 
-        <Card
-          onClick={onBooks}
-          className="p-4 cursor-pointer border border-accent/30 hover:border-accent transition-colors group">
-
-          <div className="w-10 h-10 rounded-full bg-purple-500/10 flex items-center justify-center text-purple-500 mb-3">
-            <BookOpen size={20} />
+        <Card onClick={onBooks} className="p-4 cursor-pointer border border-white/15 hover:border-accent/35 transition-colors group">
+          <div className="w-10 h-10 rounded-2xl bg-accent/12 border border-accent/35 flex items-center justify-center text-accent mb-3">
+            <BookOpen size={18} />
           </div>
-          <div className="font-bold text-white mb-1">Training Books</div>
-          <div className="text-xs text-text-secondary flex items-center gap-1">
-            View Library <ChevronRight size={10} />
+          <div className="text-xl leading-none text-white mb-1">Books</div>
+          <div className="text-[11px] text-text-secondary uppercase tracking-[0.09em] flex items-center gap-1">
+            Open Library
+            <ChevronRight size={10} />
           </div>
         </Card>
       </div>
-    </div>);
-
+    </div>
+  );
 }

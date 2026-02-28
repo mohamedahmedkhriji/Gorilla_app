@@ -1,75 +1,75 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 import { BatteryCharging } from 'lucide-react';
+
 interface RecoveryIndicatorProps {
   percentage: number;
   onClick?: () => void;
 }
+
 export function RecoveryIndicator({ percentage, onClick }: RecoveryIndicatorProps) {
   const safePercentage = Math.max(0, Math.min(100, Math.round(percentage)));
 
   const getRecoveryStatus = (value: number) => {
-    if (value >= 90) return 'Ready to train';
-    if (value >= 70) return 'Almost ready';
-    if (value >= 50) return 'Still recovering';
-    return 'Needs more rest';
+    if (value >= 90) return 'Ready to train hard';
+    if (value >= 70) return 'Solid recovery';
+    if (value >= 50) return 'Moderate fatigue';
+    return 'Recovery needed';
   };
 
   const getBarClass = (value: number) => {
-    if (value >= 90) return 'bg-green-500';
-    if (value >= 70) return 'bg-accent';
-    if (value >= 50) return 'bg-orange-500';
-    return 'bg-red-500';
+    if (value >= 90) return 'from-success to-accent';
+    if (value >= 70) return 'from-accent to-info';
+    if (value >= 50) return 'from-orange-400 to-yellow-300';
+    return 'from-red-500 to-orange-400';
   };
 
   return (
     <motion.div
       initial={{
         opacity: 0,
-        y: 20
+        y: 20,
       }}
       animate={{
         opacity: 1,
-        y: 0
+        y: 0,
       }}
       transition={{
         duration: 0.5,
-        delay: 0.2
+        delay: 0.2,
       }}
       onClick={onClick}
-      className={`bg-card rounded-2xl p-6 border border-white/5 ${onClick ? 'cursor-pointer hover:border-accent/20 transition-colors' : ''}`}>
-
-      <div className="flex justify-between items-end mb-3">
+      className={`surface-card rounded-2xl p-5 border border-white/15 ${onClick ? 'cursor-pointer hover:border-accent/30 transition-colors' : ''}`}
+    >
+      <div className="flex justify-between items-start mb-4">
         <div className="flex items-center gap-2">
-          <BatteryCharging size={18} className="text-accent" />
-          <span className="text-sm font-medium text-text-secondary">
-            Recovery
-          </span>
+          <div className="w-9 h-9 rounded-xl bg-accent/12 border border-accent/30 flex items-center justify-center">
+            <BatteryCharging size={17} className="text-accent" />
+          </div>
+          <div>
+            <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-text-secondary">Recovery</span>
+            <p className="text-xs text-text-tertiary mt-1">{getRecoveryStatus(safePercentage)}</p>
+          </div>
         </div>
-        <span className="text-2xl font-bold text-text-primary">
-          {safePercentage}%
-        </span>
+        <span className="text-3xl leading-none text-text-primary">{safePercentage}%</span>
       </div>
 
-      <div className="h-1.5 w-full bg-white/10 rounded-full overflow-hidden">
+      <div className="h-2 w-full bg-white/10 rounded-full overflow-hidden border border-white/10">
         <motion.div
           initial={{
-            width: 0
+            width: 0,
           }}
           animate={{
-            width: `${safePercentage}%`
+            width: `${safePercentage}%`,
           }}
           transition={{
             duration: 1,
-            delay: 0.5,
-            ease: 'easeOut'
+            delay: 0.35,
+            ease: 'easeOut',
           }}
-          className={`h-full rounded-full shadow-glow ${getBarClass(safePercentage)}`} />
-
+          className={`h-full rounded-full bg-gradient-to-r ${getBarClass(safePercentage)}`}
+        />
       </div>
-      <p className="mt-2 text-xs text-text-tertiary">
-        {getRecoveryStatus(safePercentage)}
-      </p>
-    </motion.div>);
-
+    </motion.div>
+  );
 }

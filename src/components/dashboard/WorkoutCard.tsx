@@ -1,93 +1,84 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 import { Play } from 'lucide-react';
+
 interface WorkoutCardProps {
   title: string;
   duration: string;
   progress: number;
   isRestDay?: boolean;
 }
+
 export function WorkoutCard({ title, duration, progress, isRestDay = false }: WorkoutCardProps) {
-  const radius = 80;
+  const safeProgress = Math.max(0, Math.min(100, progress));
+  const radius = 72;
   const circumference = 2 * Math.PI * radius;
-  const strokeDashoffset = circumference - progress / 100 * circumference;
+  const strokeDashoffset = circumference - (safeProgress / 100) * circumference;
+
   return (
     <motion.div
       initial={{
         opacity: 0,
-        y: 20
+        y: 20,
       }}
       animate={{
         opacity: 1,
-        y: 0
+        y: 0,
       }}
       transition={{
         duration: 0.5,
-        delay: 0.1
+        delay: 0.1,
       }}
-      className="bg-card rounded-3xl p-8 flex flex-col items-center justify-center relative overflow-hidden border border-white/5">
+      className="surface-card rounded-2xl p-6 flex flex-col items-center justify-center relative overflow-hidden border border-white/12"
+    >
+      <div className="relative w-44 h-44 mb-4">
+        <svg className="w-full h-full -rotate-90" viewBox="0 0 176 176">
+          <circle cx="88" cy="88" r={radius} stroke="rgba(255,255,255,0.11)" strokeWidth="8" fill="transparent" />
 
-      {/* Circular Progress */}
-      <div className="relative w-48 h-48 mb-6">
-        {/* Background Circle */}
-        <svg className="w-full h-full transform -rotate-90">
-          <circle
-            cx="96"
-            cy="96"
-            r={radius}
-            stroke="rgba(255, 255, 255, 0.1)"
-            strokeWidth="4"
-            fill="transparent" />
-
-          {/* Progress Circle */}
           <motion.circle
-            cx="96"
-            cy="96"
+            cx="88"
+            cy="88"
             r={radius}
-            stroke="#BFFF00" // Neon Lime
-            strokeWidth="4"
+            stroke="rgb(var(--color-accent))"
+            strokeWidth="8"
             fill="transparent"
             strokeDasharray={circumference}
             initial={{
-              strokeDashoffset: circumference
+              strokeDashoffset: circumference,
             }}
             animate={{
-              strokeDashoffset
+              strokeDashoffset,
             }}
             transition={{
-              duration: 1.5,
-              ease: 'easeOut'
+              duration: 1.3,
+              ease: 'easeOut',
             }}
             strokeLinecap="round"
-            className="drop-shadow-[0_0_4px_rgba(191,255,0,0.5)]" />
-
+            className="drop-shadow-[0_0_8px_rgba(187,255,92,0.2)]"
+          />
         </svg>
 
-        {/* Center Content */}
         <div className="absolute inset-0 flex flex-col items-center justify-center">
-          <span className="text-4xl font-bold text-text-primary tracking-tight">
-            {progress}%
-          </span>
-          <span className="text-xs text-text-tertiary uppercase tracking-wider mt-1 font-medium">
+          <span className="text-4xl text-text-primary leading-none">{safeProgress}%</span>
+          <span className="text-[10px] text-text-tertiary uppercase tracking-[0.16em] mt-2 font-semibold">
             {isRestDay ? 'Recovery' : 'Complete'}
           </span>
         </div>
       </div>
 
-      {/* Workout Info */}
-      <div className="text-center">
-        <h3 className="text-xl font-bold text-text-primary mb-1">{title}</h3>
-        <p className="text-text-secondary text-sm">{duration || (isRestDay ? 'Recovery day' : '')}</p>
+      <div className="text-center relative z-10">
+        <h3 className="text-xl font-semibold text-text-primary">{title}</h3>
+        <p className="text-text-secondary text-sm mt-1">
+          {duration || (isRestDay ? 'Recovery Day' : '')}
+        </p>
       </div>
 
-      {/* Subtle Play Icon Overlay */}
       {!isRestDay && (
-      <div className="absolute top-6 right-6">
-        <div className="w-8 h-8 rounded-full bg-white/5 flex items-center justify-center hover:bg-white/10 transition-colors">
-          <Play size={12} className="text-accent ml-0.5 fill-accent" />
+        <div className="absolute top-4 right-4 flex items-center gap-1 rounded-full bg-black/20 border border-white/10 px-2.5 py-1.5 text-[10px] text-text-secondary">
+          Start
+          <Play size={11} className="text-accent fill-accent" />
         </div>
-      </div>
       )}
-    </motion.div>);
-
+    </motion.div>
+  );
 }

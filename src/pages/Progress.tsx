@@ -7,8 +7,9 @@ import { BodyMeasurementsScreen } from '../components/progress/BodyMeasurementsS
 import { ProgressPhotosScreen } from '../components/progress/ProgressPhotosScreen';
 import { ExerciseProgressScreen } from '../components/progress/ExerciseProgressScreen';
 import { AIInsightsScreen } from '../components/progress/AIInsightsScreen';
+import { WeeklyCheckInScreen } from '../components/progress/WeeklyCheckInScreen';
 export function Progress() {
-  const [view, setView] = useState<'dashboard' | 'report' | 'recovery' | 'measurements' | 'photos' | 'exercise' | 'insights'>(
+  const [view, setView] = useState<'dashboard' | 'report' | 'recovery' | 'measurements' | 'photos' | 'exercise' | 'insights' | 'weeklyCheckin'>(
     'dashboard'
   );
   if (view === 'report') {
@@ -29,10 +30,16 @@ export function Progress() {
   if (view === 'insights') {
     return <AIInsightsScreen onBack={() => setView('dashboard')} />;
   }
+  if (view === 'weeklyCheckin') {
+    return <WeeklyCheckInScreen onBack={() => setView('dashboard')} />;
+  }
   return (
     <div className="relative pb-24">
       <div className="space-y-6">
-        <ProgressDashboard onViewReport={() => setView('report')} />
+        <ProgressDashboard
+          onViewReport={() => setView('report')}
+          onWeeklyCheckIn={() => setView('weeklyCheckin')}
+        />
 
         <div className="px-6">
           <OverloadPlanning />

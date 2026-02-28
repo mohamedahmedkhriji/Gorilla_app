@@ -177,7 +177,7 @@ export function CustomPlanBuilderScreen({ onBack, onSaved }: CustomPlanBuilderSc
   const [success, setSuccess] = useState<string | null>(null);
   const [catalog, setCatalog] = useState<CatalogExercise[]>([]);
   const [planName, setPlanName] = useState('My Custom Plan');
-  const [cycleWeeks, setCycleWeeks] = useState(4);
+  const [cycleWeeks, setCycleWeeks] = useState(8);
   const [selectedDays, setSelectedDays] = useState<string[]>(['monday', 'wednesday', 'friday']);
   const [dayPlans, setDayPlans] = useState<Record<string, DayPlanDraft>>({});
 
@@ -271,7 +271,7 @@ export function CustomPlanBuilderScreen({ onBack, onSaved }: CustomPlanBuilderSc
         setDayPlans(nextPlans);
 
         const inferredWeeks = Number(typedProgram.totalWeeks || 0);
-        if (Number.isFinite(inferredWeeks) && inferredWeeks >= 2 && inferredWeeks <= 8) {
+        if (Number.isFinite(inferredWeeks) && inferredWeeks >= 8 && inferredWeeks <= 16) {
           setCycleWeeks(inferredWeeks);
         }
 
@@ -415,7 +415,7 @@ export function CustomPlanBuilderScreen({ onBack, onSaved }: CustomPlanBuilderSc
     try {
       const payload = {
         planName: String(planName || 'My Custom Plan').trim() || 'My Custom Plan',
-        cycleWeeks: Math.max(2, Math.min(8, Math.round(Number(cycleWeeks || 4)))),
+        cycleWeeks: Math.max(8, Math.min(16, Math.round(Number(cycleWeeks || 8)))),
         selectedDays: validDays,
         weeklyWorkouts,
       };
@@ -482,10 +482,10 @@ export function CustomPlanBuilderScreen({ onBack, onSaved }: CustomPlanBuilderSc
                 <span className="text-xs uppercase text-text-secondary">Duration (Weeks)</span>
                 <input
                   type="number"
-                  min={2}
-                  max={8}
+                  min={8}
+                  max={16}
                   value={cycleWeeks}
-                  onChange={(e) => setCycleWeeks(Math.max(2, Math.min(8, Number(e.target.value || 4))))}
+                  onChange={(e) => setCycleWeeks(Math.max(8, Math.min(16, Number(e.target.value || 8))))}
                   className="mt-1 w-full bg-background border border-white/10 rounded-lg px-3 py-2 text-white outline-none focus:border-accent/60"
                 />
               </label>

@@ -1,6 +1,20 @@
 import express from 'express';
 import pool from './database.js';
-import { adaptProgramBiWeekly, generatePersonalizedProgram } from './services/planGenerator.js';
+import {
+  adaptProgramBiWeekly,
+  adaptProgramWeeklyByInsights,
+  captureWeeklyValidationSnapshot,
+  generatePersonalizedProgram,
+  getMonthlyValidationCalibration,
+  getUserPlanValidationHistory,
+} from './services/planGenerator.js';
+import { buildOnboardingInsights, buildUserAnalysisInsights, getDatasetOverview } from './services/fitnessInsights.js';
+import {
+  getUserInsightsHistory,
+  saveOnboardingInsightsForUser,
+  saveUserAnalysisInsightsForUser,
+} from './services/insightPersistence.js';
+import { generateDailyNutritionPlan } from './services/nutritionPlanner.js';
 
 const router = express.Router();
 
@@ -1342,8 +1356,8 @@ const buildCustomProgramDraft = async (conn, userId, rawPayload = {}) => {
   }
 
   const cycleWeeks = Math.round(Number(rawPayload.cycleWeeks || 0));
-  if (!Number.isFinite(cycleWeeks) || cycleWeeks < 2 || cycleWeeks > 8) {
-    throw new Error('cycleWeeks must be between 2 and 8');
+  if (!Number.isFinite(cycleWeeks) || cycleWeeks < 8 || cycleWeeks > 16) {
+    throw new Error('cycleWeeks must be between 8 and 16');
   }
 
   const selectedDaysRaw = Array.isArray(rawPayload.selectedDays)
@@ -2039,7 +2053,7 @@ router.post('/user/:userId/program/generate-personalized', async (req, res) => {
     const goal = normalizeGoalEnum(req.body.goal || user.fitness_goal);
     const level = normalizeExperienceEnum(req.body.experienceLevel || user.experience_level) || 'intermediate';
     const daysPerWeek = clampWorkoutDays(req.body.workoutDays, 4);
-    const cycleWeeks = Math.max(8, Math.min(24, Number(req.body.cycleWeeks || 12)));
+    const cycleWeeks = Math.max(8, Math.min(16, Number(req.body.cycleWeeks || 12)));
 
     const generatedProgram = await generatePersonalizedProgram(conn, {
       userId,
@@ -2461,6 +2475,103 @@ router.post('/user/:userId/program/adapt-biweekly', async (req, res) => {
   } catch (error) {
     if (conn) await conn.rollback();
     return res.status(500).json({ error: error?.message || 'Failed to adapt program bi-weekly' });
+  } finally {
+    if (conn) conn.release();
+  }
+});
+
+router.post('/user/:userId/program/adapt-weekly', async (req, res) => {
+  let conn;
+  try {
+    conn = await pool.getConnection();
+    await conn.beginTransaction();
+    const userId = Number(req.params.userId);
+    if (!Number.isFinite(userId) || userId <= 0) {
+      await conn.rollback();
+      return res.status(400).json({ error: 'Invalid userId' });
+    }
+
+    const force = ['1', 'true', 'yes'].includes(String(req.body?.force || '').trim().toLowerCase());
+    const trigger = String(req.body?.trigger || 'weekly_analysis').trim() || 'weekly_analysis';
+    const result = await adaptProgramWeeklyByInsights(conn, { userId, force, trigger });
+    await conn.commit();
+    return res.json({ success: true, ...result });
+  } catch (error) {
+    if (conn) await conn.rollback();
+    return res.status(500).json({ error: error?.message || 'Failed to adapt program weekly' });
+  } finally {
+    if (conn) conn.release();
+  }
+});
+
+router.post('/user/:userId/plan/validation/snapshot', async (req, res) => {
+  let conn;
+  try {
+    conn = await pool.getConnection();
+    await conn.beginTransaction();
+
+    const userId = Number(req.params.userId);
+    if (!Number.isFinite(userId) || userId <= 0) {
+      await conn.rollback();
+      return res.status(400).json({ error: 'Invalid userId' });
+    }
+
+    const snapshot = await captureWeeklyValidationSnapshot(conn, {
+      userId,
+      adaptationId: Number.isFinite(Number(req.body?.adaptationId)) ? Number(req.body.adaptationId) : null,
+      assignmentId: Number.isFinite(Number(req.body?.assignmentId)) ? Number(req.body.assignmentId) : null,
+      programId: Number.isFinite(Number(req.body?.programId)) ? Number(req.body.programId) : null,
+      source: req.body?.source || 'manual',
+      periodEnd: req.body?.periodEnd || null,
+    });
+
+    await conn.commit();
+    return res.json({
+      success: true,
+      ...snapshot,
+    });
+  } catch (error) {
+    if (conn) await conn.rollback();
+    if (error?.message === 'Invalid userId') {
+      return res.status(400).json({ error: error.message });
+    }
+    return res.status(500).json({ error: error?.message || 'Failed to create validation snapshot' });
+  } finally {
+    if (conn) conn.release();
+  }
+});
+
+router.get('/user/:userId/plan/validation/history', async (req, res) => {
+  let conn;
+  try {
+    const userId = Number(req.params.userId);
+    if (!Number.isInteger(userId) || userId <= 0) {
+      return res.status(400).json({ error: 'Invalid userId' });
+    }
+
+    conn = await pool.getConnection();
+    const limit = Number(req.query?.limit || 24);
+    const history = await getUserPlanValidationHistory(conn, { userId, limit });
+    return res.json(history);
+  } catch (error) {
+    if (error?.message === 'Invalid userId') {
+      return res.status(400).json({ error: error.message });
+    }
+    return res.status(500).json({ error: error?.message || 'Failed to load validation history' });
+  } finally {
+    if (conn) conn.release();
+  }
+});
+
+router.get('/insights/validation/monthly', async (req, res) => {
+  let conn;
+  try {
+    conn = await pool.getConnection();
+    const months = Number(req.query?.months || 6);
+    const summary = await getMonthlyValidationCalibration(conn, { months });
+    return res.json(summary);
+  } catch (error) {
+    return res.status(500).json({ error: error?.message || 'Failed to load monthly validation summary' });
   } finally {
     if (conn) conn.release();
   }
@@ -2900,6 +3011,74 @@ router.get('/user/:userId/gym-members', async (req, res) => {
     );
 
     return res.json({ members });
+  } catch (error) {
+    return res.status(500).json({ error: error.message });
+  }
+});
+
+router.get('/user/:userId/recent-activity', async (req, res) => {
+  try {
+    const userId = toNumber(req.params.userId);
+    if (!userId || userId <= 0) {
+      return res.status(400).json({ error: 'Invalid userId' });
+    }
+
+    const [latestSessionRows] = await pool.execute(
+      `SELECT
+          DATE(created_at) AS workout_day,
+          ROUND(
+            SUM(
+              CASE
+                WHEN completed = 1 AND weight IS NOT NULL AND reps IS NOT NULL THEN (weight * reps)
+                ELSE 0
+              END
+            ),
+            2
+          ) AS total_volume_kg
+       FROM workout_sets
+       WHERE user_id = ? AND completed = 1
+       GROUP BY DATE(created_at)
+       ORDER BY workout_day DESC
+       LIMIT 1`,
+      [userId],
+    );
+
+    if (!latestSessionRows.length || !latestSessionRows[0]?.workout_day) {
+      return res.json({ activity: null });
+    }
+
+    const workoutDay = String(latestSessionRows[0].workout_day).slice(0, 10);
+
+    const [exerciseRows] = await pool.execute(
+      `SELECT
+          exercise_name,
+          ROUND(
+            SUM(
+              CASE
+                WHEN weight IS NOT NULL AND reps IS NOT NULL THEN (weight * reps)
+                ELSE 0
+              END
+            ),
+            2
+          ) AS exercise_volume_kg
+       FROM workout_sets
+       WHERE user_id = ? AND completed = 1 AND DATE(created_at) = ?
+       GROUP BY exercise_name
+       ORDER BY exercise_volume_kg DESC, exercise_name ASC
+       LIMIT 1`,
+      [userId, workoutDay],
+    );
+
+    const topExercise = String(exerciseRows[0]?.exercise_name || 'Workout Session').trim() || 'Workout Session';
+    const totalVolumeKg = Number(latestSessionRows[0]?.total_volume_kg || 0);
+
+    return res.json({
+      activity: {
+        title: topExercise,
+        date: workoutDay,
+        totalVolumeKg,
+      },
+    });
   } catch (error) {
     return res.status(500).json({ error: error.message });
   }
@@ -4724,6 +4903,740 @@ router.get('/exercises/catalog', async (req, res) => {
     return res.json({ exercises: normalized });
   } catch (error) {
     return res.status(500).json({ error: error.message });
+  }
+});
+
+const BLOG_CATEGORIES = new Set(['Training', 'Nutrition', 'Recovery', 'Mindset']);
+const BLOG_MEDIA_TYPES = new Set(['image', 'video']);
+
+const toPositiveInteger = (value) => {
+  const n = Number(value);
+  if (!Number.isInteger(n) || n <= 0) return null;
+  return n;
+};
+
+const clampBlogLimit = (value, fallback = 20, max = 50) => {
+  const parsed = toPositiveInteger(value);
+  if (parsed == null) return fallback;
+  return Math.min(max, parsed);
+};
+
+const toIsoTimestamp = (value) => {
+  if (!value) return null;
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+  return date.toISOString();
+};
+
+const mapBlogPostRow = (row) => ({
+  id: Number(row.id),
+  userId: Number(row.user_id),
+  authorName: row.author_name || 'User',
+  avatarUrl: row.avatar_url || '',
+  category: row.category || 'Recovery',
+  description: row.description || '',
+  mediaType: row.media_type || 'image',
+  mediaUrl: row.media_url || '',
+  mediaAlt: row.media_alt || 'Post media',
+  createdAt: toIsoTimestamp(row.created_at),
+  metrics: {
+    views: Number(row.views_count || 0),
+    likes: Number(row.likes_count || 0),
+    comments: Number(row.comments_count || 0),
+  },
+  likedByMe: Number(row.liked_by_viewer || 0) === 1,
+});
+
+const mapBlogCommentRow = (row) => ({
+  id: Number(row.id),
+  postId: Number(row.post_id),
+  userId: Number(row.user_id),
+  authorName: row.author_name || 'User',
+  avatarUrl: row.avatar_url || '',
+  text: row.comment_text || '',
+  createdAt: toIsoTimestamp(row.created_at),
+});
+
+const fetchBlogPostById = async (postId, viewerUserId = 0) => {
+  const safeViewerUserId = toPositiveInteger(viewerUserId) || 0;
+  const profileImageColumn = await getProfileImageColumn();
+  const avatarSelect = profileImageColumn ? `COALESCE(u.${profileImageColumn}, '') AS avatar_url` : `'' AS avatar_url`;
+
+  const [rows] = await pool.execute(
+    `SELECT
+       bp.id,
+       bp.user_id,
+       bp.category,
+       bp.description,
+       bp.media_type,
+       bp.media_url,
+       bp.media_alt,
+       bp.created_at,
+       u.name AS author_name,
+       ${avatarSelect},
+       COALESCE(l.like_count, 0) AS likes_count,
+       COALESCE(v.view_count, 0) AS views_count,
+       COALESCE(c.comment_count, 0) AS comments_count,
+       CASE WHEN ul.user_id IS NULL THEN 0 ELSE 1 END AS liked_by_viewer
+     FROM blog_posts bp
+     INNER JOIN users u ON u.id = bp.user_id
+     LEFT JOIN (
+       SELECT post_id, COUNT(*) AS like_count
+       FROM blog_post_likes
+       GROUP BY post_id
+     ) l ON l.post_id = bp.id
+     LEFT JOIN (
+       SELECT post_id, COUNT(*) AS view_count
+       FROM blog_post_views
+       GROUP BY post_id
+     ) v ON v.post_id = bp.id
+     LEFT JOIN (
+       SELECT post_id, COUNT(*) AS comment_count
+       FROM blog_post_comments
+       GROUP BY post_id
+     ) c ON c.post_id = bp.id
+     LEFT JOIN blog_post_likes ul
+       ON ul.post_id = bp.id
+      AND ul.user_id = ?
+     WHERE bp.id = ?
+     LIMIT 1`,
+    [safeViewerUserId, postId],
+  );
+
+  if (!rows.length) return null;
+  return mapBlogPostRow(rows[0]);
+};
+
+router.get('/blogs', async (req, res) => {
+  try {
+    const viewerUserId = toPositiveInteger(req.query.userId) || 0;
+    const authorId = toPositiveInteger(req.query.authorId);
+    const limit = clampBlogLimit(req.query.limit, 20, 60);
+    const cursorId = toPositiveInteger(req.query.cursorId);
+
+    const rawCursorCreatedAt = String(req.query.cursorCreatedAt || '').trim();
+    const cursorDate = rawCursorCreatedAt ? new Date(rawCursorCreatedAt) : null;
+    const hasValidCursorDate = cursorDate instanceof Date && !Number.isNaN(cursorDate.getTime());
+    const cursorCreatedAt = hasValidCursorDate ? cursorDate.toISOString().slice(0, 19).replace('T', ' ') : null;
+
+    const profileImageColumn = await getProfileImageColumn();
+    const avatarSelect = profileImageColumn ? `COALESCE(u.${profileImageColumn}, '') AS avatar_url` : `'' AS avatar_url`;
+
+    const params = [viewerUserId];
+    const whereParts = [];
+
+    if (authorId) {
+      whereParts.push('bp.user_id = ?');
+      params.push(authorId);
+    }
+
+    if (cursorCreatedAt && cursorId) {
+      whereParts.push('(bp.created_at < ? OR (bp.created_at = ? AND bp.id < ?))');
+      params.push(cursorCreatedAt, cursorCreatedAt, cursorId);
+    } else if (cursorCreatedAt) {
+      whereParts.push('bp.created_at < ?');
+      params.push(cursorCreatedAt);
+    }
+
+    const whereClause = whereParts.length ? `WHERE ${whereParts.join(' AND ')}` : '';
+
+    const [rows] = await pool.execute(
+      `SELECT
+         bp.id,
+         bp.user_id,
+         bp.category,
+         bp.description,
+         bp.media_type,
+         bp.media_url,
+         bp.media_alt,
+         bp.created_at,
+         u.name AS author_name,
+         ${avatarSelect},
+         COALESCE(l.like_count, 0) AS likes_count,
+         COALESCE(v.view_count, 0) AS views_count,
+         COALESCE(c.comment_count, 0) AS comments_count,
+         CASE WHEN ul.user_id IS NULL THEN 0 ELSE 1 END AS liked_by_viewer
+       FROM blog_posts bp
+       INNER JOIN users u ON u.id = bp.user_id
+       LEFT JOIN (
+         SELECT post_id, COUNT(*) AS like_count
+         FROM blog_post_likes
+         GROUP BY post_id
+       ) l ON l.post_id = bp.id
+       LEFT JOIN (
+         SELECT post_id, COUNT(*) AS view_count
+         FROM blog_post_views
+         GROUP BY post_id
+       ) v ON v.post_id = bp.id
+       LEFT JOIN (
+         SELECT post_id, COUNT(*) AS comment_count
+         FROM blog_post_comments
+         GROUP BY post_id
+       ) c ON c.post_id = bp.id
+       LEFT JOIN blog_post_likes ul
+         ON ul.post_id = bp.id
+        AND ul.user_id = ?
+       ${whereClause}
+       ORDER BY bp.created_at DESC, bp.id DESC
+       LIMIT ?`,
+      [...params, limit],
+    );
+
+    const posts = rows.map(mapBlogPostRow);
+    const lastPost = posts[posts.length - 1] || null;
+    const nextCursor = lastPost
+      ? {
+          cursorCreatedAt: lastPost.createdAt,
+          cursorId: lastPost.id,
+        }
+      : null;
+
+    return res.json({
+      posts,
+      nextCursor,
+      hasMore: posts.length === limit,
+    });
+  } catch (error) {
+    return res.status(500).json({ error: error.message || 'Failed to fetch blogs feed' });
+  }
+});
+
+router.post('/blogs', async (req, res) => {
+  try {
+    const userId = toPositiveInteger(req.body?.userId);
+    if (!userId) {
+      return res.status(400).json({ error: 'userId must be a positive integer' });
+    }
+
+    const description = String(req.body?.description || '').trim();
+    if (!description) {
+      return res.status(400).json({ error: 'description is required' });
+    }
+    if (description.length > 5000) {
+      return res.status(400).json({ error: 'description is too long (max 5000 chars)' });
+    }
+
+    const categoryRaw = String(req.body?.category || 'Recovery').trim();
+    const category = BLOG_CATEGORIES.has(categoryRaw) ? categoryRaw : 'Recovery';
+
+    const mediaType = String(req.body?.mediaType || '').trim().toLowerCase();
+    if (!BLOG_MEDIA_TYPES.has(mediaType)) {
+      return res.status(400).json({ error: 'mediaType must be image or video' });
+    }
+
+    const mediaUrl = String(req.body?.mediaUrl || '').trim();
+    if (!mediaUrl) {
+      return res.status(400).json({ error: 'mediaUrl is required' });
+    }
+    if (mediaUrl.length > 8000000) {
+      return res.status(400).json({ error: 'mediaUrl payload is too large' });
+    }
+
+    const mediaAltRaw = String(req.body?.mediaAlt || '').trim();
+    const mediaAlt = mediaAltRaw.slice(0, 255) || 'User uploaded media';
+
+    const [existingUsers] = await pool.execute('SELECT id FROM users WHERE id = ? LIMIT 1', [userId]);
+    if (!existingUsers.length) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    const [result] = await pool.execute(
+      `INSERT INTO blog_posts (
+         user_id,
+         category,
+         description,
+         media_type,
+         media_url,
+         media_alt
+       ) VALUES (?, ?, ?, ?, ?, ?)`,
+      [userId, category, description, mediaType, mediaUrl, mediaAlt],
+    );
+
+    const postId = Number(result.insertId);
+    const post = await fetchBlogPostById(postId, userId);
+
+    return res.status(201).json({ post });
+  } catch (error) {
+    return res.status(500).json({ error: error.message || 'Failed to create blog post' });
+  }
+});
+
+router.delete('/blogs/:postId', async (req, res) => {
+  let conn;
+  try {
+    const postId = toPositiveInteger(req.params?.postId);
+    const userId = toPositiveInteger(req.body?.userId || req.query?.userId);
+
+    if (!postId) {
+      return res.status(400).json({ error: 'postId must be a positive integer' });
+    }
+    if (!userId) {
+      return res.status(400).json({ error: 'userId must be a positive integer' });
+    }
+
+    conn = await pool.getConnection();
+    await conn.beginTransaction();
+
+    const [postRows] = await conn.execute(
+      `SELECT id, user_id
+       FROM blog_posts
+       WHERE id = ?
+       LIMIT 1
+       FOR UPDATE`,
+      [postId],
+    );
+
+    if (!postRows.length) {
+      await conn.rollback();
+      return res.status(404).json({ error: 'Post not found' });
+    }
+
+    const ownerId = Number(postRows[0]?.user_id || 0);
+    if (ownerId !== userId) {
+      await conn.rollback();
+      return res.status(403).json({ error: 'You can only delete your own post' });
+    }
+
+    await conn.execute('DELETE FROM blog_post_comments WHERE post_id = ?', [postId]);
+    await conn.execute('DELETE FROM blog_post_likes WHERE post_id = ?', [postId]);
+    await conn.execute('DELETE FROM blog_post_views WHERE post_id = ?', [postId]);
+    await conn.execute('DELETE FROM blog_posts WHERE id = ?', [postId]);
+
+    await conn.commit();
+    return res.json({ success: true, postId });
+  } catch (error) {
+    if (conn) await conn.rollback();
+    return res.status(500).json({ error: error.message || 'Failed to delete post' });
+  } finally {
+    if (conn) conn.release();
+  }
+});
+
+router.post('/blogs/:postId/like/toggle', async (req, res) => {
+  try {
+    const postId = toPositiveInteger(req.params?.postId);
+    const userId = toPositiveInteger(req.body?.userId);
+    const mode = String(req.body?.mode || 'toggle').trim().toLowerCase();
+    const likeOnly = mode === 'like';
+
+    if (!postId) {
+      return res.status(400).json({ error: 'postId must be a positive integer' });
+    }
+    if (!userId) {
+      return res.status(400).json({ error: 'userId must be a positive integer' });
+    }
+ 
+    const [postRows] = await pool.execute(
+      `SELECT id, user_id
+       FROM blog_posts
+       WHERE id = ?
+       LIMIT 1`,
+      [postId],
+    );
+    if (!postRows.length) {
+      return res.status(404).json({ error: 'Post not found' });
+    }
+
+    let liked = false;
+    let createdLike = false;
+
+    if (likeOnly) {
+      const [insertResult] = await pool.execute(
+        `INSERT IGNORE INTO blog_post_likes (post_id, user_id)
+         VALUES (?, ?)`,
+        [postId, userId],
+      );
+      liked = true;
+      createdLike = Number(insertResult?.affectedRows || 0) > 0;
+    } else {
+      const [existingLikeRows] = await pool.execute(
+        `SELECT 1
+         FROM blog_post_likes
+         WHERE post_id = ? AND user_id = ?
+         LIMIT 1`,
+        [postId, userId],
+      );
+
+      if (existingLikeRows.length) {
+        await pool.execute(
+          `DELETE FROM blog_post_likes
+           WHERE post_id = ? AND user_id = ?`,
+          [postId, userId],
+        );
+        liked = false;
+      } else {
+        await pool.execute(
+          `INSERT INTO blog_post_likes (post_id, user_id)
+           VALUES (?, ?)`,
+          [postId, userId],
+        );
+        liked = true;
+        createdLike = true;
+      }
+    }
+
+    const postOwnerId = Number(postRows[0]?.user_id || 0);
+    if (createdLike && postOwnerId && postOwnerId !== userId) {
+      const [actorRows] = await pool.execute(
+        `SELECT name
+         FROM users
+         WHERE id = ?
+         LIMIT 1`,
+        [userId],
+      );
+      const actorName = String(actorRows[0]?.name || '').trim() || 'Someone';
+
+      await pool.execute(
+        `INSERT INTO notifications (user_id, type, title, message, data)
+         VALUES (?, 'blog_like', 'New like on your post', ?, JSON_OBJECT('postId', ?, 'actorUserId', ?, 'event', 'like'))`,
+        [postOwnerId, `${actorName} liked your post.`, postId, userId],
+      );
+    }
+
+    const [likeCountRows] = await pool.execute(
+      `SELECT COUNT(*) AS likes_count
+       FROM blog_post_likes
+       WHERE post_id = ?`,
+      [postId],
+    );
+
+    return res.json({
+      postId,
+      liked,
+      likesCount: Number(likeCountRows[0]?.likes_count || 0),
+    });
+  } catch (error) {
+    return res.status(500).json({ error: error.message || 'Failed to update post like' });
+  }
+});
+
+router.post('/blogs/:postId/view', async (req, res) => {
+  try {
+    const postId = toPositiveInteger(req.params?.postId);
+    const userId = toPositiveInteger(req.body?.userId);
+
+    if (!postId) {
+      return res.status(400).json({ error: 'postId must be a positive integer' });
+    }
+    if (!userId) {
+      return res.status(400).json({ error: 'userId must be a positive integer' });
+    }
+
+    const [postRows] = await pool.execute('SELECT id FROM blog_posts WHERE id = ? LIMIT 1', [postId]);
+    if (!postRows.length) {
+      return res.status(404).json({ error: 'Post not found' });
+    }
+
+    const [insertResult] = await pool.execute(
+      `INSERT IGNORE INTO blog_post_views (post_id, user_id, view_date)
+       VALUES (?, ?, CURDATE())`,
+      [postId, userId],
+    );
+
+    const [viewCountRows] = await pool.execute(
+      `SELECT COUNT(*) AS views_count
+       FROM blog_post_views
+       WHERE post_id = ?`,
+      [postId],
+    );
+
+    return res.json({
+      postId,
+      viewsCount: Number(viewCountRows[0]?.views_count || 0),
+      tracked: Number(insertResult.affectedRows || 0) > 0,
+    });
+  } catch (error) {
+    return res.status(500).json({ error: error.message || 'Failed to track post view' });
+  }
+});
+
+router.get('/blogs/:postId/comments', async (req, res) => {
+  try {
+    const postId = toPositiveInteger(req.params?.postId);
+    if (!postId) {
+      return res.status(400).json({ error: 'postId must be a positive integer' });
+    }
+
+    const limit = clampBlogLimit(req.query.limit, 120, 250);
+    const profileImageColumn = await getProfileImageColumn();
+    const avatarSelect = profileImageColumn ? `COALESCE(u.${profileImageColumn}, '') AS avatar_url` : `'' AS avatar_url`;
+
+    const [rows] = await pool.execute(
+      `SELECT
+         c.id,
+         c.post_id,
+         c.user_id,
+         c.comment_text,
+         c.created_at,
+         u.name AS author_name,
+         ${avatarSelect}
+       FROM blog_post_comments c
+       INNER JOIN users u ON u.id = c.user_id
+       WHERE c.post_id = ?
+       ORDER BY c.created_at ASC, c.id ASC
+       LIMIT ?`,
+      [postId, limit],
+    );
+
+    return res.json({
+      postId,
+      comments: rows.map(mapBlogCommentRow),
+    });
+  } catch (error) {
+    return res.status(500).json({ error: error.message || 'Failed to fetch comments' });
+  }
+});
+
+router.post('/blogs/:postId/comments', async (req, res) => {
+  try {
+    const postId = toPositiveInteger(req.params?.postId);
+    const userId = toPositiveInteger(req.body?.userId);
+    const text = String(req.body?.text || '').trim();
+
+    if (!postId) {
+      return res.status(400).json({ error: 'postId must be a positive integer' });
+    }
+    if (!userId) {
+      return res.status(400).json({ error: 'userId must be a positive integer' });
+    }
+    if (!text) {
+      return res.status(400).json({ error: 'Comment text is required' });
+    }
+    if (text.length > 1000) {
+      return res.status(400).json({ error: 'Comment is too long (max 1000 chars)' });
+    }
+
+    const [postRows] = await pool.execute(
+      `SELECT id, user_id
+       FROM blog_posts
+       WHERE id = ?
+       LIMIT 1`,
+      [postId],
+    );
+    if (!postRows.length) {
+      return res.status(404).json({ error: 'Post not found' });
+    }
+
+    const [insertResult] = await pool.execute(
+      `INSERT INTO blog_post_comments (post_id, user_id, comment_text)
+       VALUES (?, ?, ?)`,
+      [postId, userId, text],
+    );
+
+    const insertedCommentId = Number(insertResult.insertId);
+    const profileImageColumn = await getProfileImageColumn();
+    const avatarSelect = profileImageColumn ? `COALESCE(u.${profileImageColumn}, '') AS avatar_url` : `'' AS avatar_url`;
+
+    const [commentRows] = await pool.execute(
+      `SELECT
+         c.id,
+         c.post_id,
+         c.user_id,
+         c.comment_text,
+         c.created_at,
+         u.name AS author_name,
+         ${avatarSelect}
+       FROM blog_post_comments c
+       INNER JOIN users u ON u.id = c.user_id
+       WHERE c.id = ?
+       LIMIT 1`,
+      [insertedCommentId],
+    );
+
+    const [countRows] = await pool.execute(
+      `SELECT COUNT(*) AS comments_count
+       FROM blog_post_comments
+       WHERE post_id = ?`,
+      [postId],
+    );
+
+    const postOwnerId = Number(postRows[0]?.user_id || 0);
+    if (postOwnerId && postOwnerId !== userId) {
+      const actorName = String(commentRows[0]?.author_name || '').trim() || 'Someone';
+      const preview = text.length > 120 ? `${text.slice(0, 117)}...` : text;
+
+      await pool.execute(
+        `INSERT INTO notifications (user_id, type, title, message, data)
+         VALUES (?, 'blog_comment', 'New comment on your post', ?, JSON_OBJECT('postId', ?, 'commentId', ?, 'actorUserId', ?, 'event', 'comment'))`,
+        [postOwnerId, `${actorName} commented: "${preview}"`, postId, insertedCommentId, userId],
+      );
+    }
+
+    return res.status(201).json({
+      postId,
+      comment: commentRows.length ? mapBlogCommentRow(commentRows[0]) : null,
+      commentsCount: Number(countRows[0]?.comments_count || 0),
+    });
+  } catch (error) {
+    return res.status(500).json({ error: error.message || 'Failed to add comment' });
+  }
+});
+
+router.post('/nutrition/daily-plan', async (req, res) => {
+  try {
+    const payload = req.body && typeof req.body === 'object' ? req.body : {};
+    const plan = await generateDailyNutritionPlan(payload);
+    return res.json(plan);
+  } catch (error) {
+    return res.status(500).json({ error: error.message || 'Failed to generate daily nutrition plan' });
+  }
+});
+
+router.get('/insights/datasets/overview', async (req, res) => {
+  try {
+    const refreshRaw = String(req.query.refresh || '').trim().toLowerCase();
+    const forceRefresh = refreshRaw === '1' || refreshRaw === 'true';
+    const summary = await getDatasetOverview({ forceRefresh });
+    return res.json(summary);
+  } catch (error) {
+    return res.status(500).json({ error: error.message || 'Failed to read dataset overview' });
+  }
+});
+
+router.post('/insights/onboarding', async (req, res) => {
+  try {
+    const result = await buildOnboardingInsights(req.body || {});
+    return res.json(result);
+  } catch (error) {
+    return res.status(500).json({ error: error.message || 'Failed to build onboarding insights' });
+  }
+});
+
+router.post('/insights/user-analysis', async (req, res) => {
+  try {
+    const result = await buildUserAnalysisInsights(req.body || {});
+    return res.json(result);
+  } catch (error) {
+    return res.status(500).json({ error: error.message || 'Failed to build user analysis insights' });
+  }
+});
+
+router.post('/insights/onboarding/save', async (req, res) => {
+  try {
+    const userId = Number(req.body?.userId);
+    if (!Number.isInteger(userId) || userId <= 0) {
+      return res.status(400).json({ error: 'userId must be a positive integer' });
+    }
+
+    const input = req.body?.input && typeof req.body.input === 'object' ? req.body.input : (req.body || {});
+    const insights = await buildOnboardingInsights(input);
+    const saved = await saveOnboardingInsightsForUser({
+      userId,
+      input,
+      insights,
+      snapshotDate: req.body?.snapshotDate,
+      source: req.body?.source || 'onboarding',
+      notes: req.body?.notes || null,
+      modelVersion: String(req.body?.modelVersion || 'fitness_insights_v1'),
+    });
+
+    return res.json({
+      success: true,
+      ...saved,
+      insights,
+    });
+  } catch (error) {
+    if (error.message === 'User not found') {
+      return res.status(404).json({ error: error.message });
+    }
+    if (error.message === 'Invalid snapshotDate' || error.message === 'Invalid userId') {
+      return res.status(400).json({ error: error.message });
+    }
+    return res.status(500).json({ error: error.message || 'Failed to save onboarding insights' });
+  }
+});
+
+router.post('/insights/user-analysis/save', async (req, res) => {
+  try {
+    const userId = Number(req.body?.userId);
+    if (!Number.isInteger(userId) || userId <= 0) {
+      return res.status(400).json({ error: 'userId must be a positive integer' });
+    }
+
+    const input = req.body?.input && typeof req.body.input === 'object' ? req.body.input : (req.body || {});
+    const insights = await buildUserAnalysisInsights(input);
+    const saved = await saveUserAnalysisInsightsForUser({
+      userId,
+      input,
+      insights,
+      snapshotDate: req.body?.snapshotDate,
+      source: req.body?.source || 'weekly_checkin',
+      notes: req.body?.notes || null,
+      modelVersion: String(req.body?.modelVersion || 'fitness_insights_v1'),
+    });
+
+    let adaptation = null;
+    const autoAdaptPlan = ['1', 'true', 'yes'].includes(String(req.body?.autoAdaptPlan || '').trim().toLowerCase());
+    if (autoAdaptPlan) {
+      let conn;
+      try {
+        conn = await pool.getConnection();
+        await conn.beginTransaction();
+        adaptation = await adaptProgramWeeklyByInsights(conn, {
+          userId,
+          force: false,
+          trigger: 'weekly_analysis',
+        });
+        await conn.commit();
+      } catch (adaptError) {
+        if (conn) await conn.rollback();
+        adaptation = {
+          adapted: false,
+          error: adaptError?.message || 'Auto adaptation failed',
+        };
+      } finally {
+        if (conn) conn.release();
+      }
+    }
+
+    return res.json({
+      success: true,
+      ...saved,
+      insights,
+      adaptation,
+    });
+  } catch (error) {
+    if (error.message === 'User not found') {
+      return res.status(404).json({ error: error.message });
+    }
+    if (error.message === 'Invalid snapshotDate' || error.message === 'Invalid userId') {
+      return res.status(400).json({ error: error.message });
+    }
+    return res.status(500).json({ error: error.message || 'Failed to save user analysis insights' });
+  }
+});
+
+router.get('/insights/user/:userId/history', async (req, res) => {
+  try {
+    const userId = Number(req.params?.userId);
+    if (!Number.isInteger(userId) || userId <= 0) {
+      return res.status(400).json({ error: 'userId must be a positive integer' });
+    }
+
+    const days = Number(req.query?.days || 90);
+    const limit = Number(req.query?.limit || 365);
+    const scoreTypes = req.query?.scoreType || req.query?.scoreTypes || '';
+    const includeExplanation = ['1', 'true', 'yes'].includes(String(req.query?.includeExplanation || '').trim().toLowerCase());
+    const includeRawPayload = ['1', 'true', 'yes'].includes(String(req.query?.includeRawPayload || '').trim().toLowerCase());
+
+    const history = await getUserInsightsHistory({
+      userId,
+      days,
+      limit,
+      scoreTypes,
+      includeExplanation,
+      includeRawPayload,
+    });
+
+    return res.json(history);
+  } catch (error) {
+    if (error.message === 'User not found') {
+      return res.status(404).json({ error: error.message });
+    }
+    if (error.message === 'Invalid userId') {
+      return res.status(400).json({ error: error.message });
+    }
+    return res.status(500).json({ error: error.message || 'Failed to load insight history' });
   }
 });
 

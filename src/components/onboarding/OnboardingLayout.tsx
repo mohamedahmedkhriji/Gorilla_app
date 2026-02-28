@@ -2,6 +2,7 @@ import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ProgressSteps } from '../ui/ProgressSteps';
 import { ArrowLeft } from 'lucide-react';
+
 interface OnboardingLayoutProps {
   children: React.ReactNode;
   currentStep: number;
@@ -10,56 +11,60 @@ interface OnboardingLayoutProps {
   title?: string;
   showBack?: boolean;
 }
+
 export function OnboardingLayout({
   children,
   currentStep,
   totalSteps,
   onBack,
   title,
-  showBack = true
+  showBack = true,
 }: OnboardingLayoutProps) {
   return (
-    <div className="min-h-screen bg-background text-text-primary p-6 flex flex-col max-w-md mx-auto">
-      {/* Header */}
-      <div className="flex items-center h-12 mb-4 relative">
-        {showBack && onBack &&
-        <button
-          onClick={onBack}
-          className="absolute left-0 p-2 -ml-2 text-text-secondary hover:text-text-primary transition-colors">
+    <div className="min-h-screen px-4 py-6 sm:px-6 relative overflow-hidden">
+      <div className="pointer-events-none absolute -top-20 -right-16 h-56 w-56 rounded-full blur-3xl bg-info/25" />
+      <div className="pointer-events-none absolute -bottom-24 -left-12 h-64 w-64 rounded-full blur-3xl bg-accent/20" />
 
-            <ArrowLeft size={24} />
-          </button>
-        }
-        {title &&
-        <h1 className="w-full text-center text-lg font-medium">{title}</h1>
-        }
+      <div className="relative min-h-[calc(100vh-3rem)] px-2 py-1 sm:px-4 flex flex-col">
+        <div className="flex items-center h-12 mb-4 relative">
+          {showBack && onBack && (
+            <button
+              onClick={onBack}
+              className="absolute left-0 w-10 h-10 rounded-xl surface-glass flex items-center justify-center text-text-secondary hover:text-text-primary transition-colors"
+            >
+              <ArrowLeft size={18} />
+            </button>
+          )}
+
+          {title && <h1 className="w-full text-center text-xl text-text-primary">{title}</h1>}
+        </div>
+
+        <ProgressSteps currentStep={currentStep} totalSteps={totalSteps} />
+
+        <AnimatePresence mode="wait">
+          <motion.div
+            key={currentStep}
+            initial={{
+              opacity: 0,
+              x: 20,
+            }}
+            animate={{
+              opacity: 1,
+              x: 0,
+            }}
+            exit={{
+              opacity: 0,
+              x: -20,
+            }}
+            transition={{
+              duration: 0.3,
+            }}
+            className="flex-1 flex flex-col"
+          >
+            {children}
+          </motion.div>
+        </AnimatePresence>
       </div>
-
-      <ProgressSteps currentStep={currentStep} totalSteps={totalSteps} />
-
-      <AnimatePresence mode="wait">
-        <motion.div
-          key={currentStep}
-          initial={{
-            opacity: 0,
-            x: 20
-          }}
-          animate={{
-            opacity: 1,
-            x: 0
-          }}
-          exit={{
-            opacity: 0,
-            x: -20
-          }}
-          transition={{
-            duration: 0.3
-          }}
-          className="flex-1 flex flex-col">
-
-          {children}
-        </motion.div>
-      </AnimatePresence>
-    </div>);
-
+    </div>
+  );
 }

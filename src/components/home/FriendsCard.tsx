@@ -46,50 +46,34 @@ export function FriendsCard({ onClick }: FriendsCardProps) {
       .toUpperCase();
 
   return (
-    <Card
-      onClick={onClick}
-      className="p-4 flex flex-col justify-between h-full cursor-pointer border border-accent/30 hover:border-accent transition-colors group">
-
+    <Card onClick={onClick} className="p-4 flex flex-col justify-between h-full cursor-pointer border border-white/15 hover:border-accent/35 transition-colors group">
       <div className="flex justify-between items-start">
-        <div className="w-10 h-10 rounded-full bg-accent/10 flex items-center justify-center text-accent group-hover:shadow-glow transition-all">
-          <Users size={20} />
+        <div className="w-10 h-10 rounded-2xl bg-accent/10 border border-accent/35 flex items-center justify-center text-accent group-hover:shadow-glow transition-all">
+          <Users size={18} />
         </div>
-        <ChevronRight
-          size={16}
-          className="text-text-tertiary group-hover:text-white transition-colors" />
-
+        <ChevronRight size={16} className="text-text-tertiary group-hover:text-text-primary transition-colors" />
       </div>
 
       <div className="mt-4">
-        <div className="text-2xl font-bold text-white">{friends.length}</div>
-        <div className="text-xs text-text-secondary font-medium uppercase tracking-wider">
-          Friends
-        </div>
+        <div className="text-4xl leading-none text-white">{friends.length}</div>
+        <div className="text-[10px] text-text-secondary font-semibold uppercase tracking-[0.12em] mt-1">Friends</div>
       </div>
 
       <div className="flex -space-x-2 mt-3">
-        {visibleFriends.map((friend) =>
-        <div
-          key={friend.id}
-          className="w-6 h-6 rounded-full bg-white/10 border border-card overflow-hidden flex items-center justify-center text-[8px] text-white">
+        {visibleFriends.map((friend) => (
+          <div
+            key={friend.id}
+            className="w-7 h-7 rounded-full bg-white/10 border border-card overflow-hidden flex items-center justify-center text-[9px] text-white"
+          >
             {friend.profile_picture ? (
-              <img
-                src={friend.profile_picture}
-                alt={`${friend.name} profile`}
-                className="w-full h-full object-cover"
-              />
+              <img src={friend.profile_picture} alt={`${friend.name} profile`} className="w-full h-full object-cover" />
             ) : (
               <span>{getInitials(friend.name)}</span>
             )}
           </div>
-
-        )}
-        {hiddenCount > 0 && (
-          <div className="w-6 h-6 rounded-full bg-white/5 border border-card flex items-center justify-center text-[8px] text-text-secondary">
-            +{hiddenCount}
-          </div>
-        )}
+        ))}
+        {hiddenCount > 0 && <div className="w-7 h-7 rounded-full bg-white/5 border border-card flex items-center justify-center text-[9px] text-text-secondary">+{hiddenCount}</div>}
       </div>
-    </Card>);
-
+    </Card>
+  );
 }

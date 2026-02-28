@@ -4,6 +4,7 @@ import { Home } from './pages/Home';
 import { Workout } from './pages/Workout';
 import { Progress } from './pages/Progress';
 import { Profile } from './pages/Profile';
+import { Blogs } from './pages/Blogs';
 import { LoginPage } from './pages/LoginPage';
 import { TabBar } from './components/ui/TabBar';
 import { SplashScreen } from './components/ui/SplashScreen';
@@ -38,18 +39,23 @@ export function App() {
   }
 
   if (!isLoggedIn) {
-    return <LoginPage onLoginSuccess={() => {
-      const user = JSON.parse(localStorage.getItem('appUser') || localStorage.getItem('user') || '{}');
-      if (user?.role === 'user') {
-        setIsLoggedIn(true);
-        setHasOnboarded(user.onboarding_completed || false);
-      }
-    }} />;
+    return (
+      <LoginPage
+        onLoginSuccess={() => {
+          const user = JSON.parse(localStorage.getItem('appUser') || localStorage.getItem('user') || '{}');
+          if (user?.role === 'user') {
+            setIsLoggedIn(true);
+            setHasOnboarded(user.onboarding_completed || false);
+          }
+        }}
+      />
+    );
   }
 
   if (!hasOnboarded) {
     return <Onboarding onComplete={() => setHasOnboarded(true)} />;
   }
+
   const renderTab = () => {
     switch (activeTab) {
       case 'home':
@@ -60,39 +66,54 @@ export function App() {
         return <Progress />;
       case 'profile':
         return <Profile onNavigateTab={handleNavigate} />;
+      case 'blogs':
+        return <Blogs />;
       default:
         return <Home onNavigate={(tab) => handleNavigate(tab, workoutDay)} />;
     }
   };
+
   return (
-    <div className="min-h-screen bg-background text-text-primary font-sans selection:bg-accent selection:text-black">
-      <div className="max-w-md mx-auto px-6 h-full min-h-screen relative">
+    <div
+      className={`min-h-screen text-text-primary font-sans selection:bg-accent/80 selection:text-black ${
+        activeTab === 'blogs' ? 'bg-[#ECEEF3]' : ''
+      }`}
+    >
+      <div
+        className={`min-h-screen pb-6 pt-4 ${
+          activeTab === 'blogs'
+            ? 'bg-[#ECEEF3] px-2 sm:px-4 lg:px-6'
+            : activeTab === 'profile'
+              ? 'px-0 pt-0 pb-0'
+              : 'px-5 sm:px-6'
+        }`}
+      >
         <AnimatePresence mode="wait">
           <motion.div
             key={activeTab}
             initial={{
               opacity: 0,
-              y: 10
+              y: 10,
             }}
             animate={{
               opacity: 1,
-              y: 0
+              y: 0,
             }}
             exit={{
               opacity: 0,
-              y: -10
+              y: -10,
             }}
             transition={{
-              duration: 0.2
+              duration: 0.2,
             }}
-            className="h-full">
-
+            className="min-h-screen"
+          >
             {renderTab()}
           </motion.div>
         </AnimatePresence>
       </div>
 
       <TabBar activeTab={activeTab} onTabChange={setActiveTab} />
-    </div>);
-
+    </div>
+  );
 }

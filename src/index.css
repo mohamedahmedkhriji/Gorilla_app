@@ -1,4 +1,5 @@
 /* URL IMPORTS (SUCH AS FONT IMPORTS) SHOULD BE KEPT ABOVE TAILWIND IMPORTS - DO NOT DELETE THIS COMMENT */
+@import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Space+Grotesk:wght@400;500;600;700&display=swap');
 
 /* PLEASE NOTE: THESE TAILWIND IMPORTS SHOULD NEVER BE DELETED - DO NOT DELETE THIS COMMENT */
 @import 'tailwindcss/base';
@@ -8,61 +9,75 @@
 
 :root,
 [data-theme='dark'] {
-  --color-accent: 191 255 0;          /* #BFFF00 */
-  --color-accent-dark: 127 184 0;     /* #7FB800 */
-  --color-accent-soft-bg: 244 255 214;/* #F4FFD6 */
+  --font-body: 'Space Grotesk', system-ui, sans-serif;
+  --font-display: 'Bebas Neue', Impact, sans-serif;
 
-  --color-background: 26 26 26;       /* #1A1A1A */
-  --color-background-secondary: 36 36 36; /* #242424 */
-  --color-section-background: 31 31 31;
-  --color-card: 36 36 36;             /* #242424 */
-  --color-border: 255 255 255;
+  --color-accent: 187 255 92;
+  --color-accent-dark: 126 198 35;
+  --color-accent-soft-bg: 231 255 190;
 
-  --color-text-primary: 255 255 255;
-  --color-text-secondary: 179 179 179;
-  --color-text-tertiary: 140 140 140;
+  --color-background: 9 14 23;
+  --color-background-secondary: 16 24 36;
+  --color-section-background: 23 35 52;
+  --color-card: 20 32 46;
+  --color-border: 134 161 189;
 
-  --color-success: 22 197 94;
-  --color-error: 239 68 68;
-  --color-info: 59 130 246;
-  --color-purple: 168 85 247;
+  --color-text-primary: 243 248 255;
+  --color-text-secondary: 175 192 213;
+  --color-text-tertiary: 131 149 171;
+
+  --color-success: 34 197 94;
+  --color-error: 248 113 113;
+  --color-info: 56 189 248;
+  --color-purple: 245 158 11;
 }
 
 [data-theme='light'] {
-  --color-accent: 191 255 0;          /* #BFFF00 */
-  --color-accent-dark: 127 184 0;     /* #7FB800 */
-  --color-accent-soft-bg: 244 255 214;/* #F4FFD6 */
+  --font-body: 'Space Grotesk', system-ui, sans-serif;
+  --font-display: 'Bebas Neue', Impact, sans-serif;
 
-  --color-background: 246 247 243;    /* #F6F7F3 */
-  --color-background-secondary: 255 255 255; /* #FFFFFF */
-  --color-section-background: 238 241 232;   /* #EEF1E8 */
-  --color-card: 255 255 255;          /* #FFFFFF */
-  --color-border: 226 232 213;        /* #E2E8D5 */
+  --color-accent: 155 214 52;
+  --color-accent-dark: 109 149 34;
+  --color-accent-soft-bg: 233 249 200;
 
-  --color-text-primary: 31 41 55;     /* #1F2937 */
-  --color-text-secondary: 107 114 128;/* #6B7280 */
-  --color-text-tertiary: 156 163 175; /* #9CA3AF */
+  --color-background: 244 248 252;
+  --color-background-secondary: 255 255 255;
+  --color-section-background: 233 240 247;
+  --color-card: 255 255 255;
+  --color-border: 197 214 230;
 
-  --color-success: 22 163 74;         /* #16A34A */
-  --color-error: 220 38 38;           /* #DC2626 */
-  --color-info: 37 99 235;            /* #2563EB */
-  --color-purple: 147 51 234;         /* #9333EA */
+  --color-text-primary: 18 24 36;
+  --color-text-secondary: 90 109 133;
+  --color-text-tertiary: 126 145 167;
+
+  --color-success: 21 128 61;
+  --color-error: 220 38 38;
+  --color-info: 3 105 161;
+  --color-purple: 180 83 9;
 }
 
-/* Mobile optimizations */
 * {
   -webkit-tap-highlight-color: transparent;
   -webkit-touch-callout: none;
+  box-sizing: border-box;
 }
 
-html, body {
+html,
+body {
   overflow-x: hidden;
   width: 100%;
   height: 100%;
   position: fixed;
   overscroll-behavior: none;
+  font-family: var(--font-body);
   background-color: rgb(var(--color-background));
   color: rgb(var(--color-text-primary));
+}
+
+body {
+  background-image:
+    radial-gradient(circle at 100% -10%, rgb(var(--color-accent) / 0.08), transparent 38%),
+    linear-gradient(155deg, rgb(var(--color-background)), rgb(var(--color-background-secondary)));
 }
 
 #root {
@@ -71,10 +86,29 @@ html, body {
   overflow-y: auto;
   overflow-x: hidden;
   -webkit-overflow-scrolling: touch;
-  background-color: rgb(var(--color-background));
+  background: transparent;
+  position: relative;
 }
 
-/* iOS safe area support */
+#root::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background-image:
+    repeating-linear-gradient(120deg, rgb(255 255 255 / 0.015) 0px, rgb(255 255 255 / 0.015) 2px, transparent 2px, transparent 18px),
+    repeating-linear-gradient(20deg, rgb(0 0 0 / 0.04) 0px, rgb(0 0 0 / 0.04) 1px, transparent 1px, transparent 12px);
+  opacity: 0.32;
+  mix-blend-mode: soft-light;
+  z-index: -1;
+  display: none;
+}
+
+.font-display {
+  font-family: var(--font-display);
+  letter-spacing: 0.03em;
+}
+
 @supports (padding: max(0px)) {
   body {
     padding-left: env(safe-area-inset-left);
@@ -82,23 +116,41 @@ html, body {
   }
 }
 
-/* Prevent zoom on input focus */
-input, select, textarea {
+input,
+select,
+textarea {
   font-size: 16px !important;
 }
 
-/* Smooth scrolling */
 * {
   scroll-behavior: smooth;
 }
 
-/* Light-mode utility overrides for legacy hardcoded Tailwind classes */
+.surface-card {
+  border: 1px solid rgb(var(--color-border) / 0.16);
+  background: linear-gradient(165deg, rgb(var(--color-card) / 0.9), rgb(var(--color-background-secondary) / 0.82));
+  box-shadow: 0 6px 18px rgb(6 9 20 / 0.14), inset 0 1px 0 rgb(255 255 255 / 0.05);
+}
+
+.surface-glass {
+  border: 1px solid rgb(var(--color-border) / 0.16);
+  background: linear-gradient(165deg, rgb(var(--color-background-secondary) / 0.9), rgb(var(--color-card) / 0.84));
+  backdrop-filter: blur(8px);
+}
+
+.text-gradient {
+  background: linear-gradient(120deg, rgb(var(--color-accent-dark)), rgb(var(--color-accent)));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
 [data-theme='light'] .text-white {
   color: rgb(var(--color-text-primary)) !important;
 }
 
 [data-theme='light'] .bg-white\/5 {
-  background-color: rgb(var(--color-section-background) / 1) !important;
+  background-color: rgb(var(--color-section-background) / 0.9) !important;
 }
 
 [data-theme='light'] .bg-white\/10 {
@@ -108,12 +160,12 @@ input, select, textarea {
 [data-theme='light'] .border-white\/5,
 [data-theme='light'] .border-white\/10,
 [data-theme='light'] .border-white\/20 {
-  border-color: rgb(var(--color-border) / 1) !important;
+  border-color: rgb(var(--color-border) / 0.95) !important;
 }
 
 [data-theme='light'] .bg-card {
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
-  border: 1px solid rgb(var(--color-border));
+  box-shadow: 0 4px 12px rgb(20 31 48 / 0.06);
+  border: 1px solid rgb(var(--color-border) / 0.88);
 }
 
 [data-theme='light'] .text-accent {
@@ -125,8 +177,8 @@ input, select, textarea {
 }
 
 [data-theme='light'] .ghost-button {
-  background-color: #FFFFFF !important;
-  border-color: rgb(var(--color-accent)) !important;
+  background-color: rgb(var(--color-background-secondary)) !important;
+  border-color: rgb(var(--color-border) / 0.9) !important;
   color: rgb(var(--color-accent-dark)) !important;
 }
 
@@ -135,7 +187,6 @@ input, select, textarea {
   border-color: rgb(var(--color-accent-dark)) !important;
 }
 
-/* Light-mode overrides for legacy admin/coach hardcoded dark classes */
 [data-theme='light'] .bg-\[\#1A1A1A\] {
   background-color: rgb(var(--color-background)) !important;
 }
@@ -143,7 +194,7 @@ input, select, textarea {
 [data-theme='light'] .bg-\[\#242424\] {
   background-color: rgb(var(--color-card)) !important;
   border-color: rgb(var(--color-border)) !important;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+  box-shadow: 0 3px 10px rgb(14 28 45 / 0.06);
 }
 
 [data-theme='light'] .bg-\[\#202020\] {
@@ -165,10 +216,6 @@ input, select, textarea {
 [data-theme='light'] .border-gray-700,
 [data-theme='light'] .border-gray-600 {
   border-color: rgb(var(--color-border)) !important;
-}
-
-[data-theme='light'] .text-white {
-  color: rgb(var(--color-text-primary)) !important;
 }
 
 [data-theme='light'] .text-gray-400,
@@ -197,7 +244,9 @@ input, select, textarea {
 }
 
 @keyframes chatTypingDot {
-  0%, 80%, 100% {
+  0%,
+  80%,
+  100% {
     opacity: 0.25;
     transform: translateY(0);
   }
@@ -215,8 +264,7 @@ input, select, textarea {
   animation: chatTypingDot 1.2s infinite ease-in-out;
 }
 
-/* Keep popup overlays centered consistently across screens */
-[class*="fixed inset-0"][class*="z-50"][class*="bg-black"] {
+[class*='fixed inset-0'][class*='z-50'][class*='bg-black'] {
   display: flex;
   align-items: center;
   justify-content: center;

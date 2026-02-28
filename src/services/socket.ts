@@ -1,21 +1,45 @@
 import { io } from 'socket.io-client';
 
-const socket = io('http://localhost:5001', {
+const SOCKET_URL = 'http://localhost:5001';
+
+const socket = io(SOCKET_URL, {
   transports: ['websocket', 'polling'],
+  autoConnect: false,
   reconnection: true,
+  reconnectionAttempts: 8,
+  reconnectionDelay: 1000,
+  reconnectionDelayMax: 5000,
+  timeout: 5000,
 });
 
+let hasLoggedConnectError = false;
+let pendingJoin: { id: number; type: 'user' | 'coach' } | null = null;
+
 socket.on('connect', () => {
+  hasLoggedConnectError = false;
   console.log('Socket connected:', socket.id);
+  if (pendingJoin) {
+    socket.emit('join', pendingJoin);
+  }
 });
 
 socket.on('disconnect', () => {
   console.log('Socket disconnected');
 });
 
+socket.on('connect_error', (error: Error) => {
+  if (hasLoggedConnectError) return;
+  hasLoggedConnectError = true;
+  console.warn('Socket unavailable:', error?.message || 'Connection failed');
+});
+
 export const socketService = {
   connect: (id: number, type: 'user' | 'coach') => {
     if (!id || !type) return;
+    pendingJoin = { id, type };
+    if (!socket.connected) {
+      socket.connect();
+    }
     console.log('Joining room for', type, id);
     socket.emit('join', { id, type });
   },
@@ -65,5 +89,7 @@ export const socketService = {
     socket.off('newMessage');
     socket.off('typing');
     socket.off('messageError');
+    pendingJoin = null;
+    socket.disconnect();
   }
 };

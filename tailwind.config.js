@@ -24,18 +24,13 @@ export default {
         purple: 'rgb(var(--color-purple) / <alpha-value>)',
       },
       fontFamily: {
-        sans: [
-          '-apple-system',
-          'BlinkMacSystemFont',
-          '"Segoe UI"',
-          'Roboto',
-          '"Helvetica Neue"',
-          'Arial',
-          'sans-serif',
-        ],
+        sans: ['"Space Grotesk"', 'system-ui', 'sans-serif'],
+        display: ['"Bebas Neue"', '"Impact"', 'sans-serif'],
       },
       boxShadow: {
-        'glow': '0 0 20px rgb(var(--color-accent) / 0.3)',
+        glow: '0 0 16px rgb(var(--color-accent) / 0.18)',
+        card: '0 8px 22px rgb(7 12 24 / 0.14)',
+        inset: 'inset 0 1px 0 rgb(255 255 255 / 0.05)',
       }
     },
   },

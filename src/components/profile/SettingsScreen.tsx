@@ -541,6 +541,8 @@ export function SettingsScreen({ onBack, onLogout }: SettingsScreenProps) {
                   </div>
                   <button
                     type="button"
+                    aria-pressed={enabled}
+                    aria-label={`Toggle ${item.label}`}
                     disabled={loadingNotificationSettings}
                     onClick={() =>
                       updateNotificationPreference(
@@ -548,13 +550,13 @@ export function SettingsScreen({ onBack, onLogout }: SettingsScreenProps) {
                         !enabled,
                       )
                     }
-                    className={`w-12 h-7 rounded-full transition-colors relative ${
+                    className={`relative inline-flex h-7 w-12 items-center rounded-full transition-colors duration-200 ${
                       enabled ? 'bg-accent' : 'bg-white/10'
-                    } ${loadingNotificationSettings ? 'opacity-60 cursor-not-allowed' : ''}`}
+                    }`}
                   >
                     <span
-                      className={`absolute top-1 w-5 h-5 rounded-full transition-all ${
-                        enabled ? 'left-6 bg-black' : 'left-1 bg-white'
+                      className={`pointer-events-none inline-block h-5 w-5 rounded-full shadow-sm transition-transform duration-200 ${
+                        enabled ? 'translate-x-6 bg-black' : 'translate-x-1 bg-white'
                       }`}
                     />
                   </button>

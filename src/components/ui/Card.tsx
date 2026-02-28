@@ -7,7 +7,7 @@ interface CardProps extends HTMLMotionProps<'div'> {
 export function Card({ children, className = '', ...props }: CardProps) {
   return (
     <motion.div
-      className={`bg-card rounded-2xl p-6 ${className}`}
+      className={`surface-card rounded-2xl p-5 ${className}`}
       {...props}>
 
       {children}

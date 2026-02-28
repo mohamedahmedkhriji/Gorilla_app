@@ -155,9 +155,9 @@ export function RankingsRewardsScreen({ onBack }: RankingsRewardsScreenProps) {
 
   if (showHistory) {
     return (
-      <div className="flex-1 flex flex-col pb-24 bg-background">
+      <div className="flex-1 flex flex-col min-h-screen pb-24 bg-background">
         <div className="px-6 pt-2">
-          <Header title="History" onBack={() => setShowHistory(false)} />
+          <Header title="History" onBack={() => setShowHistory(false)} compact />
         </div>
 
         <div className="px-6 space-y-6 mt-4">
@@ -170,7 +170,7 @@ export function RankingsRewardsScreen({ onBack }: RankingsRewardsScreenProps) {
                     <h4 className="text-xs font-bold text-text-secondary uppercase tracking-wider mb-2">{period}</h4>
                     <div className="space-y-2">
                       {periodMissions.map((mission, idx) => (
-                        <Card key={`m-${period}-${idx}`} className="p-4">
+                        <Card key={`m-${period}-${idx}`} className="!p-4">
                           <div className="flex justify-between items-start">
                             <div>
                               <h5 className="font-bold text-white">{mission.title}</h5>
@@ -198,7 +198,7 @@ export function RankingsRewardsScreen({ onBack }: RankingsRewardsScreenProps) {
                     <h4 className="text-xs font-bold text-text-secondary uppercase tracking-wider mb-2">{period}</h4>
                     <div className="space-y-2">
                       {periodChallenges.map((challenge, idx) => (
-                        <Card key={`c-${period}-${idx}`} className="p-4">
+                        <Card key={`c-${period}-${idx}`} className="!p-4">
                           <div className="flex justify-between items-start">
                             <div>
                               <h5 className="font-bold text-white">{challenge.title}</h5>
@@ -226,19 +226,19 @@ export function RankingsRewardsScreen({ onBack }: RankingsRewardsScreenProps) {
   }
 
   return (
-    <div className="flex-1 flex flex-col pb-24 bg-background">
+    <div className="flex-1 flex flex-col min-h-screen pb-24 bg-background">
       <div className="px-6 pt-2">
-        <Header title="Rank & Rewards" onBack={onBack} />
+        <Header title="Rank & Rewards" onBack={onBack} compact />
       </div>
 
-      <div className="px-6 space-y-4 mt-2">
-        <div className="flex flex-col items-center py-3">
-          <div className="w-20 h-20 rounded-full bg-accent/10 border-2 border-accent/30 flex items-center justify-center mb-3">
+      <div className="px-6 space-y-2.5 mt-1">
+        <div className="flex flex-col items-center py-1.5">
+          <div className="w-20 h-20 rounded-full bg-accent/10 border-2 border-accent/30 flex items-center justify-center mb-2">
             <span className="text-4xl">{rankEmoji}</span>
           </div>
           <h2 className="text-lg font-bold text-white">{summary.rank}</h2>
-          <p className="text-sm text-text-secondary mt-1">{summary.totalPoints} points</p>
-          <p className="text-xs text-text-secondary mt-1">{nextRankText}</p>
+          <p className="text-sm text-text-secondary mt-0.5">{summary.totalPoints} points</p>
+          <p className="text-xs text-text-secondary mt-0.5">{nextRankText}</p>
         </div>
 
         <button
@@ -279,31 +279,33 @@ export function RankingsRewardsScreen({ onBack }: RankingsRewardsScreenProps) {
                   <Target size={16} className="text-accent" />
                   <h3 className="text-xs font-bold text-text-secondary uppercase tracking-wider">Active Missions</h3>
                 </div>
-                {activeMissions.map((mission) => (
-                  <Card key={mission.id} className="p-3">
-                    <div className="flex justify-between items-start mb-2">
-                      <h4 className="font-semibold text-white text-sm">{mission.title}</h4>
-                      <span className="text-xs font-bold text-accent bg-accent/10 px-2 py-0.5 rounded">
-                        +{mission.points_reward}
-                      </span>
-                    </div>
-                    <p className="text-xs text-text-secondary mb-2">{mission.description}</p>
-                    <div className="space-y-1">
-                      <div className="flex items-center gap-2">
-                        <div className="flex-1 h-1.5 bg-white/5 rounded-full overflow-hidden">
-                          <div
-                            className="h-full bg-accent rounded-full"
-                            style={{ width: `${Math.min((mission.progress / mission.target) * 100, 100)}%` }}
-                          />
-                        </div>
-                        <span className="text-xs text-text-tertiary font-mono">
-                          {mission.progress}/{mission.target}
+                <div className="space-y-2">
+                  {activeMissions.map((mission) => (
+                    <Card key={mission.id} className="!p-2.5">
+                      <div className="flex justify-between items-start mb-2">
+                        <h4 className="font-semibold text-white text-sm">{mission.title}</h4>
+                        <span className="text-xs font-bold text-accent bg-accent/10 px-2 py-0.5 rounded">
+                          +{mission.points_reward}
                         </span>
                       </div>
-                      <p className="text-xs text-text-tertiary">{mission.remaining} more to complete</p>
-                    </div>
-                  </Card>
-                ))}
+                      <p className="text-xs text-text-secondary mb-1.5">{mission.description}</p>
+                      <div className="space-y-0.5">
+                        <div className="flex items-center gap-2">
+                          <div className="flex-1 h-1.5 bg-white/5 rounded-full overflow-hidden">
+                            <div
+                              className="h-full bg-accent rounded-full"
+                              style={{ width: `${Math.min((mission.progress / mission.target) * 100, 100)}%` }}
+                            />
+                          </div>
+                          <span className="text-xs text-text-tertiary font-mono">
+                            {mission.progress}/{mission.target}
+                          </span>
+                        </div>
+                        <p className="text-xs text-text-tertiary">{mission.remaining} more to complete</p>
+                      </div>
+                    </Card>
+                  ))}
+                </div>
               </div>
             )}
 
@@ -313,45 +315,47 @@ export function RankingsRewardsScreen({ onBack }: RankingsRewardsScreenProps) {
                   <Target size={16} className="text-blue-400" />
                   <h3 className="text-xs font-bold text-text-secondary uppercase tracking-wider">Active Challenges</h3>
                 </div>
-                {[...activeDailyChallenges, ...activeWeeklyChallenges].map((challenge) => (
-                  <Card key={`${challenge.challenge_type}-${challenge.id}`} className="p-3">
-                    <div className="flex justify-between items-start mb-2">
-                      <div>
-                        <h4 className="font-semibold text-white text-sm">{challenge.title}</h4>
-                        <p className="text-[11px] text-text-secondary mt-0.5 uppercase">{challenge.challenge_type}</p>
-                      </div>
-                      <span className="text-xs font-bold text-blue-400 bg-blue-400/10 px-2 py-0.5 rounded">
-                        +{challenge.points_reward}
-                      </span>
-                    </div>
-                    <p className="text-xs text-text-secondary mb-2">{challenge.description}</p>
-                    <div className="space-y-1">
-                      <div className="flex items-center gap-2">
-                        <div className="flex-1 h-1.5 bg-white/5 rounded-full overflow-hidden">
-                          <div
-                            className="h-full bg-blue-400 rounded-full"
-                            style={{ width: `${Math.min((challenge.progress / challenge.target) * 100, 100)}%` }}
-                          />
+                <div className="space-y-2">
+                  {[...activeDailyChallenges, ...activeWeeklyChallenges].map((challenge) => (
+                    <Card key={`${challenge.challenge_type}-${challenge.id}`} className="!p-2.5">
+                      <div className="flex justify-between items-start mb-2">
+                        <div>
+                          <h4 className="font-semibold text-white text-sm">{challenge.title}</h4>
+                          <p className="text-[11px] text-text-secondary mt-0.5 uppercase">{challenge.challenge_type}</p>
                         </div>
-                        <span className="text-xs text-text-tertiary font-mono">
-                          {challenge.progress}/{challenge.target}
+                        <span className="text-xs font-bold text-blue-400 bg-blue-400/10 px-2 py-0.5 rounded">
+                          +{challenge.points_reward}
                         </span>
                       </div>
-                      <p className="text-xs text-text-tertiary">{challenge.remaining} more to complete</p>
-                    </div>
-                  </Card>
-                ))}
+                      <p className="text-xs text-text-secondary mb-1.5">{challenge.description}</p>
+                      <div className="space-y-0.5">
+                        <div className="flex items-center gap-2">
+                          <div className="flex-1 h-1.5 bg-white/5 rounded-full overflow-hidden">
+                            <div
+                              className="h-full bg-blue-400 rounded-full"
+                              style={{ width: `${Math.min((challenge.progress / challenge.target) * 100, 100)}%` }}
+                            />
+                          </div>
+                          <span className="text-xs text-text-tertiary font-mono">
+                            {challenge.progress}/{challenge.target}
+                          </span>
+                        </div>
+                        <p className="text-xs text-text-tertiary">{challenge.remaining} more to complete</p>
+                      </div>
+                    </Card>
+                  ))}
+                </div>
               </div>
             )}
 
             {completedMissions.length > 0 && (
-              <div className="space-y-2">
+              <div className="space-y-1">
                 <div className="flex items-center gap-2">
                   <Trophy size={16} className="text-green-500" />
                   <h3 className="text-xs font-bold text-text-secondary uppercase tracking-wider">Completed Missions</h3>
                 </div>
                 {completedMissions.map((mission) => (
-                  <Card key={`done-m-${mission.id}`} className="p-3 opacity-60">
+                  <Card key={`done-m-${mission.id}`} className="!p-2.5 opacity-60">
                     <div className="flex justify-between items-start">
                       <div>
                         <h4 className="font-semibold text-white text-sm">{mission.title}</h4>
@@ -365,13 +369,13 @@ export function RankingsRewardsScreen({ onBack }: RankingsRewardsScreenProps) {
             )}
 
             {completedChallenges.length > 0 && (
-              <div className="space-y-2">
+              <div className="space-y-1">
                 <div className="flex items-center gap-2">
                   <Trophy size={16} className="text-green-500" />
                   <h3 className="text-xs font-bold text-text-secondary uppercase tracking-wider">Completed Challenges</h3>
                 </div>
                 {completedChallenges.map((challenge) => (
-                  <Card key={`done-c-${challenge.challenge_type}-${challenge.id}`} className="p-3 opacity-60">
+                  <Card key={`done-c-${challenge.challenge_type}-${challenge.id}`} className="!p-2.5 opacity-60">
                     <div className="flex justify-between items-start">
                       <div>
                         <h4 className="font-semibold text-white text-sm">{challenge.title}</h4>

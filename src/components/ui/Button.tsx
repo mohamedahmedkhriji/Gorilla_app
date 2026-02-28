@@ -1,10 +1,12 @@
 import React from 'react';
 import { motion } from 'framer-motion';
+
 interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: 'primary' | 'secondary' | 'ghost';
   fullWidth?: boolean;
   isLoading?: boolean;
 }
+
 export function Button({
   children,
   variant = 'primary',
@@ -15,17 +17,23 @@ export function Button({
   ...props
 }: ButtonProps) {
   const baseStyles =
-  'relative flex items-center justify-center py-4 px-6 rounded-xl font-medium text-base transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed';
+    'relative flex items-center justify-center gap-2 py-3.5 px-6 rounded-xl font-semibold text-sm tracking-[0.04em] transition-all duration-200 disabled:opacity-55 disabled:cursor-not-allowed';
+
   const variants = {
     primary:
-    'bg-accent text-black shadow-glow hover:shadow-[0_0_25px_rgba(191,255,0,0.4)] font-bold',
-    secondary: 'bg-card text-white border border-white/10 hover:bg-white/5',
-    ghost: 'bg-transparent text-accent hover:bg-white/5'
+      'bg-accent text-black shadow-[0_4px_14px_rgb(var(--color-accent)/0.2)] hover:bg-accent/90',
+    secondary:
+      'surface-glass text-white border border-white/12 hover:border-accent/25 hover:bg-white/5',
+    ghost:
+      'bg-transparent text-accent border border-accent/30 hover:bg-accent/10 hover:border-accent/45',
   };
+
+  const spinnerColor = variant === 'primary' ? 'border-black/40 border-t-black' : 'border-white/35 border-t-white';
+
   return (
     <motion.button
       whileTap={{
-        scale: 0.98
+        scale: 0.98,
       }}
       className={`
         ${baseStyles}
@@ -34,13 +42,9 @@ export function Button({
         ${className}
       `}
       disabled={disabled || isLoading}
-      {...props}>
-
-      {isLoading ?
-      <div className="w-5 h-5 border-2 border-black/30 border-t-black rounded-full animate-spin" /> :
-
-      children
-      }
-    </motion.button>);
-
+      {...props}
+    >
+      {isLoading ? <div className={`w-4 h-4 border-2 ${spinnerColor} rounded-full animate-spin`} /> : children}
+    </motion.button>
+  );
 }

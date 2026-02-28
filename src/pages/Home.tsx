@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
+import { ArrowLeft, Medal, MoonStar } from 'lucide-react';
 import { WorkoutCard } from '../components/dashboard/WorkoutCard';
 import { RecoveryIndicator } from '../components/dashboard/RecoveryIndicator';
 import { RankDisplay } from '../components/dashboard/RankDisplay';
@@ -9,13 +10,14 @@ import { CoachCard } from '../components/home/CoachCard';
 import { CalculatorCard } from '../components/home/CalculatorCard';
 import { AgendaSection } from '../components/home/AgendaSection';
 import { EducationSection } from '../components/home/EducationSection';
-import { FriendsList } from './FriendsList';
+import { FriendsList, FriendMember } from './FriendsList';
 import { FriendProfile } from './FriendProfile';
 import { CoachList } from './CoachList';
 import { Messaging } from './Messaging';
 import { Calculator } from './Calculator';
 import { ExerciseLibrary } from './ExerciseLibrary';
 import { BooksLibrary } from './BooksLibrary';
+import { MyNutrition } from './MyNutrition';
 import { ExerciseVideoScreen } from '../components/workout/ExerciseVideoScreen';
 import { MuscleRecoveryScreen } from '../components/progress/MuscleRecoveryScreen';
 import { RankingsRewardsScreen } from '../components/profile/RankingsRewardsScreen';
@@ -41,6 +43,7 @@ export function Home({ onNavigate }: HomeProps) {
   const [view, setView] = useState<HomeView>('main');
   const [selectedExercise, setSelectedExercise] = useState<{name: string, muscle: string, video: string} | null>(null);
   const [selectedCoach, setSelectedCoach] = useState<{id: number, name: string} | null>(null);
+  const [selectedFriend, setSelectedFriend] = useState<FriendMember | null>(null);
   const [greeting, setGreeting] = useState('');
   const [overallRecovery, setOverallRecovery] = useState(100);
   const [todayWorkout, setTodayWorkout] = useState('Push Day');
@@ -252,24 +255,23 @@ export function Home({ onNavigate }: HomeProps) {
     return () => clearInterval(interval);
   }, [todayWorkoutData, todayWorkout]);
   if (view === 'nutrition') {
-    return (
-      <div className="pb-24">
-        <button onClick={() => setView('main')} className="text-white mb-4">← Back</button>
-        <h2 className="text-2xl font-bold text-white mb-4">My Nutrition</h2>
-        <p className="text-text-secondary">Coming soon...</p>
-      </div>
-    );
+    return <MyNutrition onBack={() => setView('main')} />;
   }
   if (view === 'workoutDetail') {
     if (todayWorkout === 'Rest Day') {
       return (
-        <div className="flex flex-col items-center justify-center h-screen pb-24">
-          <button onClick={() => setView('main')} className="absolute top-6 left-6 text-white">
-            ← Back
+        <div className="flex flex-col items-center justify-center h-screen pb-24 px-4">
+          <button
+            onClick={() => setView('main')}
+            className="absolute top-7 left-0 inline-flex items-center gap-2 rounded-xl surface-glass px-3 py-2 text-sm text-text-primary">
+            <ArrowLeft size={16} />
+            Back
           </button>
-          <div className="text-8xl mb-6">🛏️</div>
-          <h2 className="text-3xl font-bold text-white mb-3">Rest Day</h2>
-          <p className="text-text-secondary text-lg">Eat well and recover</p>
+          <div className="w-20 h-20 rounded-3xl bg-accent/12 border border-accent/30 flex items-center justify-center mb-6">
+            <MoonStar size={36} className="text-accent" />
+          </div>
+          <h2 className="text-3xl font-semibold text-white mb-3">Rest Day</h2>
+          <p className="text-text-secondary text-sm">Eat well and recover</p>
         </div>
       );
     }
@@ -283,16 +285,21 @@ export function Home({ onNavigate }: HomeProps) {
     }
     
     return (
-      <div className="pb-24 px-6">
-        <button onClick={() => setView('main')} className="text-white mb-4">← Back</button>
-        <h2 className="text-2xl font-bold text-white mb-2">{todayWorkout}</h2>
-        <p className="text-text-secondary mb-6">{todayWorkoutData?.workout_type}</p>
+      <div className="pb-24 pt-4">
+        <button
+          onClick={() => setView('main')}
+          className="inline-flex items-center gap-2 rounded-xl surface-glass px-3 py-2 text-sm text-text-primary mb-4">
+          <ArrowLeft size={16} />
+          Back
+        </button>
+        <h2 className="text-2xl font-semibold text-white mb-2">{todayWorkout}</h2>
+        <p className="text-text-secondary text-sm mb-6">{todayWorkoutData?.workout_type}</p>
         
         <div className="space-y-3">
           {exercises.map((ex: any, i: number) => (
-            <div key={i} className="bg-card rounded-xl p-4 border border-white/5">
-              <h3 className="font-bold text-white mb-2">{ex.exerciseName}</h3>
-              <div className="flex gap-4 text-sm text-text-secondary">
+            <div key={i} className="surface-card rounded-2xl p-4 border border-white/15">
+              <h3 className="text-base font-semibold text-white mb-2">{ex.exerciseName}</h3>
+              <div className="flex gap-4 text-xs text-text-secondary">
                 <span>{ex.sets} sets</span>
                 <span>{ex.reps} reps</span>
                 <span>{ex.rest}s rest</span>
@@ -308,11 +315,14 @@ export function Home({ onNavigate }: HomeProps) {
   return (
     <FriendsList
       onBack={() => setView('main')}
-      onFriendClick={() => setView('friendProfile')} />);
+      onFriendClick={(friend) => {
+        setSelectedFriend(friend);
+        setView('friendProfile');
+      }} />);
 
 
   if (view === 'friendProfile')
-  return <FriendProfile onBack={() => setView('friends')} />;
+  return <FriendProfile onBack={() => setView('friends')} friend={selectedFriend} />;
   if (view === 'coachList')
   return <CoachList onBack={() => setView('main')} onSelectCoach={(id, name) => { setSelectedCoach({id, name}); setView('chat'); }} />;
   if (view === 'chat') return <Messaging onBack={() => setView('coachList')} coachId={selectedCoach?.id} coachName={selectedCoach?.name} />;
@@ -336,7 +346,7 @@ export function Home({ onNavigate }: HomeProps) {
   if (view === 'rank')
   return <RankingsRewardsScreen onBack={() => setView('main')} />;
   return (
-    <div className="pb-32 pt-6">
+    <div className="pb-24 pt-4">
       {/* Header Section */}
       <motion.header
         initial={{
@@ -351,22 +361,24 @@ export function Home({ onNavigate }: HomeProps) {
           duration: 0.6,
           ease: 'easeOut'
         }}
-        className="mb-6 flex items-center justify-between">
+        className="mb-7 surface-card rounded-2xl border border-white/12 p-4 flex items-start justify-between gap-4">
 
         <div>
-          <h1 className="text-3xl font-bold tracking-tight text-text-primary">
+          <h1 className="text-3xl font-semibold text-text-primary mt-1">
             {greeting}
           </h1>
-          <p className="text-text-secondary mt-1 text-sm font-medium">
+          <p className="text-text-secondary mt-3 text-sm max-w-[200px] leading-relaxed">
             Ready to crush your goals today?
           </p>
         </div>
         
-        <div className="flex items-center gap-2 bg-card px-4 py-2 rounded-xl border border-white/5">
-          <span className="text-2xl">🏆</span>
+        <div className="flex items-center gap-2 surface-glass px-4 py-3 rounded-2xl border border-white/15 shrink-0">
+          <div className="w-8 h-8 rounded-xl bg-accent/15 border border-accent/35 flex items-center justify-center">
+            <Medal size={15} className="text-accent" />
+          </div>
           <div>
-            <div className="text-xs text-text-secondary">Rank</div>
-            <div className="text-sm font-bold text-accent">{programProgress?.rank || 'Bronze'}</div>
+            <div className="text-[10px] uppercase tracking-[0.1em] text-text-secondary">Rank</div>
+            <div className="text-sm font-semibold text-accent">{programProgress?.rank || 'Bronze'}</div>
           </div>
         </div>
       </motion.header>
@@ -378,6 +390,9 @@ export function Home({ onNavigate }: HomeProps) {
           <FriendsCard onClick={() => setView('friends')} />
           <CoachCard onClick={() => setView('coachList')} />
         </div>
+
+        {/* Agenda */}
+        <AgendaSection userProgram={userProgram} />
 
         {/* Today's Workout */}
         <div onClick={() => onNavigate('workout')} className="cursor-pointer">
@@ -426,24 +441,21 @@ export function Home({ onNavigate }: HomeProps) {
             onClick={() => setShowShopComingSoon(false)}
           >
             <div
-              className="w-full max-w-sm bg-card border border-white/10 rounded-2xl p-5 text-center"
+              className="w-full max-w-sm surface-glass border border-white/15 rounded-2xl p-5 text-center"
               onClick={(e) => e.stopPropagation()}
             >
-              <h3 className="text-lg font-bold text-white">Shop</h3>
+              <h3 className="text-xl font-semibold text-white">Shop</h3>
               <p className="text-sm text-text-secondary mt-2">Coming soon</p>
               <button
                 type="button"
                 onClick={() => setShowShopComingSoon(false)}
-                className="mt-4 w-full bg-accent text-black py-2.5 rounded-lg font-semibold hover:bg-accent/90 transition-colors"
+                className="mt-4 w-full bg-accent text-black py-2.5 rounded-xl font-semibold hover:bg-accent/90 transition-colors"
               >
                 OK
               </button>
             </div>
           </div>
         )}
-
-        {/* Agenda */}
-        <AgendaSection userProgram={userProgram} />
 
         {/* Education */}
         <EducationSection
@@ -457,3 +469,4 @@ export function Home({ onNavigate }: HomeProps) {
     </div>);
 
 }
+

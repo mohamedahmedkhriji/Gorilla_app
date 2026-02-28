@@ -147,6 +147,215 @@ export const api = {
     return res.json();
   },
 
+  adaptProgramWeekly: async (userId: number, payload: { force?: boolean; trigger?: string } = {}) => {
+    const res = await fetch(`${API_URL}/user/${userId}/program/adapt-weekly`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    return parseApiResponse(res, 'Failed to adapt weekly plan');
+  },
+
+  capturePlanValidationSnapshot: async (
+    userId: number,
+    payload: {
+      adaptationId?: number;
+      assignmentId?: number;
+      programId?: number;
+      source?: 'auto_weekly' | 'manual' | 'backfill';
+      periodEnd?: string;
+    } = {},
+  ) => {
+    const res = await fetch(`${API_URL}/user/${userId}/plan/validation/snapshot`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    return parseApiResponse(res, 'Failed to capture plan validation snapshot');
+  },
+
+  getPlanValidationHistory: async (userId: number, options: { limit?: number } = {}) => {
+    const params = new URLSearchParams();
+    params.set('limit', String(options.limit ?? 24));
+    const res = await fetch(`${API_URL}/user/${userId}/plan/validation/history?${params.toString()}`);
+    return parseApiResponse(res, 'Failed to load plan validation history');
+  },
+
+  getMonthlyValidationSummary: async (options: { months?: number } = {}) => {
+    const params = new URLSearchParams();
+    params.set('months', String(options.months ?? 6));
+    const res = await fetch(`${API_URL}/insights/validation/monthly?${params.toString()}`);
+    return parseApiResponse(res, 'Failed to load monthly validation summary');
+  },
+
+  getOnboardingInsights: async (input: Record<string, unknown>) => {
+    const res = await fetch(`${API_URL}/insights/onboarding`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(input),
+    });
+    return parseApiResponse(res, 'Failed to build onboarding insights');
+  },
+
+  getDailyNutritionPlan: async (input: {
+    targetCalories: number;
+    targetProtein: number;
+    targetCarbs?: number;
+    targetFat?: number;
+    targetWaterMl?: number;
+    goal?: string;
+    forceRefresh?: boolean;
+  }) => {
+    const res = await fetch(`${API_URL}/nutrition/daily-plan`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(input),
+    });
+    return parseApiResponse(res, 'Failed to generate daily nutrition plan');
+  },
+
+  getBlogsFeed: async (
+    userId: number,
+    options: {
+      limit?: number;
+      cursorCreatedAt?: string;
+      cursorId?: number;
+      authorId?: number;
+    } = {},
+  ) => {
+    const params = new URLSearchParams();
+    params.set('userId', String(userId));
+    params.set('limit', String(options.limit ?? 20));
+    if (options.cursorCreatedAt) params.set('cursorCreatedAt', options.cursorCreatedAt);
+    if (options.cursorId) params.set('cursorId', String(options.cursorId));
+    if (options.authorId) params.set('authorId', String(options.authorId));
+
+    const res = await fetch(`${API_URL}/blogs?${params.toString()}`);
+    return parseApiResponse(res, 'Failed to fetch blogs feed');
+  },
+
+  createBlogPost: async (input: {
+    userId: number;
+    description: string;
+    category: 'Training' | 'Nutrition' | 'Recovery' | 'Mindset';
+    mediaType: 'image' | 'video';
+    mediaUrl: string;
+    mediaAlt?: string;
+  }) => {
+    const res = await fetch(`${API_URL}/blogs`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(input),
+    });
+    return parseApiResponse(res, 'Failed to create blog post');
+  },
+
+  deleteBlogPost: async (postId: number, userId: number) => {
+    const res = await fetch(`${API_URL}/blogs/${postId}`, {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId }),
+    });
+    return parseApiResponse(res, 'Failed to delete blog post');
+  },
+
+  toggleBlogLike: async (
+    postId: number,
+    input: {
+      userId: number;
+      mode?: 'toggle' | 'like';
+    },
+  ) => {
+    const res = await fetch(`${API_URL}/blogs/${postId}/like/toggle`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(input),
+    });
+    return parseApiResponse(res, 'Failed to update blog like');
+  },
+
+  trackBlogView: async (postId: number, userId: number) => {
+    const res = await fetch(`${API_URL}/blogs/${postId}/view`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId }),
+    });
+    return parseApiResponse(res, 'Failed to track blog view');
+  },
+
+  getBlogComments: async (postId: number, limit = 120) => {
+    const params = new URLSearchParams();
+    params.set('limit', String(limit));
+
+    const res = await fetch(`${API_URL}/blogs/${postId}/comments?${params.toString()}`);
+    return parseApiResponse(res, 'Failed to fetch blog comments');
+  },
+
+  addBlogComment: async (
+    postId: number,
+    input: {
+      userId: number;
+      text: string;
+    },
+  ) => {
+    const res = await fetch(`${API_URL}/blogs/${postId}/comments`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(input),
+    });
+    return parseApiResponse(res, 'Failed to add comment');
+  },
+
+  saveUserAnalysisInsights: async (
+    userId: number,
+    input: Record<string, unknown>,
+    options: {
+      snapshotDate?: string;
+      source?: string;
+      notes?: string;
+      autoAdaptPlan?: boolean;
+      modelVersion?: string;
+    } = {},
+  ) => {
+    const res = await fetch(`${API_URL}/insights/user-analysis/save`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        userId,
+        input,
+        snapshotDate: options.snapshotDate,
+        source: options.source || 'weekly_checkin',
+        notes: options.notes || null,
+        autoAdaptPlan: Boolean(options.autoAdaptPlan),
+        modelVersion: options.modelVersion || 'fitness_insights_v2',
+      }),
+    });
+    return parseApiResponse(res, 'Failed to save user analysis insights');
+  },
+
+  getUserInsightsHistory: async (
+    userId: number,
+    options: {
+      days?: number;
+      limit?: number;
+      scoreTypes?: string[];
+      includeExplanation?: boolean;
+      includeRawPayload?: boolean;
+    } = {},
+  ) => {
+    const params = new URLSearchParams();
+    params.set('days', String(options.days ?? 90));
+    params.set('limit', String(options.limit ?? 365));
+    if (Array.isArray(options.scoreTypes) && options.scoreTypes.length) {
+      params.set('scoreType', options.scoreTypes.join(','));
+    }
+    if (options.includeExplanation) params.set('includeExplanation', 'true');
+    if (options.includeRawPayload) params.set('includeRawPayload', 'true');
+
+    const res = await fetch(`${API_URL}/insights/user/${userId}/history?${params.toString()}`);
+    return parseApiResponse(res, 'Failed to load user insight history');
+  },
+
   getStrengthProgress: async (userId: number, weeks = 8) => {
     const res = await fetch(`${API_URL}/progress/strength/${userId}?weeks=${weeks}`);
     const contentType = res.headers.get('content-type') || '';
@@ -227,6 +436,11 @@ export const api = {
   getGymMembers: async (userId: number) => {
     const res = await fetch(`${API_URL}/user/${userId}/gym-members`);
     return res.json();
+  },
+
+  getRecentWorkoutActivity: async (userId: number) => {
+    const res = await fetch(`${API_URL}/user/${userId}/recent-activity`);
+    return parseApiResponse(res, 'Failed to fetch recent activity');
   },
 
   sendInvitation: async (fromUserId: number, toUserId: number, date: string, time: string) => {

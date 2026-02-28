@@ -6,6 +6,7 @@ import { Activity, TrendingUp } from 'lucide-react';
 import { api } from '../../services/api';
 interface ProgressDashboardProps {
   onViewReport: () => void;
+  onWeeklyCheckIn: () => void;
 }
 
 interface MuscleDistributionItem {
@@ -14,7 +15,7 @@ interface MuscleDistributionItem {
   col: string;
 }
 
-export function ProgressDashboard({ onViewReport }: ProgressDashboardProps) {
+export function ProgressDashboard({ onViewReport, onWeeklyCheckIn }: ProgressDashboardProps) {
   const [stats, setStats] = useState({
     totalWorkouts: 0,
     totalVolume: 0,
@@ -134,9 +135,14 @@ export function ProgressDashboard({ onViewReport }: ProgressDashboardProps) {
         </div>
       </Card>
 
-      <Button variant="secondary" onClick={onViewReport}>
-        View Bi-Weekly Report
-      </Button>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <Button variant="secondary" onClick={onViewReport}>
+          View Bi-Weekly Report
+        </Button>
+        <Button onClick={onWeeklyCheckIn}>
+          Weekly Check-In
+        </Button>
+      </div>
     </div>);
 
 }

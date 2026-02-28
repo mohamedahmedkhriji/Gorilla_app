@@ -1,16 +1,130 @@
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Header } from '../components/ui/Header';
 import { Card } from '../components/ui/Card';
-import { Trophy, Calendar, Activity, X, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Trophy, X, ChevronLeft, ChevronRight } from 'lucide-react';
 import { api } from '../services/api';
+import type { FriendMember } from './FriendsList';
 interface FriendProfileProps {
   onBack: () => void;
+  friend?: FriendMember | null;
 }
-export function FriendProfile({ onBack }: FriendProfileProps) {
+type FriendPost = {
+  id: number;
+  userId: number;
+  description: string;
+  mediaType: 'image' | 'video';
+  mediaUrl: string;
+  mediaAlt: string;
+  createdAt: string | null;
+  likes: number;
+  comments: number;
+  views: number;
+};
+
+type BlogFeedPost = {
+  id?: number;
+  userId?: number;
+  description?: string;
+  mediaType?: 'image' | 'video' | string;
+  mediaUrl?: string;
+  mediaAlt?: string;
+  createdAt?: string | null;
+  metrics?: {
+    likes?: number;
+    comments?: number;
+    views?: number;
+  };
+};
+
+const getLevelFromPoints = (points: number) => {
+  if (points >= 5000) return 5;
+  if (points >= 2500) return 4;
+  if (points >= 1200) return 3;
+  if (points >= 500) return 2;
+  return 1;
+};
+
+const isUsableProfileImage = (value: unknown) => {
+  if (typeof value !== 'string') return false;
+  const trimmed = value.trim();
+  return (
+    trimmed.startsWith('data:image/')
+    || trimmed.startsWith('http://')
+    || trimmed.startsWith('https://')
+    || trimmed.startsWith('/')
+  );
+};
+
+const formatRelativeDay = (isoDate: string) => {
+  const date = new Date(isoDate);
+  if (Number.isNaN(date.getTime())) return 'Recently';
+  const now = new Date();
+  const startNow = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+  const startThen = new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
+  const dayDiff = Math.floor((startNow - startThen) / (24 * 60 * 60 * 1000));
+  if (dayDiff <= 0) return 'Today';
+  if (dayDiff === 1) return 'Yesterday';
+  if (dayDiff < 7) return `${dayDiff}d ago`;
+  return date.toLocaleDateString();
+};
+
+export function FriendProfile({ onBack, friend }: FriendProfileProps) {
   const [showInvite, setShowInvite] = useState(false);
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [selectedTime, setSelectedTime] = useState({ hour: 9, minute: 0 });
   const [currentMonth, setCurrentMonth] = useState(new Date());
+  const [friendPosts, setFriendPosts] = useState<FriendPost[]>([]);
+  const [loadingFriendPosts, setLoadingFriendPosts] = useState(false);
+
+  const friendId = Number(friend?.id || 0);
+  const friendName = String(friend?.name || 'Friend').trim() || 'Friend';
+  const friendRank = String(friend?.rank || 'Member');
+  const friendTotalPoints = Number(friend?.total_points || 0);
+  const friendLevel = getLevelFromPoints(friendTotalPoints);
+  const friendInitials = useMemo(
+    () => friendName.split(' ').filter(Boolean).map((n) => n[0]).join('').slice(0, 2).toUpperCase() || 'FR',
+    [friendName],
+  );
+
+  useEffect(() => {
+    const loadFriendPosts = async () => {
+      if (!friendId || friendId <= 0) {
+        setFriendPosts([]);
+        return;
+      }
+
+      setLoadingFriendPosts(true);
+      try {
+        const currentUser = JSON.parse(localStorage.getItem('appUser') || localStorage.getItem('user') || '{}');
+        const viewerId = Number(currentUser?.id || localStorage.getItem('appUserId') || localStorage.getItem('userId') || 0);
+        const response = await api.getBlogsFeed(viewerId > 0 ? viewerId : friendId, {
+          limit: 12,
+          authorId: friendId,
+        });
+        const posts = Array.isArray(response?.posts)
+          ? response.posts.map((post: BlogFeedPost) => ({
+            id: Number(post?.id || 0),
+            userId: Number(post?.userId || 0),
+            description: String(post?.description || ''),
+            mediaType: post?.mediaType === 'video' ? 'video' : 'image',
+            mediaUrl: String(post?.mediaUrl || ''),
+            mediaAlt: String(post?.mediaAlt || 'Post media'),
+            createdAt: typeof post?.createdAt === 'string' ? post.createdAt : null,
+            likes: Number(post?.metrics?.likes || 0),
+            comments: Number(post?.metrics?.comments || 0),
+            views: Number(post?.metrics?.views || 0),
+          }))
+          : [];
+        setFriendPosts(posts.filter((post: FriendPost) => post.id > 0 && post.userId === friendId));
+      } catch {
+        setFriendPosts([]);
+      } finally {
+        setLoadingFriendPosts(false);
+      }
+    };
+
+    void loadFriendPosts();
+  }, [friendId]);
 
   const getDaysInMonth = (date: Date) => {
     const year = date.getFullYear();
@@ -37,9 +151,13 @@ export function FriendProfile({ onBack }: FriendProfileProps) {
   const handleSendInvite = async () => {
     if (!selectedDate) return;
     const user = JSON.parse(localStorage.getItem('appUser') || localStorage.getItem('user') || '{}');
+    if (!friendId || friendId <= 0) {
+      alert('Friend not selected.');
+      return;
+    }
     const dateStr = selectedDate.toISOString().split('T')[0];
     const timeStr = `${selectedTime.hour.toString().padStart(2, '0')}:${selectedTime.minute.toString().padStart(2, '0')}`;
-    await api.sendInvitation(user.id, 2, dateStr, timeStr);
+    await api.sendInvitation(user.id, friendId, dateStr, timeStr);
     setShowInvite(false);
     alert('Invitation sent!');
   };
@@ -51,13 +169,21 @@ export function FriendProfile({ onBack }: FriendProfileProps) {
 
       <div className="px-6 flex flex-col items-center mb-8">
         <div className="w-24 h-24 rounded-full bg-white/10 flex items-center justify-center text-2xl font-bold text-white mb-4">
-          SC
+          {isUsableProfileImage(friend?.profile_picture) ? (
+            <img
+              src={String(friend?.profile_picture)}
+              alt={`${friendName} avatar`}
+              className="w-full h-full rounded-full object-cover"
+            />
+          ) : (
+            friendInitials
+          )}
         </div>
-        <h2 className="text-2xl font-bold text-white">Sarah Connor</h2>
+        <h2 className="text-2xl font-bold text-white">{friendName}</h2>
         <div className="flex items-center gap-2 mt-2">
           <Trophy size={16} className="text-yellow-500" />
           <span className="text-sm text-text-secondary">
-            Iron Back • Level 8
+            {friendRank} - Level {friendLevel}
           </span>
         </div>
       </div>
@@ -110,19 +236,46 @@ export function FriendProfile({ onBack }: FriendProfileProps) {
 
         <div className="space-y-3">
           <h3 className="text-sm font-bold text-text-secondary uppercase tracking-wider">
-            Recent Activity
+            Posts
           </h3>
-          <Card className="p-4 flex items-center gap-4">
-            <div className="w-10 h-10 rounded-full bg-accent/10 flex items-center justify-center text-accent">
-              <Activity size={20} />
+          {loadingFriendPosts ? (
+            <Card className="!p-3 text-sm text-text-secondary">Loading posts...</Card>
+          ) : friendPosts.length === 0 ? (
+            <Card className="!p-3 text-sm text-text-secondary">No posts uploaded yet.</Card>
+          ) : (
+            <div className="space-y-3">
+              {friendPosts.map((post) => (
+                <Card key={post.id} className="!p-3 space-y-2">
+                  <div className="text-xs text-text-secondary">{formatRelativeDay(post.createdAt || '')}</div>
+                  {post.mediaUrl && (
+                    post.mediaType === 'video' ? (
+                      <video
+                        src={post.mediaUrl}
+                        className="w-full rounded-xl border border-white/10 bg-black/20 max-h-64 object-contain"
+                        controls
+                        preload="metadata"
+                      />
+                    ) : (
+                      <img
+                        src={post.mediaUrl}
+                        alt={post.mediaAlt}
+                        className="w-full rounded-xl border border-white/10 bg-black/20 max-h-64 object-contain"
+                        loading="lazy"
+                      />
+                    )
+                  )}
+                  {post.description.trim() && (
+                    <div className="text-sm text-white leading-relaxed">{post.description}</div>
+                  )}
+                  <div className="text-xs text-text-tertiary">
+                    {new Intl.NumberFormat('en-US').format(Math.max(0, post.likes))} likes - {' '}
+                    {new Intl.NumberFormat('en-US').format(Math.max(0, post.comments))} comments - {' '}
+                    {new Intl.NumberFormat('en-US').format(Math.max(0, post.views))} views
+                  </div>
+                </Card>
+              ))}
             </div>
-            <div>
-              <div className="font-bold text-white">Leg Day Destruction</div>
-              <div className="text-xs text-text-secondary">
-                Yesterday • 12,400kg Volume
-              </div>
-            </div>
-          </Card>
+          )}
         </div>
       </div>
 
@@ -242,3 +395,5 @@ export function FriendProfile({ onBack }: FriendProfileProps) {
     </div>);
 
 }
+
+

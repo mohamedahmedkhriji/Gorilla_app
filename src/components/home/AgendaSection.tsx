@@ -57,9 +57,7 @@ export function AgendaSection({ userProgram }: { userProgram?: any }) {
   const days = Array.from({ length: 30 }, (_, i) => {
     const date = new Date(today);
     date.setDate(today.getDate() + (i - 10)); // Start 10 days ago
-    
-    const dayNames = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
-    
+
     // Get workout by exact backend day_name mapping.
     let label = 'Rest';
     let exercises: string[] = [];
@@ -72,7 +70,7 @@ export function AgendaSection({ userProgram }: { userProgram?: any }) {
     }
     
     return {
-      day: dayNames[date.getDay()],
+      day: date.toLocaleDateString('en-US', { weekday: 'short' }),
       date: date.getDate(),
       fullDate: date,
       label,
@@ -107,73 +105,89 @@ export function AgendaSection({ userProgram }: { userProgram?: any }) {
   return (
     <div className="space-y-3">
       <div className="flex justify-between items-end px-1">
-        <h3 className="text-sm font-bold text-text-secondary uppercase tracking-wider">
-          This Week
-        </h3>
-        <span className="text-xs text-accent font-medium">{sessionsLeftThisWeek} Sessions Left</span>
+        <h3 className="text-[11px] font-semibold text-text-secondary uppercase tracking-[0.15em]">Weekly Agenda</h3>
+        <span className="text-[11px] text-accent font-semibold uppercase tracking-[0.1em]">{sessionsLeftThisWeek} Sessions Left</span>
       </div>
 
-      <div 
-        ref={scrollRef}
-        className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide"
-        style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
-        {days.map((d, i) =>
-        <div 
-          key={i} 
-          className="flex flex-col items-center gap-2 min-w-[48px] cursor-pointer"
-          onClick={() => setSelectedDay(d)}>
-            <div className="text-[10px] text-text-tertiary font-medium">
-              {d.day}
-            </div>
-            <div
-            className={`
-                w-12 h-12 rounded-xl flex flex-col items-center justify-center border transition-all
-                ${d.status === 'active' ? 'bg-accent text-black border-accent shadow-glow' : d.status === 'done' ? 'bg-white/10 text-white border-transparent' : 'bg-card text-text-secondary border-white/5'}
-                hover:scale-105
-              `}>
+      <div className="rounded-2xl surface-card border border-white/15 px-2 py-3">
+        <div
+          ref={scrollRef}
+          className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide"
+          style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
+          {days.map((d, i) => {
+            const isActive = d.status === 'active';
+            const isDone = d.status === 'done';
 
-              <span className="text-sm font-bold">{d.date}</span>
-            </div>
-            <span
-            className={`text-[8px] font-medium uppercase truncate w-full text-center ${d.status === 'active' ? 'text-accent' : 'text-text-tertiary'}`}>
-
-              {d.label}
-            </span>
-          </div>
-        )}
+            return (
+              <div
+                key={i}
+                className="flex flex-col items-center gap-1.5 min-w-[54px] cursor-pointer shrink-0"
+                onClick={() => setSelectedDay(d)}>
+                <div
+                  className={`
+                    relative w-11 h-12 rounded-[14px] flex items-center justify-center border transition-transform duration-200
+                    ${
+                      isActive
+                        ? 'text-black border-accent/60 bg-[linear-gradient(135deg,rgb(var(--color-accent)),rgb(var(--color-info)))]'
+                        : isDone
+                          ? 'bg-white/[0.08] text-white border-white/10'
+                          : 'bg-card text-text-secondary border-white/10'
+                    }
+                    hover:-translate-y-0.5
+                  `}
+                >
+                  {isActive && (
+                    <span
+                      aria-hidden
+                      className="absolute left-1/2 -bottom-1.5 h-3.5 w-3.5 -translate-x-1/2 rotate-45 rounded-[3px] border-r border-b border-white/10"
+                      style={{ background: 'rgb(var(--color-accent))' }} />
+                  )}
+                  <span className="relative z-10 text-sm font-bold leading-none">{d.date}</span>
+                </div>
+                <div className={`text-[10px] font-medium leading-none ${isActive ? 'mt-1 text-text-primary' : 'text-text-tertiary'}`}>
+                  {d.day}
+                </div>
+                <span
+                  className={`text-[8px] font-medium uppercase truncate w-full text-center ${isActive ? 'text-text-primary' : 'text-text-tertiary'}`}>
+                  {d.label}
+                </span>
+              </div>
+            );
+          })}
+        </div>
       </div>
 
       {/* Day Detail Modal */}
       {selectedDay && (
         <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-6" onClick={() => setSelectedDay(null)}>
-          <div className="bg-card rounded-2xl p-6 max-w-sm w-full border border-white/10" onClick={(e) => e.stopPropagation()}>
+          <div className="surface-glass rounded-2xl p-6 max-w-sm w-full border border-white/15" onClick={(e) => e.stopPropagation()}>
             <div className="flex justify-between items-start mb-4">
               <div>
-                <h3 className="text-xl font-bold text-white">
+                <h3 className="text-3xl leading-none text-white">
                   {selectedDay.fullDate.toLocaleDateString('en-US', { month: 'long', day: 'numeric' })}
                 </h3>
-                <p className="text-sm text-text-secondary mt-1">{selectedDay.label} Day</p>
+                <p className="text-xs uppercase tracking-[0.1em] text-text-secondary mt-2">{selectedDay.label} Day</p>
               </div>
               <button onClick={() => setSelectedDay(null)} className="text-text-secondary hover:text-white">
-                <X size={24} />
+                <X size={20} />
               </button>
             </div>
 
             {selectedDay.label === 'Rest' ? (
               <div className="flex flex-col items-center justify-center py-8 text-center">
-                <div className="w-16 h-16 rounded-full bg-accent/10 flex items-center justify-center mb-4">
-                  <Bed size={32} className="text-accent" />
+                <div className="w-16 h-16 rounded-2xl bg-accent/12 border border-accent/35 flex items-center justify-center mb-4">
+                  <Bed size={30} className="text-accent" />
                 </div>
-                <h4 className="text-lg font-bold text-white mb-2">Recovery Day</h4>
+                <h4 className="text-3xl leading-none text-white mb-2">Recovery Day</h4>
                 <p className="text-sm text-text-secondary">Rest and let your muscles recover</p>
               </div>
             ) : (
               <div className="space-y-2">
-                <h4 className="text-sm font-bold text-text-secondary uppercase tracking-wider mb-3">Exercises</h4>
+                <h4 className="text-[11px] font-semibold text-text-secondary uppercase tracking-[0.12em] mb-3">Exercises</h4>
                 {selectedDay.exercises?.map((exercise: string, idx: number) => {
                   const isDone = selectedDay.status === 'done';
                   return (
-                    <div key={idx} className="bg-background rounded-lg p-3 border border-white/5 flex items-center justify-between">
+                    <div key={idx} className="bg-background rounded-xl p-3 border border-white/10 flex items-center justify-between">
                       <span className="text-white text-sm">{exercise}</span>
                       {isDone && (
                         <div className="w-5 h-5 rounded-full bg-accent flex items-center justify-center">
