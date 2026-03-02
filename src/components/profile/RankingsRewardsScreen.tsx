@@ -156,11 +156,11 @@ export function RankingsRewardsScreen({ onBack }: RankingsRewardsScreenProps) {
   if (showHistory) {
     return (
       <div className="flex-1 flex flex-col min-h-screen pb-24 bg-background">
-        <div className="px-6 pt-2">
+        <div className="px-4 sm:px-6 pt-2">
           <Header title="History" onBack={() => setShowHistory(false)} compact />
         </div>
 
-        <div className="px-6 space-y-6 mt-4">
+        <div className="px-4 sm:px-6 space-y-6 mt-4">
           {Object.keys(missionHistoryByPeriod).length > 0 && (
             <div>
               <h3 className="text-xs font-bold text-text-secondary uppercase tracking-wider mb-3">Mission History</h3>
@@ -227,11 +227,11 @@ export function RankingsRewardsScreen({ onBack }: RankingsRewardsScreenProps) {
 
   return (
     <div className="flex-1 flex flex-col min-h-screen pb-24 bg-background">
-      <div className="px-6 pt-2">
+      <div className="px-4 sm:px-6 pt-2">
         <Header title="Rank & Rewards" onBack={onBack} compact />
       </div>
 
-      <div className="px-6 space-y-2.5 mt-1">
+      <div className="px-4 sm:px-6 space-y-2.5 mt-1">
         <div className="flex flex-col items-center py-1.5">
           <div className="w-20 h-20 rounded-full bg-accent/10 border-2 border-accent/30 flex items-center justify-center mb-2">
             <span className="text-4xl">{rankEmoji}</span>
@@ -401,3 +401,4 @@ export function RankingsRewardsScreen({ onBack }: RankingsRewardsScreenProps) {
     </div>
   );
 }
+

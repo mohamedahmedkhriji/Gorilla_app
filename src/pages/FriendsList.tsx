@@ -111,11 +111,11 @@ export function FriendsList({ onBack, onFriendClick }: FriendsListProps) {
 
   return (
     <div className="flex-1 flex flex-col bg-background min-h-screen pb-24">
-      <div className="px-6 pt-2">
+      <div className="px-4 sm:px-6 pt-2">
         <Header title="Friends" onBack={onBack} />
       </div>
 
-      <div className="px-6 mb-4">
+      <div className="px-4 sm:px-6 mb-4">
         <div className="flex gap-2 mb-4">
           <button
             type="button"
@@ -147,7 +147,7 @@ export function FriendsList({ onBack, onFriendClick }: FriendsListProps) {
         </div>
       </div>
 
-      <div className="px-6 mb-6 relative">
+      <div className="px-4 sm:px-6 mb-6 relative">
         <Input
           placeholder="Search friends..."
           className="pl-10"
@@ -160,7 +160,7 @@ export function FriendsList({ onBack, onFriendClick }: FriendsListProps) {
         />
       </div>
 
-      <div className="px-6 space-y-4">
+      <div className="px-4 sm:px-6 space-y-4">
         {filteredMembers.map((member) => (
           <Card
             key={member.id}

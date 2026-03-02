@@ -21,6 +21,8 @@ const iconByType: Record<string, { icon: React.ComponentType<{ size?: number; cl
   message: { icon: MessageSquare, color: 'text-blue-500', bg: 'bg-blue-500/10' },
   friend_request: { icon: Dumbbell, color: 'text-accent', bg: 'bg-accent/10' },
   plan_review_request: { icon: Bell, color: 'text-yellow-500', bg: 'bg-yellow-500/10' },
+  plan_coach_request_sent: { icon: Bell, color: 'text-yellow-500', bg: 'bg-yellow-500/10' },
+  plan_created_by_coach: { icon: Trophy, color: 'text-green-500', bg: 'bg-green-500/10' },
   plan_review_approved: { icon: Trophy, color: 'text-green-500', bg: 'bg-green-500/10' },
   plan_review_rejected: { icon: Gift, color: 'text-red-500', bg: 'bg-red-500/10' },
 };
@@ -104,7 +106,7 @@ export function NotificationsScreen({ onBack }: NotificationsScreenProps) {
 
   return (
     <div className="flex-1 flex flex-col bg-background min-h-screen pb-24">
-      <div className="px-6 pt-2">
+      <div className="px-4 sm:px-6 pt-2">
         <Header
           title="Notifications"
           onBack={onBack}
@@ -205,3 +207,4 @@ export function NotificationsScreen({ onBack }: NotificationsScreenProps) {
     </div>
   );
 }
+

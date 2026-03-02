@@ -295,9 +295,11 @@ export function SettingsScreen({ onBack, onLogout }: SettingsScreenProps) {
     ];
 
     return (
-      <div className="flex-1 flex flex-col pb-24">
-        <Header title="Privacy & Security" onBack={() => setActivePage('settings')} />
-        <div className="space-y-3">
+      <div className="flex-1 flex flex-col bg-background min-h-screen pb-24">
+        <div className="px-4 sm:px-6 pt-2">
+          <Header title="Privacy & Security" onBack={() => setActivePage('settings')} compact />
+        </div>
+        <div className="px-4 sm:px-6 space-y-3">
           <div className="bg-card rounded-2xl border border-white/5 p-4">
             <p className="text-sm text-text-secondary leading-relaxed">
               Clear summary of what data is collected, how it is protected, and the controls available to you.
@@ -330,10 +332,12 @@ export function SettingsScreen({ onBack, onLogout }: SettingsScreenProps) {
 
   if (activePage === 'personal') {
     return (
-      <div className="flex-1 flex flex-col pb-24">
-        <Header title="Personal Details" onBack={() => setActivePage('settings')} />
+      <div className="flex-1 flex flex-col bg-background min-h-screen pb-24">
+        <div className="px-4 sm:px-6 pt-2">
+          <Header title="Personal Details" onBack={() => setActivePage('settings')} compact />
+        </div>
 
-        <div className="space-y-3">
+        <div className="px-4 sm:px-6 space-y-3">
           <div className="bg-card rounded-2xl border border-white/5 p-4 space-y-3">
             <div>
               <label className="block text-xs text-text-secondary mb-1">Full Name</label>
@@ -480,10 +484,12 @@ export function SettingsScreen({ onBack, onLogout }: SettingsScreenProps) {
   };
 
   return (
-    <div className="flex-1 flex flex-col pb-24">
-      <Header title="Settings" onBack={onBack} />
+    <div className="flex-1 flex flex-col bg-background min-h-screen pb-24">
+      <div className="px-4 sm:px-6 pt-2">
+        <Header title="Settings" onBack={onBack} compact />
+      </div>
 
-      <div className="space-y-8">
+      <div className="px-4 sm:px-6 space-y-8">
         {sections.map((section, i) =>
         <div key={i} className="space-y-3">
             <h3 className="text-sm font-medium text-text-secondary uppercase tracking-wider px-2">

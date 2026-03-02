@@ -76,16 +76,16 @@ export function App() {
   return (
     <div
       className={`min-h-screen text-text-primary font-sans selection:bg-accent/80 selection:text-black ${
-        activeTab === 'blogs' ? 'bg-[#ECEEF3]' : ''
+        activeTab === 'blogs' ? 'bg-background' : ''
       }`}
     >
       <div
         className={`min-h-screen pb-6 pt-4 ${
           activeTab === 'blogs'
-            ? 'bg-[#ECEEF3] px-2 sm:px-4 lg:px-6'
-            : activeTab === 'profile'
+            ? 'bg-background px-4 sm:px-6'
+            : activeTab === 'profile' || activeTab === 'workout'
               ? 'px-0 pt-0 pb-0'
-              : 'px-5 sm:px-6'
+              : 'px-4 sm:px-6'
         }`}
       >
         <AnimatePresence mode="wait">
@@ -117,3 +117,4 @@ export function App() {
     </div>
   );
 }
+

@@ -15,6 +15,7 @@ import {
   X,
 } from 'lucide-react';
 import { api } from '../services/api';
+import { Header } from '../components/ui/Header';
 
 type PostCategory = 'Training' | 'Nutrition' | 'Recovery' | 'Mindset';
 type FeedCategory = 'All' | PostCategory;
@@ -466,7 +467,7 @@ export function Blogs() {
     const cleanedDescription = post.description.replace(/\s+/g, ' ').trim();
     const summary = cleanedDescription
       ? cleanedDescription.slice(0, 120).trim() + (cleanedDescription.length > 120 ? '...' : '')
-      : 'Check out this post on Gorella.';
+      : 'Check out this post on RepSet.';
     const shareText = `${post.authorName}: ${summary}`;
     return { shareUrl, shareText };
   }, []);
@@ -719,36 +720,38 @@ export function Blogs() {
   const canPublish = Boolean(newDescription.trim()) && Boolean(newMediaUrl) && !isPublishing;
 
   return (
-    <div className="flex-1 flex flex-col min-h-screen pb-24">
+    <div className="blogs-page flex-1 flex flex-col min-h-screen pb-24">
       <div className="mx-auto w-full max-w-4xl bg-transparent px-4 pb-6 pt-4 space-y-4 sm:px-6">
-        <header className="flex items-start justify-between gap-3">
-          <div>
-            <p className="mt-1 text-xs text-[#6B7280]">Training, nutrition, recovery and mindset updates from the community.</p>
-          </div>
-
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => { void loadInitialFeed('refresh'); }}
-              disabled={refreshing || loading}
-              className="w-11 h-11 rounded-full border border-[#D9DDE7] bg-white text-[#111827] flex items-center justify-center hover:border-[#BAC2D4] transition-colors disabled:opacity-60"
-              aria-label="Refresh feed"
-            >
-              <RefreshCcw size={17} className={refreshing ? 'animate-spin' : ''} />
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setIsCreateOpen(true);
-                setCreateError('');
-              }}
-              className="w-11 h-11 rounded-full bg-accent text-black flex items-center justify-center shadow-glow hover:opacity-90 transition-opacity"
-              aria-label="Create new post"
-            >
-              <Plus size={20} />
-            </button>
-          </div>
-        </header>
+        <Header
+          compact
+          rightElement={(
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => { void loadInitialFeed('refresh'); }}
+                disabled={refreshing || loading}
+                className="w-11 h-11 rounded-full border border-[#D9DDE7] bg-white text-[#111827] flex items-center justify-center hover:border-[#BAC2D4] transition-colors disabled:opacity-60"
+                aria-label="Refresh feed"
+              >
+                <RefreshCcw size={17} className={refreshing ? 'animate-spin' : ''} />
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setIsCreateOpen(true);
+                  setCreateError('');
+                }}
+                className="w-11 h-11 rounded-full bg-accent text-black flex items-center justify-center shadow-glow hover:opacity-90 transition-opacity"
+                aria-label="Create new post"
+              >
+                <Plus size={20} />
+              </button>
+            </div>
+          )}
+        />
+        <p className="text-xs text-[#6B7280]">
+          Training, nutrition, recovery and mindset updates from the community.
+        </p>
 
         <div className="flex gap-2 overflow-x-auto pb-1">
           {CATEGORY_FILTERS.map((category) => {
@@ -1001,7 +1004,7 @@ export function Blogs() {
                   <img src={post.mediaUrl} alt={post.mediaAlt} className="h-full w-full object-contain" />
                 )}
 
-                <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/90 via-black/50 to-transparent px-5 pb-8 pt-16">
+                <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/90 via-black/50 to-transparent px-4 sm:px-6 pb-8 pt-16">
                   <div className="flex items-center gap-3">
                     <img
                       src={resolvePostAvatar(post)}

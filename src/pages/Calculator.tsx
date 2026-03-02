@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { BarChart3, Droplets, Flame, Gauge, Pencil, PieChart, UserRound } from 'lucide-react';
+import { BarChart3, Droplets, Gauge, Pencil, PieChart, UserRound } from 'lucide-react';
 import { Header } from '../components/ui/Header';
 import { Card } from '../components/ui/Card';
 import { api } from '../services/api';
@@ -501,7 +501,7 @@ export function Calculator({ onBack }: CalculatorProps) {
 
   return (
     <div className="flex-1 flex flex-col bg-background min-h-screen pb-24">
-      <div className="px-6 pt-2">
+      <div className="px-4 sm:px-6 pt-2">
         <Header
           title="Auto Nutrition Targets"
           onBack={onBack}
@@ -519,7 +519,7 @@ export function Calculator({ onBack }: CalculatorProps) {
         />
       </div>
 
-      <div className="px-6 space-y-4 pb-4">
+      <div className="px-4 sm:px-6 space-y-4 pb-4">
         {loading && (
           <Card>
             <div className="text-sm text-text-secondary">Building your targets from profile and training data...</div>
@@ -892,3 +892,4 @@ export function Calculator({ onBack }: CalculatorProps) {
     </div>
   );
 }
+

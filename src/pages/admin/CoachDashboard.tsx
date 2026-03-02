@@ -1,18 +1,14 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Users, Calendar, TrendingUp, Bell, LogOut, UserPlus, Send, Camera, X, Sun, Moon } from 'lucide-react';
 import { CoachSchedule } from '../../components/admin/CoachSchedule';
-import { ClientsListScreen } from '../../components/admin/ClientsListScreen';
+import { ClientsListScreen, type ClientRank, type CoachPanelClient } from '../../components/admin/ClientsListScreen';
 import { TodaysActivity } from '../../components/admin/TodaysActivity';
 import { Notifications } from '../../components/admin/Notifications';
 import { AddUser } from '../../components/admin/AddUser';
 import { api } from '../../services/api';
 import { socketService } from '../../services/socket';
 
-interface Client {
-  id: string;
-  name: string;
-  avatar: string;
-  profilePicture?: string | null;
+interface Client extends CoachPanelClient {
   lastMessage: string;
   unread: number;
   lastActive: string;
@@ -47,6 +43,41 @@ interface CoachDashboardProps {
   onLogout?: () => void;
 }
 
+const toClientAge = (value: unknown): number | null => {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed <= 0) return null;
+  return Math.round(parsed);
+};
+
+const toClientAvatar = (name: unknown): string => {
+  const safeName = String(name || '').trim();
+  if (!safeName) return 'U';
+
+  const initials = safeName
+    .split(' ')
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((chunk) => chunk.charAt(0).toUpperCase())
+    .join('');
+
+  return initials || safeName.charAt(0).toUpperCase() || 'U';
+};
+
+const toClientRank = (rankValue: unknown, pointsValue: unknown): ClientRank => {
+  const normalizedRank = String(rankValue || '').trim().toLowerCase();
+
+  if (normalizedRank === 'bronze') return 'bronze';
+  if (normalizedRank === 'silver') return 'silver';
+  if (normalizedRank === 'gold') return 'gold';
+  if (normalizedRank === 'elite' || normalizedRank === 'diamond' || normalizedRank === 'platinum') return 'elite';
+
+  const points = Number(pointsValue);
+  if (Number.isFinite(points) && points >= 800) return 'elite';
+  if (Number.isFinite(points) && points >= 400) return 'gold';
+  if (Number.isFinite(points) && points >= 150) return 'silver';
+  return 'bronze';
+};
+
 export const CoachDashboard: React.FC<CoachDashboardProps> = ({ onLogout }) => {
   const [view, setView] = useState<'dashboard' | 'schedule' | 'clients' | 'activity' | 'notifications' | 'adduser' | 'planrequests'>('dashboard');
   const [clients, setClients] = useState<Client[]>([]);
@@ -66,8 +97,10 @@ export const CoachDashboard: React.FC<CoachDashboardProps> = ({ onLogout }) => {
   const [programRequestsLoading, setProgramRequestsLoading] = useState(false);
   const [programRequestsError, setProgramRequestsError] = useState('');
   const [pendingProgramRequestsCount, setPendingProgramRequestsCount] = useState(0);
+  const [notificationsCount, setNotificationsCount] = useState(0);
   const [activeRequestActionId, setActiveRequestActionId] = useState<number | null>(null);
   const [selectedProgramRequest, setSelectedProgramRequest] = useState<ProgramChangeRequest | null>(null);
+  const [pendingOpenClientProfileId, setPendingOpenClientProfileId] = useState<string | null>(null);
   const [theme, setTheme] = useState<'dark' | 'light'>(() => {
     const saved = localStorage.getItem('coach-dashboard-theme');
     return saved === 'light' ? 'light' : 'dark';
@@ -236,8 +269,51 @@ export const CoachDashboard: React.FC<CoachDashboardProps> = ({ onLogout }) => {
 
   useEffect(() => {
     if (!coachId) return;
-    void refreshPendingProgramRequestsCount(coachId);
-  }, [coachId]);
+    let cancelled = false;
+
+    const refreshPending = async () => {
+      await refreshPendingProgramRequestsCount(coachId);
+      if (cancelled) return;
+    };
+
+    void refreshPending();
+    const timer = window.setInterval(() => {
+      void refreshPending();
+    }, 10000);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
+  }, [coachId, view]);
+
+  useEffect(() => {
+    if (!coachId) return;
+    let cancelled = false;
+
+    const refreshNotificationsCount = async () => {
+      try {
+        const notifications = await api.getNotifications(coachId);
+        if (cancelled) return;
+        const unread = Array.isArray(notifications)
+          ? notifications.filter((item: any) => Boolean(item?.unread)).length
+          : 0;
+        setNotificationsCount(unread);
+      } catch (error) {
+        if (!cancelled) setNotificationsCount(0);
+      }
+    };
+
+    void refreshNotificationsCount();
+    const timer = window.setInterval(() => {
+      void refreshNotificationsCount();
+    }, 10000);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
+  }, [coachId, view]);
 
   useEffect(() => {
     if (view !== 'planrequests' || !coachId) return;
@@ -283,40 +359,67 @@ export const CoachDashboard: React.FC<CoachDashboardProps> = ({ onLogout }) => {
     setPreviewImage(null);
   };
 
-  const loadClients = async () => {
+  const loadClients = async (): Promise<Client[]> => {
     try {
       setNetworkError('');
       const coach = JSON.parse(localStorage.getItem('coach') || '{}');
-      const allUsers = await api.getAllUsers();
-      
-      // Get last message for each user
-      const clientList = await Promise.all(allUsers.map(async (u: any) => {
-        const msgs = await api.getMessages(u.id, coach.id);
-        const lastMsg = msgs[msgs.length - 1];
-        const unreadCount = msgs.filter((m: any) => m.sender_type === 'user' && !m.read).length;
-        
-        return {
-          id: u.id.toString(),
-          name: u.name,
-          avatar: u.name.split(' ').map((n: string) => n[0]).join(''),
-          profilePicture: u.profile_picture || null,
-          lastMessage: lastMsg?.message || '',
-          unread: unreadCount,
-          lastActive: lastMsg ? new Date(lastMsg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Online'
-        };
-      }));
-      
-      // Sort by last message time
-      clientList.sort((a, b) => {
-        if (!a.lastMessage) return 1;
-        if (!b.lastMessage) return -1;
-        return 0;
+      const coachId = Number(coach?.id || 0);
+
+      type RawUser = {
+        id: number | string;
+        name?: string | null;
+        coach_id?: number | string | null;
+        profile_picture?: string | null;
+        age?: number | string | null;
+        rank?: string | null;
+        total_points?: number | string | null;
+      };
+
+      const allUsersPayload = await api.getAllUsers();
+      const allUsers = Array.isArray(allUsersPayload) ? (allUsersPayload as RawUser[]) : [];
+      const visibleUsers = allUsers.filter((user) => {
+        const userId = Number(user?.id || 0);
+        if (!Number.isFinite(userId) || userId <= 0) return false;
+        if (!coachId) return true;
+        return Number(user?.coach_id || 0) === coachId;
       });
-      
-      setClients(clientList);
+
+      const clientsWithLastMessage = await Promise.all(
+        visibleUsers.map(async (user) => {
+          const userId = Number(user.id || 0);
+          const rawMessages = coachId ? await api.getMessages(userId, coachId) : [];
+          const messages = Array.isArray(rawMessages) ? rawMessages : [];
+          const lastMsg = messages[messages.length - 1];
+          const unreadCount = messages.filter((message: any) => message.sender_type === 'user' && !Boolean(message.read)).length;
+          const lastMessageAt = lastMsg?.created_at ? new Date(lastMsg.created_at).getTime() : 0;
+          const safeName = String(user.name || `User ${userId}`).trim() || `User ${userId}`;
+
+          const client: Client = {
+            id: String(userId),
+            name: safeName,
+            age: toClientAge(user.age),
+            avatar: toClientAvatar(safeName),
+            rank: toClientRank(user.rank, user.total_points),
+            profilePicture: typeof user.profile_picture === 'string' ? user.profile_picture : null,
+            lastMessage: String(lastMsg?.message || ''),
+            unread: unreadCount,
+            lastActive: lastMessageAt
+              ? new Date(lastMessageAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+              : 'Online',
+          };
+
+          return { client, lastMessageAt };
+        }),
+      );
+
+      clientsWithLastMessage.sort((a, b) => b.lastMessageAt - a.lastMessageAt);
+      const normalizedClients = clientsWithLastMessage.map(({ client }) => client);
+      setClients(normalizedClients);
+      return normalizedClients;
     } catch (error) {
       console.error('Failed to load clients:', error);
       setNetworkError('Server connection lost. Please make sure backend is running on port 5001.');
+      return [];
     }
   };
 
@@ -460,10 +563,31 @@ export const CoachDashboard: React.FC<CoachDashboardProps> = ({ onLogout }) => {
     }
   };
 
+  const openClientChatFromNotification = async (userId: number) => {
+    const normalizedUserId = Number(userId);
+    if (!Number.isFinite(normalizedUserId) || normalizedUserId <= 0) return;
+
+    setPendingOpenClientProfileId(null);
+    setView('dashboard');
+
+    let targetClient = clients.find((client) => Number(client.id) === normalizedUserId) || null;
+    if (!targetClient) {
+      const refreshedClients = await loadClients();
+      targetClient = refreshedClients.find((client) => Number(client.id) === normalizedUserId) || null;
+    }
+
+    if (!targetClient) {
+      setNetworkError('Conversation not found for this notification.');
+      return;
+    }
+
+    await handleClientSelect(targetClient);
+  };
+
   const stats = {
-    totalClients: 24,
+    totalClients: clients.length,
     activeToday: 18,
-    notifications: 5,
+    notifications: notificationsCount,
     sessionsThisWeek: 42,
     planRequests: pendingProgramRequestsCount,
   };
@@ -482,7 +606,15 @@ export const CoachDashboard: React.FC<CoachDashboardProps> = ({ onLogout }) => {
   }
 
   if (view === 'clients') {
-    return <ClientsListScreen onBack={() => setView('dashboard')} />;
+    return (
+      <ClientsListScreen
+        onBack={() => setView('dashboard')}
+        clients={clients}
+        isLightTheme={isLightTheme}
+        initialSelectedClientId={pendingOpenClientProfileId}
+        onConsumedInitialSelection={() => setPendingOpenClientProfileId(null)}
+      />
+    );
   }
 
   if (view === 'activity') {
@@ -490,7 +622,20 @@ export const CoachDashboard: React.FC<CoachDashboardProps> = ({ onLogout }) => {
   }
 
   if (view === 'notifications') {
-    return <Notifications onBack={() => setView('dashboard')} />;
+    return (
+      <Notifications
+        onBack={() => setView('dashboard')}
+        coachId={coachId}
+        isLightTheme={isLightTheme}
+        onOpenMessageThread={(userId) => {
+          void openClientChatFromNotification(userId);
+        }}
+        onOpenPlanInvitation={(userId) => {
+          setPendingOpenClientProfileId(String(userId));
+          setView('clients');
+        }}
+      />
+    );
   }
 
   if (view === 'adduser') {

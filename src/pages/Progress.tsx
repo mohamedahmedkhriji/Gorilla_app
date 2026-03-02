@@ -41,10 +41,11 @@ export function Progress() {
           onWeeklyCheckIn={() => setView('weeklyCheckin')}
         />
 
-        <div className="px-6">
+        <div className="px-4 sm:px-6">
           <OverloadPlanning />
         </div>
       </div>
     </div>);
 
 }
+

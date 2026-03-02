@@ -104,11 +104,11 @@ export function LeaderboardScreen({ onBack }: LeaderboardScreenProps) {
 
   return (
     <div className="flex-1 flex flex-col min-h-screen bg-background pb-24">
-      <div className="px-6 pt-2">
+      <div className="px-4 sm:px-6 pt-2">
         <Header title="Leaderboard" onBack={onBack} />
       </div>
 
-      <div className="px-6 pt-4">
+      <div className="px-4 sm:px-6 pt-4">
         <div className="flex gap-2 mb-6 bg-card rounded-xl p-1 border border-white/5">
           <button
             onClick={() => setTab('monthly')}
@@ -186,3 +186,4 @@ export function LeaderboardScreen({ onBack }: LeaderboardScreenProps) {
     </div>
   );
 }
+

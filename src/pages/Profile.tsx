@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { ProfileScreen } from '../components/profile/ProfileScreen';
 import { GymAccessScreen } from '../components/profile/GymAccessScreen';
 import { RankingsRewardsScreen } from '../components/profile/RankingsRewardsScreen';
@@ -6,6 +6,7 @@ import { SettingsScreen } from '../components/profile/SettingsScreen';
 import { CurrentWeekPlanScreen } from '../components/profile/CurrentWeekPlanScreen';
 import { CustomPlanBuilderScreen } from '../components/profile/CustomPlanBuilderScreen';
 import { NotificationsScreen } from '../components/notifications/NotificationsScreen';
+import { api } from '../services/api';
 import { Bell } from 'lucide-react';
 interface ProfileProps {
   onNavigateTab?: (tab: string, day?: string) => void;
@@ -14,6 +15,43 @@ export function Profile({ onNavigateTab }: ProfileProps) {
   const [view, setView] = useState<
     'main' | 'gym' | 'rank' | 'settings' | 'notifications' | 'weeklyPlan' | 'customPlanBuilder'>(
     'main');
+  const [unreadCount, setUnreadCount] = useState(0);
+
+  const userId = useMemo(() => {
+    const user = JSON.parse(localStorage.getItem('appUser') || localStorage.getItem('user') || '{}');
+    return Number(localStorage.getItem('appUserId') || localStorage.getItem('userId') || user?.id || 0);
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const refreshUnread = async () => {
+      if (!userId) {
+        if (!cancelled) setUnreadCount(0);
+        return;
+      }
+      try {
+        const notifications = await api.getNotifications(userId);
+        if (cancelled) return;
+        const count = Array.isArray(notifications)
+          ? notifications.filter((item: any) => Boolean(item?.unread)).length
+          : 0;
+        setUnreadCount(count);
+      } catch (error) {
+        if (!cancelled) setUnreadCount(0);
+      }
+    };
+
+    void refreshUnread();
+    const timer = window.setInterval(() => {
+      void refreshUnread();
+    }, 10000);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
+  }, [userId, view]);
 
   const handleNavigate = (screen: 'gym' | 'rank' | 'settings' | 'workout' | 'weeklyPlan' | 'customPlanBuilder') => {
     if (screen === 'workout') {
@@ -68,10 +106,14 @@ export function Profile({ onNavigateTab }: ProfileProps) {
         className="absolute top-6 right-6 w-10 h-10 rounded-full bg-white/10 flex items-center justify-center text-white hover:bg-white/20 transition-colors z-10">
 
         <Bell size={20} />
-        <div className="absolute top-2 right-2 w-2 h-2 bg-accent rounded-full shadow-glow" />
+        {unreadCount > 0 && (
+          <div className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 bg-accent text-black text-[10px] font-bold rounded-full flex items-center justify-center shadow-glow">
+            {unreadCount > 99 ? '99+' : unreadCount}
+          </div>
+        )}
       </button>
 
-      <div className="space-y-6 pb-24">
+      <div className="space-y-6 pb-24 px-4 sm:px-6">
         <ProfileScreen onNavigate={handleNavigate} />
       </div>
     </div>);

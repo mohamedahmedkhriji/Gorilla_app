@@ -1,5 +1,5 @@
 import React from 'react';
-import { Camera, Upload } from 'lucide-react';
+import { Camera } from 'lucide-react';
 interface PhotoUploadProps {
   label: string;
   onImageSelect?: (base64Image: string) => void;

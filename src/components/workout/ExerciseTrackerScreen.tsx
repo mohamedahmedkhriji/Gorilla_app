@@ -1,6 +1,5 @@
 import React, { useEffect, useState } from 'react';
 import { Header } from '../ui/Header';
-import { Button } from '../ui/Button';
 import {
   Play,
   FileText,
@@ -8,10 +7,8 @@ import {
   Disc,
   Clock,
   Plus,
-  Minus,
   Check,
-  ChevronUp,
-  ChevronDown } from
+  ChevronUp } from
 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 interface ExerciseTrackerScreenProps {
@@ -108,7 +105,7 @@ export function ExerciseTrackerScreen({
   };
   return (
     <div className="flex-1 flex flex-col h-full bg-background">
-      <div className="px-6 pt-2">
+      <div className="px-4 sm:px-6 pt-2">
         <Header
           title="Bench Press"
           onBack={onBack}
@@ -132,7 +129,7 @@ export function ExerciseTrackerScreen({
       </div>
 
       {/* Tabs */}
-      <div className="flex items-center justify-between px-6 mb-6">
+      <div className="flex items-center justify-between px-4 sm:px-6 mb-6">
         <button className="flex flex-col items-center gap-1 text-text-secondary hover:text-white transition-colors">
           <div className="w-10 h-10 rounded-full bg-card border border-white/5 flex items-center justify-center">
             <FileText size={18} />
@@ -163,7 +160,7 @@ export function ExerciseTrackerScreen({
       </div>
 
       {/* Previous Performance */}
-      <div className="px-6 mb-6">
+      <div className="px-4 sm:px-6 mb-6">
         <div className="flex items-center gap-2 text-xs text-text-tertiary mb-2 uppercase tracking-wider font-medium">
           Last Session
         </div>
@@ -179,7 +176,7 @@ export function ExerciseTrackerScreen({
       </div>
 
       {/* Set Table */}
-      <div className="flex-1 overflow-y-auto px-6 pb-24">
+      <div className="flex-1 overflow-y-auto px-4 sm:px-6 pb-24">
         <div className="grid grid-cols-[auto_1fr_1fr_1fr_auto] gap-4 mb-4 text-xs text-text-tertiary uppercase font-medium text-center">
           <div className="w-8">Set</div>
           <div>Kg</div>
@@ -262,3 +259,5 @@ export function ExerciseTrackerScreen({
     </div>);
 
 }
+
+

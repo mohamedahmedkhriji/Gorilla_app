@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Header } from '../ui/Header';
-import { Edit, ChevronDown, X } from 'lucide-react';
+import { SlidersHorizontal, ChevronDown, X } from 'lucide-react';
 import { api } from '../../services/api';
 interface MuscleRecoveryScreenProps {
   onBack: () => void;
@@ -114,11 +114,16 @@ export function MuscleRecoveryScreen({ onBack }: MuscleRecoveryScreenProps) {
   const otherMuscles = muscleRecoveries.filter(m => m.score < 90).sort((a, b) => a.score - b.score);
   return (
     <div className="flex-1 flex flex-col h-full bg-background pb-24">
-      <div className="px-6 pt-2 flex items-center justify-between">
-        <Header title="Muscle Recovery" onBack={onBack} />
-        <button onClick={() => setShowFactors(!showFactors)} className="text-accent text-sm font-medium">
-          <Edit size={20} />
-        </button>
+      <div className="px-4 sm:px-6 pt-2">
+        <Header
+          title="Muscle Recovery"
+          onBack={onBack}
+          rightElement={(
+            <button onClick={() => setShowFactors(!showFactors)} className="text-accent text-sm font-medium">
+              <SlidersHorizontal size={20} />
+            </button>
+          )}
+        />
       </div>
 
       {showFactors && (
@@ -192,7 +197,7 @@ export function MuscleRecoveryScreen({ onBack }: MuscleRecoveryScreenProps) {
         </div>
       )}
 
-      <div className="px-6 space-y-6 mt-4">
+      <div className="px-4 sm:px-6 space-y-6 mt-4">
         {/* Damaged Muscles Section */}
         {otherMuscles.length > 0 && (
           <div>
@@ -205,8 +210,12 @@ export function MuscleRecoveryScreen({ onBack }: MuscleRecoveryScreenProps) {
                   key={m.muscle}
                   className="bg-card rounded-xl p-4 border border-white/5 flex items-center justify-between">
                   <div className="flex items-center gap-3">
-                    <div className="w-20 h-20 rounded-full bg-white/5 flex items-center justify-center overflow-hidden">
-                      <img src={getMuscleImage(m.name)} alt={m.name} className="w-full h-full object-cover" />
+                    <div className="w-24 h-24 rounded-full bg-transparent flex items-center justify-center overflow-hidden">
+                      <img
+                        src={getMuscleImage(m.name)}
+                        alt={m.name}
+                        className="w-full h-full object-contain scale-[1.35]"
+                      />
                     </div>
                     <div>
                       <h4 className="font-semibold text-white">{m.name}</h4>
@@ -236,8 +245,12 @@ export function MuscleRecoveryScreen({ onBack }: MuscleRecoveryScreenProps) {
                   key={m.muscle}
                   className="bg-card rounded-xl p-4 border border-white/5 flex items-center justify-between">
                   <div className="flex items-center gap-3">
-                    <div className="w-20 h-20 rounded-full bg-accent/10 flex items-center justify-center overflow-hidden">
-                      <img src={getMuscleImage(m.name)} alt={m.name} className="w-full h-full object-cover" />
+                    <div className="w-24 h-24 rounded-full bg-transparent flex items-center justify-center overflow-hidden">
+                      <img
+                        src={getMuscleImage(m.name)}
+                        alt={m.name}
+                        className="w-full h-full object-contain scale-[1.35]"
+                      />
                     </div>
                     <div>
                       <h4 className="font-semibold text-white">{m.name}</h4>
@@ -255,3 +268,4 @@ export function MuscleRecoveryScreen({ onBack }: MuscleRecoveryScreenProps) {
     </div>);
 
 }
+

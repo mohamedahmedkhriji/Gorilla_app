@@ -1,6 +1,6 @@
 import React from 'react';
 import { Card } from '../ui/Card';
-import { Calendar, Clock, Dumbbell } from 'lucide-react';
+import { Calendar, Clock } from 'lucide-react';
 export function WorkoutHistory() {
   const history = [
   {

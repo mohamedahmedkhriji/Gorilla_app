@@ -111,10 +111,10 @@ export class HypertrophyProgramGenerator {
     }
 
     // Intermediate/Advanced programs
-    return this.advancedHypertrophySchedule(days);
+    return this.advancedHypertrophySchedule();
   }
 
-  private advancedHypertrophySchedule(days: number): any[] {
+  private advancedHypertrophySchedule(): any[] {
     return [
       {
         day: 'Monday',
@@ -170,7 +170,7 @@ export class HypertrophyProgramGenerator {
   private calculateNutritionFromBook(bodyType: string, goals: string[]): any {
     // Based on 0.8-1g protein per lb bodyweight, caloric surplus for growth
     let baseCalories = 2800;
-    let protein = 180; // ~1g per lb for 180lb person
+    const protein = 180; // ~1g per lb for 180lb person
     let carbs = 350;
     let fats = 80;
 

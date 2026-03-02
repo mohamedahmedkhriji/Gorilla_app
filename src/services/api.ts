@@ -114,6 +114,23 @@ export const api = {
     return parseApiResponse(res, 'Failed to submit custom plan for coach review');
   },
 
+  requestCoachPlanCreation: async (userId: number, coachId: number) => {
+    const res = await fetch(`${API_URL}/user/${userId}/coach/${coachId}/plan-request`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+    });
+    return parseApiResponse(res, 'Failed to send coach plan request');
+  },
+
+  coachSaveCustomProgram: async (coachId: number, userId: number, payload: any = {}) => {
+    const res = await fetch(`${API_URL}/coach/${coachId}/user/${userId}/program/custom`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    return parseApiResponse(res, 'Failed to save coach plan');
+  },
+
   getCoachProgramChangeRequests: async (coachId: number, status = '') => {
     const params = new URLSearchParams();
     if (status) params.set('status', status);

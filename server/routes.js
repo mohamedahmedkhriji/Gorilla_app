@@ -578,6 +578,80 @@ const ensureNotificationSettingsInfrastructure = async () => {
   );
 };
 
+const ensureProgramChangeRequestInfrastructure = async () => {
+  await pool.execute(
+    `CREATE TABLE IF NOT EXISTS program_change_requests (
+      id BIGINT PRIMARY KEY AUTO_INCREMENT,
+      user_id BIGINT NOT NULL,
+      coach_id BIGINT NOT NULL,
+      proposed_by_user_id BIGINT NULL,
+      plan_name VARCHAR(255) NOT NULL,
+      description TEXT NULL,
+      cycle_weeks TINYINT NOT NULL,
+      selected_days_json JSON NOT NULL,
+      weekly_workouts_json JSON NOT NULL,
+      request_source ENUM('user_to_coach', 'coach_to_user') NOT NULL DEFAULT 'user_to_coach',
+      status ENUM('pending', 'approved', 'rejected', 'cancelled') NOT NULL DEFAULT 'pending',
+      review_notes VARCHAR(500) NULL,
+      approved_program_id BIGINT NULL,
+      reviewed_by BIGINT NULL,
+      reviewed_at DATETIME NULL,
+      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      INDEX idx_program_change_requests_coach_status (coach_id, status, created_at),
+      INDEX idx_program_change_requests_user_status (user_id, status, created_at),
+      INDEX idx_program_change_requests_status_created (status, created_at)
+    ) ENGINE=InnoDB`,
+  );
+
+  const [sourceColumnRows] = await pool.execute(
+    `SELECT 1
+     FROM information_schema.columns
+     WHERE table_schema = DATABASE()
+       AND table_name = 'program_change_requests'
+       AND column_name = 'request_source'
+     LIMIT 1`,
+  );
+  if (!sourceColumnRows.length) {
+    await pool.execute(
+      `ALTER TABLE program_change_requests
+       ADD COLUMN request_source ENUM('user_to_coach', 'coach_to_user') NOT NULL DEFAULT 'user_to_coach' AFTER weekly_workouts_json`,
+    );
+  }
+
+  const [proposedByColumnRows] = await pool.execute(
+    `SELECT 1
+     FROM information_schema.columns
+     WHERE table_schema = DATABASE()
+       AND table_name = 'program_change_requests'
+       AND column_name = 'proposed_by_user_id'
+     LIMIT 1`,
+  );
+  if (!proposedByColumnRows.length) {
+    await pool.execute(
+      `ALTER TABLE program_change_requests
+       ADD COLUMN proposed_by_user_id BIGINT NULL AFTER coach_id`,
+    );
+  }
+
+  await pool.execute(
+    `UPDATE program_change_requests
+     SET request_source = 'user_to_coach'
+     WHERE request_source IS NULL OR request_source = ''`,
+  );
+};
+
+let programChangeRequestInfrastructurePromise;
+const ensureProgramChangeRequestInfrastructureOnce = async () => {
+  if (!programChangeRequestInfrastructurePromise) {
+    programChangeRequestInfrastructurePromise = ensureProgramChangeRequestInfrastructure().catch((error) => {
+      programChangeRequestInfrastructurePromise = null;
+      throw error;
+    });
+  }
+  return programChangeRequestInfrastructurePromise;
+};
+
 const ensureGamificationInfrastructure = async () => {
   await pool.execute(
     `CREATE TABLE IF NOT EXISTS missions (
@@ -831,9 +905,11 @@ const ensureGamificationInfrastructure = async () => {
 };
 
 const gamificationReady = ensureGamificationInfrastructure()
+  .then(() => true)
   .catch((error) => {
+    // Keep API server booting even if DB bootstrap fails.
     console.error('Failed to initialize gamification infrastructure:', error?.message || error);
-    throw error;
+    return false;
   });
 
 const collectUserGamificationMetrics = async (userId, baseDate = new Date()) => {
@@ -1520,6 +1596,7 @@ const persistCustomProgramDraft = async (
     assignmentReason = 'user_request',
     assignmentNote = null,
     assignmentSource = 'manual',
+    actorUserId = userId,
   },
 ) => {
   const [programInsert] = await conn.execute(
@@ -1528,7 +1605,7 @@ const persistCustomProgramDraft = async (
      VALUES (?, ?, ?, ?, ?, 'custom', ?, ?, ?, ?, 0, 1)`,
     [
       draft.user.gym_id || null,
-      userId,
+      actorUserId,
       userId,
       draft.planName.slice(0, 255),
       draft.description,
@@ -1893,7 +1970,7 @@ router.get('/users', async (_req, res) => {
     }
 
     const [rows] = await pool.execute(
-      `SELECT id, name, email, role, gym_id, coach_id, ${profileImageColumn} AS profile_picture, total_points, total_workouts, rank, onboarding_completed
+      `SELECT id, name, email, role, gym_id, coach_id, age, ${profileImageColumn} AS profile_picture, total_points, total_workouts, rank, onboarding_completed
        FROM users
        WHERE role = 'user' AND is_active = 1
        ORDER BY created_at DESC`
@@ -2213,6 +2290,169 @@ router.post('/user/:userId/program/custom/request', async (req, res) => {
   } catch (error) {
     if (conn) await conn.rollback();
     return res.status(500).json({ error: error?.message || 'Failed to submit plan review request' });
+  } finally {
+    if (conn) conn.release();
+  }
+});
+
+router.post('/user/:userId/coach/:coachId/plan-request', async (req, res) => {
+  let conn;
+  try {
+    conn = await pool.getConnection();
+    await conn.beginTransaction();
+
+    const userId = Number(req.params.userId);
+    const coachId = Number(req.params.coachId);
+    if (!Number.isFinite(userId) || userId <= 0 || !Number.isFinite(coachId) || coachId <= 0) {
+      await conn.rollback();
+      return res.status(400).json({ error: 'Invalid userId or coachId' });
+    }
+
+    const [userRows] = await conn.execute(
+      `SELECT id, name, role
+       FROM users
+       WHERE id = ? AND role = 'user'
+       LIMIT 1
+       FOR UPDATE`,
+      [userId],
+    );
+    if (!userRows.length) {
+      await conn.rollback();
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    const [coachRows] = await conn.execute(
+      `SELECT id, name
+       FROM users
+       WHERE id = ? AND role = 'coach' AND is_active = 1
+       LIMIT 1`,
+      [coachId],
+    );
+    if (!coachRows.length) {
+      await conn.rollback();
+      return res.status(404).json({ error: 'Coach not found' });
+    }
+
+    const userName = String(userRows[0]?.name || 'User').trim() || 'User';
+    const coachName = String(coachRows[0]?.name || 'Coach').trim() || 'Coach';
+
+    await conn.execute(
+      `UPDATE users
+       SET coach_id = ?
+       WHERE id = ?`,
+      [coachId, userId],
+    );
+
+    await conn.execute(
+      `INSERT INTO notifications (user_id, type, title, message, data)
+       VALUES (?, 'plan_coach_request', 'New plan request', ?, JSON_OBJECT('userId', ?, 'coachId', ?))`,
+      [
+        coachId,
+        `${userName} requested a personalized plan.`,
+        userId,
+        coachId,
+      ],
+    );
+
+    await conn.execute(
+      `INSERT INTO notifications (user_id, type, title, message, data)
+       VALUES (?, 'plan_coach_request_sent', 'Request sent', ?, JSON_OBJECT('coachId', ?, 'coachName', ?))`,
+      [
+        userId,
+        `Your request was sent to ${coachName}.`,
+        coachId,
+        coachName,
+      ],
+    );
+
+    await conn.commit();
+    return res.json({
+      success: true,
+      userId,
+      coachId,
+    });
+  } catch (error) {
+    if (conn) await conn.rollback();
+    return res.status(500).json({ error: error?.message || 'Failed to send plan request' });
+  } finally {
+    if (conn) conn.release();
+  }
+});
+
+router.post('/coach/:coachId/user/:userId/program/custom', async (req, res) => {
+  let conn;
+  try {
+    conn = await pool.getConnection();
+    await conn.beginTransaction();
+
+    const coachId = Number(req.params.coachId);
+    const userId = Number(req.params.userId);
+    if (!Number.isFinite(coachId) || coachId <= 0 || !Number.isFinite(userId) || userId <= 0) {
+      await conn.rollback();
+      return res.status(400).json({ error: 'Invalid coachId or userId' });
+    }
+
+    const [coachRows] = await conn.execute(
+      `SELECT id, name
+       FROM users
+       WHERE id = ? AND role = 'coach' AND is_active = 1
+       LIMIT 1`,
+      [coachId],
+    );
+    if (!coachRows.length) {
+      await conn.rollback();
+      return res.status(404).json({ error: 'Coach not found' });
+    }
+
+    await conn.execute(
+      `UPDATE users
+       SET coach_id = ?
+       WHERE id = ? AND role = 'user'`,
+      [coachId, userId],
+    );
+
+    let draft;
+    try {
+      draft = await buildCustomProgramDraft(conn, userId, req.body);
+    } catch (validationError) {
+      await conn.rollback();
+      const message = validationError?.message || 'Invalid custom plan payload';
+      if (message === 'User not found') {
+        return res.status(404).json({ error: message });
+      }
+      return res.status(400).json({ error: message });
+    }
+
+    const result = await persistCustomProgramDraft(conn, {
+      userId,
+      draft,
+      assignmentReason: 'coach_direct_create',
+      assignmentNote: `Coach ${coachId} created/updated custom plan`,
+      assignmentSource: 'coach',
+      actorUserId: coachId,
+    });
+
+    await conn.execute(
+      `INSERT INTO notifications (user_id, type, title, message, data)
+       VALUES (?, 'plan_created_by_coach', 'New plan from your coach', ?, JSON_OBJECT('coachId', ?, 'programId', ?, 'planName', ?))`,
+      [
+        userId,
+        'Your coach created and activated a new training plan for you.',
+        coachId,
+        result.programId,
+        draft.planName.slice(0, 255),
+      ],
+    );
+
+    await conn.commit();
+    return res.json({
+      success: true,
+      assignedProgram: result.assignedProgram,
+      assignment: result.assignment,
+    });
+  } catch (error) {
+    if (conn) await conn.rollback();
+    return res.status(500).json({ error: error?.message || 'Failed to save coach custom plan' });
   } finally {
     if (conn) conn.release();
   }

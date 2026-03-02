@@ -9,8 +9,6 @@ import { GymSelectionScreen } from '../components/onboarding/GymSelectionScreen'
 import { BodyImageUploadScreen } from '../components/onboarding/BodyImageUploadScreen';
 import { AIAnalysisScreen } from '../components/onboarding/AIAnalysisScreen';
 import { BodyAnalysisResultsScreen } from '../components/onboarding/BodyAnalysisResultsScreen';
-import { TrainingPlanPreviewScreen } from '../components/onboarding/TrainingPlanPreviewScreen';
-import { api } from '../services/api';
 
 interface OnboardingProps {
   onComplete: () => void;

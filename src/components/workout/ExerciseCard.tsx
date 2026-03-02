@@ -1,6 +1,5 @@
 import React from 'react';
 import { Card } from '../ui/Card';
-import { Input } from '../ui/Input';
 import { Repeat, Dumbbell } from 'lucide-react';
 interface ExerciseCardProps {
   name: string;

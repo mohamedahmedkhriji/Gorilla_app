@@ -446,11 +446,11 @@ export function CustomPlanBuilderScreen({ onBack, onSaved }: CustomPlanBuilderSc
 
   return (
     <div className="flex-1 flex flex-col h-full bg-background pb-24">
-      <div className="px-6 pt-2">
+      <div className="px-4 sm:px-6 pt-2">
         <Header title="Build Custom Plan" onBack={onBack} />
       </div>
 
-      <div className="px-6 pt-4 space-y-4">
+      <div className="px-4 sm:px-6 pt-4 space-y-4">
         {loading ? (
           <div className="text-sm text-text-secondary">Loading plan builder...</div>
         ) : (
@@ -614,3 +614,4 @@ export function CustomPlanBuilderScreen({ onBack, onSaved }: CustomPlanBuilderSc
     </div>
   );
 }
+

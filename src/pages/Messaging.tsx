@@ -189,12 +189,12 @@ export function Messaging({ onBack, coachId: propCoachId, coachName: propCoachNa
 
   return (
     <div className="flex-1 flex flex-col bg-background h-screen pb-24">
-      <div className="px-6 pt-2">
+      <div className="px-4 sm:px-6 pt-2">
         <Header title={coachName || 'Coach Chat'} onBack={onBack} />
         {sessionError && <p className="text-xs text-red-500 mt-2">{sessionError}</p>}
       </div>
 
-      <div className="flex-1 overflow-y-auto px-5 py-4 space-y-3 pb-24">
+      <div className="flex-1 overflow-y-auto px-4 sm:px-6 py-4 space-y-3 pb-24">
         {messages.map((msg, i) => {
           const isMe = Number(msg.sender_id) === userId && msg.sender_type === 'user';
           const senderName = msg.sender_name || (isMe ? 'You' : coachName || 'Coach');
@@ -319,3 +319,5 @@ export function Messaging({ onBack, coachId: propCoachId, coachName: propCoachNa
     </div>
   );
 }
+
+

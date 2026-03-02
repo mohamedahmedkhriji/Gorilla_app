@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { ArrowLeft, Check, Plus, Trash2, Timer, TrendingUp } from 'lucide-react';
+import { ArrowLeft, Check, Timer, TrendingUp } from 'lucide-react';
 import { api } from '../../services/api';
 
 interface ProgramWorkoutTrackerProps {

@@ -357,11 +357,11 @@ export function MyNutrition({ onBack }: MyNutritionProps) {
 
   return (
     <div className="flex-1 flex flex-col bg-background min-h-screen pb-24">
-      <div className="px-6 pt-2">
+      <div className="px-4 sm:px-6 pt-2">
         <Header title="My Nutrition" onBack={onBack} />
       </div>
 
-      <div className="px-6 space-y-4 pb-4">
+      <div className="px-4 sm:px-6 space-y-4 pb-4">
         {loading && (
           <Card className="border border-white/5 bg-card/80 p-4">
             <div className="text-sm text-text-secondary">Building your daily food plan...</div>
@@ -598,3 +598,4 @@ export function MyNutrition({ onBack }: MyNutritionProps) {
     </div>
   );
 }
+

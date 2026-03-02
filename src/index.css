@@ -228,6 +228,41 @@ textarea {
   color: rgb(var(--color-text-secondary)) !important;
 }
 
+[data-theme='dark'] .blogs-page .bg-white {
+  background-color: rgb(var(--color-card)) !important;
+}
+
+[data-theme='dark'] .blogs-page .text-\[\#111827\] {
+  color: rgb(var(--color-text-primary)) !important;
+}
+
+[data-theme='dark'] .blogs-page .text-\[\#6B7280\],
+[data-theme='dark'] .blogs-page .text-\[\#374151\] {
+  color: rgb(var(--color-text-secondary)) !important;
+}
+
+[data-theme='dark'] .blogs-page .border-\[\#D9DDE7\],
+[data-theme='dark'] .blogs-page .border-\[\#E1E5EE\],
+[data-theme='dark'] .blogs-page .border-\[\#BAC2D4\] {
+  border-color: rgb(var(--color-border) / 0.52) !important;
+}
+
+[data-theme='dark'] .blogs-page .bg-\[\#DCE1EE\],
+[data-theme='dark'] .blogs-page .bg-\[\#F3F4F6\],
+[data-theme='dark'] .blogs-page .bg-\[\#EEF1F7\],
+[data-theme='dark'] .blogs-page .bg-\[\#F8FAFC\] {
+  background-color: rgb(var(--color-section-background)) !important;
+}
+
+[data-theme='dark'] .blogs-page .hover\:border-\[\#BAC2D4\]:hover {
+  border-color: rgb(var(--color-border) / 0.8) !important;
+}
+
+[data-theme='dark'] .blogs-page .hover\:bg-\[\#EEF1F7\]:hover,
+[data-theme='dark'] .blogs-page .hover\:bg-\[\#F3F4F6\]:hover,
+[data-theme='dark'] .blogs-page .hover\:bg-\[\#F8FAFC\]:hover {
+  background-color: rgb(var(--color-section-background)) !important;
+}
 @keyframes chatMessageIn {
   from {
     opacity: 0;
@@ -269,3 +304,4 @@ textarea {
   align-items: center;
   justify-content: center;
 }
+

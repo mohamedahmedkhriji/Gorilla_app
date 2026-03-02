@@ -23,16 +23,16 @@ export interface WorkoutDay {
 
 export class TrainingPlanGenerator {
   generatePlan(profile: UserProfile): WorkoutDay[] {
-    const { fitnessLevel, availability, goals, bodyType } = profile;
+    const { availability } = profile;
 
     // Determine split based on availability and level
-    let split = this.determineSplit(availability, fitnessLevel);
+    const split = this.determineSplit(availability);
     
     // Generate exercises based on split and profile
     return this.createWorkoutSchedule(split, profile);
   }
 
-  private determineSplit(availability: number, level: string): string {
+  private determineSplit(availability: number): string {
     if (availability <= 3) return 'full_body';
     if (availability === 4) return 'upper_lower';
     if (availability >= 5) return 'push_pull_legs';

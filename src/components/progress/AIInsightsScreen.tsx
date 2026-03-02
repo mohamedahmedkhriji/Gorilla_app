@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { ArrowLeft, Sparkles, TrendingUp, AlertCircle } from 'lucide-react';
+import { ArrowLeft, Sparkles } from 'lucide-react';
 import { aiCoach } from '../../services/aiCoach';
 
 interface AIInsightsScreenProps {

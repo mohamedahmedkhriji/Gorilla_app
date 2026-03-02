@@ -93,11 +93,11 @@ export function ExerciseLibrary({
 
   return (
     <div className="flex-1 flex flex-col bg-background min-h-screen pb-24">
-      <div className="px-6 pt-2">
+      <div className="px-4 sm:px-6 pt-2">
         <Header title="Exercise Library" onBack={onBack} />
       </div>
 
-      <div className="px-6 mb-4">
+      <div className="px-4 sm:px-6 mb-4">
         <div className="relative">
           <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary" />
           <input
@@ -110,7 +110,7 @@ export function ExerciseLibrary({
         </div>
       </div>
 
-      <div className="px-6 mb-6 flex gap-2 overflow-x-auto pb-2">
+      <div className="px-4 sm:px-6 mb-6 flex gap-2 overflow-x-auto pb-2">
         {filters.map(
           (filter) =>
           <button
@@ -128,14 +128,14 @@ export function ExerciseLibrary({
       </div>
 
       {loading && (
-        <div className="px-6 text-text-secondary text-sm">Loading exercises...</div>
+        <div className="px-4 sm:px-6 text-text-secondary text-sm">Loading exercises...</div>
       )}
 
       {!loading && error && (
-        <div className="px-6 text-red-400 text-sm">{error}</div>
+        <div className="px-4 sm:px-6 text-red-400 text-sm">{error}</div>
       )}
 
-      <div className="px-6 grid grid-cols-2 gap-4">
+      <div className="px-4 sm:px-6 grid grid-cols-2 gap-4">
         {!loading && !error && filteredExercises.map((ex, i) => {
           const likeData = likes[ex.name] || {count: 0, liked: false};
           const totalLikes = Math.max(0, likeData.count);
@@ -176,3 +176,4 @@ export function ExerciseLibrary({
     </div>);
 
 }
+

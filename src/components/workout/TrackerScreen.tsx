@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Header } from '../ui/Header';
-import { Timer, BarChart3, Video } from 'lucide-react';
+import { Play, Square, BarChart3, Video } from 'lucide-react';
 import { api } from '../../services/api';
 
 interface TrackerScreenProps {
@@ -29,6 +29,34 @@ const DEFAULT_SET_TEMPLATE: Array<{ reps: number; weight: number }> = [
 ];
 const REST_WINDOW_MIN_SECONDS = 60;
 const REST_WINDOW_MAX_SECONDS = 120;
+const SEGMENT_MAP: Record<string, [boolean, boolean, boolean, boolean, boolean, boolean, boolean]> = {
+  '0': [true, true, true, true, true, true, false],
+  '1': [false, true, true, false, false, false, false],
+  '2': [true, true, false, true, true, false, true],
+  '3': [true, true, true, true, false, false, true],
+  '4': [false, true, true, false, false, true, true],
+  '5': [true, false, true, true, false, true, true],
+  '6': [true, false, true, true, true, true, true],
+  '7': [true, true, true, false, false, false, false],
+  '8': [true, true, true, true, true, true, true],
+  '9': [true, true, true, true, false, true, true],
+};
+
+function SevenSegmentDigit({ digit }: { digit: string }) {
+  const segments = SEGMENT_MAP[digit] || SEGMENT_MAP['0'];
+
+  return (
+    <div className="seven-seg-digit" aria-hidden="true">
+      <span className={`seg seg-a ${segments[0] ? 'on' : ''}`} />
+      <span className={`seg seg-b ${segments[1] ? 'on' : ''}`} />
+      <span className={`seg seg-c ${segments[2] ? 'on' : ''}`} />
+      <span className={`seg seg-d ${segments[3] ? 'on' : ''}`} />
+      <span className={`seg seg-e ${segments[4] ? 'on' : ''}`} />
+      <span className={`seg seg-f ${segments[5] ? 'on' : ''}`} />
+      <span className={`seg seg-g ${segments[6] ? 'on' : ''}`} />
+    </div>
+  );
+}
 
 const createInitialSets = (plannedSets?: number): SetData[] => {
   const requested = Number(plannedSets);
@@ -62,9 +90,8 @@ export function TrackerScreen({
   });
   const unit: 'kg' | 'lbs' = 'kg';
   const [isRunning, setIsRunning] = useState(false);
-  const [time, setTime] = useState(0);
+  const [setTimerSeconds, setSetTimerSeconds] = useState(0);
   const [swipedIndex, setSwipedIndex] = useState<number | null>(null);
-  const [setStartTime, setSetStartTime] = useState(0);
   const [showAnalytics, setShowAnalytics] = useState(false);
   const [isResting, setIsResting] = useState(false);
   const [restTime, setRestTime] = useState(0);
@@ -88,7 +115,7 @@ export function TrackerScreen({
     let interval: NodeJS.Timeout;
     if (isRunning) {
       interval = setInterval(() => {
-        setTime((prev) => prev + 1);
+        setSetTimerSeconds((prev) => prev + 1);
       }, 1000);
     }
     return () => clearInterval(interval);
@@ -146,7 +173,7 @@ export function TrackerScreen({
 
     const showBrowserNotification = () => {
       try {
-        new Notification('Gorella Rest Timer', {
+        new Notification('RepSet Rest Timer', {
           body: message,
           tag: 'rest-timeout-reminder',
         });
@@ -194,7 +221,7 @@ export function TrackerScreen({
       const firstIncomplete = sets.findIndex(s => !s.completed);
       if (firstIncomplete !== -1) {
         const newSets = [...sets];
-        const setDuration = Math.max(0, time - setStartTime);
+        const setDuration = Math.max(0, setTimerSeconds);
         newSets[firstIncomplete].completed = true;
         newSets[firstIncomplete].duration = setDuration;
         newSets[firstIncomplete].restTime = restTime;
@@ -233,14 +260,18 @@ export function TrackerScreen({
           setIsResting(false);
         }
       }
+      setSetTimerSeconds(0);
+      setIsRunning(false);
+      return;
     } else {
       // Stop rest timer and start set timer
       setIsResting(false);
       setRestReminderText(null);
       restReminderLock.current = false;
-      setSetStartTime(time);
+      setSetTimerSeconds(0);
+      setIsRunning(true);
+      return;
     }
-    setIsRunning(!isRunning);
   };
 
   const formatTime = (seconds: number) => {
@@ -281,22 +312,42 @@ export function TrackerScreen({
   const getTotalRestTime = () => sets.filter(s => s.completed).reduce((acc, set) => acc + (set.restTime || 0), 0);
   const getTotalVolume = () => sets.filter(s => s.completed).reduce((acc, set) => acc + (set.reps * set.weight), 0);
   const getCompletedSets = () => sets.filter(s => s.completed).length;
+  const timerText = formatTime(setTimerSeconds);
+  const [m1, m2, s1, s2] = timerText.replace(':', '').split('');
 
   return (
     <div className="flex-1 flex flex-col h-full bg-background pb-24">
-      <div className="px-6 pt-2">
+      <div className="px-4 sm:px-6 pt-2">
         <Header title="The Tracker" onBack={onBack} />
       </div>
+      <div className="px-4 sm:px-6 -mt-2 mb-2">
+        <div className="w-full flex justify-center">
+          <div className="seven-seg-shell" role="timer" aria-label={`Set timer ${timerText}`}>
+            <div className="seven-seg-group">
+              <SevenSegmentDigit digit={m1} />
+              <SevenSegmentDigit digit={m2} />
+            </div>
+            <div className="seven-seg-colon" aria-hidden="true">
+              <span className="dot" />
+              <span className="dot" />
+            </div>
+            <div className="seven-seg-group">
+              <SevenSegmentDigit digit={s1} />
+              <SevenSegmentDigit digit={s2} />
+            </div>
+          </div>
+        </div>
+      </div>
 
-      <div className="px-6 mt-6">
+      <div className="px-4 sm:px-6 mt-6">
         <h2 className="text-2xl font-bold text-white mb-6 text-center">{exerciseName}</h2>
 
         {showAnalytics ? (
           <div className="space-y-4 mb-8">
             <button onClick={() => setShowAnalytics(false)} className="text-accent text-sm mb-4">
-              ← Back to Tracker
+              {"<- Back to Tracker"}
             </button>
-            <div className="bg-card rounded-xl p-6 border border-white/5">
+            <div className="rounded-xl p-6 border border-white/10 bg-transparent">
               <h3 className="text-lg font-bold text-white mb-4">Workout Analytics</h3>
               <div className="space-y-3">
                 <div className="flex justify-between">
@@ -320,7 +371,7 @@ export function TrackerScreen({
             <div className="space-y-2">
               <h4 className="text-sm font-bold text-text-secondary uppercase tracking-wider">Set Details</h4>
               {sets.filter(s => s.completed).map((set) => (
-                <div key={set.set} className="bg-card rounded-xl p-4 border border-white/5">
+                <div key={set.set} className="rounded-xl p-4 border border-white/10 bg-transparent">
                   <div className="flex justify-between items-center mb-2">
                     <span className="text-white font-semibold">Set {set.set}</span>
                     <span className="text-text-secondary text-sm">{set.reps} reps × {set.weight} {unit}</span>
@@ -338,11 +389,14 @@ export function TrackerScreen({
             <div className="flex justify-around mb-8">
               <button onClick={toggleTimer} className="flex flex-col items-center gap-2">
                 <div className={`w-12 h-12 rounded-full border-2 flex items-center justify-center ${
-                  isRunning ? 'border-red-500 bg-red-500/10' : 'border-white/20'
+                  isRunning ? 'border-red-500 bg-red-500/10' : 'border-green-500 bg-green-500/10'
                 }`}>
-                  <Timer size={20} className={isRunning ? 'text-red-500' : 'text-white'} />
+                  {isRunning ? (
+                    <Square size={18} className="text-red-500" />
+                  ) : (
+                    <Play size={18} className="text-green-500 ml-0.5" />
+                  )}
                 </div>
-                <span className="text-xs text-text-secondary">{formatTime(time)}</span>
               </button>
               <button onClick={onVideoClick} className="flex flex-col items-center gap-2">
                 <div className="w-12 h-12 rounded-full border-2 border-white/20 flex items-center justify-center">
@@ -365,7 +419,7 @@ export function TrackerScreen({
                   ? 'border-red-500/50 bg-red-500/10'
                   : restTime >= REST_WINDOW_MIN_SECONDS
                     ? 'border-green-500/40 bg-green-500/10'
-                    : 'border-white/10 bg-card'
+                    : 'border-white/10 bg-transparent'
               }`}>
                 <div className="flex items-center justify-between text-sm">
                   <span className="text-white font-semibold">Rest Timer: {formatTime(restTime)}</span>
@@ -421,7 +475,7 @@ export function TrackerScreen({
                     swipedIndex === index ? '-translate-x-20' : ''
                   } ${set.completed ? 'opacity-50' : ''}`}>
                     <div className={`rounded-full px-4 py-2 text-center ${
-                      set.completed ? 'bg-green-500/20 border border-green-500' : 'bg-card'
+                      set.completed ? 'bg-green-500/20 border border-green-500' : 'bg-transparent border border-white/20'
                     }`}>
                       <span className={`font-semibold ${
                         set.completed ? 'text-green-500' : 'text-white'
@@ -431,13 +485,13 @@ export function TrackerScreen({
                       type="number"
                       value={set.reps}
                       onChange={(e) => updateSet(index, 'reps', parseInt(e.target.value) || 0)}
-                      className="bg-card rounded-full px-4 py-2 text-center text-white font-semibold border border-white/5 focus:border-accent outline-none"
+                      className="bg-transparent rounded-full px-4 py-2 text-center text-white font-semibold border border-white/20 focus:border-accent outline-none"
                     />
                     <input
                       type="number"
                       value={set.weight}
                       onChange={(e) => updateSet(index, 'weight', parseInt(e.target.value) || 0)}
-                      className="bg-card rounded-full px-4 py-2 text-center text-white font-semibold border border-white/5 focus:border-accent outline-none"
+                      className="bg-transparent rounded-full px-4 py-2 text-center text-white font-semibold border border-white/20 focus:border-accent outline-none"
                     />
                     <div className="relative h-8">
                       <input
@@ -486,7 +540,103 @@ export function TrackerScreen({
           border: 1px solid #666;
           box-shadow: 0 2px 4px rgba(0,0,0,0.3);
         }
+
+        .seven-seg-shell {
+          --seg-on: #ff2136;
+          --seg-off: #3b2a2a;
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          padding: 10px 14px;
+          border-radius: 12px;
+          border: 1px solid rgba(255, 255, 255, 0.1);
+          background: linear-gradient(180deg, #2a1717 0%, #120b0b 100%);
+          box-shadow: inset 0 0 24px rgba(0, 0, 0, 0.65), 0 8px 18px rgba(0, 0, 0, 0.35);
+        }
+
+        .seven-seg-group {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+        }
+
+        .seven-seg-digit {
+          position: relative;
+          width: 34px;
+          height: 58px;
+        }
+
+        .seg {
+          position: absolute;
+          background: var(--seg-off);
+          border-radius: 999px;
+          opacity: 0.32;
+          transition: background 120ms ease, opacity 120ms ease, box-shadow 120ms ease;
+        }
+
+        .seg.on {
+          background: var(--seg-on);
+          opacity: 1;
+          box-shadow: 0 0 6px var(--seg-on), 0 0 12px color-mix(in srgb, var(--seg-on) 85%, transparent), 0 0 20px color-mix(in srgb, var(--seg-on) 45%, transparent);
+        }
+
+        .seg-a,
+        .seg-d,
+        .seg-g {
+          width: 22px;
+          height: 6px;
+          left: 6px;
+        }
+
+        .seg-a { top: 0; }
+        .seg-g { top: 26px; }
+        .seg-d { bottom: 0; }
+
+        .seg-b,
+        .seg-c,
+        .seg-e,
+        .seg-f {
+          width: 6px;
+          height: 22px;
+        }
+
+        .seg-b { right: 0; top: 3px; }
+        .seg-c { right: 0; bottom: 3px; }
+        .seg-f { left: 0; top: 3px; }
+        .seg-e { left: 0; bottom: 3px; }
+
+        .seven-seg-colon {
+          display: flex;
+          flex-direction: column;
+          justify-content: center;
+          gap: 10px;
+          margin: 0 2px;
+        }
+
+        .seven-seg-colon .dot {
+          width: 7px;
+          height: 7px;
+          border-radius: 999px;
+          background: var(--seg-on);
+          box-shadow: 0 0 6px var(--seg-on), 0 0 12px color-mix(in srgb, var(--seg-on) 70%, transparent);
+        }
+
+        [data-theme='light'] .seven-seg-shell {
+          --seg-on: #9FCC2A;
+          --seg-off: #2f3f1f;
+          border-color: rgba(191, 255, 0, 0.35);
+          background: linear-gradient(180deg, #1f2a16 0%, #12190d 100%);
+        }
+
+        [data-theme='light'] .seven-seg-shell .seg.on {
+          box-shadow: 0 0 4px color-mix(in srgb, var(--seg-on) 70%, transparent), 0 0 8px color-mix(in srgb, var(--seg-on) 35%, transparent);
+        }
+
+        [data-theme='light'] .seven-seg-shell .seven-seg-colon .dot {
+          box-shadow: 0 0 4px color-mix(in srgb, var(--seg-on) 65%, transparent), 0 0 7px color-mix(in srgb, var(--seg-on) 30%, transparent);
+        }
       `}</style>
     </div>
   );
 }
+

@@ -33,7 +33,7 @@ export function WorkoutCard({ title, duration, progress, isRestDay = false }: Wo
     >
       <div className="relative w-44 h-44 mb-4">
         <svg className="w-full h-full -rotate-90" viewBox="0 0 176 176">
-          <circle cx="88" cy="88" r={radius} stroke="rgba(255,255,255,0.11)" strokeWidth="8" fill="transparent" />
+          <circle cx="88" cy="88" r={radius} stroke="rgb(var(--color-border) / 0.55)" strokeWidth="8" fill="transparent" />
 
           <motion.circle
             cx="88"

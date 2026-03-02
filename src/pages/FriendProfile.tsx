@@ -163,11 +163,11 @@ export function FriendProfile({ onBack, friend }: FriendProfileProps) {
   };
   return (
     <div className="flex-1 flex flex-col bg-background min-h-screen pb-24">
-      <div className="px-6 pt-2">
+      <div className="px-4 sm:px-6 pt-2">
         <Header title="Friend Profile" onBack={onBack} />
       </div>
 
-      <div className="px-6 flex flex-col items-center mb-8">
+      <div className="px-4 sm:px-6 flex flex-col items-center mb-8">
         <div className="w-24 h-24 rounded-full bg-white/10 flex items-center justify-center text-2xl font-bold text-white mb-4">
           {isUsableProfileImage(friend?.profile_picture) ? (
             <img
@@ -188,7 +188,7 @@ export function FriendProfile({ onBack, friend }: FriendProfileProps) {
         </div>
       </div>
 
-      <div className="px-6 space-y-6">
+      <div className="px-4 sm:px-6 space-y-6">
         <button 
           onClick={() => setShowInvite(true)}
           className="w-full bg-accent text-black font-bold py-3 rounded-xl hover:bg-accent/90 transition-colors">

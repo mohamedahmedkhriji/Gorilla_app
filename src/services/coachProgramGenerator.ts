@@ -77,13 +77,12 @@ export class CoachBasedProgramGenerator {
       fitnessLevel,
       goals,
       availability,
-      injuries = [],
     } = userProfile;
 
     // Determine program structure based on coach documents
-    const schedule = this.createSchedule(fitnessLevel, availability, goals);
+    const schedule = this.createSchedule(fitnessLevel, availability);
     const nutrition = this.calculateNutrition(bodyType, goals);
-    const guidelines = this.getGuidelines(fitnessLevel, bodyType);
+    const guidelines = this.getGuidelines(fitnessLevel);
     const progression = this.getProgressionRules(fitnessLevel);
 
     return {
@@ -96,14 +95,14 @@ export class CoachBasedProgramGenerator {
     };
   }
 
-  private createSchedule(level: string, days: number, goals: string[]): any[] {
+  private createSchedule(level: string, days: number): any[] {
     // Based on Coach 1 & 2 documents
     if (level === 'beginner') {
       return this.beginnerSchedule();
     } else if (level === 'intermediate') {
       return days >= 5 ? this.intermediatePPL() : this.intermediateUpperLower();
     } else {
-      return this.advancedSchedule(goals);
+      return this.advancedSchedule();
     }
   }
 
@@ -234,7 +233,7 @@ export class CoachBasedProgramGenerator {
     ];
   }
 
-  private advancedSchedule(goals: string[]): any[] {
+  private advancedSchedule(): any[] {
     // Advanced programs with periodization
     return this.intermediatePPL(); // Can be expanded
   }
@@ -243,7 +242,7 @@ export class CoachBasedProgramGenerator {
     let baseCalories = 2500;
     let protein = 180;
     let carbs = 250;
-    let fats = 70;
+    const fats = 70;
 
     // Adjust for body type (Coach 2 guidelines)
     if (bodyType === 'ectomorph') {
@@ -272,7 +271,7 @@ export class CoachBasedProgramGenerator {
     };
   }
 
-  private getGuidelines(level: string, bodyType: string): string[] {
+  private getGuidelines(level: string): string[] {
     return [
       'Train with proper form - quality over quantity',
       'Progressive overload: increase weight by 2.5-5% when completing all sets',

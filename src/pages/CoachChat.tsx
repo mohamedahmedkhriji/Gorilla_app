@@ -28,7 +28,7 @@ export function CoachChat({ onBack }: CoachChatProps) {
 
   return (
     <div className="flex-1 flex flex-col bg-background min-h-screen">
-      <div className="px-6 pt-2 border-b border-white/5">
+      <div className="px-4 sm:px-6 pt-2 border-b border-white/5">
         <Header title="Coach Mike" onBack={onBack} />
       </div>
 

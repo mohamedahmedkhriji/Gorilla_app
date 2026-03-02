@@ -3,7 +3,7 @@ import { ProgramGeneratorScreen } from './ProgramGeneratorScreen';
 import { ProgramOverviewScreen } from './ProgramOverviewScreen';
 import { ProgramWorkoutTracker } from './ProgramWorkoutTracker';
 import { ProgramProgressScreen } from './ProgramProgressScreen';
-import { Dumbbell, Calendar, TrendingUp, Plus } from 'lucide-react';
+import { Dumbbell, TrendingUp, Plus } from 'lucide-react';
 
 type Screen = 'hub' | 'generator' | 'overview' | 'tracker' | 'progress';
 

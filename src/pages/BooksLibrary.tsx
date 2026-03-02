@@ -25,11 +25,11 @@ export function BooksLibrary({ onBack }: BooksLibraryProps) {
 
   return (
     <div className="flex-1 flex flex-col bg-background min-h-screen pb-24">
-      <div className="px-6 pt-2">
+      <div className="px-4 sm:px-6 pt-2">
         <Header title="Training Books" onBack={onBack} />
       </div>
 
-      <div className="px-6 space-y-4">
+      <div className="px-4 sm:px-6 space-y-4">
         {books.map((book, i) =>
         <Card key={i} className="p-4 flex gap-4">
             <div className="w-16 aspect-[2/3] bg-white/10 rounded-lg shrink-0" />

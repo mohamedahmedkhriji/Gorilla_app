@@ -1,7 +1,7 @@
 import React, { useRef, useState } from 'react';
 import { Header } from '../ui/Header';
 import { Card } from '../ui/Card';
-import { Play, Pause, AlertTriangle, Info } from 'lucide-react';
+import { Play } from 'lucide-react';
 interface ExerciseVideoScreenProps {
   onBack: () => void;
   exercise?: {
@@ -29,7 +29,7 @@ export function ExerciseVideoScreen({ onBack, exercise }: ExerciseVideoScreenPro
 
   return (
     <div className="flex-1 flex flex-col h-full bg-background overflow-y-auto">
-      <div className="px-6 pt-2">
+      <div className="px-4 sm:px-6 pt-2">
         <Header title="Technique Guide" onBack={onBack} />
       </div>
 
@@ -62,7 +62,7 @@ export function ExerciseVideoScreen({ onBack, exercise }: ExerciseVideoScreenPro
         </div>
       </div>
 
-      <div className="px-6 pb-24 space-y-6">
+      <div className="px-4 sm:px-6 pb-24 space-y-6">
         {/* Target Muscles */}
         <Card>
           <h3 className="text-sm font-bold text-white uppercase tracking-wider mb-2">
@@ -96,3 +96,4 @@ export function ExerciseVideoScreen({ onBack, exercise }: ExerciseVideoScreenPro
     </div>);
 
 }
+

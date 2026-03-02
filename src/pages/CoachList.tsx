@@ -43,11 +43,11 @@ export function CoachList({ onBack, onSelectCoach }: CoachListProps) {
 
   return (
     <div className="flex-1 flex flex-col bg-background min-h-screen pb-24">
-      <div className="px-6 pt-2">
+      <div className="px-4 sm:px-6 pt-2">
         <Header title="Select Coach" onBack={onBack} />
       </div>
 
-      <div className="px-6 py-4 space-y-3">
+      <div className="px-4 sm:px-6 py-4 space-y-3">
         {coaches.map((coach) => (
           <div
             key={coach.id}
@@ -90,3 +90,4 @@ export function CoachList({ onBack, onSelectCoach }: CoachListProps) {
     </div>
   );
 }
+

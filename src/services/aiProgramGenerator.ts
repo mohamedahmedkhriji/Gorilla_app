@@ -119,9 +119,9 @@ Format the response as JSON with this structure:
 
   private fallbackGeneration(userProfile: UserProfile): AIGeneratedProgram {
     // Rule-based fallback when AI is unavailable
-    const { fitnessLevel, availability, goals } = userProfile;
+    const { availability } = userProfile;
 
-    const schedule = this.generateSchedule(availability, fitnessLevel);
+    const schedule = this.generateSchedule(availability);
     const nutrition = this.calculateNutrition(userProfile);
 
     return {
@@ -137,7 +137,7 @@ Format the response as JSON with this structure:
     };
   }
 
-  private generateSchedule(days: number, level: string): any[] {
+  private generateSchedule(days: number): any[] {
     // Simple rule-based schedule generation
     if (days <= 3) {
       return [

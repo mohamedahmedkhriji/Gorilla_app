@@ -16,7 +16,7 @@ export function WorkoutPlanScreen({ onBack, onExerciseClick, workoutDay, complet
   if (loading) {
     return (
       <div className="flex-1 flex flex-col h-full bg-background pb-24">
-        <div className="px-6 pt-2">
+        <div className="px-4 sm:px-6 pt-2">
           <Header title={workoutDay} onBack={onBack} />
         </div>
         <div className="flex-1 flex items-center justify-center">
@@ -36,19 +36,19 @@ export function WorkoutPlanScreen({ onBack, onExerciseClick, workoutDay, complet
 
   return (
     <div className="flex-1 flex flex-col h-full bg-background pb-24">
-      <div className="px-6 pt-2">
+      <div className="px-4 sm:px-6 pt-2">
         <Header title={workoutDay} onBack={onBack} />
       </div>
 
       {exercises.length === 0 ? (
-        <div className="flex-1 flex items-center justify-center px-6">
+        <div className="flex-1 flex items-center justify-center px-4 sm:px-6">
           <div className="text-center">
             <h2 className="text-2xl font-bold text-white mb-2">Rest Day</h2>
             <p className="text-text-secondary">Recovery is just as important as training</p>
           </div>
         </div>
       ) : (
-        <div className="px-6 space-y-3 mt-4">
+        <div className="px-4 sm:px-6 space-y-3 mt-4">
           <h3 className="text-xs font-bold text-text-secondary uppercase tracking-wider mb-2">
             Today's Exercises
           </h3>
@@ -90,3 +90,5 @@ export function WorkoutPlanScreen({ onBack, onExerciseClick, workoutDay, complet
     </div>
   );
 }
+
+

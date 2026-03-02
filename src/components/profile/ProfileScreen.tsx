@@ -4,6 +4,13 @@ import { api } from '../../services/api';
 interface ProfileScreenProps {
   onNavigate: (screen: 'gym' | 'rank' | 'settings' | 'workout' | 'weeklyPlan') => void;
 }
+
+interface CoachOption {
+  id: number;
+  name: string;
+  email?: string;
+}
+
 export function ProfileScreen({ onNavigate }: ProfileScreenProps) {
   const user = JSON.parse(localStorage.getItem('appUser') || localStorage.getItem('user') || '{"name":"Moha"}');
   const userName = user.name || 'Moha';
@@ -18,6 +25,10 @@ export function ProfileScreen({ onNavigate }: ProfileScreenProps) {
   const [planSessionsLeft, setPlanSessionsLeft] = useState(0);
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
   const [isPlanChoiceOpen, setIsPlanChoiceOpen] = useState(false);
+  const [isCoachPickerOpen, setIsCoachPickerOpen] = useState(false);
+  const [coaches, setCoaches] = useState<CoachOption[]>([]);
+  const [coachesLoading, setCoachesLoading] = useState(false);
+  const [coachRequestingId, setCoachRequestingId] = useState<number | null>(null);
   const createdAt = user?.created_at || user?.createdAt;
 
   const isValidImageDataUrl = (value: string | null | undefined) =>
@@ -125,7 +136,55 @@ export function ProfileScreen({ onNavigate }: ProfileScreenProps) {
       onNavigate('weeklyPlan');
       return;
     }
-    alert('With Coach selected');
+    setIsCoachPickerOpen(true);
+  };
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadCoaches = async () => {
+      if (!isCoachPickerOpen) return;
+      try {
+        setCoachesLoading(true);
+        const list = await api.getAllCoaches();
+        if (cancelled) return;
+        const normalized = Array.isArray(list)
+          ? list
+            .map((coach: any) => ({
+              id: Number(coach?.id || 0),
+              name: String(coach?.name || '').trim() || 'Coach',
+              email: coach?.email ? String(coach.email) : undefined,
+            }))
+            .filter((coach: CoachOption) => coach.id > 0)
+          : [];
+        setCoaches(normalized);
+      } catch (error) {
+        console.error('Failed to load coaches:', error);
+        if (!cancelled) setCoaches([]);
+      } finally {
+        if (!cancelled) setCoachesLoading(false);
+      }
+    };
+
+    void loadCoaches();
+    return () => {
+      cancelled = true;
+    };
+  }, [isCoachPickerOpen]);
+
+  const handleSelectCoach = async (coach: CoachOption) => {
+    if (!userId || coachRequestingId) return;
+    try {
+      setCoachRequestingId(coach.id);
+      await api.requestCoachPlanCreation(userId, coach.id);
+      setIsCoachPickerOpen(false);
+      alert(`Request sent to ${coach.name}.`);
+    } catch (error: any) {
+      console.error('Failed to send coach plan request:', error);
+      alert(error?.message || 'Failed to send request to coach.');
+    } finally {
+      setCoachRequestingId(null);
+    }
   };
   
   return (
@@ -271,6 +330,47 @@ export function ProfileScreen({ onNavigate }: ProfileScreenProps) {
             >
               With Coach
             </button>
+          </div>
+        </div>
+      )}
+
+      {isCoachPickerOpen && (
+        <div
+          className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4"
+          onClick={() => setIsCoachPickerOpen(false)}
+        >
+          <div
+            className="w-full max-w-sm bg-card border border-white/10 rounded-2xl p-4 space-y-3 max-h-[80vh] overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="text-white font-semibold text-lg">Choose Coach</h3>
+            <p className="text-sm text-text-secondary">Select a coach to request a personalized plan.</p>
+
+            {coachesLoading && (
+              <div className="text-sm text-text-secondary">Loading coaches...</div>
+            )}
+
+            {!coachesLoading && coaches.length === 0 && (
+              <div className="text-sm text-text-secondary">No coaches available.</div>
+            )}
+
+            {!coachesLoading && coaches.map((coach) => (
+              <button
+                key={coach.id}
+                type="button"
+                disabled={coachRequestingId !== null}
+                onClick={() => void handleSelectCoach(coach)}
+                className="w-full bg-white/5 hover:bg-white/10 transition-colors rounded-xl p-3 text-left text-white border border-white/10 disabled:opacity-50"
+              >
+                <div className="font-medium">
+                  {coach.name}
+                  {coachRequestingId === coach.id ? ' (Sending...)' : ''}
+                </div>
+                {coach.email && (
+                  <div className="text-xs text-text-secondary mt-0.5">{coach.email}</div>
+                )}
+              </button>
+            ))}
           </div>
         </div>
       )}
