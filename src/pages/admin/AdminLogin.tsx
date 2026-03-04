@@ -1,8 +1,9 @@
 ﻿import React, { useEffect, useState } from 'react';
-import { Dumbbell, Eye, EyeOff } from 'lucide-react';
+import { Eye, EyeOff } from 'lucide-react';
 import { CoachDashboard } from './CoachDashboard';
 import { SuperAdminDashboard } from './SuperAdminDashboard';
 import { api } from '../../services/api';
+import { BrandLogo } from '../../components/ui/BrandLogo';
 
 type UserRole = 'coach' | 'gym_owner' | null;
 
@@ -91,10 +92,10 @@ export const AdminLogin: React.FC = () => {
     <div className="min-h-screen bg-[#1A1A1A] text-white flex items-center justify-center p-4">
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
-          <div className="flex items-center justify-center gap-2 mb-4">
-            <Dumbbell size={32} className="text-[#BFFF00]" />
-            <h1 className="text-3xl font-black italic">GORILLA</h1>
+          <div className="mx-auto mb-4 w-16 h-16">
+            <BrandLogo imageClassName="object-contain" />
           </div>
+          <h1 className="text-3xl font-black italic">RepSet</h1>
           <h2 className="text-xl font-semibold">Admin Portal</h2>
           <p className="text-gray-400 text-sm mt-2">Sign in to access your dashboard</p>
         </div>

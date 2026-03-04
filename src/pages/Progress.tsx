@@ -38,7 +38,6 @@ export function Progress() {
       <div className="space-y-6">
         <ProgressDashboard
           onViewReport={() => setView('report')}
-          onWeeklyCheckIn={() => setView('weeklyCheckin')}
         />
 
         <div className="px-4 sm:px-6">

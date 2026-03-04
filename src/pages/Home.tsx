@@ -25,6 +25,46 @@ import { api } from '../services/api';
 interface HomeProps {
   onNavigate: (tab: string) => void;
 }
+
+const readStoredUser = () => {
+  try {
+    return JSON.parse(localStorage.getItem('appUser') || localStorage.getItem('user') || '{"name":"Moha"}');
+  } catch {
+    return { name: 'Moha' };
+  }
+};
+
+const toScopePart = (value: unknown) =>
+  String(value || '')
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9._-]+/g, '_');
+
+const getUserStorageScope = (user: any) => {
+  const userId = Number(user?.id || 0);
+  if (Number.isInteger(userId) && userId > 0) return `id_${userId}`;
+
+  const email = toScopePart(user?.email);
+  if (email) return `email_${email}`;
+
+  const phone = toScopePart(user?.phone);
+  if (phone) return `phone_${phone}`;
+
+  const name = toScopePart(user?.name);
+  if (name) return `name_${name}`;
+
+  return 'guest';
+};
+
+const getWorkoutStorageKeys = (user: any) => {
+  const scope = getUserStorageScope(user);
+  return {
+    workoutDate: `workoutDate:${scope}`,
+    completedExercises: `completedExercises:${scope}`,
+    exerciseSets: `exerciseSets:${scope}`,
+  };
+};
+
 type HomeView =
 'main' |
 'friends' |
@@ -40,6 +80,9 @@ type HomeView =
 'workoutDetail' |
 'nutrition';
 export function Home({ onNavigate }: HomeProps) {
+  const currentUser = readStoredUser();
+  const currentUserId = Number(currentUser?.id || 0);
+
   const [view, setView] = useState<HomeView>('main');
   const [selectedExercise, setSelectedExercise] = useState<{name: string, muscle: string, video: string} | null>(null);
   const [selectedCoach, setSelectedCoach] = useState<{id: number, name: string} | null>(null);
@@ -54,15 +97,13 @@ export function Home({ onNavigate }: HomeProps) {
   const [showShopComingSoon, setShowShopComingSoon] = useState(false);
 
   useEffect(() => {
-    // Get user name from localStorage
-    const user = JSON.parse(localStorage.getItem('appUser') || localStorage.getItem('user') || '{"name":"Moha"}');
-    const userName = user.name || 'Moha';
+    const userName = currentUser.name || 'Moha';
     
     setGreeting(userName);
 
     // Fetch user program
     const fetchProgram = async () => {
-      if (!user.id) {
+      if (!currentUserId) {
         setUserProgram({ workouts: [] });
         setTodayWorkout('Rest Day');
         setTodayWorkoutData(null);
@@ -70,7 +111,7 @@ export function Home({ onNavigate }: HomeProps) {
       }
 
       try {
-        const programData = await api.getUserProgram(user.id);
+        const programData = await api.getUserProgram(currentUserId);
         const weeklyWorkouts = Array.isArray(programData?.currentWeekWorkouts)
           ? programData.currentWeekWorkouts
           : Array.isArray(programData?.workouts)
@@ -101,9 +142,9 @@ export function Home({ onNavigate }: HomeProps) {
     fetchProgram();
 
     const fetchProgramProgress = async () => {
-      if (!user.id) return;
+      if (!currentUserId) return;
       try {
-        const progress = await api.getProgramProgress(user.id);
+        const progress = await api.getProgramProgress(currentUserId);
         setProgramProgress(progress?.summary || null);
       } catch (error) {
         console.error('Failed to fetch program progress:', error);
@@ -167,7 +208,7 @@ export function Home({ onNavigate }: HomeProps) {
       clearInterval(periodicRecoveryRefresh);
       clearInterval(progressRefresh);
     };
-  }, []);
+  }, [currentUser.name, currentUserId]);
 
   useEffect(() => {
     if (!todayWorkoutData || todayWorkout === 'Rest Day') {
@@ -177,28 +218,57 @@ export function Home({ onNavigate }: HomeProps) {
 
     const normalizeExerciseName = (name: string) => String(name || '').trim().toLowerCase();
 
-    const getLocalCompletedExercises = () => {
+    const getLocalWorkoutState = () => {
+      const user = readStoredUser();
+      const storageKeys = getWorkoutStorageKeys(user);
       const today = new Date().toDateString();
-      const savedDate = localStorage.getItem('workoutDate');
-      if (savedDate !== today) return new Set<string>();
-
-      const raw = localStorage.getItem('completedExercises');
-      if (!raw) return new Set<string>();
-
-      try {
-        const parsed = JSON.parse(raw);
-        if (!Array.isArray(parsed)) return new Set<string>();
-        return new Set(parsed.map((name: string) => normalizeExerciseName(name)));
-      } catch {
-        return new Set<string>();
+      const savedDate = localStorage.getItem(storageKeys.workoutDate);
+      if (savedDate !== today) {
+        return {
+          hasTodayState: false,
+          completedExercises: new Set<string>(),
+          exerciseSets: {} as Record<string, any[]>,
+        };
       }
+
+      const raw = localStorage.getItem(storageKeys.completedExercises);
+      let completedExercises = new Set<string>();
+      if (raw) {
+        try {
+          const parsed = JSON.parse(raw);
+          if (Array.isArray(parsed)) {
+            completedExercises = new Set(parsed.map((name: string) => normalizeExerciseName(name)));
+          }
+        } catch {
+          completedExercises = new Set<string>();
+        }
+      }
+
+      let exerciseSets: Record<string, any[]> = {};
+      const rawSets = localStorage.getItem(storageKeys.exerciseSets);
+      if (rawSets) {
+        try {
+          const parsedSets = JSON.parse(rawSets);
+          if (parsedSets && typeof parsedSets === 'object') {
+            exerciseSets = parsedSets;
+          }
+        } catch {
+          exerciseSets = {};
+        }
+      }
+
+      return {
+        hasTodayState: true,
+        completedExercises,
+        exerciseSets,
+      };
     };
 
     const calculateProgress = async () => {
       const user = JSON.parse(localStorage.getItem('appUser') || localStorage.getItem('user') || '{}');
       const userId = user.id;
 
-      let exercises: Array<{ exerciseName?: string; name?: string }> = [];
+      let exercises: Array<{ exerciseName?: string; name?: string; sets?: number }> = [];
       try {
         exercises = JSON.parse(todayWorkoutData.exercises || '[]');
       } catch {
@@ -210,21 +280,52 @@ export function Home({ onNavigate }: HomeProps) {
         return;
       }
 
-      const plannedNames = Array.from(
-        new Set(
-          exercises
-            .map((ex: any) => normalizeExerciseName(ex.exerciseName || ex.name || ''))
-            .filter(Boolean),
-        ),
-      );
+      const plannedSetTargets = new Map<string, number>();
+      exercises.forEach((ex: any) => {
+        const exerciseName = normalizeExerciseName(ex.exerciseName || ex.name || '');
+        if (!exerciseName) return;
+        const plannedSets = Math.max(1, Number(ex.sets || 0) || 1);
+        plannedSetTargets.set(exerciseName, (plannedSetTargets.get(exerciseName) || 0) + plannedSets);
+      });
 
-      if (!plannedNames.length) {
+      if (!plannedSetTargets.size) {
         setWorkoutProgress(0);
         return;
       }
 
-      const localCompleted = getLocalCompletedExercises();
-      let completedCount = plannedNames.filter((name) => localCompleted.has(name)).length;
+      const localState = getLocalWorkoutState();
+      const localSetsByName = new Map<string, any[]>();
+      Object.entries(localState.exerciseSets || {}).forEach(([exerciseName, setRows]) => {
+        const normalizedName = normalizeExerciseName(exerciseName);
+        if (!normalizedName) return;
+        localSetsByName.set(normalizedName, Array.isArray(setRows) ? setRows : []);
+      });
+
+      const shouldUseLocalSetProgress =
+        localState.hasTodayState
+        && (localSetsByName.size > 0 || localState.completedExercises.size > 0);
+
+      if (shouldUseLocalSetProgress) {
+        let totalTargetSets = 0;
+        let totalCompletedSets = 0;
+
+        plannedSetTargets.forEach((plannedSets, exerciseName) => {
+          const localSets = localSetsByName.get(exerciseName) || [];
+          const completedSets = localSets.filter((s: any) => !!s?.completed).length;
+          const targetSets = Math.max(plannedSets, localSets.length);
+          totalTargetSets += targetSets;
+          totalCompletedSets += Math.min(completedSets, targetSets);
+        });
+
+        const progress = totalTargetSets > 0
+          ? Math.min(100, Math.round((totalCompletedSets / totalTargetSets) * 100))
+          : 0;
+        setWorkoutProgress(progress);
+        return;
+      }
+
+      const plannedNames = Array.from(plannedSetTargets.keys());
+      let completedCount = plannedNames.filter((name) => localState.completedExercises.has(name)).length;
 
       if (!userId) {
         setWorkoutProgress(Math.min(100, Math.round((completedCount / plannedNames.length) * 100)));
@@ -253,7 +354,7 @@ export function Home({ onNavigate }: HomeProps) {
     calculateProgress();
     const interval = setInterval(calculateProgress, 1000);
     return () => clearInterval(interval);
-  }, [todayWorkoutData, todayWorkout]);
+  }, [todayWorkoutData, todayWorkout, currentUserId]);
   if (view === 'nutrition') {
     return <MyNutrition onBack={() => setView('main')} />;
   }

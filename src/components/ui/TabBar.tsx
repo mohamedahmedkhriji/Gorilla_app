@@ -1,6 +1,7 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Home, Activity, Dumbbell, User, BookOpenText } from 'lucide-react';
 import { motion } from 'framer-motion';
+import { AppLanguage, getActiveLanguage, getStoredLanguage } from '../../services/language';
 
 interface TabBarProps {
   activeTab: string;
@@ -8,31 +9,64 @@ interface TabBarProps {
 }
 
 export function TabBar({ activeTab, onTabChange }: TabBarProps) {
+  const [language, setLanguage] = useState<AppLanguage>('en');
+
+  useEffect(() => {
+    setLanguage(getActiveLanguage());
+
+    const handleLanguageChanged = () => {
+      setLanguage(getStoredLanguage());
+    };
+
+    window.addEventListener('app-language-changed', handleLanguageChanged);
+    window.addEventListener('storage', handleLanguageChanged);
+    return () => {
+      window.removeEventListener('app-language-changed', handleLanguageChanged);
+      window.removeEventListener('storage', handleLanguageChanged);
+    };
+  }, []);
+
+  const labels = language === 'fr'
+    ? {
+      home: 'Accueil',
+      workout: 'Entrainement',
+      blogs: 'Blogs',
+      progress: 'Progres',
+      profile: 'Profil',
+    }
+    : {
+      home: 'Home',
+      workout: 'Workout',
+      blogs: 'Blogs',
+      progress: 'Progress',
+      profile: 'Profile',
+    };
+
   const tabs = [
     {
       id: 'home',
       icon: Home,
-      label: 'Home',
+      label: labels.home,
     },
     {
       id: 'workout',
       icon: Dumbbell,
-      label: 'Workout',
+      label: labels.workout,
     },
     {
       id: 'blogs',
       icon: BookOpenText,
-      label: 'Blogs',
+      label: labels.blogs,
     },
     {
       id: 'progress',
       icon: Activity,
-      label: 'Progress',
+      label: labels.progress,
     },
     {
       id: 'profile',
       icon: User,
-      label: 'Profile',
+      label: labels.profile,
     },
   ];
 
@@ -81,3 +115,4 @@ export function TabBar({ activeTab, onTabChange }: TabBarProps) {
     </div>
   );
 }
+

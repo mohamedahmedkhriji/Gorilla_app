@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState, useId } from 'react';
+import React, { useEffect, useMemo, useState, useId, useCallback } from 'react';
 import { Card } from '../ui/Card';
 import { api } from '../../services/api';
 
@@ -23,36 +23,58 @@ export function StrengthChart() {
   const [loading, setLoading] = useState(true);
   const gradientId = useId().replace(/:/g, '');
 
-  useEffect(() => {
+  const getUserId = () => {
     const localUserId = Number(localStorage.getItem('appUserId') || localStorage.getItem('userId') || 0);
     const user = JSON.parse(localStorage.getItem('appUser') || localStorage.getItem('user') || '{}');
     const parsedUserId = Number(user?.id || 0);
-    const userId = localUserId || parsedUserId;
+    return localUserId || parsedUserId;
+  };
+
+  const fetchStrength = useCallback(async () => {
+    const userId = getUserId();
 
     if (!userId) {
       setLoading(false);
       return;
     }
 
-    const fetchStrength = async () => {
-      try {
-        const response = await api.getStrengthProgress(userId, 8);
-        setData(response);
-      } catch (error) {
-        console.error('Failed to load strength chart:', error);
-      } finally {
-        setLoading(false);
-      }
+    try {
+      const response = await api.getStrengthProgress(userId, 8);
+      setData(response);
+    } catch (error) {
+      console.error('Failed to load strength chart:', error);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void fetchStrength();
+
+    const handleRefresh = () => {
+      setLoading(true);
+      void fetchStrength();
     };
 
-    fetchStrength();
-  }, []);
+    window.addEventListener('gamification-updated', handleRefresh);
+    window.addEventListener('recovery-updated', handleRefresh);
+
+    const intervalId = window.setInterval(() => {
+      void fetchStrength();
+    }, 30000);
+
+    return () => {
+      window.removeEventListener('gamification-updated', handleRefresh);
+      window.removeEventListener('recovery-updated', handleRefresh);
+      window.clearInterval(intervalId);
+    };
+  }, [fetchStrength]);
 
   const points = useMemo(() => data?.weeks || [], [data?.weeks]);
   const values = useMemo(() => points.map((p) => Number(p.avgE1RM || 0)), [points]);
 
   const chart = useMemo(() => {
-    if (!values.length) return { linePath: '', areaPath: '', firstLabel: 'Week 1', midLabel: 'Week 4', lastLabel: 'Week 8' };
+    if (!values.length) return { linePath: '', areaPath: '', firstLabel: '-', midLabel: '-', lastLabel: '-' };
 
     const minValue = Math.min(...values);
     const maxValue = Math.max(...values);
@@ -90,8 +112,9 @@ export function StrengthChart() {
     };
   }, [points, values]);
 
+  const hasStrengthData = points.length > 1;
   const pct = Number(data?.summary?.percentChange || 0);
-  const pctText = `${pct >= 0 ? '+' : ''}${pct}%`;
+  const pctText = hasStrengthData ? `${pct >= 0 ? '+' : ''}${pct}%` : '--';
 
   return (
     <Card className="p-6">

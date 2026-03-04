@@ -25,10 +25,11 @@ interface LeaderboardApiRow {
 }
 
 const getLevelFromPoints = (points: number) => {
-  if (points >= 5000) return 5;
-  if (points >= 2500) return 4;
-  if (points >= 1200) return 3;
-  if (points >= 500) return 2;
+  if (points >= 2200) return 6;
+  if (points >= 1400) return 5;
+  if (points >= 800) return 4;
+  if (points >= 400) return 3;
+  if (points >= 150) return 2;
   return 1;
 };
 

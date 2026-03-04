@@ -5,6 +5,7 @@ import { RankingsRewardsScreen } from '../components/profile/RankingsRewardsScre
 import { SettingsScreen } from '../components/profile/SettingsScreen';
 import { CurrentWeekPlanScreen } from '../components/profile/CurrentWeekPlanScreen';
 import { CustomPlanBuilderScreen } from '../components/profile/CustomPlanBuilderScreen';
+import { MyPostsScreen } from '../components/profile/MyPostsScreen';
 import { NotificationsScreen } from '../components/notifications/NotificationsScreen';
 import { api } from '../services/api';
 import { Bell } from 'lucide-react';
@@ -13,7 +14,7 @@ interface ProfileProps {
 }
 export function Profile({ onNavigateTab }: ProfileProps) {
   const [view, setView] = useState<
-    'main' | 'gym' | 'rank' | 'settings' | 'notifications' | 'weeklyPlan' | 'customPlanBuilder'>(
+    'main' | 'gym' | 'rank' | 'settings' | 'notifications' | 'weeklyPlan' | 'customPlanBuilder' | 'posts'>(
     'main');
   const [unreadCount, setUnreadCount] = useState(0);
 
@@ -53,7 +54,7 @@ export function Profile({ onNavigateTab }: ProfileProps) {
     };
   }, [userId, view]);
 
-  const handleNavigate = (screen: 'gym' | 'rank' | 'settings' | 'workout' | 'weeklyPlan' | 'customPlanBuilder') => {
+  const handleNavigate = (screen: 'gym' | 'rank' | 'settings' | 'workout' | 'weeklyPlan' | 'customPlanBuilder' | 'posts') => {
     if (screen === 'workout') {
       onNavigateTab?.('workout');
       return;
@@ -64,6 +65,10 @@ export function Profile({ onNavigateTab }: ProfileProps) {
     }
     if (screen === 'customPlanBuilder') {
       setView('customPlanBuilder');
+      return;
+    }
+    if (screen === 'posts') {
+      setView('posts');
       return;
     }
     setView(screen);
@@ -98,6 +103,8 @@ export function Profile({ onNavigateTab }: ProfileProps) {
       onSaved={() => onNavigateTab?.('workout')}
     />
   );
+  if (view === 'posts')
+  return <MyPostsScreen onBack={() => setView('main')} />;
   return (
     <div className="relative">
       {/* Notification Bell Overlay */}

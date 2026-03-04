@@ -5,6 +5,7 @@ import { ClientsListScreen, type ClientRank, type CoachPanelClient } from '../..
 import { TodaysActivity } from '../../components/admin/TodaysActivity';
 import { Notifications } from '../../components/admin/Notifications';
 import { AddUser } from '../../components/admin/AddUser';
+import { BrandLogo } from '../../components/ui/BrandLogo';
 import { api } from '../../services/api';
 import { socketService } from '../../services/socket';
 
@@ -390,7 +391,7 @@ export const CoachDashboard: React.FC<CoachDashboardProps> = ({ onLogout }) => {
           const rawMessages = coachId ? await api.getMessages(userId, coachId) : [];
           const messages = Array.isArray(rawMessages) ? rawMessages : [];
           const lastMsg = messages[messages.length - 1];
-          const unreadCount = messages.filter((message: any) => message.sender_type === 'user' && !Boolean(message.read)).length;
+          const unreadCount = messages.filter((message: any) => message.sender_type === 'user' && !message.read).length;
           const lastMessageAt = lastMsg?.created_at ? new Date(lastMsg.created_at).getTime() : 0;
           const safeName = String(user.name || `User ${userId}`).trim() || `User ${userId}`;
 
@@ -881,9 +882,14 @@ export const CoachDashboard: React.FC<CoachDashboardProps> = ({ onLogout }) => {
       <div className={`min-h-screen ${isLightTheme ? 'bg-[#F5F7FB] text-[#111827]' : 'bg-[#1A1A1A] text-white'}`}>
       <div className={`border-b p-3 md:p-4 ${isLightTheme ? 'border-slate-200' : 'border-gray-800'}`}>
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-          <div>
-            <h1 className="text-xl md:text-2xl font-bold">{coachName}</h1>
-            <p className={`text-xs md:text-sm ${isLightTheme ? 'text-slate-600' : 'text-gray-400'}`}>Manage your clients</p>
+          <div className="flex items-center gap-3">
+            <div className="w-11 h-11 md:w-12 md:h-12">
+              <BrandLogo imageClassName="object-contain" />
+            </div>
+            <div>
+              <h1 className="text-xl md:text-2xl font-bold">{coachName}</h1>
+              <p className={`text-xs md:text-sm ${isLightTheme ? 'text-slate-600' : 'text-gray-400'}`}>Manage your clients</p>
+            </div>
           </div>
           <div className="flex items-center gap-3">
             <input

@@ -237,9 +237,12 @@ export function TrackerScreen({
               reps: newSets[firstIncomplete].reps,
               weight: newSets[firstIncomplete].weight,
               duration: setDuration,
-              restTime: restTime
+              restTime: restTime,
+              completed: true,
             });
             window.dispatchEvent(new CustomEvent('gamification-updated'));
+            localStorage.setItem('recoveryNeedsUpdate', 'true');
+            window.dispatchEvent(new CustomEvent('recovery-updated'));
           } catch (error) {
             console.error('Failed to save workout set:', error);
           }

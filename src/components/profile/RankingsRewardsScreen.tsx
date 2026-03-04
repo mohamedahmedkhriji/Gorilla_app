@@ -18,6 +18,7 @@ type MissionItem = {
   target: number;
   completed: boolean;
   remaining: number;
+  status?: 'active' | 'completed' | 'expired';
   completed_at?: string | null;
 };
 
@@ -31,6 +32,7 @@ type ChallengeItem = {
   target: number;
   completed: boolean;
   remaining: number;
+  status?: 'active' | 'completed' | 'expired';
   completed_at?: string | null;
 };
 
@@ -118,10 +120,10 @@ export function RankingsRewardsScreen({ onBack }: RankingsRewardsScreenProps) {
     };
   }, [userId]);
 
-  const activeMissions = missions.filter((m) => !m.completed).slice(0, 5);
+  const activeMissions = missions.filter((m) => m.status === 'active').slice(0, 5);
   const completedMissions = missions.filter((m) => m.completed);
-  const activeDailyChallenges = dailyChallenges.filter((c) => !c.completed);
-  const activeWeeklyChallenges = weeklyChallenges.filter((c) => !c.completed);
+  const activeDailyChallenges = dailyChallenges.filter((c) => c.status === 'active');
+  const activeWeeklyChallenges = weeklyChallenges.filter((c) => c.status === 'active');
   const completedChallenges = [...dailyChallenges, ...weeklyChallenges].filter((c) => c.completed);
 
   const rankEmoji = rankEmojiByName[summary.rank] || '🏅';

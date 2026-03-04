@@ -37,7 +37,7 @@ export function BodyTypeSelectionScreen({
   {
     id: 'unsure',
     name: 'Not Sure',
-    desc: 'Let GORILLA AI analyze your photos.',
+    desc: 'Let RepSet AI analyze your photos.',
     icon: Zap
   }];
 
@@ -76,7 +76,7 @@ export function BodyTypeSelectionScreen({
       <div className="space-y-2">
         <h2 className="text-2xl font-bold text-white">Body Type</h2>
         <p className="text-text-secondary">
-          This helps GORILLA personalize your training and recovery.
+          This helps RepSet personalize your training and recovery.
         </p>
       </div>
 

@@ -11,7 +11,37 @@ type MuscleRecoveryItem = {
   name: string;
   score: number;
   lastWorkout: string | null;
+  hoursNeeded?: number;
+  hoursElapsed?: number;
+  hoursRemaining?: number;
   overtrainingRisk?: boolean;
+  plannedTodaySetUnits?: number;
+  completedTodaySetUnits?: number;
+  todayPlanCompletionPct?: number;
+  plannedWeekSetUnits?: number;
+  completedWeekSetUnits?: number;
+  weekPlanCompletionPct?: number;
+  completedTodayVolume?: number;
+  completedWeekVolume?: number;
+};
+
+type RecoverySummary = {
+  readyMuscles?: number;
+  almostReadyMuscles?: number;
+  damagedMuscles?: number;
+  planBased?: {
+    hasActiveProgram?: boolean;
+    weekStart?: string;
+    weekEnd?: string;
+    plannedTodaySetUnits?: number;
+    completedTodaySetUnits?: number;
+    plannedWeekSetUnits?: number;
+    completedWeekSetUnits?: number;
+    completedTodayVolume?: number;
+    completedWeekVolume?: number;
+    todayPlanCompletionPct?: number;
+    weekPlanCompletionPct?: number;
+  };
 };
 
 const DEFAULT_MUSCLES: MuscleRecoveryItem[] = [
@@ -28,6 +58,11 @@ const DEFAULT_MUSCLES: MuscleRecoveryItem[] = [
 ];
 
 const mergeRecoveryWithDefaults = (incoming: MuscleRecoveryItem[] = []): MuscleRecoveryItem[] => {
+  const safeNumber = (value: unknown, fallback = 0) => {
+    const n = Number(value);
+    return Number.isFinite(n) ? n : fallback;
+  };
+
   const byName = new Map(
     incoming.map((m) => [String(m.name || m.muscle).toLowerCase(), m]),
   );
@@ -40,6 +75,17 @@ const mergeRecoveryWithDefaults = (incoming: MuscleRecoveryItem[] = []): MuscleR
       ...found,
       score: Number.isFinite(Number(found.score)) ? Math.max(0, Math.min(100, Math.round(Number(found.score)))) : 100,
       lastWorkout: found.lastWorkout ?? null,
+      hoursNeeded: safeNumber(found.hoursNeeded, 0),
+      hoursElapsed: safeNumber(found.hoursElapsed, 0),
+      hoursRemaining: safeNumber(found.hoursRemaining, 0),
+      plannedTodaySetUnits: safeNumber(found.plannedTodaySetUnits, 0),
+      completedTodaySetUnits: safeNumber(found.completedTodaySetUnits, 0),
+      todayPlanCompletionPct: Math.max(0, Math.min(100, Math.round(safeNumber(found.todayPlanCompletionPct, 0)))),
+      plannedWeekSetUnits: safeNumber(found.plannedWeekSetUnits, 0),
+      completedWeekSetUnits: safeNumber(found.completedWeekSetUnits, 0),
+      weekPlanCompletionPct: Math.max(0, Math.min(100, Math.round(safeNumber(found.weekPlanCompletionPct, 0)))),
+      completedTodayVolume: safeNumber(found.completedTodayVolume, 0),
+      completedWeekVolume: safeNumber(found.completedWeekVolume, 0),
     };
   });
 };
@@ -48,13 +94,29 @@ export function MuscleRecoveryScreen({ onBack }: MuscleRecoveryScreenProps) {
   const [muscleRecoveries, setMuscleRecoveries] = useState<MuscleRecoveryItem[]>(DEFAULT_MUSCLES);
   const [showFactors, setShowFactors] = useState(false);
   const [factors, setFactors] = useState({ sleepHours: '7', proteinIntake: 'medium', supplements: 'none', soreness: 3, energy: 3 });
+  const [overallRecovery, setOverallRecovery] = useState(100);
+  const [summary, setSummary] = useState<RecoverySummary>({});
+  const [error, setError] = useState('');
 
   const loadRecovery = async () => {
-    const user = JSON.parse(localStorage.getItem('appUser') || localStorage.getItem('user') || '{}');
-    if (user.id) {
+    try {
+      const user = JSON.parse(localStorage.getItem('appUser') || localStorage.getItem('user') || '{}');
+      if (!user.id) {
+        setMuscleRecoveries(DEFAULT_MUSCLES);
+        setOverallRecovery(100);
+        setSummary({});
+        return;
+      }
+
       const data = await api.getRecoveryStatus(user.id);
       setMuscleRecoveries(mergeRecoveryWithDefaults(Array.isArray(data?.recovery) ? data.recovery : []));
-      if (data.factors) setFactors(prev => ({ ...prev, ...data.factors }));
+      setOverallRecovery(Number.isFinite(Number(data?.overallRecovery)) ? Math.max(0, Math.min(100, Math.round(Number(data.overallRecovery)))) : 100);
+      setSummary((data?.summary && typeof data.summary === 'object') ? data.summary : {});
+      if (data.factors) setFactors((prev) => ({ ...prev, ...data.factors }));
+      setError('');
+    } catch (loadError) {
+      console.error('Failed to load recovery status:', loadError);
+      setError(loadError instanceof Error ? loadError.message : 'Failed to load recovery status');
     }
   };
 
@@ -66,16 +128,34 @@ export function MuscleRecoveryScreen({ onBack }: MuscleRecoveryScreenProps) {
     };
 
     window.addEventListener('recovery-updated', handleRecoveryUpdated);
+
+    const pendingRefreshInterval = window.setInterval(() => {
+      if (localStorage.getItem('recoveryNeedsUpdate') !== 'true') return;
+      localStorage.removeItem('recoveryNeedsUpdate');
+      void loadRecovery();
+    }, 2000);
+
+    const periodicRefreshInterval = window.setInterval(() => {
+      void loadRecovery();
+    }, 30000);
+
     return () => {
       window.removeEventListener('recovery-updated', handleRecoveryUpdated);
+      window.clearInterval(pendingRefreshInterval);
+      window.clearInterval(periodicRefreshInterval);
     };
   }, []);
 
   const handleUpdateFactors = async () => {
-    const user = JSON.parse(localStorage.getItem('appUser') || localStorage.getItem('user') || '{}');
-    await api.updateRecoveryFactors(user.id, factors);
-    await loadRecovery();
-    setShowFactors(false);
+    try {
+      const user = JSON.parse(localStorage.getItem('appUser') || localStorage.getItem('user') || '{}');
+      await api.updateRecoveryFactors(user.id, factors);
+      await loadRecovery();
+      setShowFactors(false);
+    } catch (updateError) {
+      console.error('Failed to update recovery factors:', updateError);
+      setError(updateError instanceof Error ? updateError.message : 'Failed to update recovery factors');
+    }
   };
 
   const getLastTrained = (date: string | null) => {
@@ -93,6 +173,9 @@ export function MuscleRecoveryScreen({ onBack }: MuscleRecoveryScreenProps) {
     if (val >= 50) return 'text-yellow-500 bg-yellow-500/10';
     return 'text-red-500 bg-red-500/10';
   };
+
+  const formatSetUnits = (value: number | undefined) => Number(value || 0).toFixed(1);
+  const formatVolume = (value: number | undefined) => Math.round(Number(value || 0));
 
   const getMuscleImage = (muscleGroup: string) => {
     const imageMap: { [key: string]: string } = {
@@ -112,6 +195,7 @@ export function MuscleRecoveryScreen({ onBack }: MuscleRecoveryScreenProps) {
 
   const readyMuscles = muscleRecoveries.filter(m => m.score >= 90).sort((a, b) => a.score - b.score);
   const otherMuscles = muscleRecoveries.filter(m => m.score < 90).sort((a, b) => a.score - b.score);
+  const planSummary = summary.planBased;
   return (
     <div className="flex-1 flex flex-col h-full bg-background pb-24">
       <div className="px-4 sm:px-6 pt-2">
@@ -198,6 +282,28 @@ export function MuscleRecoveryScreen({ onBack }: MuscleRecoveryScreenProps) {
       )}
 
       <div className="px-4 sm:px-6 space-y-6 mt-4">
+        {error && (
+          <div className="rounded-xl border border-red-400/30 bg-red-500/10 px-3 py-2 text-sm text-red-300">
+            {error}
+          </div>
+        )}
+
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+          <div className="rounded-xl border border-white/10 bg-card px-3 py-2">
+            <p className="text-[10px] uppercase tracking-wider text-text-tertiary">Overall Recovery</p>
+            <p className="text-xl font-semibold text-white mt-1">{overallRecovery}%</p>
+          </div>
+          <div className="rounded-xl border border-white/10 bg-card px-3 py-2">
+            <p className="text-[10px] uppercase tracking-wider text-text-tertiary">Today Plan</p>
+            <p className="text-xl font-semibold text-white mt-1">
+              {Number(planSummary?.todayPlanCompletionPct || 0)}%
+            </p>
+            <p className="text-[11px] text-text-secondary mt-0.5">
+              {formatSetUnits(planSummary?.completedTodaySetUnits)} / {formatSetUnits(planSummary?.plannedTodaySetUnits)} sets
+            </p>
+          </div>
+        </div>
+
         {/* Damaged Muscles Section */}
         {otherMuscles.length > 0 && (
           <div>
@@ -221,6 +327,15 @@ export function MuscleRecoveryScreen({ onBack }: MuscleRecoveryScreenProps) {
                       <h4 className="font-semibold text-white">{m.name}</h4>
                       <p className="text-xs text-text-tertiary mt-0.5">
                         Last trained {getLastTrained(m.lastWorkout)}
+                      </p>
+                      <p className="text-[11px] text-text-secondary mt-1">
+                        Today: {formatSetUnits(m.completedTodaySetUnits)} / {formatSetUnits(m.plannedTodaySetUnits)} sets
+                      </p>
+                      <p className="text-[11px] text-text-secondary">
+                        Week: {formatSetUnits(m.completedWeekSetUnits)} / {formatSetUnits(m.plannedWeekSetUnits)} sets
+                      </p>
+                      <p className="text-[11px] text-text-tertiary">
+                        Remaining: {Math.max(0, Math.round(Number(m.hoursRemaining || 0)))}h | Volume: {formatVolume(m.completedWeekVolume)}
                       </p>
                     </div>
                   </div>
@@ -254,6 +369,15 @@ export function MuscleRecoveryScreen({ onBack }: MuscleRecoveryScreenProps) {
                     </div>
                     <div>
                       <h4 className="font-semibold text-white">{m.name}</h4>
+                      <p className="text-[11px] text-text-secondary mt-1">
+                        Today: {formatSetUnits(m.completedTodaySetUnits)} / {formatSetUnits(m.plannedTodaySetUnits)} sets
+                      </p>
+                      <p className="text-[11px] text-text-secondary">
+                        Week: {formatSetUnits(m.completedWeekSetUnits)} / {formatSetUnits(m.plannedWeekSetUnits)} sets
+                      </p>
+                      <p className="text-[11px] text-text-tertiary">
+                        Remaining: {Math.max(0, Math.round(Number(m.hoursRemaining || 0)))}h | Volume: {formatVolume(m.completedWeekVolume)}
+                      </p>
                     </div>
                   </div>
                   <span className="text-xs font-bold px-3 py-1.5 rounded-full text-green-500 bg-green-500/10">

@@ -102,23 +102,25 @@ export const MISSIONS_BY_LEVEL = {
 
 export const SUBSCRIPTION_POINTS = {
   '1 Month': { monthly: 5, bonus: 0, total: 5 },
-  '3 Months': { monthly: 5, bonus: 20, total: 35 }, // 5*3 + 20
-  '6 Months': { monthly: 5, bonus: 50, total: 80 }, // 5*6 + 50
-  '1 Year': { monthly: 5, bonus: 100, total: 160 }, // 5*12 + 100
+  '3 Months': { monthly: 5, bonus: 20, total: 35 },
+  '6 Months': { monthly: 5, bonus: 50, total: 80 },
+  '1 Year': { monthly: 5, bonus: 100, total: 160 },
 };
 
+// Keep rank tiers consistent with backend (server/routes.js).
 export const RANK_BADGES = {
-  0: { name: '🐵 Chimp', emoji: '🐵', minPoints: 0 },
-  100: { name: '🦍 Gorilla', emoji: '🦍', minPoints: 100 },
-  300: { name: '👑 Silverback', emoji: '👑', minPoints: 300 },
-  600: { name: '💎 Diamond Gorilla', emoji: '💎', minPoints: 600 },
-  1000: { name: '🔥 King Kong', emoji: '🔥', minPoints: 1000 },
+  0: { name: 'Bronze', emoji: 'B', minPoints: 0 },
+  150: { name: 'Silver', emoji: 'S', minPoints: 150 },
+  400: { name: 'Gold', emoji: 'G', minPoints: 400 },
+  800: { name: 'Platinum', emoji: 'P', minPoints: 800 },
+  1400: { name: 'Diamond', emoji: 'D', minPoints: 1400 },
+  2200: { name: 'Elite', emoji: 'E', minPoints: 2200 },
 };
 
 export function getUserRankBadge(points: number) {
   const ranks = Object.entries(RANK_BADGES).reverse();
   for (const [threshold, badge] of ranks) {
-    if (points >= parseInt(threshold)) {
+    if (points >= parseInt(threshold, 10)) {
       return badge;
     }
   }
@@ -127,10 +129,10 @@ export function getUserRankBadge(points: number) {
 
 export function getUserMissions(userLevel: 'beginner' | 'medium' | 'advanced', userStats: any): Mission[] {
   const missions = MISSIONS_BY_LEVEL[userLevel];
-  
-  return missions.map(mission => {
+
+  return missions.map((mission) => {
     let progress = 0;
-    
+
     switch (mission.type) {
       case 'workouts':
         progress = userStats.totalWorkouts || 0;
@@ -147,8 +149,11 @@ export function getUserMissions(userLevel: 'beginner' | 'medium' | 'advanced', u
       case 'consistency':
         progress = userStats.planFollowDays || 0;
         break;
+      default:
+        progress = 0;
+        break;
     }
-    
+
     return {
       ...mission,
       progress,

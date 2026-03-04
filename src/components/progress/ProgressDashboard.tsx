@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Button } from '../ui/Button';
 import { StrengthChart } from './StrengthChart';
 import { Card } from '../ui/Card';
@@ -6,7 +6,6 @@ import { Activity, TrendingUp } from 'lucide-react';
 import { api } from '../../services/api';
 interface ProgressDashboardProps {
   onViewReport: () => void;
-  onWeeklyCheckIn: () => void;
 }
 
 interface MuscleDistributionItem {
@@ -15,84 +14,151 @@ interface MuscleDistributionItem {
   col: string;
 }
 
-export function ProgressDashboard({ onViewReport, onWeeklyCheckIn }: ProgressDashboardProps) {
+export function ProgressDashboard({ onViewReport }: ProgressDashboardProps) {
   const [stats, setStats] = useState({
     totalWorkouts: 0,
     totalVolume: 0,
     consistency: 0,
     currentStreak: 0
   });
+  const [topBadge, setTopBadge] = useState('Top --');
   const [muscleDistribution, setMuscleDistribution] = useState<MuscleDistributionItem[]>([
     { name: 'Chest', val: 0, col: 'bg-blue-500' },
     { name: 'Back', val: 0, col: 'bg-indigo-500' },
     { name: 'Legs', val: 0, col: 'bg-purple-500' },
   ]);
 
-  useEffect(() => {
-    const loadStats = async () => {
-      const workoutHistory = JSON.parse(localStorage.getItem('programHistory') || '[]');
-      const totalWorkouts = workoutHistory.length;
-      const totalVolumeLocal = workoutHistory.reduce((sum: number, w: any) => {
-        return sum + w.exercises.reduce((exSum: number, ex: any) => {
-          return exSum + ex.sets.reduce((setSum: number, s: any) => setSum + (s.weight * s.reps), 0);
-        }, 0);
-      }, 0);
-      let totalVolumeTons = Math.round(totalVolumeLocal / 1000);
+  const getUserId = () => {
+    const localUserId = Number(localStorage.getItem('appUserId') || localStorage.getItem('userId') || 0);
+    const user = JSON.parse(localStorage.getItem('appUser') || localStorage.getItem('user') || '{}');
+    const parsedUserId = Number(user?.id || 0);
+    return localUserId || parsedUserId;
+  };
 
-      const localUserId = Number(localStorage.getItem('appUserId') || localStorage.getItem('userId') || 0);
-      const user = JSON.parse(localStorage.getItem('appUser') || localStorage.getItem('user') || '{}');
-      const parsedUserId = Number(user?.id || 0);
-      const userId = localUserId || parsedUserId;
+  const loadStats = useCallback(async () => {
+    const userId = getUserId();
+    if (!userId) {
+      setTopBadge('Top --');
+      setStats({
+        totalWorkouts: 0,
+        totalVolume: 0,
+        consistency: 0,
+        currentStreak: 0,
+      });
+      setMuscleDistribution([
+        { name: 'Chest', val: 0, col: 'bg-blue-500' },
+        { name: 'Back', val: 0, col: 'bg-indigo-500' },
+        { name: 'Legs', val: 0, col: 'bg-purple-500' },
+      ]);
+      return;
+    }
 
-      let consistency = 0;
-      let currentStreak = 0;
+    let consistency = 0;
+    let currentStreak = 0;
+    let totalVolumeTons = 0;
+    let totalWorkouts = 0;
 
-      if (userId) {
-        try {
-          const progress = await api.getProgramProgress(userId);
-          const weeklyRate = Number(progress?.summary?.weeklyCompletionRate || 0);
-          consistency = Math.max(0, Math.min(100, weeklyRate));
-          currentStreak = Number(progress?.summary?.workoutStreakDays || 0);
-          const volumeLoadLast30Days = Number(progress?.summary?.volumeLoadLast30Days || 0);
-          totalVolumeTons = Math.round((volumeLoadLast30Days / 1000) * 10) / 10;
-        } catch (error) {
-          console.error('Failed to fetch program progress for consistency:', error);
-        }
+    try {
+      const progress = await api.getProgramProgress(userId);
+      const weeklyRate = Number(progress?.summary?.weeklyCompletionRate || 0);
+      consistency = Math.max(0, Math.min(100, weeklyRate));
+      currentStreak = Number(progress?.summary?.workoutStreakDays || 0);
+      totalWorkouts = Number(progress?.summary?.completedWorkouts || 0);
+      const volumeLoadLast30Days = Number(progress?.summary?.volumeLoadLast30Days || 0);
+      totalVolumeTons = Math.round((volumeLoadLast30Days / 1000) * 10) / 10;
+    } catch (error) {
+      console.error('Failed to fetch program progress for consistency:', error);
+    }
 
-        try {
-          const response = await api.getMuscleDistribution(userId, 30);
-          const palette = ['bg-blue-500', 'bg-indigo-500', 'bg-purple-500', 'bg-cyan-500', 'bg-emerald-500'];
-          const top = Array.isArray(response?.distribution) ? response.distribution.slice(0, 3) : [];
-          if (top.length > 0) {
-            setMuscleDistribution(
-              top.map((item: any, index: number) => ({
-                name: String(item.muscle || '-'),
-                val: Math.max(0, Math.min(100, Number(item.percent || 0))),
-                col: palette[index % palette.length],
-              })),
-            );
-          }
-        } catch (error) {
-          console.error('Failed to fetch muscle distribution:', error);
+    try {
+      const leaderboardResponse = await api.getLeaderboard(userId, 'alltime');
+      const leaderboard = Array.isArray(leaderboardResponse?.leaderboard)
+        ? leaderboardResponse.leaderboard
+        : [];
+      const totalUsers = leaderboard.length;
+      const rankIndex = leaderboard.findIndex((item: any) => Number(item?.id || 0) === userId);
+
+      if (rankIndex >= 0 && totalUsers > 0) {
+        const percentile = Math.max(1, Math.round(((rankIndex + 1) / totalUsers) * 100));
+        setTopBadge(`Top ${percentile}%`);
+      } else {
+        setTopBadge('Top --');
+      }
+    } catch (error) {
+      console.error('Failed to fetch leaderboard badge:', error);
+      setTopBadge('Top --');
+    }
+
+    try {
+      const response = await api.getPlanMuscleDistribution(userId);
+      const palette = ['bg-blue-500', 'bg-indigo-500', 'bg-purple-500', 'bg-cyan-500', 'bg-emerald-500'];
+      const top = Array.isArray(response?.distribution) ? response.distribution.slice(0, 3) : [];
+      if (top.length > 0) {
+        setMuscleDistribution(
+          top.map((item: any, index: number) => ({
+            name: String(item.muscle || '-'),
+            val: Math.max(0, Math.min(100, Number(item.percent || 0))),
+            col: palette[index % palette.length],
+          })),
+        );
+      } else {
+        const fallbackResponse = await api.getMuscleDistribution(userId, 30);
+        const fallbackTop = Array.isArray(fallbackResponse?.distribution) ? fallbackResponse.distribution.slice(0, 3) : [];
+        if (fallbackTop.length > 0) {
+          setMuscleDistribution(
+            fallbackTop.map((item: any, index: number) => ({
+              name: String(item.muscle || '-'),
+              val: Math.max(0, Math.min(100, Number(item.percent || 0))),
+              col: palette[index % palette.length],
+            })),
+          );
+        } else {
+          setMuscleDistribution([
+            { name: 'Chest', val: 0, col: 'bg-blue-500' },
+            { name: 'Back', val: 0, col: 'bg-indigo-500' },
+            { name: 'Legs', val: 0, col: 'bg-purple-500' },
+          ]);
         }
       }
+    } catch (error) {
+      console.error('Failed to fetch muscle distribution:', error);
+    }
 
-      setStats({
-        totalWorkouts,
-        totalVolume: totalVolumeTons,
-        consistency,
-        currentStreak
-      });
+    setStats({
+      totalWorkouts,
+      totalVolume: totalVolumeTons,
+      consistency,
+      currentStreak,
+    });
+  }, []);
+
+  useEffect(() => {
+    void loadStats();
+
+    const handleProgressRefresh = () => {
+      void loadStats();
     };
 
-    loadStats();
-  }, []);
+    window.addEventListener('gamification-updated', handleProgressRefresh);
+    window.addEventListener('recovery-updated', handleProgressRefresh);
+
+    const intervalId = window.setInterval(() => {
+      void loadStats();
+    }, 30000);
+
+    return () => {
+      window.removeEventListener('gamification-updated', handleProgressRefresh);
+      window.removeEventListener('recovery-updated', handleProgressRefresh);
+      window.clearInterval(intervalId);
+    };
+  }, [loadStats]);
+
   return (
     <div className="space-y-6 pb-24">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-light text-white">Your Progress</h1>
         <div className="px-3 py-1 rounded-full bg-accent/10 text-accent text-xs font-bold">
-          Top 5%
+          {topBadge}
         </div>
       </div>
 
@@ -114,7 +180,7 @@ export function ProgressDashboard({ onViewReport, onWeeklyCheckIn }: ProgressDas
       </div>
 
       <Card>
-        <h3 className="font-medium text-white mb-4">Muscle Distribution</h3>
+        <h3 className="font-medium text-white mb-4">Muscle Distribution (Plan Target)</h3>
         <div className="space-y-3">
           {muscleDistribution.map((m) =>
           <div key={m.name}>
@@ -135,12 +201,9 @@ export function ProgressDashboard({ onViewReport, onWeeklyCheckIn }: ProgressDas
         </div>
       </Card>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 gap-3">
         <Button variant="secondary" onClick={onViewReport}>
           View Bi-Weekly Report
-        </Button>
-        <Button onClick={onWeeklyCheckIn}>
-          Weekly Check-In
         </Button>
       </div>
     </div>);

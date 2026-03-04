@@ -74,7 +74,7 @@ export const api = {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ userId, ...data })
     });
-    return res.json();
+    return parseApiResponse(res, 'Failed to save onboarding data');
   },
 
   getUserProgram: async (userId: number) => {
@@ -93,7 +93,7 @@ export const api = {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
     });
-    return res.json();
+    return parseApiResponse(res, 'Failed to generate personalized program');
   },
 
   saveCustomProgram: async (userId: number, payload: any = {}) => {
@@ -267,6 +267,23 @@ export const api = {
     return parseApiResponse(res, 'Failed to create blog post');
   },
 
+  updateBlogPost: async (
+    postId: number,
+    input: {
+      userId: number;
+      description?: string;
+      category?: 'Training' | 'Nutrition' | 'Recovery' | 'Mindset';
+      mediaAlt?: string;
+    },
+  ) => {
+    const res = await fetch(`${API_URL}/blogs/${postId}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(input),
+    });
+    return parseApiResponse(res, 'Failed to update blog post');
+  },
+
   deleteBlogPost: async (postId: number, userId: number) => {
     const res = await fetch(`${API_URL}/blogs/${postId}`, {
       method: 'DELETE',
@@ -401,6 +418,20 @@ export const api = {
     return data;
   },
 
+  getPlanMuscleDistribution: async (userId: number) => {
+    const res = await fetch(`${API_URL}/progress/plan-muscle-distribution/${userId}`);
+    const contentType = res.headers.get('content-type') || '';
+    if (!contentType.includes('application/json')) {
+      const text = await res.text();
+      throw new Error(`Plan muscle API returned non-JSON response (status ${res.status}): ${text.slice(0, 120)}`);
+    }
+    const data = await res.json();
+    if (!res.ok) {
+      throw new Error(data?.error || `Plan muscle API request failed (${res.status})`);
+    }
+    return data;
+  },
+
   getBiWeeklyReport: async (userId: number) => {
     const res = await fetch(`${API_URL}/progress/bi-weekly-report/${userId}`);
     const contentType = res.headers.get('content-type') || '';
@@ -431,7 +462,7 @@ export const api = {
 
   getRecoveryStatus: async (userId: number) => {
     const res = await fetch(`${API_URL}/user/${userId}/recovery`);
-    return res.json();
+    return parseApiResponse(res, 'Failed to fetch recovery status');
   },
 
   updateRecoveryFactors: async (userId: number, data: any) => {
@@ -440,14 +471,14 @@ export const api = {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data)
     });
-    return res.json();
+    return parseApiResponse(res, 'Failed to update recovery factors');
   },
 
   recalculateTodayRecovery: async (userId: number) => {
     const res = await fetch(`${API_URL}/user/${userId}/recovery/recalculate-today`, {
       method: 'POST'
     });
-    return res.json();
+    return parseApiResponse(res, 'Failed to recalculate recovery');
   },
 
   getGymMembers: async (userId: number) => {
@@ -592,27 +623,27 @@ export const api = {
 
   getUserMissions: async (userId: number) => {
     const res = await fetch(`${API_URL}/missions/${userId}`);
-    return res.json();
+    return parseApiResponse(res, 'Failed to fetch missions');
   },
 
   getMissionHistory: async (userId: number) => {
     const res = await fetch(`${API_URL}/missions/${userId}/history`);
-    return res.json();
+    return parseApiResponse(res, 'Failed to fetch mission history');
   },
 
   getUserChallenges: async (userId: number) => {
     const res = await fetch(`${API_URL}/challenges/${userId}`);
-    return res.json();
+    return parseApiResponse(res, 'Failed to fetch challenges');
   },
 
   getChallengeHistory: async (userId: number) => {
     const res = await fetch(`${API_URL}/challenges/${userId}/history`);
-    return res.json();
+    return parseApiResponse(res, 'Failed to fetch challenge history');
   },
 
   getGamificationSummary: async (userId: number) => {
     const res = await fetch(`${API_URL}/gamification/${userId}/summary`);
-    return res.json();
+    return parseApiResponse(res, 'Failed to fetch gamification summary');
   },
 
   getLeaderboard: async (userId: number, period: 'monthly' | 'alltime' = 'alltime') => {

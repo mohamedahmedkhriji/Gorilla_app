@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { User, MapPin, Settings, ChevronRight, Camera, Dumbbell } from 'lucide-react';
+import { User, MapPin, Settings, ChevronRight, Camera, Dumbbell, FileText } from 'lucide-react';
 import { api } from '../../services/api';
 interface ProfileScreenProps {
-  onNavigate: (screen: 'gym' | 'rank' | 'settings' | 'workout' | 'weeklyPlan') => void;
+  onNavigate: (screen: 'gym' | 'rank' | 'settings' | 'workout' | 'weeklyPlan' | 'posts') => void;
 }
 
 interface CoachOption {
@@ -252,6 +252,23 @@ export function ProfileScreen({ onNavigate }: ProfileScreenProps) {
       </div>
 
       <div className="space-y-3">
+        <button
+          type="button"
+          onClick={() => onNavigate('posts')}
+          className="w-full bg-card rounded-xl p-4 border border-white/5 flex items-center justify-between hover:bg-white/5 transition-colors"
+        >
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-emerald-500/10 rounded-lg text-emerald-500">
+              <FileText size={20} />
+            </div>
+            <div className="text-left">
+              <div className="font-medium text-white">My Blog Posts</div>
+              <div className="text-xs text-text-secondary">Edit or remove your uploads</div>
+            </div>
+          </div>
+          <ChevronRight size={20} className="text-text-tertiary" />
+        </button>
+
         <button
           type="button"
           onClick={() => setIsPlanChoiceOpen(true)}

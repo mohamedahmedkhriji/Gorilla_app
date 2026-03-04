@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { Card } from '../ui/Card';
 import { TrendingUp, ArrowUp } from 'lucide-react';
 import { api } from '../../services/api';
@@ -11,33 +11,61 @@ interface OverloadRecommendation {
 
 export function OverloadPlanning() {
   const [recommendations, setRecommendations] = useState<OverloadRecommendation[]>([]);
+  const [sourceLabel, setSourceLabel] = useState('Recent performance');
+  const [sourceMode, setSourceMode] = useState<'plan' | 'recent'>('recent');
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
+  const getUserId = () => {
     const user = JSON.parse(localStorage.getItem('appUser') || localStorage.getItem('user') || '{}');
     const localUserId = Number(localStorage.getItem('appUserId') || localStorage.getItem('userId') || 0);
     const parsedUserId = Number(user?.id || 0);
-    const userId = localUserId || parsedUserId;
+    return localUserId || parsedUserId;
+  };
+
+  const loadOverloadPlan = useCallback(async () => {
+    const userId = getUserId();
 
     if (!userId) {
       setLoading(false);
       return;
     }
 
-    const loadOverloadPlan = async () => {
-      try {
-        const data = await api.getOverloadPlan(userId);
-        const list = Array.isArray(data?.recommendations) ? data.recommendations : [];
-        setRecommendations(list.slice(0, 3));
-      } catch (error) {
-        console.error('Failed to load overload plan:', error);
-      } finally {
-        setLoading(false);
-      }
+    try {
+      const data = await api.getOverloadPlan(userId);
+      const list = Array.isArray(data?.recommendations) ? data.recommendations : [];
+      const source = String(data?.meta?.source || '').toLowerCase();
+      const fromPlan = source === 'active_program_plan';
+      setSourceMode(fromPlan ? 'plan' : 'recent');
+      setSourceLabel(fromPlan ? 'Current plan week' : 'Recent performance');
+      setRecommendations(list.slice(0, 3));
+    } catch (error) {
+      console.error('Failed to load overload plan:', error);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void loadOverloadPlan();
+
+    const handleRefresh = () => {
+      setLoading(true);
+      void loadOverloadPlan();
     };
 
-    loadOverloadPlan();
-  }, []);
+    window.addEventListener('gamification-updated', handleRefresh);
+    window.addEventListener('recovery-updated', handleRefresh);
+
+    const intervalId = window.setInterval(() => {
+      void loadOverloadPlan();
+    }, 30000);
+
+    return () => {
+      window.removeEventListener('gamification-updated', handleRefresh);
+      window.removeEventListener('recovery-updated', handleRefresh);
+      window.clearInterval(intervalId);
+    };
+  }, [loadOverloadPlan]);
 
   return (
     <Card className="bg-gradient-to-br from-card to-accent/5 border-accent/20">
@@ -45,6 +73,9 @@ export function OverloadPlanning() {
         <TrendingUp className="text-accent" size={20} />
         <h3 className="font-bold text-white">Next Period Overload</h3>
       </div>
+      <p className="text-[11px] text-text-tertiary -mt-2 mb-3">
+        Source: {sourceLabel}
+      </p>
 
       <div className="space-y-3">
         {!loading && recommendations.length === 0 && (
@@ -69,8 +100,9 @@ export function OverloadPlanning() {
       </div>
 
       <p className="text-xs text-text-secondary mt-4 leading-relaxed">
-        Based on your recent performance, GORILLA recommends these increases to
-        maintain progressive overload.
+        {sourceMode === 'plan'
+          ? 'Recommendations are generated from your active plan week and your latest completed sets.'
+          : 'Based on your recent performance, RepSet recommends these increases to maintain progressive overload.'}
       </p>
     </Card>);
 

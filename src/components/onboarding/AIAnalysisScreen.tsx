@@ -1,5 +1,6 @@
 import React, { useEffect } from 'react';
 import { motion } from 'framer-motion';
+import { api } from '../../services/api';
 interface AIAnalysisScreenProps {
   onComplete: () => void;
   onboardingData?: any;
@@ -7,24 +8,36 @@ interface AIAnalysisScreenProps {
 }
 export function AIAnalysisScreen({ onComplete, onboardingData, userId }: AIAnalysisScreenProps) {
   useEffect(() => {
+    let cancelled = false;
     const saveOnboarding = async () => {
       try {
-        const response = await fetch('http://localhost:5001/api/user/onboarding', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ userId, ...onboardingData })
-        });
-        const data = await response.json();
+        const data = await api.saveOnboarding(Number(userId || 0), onboardingData || {});
         if (data?.assignedProgram) {
           localStorage.setItem('assignedProgramTemplate', JSON.stringify(data.assignedProgram));
         }
-        setTimeout(onComplete, 1000);
+        if (data?.claudePlan) {
+          localStorage.setItem('onboardingCoachPlan', JSON.stringify(data.claudePlan));
+        }
+        if (data?.planSource) {
+          localStorage.setItem('onboardingPlanSource', String(data.planSource));
+        }
+        if (data?.warning) {
+          localStorage.setItem('onboardingPlanWarning', String(data.warning));
+        } else {
+          localStorage.removeItem('onboardingPlanWarning');
+        }
       } catch (error) {
         console.error('Onboarding save error:', error);
-        setTimeout(onComplete, 1000);
+      } finally {
+        setTimeout(() => {
+          if (!cancelled) onComplete();
+        }, 1000);
       }
     };
-    saveOnboarding();
+    void saveOnboarding();
+    return () => {
+      cancelled = true;
+    };
   }, [onComplete, onboardingData, userId]);
   return (
     <div className="flex-1 flex flex-col items-center justify-center space-y-8 text-center">

@@ -6,6 +6,7 @@ import { PartnerGyms } from '../../components/admin/PartnerGyms';
 import { UserGrowthChart } from '../../components/admin/UserGrowthChart';
 import { RevenueBreakdown } from '../../components/admin/RevenueBreakdown';
 import { AllCoaches } from '../../components/admin/AllCoaches';
+import { BrandLogo } from '../../components/ui/BrandLogo';
 
 type Gym = {
   id: string;
@@ -80,9 +81,14 @@ export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({ onLogo
   return (
     <div className="min-h-screen bg-[#1A1A1A] text-white p-3 md:p-6">
       <div className="mb-4 md:mb-6 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-        <div>
-          <h1 className="text-2xl md:text-3xl font-bold">Super Admin Dashboard</h1>
-          <p className="text-gray-400 text-sm">Platform overview and analytics</p>
+        <div className="flex items-center gap-3">
+          <div className="w-11 h-11 md:w-12 md:h-12">
+            <BrandLogo imageClassName="object-contain" />
+          </div>
+          <div>
+            <h1 className="text-2xl md:text-3xl font-bold">Super Admin Dashboard</h1>
+            <p className="text-gray-400 text-sm">Platform overview and analytics</p>
+          </div>
         </div>
         <button
           onClick={() => {

@@ -27,7 +27,7 @@ export function ActiveMissionsCard({ onClick }: ActiveMissionsCardProps) {
         ]);
 
         if (Array.isArray(data)) {
-          setMissions(data.filter(m => !m.completed).slice(0, 5));
+          setMissions(data.filter((m) => m?.status === 'active').slice(0, 5));
         }
 
         const completedMissions = Number(summary?.completedMissions || 0);

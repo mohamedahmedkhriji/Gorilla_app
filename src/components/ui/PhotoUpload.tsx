@@ -8,16 +8,55 @@ export function PhotoUpload({ label, onImageSelect }: PhotoUploadProps) {
   const [preview, setPreview] = React.useState<string | null>(null);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
 
+  const convertToOptimizedDataUrl = React.useCallback(async (file: File) => {
+    const rawDataUrl = await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const result = typeof reader.result === 'string' ? reader.result : '';
+        if (!result) {
+          reject(new Error('Failed to read image'));
+          return;
+        }
+        resolve(result);
+      };
+      reader.onerror = () => reject(new Error('Failed to read image'));
+      reader.readAsDataURL(file);
+    });
+
+    const image = await new Promise<HTMLImageElement>((resolve, reject) => {
+      const img = new Image();
+      img.onload = () => resolve(img);
+      img.onerror = () => reject(new Error('Failed to load image'));
+      img.src = rawDataUrl;
+    });
+
+    const maxEdge = 1280;
+    const scale = Math.min(1, maxEdge / Math.max(image.width, image.height));
+    const targetWidth = Math.max(1, Math.round(image.width * scale));
+    const targetHeight = Math.max(1, Math.round(image.height * scale));
+
+    const canvas = document.createElement('canvas');
+    canvas.width = targetWidth;
+    canvas.height = targetHeight;
+    const context = canvas.getContext('2d');
+    if (!context) return rawDataUrl;
+    context.drawImage(image, 0, 0, targetWidth, targetHeight);
+
+    const optimizedDataUrl = canvas.toDataURL('image/jpeg', 0.82);
+    return optimizedDataUrl || rawDataUrl;
+  }, []);
+
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        const base64 = reader.result as string;
-        setPreview(base64);
-        onImageSelect?.(base64);
-      };
-      reader.readAsDataURL(file);
+      void convertToOptimizedDataUrl(file)
+        .then((dataUrl) => {
+          setPreview(dataUrl);
+          onImageSelect?.(dataUrl);
+        })
+        .catch((error) => {
+          console.error('Failed to process image upload:', error);
+        });
     }
   };
   return (

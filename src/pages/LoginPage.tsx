@@ -47,8 +47,8 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
               Training App
             </div>
 
-            <h1 className="mt-6 text-[2.6rem] leading-[0.95] text-white font-semibold">
-              GORILLA
+            <h1 className="mt-6 text-3xl md:text-[2.6rem] leading-[0.95] text-white font-black italic">
+              RepSet
               <span className="block text-gradient">Performance</span>
             </h1>
 
@@ -73,7 +73,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
           <div className="text-center md:text-left mb-6">
             <div className="flex items-center justify-center md:justify-start gap-2">
               <Dumbbell size={28} className="text-accent" />
-              <h2 className="text-4xl text-white">GORILLA</h2>
+              <h2 className="text-3xl font-black italic text-white">RepSet</h2>
             </div>
             <p className="text-text-secondary mt-2 text-sm">Train smart and stay consistent.</p>
           </div>

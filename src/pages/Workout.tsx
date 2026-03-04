@@ -11,30 +11,100 @@ interface WorkoutProps {
   workoutDay?: string;
 }
 type ViewState = 'overview' | 'plan' | 'tracker' | 'video' | 'live' | 'summary';
+
+const readStoredUser = () => {
+  try {
+    return JSON.parse(localStorage.getItem('appUser') || localStorage.getItem('user') || '{}');
+  } catch {
+    return {};
+  }
+};
+
+const toScopePart = (value: unknown) =>
+  String(value || '')
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9._-]+/g, '_');
+
+const getUserStorageScope = (user: any) => {
+  const userId = Number(user?.id || 0);
+  if (Number.isInteger(userId) && userId > 0) return `id_${userId}`;
+
+  const email = toScopePart(user?.email);
+  if (email) return `email_${email}`;
+
+  const phone = toScopePart(user?.phone);
+  if (phone) return `phone_${phone}`;
+
+  const name = toScopePart(user?.name);
+  if (name) return `name_${name}`;
+
+  return 'guest';
+};
+
+const getWorkoutStorageKeys = (scope: string) => {
+  return {
+    workoutDate: `workoutDate:${scope}`,
+    completedExercises: `completedExercises:${scope}`,
+    exerciseSets: `exerciseSets:${scope}`,
+  };
+};
+
+const loadLocalWorkoutState = (scope: string) => {
+  const keys = getWorkoutStorageKeys(scope);
+  const today = new Date().toDateString();
+  const savedDate = localStorage.getItem(keys.workoutDate);
+
+  if (savedDate !== today) {
+    localStorage.removeItem(keys.completedExercises);
+    localStorage.removeItem(keys.exerciseSets);
+    localStorage.setItem(keys.workoutDate, today);
+    return { completedExercises: [] as string[], exerciseSets: {} as Record<string, any[]> };
+  }
+
+  let completedExercises: string[] = [];
+  let exerciseSets: Record<string, any[]> = {};
+
+  try {
+    const completedRaw = localStorage.getItem(keys.completedExercises);
+    const parsedCompleted = completedRaw ? JSON.parse(completedRaw) : [];
+    completedExercises = Array.isArray(parsedCompleted) ? parsedCompleted : [];
+  } catch {
+    completedExercises = [];
+  }
+
+  try {
+    const setsRaw = localStorage.getItem(keys.exerciseSets);
+    const parsedSets = setsRaw ? JSON.parse(setsRaw) : {};
+    exerciseSets = parsedSets && typeof parsedSets === 'object' ? parsedSets : {};
+  } catch {
+    exerciseSets = {};
+  }
+
+  return { completedExercises, exerciseSets };
+};
+
 export function Workout({ onBack, workoutDay = 'Push Day' }: WorkoutProps) {
+  const currentUser = readStoredUser();
+  const userId = Number(currentUser?.id || 0);
+  const workoutStorageScope = getUserStorageScope(currentUser);
+  const workoutStorageKeys = getWorkoutStorageKeys(workoutStorageScope);
+
   const [view, setView] = useState<ViewState>('plan');
   const [selectedExercise, setSelectedExercise] = useState('Bench Press');
   const [currentWorkoutName, setCurrentWorkoutName] = useState(workoutDay);
   const [todayExercises, setTodayExercises] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [completedExercises, setCompletedExercises] = useState<string[]>(() => {
-    const today = new Date().toDateString();
-    const savedDate = localStorage.getItem('workoutDate');
-    if (savedDate !== today) {
-      localStorage.removeItem('completedExercises');
-      localStorage.removeItem('exerciseSets');
-      localStorage.setItem('workoutDate', today);
-      return [];
-    }
-    const saved = localStorage.getItem('completedExercises');
-    return saved ? JSON.parse(saved) : [];
-  });
-  const [exerciseSets, setExerciseSets] = useState<Record<string, any[]>>(() => {
-    const saved = localStorage.getItem('exerciseSets');
-    return saved ? JSON.parse(saved) : {};
-  });
+  const [completedExercises, setCompletedExercises] = useState<string[]>([]);
+  const [exerciseSets, setExerciseSets] = useState<Record<string, any[]>>({});
 
   const normalizeExerciseName = (name: string) => String(name || '').trim().toLowerCase();
+
+  useEffect(() => {
+    const state = loadLocalWorkoutState(workoutStorageScope);
+    setCompletedExercises(state.completedExercises);
+    setExerciseSets(state.exerciseSets);
+  }, [workoutStorageScope]);
 
   const getPlannedSetsForExercise = (exerciseName: string) => {
     const planned = todayExercises.find(
@@ -47,15 +117,14 @@ export function Workout({ onBack, workoutDay = 'Push Day' }: WorkoutProps) {
   useEffect(() => {
     const fetchTodayWorkout = async () => {
       try {
-        const user = JSON.parse(localStorage.getItem('appUser') || localStorage.getItem('user') || '{}');
-        if (!user?.id) {
+        if (!userId) {
           setTodayExercises([]);
           setCurrentWorkoutName('Rest Day');
           setLoading(false);
           return;
         }
 
-        const program = await api.getUserProgram(user.id);
+        const program = await api.getUserProgram(userId);
         const todayWorkout = program?.todayWorkout || null;
 
         if (!todayWorkout) {
@@ -86,11 +155,11 @@ export function Workout({ onBack, workoutDay = 'Push Day' }: WorkoutProps) {
       }
     };
     fetchTodayWorkout();
-  }, [workoutDay]);
+  }, [workoutDay, userId]);
 
   const updateExerciseSets = (sets: Record<string, any[]>) => {
     setExerciseSets(sets);
-    localStorage.setItem('exerciseSets', JSON.stringify(sets));
+    localStorage.setItem(workoutStorageKeys.exerciseSets, JSON.stringify(sets));
     
     // Mark an exercise completed once all planned sets for that exercise are completed.
     const plannedSetsByExercise = new Map(
@@ -110,7 +179,7 @@ export function Workout({ onBack, workoutDay = 'Push Day' }: WorkoutProps) {
     });
 
     setCompletedExercises(completed);
-    localStorage.setItem('completedExercises', JSON.stringify(completed));
+    localStorage.setItem(workoutStorageKeys.completedExercises, JSON.stringify(completed));
     
     // Trigger immediate recovery refresh when the day is fully completed.
     const plannedExerciseNames = todayExercises.map((ex: any) => normalizeExerciseName(ex.exerciseName));
