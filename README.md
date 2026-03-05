@@ -41,12 +41,16 @@ DB_NAME=gorella_fitness
 DB_PORT=3307
 
 PORT=5001
+CLIENT_URL=http://localhost:5173
+VITE_API_URL=http://localhost:5001/api
 ```
 
 Notes:
 
 - `ANTHROPIC_API_KEY` enables Claude-based onboarding plan generation.
 - `VITE_OPENAI_API_KEY` is used by client-side AI coach utilities.
+- `CLIENT_URL` is the allowed frontend origin for backend CORS.
+- `VITE_API_URL` is the frontend API base URL.
 
 ## Setup
 

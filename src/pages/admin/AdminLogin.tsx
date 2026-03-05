@@ -92,7 +92,7 @@ export const AdminLogin: React.FC = () => {
     <div className="min-h-screen bg-[#1A1A1A] text-white flex items-center justify-center p-4">
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
-          <div className="mx-auto mb-4 w-16 h-16">
+          <div className="mx-auto mb-4 w-24 h-24">
             <BrandLogo imageClassName="object-contain" />
           </div>
           <h1 className="text-3xl font-black italic">RepSet</h1>

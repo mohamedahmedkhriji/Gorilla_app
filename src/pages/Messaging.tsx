@@ -216,9 +216,9 @@ export function Messaging({ onBack, coachId: propCoachId, coachName: propCoachNa
               )}
 
               <div className={`flex flex-col ${isMe ? 'items-end' : 'items-start'}`}>
-                {!isMe && <div className="text-[11px] text-text-tertiary mb-1 ml-1">{senderName}</div>}
+                {!isMe && <div className="text-xs text-text-tertiary mb-1 ml-1">{senderName}</div>}
                 <div
-                  className={`relative min-w-[56px] max-w-[75vw] md:max-w-[70%] px-4 py-2.5 rounded-[20px] shadow-[0_2px_10px_rgba(0,0,0,0.14)] break-words [overflow-wrap:anywhere] ${
+                  className={`relative w-fit min-w-[88px] max-w-[75vw] md:max-w-[70%] px-4 py-2.5 rounded-[20px] shadow-[0_2px_10px_rgba(0,0,0,0.14)] ${
                     isMe
                       ? 'bg-accent text-black rounded-br-[8px]'
                       : isLightTheme
@@ -226,8 +226,8 @@ export function Messaging({ onBack, coachId: propCoachId, coachName: propCoachNa
                         : 'bg-card text-text-primary border border-white/10 rounded-bl-[8px]'
                   }`}
                 >
-                  <div className="text-sm leading-relaxed whitespace-pre-wrap">{msg.message}</div>
-                  <div className={`text-[11px] mt-1 ${isMe ? 'text-black/60' : 'text-text-tertiary'}`}>{time}</div>
+                  <div className="text-base leading-relaxed whitespace-pre-wrap break-words">{msg.message}</div>
+                  <div className={`text-xs mt-1 whitespace-nowrap leading-none ${isMe ? 'text-black/60' : 'text-text-tertiary'}`}>{time}</div>
                   <span
                     className={`absolute bottom-2 w-2.5 h-2.5 rotate-45 ${
                       isMe
@@ -302,10 +302,10 @@ export function Messaging({ onBack, coachId: propCoachId, coachName: propCoachNa
             }}
             placeholder="Type a message..."
             rows={1}
-            className={`flex-1 rounded-2xl px-4 py-3 text-text-primary border focus:outline-none focus:border-accent/50 resize-none min-h-[48px] max-h-32 ${
+            className={`flex-1 rounded-2xl px-4 py-3 border focus:outline-none focus:border-accent/50 resize-none min-h-[48px] max-h-32 ${
               isLightTheme
-                ? 'bg-white border-slate-200 placeholder-slate-400'
-                : 'bg-card border-white/10 placeholder-text-tertiary'
+                ? 'bg-white border-slate-200 placeholder-slate-400 text-slate-900'
+                : 'bg-card border-white/10 placeholder-text-tertiary text-text-primary'
             }`}
           />
           <button

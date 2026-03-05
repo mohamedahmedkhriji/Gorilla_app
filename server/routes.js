@@ -703,7 +703,7 @@ const ensureGamificationInfrastructure = async () => {
   await pool.execute(
     `CREATE TABLE IF NOT EXISTS user_missions (
       id BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
-      user_id INT UNSIGNED NOT NULL,
+      user_id INT NOT NULL,
       mission_id INT UNSIGNED NOT NULL,
       instance_key VARCHAR(30) NOT NULL DEFAULT 'default',
       current_progress INT UNSIGNED NOT NULL DEFAULT 0,
@@ -758,7 +758,7 @@ const ensureGamificationInfrastructure = async () => {
   await pool.execute(
     `CREATE TABLE IF NOT EXISTS user_challenges (
       id BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
-      user_id INT UNSIGNED NOT NULL,
+      user_id INT NOT NULL,
       challenge_template_id INT UNSIGNED NOT NULL,
       instance_key VARCHAR(30) NOT NULL,
       current_progress INT UNSIGNED NOT NULL DEFAULT 0,
@@ -1465,7 +1465,7 @@ const updateUserPointsAndRank = async (userId, metrics) => {
 
   await pool.execute(
     `UPDATE users
-     SET total_points = ?, total_workouts = ?, rank = ?
+     SET total_points = ?, total_workouts = ?, \`rank\` = ?
      WHERE id = ?`,
     [totalPoints, totalWorkouts, rank, userId],
   );
@@ -2124,7 +2124,7 @@ router.get('/users', async (_req, res) => {
     }
 
     const [rows] = await pool.execute(
-      `SELECT id, name, email, role, gym_id, coach_id, age, ${profileImageColumn} AS profile_picture, total_points, total_workouts, rank, onboarding_completed
+      `SELECT id, name, email, role, gym_id, coach_id, age, ${profileImageColumn} AS profile_picture, total_points, total_workouts, \`rank\`, onboarding_completed
        FROM users
        WHERE role = 'user' AND is_active = 1
        ORDER BY created_at DESC`
@@ -3489,7 +3489,7 @@ router.get('/user/:userId/gym-members', async (req, res) => {
     }
 
     const [members] = await pool.execute(
-      `SELECT id, name, gym_id, ${profileImageColumn} AS profile_picture, total_points, total_workouts, rank
+      `SELECT id, name, gym_id, ${profileImageColumn} AS profile_picture, total_points, total_workouts, \`rank\`
        FROM users
        WHERE gym_id = ? AND id <> ? AND role = 'user' AND is_active = 1
        ORDER BY total_points DESC`,
@@ -3818,7 +3818,7 @@ router.get('/user/:userId/program-progress', async (req, res) => {
     );
 
     const [userRows] = await pool.execute(
-      `SELECT total_points, total_workouts, rank
+      `SELECT total_points, total_workouts, \`rank\`
        FROM users
        WHERE id = ?
        LIMIT 1`,
@@ -6376,7 +6376,7 @@ router.post('/blogs', async (req, res) => {
       const boostedRank = getRankFromPoints(boostedPoints);
       await pool.execute(
         `UPDATE users
-         SET total_points = ?, rank = ?
+         SET total_points = ?, \`rank\` = ?
          WHERE id = ?`,
         [boostedPoints, boostedRank, userId],
       );
