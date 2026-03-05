@@ -23,6 +23,13 @@ const socket = io(SOCKET_URL, {
 
 let hasLoggedConnectError = false;
 let pendingJoin: { id: number; type: 'user' | 'coach' } | null = null;
+let pendingDisconnectTimer: ReturnType<typeof setTimeout> | null = null;
+
+const clearPendingDisconnect = () => {
+  if (!pendingDisconnectTimer) return;
+  clearTimeout(pendingDisconnectTimer);
+  pendingDisconnectTimer = null;
+};
 
 socket.on('connect', () => {
   hasLoggedConnectError = false;
@@ -45,12 +52,15 @@ socket.on('connect_error', (error: Error) => {
 export const socketService = {
   connect: (id: number, type: 'user' | 'coach') => {
     if (!id || !type) return;
+    clearPendingDisconnect();
     pendingJoin = { id, type };
-    if (!socket.connected) {
+    if (!socket.connected && !socket.active) {
       socket.connect();
     }
     console.log('Joining room for', type, id);
-    socket.emit('join', { id, type });
+    if (socket.connected) {
+      socket.emit('join', { id, type });
+    }
   },
 
   sendMessage: (senderId: number, senderType: 'user' | 'coach', receiverId: number, receiverType: 'user' | 'coach', message: string) => {
@@ -98,7 +108,11 @@ export const socketService = {
     socket.off('newMessage');
     socket.off('typing');
     socket.off('messageError');
-    pendingJoin = null;
-    socket.disconnect();
+    clearPendingDisconnect();
+    pendingDisconnectTimer = setTimeout(() => {
+      pendingJoin = null;
+      socket.disconnect();
+      pendingDisconnectTimer = null;
+    }, 250);
   }
 };

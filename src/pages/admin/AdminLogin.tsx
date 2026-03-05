@@ -46,7 +46,11 @@ export const AdminLogin: React.FC = () => {
       const result = await api.login(email, password, 'admin');
 
       if (result.error) {
-        setError(result.error);
+        if (String(result.error).toLowerCase().includes('invalid credentials')) {
+          setError('Invalid admin credentials. Use a Coach or Gym Owner account.');
+        } else {
+          setError(result.error);
+        }
         return;
       }
 

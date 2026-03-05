@@ -1021,20 +1021,19 @@ export const CoachDashboard: React.FC<CoachDashboardProps> = ({ onLogout }) => {
                 <div className="flex items-center gap-3">
                   <div className="w-8 h-8 md:w-10 md:h-10 rounded-full bg-[#BFFF00]/20 flex items-center justify-center">
                     {client.profilePicture ? (
-                      <button
-                        type="button"
+                      <div
                         onClick={(e) => {
                           e.stopPropagation();
                           openImagePreview(client.profilePicture || '', `${client.name} profile`);
                         }}
-                        className="w-full h-full rounded-full overflow-hidden"
+                        className="w-full h-full rounded-full overflow-hidden cursor-zoom-in"
                       >
                         <img
                           src={client.profilePicture}
                           alt={`${client.name} profile`}
                           className="w-full h-full rounded-full object-cover"
                         />
-                      </button>
+                      </div>
                     ) : (
                       <span className="font-bold text-xs md:text-sm">{client.avatar}</span>
                     )}
