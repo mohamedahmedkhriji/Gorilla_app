@@ -1,6 +1,15 @@
 import { io } from 'socket.io-client';
 
-const SOCKET_URL = 'http://localhost:5001';
+const DEFAULT_SOCKET_ORIGIN =
+  typeof window !== 'undefined'
+    ? `${window.location.protocol}//${window.location.hostname}:5001`
+    : 'http://localhost:5001';
+
+const SOCKET_URL =
+  import.meta.env.VITE_SOCKET_URL ||
+  (import.meta.env.VITE_API_URL
+    ? import.meta.env.VITE_API_URL.replace(/\/api\/?$/, '')
+    : DEFAULT_SOCKET_ORIGIN);
 
 const socket = io(SOCKET_URL, {
   transports: ['websocket', 'polling'],

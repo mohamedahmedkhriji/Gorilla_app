@@ -1,4 +1,9 @@
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001/api';
+const DEFAULT_API_ORIGIN =
+  typeof window !== 'undefined'
+    ? `${window.location.protocol}//${window.location.hostname}:5001`
+    : 'http://localhost:5001';
+
+const API_URL = import.meta.env.VITE_API_URL || `${DEFAULT_API_ORIGIN}/api`;
 
 const parseApiResponse = async (res: Response, fallbackError = 'Request failed') => {
   const contentType = res.headers.get('content-type') || '';
