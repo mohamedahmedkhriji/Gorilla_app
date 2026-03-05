@@ -1,6 +1,7 @@
 import React, { useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { api } from '../../services/api';
+import { BrandLogo } from '../ui/BrandLogo';
 interface AIAnalysisScreenProps {
   onComplete: () => void;
   onboardingData?: any;
@@ -11,15 +12,28 @@ export function AIAnalysisScreen({ onComplete, onboardingData, userId }: AIAnaly
     let cancelled = false;
     const saveOnboarding = async () => {
       try {
-        const data = await api.saveOnboarding(Number(userId || 0), onboardingData || {});
+        localStorage.removeItem('onboardingCoachPlan');
+        localStorage.removeItem('onboardingPlanSource');
+        localStorage.removeItem('onboardingPlanWarning');
+
+        const data = await api.saveOnboarding(Number(userId || 0), {
+          ...(onboardingData || {}),
+          useClaude: true,
+          disableClaude: false,
+        });
+
         if (data?.assignedProgram) {
           localStorage.setItem('assignedProgramTemplate', JSON.stringify(data.assignedProgram));
         }
         if (data?.claudePlan) {
           localStorage.setItem('onboardingCoachPlan', JSON.stringify(data.claudePlan));
+        } else {
+          localStorage.removeItem('onboardingCoachPlan');
         }
         if (data?.planSource) {
           localStorage.setItem('onboardingPlanSource', String(data.planSource));
+        } else {
+          localStorage.removeItem('onboardingPlanSource');
         }
         if (data?.warning) {
           localStorage.setItem('onboardingPlanWarning', String(data.warning));
@@ -28,6 +42,12 @@ export function AIAnalysisScreen({ onComplete, onboardingData, userId }: AIAnaly
         }
       } catch (error) {
         console.error('Onboarding save error:', error);
+        localStorage.removeItem('onboardingCoachPlan');
+        localStorage.setItem('onboardingPlanSource', 'template');
+        localStorage.setItem(
+          'onboardingPlanWarning',
+          error instanceof Error ? error.message : 'Failed to generate onboarding plan',
+        );
       } finally {
         setTimeout(() => {
           if (!cancelled) onComplete();
@@ -54,15 +74,31 @@ export function AIAnalysisScreen({ onComplete, onboardingData, userId }: AIAnaly
           className="w-32 h-32 rounded-full border-t-2 border-l-2 border-accent" />
 
         <div className="absolute inset-0 flex items-center justify-center">
-          <video
-            autoPlay
-            muted
-            loop
-            playsInline
-            className="w-20 h-20 object-cover rounded-full"
-          >
-            <source src="/body part/loading.mp4" type="video/mp4" />
-          </video>
+          <div className="relative">
+            <video
+              autoPlay
+              muted
+              loop
+              playsInline
+              className="w-20 h-20 object-cover rounded-full border border-white/15"
+            >
+              <source src="/body part/loading.mp4" type="video/mp4" />
+            </video>
+
+            <motion.div
+              animate={{
+                scale: [1, 1.06, 1],
+              }}
+              transition={{
+                duration: 1.4,
+                repeat: Infinity,
+                ease: 'easeInOut',
+              }}
+              className="absolute -bottom-2 -right-2 w-8 h-8 rounded-full bg-black/75 border border-white/20 p-1"
+            >
+              <BrandLogo className="rounded-full" imageClassName="object-cover" />
+            </motion.div>
+          </div>
         </div>
       </div>
 

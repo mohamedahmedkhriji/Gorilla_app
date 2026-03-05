@@ -216,21 +216,73 @@ const normalizeWeeklySchedule = (rawSchedule, daysPerWeek) => {
   return normalized;
 };
 
+const findFirstBalancedJsonObject = (text) => {
+  const source = String(text || '');
+  const start = source.indexOf('{');
+  if (start < 0) return null;
+
+  let depth = 0;
+  let inString = false;
+  let escaped = false;
+
+  for (let i = start; i < source.length; i += 1) {
+    const ch = source[i];
+
+    if (inString) {
+      if (escaped) {
+        escaped = false;
+        continue;
+      }
+      if (ch === '\\') {
+        escaped = true;
+        continue;
+      }
+      if (ch === '"') {
+        inString = false;
+      }
+      continue;
+    }
+
+    if (ch === '"') {
+      inString = true;
+      continue;
+    }
+
+    if (ch === '{') {
+      depth += 1;
+      continue;
+    }
+
+    if (ch === '}') {
+      depth -= 1;
+      if (depth === 0) {
+        return source.slice(start, i + 1);
+      }
+      if (depth < 0) break;
+    }
+  }
+
+  return null;
+};
+
 const extractJsonObject = (text) => {
   const raw = String(text || '').trim();
   if (!raw) throw new Error('Empty Claude response');
 
   const fenced = raw.match(/```json\s*([\s\S]*?)\s*```/i);
   const candidate = fenced?.[1] || raw;
+  const balancedJson = findFirstBalancedJsonObject(candidate);
 
-  const firstBrace = candidate.indexOf('{');
-  const lastBrace = candidate.lastIndexOf('}');
-  if (firstBrace < 0 || lastBrace <= firstBrace) {
-    throw new Error('Claude response did not contain a JSON object');
+  if (!balancedJson) {
+    throw new Error('Claude response JSON was incomplete');
   }
 
-  const jsonString = candidate.slice(firstBrace, lastBrace + 1);
-  return JSON.parse(jsonString);
+  try {
+    return JSON.parse(balancedJson);
+  } catch (error) {
+    const details = error?.message || 'Invalid JSON';
+    throw new Error(`Claude returned invalid JSON: ${details}`);
+  }
 };
 
 const normalizePlan = (rawPlan, profile) => {
@@ -347,6 +399,25 @@ const parseClaudeText = (responsePayload) => {
 
 export const hasAnthropicConfig = () => Boolean(String(process.env.ANTHROPIC_API_KEY || '').trim());
 
+const CLAUDE_MAX_ATTEMPTS = 3;
+const CLAUDE_REQUEST_TIMEOUT_MS = 90_000;
+
+const isRetryableClaudeStatus = (statusCode) => (
+  [408, 409, 429, 500, 502, 503, 504].includes(Number(statusCode))
+);
+
+const isRetryableClaudeParseError = (error) => {
+  const message = String(error?.message || '').toLowerCase();
+  return (
+    error instanceof SyntaxError
+    || message.includes('json')
+    || message.includes('claude response did not contain')
+    || message.includes('empty claude response')
+  );
+};
+
+const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
 export const generateTwoMonthPlanWithClaude = async ({ profile = {}, bodyImages = [] } = {}) => {
   const apiKey = String(process.env.ANTHROPIC_API_KEY || '').trim();
   if (!apiKey) {
@@ -359,67 +430,117 @@ export const generateTwoMonthPlanWithClaude = async ({ profile = {}, bodyImages 
     .filter(Boolean)
     .slice(0, MAX_INCLUDED_IMAGES);
 
-  const content = [
-    {
-      type: 'text',
-      text: buildUserPrompt(profile, preparedImages.length),
-    },
-    ...preparedImages.map((image) => ({
-      type: 'image',
-      source: {
-        type: 'base64',
-        media_type: image.mediaType,
-        data: image.data,
-      },
-    })),
-  ];
+  let lastError = null;
 
-  const requestBody = {
-    model,
-    max_tokens: 4096,
-    temperature: 0.3,
-    system: buildSystemPrompt(),
-    messages: [
+  for (let attempt = 1; attempt <= CLAUDE_MAX_ATTEMPTS; attempt += 1) {
+    const retryInstruction = attempt > 1
+      ? '\n\nIMPORTANT: Return one valid JSON object only. No markdown, no commentary, no partial output.'
+      : '';
+
+    const content = [
       {
-        role: 'user',
-        content,
+        type: 'text',
+        text: `${buildUserPrompt(profile, preparedImages.length)}${retryInstruction}`,
       },
-    ],
-  };
+      ...preparedImages.map((image) => ({
+        type: 'image',
+        source: {
+          type: 'base64',
+          media_type: image.mediaType,
+          data: image.data,
+        },
+      })),
+    ];
 
-  const response = await fetch(ANTHROPIC_API_URL, {
-    method: 'POST',
-    headers: {
-      'content-type': 'application/json',
-      'x-api-key': apiKey,
-      'anthropic-version': '2023-06-01',
-    },
-    body: JSON.stringify(requestBody),
-  });
+    const requestBody = {
+      model,
+      max_tokens: attempt === 1 ? 4096 : 6144,
+      temperature: attempt === 1 ? 0.3 : 0.1,
+      system: buildSystemPrompt(),
+      messages: [
+        {
+          role: 'user',
+          content,
+        },
+      ],
+    };
 
-  const rawBody = await response.text();
-  let parsedResponse = null;
-  try {
-    parsedResponse = rawBody ? JSON.parse(rawBody) : null;
-  } catch {
-    parsedResponse = null;
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), CLAUDE_REQUEST_TIMEOUT_MS);
+
+    let response;
+    let rawBody = '';
+    let parsedResponse = null;
+
+    try {
+      response = await fetch(ANTHROPIC_API_URL, {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          'x-api-key': apiKey,
+          'anthropic-version': '2023-06-01',
+        },
+        body: JSON.stringify(requestBody),
+        signal: controller.signal,
+      });
+
+      rawBody = await response.text();
+      try {
+        parsedResponse = rawBody ? JSON.parse(rawBody) : null;
+      } catch {
+        parsedResponse = null;
+      }
+    } catch (error) {
+      const timedOut = error?.name === 'AbortError';
+      lastError = timedOut
+        ? new Error('Claude API request timed out')
+        : new Error(error?.message || 'Claude API request failed');
+
+      if (attempt < CLAUDE_MAX_ATTEMPTS) {
+        await wait(400 * attempt);
+        continue;
+      }
+      throw lastError;
+    } finally {
+      clearTimeout(timeout);
+    }
+
+    if (!response.ok) {
+      const details = parsedResponse?.error?.message || parsedResponse?.message || rawBody || 'Unknown Claude API error';
+      lastError = new Error(`Claude API request failed (${response.status}): ${details}`);
+
+      if (attempt < CLAUDE_MAX_ATTEMPTS && isRetryableClaudeStatus(response.status)) {
+        await wait(500 * attempt);
+        continue;
+      }
+      throw lastError;
+    }
+
+    try {
+      const rawText = parseClaudeText(parsedResponse);
+      const json = extractJsonObject(rawText);
+      const plan = normalizePlan(json, profile);
+
+      return {
+        plan,
+        rawText,
+        model,
+        usedImages: preparedImages.length,
+      };
+    } catch (error) {
+      lastError = error instanceof Error ? error : new Error(String(error || 'Claude response parsing failed'));
+      const wasTruncated = String(parsedResponse?.stop_reason || '').toLowerCase() === 'max_tokens';
+
+      if (attempt < CLAUDE_MAX_ATTEMPTS && (wasTruncated || isRetryableClaudeParseError(lastError))) {
+        await wait(450 * attempt);
+        continue;
+      }
+
+      throw lastError;
+    }
   }
 
-  if (!response.ok) {
-    const details = parsedResponse?.error?.message || parsedResponse?.message || rawBody || 'Unknown Claude API error';
-    throw new Error(`Claude API request failed (${response.status}): ${details}`);
-  }
-
-  const rawText = parseClaudeText(parsedResponse);
-  const json = extractJsonObject(rawText);
-  const plan = normalizePlan(json, profile);
-
-  return {
-    plan,
-    rawText,
-    model,
-    usedImages: preparedImages.length,
-  };
+  throw lastError || new Error('Claude onboarding generation failed');
 };
 
 export const buildCustomProgramPayloadFromClaudePlan = (plan = {}, options = {}) => {

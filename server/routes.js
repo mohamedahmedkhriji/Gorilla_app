@@ -2297,7 +2297,15 @@ router.post('/user/onboarding', async (req, res) => {
         };
       } catch (claudeError) {
         await conn.query('ROLLBACK TO SAVEPOINT onboarding_claude_plan');
-        warning = claudeError?.message || 'Claude onboarding generation failed';
+        const rawWarning = claudeError?.message || 'Claude onboarding generation failed';
+        if (
+          /unexpected end of json input|invalid json|json was incomplete|did not contain a json object|no text content/i.test(rawWarning)
+        ) {
+          warning = 'Claude returned incomplete JSON. Template generator was used for this run.';
+        } else {
+          warning = rawWarning;
+        }
+        console.warn('[onboarding] Claude generation failed, fallback to template:', rawWarning);
       }
     }
 
