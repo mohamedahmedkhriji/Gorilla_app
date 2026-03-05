@@ -65,6 +65,28 @@ const getWorkoutStorageKeys = (user: any) => {
   };
 };
 
+const getHomeMetricStorageKeys = (user: any) => {
+  const scope = getUserStorageScope(user);
+  return {
+    homeRecovery: `homeRecovery:${scope}`,
+    homeWorkoutProgress: `homeWorkoutProgress:${scope}`,
+  };
+};
+
+const clampPercent = (value: unknown) => Math.max(0, Math.min(100, Math.round(Number(value) || 0)));
+
+const readCachedPercent = (key: string, fallback: number) => {
+  try {
+    const raw = localStorage.getItem(key);
+    if (raw == null) return fallback;
+    const parsed = Number(raw);
+    if (!Number.isFinite(parsed)) return fallback;
+    return clampPercent(parsed);
+  } catch {
+    return fallback;
+  }
+};
+
 const getExerciseName = (exercise: any) =>
   String(exercise?.exerciseName || exercise?.exercise_name || exercise?.name || '').trim();
 
@@ -104,19 +126,40 @@ type HomeView =
 export function Home({ onNavigate }: HomeProps) {
   const currentUser = readStoredUser();
   const currentUserId = Number(currentUser?.id || 0);
+  const workoutStorageKeys = getWorkoutStorageKeys(currentUser);
+  const homeMetricKeys = getHomeMetricStorageKeys(currentUser);
+  const todayKey = new Date().toDateString();
 
   const [view, setView] = useState<HomeView>('main');
   const [selectedExercise, setSelectedExercise] = useState<{name: string, muscle: string, video: string} | null>(null);
   const [selectedCoach, setSelectedCoach] = useState<{id: number, name: string} | null>(null);
   const [selectedFriend, setSelectedFriend] = useState<FriendMember | null>(null);
   const [greeting, setGreeting] = useState('');
-  const [overallRecovery, setOverallRecovery] = useState(100);
+  const [overallRecovery, setOverallRecovery] = useState(
+    () => readCachedPercent(homeMetricKeys.homeRecovery, 100),
+  );
   const [todayWorkout, setTodayWorkout] = useState('Push Day');
   const [userProgram, setUserProgram] = useState<any>(null);
   const [todayWorkoutData, setTodayWorkoutData] = useState<any>(null);
-  const [workoutProgress, setWorkoutProgress] = useState(0);
+  const [workoutProgress, setWorkoutProgress] = useState(() => {
+    const savedDate = localStorage.getItem(workoutStorageKeys.workoutDate);
+    if (savedDate && savedDate !== todayKey) return 0;
+    return readCachedPercent(homeMetricKeys.homeWorkoutProgress, 0);
+  });
   const [programProgress, setProgramProgress] = useState<any>(null);
   const [showShopComingSoon, setShowShopComingSoon] = useState(false);
+
+  const updateRecovery = (value: number) => {
+    const next = clampPercent(value);
+    setOverallRecovery(next);
+    localStorage.setItem(homeMetricKeys.homeRecovery, String(next));
+  };
+
+  const updateWorkoutProgress = (value: number) => {
+    const next = clampPercent(value);
+    setWorkoutProgress(next);
+    localStorage.setItem(homeMetricKeys.homeWorkoutProgress, String(next));
+  };
 
   useEffect(() => {
     const userName = currentUser.name || 'Moha';
@@ -178,24 +221,24 @@ export function Home({ onNavigate }: HomeProps) {
     const fetchRecovery = async () => {
       const user = JSON.parse(localStorage.getItem('appUser') || localStorage.getItem('user') || '{}');
       if (!user.id) {
-        setOverallRecovery(100);
+        updateRecovery(100);
         return;
       }
 
       try {
         const data = await api.getRecoveryStatus(user.id);
         if (typeof data?.overallRecovery === 'number') {
-          setOverallRecovery(Math.round(Math.max(0, Math.min(100, data.overallRecovery))));
+          updateRecovery(data.overallRecovery);
           return;
         }
 
         if (Array.isArray(data?.recovery) && data.recovery.length > 0) {
           const avg = data.recovery.reduce((sum: number, m: any) => sum + (Number(m.score) || 0), 0) / data.recovery.length;
-          setOverallRecovery(Math.round(Math.max(0, Math.min(100, avg))));
+          updateRecovery(avg);
           return;
         }
 
-        setOverallRecovery(100);
+        updateRecovery(100);
       } catch (error) {
         console.error('Failed to fetch recovery status:', error);
       }
@@ -206,6 +249,17 @@ export function Home({ onNavigate }: HomeProps) {
       void fetchRecovery();
     };
     window.addEventListener('recovery-updated', handleRecoveryUpdated);
+
+    const handleWorkoutProgressUpdated = () => {
+      const savedDate = localStorage.getItem(workoutStorageKeys.workoutDate);
+      if (savedDate && savedDate !== todayKey) {
+        updateWorkoutProgress(0);
+        return;
+      }
+      const cachedProgress = readCachedPercent(homeMetricKeys.homeWorkoutProgress, workoutProgress);
+      updateWorkoutProgress(cachedProgress);
+    };
+    window.addEventListener('workout-progress-updated', handleWorkoutProgressUpdated);
 
     // Check for recovery updates every 2 seconds
     const recoveryInterval = setInterval(() => {
@@ -226,6 +280,7 @@ export function Home({ onNavigate }: HomeProps) {
 
     return () => {
       window.removeEventListener('recovery-updated', handleRecoveryUpdated);
+      window.removeEventListener('workout-progress-updated', handleWorkoutProgressUpdated);
       clearInterval(recoveryInterval);
       clearInterval(periodicRecoveryRefresh);
       clearInterval(progressRefresh);
@@ -234,7 +289,7 @@ export function Home({ onNavigate }: HomeProps) {
 
   useEffect(() => {
     if (!todayWorkoutData || todayWorkout === 'Rest Day') {
-      if (todayWorkout === 'Rest Day') setWorkoutProgress(0);
+      if (todayWorkout === 'Rest Day') updateWorkoutProgress(0);
       return;
     }
 
@@ -300,7 +355,7 @@ export function Home({ onNavigate }: HomeProps) {
       }
 
       if (exercises.length === 0) {
-        setWorkoutProgress(0);
+        updateWorkoutProgress(0);
         return;
       }
 
@@ -333,10 +388,10 @@ export function Home({ onNavigate }: HomeProps) {
           const fallbackProgress = totalTargetSets > 0
             ? Math.min(100, Math.round((totalCompletedSets / totalTargetSets) * 100))
             : 0;
-          setWorkoutProgress(fallbackProgress);
+          updateWorkoutProgress(fallbackProgress);
           return;
         }
-        setWorkoutProgress(0);
+        updateWorkoutProgress(0);
         return;
       }
 
@@ -359,7 +414,7 @@ export function Home({ onNavigate }: HomeProps) {
         const progress = totalTargetSets > 0
           ? Math.min(100, Math.round((totalCompletedSets / totalTargetSets) * 100))
           : 0;
-        setWorkoutProgress(progress);
+        updateWorkoutProgress(progress);
         return;
       }
 
@@ -367,7 +422,7 @@ export function Home({ onNavigate }: HomeProps) {
       let completedCount = plannedNames.filter((name) => localState.completedExercises.has(name)).length;
 
       if (!userId) {
-        setWorkoutProgress(Math.min(100, Math.round((completedCount / plannedNames.length) * 100)));
+        updateWorkoutProgress(Math.min(100, Math.round((completedCount / plannedNames.length) * 100)));
         return;
       }
 
@@ -382,11 +437,11 @@ export function Home({ onNavigate }: HomeProps) {
         completedCount = Math.max(completedCount, apiCompletedCount);
 
         const progress = Math.min(100, Math.round((completedCount / plannedNames.length) * 100));
-        setWorkoutProgress(progress);
+        updateWorkoutProgress(progress);
       } catch (error) {
         // If API is unavailable, keep local progress so UI still updates.
         const progress = Math.min(100, Math.round((completedCount / plannedNames.length) * 100));
-        setWorkoutProgress(progress);
+        updateWorkoutProgress(progress);
       }
     };
 

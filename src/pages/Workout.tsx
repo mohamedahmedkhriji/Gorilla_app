@@ -50,6 +50,12 @@ const getWorkoutStorageKeys = (scope: string) => {
   };
 };
 
+const getHomeMetricStorageKeys = (scope: string) => {
+  return {
+    homeWorkoutProgress: `homeWorkoutProgress:${scope}`,
+  };
+};
+
 const loadLocalWorkoutState = (scope: string) => {
   const keys = getWorkoutStorageKeys(scope);
   const today = new Date().toDateString();
@@ -89,6 +95,7 @@ export function Workout({ onBack, workoutDay = 'Push Day' }: WorkoutProps) {
   const userId = Number(currentUser?.id || 0);
   const workoutStorageScope = getUserStorageScope(currentUser);
   const workoutStorageKeys = getWorkoutStorageKeys(workoutStorageScope);
+  const homeMetricStorageKeys = getHomeMetricStorageKeys(workoutStorageScope);
 
   const [view, setView] = useState<ViewState>('plan');
   const [selectedExercise, setSelectedExercise] = useState('Bench Press');
@@ -187,6 +194,38 @@ export function Workout({ onBack, workoutDay = 'Push Day' }: WorkoutProps) {
 
     setCompletedExercises(completed);
     localStorage.setItem(workoutStorageKeys.completedExercises, JSON.stringify(completed));
+
+    const normalizedSetsByExercise = new Map<string, any[]>();
+    Object.entries(sets).forEach(([exerciseName, setRows]) => {
+      const normalizedName = normalizeExerciseName(exerciseName);
+      if (!normalizedName) return;
+      normalizedSetsByExercise.set(normalizedName, Array.isArray(setRows) ? setRows : []);
+    });
+
+    let totalTargetSets = 0;
+    let totalCompletedSets = 0;
+    plannedSetsByExercise.forEach((plannedSetCount, exerciseName) => {
+      const setRows = normalizedSetsByExercise.get(exerciseName) || [];
+      const completedCount = setRows.filter((s: any) => isSetCompleted(s)).length;
+      const targetSetCount = Math.max(plannedSetCount, setRows.length);
+      totalTargetSets += targetSetCount;
+      totalCompletedSets += Math.min(completedCount, targetSetCount);
+    });
+
+    if (!plannedSetsByExercise.size && normalizedSetsByExercise.size > 0) {
+      normalizedSetsByExercise.forEach((setRows) => {
+        const targetSetCount = Math.max(1, setRows.length);
+        const completedCount = setRows.filter((s: any) => isSetCompleted(s)).length;
+        totalTargetSets += targetSetCount;
+        totalCompletedSets += Math.min(completedCount, targetSetCount);
+      });
+    }
+
+    const workoutProgress = totalTargetSets > 0
+      ? Math.min(100, Math.round((totalCompletedSets / totalTargetSets) * 100))
+      : 0;
+    localStorage.setItem(homeMetricStorageKeys.homeWorkoutProgress, String(workoutProgress));
+    window.dispatchEvent(new CustomEvent('workout-progress-updated'));
     
     // Trigger immediate recovery refresh when the day is fully completed.
     const plannedExerciseNames = todayExercises.map((ex: any) => normalizeExerciseName(ex.exerciseName));
