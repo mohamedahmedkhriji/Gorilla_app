@@ -55,18 +55,8 @@ export function RecoveryIndicator({ percentage, onClick }: RecoveryIndicatorProp
       </div>
 
       <div className="h-2 w-full bg-white/10 rounded-full overflow-hidden border border-white/10">
-        <motion.div
-          initial={{
-            width: 0,
-          }}
-          animate={{
-            width: `${safePercentage}%`,
-          }}
-          transition={{
-            duration: 1,
-            delay: 0.35,
-            ease: 'easeOut',
-          }}
+        <div
+          style={{ width: `${safePercentage}%` }}
           className={`h-full rounded-full bg-gradient-to-r ${getBarClass(safePercentage)}`}
         />
       </div>

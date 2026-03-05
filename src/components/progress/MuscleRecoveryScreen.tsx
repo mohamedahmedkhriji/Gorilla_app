@@ -193,8 +193,11 @@ export function MuscleRecoveryScreen({ onBack }: MuscleRecoveryScreenProps) {
     return imageMap[muscleGroup] || '/body part/chest.jpg';
   };
 
-  const readyMuscles = muscleRecoveries.filter(m => m.score >= 90).sort((a, b) => a.score - b.score);
-  const otherMuscles = muscleRecoveries.filter(m => m.score < 90).sort((a, b) => a.score - b.score);
+  const readyMuscles = muscleRecoveries.filter((m) => m.score >= 90).sort((a, b) => a.score - b.score);
+  const almostReadyMuscles = muscleRecoveries
+    .filter((m) => m.score >= 70 && m.score < 90)
+    .sort((a, b) => a.score - b.score);
+  const damagedMuscles = muscleRecoveries.filter((m) => m.score < 70).sort((a, b) => a.score - b.score);
   const planSummary = summary.planBased;
   return (
     <div className="flex-1 flex flex-col h-full bg-background pb-24">
@@ -305,13 +308,56 @@ export function MuscleRecoveryScreen({ onBack }: MuscleRecoveryScreenProps) {
         </div>
 
         {/* Damaged Muscles Section */}
-        {otherMuscles.length > 0 && (
+        {damagedMuscles.length > 0 && (
           <div>
             <h3 className="text-xs font-bold text-text-secondary uppercase tracking-wider mb-3">
               Damaged muscles
             </h3>
             <div className="space-y-2">
-              {otherMuscles.map((m) => (
+              {damagedMuscles.map((m) => (
+                <div
+                  key={m.muscle}
+                  className="bg-card rounded-xl p-4 border border-white/5 flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="w-24 h-24 rounded-full bg-transparent flex items-center justify-center overflow-hidden">
+                      <img
+                        src={getMuscleImage(m.name)}
+                        alt={m.name}
+                        className="w-full h-full object-contain scale-[1.35]"
+                      />
+                    </div>
+                    <div>
+                      <h4 className="font-semibold text-white">{m.name}</h4>
+                      <p className="text-xs text-text-tertiary mt-0.5">
+                        Last trained {getLastTrained(m.lastWorkout)}
+                      </p>
+                      <p className="text-[11px] text-text-secondary mt-1">
+                        Today: {formatSetUnits(m.completedTodaySetUnits)} / {formatSetUnits(m.plannedTodaySetUnits)} sets
+                      </p>
+                      <p className="text-[11px] text-text-secondary">
+                        Week: {formatSetUnits(m.completedWeekSetUnits)} / {formatSetUnits(m.plannedWeekSetUnits)} sets
+                      </p>
+                      <p className="text-[11px] text-text-tertiary">
+                        Remaining: {Math.max(0, Math.round(Number(m.hoursRemaining || 0)))}h | Volume: {formatVolume(m.completedWeekVolume)}
+                      </p>
+                    </div>
+                  </div>
+                  <span className={`text-xs font-bold px-3 py-1.5 rounded-full ${getStatusColor(m.score)}`}>
+                    {m.score}%
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {almostReadyMuscles.length > 0 && (
+          <div>
+            <h3 className="text-xs font-bold text-text-secondary uppercase tracking-wider mb-3">
+              Almost ready
+            </h3>
+            <div className="space-y-2">
+              {almostReadyMuscles.map((m) => (
                 <div
                   key={m.muscle}
                   className="bg-card rounded-xl p-4 border border-white/5 flex items-center justify-between">
