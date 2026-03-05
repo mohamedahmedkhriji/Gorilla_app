@@ -76,6 +76,31 @@ const toNumber = (v, fallback = null) => {
   return Number.isFinite(n) ? n : fallback;
 };
 
+const getOrderedFriendPair = (userIdA, userIdB) => {
+  const a = Number(userIdA || 0);
+  const b = Number(userIdB || 0);
+  if (!a || !b) return null;
+  return a < b ? { userId: a, friendId: b } : { userId: b, friendId: a };
+};
+
+const getFriendPairMapKey = (userIdA, userIdB) => {
+  const pair = getOrderedFriendPair(userIdA, userIdB);
+  if (!pair) return '';
+  return `${pair.userId}:${pair.friendId}`;
+};
+
+const resolveFriendRelationshipStatus = (friendship, currentUserId) => {
+  if (!friendship) return 'none';
+  const rawStatus = String(friendship.status || '').trim().toLowerCase();
+  if (rawStatus === 'accepted') return 'accepted';
+  if (rawStatus === 'pending') {
+    return Number(friendship.initiated_by) === Number(currentUserId)
+      ? 'outgoing_pending'
+      : 'incoming_pending';
+  }
+  return 'none';
+};
+
 const toBooleanFlag = (value, fallback = false) => {
   if (value == null) return fallback;
   const key = String(value).trim().toLowerCase();
@@ -637,6 +662,29 @@ const ensureNotificationSettingsInfrastructure = async () => {
   );
 };
 
+const ensureFriendshipInfrastructure = async () => {
+  await pool.execute(
+    `CREATE TABLE IF NOT EXISTS friendships (
+      id BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
+      user_id INT UNSIGNED NOT NULL,
+      friend_id INT UNSIGNED NOT NULL,
+      status ENUM('pending','accepted','blocked','declined','removed') NOT NULL DEFAULT 'pending',
+      initiated_by INT UNSIGNED NOT NULL,
+      accepted_at DATETIME NULL,
+      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      UNIQUE KEY uk_friendships_pair (user_id, friend_id),
+      KEY idx_friendships_user_status (user_id, status),
+      KEY idx_friendships_friend_status (friend_id, status),
+      KEY idx_friendships_initiated_by (initiated_by),
+      CONSTRAINT fk_friendships_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE ON UPDATE CASCADE,
+      CONSTRAINT fk_friendships_friend FOREIGN KEY (friend_id) REFERENCES users(id) ON DELETE CASCADE ON UPDATE CASCADE,
+      CONSTRAINT fk_friendships_initiated_by FOREIGN KEY (initiated_by) REFERENCES users(id) ON DELETE CASCADE ON UPDATE CASCADE,
+      CONSTRAINT chk_friendships_not_self CHECK (user_id <> friend_id)
+    ) ENGINE=InnoDB`,
+  );
+};
+
 const ensureProgramChangeRequestInfrastructure = async () => {
   await pool.execute(
     `CREATE TABLE IF NOT EXISTS program_change_requests (
@@ -709,6 +757,17 @@ const ensureProgramChangeRequestInfrastructureOnce = async () => {
     });
   }
   return programChangeRequestInfrastructurePromise;
+};
+
+let friendshipInfrastructurePromise;
+const ensureFriendshipInfrastructureOnce = async () => {
+  if (!friendshipInfrastructurePromise) {
+    friendshipInfrastructurePromise = ensureFriendshipInfrastructure().catch((error) => {
+      friendshipInfrastructurePromise = null;
+      throw error;
+    });
+  }
+  return friendshipInfrastructurePromise;
 };
 
 const ensureGamificationInfrastructure = async () => {
@@ -3535,13 +3594,19 @@ router.get('/leaderboard/:userId', async (req, res) => {
 
 router.get('/user/:userId/gym-members', async (req, res) => {
   try {
-    const { userId } = req.params;
+    await ensureFriendshipInfrastructureOnce();
+
+    const userId = toNumber(req.params.userId);
+    if (!userId || userId <= 0) {
+      return res.status(400).json({ error: 'Invalid userId' });
+    }
+
     const profileImageColumn = await getProfileImageColumn();
     if (!profileImageColumn) {
       return res.status(500).json({ error: 'No profile image column found on users table' });
     }
 
-    const [userRows] = await pool.execute('SELECT gym_id FROM users WHERE id = ?', [userId]);
+    const [userRows] = await pool.execute('SELECT id, gym_id FROM users WHERE id = ?', [userId]);
     const user = userRows[0];
     if (!user || !user.gym_id) {
       return res.json({ members: [] });
@@ -3555,7 +3620,42 @@ router.get('/user/:userId/gym-members', async (req, res) => {
       [user.gym_id, userId]
     );
 
-    return res.json({ members });
+    const memberIds = members
+      .map((row) => Number(row.id || 0))
+      .filter((id) => Number.isInteger(id) && id > 0);
+
+    const friendshipByPair = new Map();
+    if (memberIds.length > 0) {
+      const placeholders = memberIds.map(() => '?').join(', ');
+      const [friendships] = await pool.execute(
+        `SELECT id, user_id, friend_id, status, initiated_by, accepted_at
+         FROM friendships
+         WHERE (user_id = ? AND friend_id IN (${placeholders}))
+            OR (friend_id = ? AND user_id IN (${placeholders}))`,
+        [userId, ...memberIds, userId, ...memberIds],
+      );
+
+      friendships.forEach((row) => {
+        const key = getFriendPairMapKey(row.user_id, row.friend_id);
+        if (!key) return;
+        friendshipByPair.set(key, row);
+      });
+    }
+
+    const enrichedMembers = members.map((member) => {
+      const key = getFriendPairMapKey(userId, member.id);
+      const friendship = key ? friendshipByPair.get(key) : null;
+      const friendStatus = resolveFriendRelationshipStatus(friendship, userId);
+
+      return {
+        ...member,
+        friend_status: friendStatus,
+        friendship_id: friendship ? Number(friendship.id || 0) : null,
+        can_view_profile: friendStatus === 'accepted',
+      };
+    });
+
+    return res.json({ members: enrichedMembers });
   } catch (error) {
     return res.status(500).json({ error: error.message });
   }
@@ -3629,12 +3729,265 @@ router.get('/user/:userId/recent-activity', async (req, res) => {
   }
 });
 
+router.post('/friends/request', async (req, res) => {
+  let conn;
+  try {
+    await ensureFriendshipInfrastructureOnce();
+
+    const fromUserId = toNumber(req.body?.fromUserId);
+    const toUserId = toNumber(req.body?.toUserId);
+    if (!fromUserId || fromUserId <= 0 || !toUserId || toUserId <= 0 || fromUserId === toUserId) {
+      return res.status(400).json({ error: 'Valid fromUserId and toUserId are required' });
+    }
+
+    const orderedPair = getOrderedFriendPair(fromUserId, toUserId);
+    if (!orderedPair) {
+      return res.status(400).json({ error: 'Invalid friend pair' });
+    }
+
+    conn = await pool.getConnection();
+    await conn.beginTransaction();
+
+    const [userRows] = await conn.execute(
+      `SELECT id, name, gym_id, role, is_active
+       FROM users
+       WHERE id IN (?, ?)`,
+      [fromUserId, toUserId],
+    );
+    if (userRows.length !== 2) {
+      await conn.rollback();
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    const sender = userRows.find((row) => Number(row.id) === Number(fromUserId));
+    const target = userRows.find((row) => Number(row.id) === Number(toUserId));
+    if (!sender || !target) {
+      await conn.rollback();
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    if (Number(sender.gym_id || 0) <= 0 || Number(sender.gym_id || 0) !== Number(target.gym_id || 0)) {
+      await conn.rollback();
+      return res.status(403).json({ error: 'Friend requests are only allowed between members of the same gym' });
+    }
+
+    if (String(sender.role || '').toLowerCase() !== 'user' || String(target.role || '').toLowerCase() !== 'user') {
+      await conn.rollback();
+      return res.status(403).json({ error: 'Friend requests are available for users only' });
+    }
+
+    if (!Number(sender.is_active) || !Number(target.is_active)) {
+      await conn.rollback();
+      return res.status(403).json({ error: 'One of the users is not active' });
+    }
+
+    const [existingRows] = await conn.execute(
+      `SELECT id, status, initiated_by
+       FROM friendships
+       WHERE user_id = ? AND friend_id = ?
+       LIMIT 1`,
+      [orderedPair.userId, orderedPair.friendId],
+    );
+
+    const senderName = String(sender.name || 'Someone').trim() || 'Someone';
+    let friendshipId = 0;
+    let createdOrReopened = false;
+
+    if (existingRows.length) {
+      const existing = existingRows[0];
+      friendshipId = Number(existing.id || 0);
+      const currentStatus = String(existing.status || '').trim().toLowerCase();
+      const initiatedBy = Number(existing.initiated_by || 0);
+
+      if (currentStatus === 'accepted') {
+        await conn.rollback();
+        return res.status(409).json({
+          error: 'You are already friends',
+          code: 'ALREADY_FRIENDS',
+          friendshipId,
+          status: 'accepted',
+        });
+      }
+
+      if (currentStatus === 'pending') {
+        if (initiatedBy === fromUserId) {
+          await conn.commit();
+          return res.json({
+            success: true,
+            friendshipId,
+            status: 'outgoing_pending',
+            alreadyPending: true,
+          });
+        }
+
+        await conn.rollback();
+        return res.status(409).json({
+          error: 'This user already invited you. Accept or decline their request first.',
+          code: 'INCOMING_REQUEST_EXISTS',
+          friendshipId,
+          status: 'incoming_pending',
+        });
+      }
+
+      await conn.execute(
+        `UPDATE friendships
+         SET status = 'pending', initiated_by = ?, accepted_at = NULL
+         WHERE id = ?`,
+        [fromUserId, friendshipId],
+      );
+      createdOrReopened = true;
+    } else {
+      const [insertResult] = await conn.execute(
+        `INSERT INTO friendships (user_id, friend_id, status, initiated_by, accepted_at)
+         VALUES (?, ?, 'pending', ?, NULL)`,
+        [orderedPair.userId, orderedPair.friendId, fromUserId],
+      );
+      friendshipId = Number(insertResult.insertId || 0);
+      createdOrReopened = true;
+    }
+
+    if (createdOrReopened && friendshipId > 0) {
+      await conn.execute(
+        `INSERT INTO notifications (user_id, type, title, message, data)
+         VALUES (?, 'friend_request', 'Friend Request', ?, JSON_OBJECT('friendshipId', ?, 'fromUserId', ?, 'requestType', 'friendship'))`,
+        [toUserId, `${senderName} sent you a friend request`, friendshipId, fromUserId],
+      );
+    }
+
+    await conn.commit();
+    return res.json({
+      success: true,
+      friendshipId,
+      status: 'outgoing_pending',
+    });
+  } catch (error) {
+    if (conn) await conn.rollback();
+    return res.status(500).json({ error: error.message });
+  } finally {
+    if (conn) conn.release();
+  }
+});
+
+router.post('/friends/respond', async (req, res) => {
+  let conn;
+  try {
+    await ensureFriendshipInfrastructureOnce();
+
+    const userId = toNumber(req.body?.userId);
+    const friendshipId = toNumber(req.body?.friendshipId);
+    const action = String(req.body?.action || '').trim().toLowerCase();
+    if (!userId || userId <= 0 || !friendshipId || friendshipId <= 0) {
+      return res.status(400).json({ error: 'Valid userId and friendshipId are required' });
+    }
+    if (!['accept', 'decline'].includes(action)) {
+      return res.status(400).json({ error: "Action must be 'accept' or 'decline'" });
+    }
+
+    conn = await pool.getConnection();
+    await conn.beginTransaction();
+
+    const [friendshipRows] = await conn.execute(
+      `SELECT id, user_id, friend_id, status, initiated_by
+       FROM friendships
+       WHERE id = ?
+       LIMIT 1`,
+      [friendshipId],
+    );
+    if (!friendshipRows.length) {
+      await conn.rollback();
+      return res.status(404).json({ error: 'Friend request not found' });
+    }
+
+    const friendship = friendshipRows[0];
+    const userA = Number(friendship.user_id || 0);
+    const userB = Number(friendship.friend_id || 0);
+    const initiatedBy = Number(friendship.initiated_by || 0);
+    const currentStatus = String(friendship.status || '').trim().toLowerCase();
+
+    if (userId !== userA && userId !== userB) {
+      await conn.rollback();
+      return res.status(403).json({ error: 'You do not have permission to respond to this friend request' });
+    }
+    if (userId === initiatedBy) {
+      await conn.rollback();
+      return res.status(403).json({ error: 'Request sender cannot respond to their own friend request' });
+    }
+    if (currentStatus !== 'pending') {
+      await conn.rollback();
+      return res.status(409).json({ error: 'Friend request is no longer pending', status: currentStatus });
+    }
+
+    const nextStatus = action === 'accept' ? 'accepted' : 'declined';
+    if (nextStatus === 'accepted') {
+      await conn.execute(
+        `UPDATE friendships
+         SET status = 'accepted', accepted_at = NOW()
+         WHERE id = ?`,
+        [friendshipId],
+      );
+    } else {
+      await conn.execute(
+        `UPDATE friendships
+         SET status = 'declined', accepted_at = NULL
+         WHERE id = ?`,
+        [friendshipId],
+      );
+    }
+
+    const requestSenderId = initiatedBy;
+    const [actorRows] = await conn.execute(
+      `SELECT id, name FROM users WHERE id IN (?, ?)`,
+      [userId, requestSenderId],
+    );
+    const actor = actorRows.find((row) => Number(row.id || 0) === userId);
+    const actorName = String(actor?.name || 'Someone').trim() || 'Someone';
+
+    if (nextStatus === 'accepted') {
+      await conn.execute(
+        `INSERT INTO notifications (user_id, type, title, message, data)
+         VALUES (?, 'friend_accept', 'Friend Request Accepted', ?, JSON_OBJECT('friendshipId', ?, 'byUserId', ?, 'requestType', 'friendship'))`,
+        [requestSenderId, `${actorName} accepted your friend request`, friendshipId, userId],
+      );
+    }
+
+    await conn.commit();
+    return res.json({ success: true, friendshipId, status: nextStatus });
+  } catch (error) {
+    if (conn) await conn.rollback();
+    return res.status(500).json({ error: error.message });
+  } finally {
+    if (conn) conn.release();
+  }
+});
+
 router.post('/invitations/send', async (req, res) => {
   try {
-    const { fromUserId, toUserId, date, time } = req.body;
+    await ensureFriendshipInfrastructureOnce();
 
-    if (!fromUserId || !toUserId || !date || !time) {
+    const fromUserId = toNumber(req.body?.fromUserId);
+    const toUserId = toNumber(req.body?.toUserId);
+    const date = String(req.body?.date || '').trim();
+    const time = String(req.body?.time || '').trim();
+
+    if (!fromUserId || !toUserId || !date || !time || fromUserId === toUserId) {
       return res.status(400).json({ error: 'fromUserId, toUserId, date and time are required' });
+    }
+
+    const orderedPair = getOrderedFriendPair(fromUserId, toUserId);
+    if (!orderedPair) {
+      return res.status(400).json({ error: 'Invalid friend pair' });
+    }
+
+    const [friendshipRows] = await pool.execute(
+      `SELECT status
+       FROM friendships
+       WHERE user_id = ? AND friend_id = ?
+       LIMIT 1`,
+      [orderedPair.userId, orderedPair.friendId],
+    );
+    const friendshipStatus = String(friendshipRows[0]?.status || '').trim().toLowerCase();
+    if (friendshipStatus !== 'accepted') {
+      return res.status(403).json({ error: 'Session invitations are available only between accepted friends' });
     }
 
     const [result] = await pool.execute(

@@ -488,7 +488,29 @@ export const api = {
 
   getGymMembers: async (userId: number) => {
     const res = await fetch(`${API_URL}/user/${userId}/gym-members`);
-    return res.json();
+    return parseApiResponse(res, 'Failed to fetch gym members');
+  },
+
+  sendFriendRequest: async (fromUserId: number, toUserId: number) => {
+    const res = await fetch(`${API_URL}/friends/request`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ fromUserId, toUserId }),
+    });
+    return parseApiResponse(res, 'Failed to send friend request');
+  },
+
+  respondToFriendRequest: async (
+    userId: number,
+    friendshipId: number,
+    action: 'accept' | 'decline',
+  ) => {
+    const res = await fetch(`${API_URL}/friends/respond`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId, friendshipId, action }),
+    });
+    return parseApiResponse(res, 'Failed to respond to friend request');
   },
 
   getRecentWorkoutActivity: async (userId: number) => {
@@ -502,7 +524,7 @@ export const api = {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ fromUserId, toUserId, date, time })
     });
-    return res.json();
+    return parseApiResponse(res, 'Failed to send invitation');
   },
 
   getNotifications: async (userId: number) => {

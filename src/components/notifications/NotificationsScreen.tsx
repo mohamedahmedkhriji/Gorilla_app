@@ -14,18 +14,42 @@ interface AppNotification {
   title: string;
   message: string;
   created_at: string;
+  data?: unknown;
   unread?: boolean;
 }
 
 const iconByType: Record<string, { icon: React.ComponentType<{ size?: number; className?: string }>; color: string; bg: string }> = {
   message: { icon: MessageSquare, color: 'text-blue-500', bg: 'bg-blue-500/10' },
   friend_request: { icon: Dumbbell, color: 'text-accent', bg: 'bg-accent/10' },
+  friend_accept: { icon: Trophy, color: 'text-green-500', bg: 'bg-green-500/10' },
   plan_review_request: { icon: Bell, color: 'text-yellow-500', bg: 'bg-yellow-500/10' },
   plan_coach_request_sent: { icon: Bell, color: 'text-yellow-500', bg: 'bg-yellow-500/10' },
   plan_created_by_coach: { icon: Trophy, color: 'text-green-500', bg: 'bg-green-500/10' },
   plan_review_approved: { icon: Trophy, color: 'text-green-500', bg: 'bg-green-500/10' },
   plan_review_rejected: { icon: Gift, color: 'text-red-500', bg: 'bg-red-500/10' },
 };
+
+const toPositiveInt = (value: unknown) => {
+  const parsed = Number(value);
+  if (!Number.isInteger(parsed) || parsed <= 0) return null;
+  return parsed;
+};
+
+const parseNotificationData = (rawValue: unknown): Record<string, unknown> => {
+  if (!rawValue) return {};
+  if (typeof rawValue === 'object') return rawValue as Record<string, unknown>;
+  if (typeof rawValue !== 'string') return {};
+  try {
+    const parsed = JSON.parse(rawValue);
+    if (parsed && typeof parsed === 'object') return parsed as Record<string, unknown>;
+    return {};
+  } catch {
+    return {};
+  }
+};
+
+const getErrorMessage = (error: unknown, fallback: string) =>
+  error instanceof Error ? error.message : fallback;
 
 const formatTimeAgo = (value: string) => {
   const ts = new Date(value).getTime();
@@ -47,10 +71,15 @@ export function NotificationsScreen({ onBack }: NotificationsScreenProps) {
   const [showClearConfirm, setShowClearConfirm] = useState(false);
   const [error, setError] = useState('');
   const [items, setItems] = useState<AppNotification[]>([]);
+  const [actioningNotificationId, setActioningNotificationId] = useState<number | null>(null);
 
   const userId = useMemo(() => {
-    const user = JSON.parse(localStorage.getItem('appUser') || localStorage.getItem('user') || '{}');
-    return Number(localStorage.getItem('appUserId') || localStorage.getItem('userId') || user?.id || 0);
+    try {
+      const user = JSON.parse(localStorage.getItem('appUser') || localStorage.getItem('user') || '{}');
+      return Number(localStorage.getItem('appUserId') || localStorage.getItem('userId') || user?.id || 0);
+    } catch {
+      return 0;
+    }
   }, []);
 
   const fetchNotifications = async () => {
@@ -63,8 +92,8 @@ export function NotificationsScreen({ onBack }: NotificationsScreenProps) {
       setError('');
       const data = await api.getNotifications(userId);
       setItems(Array.isArray(data) ? data : []);
-    } catch (e: any) {
-      setError(e?.message || 'Failed to load notifications');
+    } catch (e) {
+      setError(getErrorMessage(e, 'Failed to load notifications'));
     } finally {
       setLoading(false);
     }
@@ -89,6 +118,44 @@ export function NotificationsScreen({ onBack }: NotificationsScreenProps) {
     }
   };
 
+  const handleFriendRequestResponse = async (
+    notification: AppNotification,
+    action: 'accept' | 'decline',
+  ) => {
+    if (!userId) return;
+    const data = parseNotificationData(notification.data);
+    const friendshipId = toPositiveInt(data.friendshipId);
+    if (!friendshipId) return;
+
+    setActioningNotificationId(notification.id);
+    try {
+      await api.respondToFriendRequest(userId, friendshipId, action);
+      await api.markNotificationRead(notification.id);
+      if (action === 'accept') {
+        window.dispatchEvent(new Event('friends-updated'));
+      }
+      setItems((prev) => prev.map((item) => {
+        if (item.id !== notification.id) return item;
+        const itemData = parseNotificationData(item.data);
+        return {
+          ...item,
+          unread: false,
+          message: action === 'accept'
+            ? 'You accepted this friend request.'
+            : 'You declined this friend request.',
+          data: {
+            ...itemData,
+            responseStatus: action === 'accept' ? 'accepted' : 'declined',
+          },
+        };
+      }));
+    } catch (e) {
+      setError(getErrorMessage(e, `Failed to ${action} friend request`));
+    } finally {
+      setActioningNotificationId(null);
+    }
+  };
+
   const handleClearAll = async () => {
     if (!userId || !items.length || clearing) return;
 
@@ -97,8 +164,8 @@ export function NotificationsScreen({ onBack }: NotificationsScreenProps) {
       await api.clearNotifications(userId);
       setItems([]);
       setShowClearConfirm(false);
-    } catch (e: any) {
-      setError(e?.message || 'Failed to clear notifications');
+    } catch (e) {
+      setError(getErrorMessage(e, 'Failed to clear notifications'));
     } finally {
       setClearing(false);
     }
@@ -135,35 +202,76 @@ export function NotificationsScreen({ onBack }: NotificationsScreenProps) {
         {!loading && !error && items.map((notif) => {
           const visual = iconByType[notif.type] || { icon: TrendingUp, color: 'text-accent', bg: 'bg-accent/10' };
           const Icon = visual.icon;
+          const data = parseNotificationData(notif.data);
+          const friendshipId = toPositiveInt(data.friendshipId);
+          const requestType = String(data.requestType || '').trim().toLowerCase();
+          const responseStatus = String(data.responseStatus || '').trim().toLowerCase();
+          const isHandled = responseStatus === 'accepted' || responseStatus === 'declined';
+          const isFriendRequest =
+            notif.type === 'friend_request'
+            && !!friendshipId
+            && (!requestType || requestType === 'friendship');
+          const showFriendRequestActions = isFriendRequest && !isHandled;
+          const actionBusy = actioningNotificationId === notif.id;
 
           return (
-            <button
+            <Card
               key={notif.id}
-              type="button"
               onClick={() => {
                 if (notif.unread) {
                   void markAsRead(notif.id);
                 }
               }}
-              className="w-full text-left"
+              className={`p-3 sm:p-4 flex gap-3 sm:gap-4 transition-colors ${notif.unread ? 'border-accent/30 cursor-pointer' : ''}`}
             >
-              <Card className={`p-3 sm:p-4 flex gap-3 sm:gap-4 transition-colors ${notif.unread ? 'border-accent/30' : ''}`}>
-                <div className={`w-9 h-9 sm:w-10 sm:h-10 rounded-full ${visual.bg} flex items-center justify-center ${visual.color} shrink-0`}>
-                  <Icon size={18} />
+              <div className={`w-9 h-9 sm:w-10 sm:h-10 rounded-full ${visual.bg} flex items-center justify-center ${visual.color} shrink-0`}>
+                <Icon size={18} />
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="flex justify-between items-start gap-2">
+                  <h4 className="font-bold text-white text-sm leading-snug break-words [overflow-wrap:anywhere]">
+                    {notif.title}
+                  </h4>
+                  <span className="text-[10px] text-text-tertiary shrink-0">{formatTimeAgo(notif.created_at)}</span>
                 </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex justify-between items-start gap-2">
-                    <h4 className="font-bold text-white text-sm leading-snug break-words [overflow-wrap:anywhere]">
-                      {notif.title}
-                    </h4>
-                    <span className="text-[10px] text-text-tertiary shrink-0">{formatTimeAgo(notif.created_at)}</span>
+                <p className="text-xs sm:text-sm text-text-secondary mt-1 leading-relaxed break-words [overflow-wrap:anywhere]">
+                  {notif.message}
+                </p>
+
+                {showFriendRequestActions && (
+                  <div className="flex items-center gap-2 mt-3">
+                    <button
+                      type="button"
+                      disabled={actionBusy}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        void handleFriendRequestResponse(notif, 'accept');
+                      }}
+                      className="px-3 py-2 rounded-lg text-xs font-semibold bg-accent text-black hover:bg-accent/90 disabled:opacity-60"
+                    >
+                      {actionBusy ? 'Processing...' : 'Accept'}
+                    </button>
+                    <button
+                      type="button"
+                      disabled={actionBusy}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        void handleFriendRequestResponse(notif, 'decline');
+                      }}
+                      className="px-3 py-2 rounded-lg text-xs font-semibold border border-white/15 text-text-secondary hover:bg-white/5 disabled:opacity-60"
+                    >
+                      Decline
+                    </button>
                   </div>
-                  <p className="text-xs sm:text-sm text-text-secondary mt-1 leading-relaxed break-words [overflow-wrap:anywhere]">
-                    {notif.message}
-                  </p>
-                </div>
-              </Card>
-            </button>
+                )}
+
+                {isHandled && (
+                  <div className="mt-2 text-[11px] text-text-tertiary">
+                    {responseStatus === 'accepted' ? 'Request accepted' : 'Request declined'}
+                  </div>
+                )}
+              </div>
+            </Card>
           );
         })}
       </div>
@@ -207,4 +315,3 @@ export function NotificationsScreen({ onBack }: NotificationsScreenProps) {
     </div>
   );
 }
-

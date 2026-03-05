@@ -11,7 +11,19 @@ interface FriendProfile {
   id: number;
   name: string;
   profile_picture?: string | null;
+  friend_status?: string;
 }
+
+const getActiveUserId = () => {
+  try {
+    const user = JSON.parse(localStorage.getItem('appUser') || localStorage.getItem('user') || '{}');
+    const fallbackId = Number(localStorage.getItem('appUserId') || localStorage.getItem('userId') || 0);
+    const userId = Number(user?.id || fallbackId || 0);
+    return Number.isInteger(userId) && userId > 0 ? userId : 0;
+  } catch {
+    return 0;
+  }
+};
 
 export function FriendsCard({ onClick }: FriendsCardProps) {
   const [friends, setFriends] = useState<FriendProfile[]>([]);
@@ -19,18 +31,30 @@ export function FriendsCard({ onClick }: FriendsCardProps) {
   useEffect(() => {
     const loadFriends = async () => {
       try {
-        const user = JSON.parse(localStorage.getItem('appUser') || localStorage.getItem('user') || '{}');
-        if (!user?.id) return;
+        const userId = getActiveUserId();
+        if (!userId) return;
 
-        const response = await api.getGymMembers(user.id);
+        const response = await api.getGymMembers(userId);
         const members = Array.isArray(response?.members) ? response.members : [];
-        setFriends(members);
+        const acceptedFriends = members.filter((member) => String(member?.friend_status || '') === 'accepted');
+        setFriends(acceptedFriends);
       } catch (error) {
         console.error('Failed to load friends:', error);
       }
     };
 
-    loadFriends();
+    void loadFriends();
+    const refresh = window.setInterval(() => {
+      void loadFriends();
+    }, 10000);
+    const handleFriendsUpdated = () => {
+      void loadFriends();
+    };
+    window.addEventListener('friends-updated', handleFriendsUpdated);
+    return () => {
+      window.clearInterval(refresh);
+      window.removeEventListener('friends-updated', handleFriendsUpdated);
+    };
   }, []);
 
   const visibleFriends = friends.slice(0, 3);
