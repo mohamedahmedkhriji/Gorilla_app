@@ -2242,7 +2242,7 @@ router.post('/user/onboarding', async (req, res) => {
     const shouldDisableClaude = toBooleanFlag(disableClaude, false);
 
     if (claudeEnabled && shouldUseClaude && !shouldDisableClaude) {
-      await conn.execute('SAVEPOINT onboarding_claude_plan');
+      await conn.query('SAVEPOINT onboarding_claude_plan');
       try {
         const claudeProfile = {
           age: normalizedAge,
@@ -2296,7 +2296,7 @@ router.post('/user/onboarding', async (req, res) => {
           checkpoints: generatedByClaude.plan.checkpoints,
         };
       } catch (claudeError) {
-        await conn.execute('ROLLBACK TO SAVEPOINT onboarding_claude_plan');
+        await conn.query('ROLLBACK TO SAVEPOINT onboarding_claude_plan');
         warning = claudeError?.message || 'Claude onboarding generation failed';
       }
     }
