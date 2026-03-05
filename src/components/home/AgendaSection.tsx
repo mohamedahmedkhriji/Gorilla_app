@@ -147,12 +147,6 @@ export function AgendaSection({ userProgram }: { userProgram?: any }) {
                 <div className={`text-[10px] font-medium leading-none ${isActive ? 'mt-1 text-text-primary' : 'text-text-tertiary'}`}>
                   {d.day}
                 </div>
-                {d.label !== 'Rest' && (
-                  <span
-                    className={`text-[8px] font-medium uppercase truncate w-full text-center ${isActive ? 'text-text-primary' : 'text-text-tertiary'}`}>
-                    {d.label}
-                  </span>
-                )}
               </div>
             );
           })}
