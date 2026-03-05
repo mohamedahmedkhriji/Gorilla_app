@@ -306,7 +306,7 @@ const resolveCatalogIdsByNormalizedNames = async (normalizedNames = []) => {
   for (let i = 0; i < uniqueNames.length; i += chunkSize) {
     const chunk = uniqueNames.slice(i, i + chunkSize);
     const placeholders = chunk.map(() => '?').join(', ');
-    const [rows] = await pool.execute(
+    const [rows] = await pool.query(
       `SELECT resolved.normalized_name, MIN(resolved.exercise_catalog_id) AS exercise_catalog_id
        FROM (
          SELECT ea.alias_normalized AS normalized_name, ea.exercise_catalog_id
@@ -2041,7 +2041,7 @@ router.post('/auth/register', async (req, res) => {
 
 router.get('/gyms', async (_req, res) => {
   try {
-    const [rows] = await pool.execute(
+    const [rows] = await pool.query(
       'SELECT id, name, email, address, phone, subscription_plan, status, is_active, created_at FROM gyms ORDER BY name'
     );
     return res.json(rows);
@@ -2080,7 +2080,7 @@ router.get('/coaches', async (_req, res) => {
       return res.status(500).json({ error: 'No profile image column found on users table' });
     }
 
-    const [rows] = await pool.execute(
+    const [rows] = await pool.query(
       `SELECT id, name, email, gym_id, experience_level, fitness_goal, ${profileImageColumn} AS profile_picture
        FROM users
        WHERE role = 'coach' AND is_active = 1
@@ -6073,7 +6073,7 @@ router.get('/exercises/catalog', async (req, res) => {
       else if (filterLower === 'abs') whereParts.push(`LOWER(COALESCE(ec.body_part, '')) REGEXP 'abs|abdom|core|oblique'`);
     }
 
-    const [rows] = await pool.execute(
+    const [rows] = await pool.query(
       `SELECT
          ec.id,
          ec.canonical_name,
@@ -6240,7 +6240,7 @@ router.get('/blogs', async (req, res) => {
 
     const whereClause = whereParts.length ? `WHERE ${whereParts.join(' AND ')}` : '';
 
-    const [rows] = await pool.execute(
+    const [rows] = await pool.query(
       `SELECT
          bp.id,
          bp.user_id,
@@ -6706,7 +6706,7 @@ router.get('/blogs/:postId/comments', async (req, res) => {
     const profileImageColumn = await getProfileImageColumn();
     const avatarSelect = profileImageColumn ? `COALESCE(u.${profileImageColumn}, '') AS avatar_url` : `'' AS avatar_url`;
 
-    const [rows] = await pool.execute(
+    const [rows] = await pool.query(
       `SELECT
          c.id,
          c.post_id,
