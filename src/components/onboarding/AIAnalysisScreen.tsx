@@ -117,8 +117,13 @@ export function AIAnalysisScreen({ onComplete, onboardingData, userId }: AIAnaly
     });
   }, [progress, checkpointThresholds]);
 
+  const roundedProgress = Math.round(progress);
+  const completedCount = completedSteps.filter(Boolean).length;
+  const checkpointProgress = Math.round((completedCount / CHECKPOINTS.length) * 100);
+  const displayProgress = Math.max(roundedProgress, checkpointProgress);
+
   useEffect(() => {
-    if (!isGenerationDone || progress < 100 || completedSteps.some((step) => !step)) {
+    if (!isGenerationDone || displayProgress < 100 || completedSteps.some((step) => !step)) {
       return;
     }
     if (completedRef.current) return;
@@ -129,9 +134,7 @@ export function AIAnalysisScreen({ onComplete, onboardingData, userId }: AIAnaly
     }, 450);
 
     return () => window.clearTimeout(timer);
-  }, [completedSteps, isGenerationDone, onComplete, progress]);
-
-  const roundedProgress = Math.round(progress);
+  }, [completedSteps, displayProgress, isGenerationDone, onComplete]);
 
   return (
     <div className="flex-1 flex flex-col justify-center px-3 sm:px-6">
@@ -155,7 +158,7 @@ export function AIAnalysisScreen({ onComplete, onboardingData, userId }: AIAnaly
               className="absolute inset-9 rounded-full bg-accent/28"
             />
             <div className="absolute inset-[3.35rem] rounded-full bg-accent/70 border border-accent/35 flex items-center justify-center">
-              <span className="text-4xl font-black text-white leading-none">{roundedProgress}%</span>
+              <span className="text-4xl font-black text-white leading-none">{displayProgress}%</span>
             </div>
           </div>
         </div>
