@@ -777,7 +777,17 @@ export function Blogs() {
         {error && <div className="rounded-xl border border-red-400/30 bg-red-500/10 px-4 py-3 text-sm text-red-200">{error}</div>}
 
         {loading ? (
-          <div className="bg-white border border-[#D9DDE7] rounded-2xl p-4 text-sm text-[#6B7280]">Loading blogs...</div>
+          <div className="space-y-3">
+            {Array.from({ length: 3 }).map((_, index) => (
+              <div
+                key={`blog-skeleton-${index}`}
+                className="rounded-2xl border border-[#D9DDE7] bg-white p-4"
+              >
+                <div className="h-3.5 w-24 rounded-md bg-[#E5E7EB] animate-pulse" />
+                <div className="mt-3 h-36 rounded-xl bg-[#E5E7EB] animate-pulse sm:h-44" />
+              </div>
+            ))}
+          </div>
         ) : posts.length === 0 ? (
           <div className="bg-white border border-[#D9DDE7] rounded-2xl p-4 text-sm text-[#6B7280]">
             <div>No posts yet. Tap + to add your first post.</div>

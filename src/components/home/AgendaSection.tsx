@@ -94,10 +94,14 @@ export function AgendaSection({ userProgram, programProgress }: { userProgram?: 
 
   const plannedThisWeek = Number(programProgress?.workoutsPlannedThisWeek);
   const completedThisWeek = Number(programProgress?.workoutsCompletedThisWeek);
-  const sessionsLeftThisWeek =
+  const progressSessionsLeftThisWeek =
     Number.isFinite(plannedThisWeek) && Number.isFinite(completedThisWeek)
       ? Math.max(0, plannedThisWeek - completedThisWeek)
-      : fallbackSessionsLeftThisWeek;
+      : null;
+  const sessionsLeftThisWeek =
+    progressSessionsLeftThisWeek == null
+      ? fallbackSessionsLeftThisWeek
+      : Math.max(progressSessionsLeftThisWeek, fallbackSessionsLeftThisWeek);
 
   // Scroll to current day on mount
   useEffect(() => {
