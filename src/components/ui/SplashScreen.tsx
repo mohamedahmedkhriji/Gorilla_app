@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import introVideo from '../../../assets/intro.mp4';
+import { BrandLogo } from './BrandLogo';
 
 interface SplashScreenProps {
   onComplete: () => void;
@@ -53,6 +54,24 @@ export function SplashScreen({ onComplete }: SplashScreenProps) {
           </video>
 
           <div className="absolute inset-0 bg-black/25" />
+
+          <motion.div
+            initial={{
+              opacity: 0,
+              scale: 0.94,
+            }}
+            animate={{
+              opacity: 1,
+              scale: 1,
+            }}
+            transition={{
+              duration: 0.45,
+              delay: 0.1,
+            }}
+            className="relative z-10 w-28 h-28 md:w-20 md:h-20 lg:w-16 lg:h-16"
+          >
+            <BrandLogo className="rounded-2xl bg-black/35 border border-white/20 p-2" imageClassName="object-contain" />
+          </motion.div>
 
           <motion.p
             initial={{

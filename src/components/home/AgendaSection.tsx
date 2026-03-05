@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { X, Bed, Check } from 'lucide-react';
 
-export function AgendaSection({ userProgram }: { userProgram?: any }) {
+export function AgendaSection({ userProgram, programProgress }: { userProgram?: any; programProgress?: any }) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [selectedDay, setSelectedDay] = useState<any>(null);
   const today = new Date();
@@ -85,12 +85,19 @@ export function AgendaSection({ userProgram }: { userProgram?: any }) {
   const currentWeekEnd = new Date(currentWeekStart);
   currentWeekEnd.setDate(currentWeekStart.getDate() + 6);
   
-  const sessionsLeftThisWeek = days.filter(d => {
+  const fallbackSessionsLeftThisWeek = days.filter(d => {
     const isThisWeek = d.fullDate >= currentWeekStart && d.fullDate <= currentWeekEnd;
     const isWorkout = d.label !== 'Rest';
     const isUpcoming = d.status === 'active' || d.status === 'upcoming';
     return isThisWeek && isWorkout && isUpcoming;
   }).length;
+
+  const plannedThisWeek = Number(programProgress?.workoutsPlannedThisWeek);
+  const completedThisWeek = Number(programProgress?.workoutsCompletedThisWeek);
+  const sessionsLeftThisWeek =
+    Number.isFinite(plannedThisWeek) && Number.isFinite(completedThisWeek)
+      ? Math.max(0, plannedThisWeek - completedThisWeek)
+      : fallbackSessionsLeftThisWeek;
 
   // Scroll to current day on mount
   useEffect(() => {

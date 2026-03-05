@@ -587,7 +587,7 @@ export function Home({ onNavigate }: HomeProps) {
         </div>
 
         {/* Agenda */}
-        <AgendaSection userProgram={userProgram} />
+        <AgendaSection userProgram={userProgram} programProgress={programProgress} />
 
         {/* Today's Workout */}
         <div onClick={() => onNavigate('workout')} className="cursor-pointer">
