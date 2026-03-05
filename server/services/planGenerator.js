@@ -1066,7 +1066,7 @@ export const getUserPlanValidationHistory = async (conn, { userId, limit = 24 } 
   }
 
   const normalizedLimit = Math.max(1, Math.min(260, Number(limit) || 24));
-  const [rows] = await conn.execute(
+  const [rows] = await conn.query(
     `SELECT
        id,
        program_id,

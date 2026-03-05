@@ -468,7 +468,7 @@ export const getUserInsightsHistory = async ({
     scoreParams.push(...normalizedTypes);
   }
 
-  const [scoreRows] = await pool.execute(
+  const [scoreRows] = await pool.query(
     `SELECT
        s.id,
        s.snapshot_id,
@@ -488,7 +488,7 @@ export const getUserInsightsHistory = async ({
     [...scoreParams, normalizedLimit],
   );
 
-  const [snapshotRows] = await pool.execute(
+  const [snapshotRows] = await pool.query(
     `SELECT
        hs.id,
        hs.snapshot_date,

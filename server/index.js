@@ -10,16 +10,32 @@ dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 5001;
-const ALLOWED_ORIGIN = process.env.CLIENT_URL || 'http://localhost:5173';
+const ALLOWED_ORIGINS = String(process.env.CLIENT_URL || '')
+  .split(',')
+  .map((origin) => origin.trim())
+  .filter(Boolean);
+
+if (!ALLOWED_ORIGINS.length) {
+  console.warn('CLIENT_URL is not set. CORS will allow all origins until CLIENT_URL is configured.');
+}
 
 const isAllowedOrigin = (origin) => {
   // Allow non-browser clients/tools with no Origin header.
   if (!origin) return true;
-  if (origin === ALLOWED_ORIGIN) return true;
+  if (!ALLOWED_ORIGINS.length) return true;
+  if (ALLOWED_ORIGINS.includes(origin)) return true;
   return /^https?:\/\/localhost:\d+$/i.test(origin) || /^https?:\/\/127\.0\.0\.1:\d+$/i.test(origin);
 };
 
 const server = http.createServer(app);
+const corsOptions = {
+  origin: (origin, callback) => {
+    callback(null, isAllowedOrigin(origin));
+  },
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  credentials: true,
+};
 
 const ensureNotificationSettingsTable = async () => {
   await pool.execute(
@@ -54,21 +70,15 @@ const isNotificationEnabled = async (userId, key) => {
 
 const io = new SocketIOServer(server, {
   cors: {
-    origin: (origin, callback) => {
-      callback(null, isAllowedOrigin(origin));
-    },
-    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
+    origin: corsOptions.origin,
+    methods: corsOptions.methods,
     credentials: true,
   },
 });
 
 // Middleware
-app.use(cors({
-  origin: (origin, callback) => {
-    callback(null, isAllowedOrigin(origin));
-  },
-  credentials: true,
-}));
+app.use(cors(corsOptions));
+app.options('*', cors(corsOptions));
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ limit: '10mb', extended: true }));
 
