@@ -42,23 +42,43 @@ export function SplashScreen({ onComplete }: SplashScreenProps) {
         >
           <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(255,255,255,0.08)_0%,rgba(255,255,255,0.02)_35%,rgba(5,5,5,1)_75%)]" />
 
-          <motion.div
-            initial={{
-              opacity: 0,
-              scale: 0.94,
-            }}
-            animate={{
-              opacity: 1,
-              scale: 1,
-            }}
-            transition={{
-              duration: 0.45,
-              delay: 0.1,
-            }}
-            className="relative z-10 w-40 h-40 md:w-48 md:h-48 lg:w-52 lg:h-52"
-          >
-            <BrandLogo className="rounded-3xl bg-black/45 border border-white/20 p-3 md:p-4" imageClassName="object-contain" />
-          </motion.div>
+          <div className="relative z-10 flex flex-col items-center">
+            <motion.div
+              initial={{
+                opacity: 0,
+                scale: 0.94,
+              }}
+              animate={{
+                opacity: 1,
+                scale: 1,
+              }}
+              transition={{
+                duration: 0.45,
+                delay: 0.1,
+              }}
+              className="w-40 h-40 md:w-48 md:h-48 lg:w-52 lg:h-52"
+            >
+              <BrandLogo className="rounded-3xl bg-black/45 border border-white/20 p-3 md:p-4" imageClassName="object-contain" />
+            </motion.div>
+
+            <motion.h1
+              initial={{
+                opacity: 0,
+                y: 10,
+              }}
+              animate={{
+                opacity: 1,
+                y: 0,
+              }}
+              transition={{
+                duration: 0.35,
+                delay: 0.2,
+              }}
+              className="mt-6 text-3xl md:text-[2.6rem] leading-[0.95] text-white font-black italic tracking-[0.02em]"
+            >
+              RepSet
+            </motion.h1>
+          </div>
 
           <motion.p
             initial={{

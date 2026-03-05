@@ -83,6 +83,49 @@ const DEFAULT_EXERCISES_BY_WORKOUT_TYPE = {
   ],
 };
 
+const RECOVERY_TARGET_MUSCLES = [
+  'Chest',
+  'Back',
+  'Quadriceps',
+  'Hamstrings',
+  'Shoulders',
+  'Biceps',
+  'Triceps',
+  'Forearms',
+  'Calves',
+  'Abs',
+];
+
+const TARGET_MUSCLE_ALIASES = {
+  chest: 'Chest',
+  pectorals: 'Chest',
+  back: 'Back',
+  lats: 'Back',
+  traps: 'Back',
+  quadriceps: 'Quadriceps',
+  quadricep: 'Quadriceps',
+  quads: 'Quadriceps',
+  thighs: 'Quadriceps',
+  hamstrings: 'Hamstrings',
+  hamstring: 'Hamstrings',
+  glutes: 'Hamstrings',
+  glute: 'Hamstrings',
+  shoulders: 'Shoulders',
+  shoulder: 'Shoulders',
+  delts: 'Shoulders',
+  biceps: 'Biceps',
+  bicep: 'Biceps',
+  triceps: 'Triceps',
+  tricep: 'Triceps',
+  forearms: 'Forearms',
+  forearm: 'Forearms',
+  calves: 'Calves',
+  calf: 'Calves',
+  abs: 'Abs',
+  core: 'Abs',
+  abdominals: 'Abs',
+};
+
 const clampInt = (value, min, max, fallback) => {
   const n = Number(value);
   if (!Number.isFinite(n)) return fallback;
@@ -120,6 +163,24 @@ const normalizeReps = (value, fallback = '8-12') => {
   return text.slice(0, 20);
 };
 
+const normalizeTargetMuscleName = (value) => {
+  const key = String(value || '').trim().toLowerCase();
+  if (!key) return null;
+  return TARGET_MUSCLE_ALIASES[key] || null;
+};
+
+const normalizeTargetMuscles = (value) => {
+  const items = Array.isArray(value)
+    ? value
+    : (typeof value === 'string' ? value.split(/[,;|]+/) : []);
+
+  return [...new Set(
+    items
+      .map((item) => normalizeTargetMuscleName(item))
+      .filter((item) => item && RECOVERY_TARGET_MUSCLES.includes(item)),
+  )].slice(0, 3);
+};
+
 const estimateBase64Bytes = (base64Data) => {
   const clean = String(base64Data || '').replace(/\s+/g, '');
   const padding = clean.endsWith('==') ? 2 : clean.endsWith('=') ? 1 : 0;
@@ -143,14 +204,25 @@ const parseDataUriImage = (value) => {
   return { mediaType, data };
 };
 
-const normalizeExercise = (exercise) => ({
-  name: sanitizeText(exercise?.name || exercise?.exerciseName, 'Exercise'),
-  sets: clampInt(exercise?.sets, 1, 10, 3),
-  reps: normalizeReps(exercise?.reps, '8-12'),
-  restSeconds: clampInt(exercise?.restSeconds, 30, 300, 90),
-  rpe: Number(clampNumber(exercise?.rpe, 6, 10, 7.5).toFixed(1)),
-  notes: sanitizeText(exercise?.notes, ''),
-});
+const normalizeExercise = (exercise) => {
+  const targetMuscles = normalizeTargetMuscles(
+    exercise?.targetMuscles
+    || exercise?.muscleTargets
+    || exercise?.primaryMuscles
+    || exercise?.muscles
+    || exercise?.muscleGroup,
+  );
+
+  return {
+    name: sanitizeText(exercise?.name || exercise?.exerciseName, 'Exercise'),
+    sets: clampInt(exercise?.sets, 1, 10, 3),
+    reps: normalizeReps(exercise?.reps, '8-12'),
+    restSeconds: clampInt(exercise?.restSeconds, 30, 300, 90),
+    rpe: Number(clampNumber(exercise?.rpe, 6, 10, 7.5).toFixed(1)),
+    notes: sanitizeText(exercise?.notes, ''),
+    targetMuscles,
+  };
+};
 
 const buildDefaultSchedule = (daysPerWeek = 4) => {
   const days = WEEKDAY_BY_DAYS_PER_WEEK[daysPerWeek] || WEEKDAY_BY_DAYS_PER_WEEK[4];
@@ -363,6 +435,7 @@ const buildUserPrompt = (profile, imageCount) => {
     '      "exercises": [',
     '        {',
     '          "name": "string",',
+    '          "targetMuscles": ["Chest|Back|Quadriceps|Hamstrings|Shoulders|Biceps|Triceps|Forearms|Calves|Abs"],',
     '          "sets": 1-10 integer,',
     '          "reps": "string, e.g. 6-8 or 45 sec",',
     '          "restSeconds": 30-300 integer,',
@@ -379,6 +452,7 @@ const buildUserPrompt = (profile, imageCount) => {
     '}',
     '',
     `Important: weeklySchedule must include exactly ${daysPerWeek} unique training days.`,
+    'Prefer setting targetMuscles for each exercise to help downstream recovery modeling.',
   ].join('\n');
 };
 
@@ -417,6 +491,34 @@ const isRetryableClaudeParseError = (error) => {
 };
 
 const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+const stripHtml = (value) => String(value || '')
+  .replace(/<[^>]*>/g, ' ')
+  .replace(/\s+/g, ' ')
+  .trim();
+
+const buildClaudeHttpErrorDetails = ({ statusCode, rawBody, parsedBody }) => {
+  const status = Number(statusCode || 0);
+  const parsedMessage = parsedBody?.error?.message || parsedBody?.message || '';
+  const normalizedParsedMessage = String(parsedMessage || '').trim();
+  const rawText = String(rawBody || '');
+  const normalizedRawText = stripHtml(rawText);
+  const mentionsCloudflare = /cloudflare/i.test(rawText) || /cloudflare/i.test(normalizedRawText);
+
+  if (status === 429) {
+    return 'Claude rate limit reached. Please retry in a few moments.';
+  }
+  if (status === 401 || status === 403) {
+    return 'Claude authentication failed. Verify ANTHROPIC_API_KEY.';
+  }
+  if ([502, 503, 504].includes(status)) {
+    const gatewayLabel = mentionsCloudflare ? ' (Cloudflare gateway)' : '';
+    return `Claude service is temporarily unavailable${gatewayLabel}.`;
+  }
+
+  const safeMessage = normalizedParsedMessage || normalizedRawText || 'Unknown Claude API error';
+  return safeMessage.slice(0, 300);
+};
 
 export const generateTwoMonthPlanWithClaude = async ({ profile = {}, bodyImages = [] } = {}) => {
   const apiKey = String(process.env.ANTHROPIC_API_KEY || '').trim();
@@ -506,7 +608,11 @@ export const generateTwoMonthPlanWithClaude = async ({ profile = {}, bodyImages 
     }
 
     if (!response.ok) {
-      const details = parsedResponse?.error?.message || parsedResponse?.message || rawBody || 'Unknown Claude API error';
+      const details = buildClaudeHttpErrorDetails({
+        statusCode: response.status,
+        rawBody,
+        parsedBody: parsedResponse,
+      });
       lastError = new Error(`Claude API request failed (${response.status}): ${details}`);
 
       if (attempt < CLAUDE_MAX_ATTEMPTS && isRetryableClaudeStatus(response.status)) {
@@ -567,6 +673,8 @@ export const buildCustomProgramPayloadFromClaudePlan = (plan = {}, options = {})
       .slice(0, 10)
       .map((exercise) => ({
         name: exercise.name,
+        muscleGroup: exercise.targetMuscles?.[0] || null,
+        targetMuscles: Array.isArray(exercise.targetMuscles) ? exercise.targetMuscles : [],
         sets: exercise.sets,
         reps: exercise.reps,
         restSeconds: exercise.restSeconds,

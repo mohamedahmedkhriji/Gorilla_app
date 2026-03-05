@@ -215,16 +215,26 @@ const parseMuscleGroups = (rawValue) => {
   if (Array.isArray(rawValue)) return rawValue;
 
   if (typeof rawValue === 'string') {
+    const text = rawValue.trim();
+    if (!text) return [];
+
+    let parsed = null;
     try {
-      const parsed = JSON.parse(rawValue);
-      if (Array.isArray(parsed)) return parsed;
-      if (typeof parsed === 'string') return [parsed];
-    } catch {
-      return [rawValue];
+      parsed = JSON.parse(text);
+    } catch (error) {
+      parsed = null;
     }
+
+    if (Array.isArray(parsed)) return parsed;
+    if (typeof parsed === 'string') return [parsed];
+
+    return text
+      .split(/[,;|]+/)
+      .map((item) => item.trim())
+      .filter(Boolean);
   }
 
-  return [];
+  return [rawValue];
 };
 
 const normalizeExerciseLookupName = (value = '') =>
@@ -253,6 +263,28 @@ const normalizeCatalogRecoveryMuscle = (muscle = '') => {
   if (/legs?/.test(key)) return 'Quadriceps';
 
   return normalizeMuscleName(key);
+};
+
+const normalizeRecoveryMuscleTargets = (rawValue, maxItems = 3) => {
+  const limit = Math.max(1, Number(maxItems || 1));
+  const normalized = parseMuscleGroups(rawValue)
+    .flatMap((item) => (typeof item === 'string' ? item.split(/[,;|]+/) : [item]))
+    .map((item) => normalizeCatalogRecoveryMuscle(item))
+    .filter((muscle) => muscle && TRACKED_MUSCLES.includes(muscle));
+
+  return [...new Set(normalized)].slice(0, limit);
+};
+
+const buildMuscleGroupSnapshot = ({ catalogBodyPart = null, targetMuscles = [] } = {}) => {
+  const fromCatalog = normalizeRecoveryMuscleTargets(catalogBodyPart, 1);
+  const fromTargets = normalizeRecoveryMuscleTargets(targetMuscles, 3);
+  const combined = [...new Set([...fromCatalog, ...fromTargets])];
+
+  if (combined.length > 1) return JSON.stringify(combined);
+  if (combined.length === 1) return combined[0];
+
+  const rawCatalog = String(catalogBodyPart || '').trim();
+  return rawCatalog || null;
 };
 
 const inferMusclesFromExerciseName = (exerciseName = '') => {
@@ -1650,6 +1682,14 @@ const buildCustomProgramDraft = async (conn, userId, rawPayload = {}) => {
       const restSeconds = Number.isFinite(restSecondsRaw)
         ? Math.max(30, Math.min(600, Math.round(restSecondsRaw)))
         : 90;
+      const targetMuscles = normalizeRecoveryMuscleTargets(
+        exercise?.targetMuscles
+        ?? exercise?.muscleTargets
+        ?? exercise?.primaryMuscles
+        ?? exercise?.muscles
+        ?? exercise?.muscleGroup,
+        3,
+      );
 
       const exerciseCatalogId = Number(exercise?.exerciseCatalogId || 0) || null;
       const inputName = String(exercise?.exerciseName || exercise?.name || '').trim();
@@ -1665,6 +1705,7 @@ const buildCustomProgramDraft = async (conn, userId, rawPayload = {}) => {
         sets,
         reps,
         restSeconds,
+        targetMuscles,
         notes: exercise?.notes ? String(exercise.notes).trim() : null,
       });
     }
@@ -1720,6 +1761,8 @@ const buildCustomProgramDraft = async (conn, userId, rawPayload = {}) => {
       exercises: dayTemplate.exercises.map((exercise) => ({
         exerciseCatalogId: exercise.exerciseCatalogId || null,
         exerciseName: exercise.inputName || null,
+        muscleGroup: exercise.targetMuscles?.[0] || null,
+        targetMuscles: Array.isArray(exercise.targetMuscles) ? exercise.targetMuscles : [],
         sets: exercise.sets,
         reps: exercise.reps,
         restSeconds: exercise.restSeconds,
@@ -1805,7 +1848,11 @@ const persistCustomProgramDraft = async (
           ? draft.catalogById.get(Number(exercise.exerciseCatalogId))
           : null;
         const exerciseName = (catalogMatch?.name || exercise.inputName).slice(0, 255);
-        const muscleGroupSnapshot = catalogMatch?.bodyPart || null;
+        const muscleGroupSnapshot = buildMuscleGroupSnapshot({
+          catalogBodyPart: catalogMatch?.bodyPart || null,
+          targetMuscles: exercise.targetMuscles,
+        });
+        const muscleGroupSnapshotValue = muscleGroupSnapshot ? muscleGroupSnapshot.slice(0, 255) : null;
 
         await conn.execute(
           `INSERT INTO workout_exercises
@@ -1815,7 +1862,7 @@ const persistCustomProgramDraft = async (
             workoutId,
             exercise.orderIndex,
             exerciseName,
-            muscleGroupSnapshot,
+            muscleGroupSnapshotValue,
             exercise.sets,
             exercise.reps,
             exercise.restSeconds,
@@ -2302,6 +2349,10 @@ router.post('/user/onboarding', async (req, res) => {
           /unexpected end of json input|invalid json|json was incomplete|did not contain a json object|no text content/i.test(rawWarning)
         ) {
           warning = 'Claude returned incomplete JSON. Template generator was used for this run.';
+        } else if (
+          /cloudflare|502|503|504|temporarily unavailable|gateway|timed out|timeout|rate limit|429/i.test(rawWarning)
+        ) {
+          warning = 'Claude is temporarily unavailable. Template generator was used for this run.';
         } else {
           warning = rawWarning;
         }
@@ -3955,10 +4006,9 @@ const resolveMuscleLoadEntries = ({ context, fallbackMuscle, exerciseName }) => 
   }
 
   if (!entries.length) {
-    const normalizedFallback = normalizeCatalogRecoveryMuscle(fallbackMuscle);
-    if (normalizedFallback) {
-      entries.push({ muscle: normalizedFallback, loadFactor: 1 });
-    }
+    normalizeRecoveryMuscleTargets(fallbackMuscle, 4).forEach((muscle) => {
+      entries.push({ muscle, loadFactor: 1 });
+    });
   }
 
   if (!entries.length) {
