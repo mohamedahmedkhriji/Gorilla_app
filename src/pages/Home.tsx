@@ -28,9 +28,9 @@ interface HomeProps {
 
 const readStoredUser = () => {
   try {
-    return JSON.parse(localStorage.getItem('appUser') || localStorage.getItem('user') || '{"name":"Moha"}');
+    return JSON.parse(localStorage.getItem('appUser') || localStorage.getItem('user') || '{}');
   } catch {
-    return { name: 'Moha' };
+    return {};
   }
 };
 
@@ -64,6 +64,28 @@ const getWorkoutStorageKeys = (user: any) => {
     exerciseSets: `exerciseSets:${scope}`,
   };
 };
+
+const getExerciseName = (exercise: any) =>
+  String(exercise?.exerciseName || exercise?.exercise_name || exercise?.name || '').trim();
+
+const getExercisePlannedSets = (exercise: any) => {
+  const raw = Number(
+    exercise?.sets
+    ?? exercise?.targetSets
+    ?? exercise?.target_sets
+    ?? exercise?.setCount
+    ?? 0,
+  );
+  return Number.isFinite(raw) && raw > 0 ? raw : 1;
+};
+
+const isSetCompleted = (setRow: any) =>
+  !!(
+    setRow?.completed
+    ?? setRow?.isCompleted
+    ?? setRow?.done
+    ?? false
+  );
 
 type HomeView =
 'main' |
@@ -223,9 +245,10 @@ export function Home({ onNavigate }: HomeProps) {
       const storageKeys = getWorkoutStorageKeys(user);
       const today = new Date().toDateString();
       const savedDate = localStorage.getItem(storageKeys.workoutDate);
-      if (savedDate !== today) {
+      if (savedDate && savedDate !== today) {
         return {
           hasTodayState: false,
+          hasLocalData: false,
           completedExercises: new Set<string>(),
           exerciseSets: {} as Record<string, any[]>,
         };
@@ -259,6 +282,7 @@ export function Home({ onNavigate }: HomeProps) {
 
       return {
         hasTodayState: true,
+        hasLocalData: Object.keys(exerciseSets).length > 0 || completedExercises.size > 0,
         completedExercises,
         exerciseSets,
       };
@@ -268,7 +292,7 @@ export function Home({ onNavigate }: HomeProps) {
       const user = JSON.parse(localStorage.getItem('appUser') || localStorage.getItem('user') || '{}');
       const userId = user.id;
 
-      let exercises: Array<{ exerciseName?: string; name?: string; sets?: number }> = [];
+      let exercises: Array<{ exerciseName?: string; exercise_name?: string; name?: string; sets?: number; target_sets?: number }> = [];
       try {
         exercises = JSON.parse(todayWorkoutData.exercises || '[]');
       } catch {
@@ -282,16 +306,11 @@ export function Home({ onNavigate }: HomeProps) {
 
       const plannedSetTargets = new Map<string, number>();
       exercises.forEach((ex: any) => {
-        const exerciseName = normalizeExerciseName(ex.exerciseName || ex.name || '');
+        const exerciseName = normalizeExerciseName(getExerciseName(ex));
         if (!exerciseName) return;
-        const plannedSets = Math.max(1, Number(ex.sets || 0) || 1);
+        const plannedSets = Math.max(1, getExercisePlannedSets(ex));
         plannedSetTargets.set(exerciseName, (plannedSetTargets.get(exerciseName) || 0) + plannedSets);
       });
-
-      if (!plannedSetTargets.size) {
-        setWorkoutProgress(0);
-        return;
-      }
 
       const localState = getLocalWorkoutState();
       const localSetsByName = new Map<string, any[]>();
@@ -301,9 +320,29 @@ export function Home({ onNavigate }: HomeProps) {
         localSetsByName.set(normalizedName, Array.isArray(setRows) ? setRows : []);
       });
 
+      if (!plannedSetTargets.size) {
+        if (localSetsByName.size > 0) {
+          let totalTargetSets = 0;
+          let totalCompletedSets = 0;
+          localSetsByName.forEach((setRows) => {
+            const targetSets = Math.max(1, setRows.length);
+            const completedSets = setRows.filter((s: any) => isSetCompleted(s)).length;
+            totalTargetSets += targetSets;
+            totalCompletedSets += Math.min(targetSets, completedSets);
+          });
+          const fallbackProgress = totalTargetSets > 0
+            ? Math.min(100, Math.round((totalCompletedSets / totalTargetSets) * 100))
+            : 0;
+          setWorkoutProgress(fallbackProgress);
+          return;
+        }
+        setWorkoutProgress(0);
+        return;
+      }
+
       const shouldUseLocalSetProgress =
         localState.hasTodayState
-        && (localSetsByName.size > 0 || localState.completedExercises.size > 0);
+        && localState.hasLocalData;
 
       if (shouldUseLocalSetProgress) {
         let totalTargetSets = 0;
@@ -311,7 +350,7 @@ export function Home({ onNavigate }: HomeProps) {
 
         plannedSetTargets.forEach((plannedSets, exerciseName) => {
           const localSets = localSetsByName.get(exerciseName) || [];
-          const completedSets = localSets.filter((s: any) => !!s?.completed).length;
+          const completedSets = localSets.filter((s: any) => isSetCompleted(s)).length;
           const targetSets = Math.max(plannedSets, localSets.length);
           totalTargetSets += targetSets;
           totalCompletedSets += Math.min(completedSets, targetSets);

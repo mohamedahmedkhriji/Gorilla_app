@@ -99,6 +99,13 @@ export function Workout({ onBack, workoutDay = 'Push Day' }: WorkoutProps) {
   const [exerciseSets, setExerciseSets] = useState<Record<string, any[]>>({});
 
   const normalizeExerciseName = (name: string) => String(name || '').trim().toLowerCase();
+  const isSetCompleted = (setRow: any) =>
+    !!(
+      setRow?.completed
+      ?? setRow?.isCompleted
+      ?? setRow?.done
+      ?? false
+    );
 
   useEffect(() => {
     const state = loadLocalWorkoutState(workoutStorageScope);
@@ -136,10 +143,10 @@ export function Workout({ onBack, workoutDay = 'Push Day' }: WorkoutProps) {
 
         const normalizedExercises = Array.isArray(todayWorkout.exercises)
           ? todayWorkout.exercises.map((ex: any) => ({
-              exerciseName: ex.exerciseName || ex.name,
-              sets: Number(ex.sets || 0),
-              reps: String(ex.reps || ''),
-              rest: Number(ex.rest || 0),
+              exerciseName: ex.exerciseName || ex.exercise_name || ex.name,
+              sets: Number(ex.sets ?? ex.targetSets ?? ex.target_sets ?? 0),
+              reps: String(ex.reps ?? ex.targetReps ?? ex.target_reps ?? ''),
+              rest: Number(ex.rest ?? ex.restSeconds ?? ex.rest_seconds ?? 0),
               notes: ex.notes || null,
             }))
           : [];
@@ -169,13 +176,13 @@ export function Workout({ onBack, workoutDay = 'Push Day' }: WorkoutProps) {
     const completed = Object.keys(sets).filter(exerciseName => {
       const exerciseSets = sets[exerciseName] || [];
       const plannedSetCount = Number(plannedSetsByExercise.get(normalizeExerciseName(exerciseName)) || 0);
-      const completedCount = exerciseSets.filter((s: any) => s.completed).length;
+      const completedCount = exerciseSets.filter((s: any) => isSetCompleted(s)).length;
 
       if (plannedSetCount > 0) {
         return completedCount >= plannedSetCount;
       }
 
-      return exerciseSets.length > 0 && exerciseSets.every((s: any) => s.completed);
+      return exerciseSets.length > 0 && exerciseSets.every((s: any) => isSetCompleted(s));
     });
 
     setCompletedExercises(completed);
