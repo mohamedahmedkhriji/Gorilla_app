@@ -1,6 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import introVideo from '../../../assets/intro.mp4';
 import { BrandLogo } from './BrandLogo';
 
 interface SplashScreenProps {
@@ -39,21 +38,9 @@ export function SplashScreen({ onComplete }: SplashScreenProps) {
           transition={{
             duration: 0.5,
           }}
-          className="fixed inset-0 z-[100] bg-black flex items-center justify-center overflow-hidden"
+          className="fixed inset-0 z-[100] bg-[#050505] flex items-center justify-center overflow-hidden"
         >
-          <video
-            autoPlay
-            muted
-            playsInline
-            preload="auto"
-            onEnded={closeSplash}
-            onError={closeSplash}
-            className="absolute inset-0 h-full w-full object-cover"
-          >
-            <source src={introVideo} type="video/mp4" />
-          </video>
-
-          <div className="absolute inset-0 bg-black/25" />
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(255,255,255,0.08)_0%,rgba(255,255,255,0.02)_35%,rgba(5,5,5,1)_75%)]" />
 
           <motion.div
             initial={{
@@ -68,9 +55,9 @@ export function SplashScreen({ onComplete }: SplashScreenProps) {
               duration: 0.45,
               delay: 0.1,
             }}
-            className="relative z-10 w-28 h-28 md:w-20 md:h-20 lg:w-16 lg:h-16"
+            className="relative z-10 w-40 h-40 md:w-48 md:h-48 lg:w-52 lg:h-52"
           >
-            <BrandLogo className="rounded-2xl bg-black/35 border border-white/20 p-2" imageClassName="object-contain" />
+            <BrandLogo className="rounded-3xl bg-black/45 border border-white/20 p-3 md:p-4" imageClassName="object-contain" />
           </motion.div>
 
           <motion.p
