@@ -6,6 +6,10 @@ RepSet is a full-stack fitness platform with:
 - A coach/admin portal (client management, plan requests, messaging)
 - An Express + MySQL backend with REST APIs and Socket.IO chat
 
+## Deployment
+
+For automated deployment (build checks on PRs + auto-deploy on `main` pushes), see [DEPLOYMENT.md](./DEPLOYMENT.md).
+
 ## Tech Stack
 
 - Frontend: React, TypeScript, Vite, TailwindCSS, Framer Motion
