@@ -75,6 +75,9 @@ export function SplashScreen({ onComplete }: SplashScreenProps) {
                 delay: 0.2,
               }}
               className="mt-6 text-3xl md:text-[2.6rem] leading-[0.95] text-white font-black italic tracking-[0.02em]"
+              style={{
+                color: "#fff",
+              }}
             >
               RepSet
             </motion.h1>
