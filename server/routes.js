@@ -3506,13 +3506,68 @@ router.get('/profile/:userId/stats', async (req, res) => {
       membersParams,
     );
 
+    const [assignmentRows] = await pool.execute(
+      `SELECT pa.id, pa.start_date, p.days_per_week, p.cycle_weeks
+       FROM program_assignments pa
+       JOIN programs p ON p.id = pa.program_id
+       WHERE pa.user_id = ? AND pa.status = 'active'
+       ORDER BY pa.created_at DESC
+       LIMIT 1`,
+      [userId],
+    );
+
+    let planDaysLeft = null;
+    let planSessionsLeft = 0;
+    let planCompletedWorkouts = 0;
+    let planPlannedWorkouts = 0;
+
+    if (assignmentRows.length > 0) {
+      const assignment = assignmentRows[0];
+      const daysPerWeekRaw = Number(assignment.days_per_week || 0);
+      const daysPerWeek = daysPerWeekRaw > 0 ? daysPerWeekRaw : 4;
+      planPlannedWorkouts = Math.max(0, Number(assignment.cycle_weeks || 0) * daysPerWeek);
+
+      const [completedRows] = await pool.execute(
+        `SELECT COUNT(*) AS completed_workouts
+         FROM workout_sessions
+         WHERE user_id = ? AND program_assignment_id = ? AND status = 'completed'`,
+        [userId, assignment.id],
+      );
+
+      const [setCompletedRows] = await pool.execute(
+        `SELECT COUNT(DISTINCT DATE(created_at)) AS completed_days
+         FROM workout_sets
+         WHERE user_id = ?
+           AND DATE(created_at) BETWEEN ? AND ?`,
+        [userId, formatDateISO(new Date(assignment.start_date)), formatDateISO(new Date())],
+      );
+
+      const completedFromSessions = Number(completedRows[0]?.completed_workouts || 0);
+      const completedFromSets = Number(setCompletedRows[0]?.completed_days || 0);
+      planCompletedWorkouts = completedFromSessions > 0 ? completedFromSessions : completedFromSets;
+      planSessionsLeft = Math.max(planPlannedWorkouts - planCompletedWorkouts, 0);
+      planDaysLeft = planSessionsLeft > 0 ? Math.ceil((planSessionsLeft / daysPerWeek) * 7) : 0;
+    }
+
     const stats = rows[0] || {};
+    const rankPosition = Number(rankRows[0]?.rank_position || 0);
+    const totalMembers = Number(membersRows[0]?.total_members || 0);
     const nextRank = getNextRankInfo(totalPoints);
     return res.json({
       completedExercises: Number(stats.completed_exercises || 0),
       firstCompletedAt: stats.first_completed_at || null,
-      rankPosition: Number(rankRows[0]?.rank_position || 0),
-      totalMembers: Number(membersRows[0]?.total_members || 0),
+      rankPosition,
+      totalMembers,
+      classification: {
+        position: rankPosition || null,
+        total: totalMembers,
+        scope: gymId ? 'gym' : 'global',
+      },
+      hasActiveProgram: assignmentRows.length > 0,
+      planDaysLeft,
+      planSessionsLeft,
+      planCompletedWorkouts,
+      planPlannedWorkouts,
       totalPoints,
       rank: getRankFromPoints(totalPoints),
       nextRank,

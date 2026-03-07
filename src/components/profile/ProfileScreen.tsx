@@ -63,9 +63,33 @@ export function ProfileScreen({ onNavigate }: ProfileScreenProps) {
       try {
         const stats = await api.getProfileStats(userId);
         setCompletedExercises(Number(stats?.completedExercises || 0));
-        const position = Number(stats?.rankPosition || 0);
+        let position = Number(
+          stats?.classification?.position
+          ?? stats?.rankPosition
+          ?? 0,
+        );
+        let totalMembers = Number(
+          stats?.classification?.total
+          ?? stats?.totalMembers
+          ?? 0,
+        );
+
+        // Fallback for older/inconsistent profile-stats payloads.
+        if (!(position > 0) && userId > 0) {
+          try {
+            const leaderboard = await api.getLeaderboard(userId, 'alltime');
+            const rows = Array.isArray(leaderboard?.leaderboard) ? leaderboard.leaderboard : [];
+            const me = rows.find((row: any) => Number(row?.id || 0) === userId);
+            const fallbackRank = Number(me?.rank || 0);
+            if (fallbackRank > 0) position = fallbackRank;
+            if (!(totalMembers > 0) && rows.length > 0) totalMembers = rows.length;
+          } catch {
+            // ignore fallback failure and keep base stats values
+          }
+        }
+
         setRankPosition(position > 0 ? position : null);
-        setRankTotalMembers(Number(stats?.totalMembers || 0));
+        setRankTotalMembers(totalMembers > 0 ? totalMembers : 0);
       } catch (error) {
         console.error('Failed to load profile stats:', error);
       }
@@ -236,7 +260,7 @@ export function ProfileScreen({ onNavigate }: ProfileScreenProps) {
           <div className="text-[10px] text-text-secondary uppercase">
             Classification
           </div>
-          {rankTotalMembers > 0 && (
+          {rankPosition && rankTotalMembers > 0 && (
             <div className="text-[10px] text-text-tertiary mt-1">of {rankTotalMembers}</div>
           )}
         </button>
