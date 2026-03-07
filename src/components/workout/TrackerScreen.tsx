@@ -284,6 +284,7 @@ export function TrackerScreen({
   };
 
   const updateSet = (index: number, field: 'reps' | 'weight', value: number) => {
+    if (!sets[index] || sets[index].completed) return;
     const newSets = [...sets];
     newSets[index][field] = value;
     persistSets(newSets);
@@ -296,11 +297,13 @@ export function TrackerScreen({
   };
 
   const handleTouchStart = (index: number, e: React.TouchEvent) => {
+    if (!sets[index] || sets[index].completed) return;
     const touch = e.touches[0];
     (e.currentTarget as any).startX = touch.clientX;
   };
 
   const handleTouchMove = (index: number, e: React.TouchEvent) => {
+    if (!sets[index] || sets[index].completed) return;
     const touch = e.touches[0];
     const startX = (e.currentTarget as any).startX;
     const diff = startX - touch.clientX;
@@ -474,7 +477,7 @@ export function TrackerScreen({
                       Delete
                     </button>
                   )}
-                  <div className={`grid grid-cols-[60px_60px_80px_1fr] gap-3 items-center transition-transform ${
+                  <div className={`grid grid-cols-[60px_60px_80px_1fr] gap-4 items-center transition-transform ${
                     swipedIndex === index ? '-translate-x-20' : ''
                   } ${set.completed ? 'opacity-50' : ''}`}>
                     <div className={`rounded-full px-4 py-2 text-center ${
@@ -488,26 +491,42 @@ export function TrackerScreen({
                       type="number"
                       value={set.reps}
                       onChange={(e) => updateSet(index, 'reps', parseInt(e.target.value) || 0)}
-                      className="bg-transparent rounded-full px-4 py-2 text-center text-white font-semibold border border-white/20 focus:border-accent outline-none"
+                      disabled={set.completed}
+                      className="bg-transparent rounded-full px-4 py-2 text-center text-white font-semibold border border-white/20 focus:border-accent outline-none disabled:cursor-not-allowed disabled:border-white/10 disabled:text-text-tertiary"
                     />
                     <input
                       type="number"
                       value={set.weight}
                       onChange={(e) => updateSet(index, 'weight', parseInt(e.target.value) || 0)}
-                      className="bg-transparent rounded-full px-4 py-2 text-center text-white font-semibold border border-white/20 focus:border-accent outline-none"
+                      disabled={set.completed}
+                      className="bg-transparent rounded-full px-4 py-2 text-center text-white font-semibold border border-white/20 focus:border-accent outline-none disabled:cursor-not-allowed disabled:border-white/10 disabled:text-text-tertiary"
                     />
                     <div className="relative h-8">
-                      <input
-                        type="range"
-                        min="0"
-                        max="200"
-                        value={set.weight}
-                        onChange={(e) => updateSet(index, 'weight', parseInt(e.target.value))}
-                        className="w-full h-2 bg-white/10 rounded-full appearance-none cursor-pointer"
-                        style={{
-                          background: `linear-gradient(to right, #ef4444 0%, #ef4444 ${(set.weight / 200) * 100}%, rgba(255,255,255,0.1) ${(set.weight / 200) * 100}%, rgba(255,255,255,0.1) 100%)`
-                        }}
-                      />
+                      {(() => {
+                        const sliderPercent = Math.max(0, Math.min(100, (set.weight / 200) * 100));
+                        return (
+                          <>
+                            <input
+                              type="range"
+                              min="0"
+                              max="200"
+                              value={set.weight}
+                              onChange={(e) => updateSet(index, 'weight', parseInt(e.target.value))}
+                              disabled={set.completed}
+                              className="barbell-slider-hit absolute inset-y-0 left-6 right-0 z-20 h-full w-auto cursor-pointer opacity-0 disabled:cursor-not-allowed"
+                              aria-label={`Set ${set.set} weight`}
+                            />
+                            <div className="barbell-track-shell pointer-events-none absolute left-6 right-0 top-1/2 z-10 h-[10px] -translate-y-1/2">
+                              <div className="barbell-track-fill" style={{ width: `${sliderPercent}%` }} />
+                              <div className="barbell-track-remainder" style={{ left: `${sliderPercent}%` }} />
+                              <div className="barbell-knob" style={{ left: `${sliderPercent}%` }}>
+                                <span className="plate plate-red" />
+                                <span className="plate plate-steel" />
+                              </div>
+                            </div>
+                          </>
+                        );
+                      })()}
                     </div>
                   </div>
                 </div>
@@ -524,24 +543,108 @@ export function TrackerScreen({
       </div>
 
       <style>{`
-        input[type="range"]::-webkit-slider-thumb {
-          appearance: none;
-          width: 6px;
-          height: 24px;
-          border-radius: 2px;
-          background: linear-gradient(to right, #555, #888, #555);
-          cursor: pointer;
-          border: 1px solid #666;
-          box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+        .barbell-track-shell {
+          position: relative;
+          border-radius: 9999px;
+          border: 1px solid rgba(255, 255, 255, 0.16);
+          background: linear-gradient(90deg, rgba(7, 12, 20, 0.95), rgba(12, 20, 32, 0.95));
+          box-shadow:
+            inset 0 1px 0 rgba(255, 255, 255, 0.1),
+            inset 0 -1px 0 rgba(0, 0, 0, 0.45),
+            0 3px 8px rgba(0, 0, 0, 0.35);
+          overflow: visible;
         }
-        input[type="range"]::-moz-range-thumb {
-          width: 6px;
-          height: 24px;
+
+        .barbell-track-shell::before {
+          content: '';
+          position: absolute;
+          top: 50%;
+          left: -14px;
+          transform: translateY(-50%);
+          width: 10px;
+          height: 4px;
+          border-radius: 9999px;
+          border: 1px solid rgba(255, 255, 255, 0.2);
+          background: linear-gradient(90deg, #9ca3af 0%, #d1d5db 48%, #6b7280 100%);
+          box-shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
+        }
+
+        .barbell-track-shell::after {
+          content: '';
+          position: absolute;
+          top: 50%;
+          left: -5px;
+          transform: translateY(-50%);
+          width: 8px;
+          height: 6px;
+          border-radius: 9999px;
+          border: 1px solid rgba(255, 255, 255, 0.2);
+          background: linear-gradient(90deg, #9ca3af 0%, #e5e7eb 52%, #6b7280 100%);
+          box-shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
+        }
+
+        .barbell-track-fill {
+          position: absolute;
+          inset: 0 auto 0 0;
+          border-radius: 9999px;
+          background: linear-gradient(180deg, #ff7a7a 0%, #ef4444 65%, #b91c1c 100%);
+          box-shadow: inset 0 0 5px rgba(255, 255, 255, 0.18);
+          z-index: 2;
+        }
+
+        .barbell-track-remainder {
+          position: absolute;
+          top: 0;
+          bottom: 0;
+          right: 0;
+          border-top-right-radius: 9999px;
+          border-bottom-right-radius: 9999px;
+          background: linear-gradient(90deg, rgba(19, 31, 46, 0.95), rgba(10, 17, 29, 0.95));
+          z-index: 1;
+        }
+
+        .barbell-knob {
+          position: absolute;
+          top: 50%;
+          transform: translate(-50%, -50%);
+          display: flex;
+          align-items: center;
+          gap: 0;
+          filter: drop-shadow(0 3px 5px rgba(0, 0, 0, 0.45));
+        }
+
+        .barbell-knob .plate {
+          display: inline-block;
           border-radius: 2px;
-          background: linear-gradient(to right, #555, #888, #555);
-          cursor: pointer;
-          border: 1px solid #666;
-          box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+          border: 1px solid rgba(255, 255, 255, 0.22);
+        }
+
+        .barbell-knob .plate-red {
+          width: 11px;
+          height: 33px;
+          background: linear-gradient(180deg, #ff7a7a, #ef4444 65%, #b91c1c);
+          z-index: 2;
+        }
+
+        .barbell-knob .plate-steel {
+          width: 8px;
+          height: 25px;
+          margin-left: -1px;
+          border-color: rgba(255, 255, 255, 0.2);
+          background: linear-gradient(180deg, #374151, #1f2937 60%, #111827);
+          z-index: 1;
+        }
+
+        .barbell-slider-hit:focus-visible + .barbell-track-shell {
+          box-shadow:
+            0 0 0 2px rgba(187, 255, 92, 0.45),
+            inset 0 1px 0 rgba(255, 255, 255, 0.1),
+            inset 0 -1px 0 rgba(0, 0, 0, 0.45),
+            0 3px 8px rgba(0, 0, 0, 0.35);
+        }
+
+        .barbell-slider-hit {
+          accent-color: #ef4444;
         }
 
         .seven-seg-shell {

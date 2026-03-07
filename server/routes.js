@@ -1718,6 +1718,15 @@ const buildCustomProgramDraft = async (conn, userId, rawPayload = {}) => {
     if (!template) {
       throw new Error(`Missing workout template for ${dayName}`);
     }
+    const durationRaw = Number(
+      template?.estimatedDurationMinutes
+      ?? template?.estimated_duration_minutes
+      ?? template?.durationMinutes
+      ?? 0,
+    );
+    const estimatedDurationMinutes = Number.isFinite(durationRaw) && durationRaw > 0
+      ? Math.max(20, Math.min(180, Math.round(durationRaw)))
+      : null;
 
     const rawExercises = Array.isArray(template.exercises) ? template.exercises : [];
     if (!rawExercises.length) {
@@ -1741,6 +1750,16 @@ const buildCustomProgramDraft = async (conn, userId, rawPayload = {}) => {
       const restSeconds = Number.isFinite(restSecondsRaw)
         ? Math.max(30, Math.min(600, Math.round(restSecondsRaw)))
         : 90;
+      const targetWeightRaw = Number(exercise?.targetWeight ?? exercise?.weightKg ?? exercise?.weight ?? 0);
+      const targetWeight = Number.isFinite(targetWeightRaw) && targetWeightRaw > 0
+        ? Math.max(0, Math.min(1000, Number(targetWeightRaw.toFixed(2))))
+        : null;
+      const tempoRaw = String(exercise?.tempo || '').trim();
+      const tempo = tempoRaw ? tempoRaw.slice(0, 20) : null;
+      const rpeTargetRaw = Number(exercise?.rpeTarget ?? exercise?.rpe ?? 0);
+      const rpeTarget = Number.isFinite(rpeTargetRaw)
+        ? Number(Math.max(5.5, Math.min(10, rpeTargetRaw)).toFixed(1))
+        : null;
       const targetMuscles = normalizeRecoveryMuscleTargets(
         exercise?.targetMuscles
         ?? exercise?.muscleTargets
@@ -1764,6 +1783,9 @@ const buildCustomProgramDraft = async (conn, userId, rawPayload = {}) => {
         sets,
         reps,
         restSeconds,
+        targetWeight,
+        tempo,
+        rpeTarget,
         targetMuscles,
         notes: exercise?.notes ? String(exercise.notes).trim() : null,
       });
@@ -1772,6 +1794,7 @@ const buildCustomProgramDraft = async (conn, userId, rawPayload = {}) => {
     templatesByDay.set(dayName, {
       workoutName: String(template?.workoutName || template?.name || dayName).trim() || dayName,
       workoutType: template?.workoutType ? String(template.workoutType).trim() : null,
+      estimatedDurationMinutes,
       notes: template?.notes ? String(template.notes).trim() : null,
       exercises: normalizedExercises,
     });
@@ -1816,6 +1839,7 @@ const buildCustomProgramDraft = async (conn, userId, rawPayload = {}) => {
       dayName,
       workoutName: dayTemplate.workoutName,
       workoutType: dayTemplate.workoutType || 'Custom',
+      estimatedDurationMinutes: dayTemplate.estimatedDurationMinutes || null,
       notes: dayTemplate.notes || null,
       exercises: dayTemplate.exercises.map((exercise) => ({
         exerciseCatalogId: exercise.exerciseCatalogId || null,
@@ -1824,7 +1848,10 @@ const buildCustomProgramDraft = async (conn, userId, rawPayload = {}) => {
         targetMuscles: Array.isArray(exercise.targetMuscles) ? exercise.targetMuscles : [],
         sets: exercise.sets,
         reps: exercise.reps,
+        targetWeight: exercise.targetWeight ?? null,
         restSeconds: exercise.restSeconds,
+        tempo: exercise.tempo || null,
+        rpeTarget: exercise.rpeTarget ?? null,
         notes: exercise.notes || null,
       })),
     };
@@ -1881,10 +1908,13 @@ const persistCustomProgramDraft = async (
 
       const workoutDisplayName = String(dayTemplate.workoutName || dayName).trim();
       const workoutName = `Week ${week} - ${workoutDisplayName}`;
-      const estimatedDurationMinutes = Math.max(
-        25,
-        Math.min(180, Math.round((dayTemplate.exercises.length * 11) + 18)),
-      );
+      const estimatedDurationMinutes = Number.isFinite(Number(dayTemplate.estimatedDurationMinutes || 0))
+        && Number(dayTemplate.estimatedDurationMinutes || 0) > 0
+        ? Math.max(20, Math.min(180, Math.round(Number(dayTemplate.estimatedDurationMinutes))))
+        : Math.max(
+          25,
+          Math.min(180, Math.round((dayTemplate.exercises.length * 11) + 18)),
+        );
 
       const [workoutInsert] = await conn.execute(
         `INSERT INTO workouts
@@ -1916,7 +1946,7 @@ const persistCustomProgramDraft = async (
         await conn.execute(
           `INSERT INTO workout_exercises
             (workout_id, exercise_id, order_index, exercise_name_snapshot, muscle_group_snapshot, target_sets, target_reps, target_weight, rest_seconds, tempo, rpe_target, notes)
-           VALUES (?, NULL, ?, ?, ?, ?, ?, NULL, ?, NULL, NULL, ?)`,
+           VALUES (?, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           [
             workoutId,
             exercise.orderIndex,
@@ -1924,7 +1954,10 @@ const persistCustomProgramDraft = async (
             muscleGroupSnapshotValue,
             exercise.sets,
             exercise.reps,
+            exercise.targetWeight,
             exercise.restSeconds,
+            exercise.tempo,
+            exercise.rpeTarget,
             exercise.notes,
           ],
         );
@@ -4040,7 +4073,7 @@ router.get('/user/:userId/program', async (req, res) => {
     }
 
     const [workoutRows] = await pool.execute(
-      `SELECT id, workout_name, workout_type, day_order, day_name, notes
+      `SELECT id, workout_name, workout_type, day_order, day_name, estimated_duration_minutes, notes
        FROM workouts
        WHERE program_id = ?
        ORDER BY day_order ASC`,
@@ -4048,7 +4081,18 @@ router.get('/user/:userId/program', async (req, res) => {
     );
 
     const [exerciseRows] = await pool.execute(
-      `SELECT we.workout_id, we.order_index, we.exercise_name_snapshot, we.target_sets, we.target_reps, we.rest_seconds, we.notes
+      `SELECT
+          we.workout_id,
+          we.order_index,
+          we.exercise_name_snapshot,
+          we.muscle_group_snapshot,
+          we.target_sets,
+          we.target_reps,
+          we.target_weight,
+          we.rest_seconds,
+          we.tempo,
+          we.rpe_target,
+          we.notes
        FROM workout_exercises we
        JOIN workouts w ON w.id = we.workout_id
        WHERE w.program_id = ?
@@ -4061,9 +4105,14 @@ router.get('/user/:userId/program', async (req, res) => {
       if (!exercisesByWorkout.has(row.workout_id)) exercisesByWorkout.set(row.workout_id, []);
       exercisesByWorkout.get(row.workout_id).push({
         exerciseName: row.exercise_name_snapshot,
+        targetMuscles: parseMuscleGroups(row.muscle_group_snapshot),
+        muscleGroup: parseMuscleGroups(row.muscle_group_snapshot)[0] || null,
         sets: row.target_sets,
         reps: row.target_reps,
+        targetWeight: row.target_weight,
         rest: row.rest_seconds,
+        tempo: row.tempo,
+        rpeTarget: row.rpe_target,
         notes: row.notes,
       });
     });
@@ -4074,6 +4123,7 @@ router.get('/user/:userId/program', async (req, res) => {
       workout_type: w.workout_type,
       day_order: w.day_order,
       day_name: w.day_name,
+      estimated_duration_minutes: w.estimated_duration_minutes,
       notes: w.notes,
       exercises: JSON.stringify(exercisesByWorkout.get(w.id) || []),
     })), assignment.days_per_week);
@@ -4105,14 +4155,15 @@ router.get('/user/:userId/program', async (req, res) => {
       totalWeeks: assignment.cycle_weeks,
       rotationWeeks: assignment.rotation_weeks,
       nextRotationDate: assignment.next_rotation_date,
-      todayWorkout: todayWorkout
-        ? {
-            name: todayWorkout.workout_name,
-            workoutType: todayWorkout.workout_type,
-            dayName: todayWorkout.day_name,
-            exercises: JSON.parse(todayWorkout.exercises || '[]'),
-          }
-        : null,
+        todayWorkout: todayWorkout
+          ? {
+              name: todayWorkout.workout_name,
+              workoutType: todayWorkout.workout_type,
+              dayName: todayWorkout.day_name,
+              estimatedDurationMinutes: todayWorkout.estimated_duration_minutes,
+              exercises: JSON.parse(todayWorkout.exercises || '[]'),
+            }
+          : null,
       workouts,
       currentWeekWorkouts,
     });

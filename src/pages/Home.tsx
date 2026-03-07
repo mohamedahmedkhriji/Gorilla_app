@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
 import { ArrowLeft, Medal, MoonStar } from 'lucide-react';
 import { WorkoutCard } from '../components/dashboard/WorkoutCard';
@@ -62,6 +62,7 @@ const getWorkoutStorageKeys = (user: any) => {
     workoutDate: `workoutDate:${scope}`,
     completedExercises: `completedExercises:${scope}`,
     exerciseSets: `exerciseSets:${scope}`,
+    extraExercises: `extraExercises:${scope}`,
   };
 };
 
@@ -109,6 +110,33 @@ const isSetCompleted = (setRow: any) =>
     ?? false
   );
 
+const parseWorkoutExercises = (raw: unknown) => {
+  if (Array.isArray(raw)) return raw;
+
+  if (typeof raw !== 'string' || !raw.trim()) return [];
+
+  try {
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+};
+
+const loadTodayExtraExercises = (keys: { workoutDate: string; extraExercises: string }) => {
+  const today = new Date().toDateString();
+  const savedDate = localStorage.getItem(keys.workoutDate);
+  if (savedDate && savedDate !== today) return [];
+
+  try {
+    const raw = localStorage.getItem(keys.extraExercises);
+    const parsed = raw ? JSON.parse(raw) : [];
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+};
+
 type HomeView =
 'main' |
 'friends' |
@@ -148,6 +176,24 @@ export function Home({ onNavigate }: HomeProps) {
   });
   const [programProgress, setProgramProgress] = useState<any>(null);
   const [showShopComingSoon, setShowShopComingSoon] = useState(false);
+  const [extraTodayExercises, setExtraTodayExercises] = useState<any[]>(
+    () => loadTodayExtraExercises(workoutStorageKeys),
+  );
+  const todayWorkoutExercises = useMemo(() => {
+    const baseExercises = parseWorkoutExercises(todayWorkoutData?.exercises);
+    const seen = new Set<string>();
+    const merged = [...baseExercises, ...extraTodayExercises].filter((exercise: any) => {
+      const key = getExerciseName(exercise).toLowerCase();
+      if (!key) return true;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+    return merged;
+  }, [todayWorkoutData, extraTodayExercises]);
+  const hasAnyTodayExercises = todayWorkoutExercises.length > 0;
+  const workoutCardTitle = todayWorkout === 'Rest Day' && hasAnyTodayExercises ? 'Custom Workout' : todayWorkout;
+  const isWorkoutCardRestDay = todayWorkout === 'Rest Day' && !hasAnyTodayExercises;
 
   const updateRecovery = (value: number) => {
     const next = clampPercent(value);
@@ -168,6 +214,7 @@ export function Home({ onNavigate }: HomeProps) {
 
     // Fetch user program
     const fetchProgram = async () => {
+      setExtraTodayExercises(loadTodayExtraExercises(workoutStorageKeys));
       if (!currentUserId) {
         setUserProgram({ workouts: [] });
         setTodayWorkout('Rest Day');
@@ -189,6 +236,12 @@ export function Home({ onNavigate }: HomeProps) {
           const normalizedToday = {
             workout_name: programData.todayWorkout.name,
             workout_type: programData.todayWorkout.workoutType || '',
+            estimated_duration_minutes:
+              Number(
+                programData.todayWorkout.estimatedDurationMinutes
+                ?? programData.todayWorkout.estimated_duration_minutes
+                ?? 0,
+              ) || null,
             exercises: JSON.stringify(programData.todayWorkout.exercises || []),
           };
           setTodayWorkout(normalizedToday.workout_name);
@@ -261,6 +314,11 @@ export function Home({ onNavigate }: HomeProps) {
     };
     window.addEventListener('workout-progress-updated', handleWorkoutProgressUpdated);
 
+    const handleExtraExercisesUpdated = () => {
+      setExtraTodayExercises(loadTodayExtraExercises(workoutStorageKeys));
+    };
+    window.addEventListener('workout-extra-exercises-updated', handleExtraExercisesUpdated);
+
     // Check for recovery updates every 2 seconds
     const recoveryInterval = setInterval(() => {
       if (localStorage.getItem('recoveryNeedsUpdate') === 'true') {
@@ -281,6 +339,7 @@ export function Home({ onNavigate }: HomeProps) {
     return () => {
       window.removeEventListener('recovery-updated', handleRecoveryUpdated);
       window.removeEventListener('workout-progress-updated', handleWorkoutProgressUpdated);
+      window.removeEventListener('workout-extra-exercises-updated', handleExtraExercisesUpdated);
       clearInterval(recoveryInterval);
       clearInterval(periodicRecoveryRefresh);
       clearInterval(progressRefresh);
@@ -347,12 +406,13 @@ export function Home({ onNavigate }: HomeProps) {
       const user = JSON.parse(localStorage.getItem('appUser') || localStorage.getItem('user') || '{}');
       const userId = user.id;
 
-      let exercises: Array<{ exerciseName?: string; exercise_name?: string; name?: string; sets?: number; target_sets?: number }> = [];
-      try {
-        exercises = JSON.parse(todayWorkoutData.exercises || '[]');
-      } catch {
-        exercises = [];
-      }
+      const exercises = parseWorkoutExercises(todayWorkoutData.exercises) as Array<{
+        exerciseName?: string;
+        exercise_name?: string;
+        name?: string;
+        sets?: number;
+        target_sets?: number;
+      }>;
 
       if (exercises.length === 0) {
         updateWorkoutProgress(0);
@@ -453,7 +513,7 @@ export function Home({ onNavigate }: HomeProps) {
     return <MyNutrition onBack={() => setView('main')} />;
   }
   if (view === 'workoutDetail') {
-    if (todayWorkout === 'Rest Day') {
+    if (todayWorkout === 'Rest Day' && !hasAnyTodayExercises) {
       return (
         <div className="flex flex-col items-center justify-center h-screen pb-24 px-4">
           <button
@@ -472,12 +532,8 @@ export function Home({ onNavigate }: HomeProps) {
     }
     
     // Get today's workout exercises
-    let exercises = [];
-    try {
-      exercises = JSON.parse(todayWorkoutData?.exercises || '[]');
-    } catch {
-      exercises = [];
-    }
+    const exercises = todayWorkoutExercises;
+    const workoutDetailTitle = todayWorkout === 'Rest Day' ? 'Custom Workout' : todayWorkout;
     
     return (
       <div className="pb-24 pt-4">
@@ -487,7 +543,7 @@ export function Home({ onNavigate }: HomeProps) {
           <ArrowLeft size={16} />
           Back
         </button>
-        <h2 className="text-2xl font-semibold text-white mb-2">{todayWorkout}</h2>
+        <h2 className="text-2xl font-semibold text-white mb-2">{workoutDetailTitle}</h2>
         <p className="text-text-secondary text-sm mb-6">{todayWorkoutData?.workout_type}</p>
         
         <div className="space-y-3">
@@ -556,18 +612,18 @@ export function Home({ onNavigate }: HomeProps) {
           duration: 0.6,
           ease: 'easeOut'
         }}
-        className="mb-7 surface-card rounded-2xl border border-white/12 p-4 flex items-start justify-between gap-4">
+        className="mb-7 surface-card rounded-2xl border border-white/12 px-4 py-3 flex items-start justify-between gap-4">
 
         <div>
           <h1 className="text-3xl font-semibold text-text-primary mt-1">
             {greeting}
           </h1>
-          <p className="text-text-secondary mt-3 text-sm max-w-[200px] leading-relaxed">
+          <p className="text-text-secondary mt-2 text-sm max-w-[200px] leading-snug">
             Ready to crush your goals today?
           </p>
         </div>
         
-        <div className="flex items-center gap-2 surface-glass px-4 py-3 rounded-2xl border border-white/15 shrink-0">
+        <div className="flex items-center gap-2 surface-glass px-3.5 py-2 rounded-2xl border border-white/15 shrink-0">
           <div className="w-8 h-8 rounded-xl bg-accent/15 border border-accent/35 flex items-center justify-center">
             <Medal size={15} className="text-accent" />
           </div>
@@ -592,10 +648,12 @@ export function Home({ onNavigate }: HomeProps) {
         {/* Today's Workout */}
         <div onClick={() => onNavigate('workout')} className="cursor-pointer">
           <WorkoutCard
-            title={todayWorkout}
-            duration={todayWorkoutData?.workout_type || ''}
+            title={workoutCardTitle}
+            workoutType={todayWorkoutData?.workout_type || ''}
+            estimatedDurationMinutes={todayWorkoutData?.estimated_duration_minutes ?? null}
+            exercises={todayWorkoutExercises}
             progress={workoutProgress}
-            isRestDay={todayWorkout === 'Rest Day'} />
+            isRestDay={isWorkoutCardRestDay} />
         </div>
 
         {/* Rank & Recovery */}

@@ -58,7 +58,32 @@ export function SplashScreen({ onComplete }: SplashScreenProps) {
               }}
               className="w-40 h-40 md:w-48 md:h-48 lg:w-52 lg:h-52"
             >
-              <BrandLogo className="rounded-3xl bg-black/45 border border-white/20 p-3 md:p-4" imageClassName="object-contain" />
+              <motion.div
+                animate={{
+                  scale: [1, 1.09, 0.96, 1.13, 1],
+                  filter: [
+                    'drop-shadow(0 0 0px rgba(187,255,92,0.0))',
+                    'drop-shadow(0 0 12px rgba(187,255,92,0.2))',
+                    'drop-shadow(0 0 4px rgba(187,255,92,0.08))',
+                    'drop-shadow(0 0 18px rgba(187,255,92,0.3))',
+                    'drop-shadow(0 0 0px rgba(187,255,92,0.0))',
+                  ],
+                }}
+                transition={{
+                  duration: 1.1,
+                  ease: 'easeInOut',
+                  repeat: Infinity,
+                  times: [0, 0.18, 0.34, 0.5, 1],
+                  repeatDelay: 0.08,
+                  delay: 0.55,
+                }}
+                className="w-full h-full"
+              >
+                <BrandLogo
+                  className="w-full h-full rounded-3xl bg-black/45 border border-white/20 p-3 md:p-4"
+                  imageClassName="object-contain"
+                />
+              </motion.div>
             </motion.div>
 
             <motion.h1

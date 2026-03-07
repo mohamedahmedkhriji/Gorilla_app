@@ -10,6 +10,14 @@ interface WorkoutProps {
   onBack: () => void;
   workoutDay?: string;
 }
+
+type AddedCatalogExercise = {
+  id: number;
+  name: string;
+  muscle?: string;
+  bodyPart?: string | null;
+};
+
 type ViewState = 'overview' | 'plan' | 'tracker' | 'video' | 'live' | 'summary';
 
 const readStoredUser = () => {
@@ -47,6 +55,7 @@ const getWorkoutStorageKeys = (scope: string) => {
     workoutDate: `workoutDate:${scope}`,
     completedExercises: `completedExercises:${scope}`,
     exerciseSets: `exerciseSets:${scope}`,
+    extraExercises: `extraExercises:${scope}`,
   };
 };
 
@@ -64,12 +73,18 @@ const loadLocalWorkoutState = (scope: string) => {
   if (savedDate !== today) {
     localStorage.removeItem(keys.completedExercises);
     localStorage.removeItem(keys.exerciseSets);
+    localStorage.removeItem(keys.extraExercises);
     localStorage.setItem(keys.workoutDate, today);
-    return { completedExercises: [] as string[], exerciseSets: {} as Record<string, any[]> };
+    return {
+      completedExercises: [] as string[],
+      exerciseSets: {} as Record<string, any[]>,
+      extraExercises: [] as any[],
+    };
   }
 
   let completedExercises: string[] = [];
   let exerciseSets: Record<string, any[]> = {};
+  let extraExercises: any[] = [];
 
   try {
     const completedRaw = localStorage.getItem(keys.completedExercises);
@@ -87,7 +102,47 @@ const loadLocalWorkoutState = (scope: string) => {
     exerciseSets = {};
   }
 
-  return { completedExercises, exerciseSets };
+  try {
+    const extraRaw = localStorage.getItem(keys.extraExercises);
+    const parsedExtras = extraRaw ? JSON.parse(extraRaw) : [];
+    extraExercises = Array.isArray(parsedExtras) ? parsedExtras : [];
+  } catch {
+    extraExercises = [];
+  }
+
+  return { completedExercises, exerciseSets, extraExercises };
+};
+
+const parseTargetMuscles = (raw: unknown): string[] => {
+  if (Array.isArray(raw)) {
+    return raw
+      .map((entry) => String(entry || '').trim())
+      .filter(Boolean);
+  }
+
+  if (typeof raw === 'string') {
+    const text = raw.trim();
+    if (!text) return [];
+
+    try {
+      const parsed = JSON.parse(text);
+      if (Array.isArray(parsed)) {
+        return parsed
+          .map((entry) => String(entry || '').trim())
+          .filter(Boolean);
+      }
+      if (typeof parsed === 'string' && parsed.trim()) return [parsed.trim()];
+    } catch {
+      // Fall through to delimited parsing.
+    }
+
+    return text
+      .split(/[,;|]+/)
+      .map((entry) => entry.trim())
+      .filter(Boolean);
+  }
+
+  return [];
 };
 
 export function Workout({ onBack, workoutDay = 'Push Day' }: WorkoutProps) {
@@ -120,6 +175,26 @@ export function Workout({ onBack, workoutDay = 'Push Day' }: WorkoutProps) {
     setExerciseSets(state.exerciseSets);
   }, [workoutStorageScope]);
 
+  const persistExtraExercises = (exercises: any[]) => {
+    const extras = exercises
+      .filter((exercise) => exercise?.isExtra)
+      .map((exercise) => ({
+        exerciseName: exercise.exerciseName,
+        exerciseCatalogId: exercise.exerciseCatalogId ?? null,
+        targetMuscles: Array.isArray(exercise.targetMuscles) ? exercise.targetMuscles : [],
+        muscleGroup: exercise.muscleGroup ?? null,
+        sets: Number(exercise.sets || 0),
+        reps: String(exercise.reps || ''),
+        targetWeight: exercise.targetWeight ?? null,
+        rest: Number(exercise.rest || 0),
+        tempo: exercise.tempo ?? null,
+        rpeTarget: exercise.rpeTarget ?? null,
+        notes: exercise.notes ?? null,
+        isExtra: true,
+      }));
+    localStorage.setItem(workoutStorageKeys.extraExercises, JSON.stringify(extras));
+  };
+
   const getPlannedSetsForExercise = (exerciseName: string) => {
     const planned = todayExercises.find(
       (ex: any) => normalizeExerciseName(ex.exerciseName) === normalizeExerciseName(exerciseName),
@@ -151,14 +226,39 @@ export function Workout({ onBack, workoutDay = 'Push Day' }: WorkoutProps) {
         const normalizedExercises = Array.isArray(todayWorkout.exercises)
           ? todayWorkout.exercises.map((ex: any) => ({
               exerciseName: ex.exerciseName || ex.exercise_name || ex.name,
+              exerciseCatalogId: Number(ex.exerciseCatalogId ?? ex.exercise_catalog_id ?? 0) || null,
+              targetMuscles: parseTargetMuscles(ex.targetMuscles ?? ex.muscleTargets ?? ex.muscles),
+              muscleGroup: String(ex.muscleGroup || ex.muscle_group || '').trim() || null,
               sets: Number(ex.sets ?? ex.targetSets ?? ex.target_sets ?? 0),
               reps: String(ex.reps ?? ex.targetReps ?? ex.target_reps ?? ''),
+              targetWeight: Number(ex.targetWeight ?? ex.target_weight ?? 0) || null,
               rest: Number(ex.rest ?? ex.restSeconds ?? ex.rest_seconds ?? 0),
+              tempo: ex.tempo || null,
+              rpeTarget: Number(ex.rpeTarget ?? ex.rpe_target ?? 0) || null,
               notes: ex.notes || null,
+              isExtra: false,
             }))
           : [];
 
-        setTodayExercises(normalizedExercises);
+        const storedState = loadLocalWorkoutState(workoutStorageScope);
+        const normalizedExtras = Array.isArray(storedState.extraExercises)
+          ? storedState.extraExercises.map((ex: any) => ({
+              exerciseName: ex.exerciseName || ex.exercise_name || ex.name,
+              exerciseCatalogId: Number(ex.exerciseCatalogId ?? ex.exercise_catalog_id ?? 0) || null,
+              targetMuscles: parseTargetMuscles(ex.targetMuscles ?? ex.muscleTargets ?? ex.muscles),
+              muscleGroup: String(ex.muscleGroup || ex.muscle_group || '').trim() || null,
+              sets: Number(ex.sets ?? ex.targetSets ?? ex.target_sets ?? 0),
+              reps: String(ex.reps ?? ex.targetReps ?? ex.target_reps ?? ''),
+              targetWeight: Number(ex.targetWeight ?? ex.target_weight ?? 0) || null,
+              rest: Number(ex.rest ?? ex.restSeconds ?? ex.rest_seconds ?? 0),
+              tempo: ex.tempo || null,
+              rpeTarget: Number(ex.rpeTarget ?? ex.rpe_target ?? 0) || null,
+              notes: ex.notes || null,
+              isExtra: true,
+            }))
+          : [];
+
+        setTodayExercises([...normalizedExercises, ...normalizedExtras]);
         setCurrentWorkoutName(todayWorkout.name || workoutDay);
       } catch (error) {
         console.error('Failed to fetch today workout:', error);
@@ -169,15 +269,49 @@ export function Workout({ onBack, workoutDay = 'Push Day' }: WorkoutProps) {
       }
     };
     fetchTodayWorkout();
-  }, [workoutDay, userId]);
+  }, [workoutDay, userId, workoutStorageScope]);
+
+  const addExerciseToToday = (exercise: AddedCatalogExercise) => {
+    const exerciseName = String(exercise?.name || '').trim();
+    if (!exerciseName) {
+      return { added: false, reason: 'Select an exercise first.' };
+    }
+
+    const normalizedName = normalizeExerciseName(exerciseName);
+    if (todayExercises.some((entry: any) => normalizeExerciseName(entry?.exerciseName) === normalizedName)) {
+      return { added: false, reason: 'This exercise is already in today\'s workout.' };
+    }
+
+    const nextExercise = {
+      exerciseName,
+      exerciseCatalogId: Number(exercise?.id || 0) || null,
+      targetMuscles: parseTargetMuscles([exercise?.muscle || exercise?.bodyPart || '']),
+      muscleGroup: String(exercise?.muscle || exercise?.bodyPart || '').trim() || null,
+      sets: 3,
+      reps: '8-12',
+      targetWeight: null,
+      rest: 90,
+      tempo: null,
+      rpeTarget: null,
+      notes: 'Added for today',
+      isExtra: true,
+    };
+
+    const nextExercises = [...todayExercises, nextExercise];
+    setTodayExercises(nextExercises);
+    persistExtraExercises(nextExercises);
+    window.dispatchEvent(new CustomEvent('workout-extra-exercises-updated'));
+    return { added: true };
+  };
 
   const updateExerciseSets = (sets: Record<string, any[]>) => {
     setExerciseSets(sets);
     localStorage.setItem(workoutStorageKeys.exerciseSets, JSON.stringify(sets));
     
     // Mark an exercise completed once all planned sets for that exercise are completed.
+    const coreExercises = todayExercises.filter((ex: any) => !ex?.isExtra);
     const plannedSetsByExercise = new Map(
-      todayExercises.map((ex: any) => [normalizeExerciseName(ex.exerciseName), Number(ex.sets || 0)]),
+      coreExercises.map((ex: any) => [normalizeExerciseName(ex.exerciseName), Number(ex.sets || 0)]),
     );
 
     const completed = Object.keys(sets).filter(exerciseName => {
@@ -212,15 +346,6 @@ export function Workout({ onBack, workoutDay = 'Push Day' }: WorkoutProps) {
       totalCompletedSets += Math.min(completedCount, targetSetCount);
     });
 
-    if (!plannedSetsByExercise.size && normalizedSetsByExercise.size > 0) {
-      normalizedSetsByExercise.forEach((setRows) => {
-        const targetSetCount = Math.max(1, setRows.length);
-        const completedCount = setRows.filter((s: any) => isSetCompleted(s)).length;
-        totalTargetSets += targetSetCount;
-        totalCompletedSets += Math.min(completedCount, targetSetCount);
-      });
-    }
-
     const workoutProgress = totalTargetSets > 0
       ? Math.min(100, Math.round((totalCompletedSets / totalTargetSets) * 100))
       : 0;
@@ -228,7 +353,7 @@ export function Workout({ onBack, workoutDay = 'Push Day' }: WorkoutProps) {
     window.dispatchEvent(new CustomEvent('workout-progress-updated'));
     
     // Trigger immediate recovery refresh when the day is fully completed.
-    const plannedExerciseNames = todayExercises.map((ex: any) => normalizeExerciseName(ex.exerciseName));
+    const plannedExerciseNames = coreExercises.map((ex: any) => normalizeExerciseName(ex.exerciseName));
     const completedNormalized = new Set(completed.map(normalizeExerciseName));
     const allPlannedDone =
       plannedExerciseNames.length > 0 &&
@@ -268,6 +393,7 @@ export function Workout({ onBack, workoutDay = 'Push Day' }: WorkoutProps) {
           setSelectedExercise(exercise);
           setView('tracker');
         }}
+        onAddExercise={addExerciseToToday}
         workoutDay={currentWorkoutName}
         completedExercises={completedExercises}
         todayExercises={todayExercises}

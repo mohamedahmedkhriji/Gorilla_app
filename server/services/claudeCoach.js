@@ -163,6 +163,12 @@ const normalizeReps = (value, fallback = '8-12') => {
   return text.slice(0, 20);
 };
 
+const normalizeTempo = (value, fallback = null) => {
+  const text = String(value || '').trim();
+  if (!text) return fallback;
+  return text.slice(0, 20);
+};
+
 const normalizeTargetMuscleName = (value) => {
   const key = String(value || '').trim().toLowerCase();
   if (!key) return null;
@@ -212,13 +218,33 @@ const normalizeExercise = (exercise) => {
     || exercise?.muscles
     || exercise?.muscleGroup,
   );
+  const targetWeightValue = clampNumber(
+    exercise?.targetWeight
+      ?? exercise?.weightKg
+      ?? exercise?.weight
+      ?? null,
+    0,
+    500,
+    0,
+  );
+  const targetWeight = targetWeightValue > 0 ? Number(targetWeightValue.toFixed(2)) : null;
+  const rpeTarget = Number(clampNumber(
+    exercise?.rpeTarget ?? exercise?.rpe,
+    5.5,
+    10,
+    7.5,
+  ).toFixed(1));
 
   return {
     name: sanitizeText(exercise?.name || exercise?.exerciseName, 'Exercise'),
     sets: clampInt(exercise?.sets, 1, 10, 3),
     reps: normalizeReps(exercise?.reps, '8-12'),
     restSeconds: clampInt(exercise?.restSeconds, 30, 300, 90),
-    rpe: Number(clampNumber(exercise?.rpe, 6, 10, 7.5).toFixed(1)),
+    targetWeight,
+    tempo: normalizeTempo(exercise?.tempo, null),
+    rpeTarget,
+    // Keep legacy rpe key for backward compatibility with downstream mappings.
+    rpe: rpeTarget,
     notes: sanitizeText(exercise?.notes, ''),
     targetMuscles,
   };
@@ -243,6 +269,7 @@ const buildDefaultSchedule = (daysPerWeek = 4) => {
       dayName,
       workoutName: template.workoutName,
       workoutType: template.workoutType,
+      estimatedDurationMinutes: clampInt((defaultExercises.length * 10) + 15, 20, 180, 60),
       focus: `${template.workoutType} development and progressive overload`,
       exercises: defaultExercises.map((item) => normalizeExercise(item)),
     };
@@ -274,6 +301,12 @@ const normalizeWeeklySchedule = (rawSchedule, daysPerWeek) => {
       dayName,
       workoutName: sanitizeText(row?.workoutName, `${toTitleCase(dayName)} Workout`),
       workoutType,
+      estimatedDurationMinutes: clampInt(
+        row?.estimatedDurationMinutes ?? row?.estimated_duration_minutes,
+        20,
+        180,
+        60,
+      ),
       focus: sanitizeText(row?.focus, `${workoutType} progression`),
       exercises: normalizedExercises.length
         ? normalizedExercises
@@ -431,6 +464,7 @@ const buildUserPrompt = (profile, imageCount) => {
     '      "dayName": "Monday|Tuesday|...|Sunday",',
     '      "workoutName": "string",',
     '      "workoutType": "Upper Body|Lower Body|Push|Pull|Legs|Full Body",',
+    '      "estimatedDurationMinutes": 30-120 integer,',
     '      "focus": "string",',
     '      "exercises": [',
     '        {',
@@ -439,7 +473,9 @@ const buildUserPrompt = (profile, imageCount) => {
     '          "sets": 1-10 integer,',
     '          "reps": "string, e.g. 6-8 or 45 sec",',
     '          "restSeconds": 30-300 integer,',
-    '          "rpe": 6.0-10.0 number,',
+    '          "targetWeight": number in kg or null for bodyweight,',
+    '          "tempo": "string like 3-1-1-0 or null",',
+    '          "rpeTarget": 5.5-10.0 number,',
     '          "notes": "string"',
     '        }',
     '      ]',
@@ -453,6 +489,8 @@ const buildUserPrompt = (profile, imageCount) => {
     '',
     `Important: weeklySchedule must include exactly ${daysPerWeek} unique training days.`,
     'Prefer setting targetMuscles for each exercise to help downstream recovery modeling.',
+    'Use realistic targetWeight in kg for loaded movements and null for bodyweight/isometric exercises.',
+    'Keep exercise names specific and gym-usable (avoid generic placeholders).',
   ].join('\n');
 };
 
@@ -667,6 +705,12 @@ export const buildCustomProgramPayloadFromClaudePlan = (plan = {}, options = {})
     dayName: normalizeDayName(row?.dayName),
     workoutName: sanitizeText(row?.workoutName, `${toTitleCase(normalizeDayName(row?.dayName))} Workout`),
     workoutType: sanitizeText(row?.workoutType, 'Custom'),
+    estimatedDurationMinutes: clampInt(
+      row?.estimatedDurationMinutes ?? row?.estimated_duration_minutes,
+      20,
+      180,
+      60,
+    ),
     notes: sanitizeText(row?.focus, null),
     exercises: (Array.isArray(row?.exercises) ? row.exercises : [])
       .map((exercise) => normalizeExercise(exercise))
@@ -677,7 +721,12 @@ export const buildCustomProgramPayloadFromClaudePlan = (plan = {}, options = {})
         targetMuscles: Array.isArray(exercise.targetMuscles) ? exercise.targetMuscles : [],
         sets: exercise.sets,
         reps: exercise.reps,
+        targetWeight: exercise.targetWeight ?? null,
         restSeconds: exercise.restSeconds,
+        tempo: exercise.tempo || null,
+        rpeTarget: Number.isFinite(Number(exercise.rpeTarget))
+          ? Number(exercise.rpeTarget)
+          : Number(clampNumber(exercise.rpe, 5.5, 10, 7.5).toFixed(1)),
         notes: sanitizeText(exercise.notes, null),
       })),
   }));
