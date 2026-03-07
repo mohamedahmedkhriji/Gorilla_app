@@ -7,6 +7,9 @@ import { UserGrowthChart } from '../../components/admin/UserGrowthChart';
 import { RevenueBreakdown } from '../../components/admin/RevenueBreakdown';
 import { AllCoaches } from '../../components/admin/AllCoaches';
 import { BrandLogo } from '../../components/ui/BrandLogo';
+import { WorkspaceGrid } from '../../components/workspace/WorkspaceGrid';
+import { WorkspacePlaceholderScreen } from '../../components/workspace/WorkspacePlaceholderScreen';
+import { getWorkspacePage, getWorkspacePages } from '../../config/workspacePages';
 
 type Gym = {
   id: string;
@@ -28,8 +31,21 @@ interface SuperAdminDashboardProps {
 
 export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({ onLogout }) => {
   const timeRanges: Array<'week' | 'month' | 'year'> = ['week', 'month', 'year'];
-  const [view, setView] = useState<'dashboard' | 'users' | 'revenue' | 'gyms' | 'growth' | 'breakdown' | 'coaches'>('dashboard');
+  const [view, setView] = useState<
+    'dashboard'
+    | 'users'
+    | 'revenue'
+    | 'gyms'
+    | 'growth'
+    | 'breakdown'
+    | 'coaches'
+    | 'exercisesmanagement'
+    | 'missionsmanagement'
+    | 'ranksystem'
+    | 'subscriptionmanagement'
+  >('dashboard');
   const [timeRange, setTimeRange] = useState<'week' | 'month' | 'year'>('month');
+  const adminWorkspacePages = getWorkspacePages('admin');
   const [stats, setStats] = useState({
     totalUsers: 0,
     activeUsers: 0,
@@ -71,12 +87,133 @@ export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({ onLogo
 
   const maxUsers = Math.max(...userGrowth.map(d => d.users));
 
+  const openAdminWorkspacePage = (pageId: string) => {
+    switch (pageId) {
+      case 'admin-dashboard':
+        setView('dashboard');
+        return;
+      case 'users-management':
+        setView('users');
+        return;
+      case 'coaches-management':
+        setView('coaches');
+        return;
+      case 'exercises-management':
+        setView('exercisesmanagement');
+        return;
+      case 'missions-management':
+        setView('missionsmanagement');
+        return;
+      case 'rank-system':
+        setView('ranksystem');
+        return;
+      case 'subscription-management':
+        setView('subscriptionmanagement');
+        return;
+      default:
+        setView('dashboard');
+    }
+  };
+
   if (view === 'users') return <TotalUsers onBack={() => setView('dashboard')} />;
   if (view === 'revenue') return <TotalRevenue onBack={() => setView('dashboard')} />;
   if (view === 'gyms') return <PartnerGyms onBack={() => setView('dashboard')} />;
   if (view === 'growth') return <UserGrowthChart onBack={() => setView('dashboard')} />;
   if (view === 'breakdown') return <RevenueBreakdown onBack={() => setView('dashboard')} />;
   if (view === 'coaches') return <AllCoaches onBack={() => setView('dashboard')} />;
+  if (view === 'exercisesmanagement') {
+    const page = getWorkspacePage('admin', 'exercises-management');
+    return (
+      <WorkspacePlaceholderScreen
+        title={page?.title || 'Exercises Management'}
+        description={page?.description || 'Exercise catalog administration will live here.'}
+        onBack={() => setView('dashboard')}
+        status={page?.status}
+        implementation={page?.implementation}
+        notes={[
+          'The backend already includes exercise catalog import and upgrade scripts.',
+          'A dedicated admin CRUD screen for exercise metadata is not exposed in the web panel yet.',
+        ]}
+        actions={[
+          {
+            label: 'Return to Dashboard',
+            onClick: () => setView('dashboard'),
+          },
+        ]}
+      />
+    );
+  }
+  if (view === 'missionsmanagement') {
+    const page = getWorkspacePage('admin', 'missions-management');
+    return (
+      <WorkspacePlaceholderScreen
+        title={page?.title || 'Missions Management'}
+        description={page?.description || 'Mission administration will live here.'}
+        onBack={() => setView('dashboard')}
+        status={page?.status}
+        implementation={page?.implementation}
+        notes={[
+          'User-facing missions and rank rewards already exist on the mobile side.',
+          'Admin tooling for configuring mission rules and campaigns is not exposed yet.',
+        ]}
+        actions={[
+          {
+            label: 'Return to Dashboard',
+            onClick: () => setView('dashboard'),
+          },
+        ]}
+      />
+    );
+  }
+  if (view === 'ranksystem') {
+    const page = getWorkspacePage('admin', 'rank-system');
+    return (
+      <WorkspacePlaceholderScreen
+        title={page?.title || 'Rank System'}
+        description={page?.description || 'Rank configuration will live here.'}
+        onBack={() => setView('dashboard')}
+        status={page?.status}
+        implementation={page?.implementation}
+        notes={[
+          'Rank values are already surfaced in the user and coach experiences.',
+          'Threshold controls and tuning tools are not yet exposed as an admin workflow.',
+        ]}
+        actions={[
+          {
+            label: 'Return to Dashboard',
+            onClick: () => setView('dashboard'),
+          },
+        ]}
+      />
+    );
+  }
+  if (view === 'subscriptionmanagement') {
+    const page = getWorkspacePage('admin', 'subscription-management');
+    return (
+      <WorkspacePlaceholderScreen
+        title={page?.title || 'Subscription Management'}
+        description={page?.description || 'Subscription oversight will live here.'}
+        onBack={() => setView('dashboard')}
+        status={page?.status}
+        implementation={page?.implementation}
+        notes={[
+          'Revenue and subscription signals currently live in the revenue overview cards.',
+          'A dedicated plan and billing management screen is not wired into the admin panel yet.',
+        ]}
+        actions={[
+          {
+            label: 'Open Revenue Overview',
+            onClick: () => setView('revenue'),
+          },
+          {
+            label: 'Open Revenue Breakdown',
+            onClick: () => setView('breakdown'),
+            variant: 'secondary',
+          },
+        ]}
+      />
+    );
+  }
 
   return (
     <div className="min-h-screen bg-[#1A1A1A] text-white p-3 md:p-6">
@@ -163,6 +300,15 @@ export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({ onLogo
           <div className="text-xs md:text-sm text-gray-400">Total Coaches</div>
           <div className="text-xs text-green-500 mt-2">38 active</div>
         </div>
+      </div>
+
+      <div className="mb-4 md:mb-6">
+        <WorkspaceGrid
+          title="Admin Workspace"
+          subtitle="This maps the requested admin panel pages to the current implementation."
+          pages={adminWorkspacePages}
+          onSelect={(page) => openAdminWorkspacePage(page.id)}
+        />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6 mb-4 md:mb-6">

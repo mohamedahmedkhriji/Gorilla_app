@@ -6,6 +6,9 @@ import { TodaysActivity } from '../../components/admin/TodaysActivity';
 import { Notifications } from '../../components/admin/Notifications';
 import { AddUser } from '../../components/admin/AddUser';
 import { BrandLogo } from '../../components/ui/BrandLogo';
+import { WorkspaceGrid } from '../../components/workspace/WorkspaceGrid';
+import { WorkspacePlaceholderScreen } from '../../components/workspace/WorkspacePlaceholderScreen';
+import { getWorkspacePage, getWorkspacePages } from '../../config/workspacePages';
 import { api } from '../../services/api';
 import { socketService } from '../../services/socket';
 
@@ -80,7 +83,7 @@ const toClientRank = (rankValue: unknown, pointsValue: unknown): ClientRank => {
 };
 
 export const CoachDashboard: React.FC<CoachDashboardProps> = ({ onLogout }) => {
-  const [view, setView] = useState<'dashboard' | 'schedule' | 'clients' | 'activity' | 'notifications' | 'adduser' | 'planrequests'>('dashboard');
+  const [view, setView] = useState<'dashboard' | 'schedule' | 'clients' | 'activity' | 'notifications' | 'adduser' | 'planrequests' | 'programbuilder'>('dashboard');
   const [clients, setClients] = useState<Client[]>([]);
   const [selectedClient, setSelectedClient] = useState<Client | null>(null);
   const [messages, setMessages] = useState<any[]>([]);
@@ -106,6 +109,7 @@ export const CoachDashboard: React.FC<CoachDashboardProps> = ({ onLogout }) => {
     const saved = localStorage.getItem('coach-dashboard-theme');
     return saved === 'light' ? 'light' : 'dark';
   });
+  const coachWorkspacePages = getWorkspacePages('coach');
   const fileInputRef = useRef<HTMLInputElement>(null);
   const selectedClientRef = useRef<Client | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -585,6 +589,74 @@ export const CoachDashboard: React.FC<CoachDashboardProps> = ({ onLogout }) => {
     await handleClientSelect(targetClient);
   };
 
+  const openAthleteProfileWorkspace = async (preferredUserId?: number) => {
+    setNetworkError('');
+
+    let targetUserId = Number(preferredUserId || 0);
+    let availableClients = clients;
+
+    if (!targetUserId) {
+      if (!availableClients.length) {
+        availableClients = await loadClients();
+      }
+      targetUserId = Number(availableClients[0]?.id || 0);
+    }
+
+    if (!Number.isFinite(targetUserId) || targetUserId <= 0) {
+      setView('clients');
+      return;
+    }
+
+    setPendingOpenClientProfileId(String(targetUserId));
+    setView('clients');
+  };
+
+  const openMessagingWorkspace = async (preferredUserId?: number) => {
+    let targetUserId = Number(preferredUserId || 0);
+    let availableClients = clients;
+
+    if (!targetUserId) {
+      if (!availableClients.length) {
+        availableClients = await loadClients();
+      }
+      targetUserId = Number(availableClients[0]?.id || 0);
+    }
+
+    if (!Number.isFinite(targetUserId) || targetUserId <= 0) {
+      setView('dashboard');
+      setSelectedClient(null);
+      setMessages([]);
+      return;
+    }
+
+    await openClientChatFromNotification(targetUserId);
+  };
+
+  const openCoachWorkspacePage = (pageId: string) => {
+    switch (pageId) {
+      case 'coach-dashboard':
+        setView('dashboard');
+        return;
+      case 'athletes-list':
+        setView('clients');
+        return;
+      case 'athlete-profile':
+        void openAthleteProfileWorkspace();
+        return;
+      case 'program-builder':
+        setView('programbuilder');
+        return;
+      case 'messaging':
+        void openMessagingWorkspace();
+        return;
+      case 'progress-analytics':
+        setView('activity');
+        return;
+      default:
+        setView('dashboard');
+    }
+  };
+
   const stats = {
     totalClients: clients.length,
     activeToday: 18,
@@ -641,6 +713,36 @@ export const CoachDashboard: React.FC<CoachDashboardProps> = ({ onLogout }) => {
 
   if (view === 'adduser') {
     return <AddUser onBack={() => setView('dashboard')} />;
+  }
+
+  if (view === 'programbuilder') {
+    const page = getWorkspacePage('coach', 'program-builder');
+
+    return (
+      <WorkspacePlaceholderScreen
+        title={page?.title || 'Program Builder'}
+        description={page?.description || 'Coach program building tools will live here.'}
+        onBack={() => setView('dashboard')}
+        theme={theme}
+        status={page?.status}
+        implementation={page?.implementation}
+        notes={[
+          'Coaches can currently approve or reject athlete-submitted plan requests.',
+          'A dedicated builder with workout authoring controls is not wired into the web panel yet.',
+        ]}
+        actions={[
+          {
+            label: 'Review Plan Requests',
+            onClick: () => setView('planrequests'),
+          },
+          {
+            label: 'Back to Dashboard',
+            onClick: () => setView('dashboard'),
+            variant: 'secondary',
+          },
+        ]}
+      />
+    );
   }
 
   if (view === 'planrequests') {
@@ -1000,6 +1102,16 @@ export const CoachDashboard: React.FC<CoachDashboardProps> = ({ onLogout }) => {
           <div className="text-xl md:text-2xl font-bold">{stats.planRequests}</div>
           <div className={`text-xs ${isLightTheme ? 'text-slate-500' : 'text-gray-400'}`}>Plan Requests</div>
         </div>
+      </div>
+
+      <div className="px-3 md:px-4 pb-1">
+        <WorkspaceGrid
+          title="Coach Workspace"
+          subtitle="This maps the requested coach panel pages to the current implementation."
+          pages={coachWorkspacePages}
+          onSelect={(page) => openCoachWorkspacePage(page.id)}
+          theme={theme}
+        />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 md:gap-4 p-3 md:p-4 h-auto lg:h-[calc(100vh-250px)]">
