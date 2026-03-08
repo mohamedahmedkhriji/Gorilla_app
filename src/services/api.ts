@@ -5,19 +5,33 @@ const DEFAULT_API_ORIGIN =
 
 const API_URL = import.meta.env.VITE_API_URL || `${DEFAULT_API_ORIGIN}/api`;
 
+type ApiError = Error & {
+  status?: number;
+  data?: unknown;
+};
+
+const createApiError = (message: string, status: number, data?: unknown): ApiError => {
+  const error = new Error(message) as ApiError;
+  error.status = status;
+  error.data = data;
+  return error;
+};
+
 const parseApiResponse = async (res: Response, fallbackError = 'Request failed') => {
   const contentType = res.headers.get('content-type') || '';
   if (!contentType.includes('application/json')) {
     const text = await res.text();
-    throw new Error(
+    throw createApiError(
       `Server returned non-JSON response (status ${res.status}). ` +
-      `If you just changed backend routes, restart backend. Response: ${text.slice(0, 120)}`
+      `If you just changed backend routes, restart backend. Response: ${text.slice(0, 120)}`,
+      res.status,
+      { text },
     );
   }
 
   const data = await res.json();
   if (!res.ok) {
-    throw new Error(data?.error || fallbackError);
+    throw createApiError(data?.error || fallbackError, res.status, data);
   }
   return data;
 };

@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Home, Activity, Dumbbell, User, BookOpenText } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { AppLanguage, getActiveLanguage, getStoredLanguage } from '../../services/language';
+import { AppTheme, getActiveTheme, getStoredTheme } from '../../services/theme';
 
 interface TabBarProps {
   activeTab: string;
@@ -10,6 +11,7 @@ interface TabBarProps {
 
 export function TabBar({ activeTab, onTabChange }: TabBarProps) {
   const [language, setLanguage] = useState<AppLanguage>('en');
+  const [theme, setTheme] = useState<AppTheme>('dark');
 
   useEffect(() => {
     setLanguage(getActiveLanguage());
@@ -23,6 +25,21 @@ export function TabBar({ activeTab, onTabChange }: TabBarProps) {
     return () => {
       window.removeEventListener('app-language-changed', handleLanguageChanged);
       window.removeEventListener('storage', handleLanguageChanged);
+    };
+  }, []);
+
+  useEffect(() => {
+    setTheme(getActiveTheme());
+
+    const handleThemeChanged = () => {
+      setTheme(getStoredTheme());
+    };
+
+    window.addEventListener('app-theme-changed', handleThemeChanged);
+    window.addEventListener('storage', handleThemeChanged);
+    return () => {
+      window.removeEventListener('app-theme-changed', handleThemeChanged);
+      window.removeEventListener('storage', handleThemeChanged);
     };
   }, []);
 
@@ -70,10 +87,15 @@ export function TabBar({ activeTab, onTabChange }: TabBarProps) {
     },
   ];
 
+  const shellClassName = theme === 'light'
+    ? 'relative border-t border-white/20 bg-[linear-gradient(180deg,rgba(255,255,255,0.95)_0%,rgba(236,243,250,0.98)_100%)] px-3 pt-2.5 pb-[calc(env(safe-area-inset-bottom,0px)+0.8rem)] shadow-[0_-10px_30px_rgba(23,36,55,0.12)] backdrop-blur-2xl'
+    : 'relative border-t border-white/10 bg-[linear-gradient(180deg,rgba(12,20,44,0.92)_0%,rgba(9,15,35,0.98)_100%)] px-3 pt-2.5 pb-[calc(env(safe-area-inset-bottom,0px)+0.8rem)] shadow-[0_-12px_40px_rgba(0,0,0,0.34)] backdrop-blur-2xl';
+
   return (
-    <div className="fixed inset-x-0 bottom-4 z-50 px-4 pointer-events-none">
-      <div className="mx-auto w-full max-w-md pointer-events-auto">
-        <div className="rounded-2xl border border-white/10 bg-background-secondary/95 px-2 py-2">
+    <div className="fixed inset-x-0 bottom-0 z-50 pointer-events-none">
+      <div className="w-full pointer-events-auto">
+        <div className={shellClassName}>
+          <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/20 to-transparent" />
           <div className="grid grid-cols-5 gap-1">
             {tabs.map((tab) => {
               const Icon = tab.icon;
@@ -84,13 +106,13 @@ export function TabBar({ activeTab, onTabChange }: TabBarProps) {
                   key={tab.id}
                   onClick={() => onTabChange(tab.id)}
                   whileTap={{ scale: 0.95 }}
-                  className="relative flex flex-col items-center justify-center gap-1 rounded-xl py-2"
+                  className="relative flex min-h-[4.2rem] flex-col items-center justify-center gap-1 rounded-2xl py-2"
                 >
                   {isActive && (
                     <motion.div
                       layoutId="activeTab"
                       transition={{ type: 'spring', stiffness: 500, damping: 36 }}
-                      className="absolute inset-0 rounded-xl border border-accent/25 bg-accent/12"
+                      className="absolute inset-0 rounded-2xl border border-white/10 bg-white/5"
                     />
                   )}
 
@@ -100,7 +122,7 @@ export function TabBar({ activeTab, onTabChange }: TabBarProps) {
                     className={`relative transition-colors duration-300 ${isActive ? 'text-accent' : 'text-text-tertiary'}`}
                   />
                   <span
-                    className={`relative text-[10px] uppercase tracking-[0.1em] transition-colors duration-300 ${
+                    className={`relative text-[11px] font-medium transition-colors duration-300 ${
                       isActive ? 'text-text-primary' : 'text-text-tertiary'
                     }`}
                   >
@@ -115,4 +137,3 @@ export function TabBar({ activeTab, onTabChange }: TabBarProps) {
     </div>
   );
 }
-

@@ -561,6 +561,14 @@ const clampSessionDuration = (minutes, fallback = 60) => {
   return Math.max(30, Math.min(120, Math.round(n)));
 };
 
+const normalizeSplitPreference = (value) => {
+  const key = String(value || '').trim().toLowerCase().replace(/\s+/g, '_');
+  if (['auto', 'full_body', 'upper_lower', 'push_pull_legs', 'hybrid', 'custom'].includes(key)) {
+    return key;
+  }
+  return 'auto';
+};
+
 const RANK_TIERS = [
   { name: 'Bronze', minPoints: 0 },
   { name: 'Silver', minPoints: 150 },
@@ -2057,6 +2065,171 @@ const assignProgramToUser = async (
   };
 };
 
+const findTemplateProgramBySplit = async (conn, splitPreference) => {
+  const normalized = normalizeSplitPreference(splitPreference);
+  const candidates = [];
+
+  if (normalized === 'full_body') {
+    candidates.push({ sql: `program_type = 'full_body'` });
+  } else if (normalized === 'upper_lower') {
+    candidates.push({ sql: `program_type = 'upper_lower'` });
+  } else if (normalized === 'push_pull_legs') {
+    candidates.push({ sql: `program_type = 'push_pull_legs'` });
+    candidates.push({ sql: `program_type = 'custom' AND LOWER(name) LIKE '%body part split%'` });
+    candidates.push({ sql: `program_type = 'custom' AND LOWER(name) LIKE '%push%' AND LOWER(name) LIKE '%pull%'` });
+  } else if (normalized === 'custom' || normalized === 'hybrid') {
+    candidates.push({ sql: `program_type = 'custom'` });
+  } else {
+    return null;
+  }
+
+  for (const candidate of candidates) {
+    const [rows] = await conn.execute(
+      `SELECT id, gym_id, created_by_user_id, name, description, program_type, goal, experience_level, days_per_week, cycle_weeks
+       FROM programs
+       WHERE is_template = 1 AND is_active = 1 AND ${candidate.sql}
+       ORDER BY id DESC
+       LIMIT 1`,
+    );
+    if (rows.length) {
+      return rows[0];
+    }
+  }
+
+  return null;
+};
+
+const cloneTemplateProgramForUser = async (conn, userId, templateProgram) => {
+  const templateName = String(templateProgram?.name || '').trim() || 'Template Program';
+  const description = String(templateProgram?.description || '').trim();
+  const createdAt = new Date().toISOString().slice(0, 10);
+  const clonedName = `${templateName} (${createdAt})`;
+
+  const [programInsert] = await conn.execute(
+    `INSERT INTO programs
+      (gym_id, created_by_user_id, target_user_id, name, description, program_type, goal, experience_level, days_per_week, cycle_weeks, is_template, is_active)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 1)`,
+    [
+      toNumber(templateProgram.gym_id, null),
+      toNumber(templateProgram.created_by_user_id, null),
+      userId,
+      clonedName.slice(0, 255),
+      (description ? `${description} (Assigned from template)` : 'Assigned from template').slice(0, 255),
+      String(templateProgram.program_type || 'custom').slice(0, 100),
+      normalizeGoalEnum(templateProgram.goal),
+      normalizeExperienceEnum(templateProgram.experience_level) || 'intermediate',
+      Math.max(2, Math.min(6, Number(templateProgram.days_per_week || 4))),
+      Math.max(1, Math.min(16, Number(templateProgram.cycle_weeks || 8))),
+    ],
+  );
+  const clonedProgramId = Number(programInsert.insertId || 0);
+  if (!clonedProgramId) {
+    throw new Error('Failed to clone template program');
+  }
+
+  const [templateWorkouts] = await conn.execute(
+    `SELECT id, workout_name, workout_type, day_order, day_name, estimated_duration_minutes, notes
+     FROM workouts
+     WHERE program_id = ?
+     ORDER BY day_order ASC, id ASC`,
+    [templateProgram.id],
+  );
+
+  for (const workout of templateWorkouts) {
+    const [workoutInsert] = await conn.execute(
+      `INSERT INTO workouts
+        (program_id, workout_name, workout_type, day_order, day_name, estimated_duration_minutes, notes)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      [
+        clonedProgramId,
+        String(workout.workout_name || '').slice(0, 255),
+        String(workout.workout_type || '').slice(0, 100),
+        Number(workout.day_order || 1),
+        String(workout.day_name || '').slice(0, 32),
+        Number.isFinite(Number(workout.estimated_duration_minutes))
+          ? Number(workout.estimated_duration_minutes)
+          : null,
+        workout.notes ? String(workout.notes).slice(0, 255) : null,
+      ],
+    );
+
+    const clonedWorkoutId = Number(workoutInsert.insertId || 0);
+    const [exerciseRows] = await conn.execute(
+      `SELECT exercise_id, order_index, exercise_name_snapshot, muscle_group_snapshot, target_sets, target_reps,
+              target_weight, rest_seconds, tempo, rpe_target, notes
+       FROM workout_exercises
+       WHERE workout_id = ?
+       ORDER BY order_index ASC, id ASC`,
+      [workout.id],
+    );
+
+    for (const exercise of exerciseRows) {
+      await conn.execute(
+        `INSERT INTO workout_exercises
+          (workout_id, exercise_id, order_index, exercise_name_snapshot, muscle_group_snapshot, target_sets, target_reps, target_weight, rest_seconds, tempo, rpe_target, notes)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          clonedWorkoutId,
+          exercise.exercise_id ?? null,
+          Number(exercise.order_index || 1),
+          exercise.exercise_name_snapshot ? String(exercise.exercise_name_snapshot).slice(0, 255) : null,
+          exercise.muscle_group_snapshot ? String(exercise.muscle_group_snapshot).slice(0, 255) : null,
+          Number.isFinite(Number(exercise.target_sets)) ? Number(exercise.target_sets) : null,
+          exercise.target_reps ? String(exercise.target_reps).slice(0, 50) : null,
+          Number.isFinite(Number(exercise.target_weight)) ? Number(exercise.target_weight) : null,
+          Number.isFinite(Number(exercise.rest_seconds)) ? Number(exercise.rest_seconds) : null,
+          exercise.tempo ? String(exercise.tempo).slice(0, 20) : null,
+          Number.isFinite(Number(exercise.rpe_target)) ? Number(exercise.rpe_target) : null,
+          exercise.notes ? String(exercise.notes).slice(0, 255) : null,
+        ],
+      );
+    }
+  }
+
+  return {
+    programId: clonedProgramId,
+    name: clonedName,
+    programType: String(templateProgram.program_type || 'custom'),
+    goal: normalizeGoalEnum(templateProgram.goal),
+    daysPerWeek: Math.max(2, Math.min(6, Number(templateProgram.days_per_week || 4))),
+    cycleWeeks: Math.max(1, Math.min(16, Number(templateProgram.cycle_weeks || 8))),
+  };
+};
+
+const assignTemplateProgramFromLibrary = async (
+  conn,
+  {
+    userId,
+    splitPreference,
+    note = null,
+  },
+) => {
+  const templateProgram = await findTemplateProgramBySplit(conn, splitPreference);
+  if (!templateProgram) return null;
+
+  const clonedProgram = await cloneTemplateProgramForUser(conn, userId, templateProgram);
+  const assignment = await assignProgramToUser(conn, {
+    userId,
+    programId: clonedProgram.programId,
+    reason: 'user_request',
+    note: note || `Assigned from template library: ${normalizeSplitPreference(splitPreference)}`,
+    assignmentSource: 'template',
+  });
+
+  return {
+    assignment,
+    assignedProgram: {
+      id: clonedProgram.programId,
+      name: clonedProgram.name,
+      programType: clonedProgram.programType,
+      goal: clonedProgram.goal,
+      daysPerWeek: clonedProgram.daysPerWeek,
+      cycleWeeks: clonedProgram.cycleWeeks,
+      templateProgramId: Number(templateProgram.id || 0),
+    },
+  };
+};
+
 const getCurrentWeek = (startDate, cycleWeeks) => {
   const start = new Date(startDate);
   const now = new Date();
@@ -2304,6 +2477,16 @@ router.post('/user/onboarding', async (req, res) => {
       bodyType,
       bodyTypeLabel,
       bodyImages,
+      onboardingReason,
+      appMotivation,
+      appMotivationLabel,
+      workoutSplitPreference,
+      workoutSplitLabel,
+      workoutSplit,
+      aiTrainingFocus,
+      aiLimitations,
+      aiRecoveryPriority,
+      aiEquipmentNotes,
       useClaude,
       disableClaude,
     } = req.body;
@@ -2339,6 +2522,16 @@ router.post('/user/onboarding', async (req, res) => {
     const normalizedSessionDuration = clampSessionDuration(sessionDuration, 60);
     const normalizedPreferredTime = String(preferredTime || '').trim().toLowerCase() || null;
     const normalizedBodyType = String(bodyType || bodyTypeLabel || '').trim().toLowerCase() || null;
+    const normalizedOnboardingReason = String(
+      onboardingReason || appMotivationLabel || appMotivation || '',
+    ).trim().slice(0, 160) || null;
+    const normalizedSplitPreference = normalizeSplitPreference(workoutSplitPreference || workoutSplit);
+    const normalizedSplitLabel = String(workoutSplitLabel || '').trim().slice(0, 80) || null;
+    const hasExplicitSplitPreference = normalizedSplitPreference !== 'auto';
+    const normalizedAiTrainingFocus = String(aiTrainingFocus || '').trim().toLowerCase().slice(0, 40) || null;
+    const normalizedAiLimitations = String(aiLimitations || '').trim().slice(0, 300) || null;
+    const normalizedAiRecoveryPriority = String(aiRecoveryPriority || '').trim().toLowerCase().slice(0, 40) || null;
+    const normalizedAiEquipmentNotes = String(aiEquipmentNotes || '').trim().slice(0, 240) || null;
     const normalizedBodyImages = Array.isArray(bodyImages)
       ? bodyImages.filter((image) => typeof image === 'string').slice(0, 3)
       : [];
@@ -2379,8 +2572,23 @@ router.post('/user/onboarding', async (req, res) => {
     const claudeEnabled = hasAnthropicConfig();
     const shouldUseClaude = toBooleanFlag(useClaude, claudeEnabled);
     const shouldDisableClaude = toBooleanFlag(disableClaude, false);
+    const templateEligibleSplit = ['full_body', 'upper_lower', 'push_pull_legs'].includes(normalizedSplitPreference);
+    const aiPlanRequested = normalizedSplitPreference === 'auto';
 
-    if (claudeEnabled && shouldUseClaude && !shouldDisableClaude) {
+    if (hasExplicitSplitPreference && templateEligibleSplit) {
+      const templateResult = await assignTemplateProgramFromLibrary(conn, {
+        userId: normalizedUserId,
+        splitPreference: normalizedSplitPreference,
+        note: `Template onboarding plan: goal=${normalizedGoal}, days=${normalizedDays}, level=${normalizedExperience || 'unknown'}${normalizedOnboardingReason ? `, reason=${normalizedOnboardingReason}` : ''}${hasExplicitSplitPreference ? `, split=${normalizedSplitPreference}` : ''}`,
+      });
+      if (templateResult) {
+        assignedProgram = templateResult.assignedProgram;
+        assignmentInfo = templateResult.assignment;
+        planSource = 'template_library';
+      }
+    }
+
+    if (!assignedProgram && !assignmentInfo && aiPlanRequested && claudeEnabled && shouldUseClaude && !shouldDisableClaude) {
       await conn.query('SAVEPOINT onboarding_claude_plan');
       try {
         const claudeProfile = {
@@ -2394,6 +2602,13 @@ router.post('/user/onboarding', async (req, res) => {
           sessionDuration: normalizedSessionDuration,
           preferredTime: normalizedPreferredTime,
           bodyType: normalizedBodyType,
+          motivation: normalizedOnboardingReason,
+          preferredSplit: normalizedSplitPreference,
+          preferredSplitLabel: normalizedSplitLabel,
+          trainingFocus: normalizedAiTrainingFocus,
+          limitations: normalizedAiLimitations,
+          recoveryPriority: normalizedAiRecoveryPriority,
+          equipmentNotes: normalizedAiEquipmentNotes,
           equipment: equipmentProfile,
           userName: String(userRows[0]?.name || '').trim() || null,
         };
@@ -2406,6 +2621,7 @@ router.post('/user/onboarding', async (req, res) => {
         const customPayload = buildCustomProgramPayloadFromClaudePlan(generatedByClaude.plan, {
           daysPerWeek: normalizedDays,
           cycleWeeks: 8,
+          splitPreference: normalizedSplitPreference,
         });
 
         const draft = await buildCustomProgramDraft(conn, normalizedUserId, customPayload);
@@ -2413,7 +2629,7 @@ router.post('/user/onboarding', async (req, res) => {
           userId: normalizedUserId,
           draft,
           assignmentReason: 'user_request',
-          assignmentNote: `Claude onboarding plan: goal=${normalizedGoal}, days=${normalizedDays}, level=${normalizedExperience || 'unknown'}`,
+          assignmentNote: `Claude onboarding plan: goal=${normalizedGoal}, days=${normalizedDays}, level=${normalizedExperience || 'unknown'}${normalizedOnboardingReason ? `, reason=${normalizedOnboardingReason}` : ''}${hasExplicitSplitPreference ? `, split=${normalizedSplitPreference}` : ''}${normalizedAiTrainingFocus ? `, focus=${normalizedAiTrainingFocus}` : ''}${normalizedAiRecoveryPriority ? `, recovery=${normalizedAiRecoveryPriority}` : ''}`,
           assignmentSource: 'ai',
           actorUserId: normalizedUserId,
         });
@@ -2460,15 +2676,16 @@ router.post('/user/onboarding', async (req, res) => {
         experienceLevel: normalizedExperience || 'intermediate',
         daysPerWeek: normalizedDays,
         cycleWeeks: 12,
+        splitPreference: normalizedSplitPreference,
         equipment: equipmentProfile,
-        notes: `Generated from onboarding: goal=${normalizedGoal}, days=${normalizedDays}, level=${normalizedExperience || 'unknown'}`,
+        notes: `Generated from onboarding: goal=${normalizedGoal}, days=${normalizedDays}, level=${normalizedExperience || 'unknown'}${normalizedOnboardingReason ? `, reason=${normalizedOnboardingReason}` : ''}${hasExplicitSplitPreference ? `, split=${normalizedSplitPreference}` : ''}${normalizedAiTrainingFocus ? `, focus=${normalizedAiTrainingFocus}` : ''}${normalizedAiRecoveryPriority ? `, recovery=${normalizedAiRecoveryPriority}` : ''}`,
       });
 
       assignmentInfo = await assignProgramToUser(conn, {
         userId: normalizedUserId,
         programId: generatedProgram.programId,
         reason: 'user_request',
-        note: `Auto-generated plan from onboarding: goal=${normalizedGoal}, days=${normalizedDays}, level=${normalizedExperience || 'unknown'}`,
+        note: `Auto-generated plan from onboarding: goal=${normalizedGoal}, days=${normalizedDays}, level=${normalizedExperience || 'unknown'}${normalizedOnboardingReason ? `, reason=${normalizedOnboardingReason}` : ''}${hasExplicitSplitPreference ? `, split=${normalizedSplitPreference}` : ''}`,
       });
 
       assignedProgram = {
@@ -4019,6 +4236,36 @@ router.post('/friends/respond', async (req, res) => {
          SET status = 'declined', accepted_at = NULL
          WHERE id = ?`,
         [friendshipId],
+      );
+    }
+
+    const [requestNotificationRows] = await conn.execute(
+      `SELECT id, data
+       FROM notifications
+       WHERE user_id = ? AND type = 'friend_request'`,
+      [userId],
+    );
+
+    for (const notificationRow of requestNotificationRows) {
+      const payload = safeParseJson(notificationRow.data, {});
+      const payloadObject = payload && typeof payload === 'object' ? payload : {};
+      const payloadFriendshipId = toNumber(payloadObject.friendshipId);
+      const requestType = String(payloadObject.requestType || '').trim().toLowerCase();
+      if (payloadFriendshipId !== friendshipId) continue;
+      if (requestType && requestType !== 'friendship') continue;
+
+      const updatedPayload = {
+        ...payloadObject,
+        friendshipId,
+        requestType: requestType || 'friendship',
+        responseStatus: nextStatus,
+      };
+
+      await conn.execute(
+        `UPDATE notifications
+         SET data = ?, is_read = 1, read_at = NOW()
+         WHERE id = ?`,
+        [JSON.stringify(updatedPayload), Number(notificationRow.id || 0)],
       );
     }
 

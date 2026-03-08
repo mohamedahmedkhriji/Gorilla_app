@@ -159,7 +159,7 @@ const PROGRAMS = [
   {
     name: '8-Week Body Part Split Hypertrophy',
     description: 'Body-part split progression with week 5 swap.',
-    programType: 'custom',
+    programType: 'push_pull_legs',
     daysPerWeek: 5,
     phases: {
       phase1: [

@@ -18,6 +18,13 @@ interface AppNotification {
   unread?: boolean;
 }
 
+type FriendshipTerminalStatus = 'accepted' | 'declined';
+
+type ApiLikeError = Error & {
+  status?: number;
+  data?: unknown;
+};
+
 const iconByType: Record<string, { icon: React.ComponentType<{ size?: number; className?: string }>; color: string; bg: string }> = {
   message: { icon: MessageSquare, color: 'text-blue-500', bg: 'bg-blue-500/10' },
   friend_request: { icon: Dumbbell, color: 'text-accent', bg: 'bg-accent/10' },
@@ -50,6 +57,21 @@ const parseNotificationData = (rawValue: unknown): Record<string, unknown> => {
 
 const getErrorMessage = (error: unknown, fallback: string) =>
   error instanceof Error ? error.message : fallback;
+
+const toFriendshipTerminalStatus = (value: unknown): FriendshipTerminalStatus | null => {
+  const status = String(value || '').trim().toLowerCase();
+  if (status === 'accepted' || status === 'declined') return status;
+  return null;
+};
+
+const getFriendshipConflictStatus = (error: unknown): FriendshipTerminalStatus | null => {
+  const apiError = error as ApiLikeError;
+  if (apiError?.status !== 409) return null;
+  const data = (apiError?.data && typeof apiError.data === 'object')
+    ? (apiError.data as Record<string, unknown>)
+    : {};
+  return toFriendshipTerminalStatus(data.status);
+};
 
 const formatTimeAgo = (value: string) => {
   const ts = new Date(value).getTime();
@@ -127,30 +149,60 @@ export function NotificationsScreen({ onBack }: NotificationsScreenProps) {
     const friendshipId = toPositiveInt(data.friendshipId);
     if (!friendshipId) return;
 
+    setError('');
     setActioningNotificationId(notification.id);
     try {
-      await api.respondToFriendRequest(userId, friendshipId, action);
-      await api.markNotificationRead(notification.id);
-      if (action === 'accept') {
+      let resolvedStatus: FriendshipTerminalStatus = action === 'accept' ? 'accepted' : 'declined';
+      try {
+        const response = await api.respondToFriendRequest(userId, friendshipId, action);
+        const responseData = (response && typeof response === 'object')
+          ? (response as Record<string, unknown>)
+          : {};
+        resolvedStatus = toFriendshipTerminalStatus(responseData.status) || resolvedStatus;
+      } catch (e) {
+        const conflictStatus = getFriendshipConflictStatus(e);
+        if (!conflictStatus) {
+          setError(getErrorMessage(e, `Failed to ${action} friend request`));
+          return;
+        }
+        resolvedStatus = conflictStatus;
+      }
+
+      try {
+        await api.markNotificationRead(notification.id);
+      } catch (e) {
+        console.error('Failed to mark notification as read:', e);
+      }
+
+      if (resolvedStatus === 'accepted') {
         window.dispatchEvent(new Event('friends-updated'));
       }
+
       setItems((prev) => prev.map((item) => {
-        if (item.id !== notification.id) return item;
         const itemData = parseNotificationData(item.data);
+        const itemFriendshipId = toPositiveInt(itemData.friendshipId);
+        const isSameFriendRequest = item.type === 'friend_request' && itemFriendshipId === friendshipId;
+        if (!isSameFriendRequest && item.id !== notification.id) return item;
+
+        if (item.type !== 'friend_request') {
+          return {
+            ...item,
+            unread: false,
+          };
+        }
+
         return {
           ...item,
           unread: false,
-          message: action === 'accept'
+          message: resolvedStatus === 'accepted'
             ? 'You accepted this friend request.'
             : 'You declined this friend request.',
           data: {
             ...itemData,
-            responseStatus: action === 'accept' ? 'accepted' : 'declined',
+            responseStatus: resolvedStatus,
           },
         };
       }));
-    } catch (e) {
-      setError(getErrorMessage(e, `Failed to ${action} friend request`));
     } finally {
       setActioningNotificationId(null);
     }

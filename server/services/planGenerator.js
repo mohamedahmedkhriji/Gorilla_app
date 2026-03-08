@@ -111,56 +111,185 @@ const levelRank = (level) => {
   return 2;
 };
 
-const toProgramType = (daysPerWeek) => {
+const normalizeSplitPreference = (value) => {
+  const key = String(value || '').trim().toLowerCase().replace(/\s+/g, '_');
+  if (['auto', 'full_body', 'upper_lower', 'push_pull_legs', 'hybrid', 'custom'].includes(key)) {
+    return key;
+  }
+  return 'auto';
+};
+
+const toProgramType = (daysPerWeek, splitPreference = 'auto') => {
+  const normalizedSplit = normalizeSplitPreference(splitPreference);
+  if (normalizedSplit === 'full_body') return 'full_body';
+  if (normalizedSplit === 'upper_lower') return 'upper_lower';
+  if (normalizedSplit === 'push_pull_legs') return 'push_pull_legs';
   if (daysPerWeek <= 3) return 'full_body';
   if (daysPerWeek === 4) return 'upper_lower';
   if (daysPerWeek >= 6) return 'push_pull_legs';
   return 'custom';
 };
 
-const splitByDays = (daysPerWeek) => {
+const splitLibraryByDays = (daysPerWeek) => {
   if (daysPerWeek <= 2) {
-    return [
-      { name: 'Full Body A', primary: ['Legs', 'Chest', 'Back'], secondary: ['Shoulders', 'Arms', 'Abs'] },
-      { name: 'Full Body B', primary: ['Legs', 'Back', 'Shoulders'], secondary: ['Chest', 'Arms', 'Abs'] },
-    ];
+    return {
+      full_body: [
+        { name: 'Full Body A', workoutType: 'Full Body', primary: ['Legs', 'Chest', 'Back'], secondary: ['Shoulders', 'Arms', 'Abs'] },
+        { name: 'Full Body B', workoutType: 'Full Body', primary: ['Legs', 'Back', 'Shoulders'], secondary: ['Chest', 'Arms', 'Abs'] },
+      ],
+      upper_lower: [
+        { name: 'Upper', workoutType: 'Upper Body', primary: ['Chest', 'Back', 'Shoulders'], secondary: ['Arms', 'Abs'] },
+        { name: 'Lower', workoutType: 'Lower Body', primary: ['Legs'], secondary: ['Abs', 'Back'] },
+      ],
+      custom: [
+        { name: 'Custom Day 1', workoutType: 'Full Body', primary: ['Legs', 'Chest', 'Back'], secondary: ['Shoulders', 'Arms', 'Abs'] },
+        { name: 'Custom Day 2', workoutType: 'Full Body', primary: ['Legs', 'Back', 'Shoulders'], secondary: ['Chest', 'Arms', 'Abs'] },
+      ],
+    };
   }
 
   if (daysPerWeek === 3) {
-    return [
-      { name: 'Full Body A', primary: ['Legs', 'Chest', 'Back'], secondary: ['Shoulders', 'Arms', 'Abs'] },
-      { name: 'Full Body B', primary: ['Legs', 'Back', 'Shoulders'], secondary: ['Chest', 'Arms', 'Abs'] },
-      { name: 'Full Body C', primary: ['Legs', 'Chest', 'Arms'], secondary: ['Back', 'Shoulders', 'Abs'] },
-    ];
+    return {
+      full_body: [
+        { name: 'Full Body A', workoutType: 'Full Body', primary: ['Legs', 'Chest', 'Back'], secondary: ['Shoulders', 'Arms', 'Abs'] },
+        { name: 'Full Body B', workoutType: 'Full Body', primary: ['Legs', 'Back', 'Shoulders'], secondary: ['Chest', 'Arms', 'Abs'] },
+        { name: 'Full Body C', workoutType: 'Full Body', primary: ['Legs', 'Chest', 'Arms'], secondary: ['Back', 'Shoulders', 'Abs'] },
+      ],
+      upper_lower: [
+        { name: 'Upper A', workoutType: 'Upper Body', primary: ['Chest', 'Back', 'Shoulders'], secondary: ['Arms', 'Abs'] },
+        { name: 'Lower', workoutType: 'Lower Body', primary: ['Legs'], secondary: ['Abs'] },
+        { name: 'Upper B', workoutType: 'Upper Body', primary: ['Back', 'Shoulders', 'Arms'], secondary: ['Chest', 'Abs'] },
+      ],
+      push_pull_legs: [
+        { name: 'Push', workoutType: 'Push', primary: ['Chest', 'Shoulders'], secondary: ['Arms', 'Abs'] },
+        { name: 'Pull', workoutType: 'Pull', primary: ['Back', 'Arms'], secondary: ['Shoulders', 'Abs'] },
+        { name: 'Legs', workoutType: 'Legs', primary: ['Legs'], secondary: ['Abs'] },
+      ],
+      custom: [
+        { name: 'Custom Day 1', workoutType: 'Full Body', primary: ['Legs', 'Chest', 'Back'], secondary: ['Shoulders', 'Arms', 'Abs'] },
+        { name: 'Custom Day 2', workoutType: 'Upper Body', primary: ['Back', 'Shoulders', 'Arms'], secondary: ['Chest', 'Abs'] },
+        { name: 'Custom Day 3', workoutType: 'Lower Body', primary: ['Legs'], secondary: ['Abs'] },
+      ],
+    };
   }
 
   if (daysPerWeek === 4) {
-    return [
-      { name: 'Upper Push', primary: ['Chest', 'Shoulders'], secondary: ['Arms', 'Abs'] },
-      { name: 'Lower A', primary: ['Legs'], secondary: ['Abs', 'Back'] },
-      { name: 'Upper Pull', primary: ['Back', 'Arms'], secondary: ['Shoulders', 'Abs'] },
-      { name: 'Lower B', primary: ['Legs'], secondary: ['Abs', 'Chest'] },
-    ];
+    return {
+      full_body: [
+        { name: 'Full Body A', workoutType: 'Full Body', primary: ['Legs', 'Chest', 'Back'], secondary: ['Shoulders', 'Arms', 'Abs'] },
+        { name: 'Full Body B', workoutType: 'Full Body', primary: ['Legs', 'Back', 'Shoulders'], secondary: ['Chest', 'Arms', 'Abs'] },
+        { name: 'Full Body C', workoutType: 'Full Body', primary: ['Legs', 'Chest', 'Arms'], secondary: ['Back', 'Shoulders', 'Abs'] },
+        { name: 'Full Body D', workoutType: 'Full Body', primary: ['Legs', 'Back', 'Chest'], secondary: ['Shoulders', 'Arms', 'Abs'] },
+      ],
+      upper_lower: [
+        { name: 'Upper Push', workoutType: 'Upper Body', primary: ['Chest', 'Shoulders'], secondary: ['Arms', 'Abs'] },
+        { name: 'Lower A', workoutType: 'Lower Body', primary: ['Legs'], secondary: ['Abs', 'Back'] },
+        { name: 'Upper Pull', workoutType: 'Upper Body', primary: ['Back', 'Arms'], secondary: ['Shoulders', 'Abs'] },
+        { name: 'Lower B', workoutType: 'Lower Body', primary: ['Legs'], secondary: ['Abs', 'Chest'] },
+      ],
+      push_pull_legs: [
+        { name: 'Push', workoutType: 'Push', primary: ['Chest', 'Shoulders'], secondary: ['Arms', 'Abs'] },
+        { name: 'Pull', workoutType: 'Pull', primary: ['Back', 'Arms'], secondary: ['Shoulders', 'Abs'] },
+        { name: 'Legs', workoutType: 'Legs', primary: ['Legs'], secondary: ['Abs'] },
+        { name: 'Full Body', workoutType: 'Full Body', primary: ['Legs', 'Chest', 'Back'], secondary: ['Shoulders', 'Arms', 'Abs'] },
+      ],
+      hybrid: [
+        { name: 'Push', workoutType: 'Push', primary: ['Chest', 'Shoulders'], secondary: ['Arms', 'Abs'] },
+        { name: 'Lower', workoutType: 'Lower Body', primary: ['Legs'], secondary: ['Abs'] },
+        { name: 'Pull', workoutType: 'Pull', primary: ['Back', 'Arms'], secondary: ['Shoulders', 'Abs'] },
+        { name: 'Full Body', workoutType: 'Full Body', primary: ['Legs', 'Chest', 'Back'], secondary: ['Shoulders', 'Arms', 'Abs'] },
+      ],
+      custom: [
+        { name: 'Custom Day 1', workoutType: 'Upper Body', primary: ['Chest', 'Shoulders'], secondary: ['Arms', 'Abs'] },
+        { name: 'Custom Day 2', workoutType: 'Lower Body', primary: ['Legs'], secondary: ['Abs'] },
+        { name: 'Custom Day 3', workoutType: 'Upper Body', primary: ['Back', 'Arms'], secondary: ['Shoulders', 'Abs'] },
+        { name: 'Custom Day 4', workoutType: 'Full Body', primary: ['Legs', 'Chest', 'Back'], secondary: ['Shoulders', 'Arms', 'Abs'] },
+      ],
+    };
   }
 
   if (daysPerWeek === 5) {
-    return [
-      { name: 'Push', primary: ['Chest', 'Shoulders'], secondary: ['Arms', 'Abs'] },
-      { name: 'Lower A', primary: ['Legs'], secondary: ['Abs'] },
-      { name: 'Pull', primary: ['Back', 'Arms'], secondary: ['Shoulders', 'Abs'] },
-      { name: 'Lower B', primary: ['Legs'], secondary: ['Abs'] },
-      { name: 'Upper Mix', primary: ['Chest', 'Back', 'Shoulders'], secondary: ['Arms', 'Abs'] },
-    ];
+    return {
+      upper_lower: [
+        { name: 'Upper A', workoutType: 'Upper Body', primary: ['Chest', 'Shoulders'], secondary: ['Arms', 'Abs'] },
+        { name: 'Lower A', workoutType: 'Lower Body', primary: ['Legs'], secondary: ['Abs'] },
+        { name: 'Upper B', workoutType: 'Upper Body', primary: ['Back', 'Arms'], secondary: ['Shoulders', 'Abs'] },
+        { name: 'Lower B', workoutType: 'Lower Body', primary: ['Legs'], secondary: ['Abs'] },
+        { name: 'Upper Mix', workoutType: 'Upper Body', primary: ['Chest', 'Back', 'Shoulders'], secondary: ['Arms', 'Abs'] },
+      ],
+      push_pull_legs: [
+        { name: 'Push A', workoutType: 'Push', primary: ['Chest', 'Shoulders'], secondary: ['Arms', 'Abs'] },
+        { name: 'Pull A', workoutType: 'Pull', primary: ['Back', 'Arms'], secondary: ['Shoulders', 'Abs'] },
+        { name: 'Legs', workoutType: 'Legs', primary: ['Legs'], secondary: ['Abs'] },
+        { name: 'Push B', workoutType: 'Push', primary: ['Chest', 'Shoulders'], secondary: ['Arms', 'Abs'] },
+        { name: 'Pull B', workoutType: 'Pull', primary: ['Back', 'Arms'], secondary: ['Shoulders', 'Abs'] },
+      ],
+      hybrid: [
+        { name: 'Push', workoutType: 'Push', primary: ['Chest', 'Shoulders'], secondary: ['Arms', 'Abs'] },
+        { name: 'Lower A', workoutType: 'Lower Body', primary: ['Legs'], secondary: ['Abs'] },
+        { name: 'Pull', workoutType: 'Pull', primary: ['Back', 'Arms'], secondary: ['Shoulders', 'Abs'] },
+        { name: 'Lower B', workoutType: 'Lower Body', primary: ['Legs'], secondary: ['Abs'] },
+        { name: 'Full Body', workoutType: 'Full Body', primary: ['Chest', 'Back', 'Legs'], secondary: ['Shoulders', 'Arms', 'Abs'] },
+      ],
+      custom: [
+        { name: 'Custom Day 1', workoutType: 'Upper Body', primary: ['Chest', 'Shoulders'], secondary: ['Arms', 'Abs'] },
+        { name: 'Custom Day 2', workoutType: 'Lower Body', primary: ['Legs'], secondary: ['Abs'] },
+        { name: 'Custom Day 3', workoutType: 'Pull', primary: ['Back', 'Arms'], secondary: ['Shoulders', 'Abs'] },
+        { name: 'Custom Day 4', workoutType: 'Lower Body', primary: ['Legs'], secondary: ['Abs'] },
+        { name: 'Custom Day 5', workoutType: 'Full Body', primary: ['Chest', 'Back', 'Legs'], secondary: ['Shoulders', 'Arms', 'Abs'] },
+      ],
+    };
   }
 
-  return [
-    { name: 'Push A', primary: ['Chest', 'Shoulders'], secondary: ['Arms', 'Abs'] },
-    { name: 'Pull A', primary: ['Back', 'Arms'], secondary: ['Shoulders', 'Abs'] },
-    { name: 'Legs A', primary: ['Legs'], secondary: ['Abs'] },
-    { name: 'Push B', primary: ['Chest', 'Shoulders'], secondary: ['Arms', 'Abs'] },
-    { name: 'Pull B', primary: ['Back', 'Arms'], secondary: ['Shoulders', 'Abs'] },
-    { name: 'Legs B', primary: ['Legs'], secondary: ['Abs'] },
-  ];
+  return {
+    upper_lower: [
+      { name: 'Upper A', workoutType: 'Upper Body', primary: ['Chest', 'Shoulders'], secondary: ['Arms', 'Abs'] },
+      { name: 'Lower A', workoutType: 'Lower Body', primary: ['Legs'], secondary: ['Abs'] },
+      { name: 'Upper B', workoutType: 'Upper Body', primary: ['Back', 'Arms'], secondary: ['Shoulders', 'Abs'] },
+      { name: 'Lower B', workoutType: 'Lower Body', primary: ['Legs'], secondary: ['Abs'] },
+      { name: 'Upper C', workoutType: 'Upper Body', primary: ['Chest', 'Back', 'Shoulders'], secondary: ['Arms', 'Abs'] },
+      { name: 'Lower C', workoutType: 'Lower Body', primary: ['Legs'], secondary: ['Abs'] },
+    ],
+    push_pull_legs: [
+      { name: 'Push A', workoutType: 'Push', primary: ['Chest', 'Shoulders'], secondary: ['Arms', 'Abs'] },
+      { name: 'Pull A', workoutType: 'Pull', primary: ['Back', 'Arms'], secondary: ['Shoulders', 'Abs'] },
+      { name: 'Legs A', workoutType: 'Legs', primary: ['Legs'], secondary: ['Abs'] },
+      { name: 'Push B', workoutType: 'Push', primary: ['Chest', 'Shoulders'], secondary: ['Arms', 'Abs'] },
+      { name: 'Pull B', workoutType: 'Pull', primary: ['Back', 'Arms'], secondary: ['Shoulders', 'Abs'] },
+      { name: 'Legs B', workoutType: 'Legs', primary: ['Legs'], secondary: ['Abs'] },
+    ],
+    hybrid: [
+      { name: 'Push', workoutType: 'Push', primary: ['Chest', 'Shoulders'], secondary: ['Arms', 'Abs'] },
+      { name: 'Pull', workoutType: 'Pull', primary: ['Back', 'Arms'], secondary: ['Shoulders', 'Abs'] },
+      { name: 'Legs', workoutType: 'Legs', primary: ['Legs'], secondary: ['Abs'] },
+      { name: 'Upper Mix', workoutType: 'Upper Body', primary: ['Chest', 'Back', 'Shoulders'], secondary: ['Arms', 'Abs'] },
+      { name: 'Lower Mix', workoutType: 'Lower Body', primary: ['Legs'], secondary: ['Abs'] },
+      { name: 'Full Body', workoutType: 'Full Body', primary: ['Chest', 'Back', 'Legs'], secondary: ['Shoulders', 'Arms', 'Abs'] },
+    ],
+    custom: [
+      { name: 'Custom Day 1', workoutType: 'Upper Body', primary: ['Chest', 'Shoulders'], secondary: ['Arms', 'Abs'] },
+      { name: 'Custom Day 2', workoutType: 'Pull', primary: ['Back', 'Arms'], secondary: ['Shoulders', 'Abs'] },
+      { name: 'Custom Day 3', workoutType: 'Lower Body', primary: ['Legs'], secondary: ['Abs'] },
+      { name: 'Custom Day 4', workoutType: 'Upper Body', primary: ['Chest', 'Back'], secondary: ['Shoulders', 'Arms', 'Abs'] },
+      { name: 'Custom Day 5', workoutType: 'Lower Body', primary: ['Legs'], secondary: ['Abs'] },
+      { name: 'Custom Day 6', workoutType: 'Full Body', primary: ['Chest', 'Back', 'Legs'], secondary: ['Shoulders', 'Arms', 'Abs'] },
+    ],
+  };
+};
+
+const splitByDays = (daysPerWeek, splitPreference = 'auto') => {
+  const normalizedSplit = normalizeSplitPreference(splitPreference);
+  const library = splitLibraryByDays(daysPerWeek);
+
+  if (normalizedSplit !== 'auto' && library[normalizedSplit]) {
+    return library[normalizedSplit];
+  }
+  if (daysPerWeek <= 3 && library.full_body) return library.full_body;
+  if (daysPerWeek === 4 && library.upper_lower) return library.upper_lower;
+  if (daysPerWeek === 5 && library.hybrid) return library.hybrid;
+  if (daysPerWeek >= 6 && library.push_pull_legs) return library.push_pull_legs;
+
+  return library.custom || library.full_body || library.upper_lower || library.push_pull_legs || library.hybrid || [];
 };
 
 const parseEquipmentPreferences = (input) => {
@@ -265,6 +394,7 @@ export const generatePersonalizedProgram = async (
     experienceLevel = 'intermediate',
     daysPerWeek = 4,
     cycleWeeks = 12,
+    splitPreference = 'auto',
     equipment = null,
     notes = null,
   },
@@ -280,7 +410,7 @@ export const generatePersonalizedProgram = async (
     throw new Error(`Not enough exercises after equipment/level filtering (${pool.length} found).`);
   }
 
-  const split = splitByDays(clampedDays);
+  const split = splitByDays(clampedDays, splitPreference);
   const weekdays = WEEKDAY_BY_DAYS_PER_WEEK[clampedDays] || WEEKDAY_BY_DAYS_PER_WEEK[4];
   const cfg = LEVEL_CONFIG[normalizedLevel] || LEVEL_CONFIG.intermediate;
 
@@ -293,7 +423,7 @@ export const generatePersonalizedProgram = async (
       userId,
       `${clampedWeeks}-Week Personalized Plan`,
       notes || `Generated from onboarding (goal=${normalizedGoal}, level=${normalizedLevel}, days=${clampedDays}).`,
-      toProgramType(clampedDays),
+      toProgramType(clampedDays, splitPreference),
       normalizedGoal,
       normalizedLevel,
       clampedDays,
@@ -341,7 +471,7 @@ export const generatePersonalizedProgram = async (
         [
           programId,
           `Week ${week} - ${day.name}`,
-          day.primary[0] === 'Legs' ? 'Lower Body' : 'Upper Body',
+          String(day.workoutType || (day.primary[0] === 'Legs' ? 'Lower Body' : 'Upper Body')),
           dayOrder,
           dayName,
           cfg.exercisesPerDay * 10 + 20,

@@ -1,10 +1,12 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { OnboardingLayout } from '../components/onboarding/OnboardingLayout';
+import { AppMotivationScreen } from '../components/onboarding/AppMotivationScreen';
 import { WelcomeScreen } from '../components/onboarding/WelcomeScreen';
 import { PersonalInfoScreen } from '../components/onboarding/PersonalInfoScreen';
 import { FitnessBackgroundScreen } from '../components/onboarding/FitnessBackgroundScreen';
 import { BodyTypeSelectionScreen } from '../components/onboarding/BodyTypeSelectionScreen';
 import { GoalsAvailabilityScreen } from '../components/onboarding/GoalsAvailabilityScreen';
+import { WorkoutSplitScreen } from '../components/onboarding/WorkoutSplitScreen';
 import { GymSelectionScreen } from '../components/onboarding/GymSelectionScreen';
 import { BodyImageUploadScreen } from '../components/onboarding/BodyImageUploadScreen';
 import { AIAnalysisScreen } from '../components/onboarding/AIAnalysisScreen';
@@ -37,9 +39,13 @@ export function Onboarding({ onComplete }: OnboardingProps) {
   }, [onComplete]);
   const steps = [
   {
-    component: WelcomeScreen,
-    title: '',
+    component: AppMotivationScreen,
+    title: 'Motivation',
     showBack: false
+  },
+  {
+    component: WelcomeScreen,
+    title: ''
   },
   {
     component: PersonalInfoScreen,
@@ -64,6 +70,10 @@ export function Onboarding({ onComplete }: OnboardingProps) {
   {
     component: BodyImageUploadScreen,
     title: 'Body Scan'
+  },
+  {
+    component: WorkoutSplitScreen,
+    title: 'Plan Selection'
   },
   {
     component: AIAnalysisScreen,

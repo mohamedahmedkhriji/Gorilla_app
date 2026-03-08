@@ -38,6 +38,23 @@ const DAY_ALIAS = {
   sunday: 'sunday',
 };
 
+const CANONICAL_WORKOUT_TYPES = {
+  'full body': 'Full Body',
+  full_body: 'Full Body',
+  fullbody: 'Full Body',
+  upper: 'Upper Body',
+  'upper body': 'Upper Body',
+  upper_body: 'Upper Body',
+  lower: 'Lower Body',
+  'lower body': 'Lower Body',
+  lower_body: 'Lower Body',
+  push: 'Push',
+  pull: 'Pull',
+  legs: 'Legs',
+  leg: 'Legs',
+  ppl: 'Push',
+};
+
 const DEFAULT_EXERCISES_BY_WORKOUT_TYPE = {
   'Full Body': [
     { name: 'Back Squat', sets: 4, reps: '6-8', restSeconds: 120 },
@@ -151,6 +168,20 @@ const normalizeDayName = (value) => {
   return DAY_ALIAS[short] || null;
 };
 
+const normalizeSplitPreference = (value) => {
+  const key = String(value || '').trim().toLowerCase().replace(/\s+/g, '_');
+  if (['auto', 'full_body', 'upper_lower', 'push_pull_legs', 'hybrid', 'custom'].includes(key)) {
+    return key;
+  }
+  return 'auto';
+};
+
+const normalizeWorkoutType = (value, fallback = 'Full Body') => {
+  const key = String(value || '').trim().toLowerCase().replace(/\s+/g, '_');
+  if (!key) return fallback;
+  return CANONICAL_WORKOUT_TYPES[key] || CANONICAL_WORKOUT_TYPES[key.replace(/_/g, ' ')] || fallback;
+};
+
 const toTitleCase = (value) => {
   const key = String(value || '').trim().toLowerCase();
   if (!key) return '';
@@ -250,10 +281,34 @@ const normalizeExercise = (exercise) => {
   };
 };
 
-const buildDefaultSchedule = (daysPerWeek = 4) => {
+const buildDefaultSchedule = (daysPerWeek = 4, preferredSplit = 'auto') => {
   const days = WEEKDAY_BY_DAYS_PER_WEEK[daysPerWeek] || WEEKDAY_BY_DAYS_PER_WEEK[4];
-  return days.map((dayName, index) => {
-    const rotation = [
+  const split = normalizeSplitPreference(preferredSplit);
+
+  const splitRotation = {
+    full_body: [
+      { workoutName: 'Full Body A', workoutType: 'Full Body' },
+      { workoutName: 'Full Body B', workoutType: 'Full Body' },
+      { workoutName: 'Full Body C', workoutType: 'Full Body' },
+      { workoutName: 'Full Body D', workoutType: 'Full Body' },
+    ],
+    upper_lower: [
+      { workoutName: 'Upper A', workoutType: 'Upper Body' },
+      { workoutName: 'Lower A', workoutType: 'Lower Body' },
+      { workoutName: 'Upper B', workoutType: 'Upper Body' },
+      { workoutName: 'Lower B', workoutType: 'Lower Body' },
+      { workoutName: 'Upper C', workoutType: 'Upper Body' },
+      { workoutName: 'Lower C', workoutType: 'Lower Body' },
+    ],
+    push_pull_legs: [
+      { workoutName: 'Push', workoutType: 'Push' },
+      { workoutName: 'Pull', workoutType: 'Pull' },
+      { workoutName: 'Legs', workoutType: 'Legs' },
+      { workoutName: 'Push B', workoutType: 'Push' },
+      { workoutName: 'Pull B', workoutType: 'Pull' },
+      { workoutName: 'Legs B', workoutType: 'Legs' },
+    ],
+    auto: [
       { workoutName: 'Upper Strength', workoutType: 'Upper Body' },
       { workoutName: 'Lower Strength', workoutType: 'Lower Body' },
       { workoutName: 'Upper Hypertrophy', workoutType: 'Upper Body' },
@@ -261,24 +316,29 @@ const buildDefaultSchedule = (daysPerWeek = 4) => {
       { workoutName: 'Push', workoutType: 'Push' },
       { workoutName: 'Pull', workoutType: 'Pull' },
       { workoutName: 'Legs', workoutType: 'Legs' },
-    ];
+    ],
+  };
+
+  const rotation = splitRotation[split] || splitRotation.auto;
+  return days.map((dayName, index) => {
     const template = rotation[index % rotation.length];
-    const defaultExercises = DEFAULT_EXERCISES_BY_WORKOUT_TYPE[template.workoutType] || DEFAULT_EXERCISES_BY_WORKOUT_TYPE['Full Body'];
+    const workoutType = normalizeWorkoutType(template.workoutType);
+    const defaultExercises = DEFAULT_EXERCISES_BY_WORKOUT_TYPE[workoutType] || DEFAULT_EXERCISES_BY_WORKOUT_TYPE['Full Body'];
 
     return {
       dayName,
       workoutName: template.workoutName,
-      workoutType: template.workoutType,
+      workoutType,
       estimatedDurationMinutes: clampInt((defaultExercises.length * 10) + 15, 20, 180, 60),
-      focus: `${template.workoutType} development and progressive overload`,
+      focus: `${workoutType} development and progressive overload`,
       exercises: defaultExercises.map((item) => normalizeExercise(item)),
     };
   });
 };
 
-const normalizeWeeklySchedule = (rawSchedule, daysPerWeek) => {
+const normalizeWeeklySchedule = (rawSchedule, daysPerWeek, preferredSplit = 'auto') => {
   if (!Array.isArray(rawSchedule) || !rawSchedule.length) {
-    return buildDefaultSchedule(daysPerWeek);
+    return buildDefaultSchedule(daysPerWeek, preferredSplit);
   }
 
   const normalized = [];
@@ -289,7 +349,7 @@ const normalizeWeeklySchedule = (rawSchedule, daysPerWeek) => {
     if (!dayName || usedDays.has(dayName)) continue;
     usedDays.add(dayName);
 
-    const workoutType = sanitizeText(row?.workoutType, 'Full Body');
+    const workoutType = normalizeWorkoutType(row?.workoutType || row?.workoutName, 'Full Body');
     const fallbackExercises = DEFAULT_EXERCISES_BY_WORKOUT_TYPE[workoutType] || DEFAULT_EXERCISES_BY_WORKOUT_TYPE['Full Body'];
     const rawExercises = Array.isArray(row?.exercises) ? row.exercises : [];
     const normalizedExercises = (rawExercises.length ? rawExercises : fallbackExercises)
@@ -315,7 +375,7 @@ const normalizeWeeklySchedule = (rawSchedule, daysPerWeek) => {
   }
 
   if (normalized.length < 2) {
-    return buildDefaultSchedule(daysPerWeek);
+    return buildDefaultSchedule(daysPerWeek, preferredSplit);
   }
 
   return normalized;
@@ -393,7 +453,8 @@ const extractJsonObject = (text) => {
 const normalizePlan = (rawPlan, profile) => {
   const goal = sanitizeText(profile?.goal, 'general_fitness');
   const daysPerWeek = clampInt(profile?.daysPerWeek, 2, 6, 4);
-  const weeklySchedule = normalizeWeeklySchedule(rawPlan?.weeklySchedule, daysPerWeek);
+  const preferredSplit = normalizeSplitPreference(profile?.preferredSplit);
+  const weeklySchedule = normalizeWeeklySchedule(rawPlan?.weeklySchedule, daysPerWeek, preferredSplit);
 
   return {
     planName: sanitizeText(rawPlan?.planName, 'AI Coach 8-Week Plan'),
@@ -447,6 +508,12 @@ const buildUserPrompt = (profile, imageCount) => {
     `- Goal: ${profile?.goal || 'general_fitness'}`,
     `- Experience level: ${profile?.experienceLevel || 'intermediate'}`,
     `- Body type: ${profile?.bodyType || 'unknown'}`,
+    `- Main reason for using the app: ${profile?.motivation || 'unspecified'}`,
+    `- Preferred split style: ${profile?.preferredSplitLabel || profile?.preferredSplit || 'auto'}`,
+    `- AI focus preference: ${profile?.trainingFocus || 'balanced'}`,
+    `- Injury/limitation notes: ${profile?.limitations || 'none'}`,
+    `- Recovery preference: ${profile?.recoveryPriority || 'balanced'}`,
+    `- Extra equipment notes: ${profile?.equipmentNotes || 'none'}`,
     `- Training days per week: ${daysPerWeek}`,
     `- Session duration target (minutes): ${sessionDuration}`,
     `- Preferred training time: ${profile?.preferredTime || 'unspecified'}`,
@@ -690,21 +757,29 @@ export const generateTwoMonthPlanWithClaude = async ({ profile = {}, bodyImages 
 export const buildCustomProgramPayloadFromClaudePlan = (plan = {}, options = {}) => {
   const durationWeeks = clampInt(options?.cycleWeeks ?? plan?.durationWeeks, 8, 8, 8);
   const desiredDays = clampInt(options?.daysPerWeek, 2, 6, 4);
-  let weeklySchedule = normalizeWeeklySchedule(plan?.weeklySchedule, desiredDays);
+  const preferredSplit = normalizeSplitPreference(options?.splitPreference || options?.preferredSplit);
+  let weeklySchedule = normalizeWeeklySchedule(plan?.weeklySchedule, desiredDays, preferredSplit);
   if (weeklySchedule.length > desiredDays) {
     weeklySchedule = weeklySchedule.slice(0, desiredDays);
   }
+  if (weeklySchedule.length < desiredDays) {
+    const fallbackSchedule = buildDefaultSchedule(desiredDays, preferredSplit);
+    weeklySchedule = fallbackSchedule.slice(0, desiredDays);
+  }
+
+  const fallbackDays = WEEKDAY_BY_DAYS_PER_WEEK[desiredDays] || WEEKDAY_BY_DAYS_PER_WEEK[4];
 
   const selectedDays = [...new Set(
     weeklySchedule
-      .map((row) => normalizeDayName(row?.dayName))
+      .map((row, index) => normalizeDayName(row?.dayName) || fallbackDays[index % fallbackDays.length])
       .filter(Boolean),
   )];
+  const normalizedSelectedDays = selectedDays.length ? selectedDays : fallbackDays.slice(0, desiredDays);
 
-  const weeklyWorkouts = weeklySchedule.map((row) => ({
-    dayName: normalizeDayName(row?.dayName),
+  const weeklyWorkouts = weeklySchedule.map((row, index) => ({
+    dayName: normalizeDayName(row?.dayName) || fallbackDays[index % fallbackDays.length],
     workoutName: sanitizeText(row?.workoutName, `${toTitleCase(normalizeDayName(row?.dayName))} Workout`),
-    workoutType: sanitizeText(row?.workoutType, 'Custom'),
+    workoutType: normalizeWorkoutType(row?.workoutType || row?.workoutName, 'Full Body'),
     estimatedDurationMinutes: clampInt(
       row?.estimatedDurationMinutes ?? row?.estimated_duration_minutes,
       20,
@@ -738,7 +813,7 @@ export const buildCustomProgramPayloadFromClaudePlan = (plan = {}, options = {})
       'AI-generated 8-week plan from onboarding profile and optional body-image analysis.',
     ),
     cycleWeeks: durationWeeks,
-    selectedDays,
+    selectedDays: normalizedSelectedDays,
     weeklyWorkouts,
   };
 };

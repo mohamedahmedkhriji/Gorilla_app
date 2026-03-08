@@ -29,6 +29,11 @@ export interface FriendMember {
   can_view_profile?: boolean;
 }
 
+type ApiLikeError = Error & {
+  status?: number;
+  data?: unknown;
+};
+
 const rankScore = (rank: unknown) => {
   const value = String(rank || '').trim().toLowerCase();
   if (value === 'elite') return 6;
@@ -62,6 +67,17 @@ const toFriendStatus = (value: unknown): FriendRelationshipStatus => {
 
 const getErrorMessage = (error: unknown, fallback: string) =>
   error instanceof Error ? error.message : fallback;
+
+const getFriendshipConflictStatus = (error: unknown): 'accepted' | 'declined' | null => {
+  const apiError = error as ApiLikeError;
+  if (apiError?.status !== 409) return null;
+  const data = (apiError?.data && typeof apiError.data === 'object')
+    ? (apiError.data as Record<string, unknown>)
+    : {};
+  const status = String(data.status || '').trim().toLowerCase();
+  if (status === 'accepted' || status === 'declined') return status;
+  return null;
+};
 
 const readStoredUser = () => {
   try {
@@ -139,16 +155,6 @@ export function FriendsList({ onBack, onFriendClick }: FriendsListProps) {
     window.addEventListener('friends-updated', handleFriendsUpdated);
     return () => window.removeEventListener('friends-updated', handleFriendsUpdated);
   }, []);
-
-  const allCount = members.length;
-  const friendsCount = useMemo(
-    () => members.filter((member) => toFriendStatus(member.friend_status) === 'accepted').length,
-    [members],
-  );
-  const requestsCount = useMemo(
-    () => members.filter((member) => toFriendStatus(member.friend_status) === 'incoming_pending').length,
-    [members],
-  );
 
   const filteredMembers = useMemo(() => {
     const normalizedSearch = search.trim().toLowerCase();
@@ -235,6 +241,26 @@ export function FriendsList({ onBack, onFriendClick }: FriendsListProps) {
         window.dispatchEvent(new Event('friends-updated'));
       }
     } catch (error) {
+      const conflictStatus = getFriendshipConflictStatus(error);
+      if (conflictStatus === 'accepted') {
+        updateMemberById(memberId, (current) => ({
+          ...current,
+          friend_status: 'accepted',
+          can_view_profile: true,
+        }));
+        window.dispatchEvent(new Event('friends-updated'));
+        return;
+      }
+      if (conflictStatus === 'declined') {
+        updateMemberById(memberId, (current) => ({
+          ...current,
+          friend_status: 'none',
+          friendship_id: null,
+          can_view_profile: false,
+        }));
+        window.dispatchEvent(new Event('friends-updated'));
+        return;
+      }
       alert(getErrorMessage(error, `Failed to ${action} request.`));
     } finally {
       setBusyMemberId(null);
@@ -256,7 +282,7 @@ export function FriendsList({ onBack, onFriendClick }: FriendsListProps) {
               filter === 'friends' ? 'bg-accent text-black' : 'bg-card text-text-secondary border border-white/10'
             }`}
           >
-            Friends ({friendsCount})
+            Friends
           </button>
           <button
             type="button"
@@ -265,7 +291,7 @@ export function FriendsList({ onBack, onFriendClick }: FriendsListProps) {
               filter === 'all' ? 'bg-accent text-black' : 'bg-card text-text-secondary border border-white/10'
             }`}
           >
-            Gym Members ({allCount})
+            Gym Members
           </button>
           <button
             type="button"
@@ -274,7 +300,7 @@ export function FriendsList({ onBack, onFriendClick }: FriendsListProps) {
               filter === 'requests' ? 'bg-accent text-black' : 'bg-card text-text-secondary border border-white/10'
             }`}
           >
-            Requests ({requestsCount})
+            Requests
           </button>
         </div>
       </div>

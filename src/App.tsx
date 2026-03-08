@@ -6,6 +6,7 @@ import { Progress } from './pages/Progress';
 import { Profile } from './pages/Profile';
 import { Blogs } from './pages/Blogs';
 import { LoginPage } from './pages/LoginPage';
+import { PublicLandingPage } from './pages/PublicLandingPage';
 import { TabBar } from './components/ui/TabBar';
 import { SplashScreen } from './components/ui/SplashScreen';
 import { AnimatePresence, motion } from 'framer-motion';
@@ -14,6 +15,7 @@ export function App() {
   const [isLoading, setIsLoading] = useState(true);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [hasOnboarded, setHasOnboarded] = useState(false);
+  const [showLogin, setShowLogin] = useState(false);
   const [activeTab, setActiveTab] = useState('home');
   const [workoutDay, setWorkoutDay] = useState('Push Day');
 
@@ -39,6 +41,10 @@ export function App() {
   }
 
   if (!isLoggedIn) {
+    if (!showLogin) {
+      return <PublicLandingPage onGetStarted={() => setShowLogin(true)} />;
+    }
+
     return (
       <LoginPage
         onLoginSuccess={() => {
@@ -46,6 +52,7 @@ export function App() {
           if (user?.role === 'user') {
             setIsLoggedIn(true);
             setHasOnboarded(user.onboarding_completed || false);
+            setShowLogin(false);
           }
         }}
       />
@@ -82,10 +89,10 @@ export function App() {
       <div
         className={`min-h-screen pb-6 pt-4 ${
           activeTab === 'blogs'
-            ? 'bg-background px-4 sm:px-6'
+            ? 'bg-background px-4 sm:px-6 pb-[calc(env(safe-area-inset-bottom,0px)+6rem)]'
             : activeTab === 'profile' || activeTab === 'workout'
-              ? 'px-0 pt-0 pb-0'
-              : 'px-4 sm:px-6'
+              ? 'px-0 pt-0 pb-[calc(env(safe-area-inset-bottom,0px)+6rem)]'
+              : 'px-4 sm:px-6 pb-[calc(env(safe-area-inset-bottom,0px)+6rem)]'
         }`}
       >
         <AnimatePresence mode="wait">
