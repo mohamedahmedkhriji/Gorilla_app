@@ -167,12 +167,12 @@ export function ProgressDashboard({ onViewReport }: ProgressDashboardProps) {
       <div className="grid grid-cols-2 gap-4">
         <Card className="p-4">
           <Activity className="text-green-500 mb-2" size={20} />
-          <div className="text-2xl font-bold text-white">{stats.consistency}%</div>
+          <div className="text-2xl font-bold text-white font-electrolize">{stats.consistency}%</div>
           <div className="text-xs text-text-secondary">Consistency</div>
         </Card>
         <Card className="p-4">
           <TrendingUp className="text-purple-500 mb-2" size={20} />
-          <div className="text-2xl font-bold text-white">
+          <div className="text-2xl font-bold text-white font-electrolize">
             {Number.isInteger(stats.totalVolume) ? stats.totalVolume : stats.totalVolume.toFixed(1)}t
           </div>
           <div className="text-xs text-text-secondary">Total Volume</div>
@@ -186,7 +186,7 @@ export function ProgressDashboard({ onViewReport }: ProgressDashboardProps) {
           <div key={m.name}>
               <div className="flex justify-between text-xs mb-1 text-text-secondary">
                 <span>{m.name}</span>
-                <span>{Math.round(m.val)}%</span>
+                <span className="font-electrolize">{Math.round(m.val)}%</span>
               </div>
               <div className="h-2 bg-white/5 rounded-full overflow-hidden">
                 <div

@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Header } from '../ui/Header';
 import { Card } from '../ui/Card';
 import { Bell, Dumbbell, MessageSquare, Trophy, Gift, TrendingUp } from 'lucide-react';
@@ -73,6 +73,11 @@ const getFriendshipConflictStatus = (error: unknown): FriendshipTerminalStatus |
   return toFriendshipTerminalStatus(data.status);
 };
 
+const isFriendshipConflictError = (error: unknown) => {
+  const apiError = error as ApiLikeError;
+  return apiError?.status === 409;
+};
+
 const formatTimeAgo = (value: string) => {
   const ts = new Date(value).getTime();
   if (!Number.isFinite(ts)) return '';
@@ -94,6 +99,8 @@ export function NotificationsScreen({ onBack }: NotificationsScreenProps) {
   const [error, setError] = useState('');
   const [items, setItems] = useState<AppNotification[]>([]);
   const [actioningNotificationId, setActioningNotificationId] = useState<number | null>(null);
+  const [actioningFriendshipId, setActioningFriendshipId] = useState<number | null>(null);
+  const pendingFriendshipIdsRef = useRef<Set<number>>(new Set());
 
   const userId = useMemo(() => {
     try {
@@ -148,9 +155,12 @@ export function NotificationsScreen({ onBack }: NotificationsScreenProps) {
     const data = parseNotificationData(notification.data);
     const friendshipId = toPositiveInt(data.friendshipId);
     if (!friendshipId) return;
+    if (pendingFriendshipIdsRef.current.has(friendshipId)) return;
 
     setError('');
+    pendingFriendshipIdsRef.current.add(friendshipId);
     setActioningNotificationId(notification.id);
+    setActioningFriendshipId(friendshipId);
     try {
       let resolvedStatus: FriendshipTerminalStatus = action === 'accept' ? 'accepted' : 'declined';
       try {
@@ -162,6 +172,11 @@ export function NotificationsScreen({ onBack }: NotificationsScreenProps) {
       } catch (e) {
         const conflictStatus = getFriendshipConflictStatus(e);
         if (!conflictStatus) {
+          if (isFriendshipConflictError(e)) {
+            // Backend confirmed request is no longer pending; refresh local state quietly.
+            await fetchNotifications();
+            return;
+          }
           setError(getErrorMessage(e, `Failed to ${action} friend request`));
           return;
         }
@@ -204,7 +219,9 @@ export function NotificationsScreen({ onBack }: NotificationsScreenProps) {
         };
       }));
     } finally {
+      pendingFriendshipIdsRef.current.delete(friendshipId);
       setActioningNotificationId(null);
+      setActioningFriendshipId(null);
     }
   };
 
@@ -264,7 +281,7 @@ export function NotificationsScreen({ onBack }: NotificationsScreenProps) {
             && !!friendshipId
             && (!requestType || requestType === 'friendship');
           const showFriendRequestActions = isFriendRequest && !isHandled;
-          const actionBusy = actioningNotificationId === notif.id;
+          const actionBusy = actioningNotificationId === notif.id || actioningFriendshipId === friendshipId;
 
           return (
             <Card

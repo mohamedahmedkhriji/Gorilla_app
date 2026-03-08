@@ -300,7 +300,7 @@ export function WorkoutCard({
           </svg>
 
           <div className="absolute inset-0 flex flex-col items-center justify-center">
-            <span className="text-4xl text-text-primary leading-none">{safeProgress}%</span>
+            <span className="text-4xl text-text-primary leading-none font-electrolize">{safeProgress}%</span>
             <span className="mt-2 text-[10px] font-semibold uppercase tracking-[0.16em] text-text-tertiary">
               {isResolvedRestDay ? 'Recovery' : 'Complete'}
             </span>

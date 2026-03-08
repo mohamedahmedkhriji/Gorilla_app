@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { User, MapPin, Settings, ChevronRight, Camera, Dumbbell, FileText } from 'lucide-react';
+import { User, ChevronRight, Camera, Dumbbell, FileText, LogOut } from 'lucide-react';
 import { api } from '../../services/api';
 interface ProfileScreenProps {
   onNavigate: (screen: 'gym' | 'rank' | 'settings' | 'workout' | 'weeklyPlan' | 'posts') => void;
+  onLogout: () => void;
 }
 
 interface CoachOption {
@@ -11,7 +12,7 @@ interface CoachOption {
   email?: string;
 }
 
-export function ProfileScreen({ onNavigate }: ProfileScreenProps) {
+export function ProfileScreen({ onNavigate, onLogout }: ProfileScreenProps) {
   const user = JSON.parse(localStorage.getItem('appUser') || localStorage.getItem('user') || '{"name":"Moha"}');
   const userName = user.name || 'Moha';
   const localUserId = Number(localStorage.getItem('appUserId') || localStorage.getItem('userId') || 0);
@@ -216,17 +217,23 @@ export function ProfileScreen({ onNavigate }: ProfileScreenProps) {
       <div className="flex items-center gap-4 pt-4">
         <div className="relative">
           <div className="w-20 h-20 rounded-full bg-white/10 flex items-center justify-center text-text-tertiary overflow-hidden">
-            {profilePicture ? (
-              <button
-                type="button"
-                className="w-full h-full"
-                onClick={() => setIsPreviewOpen(true)}
-              >
-                <img src={profilePicture} alt="Profile" className="w-full h-full object-cover" />
-              </button>
-            ) : (
-              <User size={40} />
-            )}
+            <button
+              type="button"
+              className="w-full h-full"
+              onClick={() => {
+                if (profilePicture) setIsPreviewOpen(true);
+              }}
+            >
+              {profilePicture ? (
+                <img
+                  src={profilePicture}
+                  alt="Profile"
+                  className="w-full h-full object-cover"
+                />
+              ) : (
+                <User size={36} className="mx-auto my-auto" />
+              )}
+            </button>
           </div>
           <label className="absolute bottom-0 right-0 w-6 h-6 bg-accent rounded-full flex items-center justify-center cursor-pointer hover:bg-accent/80 transition-colors">
             <Camera size={12} className="text-white" />
@@ -238,6 +245,7 @@ export function ProfileScreen({ onNavigate }: ProfileScreenProps) {
             />
           </label>
         </div>
+
         <div>
           <h1 className="text-2xl font-bold text-white">{userName}</h1>
           <p className="text-text-secondary">{memberSinceText}</p>
@@ -310,39 +318,12 @@ export function ProfileScreen({ onNavigate }: ProfileScreenProps) {
         </button>
 
         <button
-          onClick={() => onNavigate('gym')}
-          className="w-full bg-card rounded-xl p-4 border border-white/5 flex items-center justify-between hover:bg-white/5 transition-colors">
-
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-blue-500/10 rounded-lg text-blue-500">
-              <MapPin size={20} />
-            </div>
-            <div className="text-left">
-              <div className="font-medium text-white">Gym Access</div>
-              <div className="text-xs text-text-secondary">
-                Iron Paradise Gym
-              </div>
-            </div>
-          </div>
-          <ChevronRight size={20} className="text-text-tertiary" />
-        </button>
-
-        <button
-          onClick={() => onNavigate('settings')}
-          className="w-full bg-card rounded-xl p-4 border border-white/5 flex items-center justify-between hover:bg-white/5 transition-colors">
-
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-white/5 rounded-lg text-text-secondary">
-              <Settings size={20} />
-            </div>
-            <div className="text-left">
-              <div className="font-medium text-white">Settings</div>
-              <div className="text-xs text-text-secondary">
-                Preferences & Account
-              </div>
-            </div>
-          </div>
-          <ChevronRight size={20} className="text-text-tertiary" />
+          type="button"
+          onClick={onLogout}
+          className="w-full p-4 rounded-2xl bg-red-500/10 text-red-500 font-medium flex items-center justify-center gap-2 hover:bg-red-500/20 transition-colors"
+        >
+          <LogOut size={20} />
+          Log Out
         </button>
       </div>
 

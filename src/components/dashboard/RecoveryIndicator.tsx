@@ -51,7 +51,7 @@ export function RecoveryIndicator({ percentage, onClick }: RecoveryIndicatorProp
             <p className="text-xs text-text-tertiary mt-1">{getRecoveryStatus(safePercentage)}</p>
           </div>
         </div>
-        <span className="text-3xl leading-none text-text-primary">{safePercentage}%</span>
+        <span className="text-3xl leading-none text-text-primary font-electrolize">{safePercentage}%</span>
       </div>
 
       <div className="h-2 w-full bg-white/10 rounded-full overflow-hidden border border-white/10">

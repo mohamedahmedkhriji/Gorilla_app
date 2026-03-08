@@ -1,12 +1,12 @@
 import React, { useEffect, useState } from 'react';
 import { Header } from '../ui/Header';
-import { Bell, Shield, User, LogOut, Moon, Sun, Database, Lock, SlidersHorizontal, Share2, MapPin, CreditCard, KeyRound, Scale, Mail, ChevronDown, Eye, EyeOff, Languages } from 'lucide-react';
+import { Bell, Shield, User, Moon, Sun, Database, Lock, SlidersHorizontal, Share2, MapPin, CreditCard, KeyRound, Scale, Mail, ChevronDown, ChevronRight, Eye, EyeOff, Languages } from 'lucide-react';
 import { applyTheme, getActiveTheme, getStoredTheme } from '../../services/theme';
 import { AppLanguage, applyLanguage, getActiveLanguage, getStoredLanguage } from '../../services/language';
 import { api } from '../../services/api';
 interface SettingsScreenProps {
   onBack: () => void;
-  onLogout: () => void;
+  onOpenGym?: () => void;
 }
 
 const SETTINGS_I18N = {
@@ -256,7 +256,7 @@ const SETTINGS_I18N = {
   },
 } as const;
 
-export function SettingsScreen({ onBack, onLogout }: SettingsScreenProps) {
+export function SettingsScreen({ onBack, onOpenGym }: SettingsScreenProps) {
   const [theme, setTheme] = useState<'dark' | 'light'>('dark');
   const [language, setLanguage] = useState<AppLanguage>('en');
   const [activePage, setActivePage] = useState<'settings' | 'privacy' | 'personal'>('settings');
@@ -294,7 +294,7 @@ export function SettingsScreen({ onBack, onLogout }: SettingsScreenProps) {
   });
   const [loadingNotificationSettings, setLoadingNotificationSettings] = useState(false);
   const [notificationSettingsError, setNotificationSettingsError] = useState('');
-  const copy = SETTINGS_I18N[language];
+  const copy = SETTINGS_I18N[language] || SETTINGS_I18N.en;
 
   useEffect(() => {
     setTheme(getActiveTheme());
@@ -671,6 +671,23 @@ export function SettingsScreen({ onBack, onLogout }: SettingsScreenProps) {
       </div>
 
       <div className="px-4 sm:px-6 space-y-8">
+        <button
+          type="button"
+          onClick={() => onOpenGym?.()}
+          className="w-full bg-card rounded-xl p-4 border border-white/5 flex items-center justify-between hover:bg-white/5 transition-colors"
+        >
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-blue-500/10 rounded-lg text-blue-500">
+              <MapPin size={20} />
+            </div>
+            <div className="text-left">
+              <div className="font-medium text-white">Gym Access</div>
+              <div className="text-xs text-text-secondary">Iron Paradise Gym</div>
+            </div>
+          </div>
+          <ChevronRight size={20} className="text-text-tertiary" />
+        </button>
+
         {sections.map((section, i) =>
         <div key={i} className="space-y-3">
             <h3 className="text-sm font-medium text-text-secondary uppercase tracking-wider px-2">
@@ -820,12 +837,6 @@ export function SettingsScreen({ onBack, onLogout }: SettingsScreenProps) {
           </div>
         </div>
 
-        <button 
-          onClick={onLogout}
-          className="w-full p-4 rounded-2xl bg-red-500/10 text-red-500 font-medium flex items-center justify-center gap-2 hover:bg-red-500/20 transition-colors">
-          <LogOut size={20} />
-          {copy.logOut}
-        </button>
       </div>
     </div>);
 

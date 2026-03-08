@@ -23,6 +23,14 @@
   font-display: swap;
 }
 
+@font-face {
+  font-family: 'Electrolize';
+  src: url('../assets/fents/Electrolize-Regular.ttf') format('truetype');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
 :root,
 [data-theme='dark'] {
   --font-body: 'Space Grotesk', system-ui, sans-serif;
@@ -133,6 +141,11 @@ body {
 
 .font-marker {
   font-family: 'Permanent Marker', cursive;
+}
+
+.font-electrolize {
+  font-family: 'Electrolize', var(--font-body);
+  font-variant-numeric: tabular-nums;
 }
 
 @supports (padding: max(0px)) {

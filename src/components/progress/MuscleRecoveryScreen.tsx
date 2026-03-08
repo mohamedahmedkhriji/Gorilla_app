@@ -294,14 +294,14 @@ export function MuscleRecoveryScreen({ onBack }: MuscleRecoveryScreenProps) {
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
           <div className="rounded-xl border border-white/10 bg-card px-3 py-2">
             <p className="text-[10px] uppercase tracking-wider text-text-tertiary">Overall Recovery</p>
-            <p className="text-xl font-semibold text-white mt-1">{overallRecovery}%</p>
+            <p className="text-xl font-semibold text-white mt-1 font-electrolize">{overallRecovery}%</p>
           </div>
           <div className="rounded-xl border border-white/10 bg-card px-3 py-2">
             <p className="text-[10px] uppercase tracking-wider text-text-tertiary">Today Plan</p>
-            <p className="text-xl font-semibold text-white mt-1">
+            <p className="text-xl font-semibold text-white mt-1 font-electrolize">
               {Number(planSummary?.todayPlanCompletionPct || 0)}%
             </p>
-            <p className="text-[11px] text-text-secondary mt-0.5">
+            <p className="text-[11px] text-text-secondary mt-0.5 font-electrolize">
               {formatSetUnits(planSummary?.completedTodaySetUnits)} / {formatSetUnits(planSummary?.plannedTodaySetUnits)} sets
             </p>
           </div>
@@ -331,18 +331,18 @@ export function MuscleRecoveryScreen({ onBack }: MuscleRecoveryScreenProps) {
                       <p className="text-xs text-text-tertiary mt-0.5">
                         Last trained {getLastTrained(m.lastWorkout)}
                       </p>
-                      <p className="text-[11px] text-text-secondary mt-1">
+                      <p className="text-[11px] text-text-secondary mt-1 font-electrolize">
                         Today: {formatSetUnits(m.completedTodaySetUnits)} / {formatSetUnits(m.plannedTodaySetUnits)} sets
                       </p>
-                      <p className="text-[11px] text-text-secondary">
+                      <p className="text-[11px] text-text-secondary font-electrolize">
                         Week: {formatSetUnits(m.completedWeekSetUnits)} / {formatSetUnits(m.plannedWeekSetUnits)} sets
                       </p>
-                      <p className="text-[11px] text-text-tertiary">
+                      <p className="text-[11px] text-text-tertiary font-electrolize">
                         Remaining: {Math.max(0, Math.round(Number(m.hoursRemaining || 0)))}h | Volume: {formatVolume(m.completedWeekVolume)}
                       </p>
                     </div>
                   </div>
-                  <span className={`text-xs font-bold px-3 py-1.5 rounded-full ${getStatusColor(m.score)}`}>
+                  <span className={`text-xs font-bold px-3 py-1.5 rounded-full font-electrolize ${getStatusColor(m.score)}`}>
                     {m.score}%
                   </span>
                 </div>
@@ -374,18 +374,18 @@ export function MuscleRecoveryScreen({ onBack }: MuscleRecoveryScreenProps) {
                       <p className="text-xs text-text-tertiary mt-0.5">
                         Last trained {getLastTrained(m.lastWorkout)}
                       </p>
-                      <p className="text-[11px] text-text-secondary mt-1">
+                      <p className="text-[11px] text-text-secondary mt-1 font-electrolize">
                         Today: {formatSetUnits(m.completedTodaySetUnits)} / {formatSetUnits(m.plannedTodaySetUnits)} sets
                       </p>
-                      <p className="text-[11px] text-text-secondary">
+                      <p className="text-[11px] text-text-secondary font-electrolize">
                         Week: {formatSetUnits(m.completedWeekSetUnits)} / {formatSetUnits(m.plannedWeekSetUnits)} sets
                       </p>
-                      <p className="text-[11px] text-text-tertiary">
+                      <p className="text-[11px] text-text-tertiary font-electrolize">
                         Remaining: {Math.max(0, Math.round(Number(m.hoursRemaining || 0)))}h | Volume: {formatVolume(m.completedWeekVolume)}
                       </p>
                     </div>
                   </div>
-                  <span className={`text-xs font-bold px-3 py-1.5 rounded-full ${getStatusColor(m.score)}`}>
+                  <span className={`text-xs font-bold px-3 py-1.5 rounded-full font-electrolize ${getStatusColor(m.score)}`}>
                     {m.score}%
                   </span>
                 </div>
@@ -415,18 +415,18 @@ export function MuscleRecoveryScreen({ onBack }: MuscleRecoveryScreenProps) {
                     </div>
                     <div>
                       <h4 className="font-semibold text-white">{m.name}</h4>
-                      <p className="text-[11px] text-text-secondary mt-1">
+                      <p className="text-[11px] text-text-secondary mt-1 font-electrolize">
                         Today: {formatSetUnits(m.completedTodaySetUnits)} / {formatSetUnits(m.plannedTodaySetUnits)} sets
                       </p>
-                      <p className="text-[11px] text-text-secondary">
+                      <p className="text-[11px] text-text-secondary font-electrolize">
                         Week: {formatSetUnits(m.completedWeekSetUnits)} / {formatSetUnits(m.plannedWeekSetUnits)} sets
                       </p>
-                      <p className="text-[11px] text-text-tertiary">
+                      <p className="text-[11px] text-text-tertiary font-electrolize">
                         Remaining: {Math.max(0, Math.round(Number(m.hoursRemaining || 0)))}h | Volume: {formatVolume(m.completedWeekVolume)}
                       </p>
                     </div>
                   </div>
-                  <span className="text-xs font-bold px-3 py-1.5 rounded-full text-green-500 bg-green-500/10">
+                  <span className="text-xs font-bold px-3 py-1.5 rounded-full text-green-500 bg-green-500/10 font-electrolize">
                     {m.score}%
                   </span>
                 </div>
