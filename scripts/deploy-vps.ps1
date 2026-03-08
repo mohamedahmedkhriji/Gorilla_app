@@ -1,5 +1,5 @@
 param(
-  [string]$Host = "159.89.21.234",
+  [string]$RemoteHost = "159.89.21.234",
   [string]$User = "root",
   [string]$KeyPath = "$HOME\.ssh\droplet_codex",
   [string]$RemoteAppDir = "/root/Gorilla_app",
@@ -154,12 +154,12 @@ $tmpFile = Join-Path $env:TEMP "gorella_deploy_vps.sh"
 $remoteScriptPath = "/root/gorella_deploy_vps.sh"
 
 try {
-  & scp -i $KeyPath $tmpFile "${User}@${Host}:${remoteScriptPath}"
+  & scp -i $KeyPath $tmpFile "${User}@${RemoteHost}:${remoteScriptPath}"
   if ($LASTEXITCODE -ne 0) {
     throw "Failed to copy deploy script to server."
   }
 
-  & ssh -i $KeyPath "${User}@${Host}" "bash ${remoteScriptPath}"
+  & ssh -i $KeyPath "${User}@${RemoteHost}" "bash ${remoteScriptPath}"
   if ($LASTEXITCODE -ne 0) {
     throw "Remote deploy failed."
   }
