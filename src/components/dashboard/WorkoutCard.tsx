@@ -199,11 +199,13 @@ export function WorkoutCard({
   const workoutLabel = cleanWorkoutLabel(badgeSource) || 'Workout';
   const targetMuscles = collectTargetMuscles(exercises, title, workoutType);
   const durationMinutes = isResolvedRestDay ? null : estimateDurationMinutes(exercises, estimatedDurationMinutes);
-  const displayTitle = !isGenericWorkoutLabel(title)
-    ? String(title).trim()
-    : !isGenericWorkoutLabel(workoutType)
-      ? `${toTitleCase(cleanWorkoutLabel(workoutType))} Day`
-      : 'Workout';
+  const displayTitle = isResolvedRestDay
+    ? 'Rest Day'
+    : !isGenericWorkoutLabel(title)
+      ? String(title).trim()
+      : !isGenericWorkoutLabel(workoutType)
+        ? `${toTitleCase(cleanWorkoutLabel(workoutType))} Day`
+        : 'Workout';
   const targetMusclesLabel = isResolvedRestDay
     ? 'Rest and recover'
     : targetMuscles.length
