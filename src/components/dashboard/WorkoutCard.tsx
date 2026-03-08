@@ -188,6 +188,7 @@ export function WorkoutCard({
   const exerciseCount = exercises.length;
   const isResolvedRestDay = isRestDay || (looksLikeRestDay && exerciseCount === 0);
   const safeProgress = Math.max(0, Math.min(100, progress));
+  const progressLabelSize = safeProgress >= 100 ? '1.8rem' : undefined;
   const radius = 54;
   const circumference = 2 * Math.PI * radius;
   const strokeDashoffset = circumference - (safeProgress / 100) * circumference;
@@ -299,8 +300,13 @@ export function WorkoutCard({
             />
           </svg>
 
-          <div className="absolute inset-0 flex flex-col items-center justify-center">
-            <span className="text-4xl text-text-primary leading-none font-electrolize">{safeProgress}%</span>
+          <div className="absolute inset-0 flex flex-col items-center justify-center px-3 text-center">
+            <span
+              className="max-w-full text-4xl text-text-primary leading-none font-electrolize"
+              style={{ fontSize: progressLabelSize }}
+            >
+              {safeProgress}%
+            </span>
             <span className="mt-2 text-[10px] font-semibold uppercase tracking-[0.16em] text-text-tertiary">
               {isResolvedRestDay ? 'Recovery' : 'Complete'}
             </span>
