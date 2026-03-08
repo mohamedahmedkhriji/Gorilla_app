@@ -112,6 +112,67 @@ export const ensureSchemaMigrationsTable = async (conn) => {
   );
 };
 
+const ALTER_ADD_COLUMN_IF_NOT_EXISTS_RE =
+  /^ALTER\s+TABLE\s+`?([A-Za-z0-9_]+)`?\s+ADD\s+COLUMN\s+IF\s+NOT\s+EXISTS\s+`?([A-Za-z0-9_]+)`?\s+([\s\S]+)$/i;
+
+const ALTER_ADD_INDEX_IF_NOT_EXISTS_RE =
+  /^ALTER\s+TABLE\s+`?([A-Za-z0-9_]+)`?\s+ADD\s+INDEX\s+IF\s+NOT\s+EXISTS\s+`?([A-Za-z0-9_]+)`?\s+([\s\S]+)$/i;
+
+const hasColumn = async (conn, tableName, columnName) => {
+  const [rows] = await conn.query(
+    `SELECT COUNT(*) AS match_count
+     FROM information_schema.columns
+     WHERE table_schema = DATABASE()
+       AND table_name = ?
+       AND column_name = ?`,
+    [tableName, columnName],
+  );
+  return Number(rows[0]?.match_count || 0) > 0;
+};
+
+const hasIndex = async (conn, tableName, indexName) => {
+  const [rows] = await conn.query(
+    `SELECT COUNT(*) AS match_count
+     FROM information_schema.statistics
+     WHERE table_schema = DATABASE()
+       AND table_name = ?
+       AND index_name = ?`,
+    [tableName, indexName],
+  );
+  return Number(rows[0]?.match_count || 0) > 0;
+};
+
+const executeCompatStatement = async (conn, statement) => {
+  const addColumnMatch = statement.match(ALTER_ADD_COLUMN_IF_NOT_EXISTS_RE);
+  if (addColumnMatch) {
+    const [, tableName, columnName] = addColumnMatch;
+    if (await hasColumn(conn, tableName, columnName)) {
+      return false;
+    }
+
+    await conn.query(
+      statement.replace(/ADD\s+COLUMN\s+IF\s+NOT\s+EXISTS/i, 'ADD COLUMN'),
+    );
+    return true;
+  }
+
+  const addIndexMatch = statement.match(ALTER_ADD_INDEX_IF_NOT_EXISTS_RE);
+  if (addIndexMatch) {
+    const [, tableName, indexName] = addIndexMatch;
+    if (await hasIndex(conn, tableName, indexName)) {
+      return false;
+    }
+
+    await conn.query(
+      statement.replace(/ADD\s+INDEX\s+IF\s+NOT\s+EXISTS/i, 'ADD INDEX'),
+    );
+    return true;
+  }
+
+  await conn.query(statement);
+  return true;
+};
+
 export const applyTrackedMigration = async (conn, projectRoot, migrationPath) => {
   const filename = normalizeProjectPath(projectRoot, migrationPath);
   const { checksum, statements } = readMigrationFile(migrationPath);
@@ -145,15 +206,24 @@ export const applyTrackedMigration = async (conn, projectRoot, migrationPath) =>
 
   try {
     await conn.beginTransaction();
+    let executedStatements = 0;
     for (const statement of statements) {
-      await conn.query(statement);
+      if (await executeCompatStatement(conn, statement)) {
+        executedStatements += 1;
+      }
     }
     await conn.query(
       `INSERT INTO ${MIGRATIONS_TABLE} (filename, checksum, statements_executed)
        VALUES (?, ?, ?)`,
-      [filename, checksum, statements.length],
+      [filename, checksum, executedStatements],
     );
     await conn.commit();
+
+    return {
+      filename,
+      skipped: false,
+      statementsExecuted: executedStatements,
+    };
   } catch (error) {
     try {
       await conn.rollback();
@@ -162,12 +232,6 @@ export const applyTrackedMigration = async (conn, projectRoot, migrationPath) =>
     }
     throw new Error(`Migration failed for ${filename}: ${error.message}`);
   }
-
-  return {
-    filename,
-    skipped: false,
-    statementsExecuted: statements.length,
-  };
 };
 
 export const getSortedMigrationFiles = (migrationsDir) =>
