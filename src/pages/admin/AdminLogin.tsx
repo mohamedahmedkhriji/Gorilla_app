@@ -148,7 +148,7 @@ export const AdminLogin: React.FC = () => {
           <button
             type="submit"
             disabled={loading}
-            className="w-full bg-[#BFFF00] text-black py-3 rounded-lg font-semibold hover:bg-[#BFFF00]/90 transition-colors disabled:opacity-50"
+            className="w-full bg-[#BFFF00] text-black py-3 rounded-lg font-marker hover:bg-[#BFFF00]/90 transition-colors disabled:opacity-50"
           >
             {loading ? 'Signing in...' : 'Sign In'}
           </button>

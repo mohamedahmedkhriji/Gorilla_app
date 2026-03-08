@@ -45,18 +45,11 @@ export const PublicLandingPage: React.FC<PublicLandingPageProps> = ({ onGetStart
       />
 
       <div className="relative z-10 min-h-screen px-4 sm:px-6 pt-[calc(env(safe-area-inset-top,0px)+0.9rem)] pb-[calc(env(safe-area-inset-bottom,0px)+0.9rem)] flex flex-col">
-        <header className="flex items-center justify-between mb-8">
-          <h1 className="font-brand text-[2rem] leading-none text-white">RepSet</h1>
-          <button
-            type="button"
-            onClick={onGetStarted}
-            className="rounded-xl bg-accent text-black px-4 py-2 text-base font-marker hover:bg-accent/90 transition-colors"
-          >
-            Sign In
-          </button>
+        <header className="mb-8 flex justify-center">
+          <h1 className="font-brand text-[2rem] leading-none text-white text-center">RepSet</h1>
         </header>
 
-        <section className="mt-5 sm:mt-6 mb-9">
+        <section className="mt-10 sm:mt-12 mb-9">
           <h2 className="font-display text-[2.7rem] sm:text-[3rem] leading-[0.92] tracking-[0.01em] max-w-[22rem]">
             <span className="text-accent">Smart</span> Training,
             <span className="block">Built Around <span className="text-accent">You</span></span>
