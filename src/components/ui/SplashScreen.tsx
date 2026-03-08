@@ -6,6 +6,18 @@ interface SplashScreenProps {
   onComplete: () => void;
 }
 
+const forcedDarkThemeVars: React.CSSProperties = {
+  '--color-accent': '187 255 92',
+  '--color-accent-dark': '187 255 92',
+  '--color-background': '9 14 23',
+  '--color-background-secondary': '16 24 36',
+  '--color-card': '20 32 46',
+  '--color-border': '134 161 189',
+  '--color-text-primary': '243 248 255',
+  '--color-text-secondary': '175 192 213',
+  '--color-text-tertiary': '131 149 171',
+} as React.CSSProperties;
+
 export function SplashScreen({ onComplete }: SplashScreenProps) {
   const [isVisible, setIsVisible] = useState(true);
   const closeSplash = useCallback(() => {
@@ -39,6 +51,7 @@ export function SplashScreen({ onComplete }: SplashScreenProps) {
             duration: 0.5,
           }}
           className="fixed inset-0 z-[100] bg-[#050505] flex items-center justify-center overflow-hidden"
+          style={forcedDarkThemeVars}
         >
           <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(255,255,255,0.08)_0%,rgba(255,255,255,0.02)_35%,rgba(5,5,5,1)_75%)]" />
 
@@ -99,10 +112,7 @@ export function SplashScreen({ onComplete }: SplashScreenProps) {
                 duration: 0.35,
                 delay: 0.2,
               }}
-              className="mt-6 text-3xl md:text-[2.6rem] leading-[0.95] text-white font-black italic tracking-[0.02em]"
-              style={{
-                color: "#fff",
-              }}
+              className="mt-6 font-brand text-[2.7rem] md:text-[3.1rem] leading-[0.95] text-white tracking-[0.01em]"
             >
               RepSet
             </motion.h1>

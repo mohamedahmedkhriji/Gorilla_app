@@ -48,7 +48,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
             </div>
 
             <h1 className="mt-6 text-3xl md:text-[2.6rem] leading-[0.95] text-white font-black italic">
-              RepSet
+              <span className="font-brand text-[3rem] md:text-[3.4rem] leading-none not-italic font-normal">RepSet</span>
               <span className="block text-gradient">Performance</span>
             </h1>
 
@@ -73,7 +73,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
           <div className="text-center md:text-left mb-6">
             <div className="flex items-center justify-center md:justify-start gap-2">
               <Dumbbell size={28} className="text-accent" />
-              <h2 className="text-3xl font-black italic text-white">RepSet</h2>
+              <h2 className="font-brand text-[2.2rem] leading-none text-white">RepSet</h2>
             </div>
             <p className="text-text-secondary mt-2 text-sm">Train smart and stay consistent.</p>
           </div>
@@ -121,7 +121,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
             <button
               type="submit"
               disabled={loading}
-              className="w-full py-3.5 rounded-xl bg-accent text-black font-semibold text-sm hover:bg-accent/90 transition-all disabled:opacity-60 disabled:cursor-not-allowed"
+              className="w-full py-3.5 rounded-xl bg-accent text-black font-marker text-xl hover:bg-accent/90 transition-all disabled:opacity-60 disabled:cursor-not-allowed"
             >
               {loading ? 'Logging In...' : 'Login'}
             </button>

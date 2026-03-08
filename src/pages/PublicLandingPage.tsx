@@ -11,6 +11,18 @@ interface PublicLandingPageProps {
   onGetStarted: () => void;
 }
 
+const forcedDarkThemeVars: React.CSSProperties = {
+  '--color-accent': '187 255 92',
+  '--color-accent-dark': '187 255 92',
+  '--color-background': '9 14 23',
+  '--color-background-secondary': '16 24 36',
+  '--color-card': '20 32 46',
+  '--color-border': '134 161 189',
+  '--color-text-primary': '243 248 255',
+  '--color-text-secondary': '175 192 213',
+  '--color-text-tertiary': '131 149 171',
+} as React.CSSProperties;
+
 const logos = [logoA, logoB, logoC, logoD, logoE];
 const loopedLogos = [...logos, ...logos, ...logos];
 
@@ -19,6 +31,7 @@ export const PublicLandingPage: React.FC<PublicLandingPageProps> = ({ onGetStart
     <div
       className="relative min-h-screen overflow-hidden text-text-primary"
       style={{
+        ...forcedDarkThemeVars,
         backgroundImage:
           'radial-gradient(circle at 100% -10%, rgb(var(--color-accent) / 0.08), transparent 38%), linear-gradient(155deg, rgb(var(--color-background)), rgb(var(--color-background-secondary)))',
       }}
@@ -33,11 +46,11 @@ export const PublicLandingPage: React.FC<PublicLandingPageProps> = ({ onGetStart
 
       <div className="relative z-10 min-h-screen px-4 sm:px-6 pt-[calc(env(safe-area-inset-top,0px)+0.9rem)] pb-[calc(env(safe-area-inset-bottom,0px)+0.9rem)] flex flex-col">
         <header className="flex items-center justify-between mb-8">
-          <h1 className="font-display text-2xl tracking-[0.08em] text-white">RepSet</h1>
+          <h1 className="font-brand text-[2rem] leading-none text-white">RepSet</h1>
           <button
             type="button"
             onClick={onGetStarted}
-            className="text-sm font-semibold text-white/90 hover:text-white transition-colors"
+            className="rounded-xl bg-accent text-black px-4 py-2 text-base font-marker hover:bg-accent/90 transition-colors"
           >
             Sign In
           </button>
@@ -87,9 +100,9 @@ export const PublicLandingPage: React.FC<PublicLandingPageProps> = ({ onGetStart
           <button
             type="button"
             onClick={onGetStarted}
-            className="w-full rounded-xl bg-white text-black py-3.5 text-lg font-semibold hover:bg-white/90 transition-colors"
+            className="w-full rounded-xl bg-accent text-black py-3.5 text-xl font-marker hover:bg-accent/90 transition-colors"
           >
-            Get Started
+            Start Now
           </button>
           <p className="mt-3 text-center text-xs text-text-secondary">
             Join RepSet to get adaptive workouts that fit your goals.

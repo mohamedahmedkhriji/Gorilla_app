@@ -7,10 +7,27 @@
 @import 'tailwindcss/utilities';
 /* DO NOT DELETE THESE TAILWIND IMPORTS, OTHERWISE THE STYLING WILL NOT RENDER AT ALL - DO NOT DELETE THIS COMMENT */
 
+@font-face {
+  font-family: 'RepSet Brand';
+  src: url('../assets/fents/Pacifico-Regular.ttf') format('truetype');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Permanent Marker';
+  src: url('../assets/fents/PermanentMarker-Regular.ttf') format('truetype');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
 :root,
 [data-theme='dark'] {
   --font-body: 'Space Grotesk', system-ui, sans-serif;
   --font-display: 'Bebas Neue', Impact, sans-serif;
+  --font-brand: 'RepSet Brand', 'Bebas Neue', cursive;
 
   --color-accent: 187 255 92;
   --color-accent-dark: 126 198 35;
@@ -35,6 +52,7 @@
 [data-theme='light'] {
   --font-body: 'Space Grotesk', system-ui, sans-serif;
   --font-display: 'Bebas Neue', Impact, sans-serif;
+  --font-brand: 'RepSet Brand', 'Bebas Neue', cursive;
 
   --color-accent: 155 214 52;
   --color-accent-dark: 109 149 34;
@@ -107,6 +125,14 @@ body {
 .font-display {
   font-family: var(--font-display);
   letter-spacing: 0.03em;
+}
+
+.font-brand {
+  font-family: var(--font-brand);
+}
+
+.font-marker {
+  font-family: 'Permanent Marker', cursive;
 }
 
 @supports (padding: max(0px)) {
