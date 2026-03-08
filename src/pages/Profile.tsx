@@ -5,16 +5,17 @@ import { RankingsRewardsScreen } from '../components/profile/RankingsRewardsScre
 import { SettingsScreen } from '../components/profile/SettingsScreen';
 import { CurrentWeekPlanScreen } from '../components/profile/CurrentWeekPlanScreen';
 import { CustomPlanBuilderScreen } from '../components/profile/CustomPlanBuilderScreen';
+import { PresetProgramScreen } from '../components/profile/PresetProgramScreen';
 import { MyPostsScreen } from '../components/profile/MyPostsScreen';
 import { NotificationsScreen } from '../components/notifications/NotificationsScreen';
 import { api } from '../services/api';
-import { Bell } from 'lucide-react';
+import { Bell, Settings } from 'lucide-react';
 interface ProfileProps {
   onNavigateTab?: (tab: string, day?: string) => void;
 }
 export function Profile({ onNavigateTab }: ProfileProps) {
   const [view, setView] = useState<
-    'main' | 'gym' | 'rank' | 'settings' | 'notifications' | 'weeklyPlan' | 'customPlanBuilder' | 'posts'>(
+    'main' | 'gym' | 'rank' | 'settings' | 'notifications' | 'weeklyPlan' | 'presetPlans' | 'customPlanBuilder' | 'posts'>(
     'main');
   const [unreadCount, setUnreadCount] = useState(0);
 
@@ -85,7 +86,7 @@ export function Profile({ onNavigateTab }: ProfileProps) {
   if (view === 'rank')
   return <RankingsRewardsScreen onBack={() => setView('main')} />;
   if (view === 'settings')
-  return <SettingsScreen onBack={() => setView('main')} onLogout={handleLogout} />;
+  return <SettingsScreen onBack={() => setView('main')} onOpenGym={() => setView('gym')} />;
   if (view === 'notifications')
   return <NotificationsScreen onBack={() => setView('main')} />;
   if (view === 'weeklyPlan')
@@ -93,13 +94,21 @@ export function Profile({ onNavigateTab }: ProfileProps) {
     <CurrentWeekPlanScreen
       onBack={() => setView('main')}
       onOpenWorkout={() => onNavigateTab?.('workout')}
-      onCreateCustom={() => setView('customPlanBuilder')}
+      onCreateCustom={() => setView('presetPlans')}
+    />
+  );
+  if (view === 'presetPlans')
+  return (
+    <PresetProgramScreen
+      onBack={() => setView('weeklyPlan')}
+      onSaved={() => onNavigateTab?.('workout')}
+      onBuildCustom={() => setView('customPlanBuilder')}
     />
   );
   if (view === 'customPlanBuilder')
   return (
     <CustomPlanBuilderScreen
-      onBack={() => setView('weeklyPlan')}
+      onBack={() => setView('presetPlans')}
       onSaved={() => onNavigateTab?.('workout')}
     />
   );
@@ -107,21 +116,32 @@ export function Profile({ onNavigateTab }: ProfileProps) {
   return <MyPostsScreen onBack={() => setView('main')} />;
   return (
     <div className="relative">
-      {/* Notification Bell Overlay */}
-      <button
-        onClick={() => setView('notifications')}
-        className="absolute top-6 right-6 w-10 h-10 rounded-full bg-white/10 flex items-center justify-center text-white hover:bg-white/20 transition-colors z-10">
+      {/* Header action icons */}
+      <div className="absolute top-6 right-6 z-10 flex items-center gap-2">
+        <button
+          onClick={() => setView('settings')}
+          className="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center text-white hover:bg-white/20 transition-colors"
+          aria-label="Open settings"
+        >
+          <Settings size={20} />
+        </button>
 
-        <Bell size={20} />
-        {unreadCount > 0 && (
-          <div className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 bg-accent text-black text-[10px] font-bold rounded-full flex items-center justify-center shadow-glow">
-            {unreadCount > 99 ? '99+' : unreadCount}
-          </div>
-        )}
-      </button>
+        <button
+          onClick={() => setView('notifications')}
+          className="relative w-10 h-10 rounded-full bg-white/10 flex items-center justify-center text-white hover:bg-white/20 transition-colors"
+          aria-label="Open notifications"
+        >
+          <Bell size={20} />
+          {unreadCount > 0 && (
+            <div className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 bg-accent text-black text-[10px] font-bold rounded-full flex items-center justify-center shadow-glow">
+              {unreadCount > 99 ? '99+' : unreadCount}
+            </div>
+          )}
+        </button>
+      </div>
 
       <div className="space-y-6 pb-24 px-4 sm:px-6">
-        <ProfileScreen onNavigate={handleNavigate} />
+        <ProfileScreen onNavigate={handleNavigate} onLogout={handleLogout} />
       </div>
     </div>);
 
