@@ -648,6 +648,46 @@ export const api = {
     return res.json();
   },
 
+  saveWorkoutDaySummary: async (input: {
+    userId: number;
+    summaryDate: string;
+    workoutName: string;
+    durationSeconds: number;
+    estimatedCalories: number;
+    totalVolume: number;
+    recordsCount: number;
+    muscles: Array<{ name: string; score: number }>;
+    exercises: Array<{
+      name: string;
+      sets: Array<{ set: number; reps: number; weight: number }>;
+      totalSets: number;
+      totalReps: number;
+      topWeight: number;
+      volume: number;
+      targetMuscles: string[];
+    }>;
+    summaryText?: string;
+  }) => {
+    const res = await fetch(`${API_URL}/workout-summaries`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(input),
+    });
+    return parseApiResponse(res, 'Failed to save workout summary');
+  },
+
+  getLatestWorkoutDaySummary: async (userId: number) => {
+    const res = await fetch(`${API_URL}/workout-summaries/latest/${userId}`);
+    return parseApiResponse(res, 'Failed to load latest workout summary');
+  },
+
+  getWorkoutDaySummaries: async (userId: number, limit = 20) => {
+    const params = new URLSearchParams();
+    params.set('limit', String(limit));
+    const res = await fetch(`${API_URL}/workout-summaries/${userId}?${params.toString()}`);
+    return parseApiResponse(res, 'Failed to load workout summaries');
+  },
+
   getUserMissions: async (userId: number) => {
     const res = await fetch(`${API_URL}/missions/${userId}`);
     return parseApiResponse(res, 'Failed to fetch missions');

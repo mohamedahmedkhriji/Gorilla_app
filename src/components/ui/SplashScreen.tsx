@@ -56,7 +56,7 @@ export function SplashScreen({ onComplete }: SplashScreenProps) {
                 duration: 0.45,
                 delay: 0.1,
               }}
-              className="w-40 h-40 md:w-48 md:h-48 lg:w-52 lg:h-52"
+              className="w-[10.5rem] h-[10.5rem] md:w-[12.5rem] md:h-[12.5rem] lg:w-56 lg:h-56"
             >
               <motion.div
                 animate={{
@@ -80,8 +80,8 @@ export function SplashScreen({ onComplete }: SplashScreenProps) {
                 className="w-full h-full"
               >
                 <BrandLogo
-                  className="w-full h-full rounded-3xl bg-black/45 border border-white/20 p-3 md:p-4"
-                  imageClassName="object-contain"
+                  className="w-full h-full rounded-3xl bg-black/45 border border-white/10 p-1.5 md:p-2.5"
+                  imageClassName="object-contain scale-[1.16]"
                 />
               </motion.div>
             </motion.div>

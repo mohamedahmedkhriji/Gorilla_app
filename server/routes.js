@@ -6543,6 +6543,243 @@ router.get('/workout-sets/today/:userId', async (req, res) => {
   }
 });
 
+const toSummaryDate = (value) => {
+  const candidate = String(value || '').trim();
+  if (!candidate) return formatDateISO(new Date());
+  const parsed = new Date(candidate);
+  if (Number.isNaN(parsed.getTime())) return null;
+  return formatDateISO(parsed);
+};
+
+const parseSummaryJsonArray = (value) => {
+  if (!value) return [];
+  if (Array.isArray(value)) return value;
+  if (typeof value === 'string') {
+    try {
+      const parsed = JSON.parse(value);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  }
+  return [];
+};
+
+const mapWorkoutDaySummaryRow = (row) => ({
+  id: Number(row.id || 0),
+  userId: Number(row.user_id || 0),
+  summaryDate: row.summary_date ? formatDateISO(row.summary_date) : null,
+  workoutName: String(row.workout_name || ''),
+  durationSeconds: Number(row.duration_seconds || 0),
+  estimatedCalories: Number(row.estimated_calories || 0),
+  totalVolume: Number(row.total_volume || 0),
+  recordsCount: Number(row.records_count || 0),
+  muscles: parseSummaryJsonArray(row.muscles_json),
+  exercises: parseSummaryJsonArray(row.exercises_json),
+  summaryText: String(row.summary_text || '').trim(),
+  createdAt: toIsoTimestamp(row.created_at),
+  updatedAt: toIsoTimestamp(row.updated_at),
+});
+
+router.post('/workout-summaries', async (req, res) => {
+  try {
+    const userId = toPositiveInteger(req.body?.userId);
+    if (!userId) {
+      return res.status(400).json({ error: 'userId must be a positive integer' });
+    }
+
+    const workoutName = String(req.body?.workoutName || '').trim();
+    if (!workoutName) {
+      return res.status(400).json({ error: 'workoutName is required' });
+    }
+
+    const summaryDate = toSummaryDate(req.body?.summaryDate);
+    if (!summaryDate) {
+      return res.status(400).json({ error: 'summaryDate is invalid' });
+    }
+
+    const durationSeconds = Math.max(0, Math.round(Number(req.body?.durationSeconds || 0)));
+    const estimatedCalories = Math.max(0, Math.round(Number(req.body?.estimatedCalories || 0)));
+    const totalVolume = Number(Number(req.body?.totalVolume || 0).toFixed(2));
+    const recordsCount = Math.max(0, Math.round(Number(req.body?.recordsCount || 0)));
+
+    const musclesRaw = Array.isArray(req.body?.muscles) ? req.body.muscles : [];
+    const muscles = musclesRaw
+      .map((entry) => ({
+        name: String(entry?.name || '').trim(),
+        score: Math.max(0, Math.min(100, Math.round(Number(entry?.score || 0)))),
+      }))
+      .filter((entry) => entry.name)
+      .slice(0, 12);
+
+    const exercisesRaw = Array.isArray(req.body?.exercises) ? req.body.exercises : [];
+    const exercises = exercisesRaw
+      .map((exercise) => {
+        const name = String(exercise?.name || '').trim();
+        if (!name) return null;
+
+        const setsRaw = Array.isArray(exercise?.sets) ? exercise.sets : [];
+        const sets = setsRaw
+          .map((setRow) => ({
+            set: Math.max(1, Math.round(Number(setRow?.set || 1))),
+            reps: Math.max(0, Math.round(Number(setRow?.reps || 0))),
+            weight: Number(Number(setRow?.weight || 0).toFixed(2)),
+          }))
+          .slice(0, 20);
+
+        const targetMusclesRaw = Array.isArray(exercise?.targetMuscles) ? exercise.targetMuscles : [];
+        const targetMuscles = targetMusclesRaw
+          .map((muscle) => String(muscle || '').trim())
+          .filter(Boolean)
+          .slice(0, 6);
+
+        return {
+          name,
+          sets,
+          totalSets: Math.max(0, Math.round(Number(exercise?.totalSets || sets.length))),
+          totalReps: Math.max(0, Math.round(Number(exercise?.totalReps || 0))),
+          topWeight: Number(Number(exercise?.topWeight || 0).toFixed(2)),
+          volume: Number(Number(exercise?.volume || 0).toFixed(2)),
+          targetMuscles,
+        };
+      })
+      .filter(Boolean)
+      .slice(0, 40);
+
+    const summaryText = String(req.body?.summaryText || '').trim();
+
+    await pool.execute(
+      `INSERT INTO workout_day_summaries
+         (user_id, summary_date, workout_name, duration_seconds, estimated_calories, total_volume, records_count, muscles_json, exercises_json, summary_text)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+       ON DUPLICATE KEY UPDATE
+         workout_name = VALUES(workout_name),
+         duration_seconds = VALUES(duration_seconds),
+         estimated_calories = VALUES(estimated_calories),
+         total_volume = VALUES(total_volume),
+         records_count = VALUES(records_count),
+         muscles_json = VALUES(muscles_json),
+         exercises_json = VALUES(exercises_json),
+         summary_text = VALUES(summary_text),
+         updated_at = CURRENT_TIMESTAMP`,
+      [
+        userId,
+        summaryDate,
+        workoutName,
+        durationSeconds,
+        estimatedCalories,
+        Number.isFinite(totalVolume) ? totalVolume : 0,
+        recordsCount,
+        JSON.stringify(muscles),
+        JSON.stringify(exercises),
+        summaryText || null,
+      ],
+    );
+
+    const [rows] = await pool.execute(
+      `SELECT
+         id,
+         user_id,
+         summary_date,
+         workout_name,
+         duration_seconds,
+         estimated_calories,
+         total_volume,
+         records_count,
+         muscles_json,
+         exercises_json,
+         summary_text,
+         created_at,
+         updated_at
+       FROM workout_day_summaries
+       WHERE user_id = ? AND summary_date = ?
+       LIMIT 1`,
+      [userId, summaryDate],
+    );
+
+    return res.status(201).json({
+      summary: rows.length ? mapWorkoutDaySummaryRow(rows[0]) : null,
+    });
+  } catch (error) {
+    return res.status(500).json({ error: error.message || 'Failed to save workout summary' });
+  }
+});
+
+router.get('/workout-summaries/latest/:userId', async (req, res) => {
+  try {
+    const userId = toPositiveInteger(req.params?.userId);
+    if (!userId) {
+      return res.status(400).json({ error: 'userId must be a positive integer' });
+    }
+
+    const [rows] = await pool.execute(
+      `SELECT
+         id,
+         user_id,
+         summary_date,
+         workout_name,
+         duration_seconds,
+         estimated_calories,
+         total_volume,
+         records_count,
+         muscles_json,
+         exercises_json,
+         summary_text,
+         created_at,
+         updated_at
+       FROM workout_day_summaries
+       WHERE user_id = ?
+       ORDER BY summary_date DESC, updated_at DESC, id DESC
+       LIMIT 1`,
+      [userId],
+    );
+
+    return res.json({
+      summary: rows.length ? mapWorkoutDaySummaryRow(rows[0]) : null,
+    });
+  } catch (error) {
+    return res.status(500).json({ error: error.message || 'Failed to fetch latest workout summary' });
+  }
+});
+
+router.get('/workout-summaries/:userId', async (req, res) => {
+  try {
+    const userId = toPositiveInteger(req.params?.userId);
+    if (!userId) {
+      return res.status(400).json({ error: 'userId must be a positive integer' });
+    }
+
+    const limit = Math.min(60, Math.max(1, toPositiveInteger(req.query?.limit) || 20));
+    const [rows] = await pool.execute(
+      `SELECT
+         id,
+         user_id,
+         summary_date,
+         workout_name,
+         duration_seconds,
+         estimated_calories,
+         total_volume,
+         records_count,
+         muscles_json,
+         exercises_json,
+         summary_text,
+         created_at,
+         updated_at
+       FROM workout_day_summaries
+       WHERE user_id = ?
+       ORDER BY summary_date DESC, updated_at DESC, id DESC
+       LIMIT ?`,
+      [userId, limit],
+    );
+
+    return res.json({
+      summaries: rows.map(mapWorkoutDaySummaryRow),
+    });
+  } catch (error) {
+    return res.status(500).json({ error: error.message || 'Failed to fetch workout summaries' });
+  }
+});
+
 router.get('/exercises/catalog/filters', async (_req, res) => {
   try {
     const [rows] = await pool.execute(
@@ -6645,6 +6882,27 @@ const toIsoTimestamp = (value) => {
   return date.toISOString();
 };
 
+const decodeHtmlAttributeValue = (value) =>
+  String(value || '')
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;/gi, '\'')
+    .replace(/&apos;/gi, '\'')
+    .replace(/&amp;/gi, '&')
+    .replace(/&lt;/gi, '<')
+    .replace(/&gt;/gi, '>');
+
+const normalizeBlogMediaUrl = (value) => {
+  const raw = String(value || '').trim();
+  if (!raw) return '';
+
+  const srcMatch = raw.match(/<\s*(?:img|video)\b[^>]*\bsrc\s*=\s*(?:"([^"]+)"|'([^']+)'|([^\s>]+))/i);
+  const extracted = srcMatch ? (srcMatch[1] || srcMatch[2] || srcMatch[3] || '') : raw;
+
+  return decodeHtmlAttributeValue(extracted)
+    .trim()
+    .replace(/^['"]+|['"]+$/g, '');
+};
+
 const mapBlogPostRow = (row) => ({
   id: Number(row.id),
   userId: Number(row.user_id),
@@ -6653,7 +6911,7 @@ const mapBlogPostRow = (row) => ({
   category: row.category || 'Recovery',
   description: row.description || '',
   mediaType: row.media_type || 'image',
-  mediaUrl: row.media_url || '',
+  mediaUrl: normalizeBlogMediaUrl(row.media_url),
   mediaAlt: row.media_alt || 'Post media',
   createdAt: toIsoTimestamp(row.created_at),
   metrics: {
@@ -6841,7 +7099,7 @@ router.post('/blogs', async (req, res) => {
       return res.status(400).json({ error: 'mediaType must be image or video' });
     }
 
-    const mediaUrl = String(req.body?.mediaUrl || '').trim();
+    const mediaUrl = normalizeBlogMediaUrl(req.body?.mediaUrl);
     if (!mediaUrl) {
       return res.status(400).json({ error: 'mediaUrl is required' });
     }

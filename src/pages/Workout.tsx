@@ -1,11 +1,12 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { WorkoutOverviewScreen } from '../components/workout/WorkoutOverviewScreen';
 import { LiveWorkoutScreen } from '../components/workout/LiveWorkoutScreen';
-import { PostWorkoutSummary } from '../components/workout/PostWorkoutSummary';
+import { PostWorkoutSummary, type WorkoutDaySummaryData } from '../components/workout/PostWorkoutSummary';
 import { ExerciseVideoScreen } from '../components/workout/ExerciseVideoScreen';
 import { WorkoutPlanScreen } from '../components/workout/WorkoutPlanScreen';
 import { TrackerScreen } from '../components/workout/TrackerScreen';
 import { api } from '../services/api';
+
 interface WorkoutProps {
   onBack: () => void;
   workoutDay?: string;
@@ -19,6 +20,21 @@ type AddedCatalogExercise = {
 };
 
 type ViewState = 'overview' | 'plan' | 'tracker' | 'video' | 'live' | 'summary';
+
+type SummaryMuscle = {
+  name: string;
+  score: number;
+};
+
+type SummaryExercise = {
+  name: string;
+  sets: Array<{ set: number; reps: number; weight: number }>;
+  totalSets: number;
+  totalReps: number;
+  topWeight: number;
+  volume: number;
+  targetMuscles: string[];
+};
 
 const readStoredUser = () => {
   try {
@@ -63,6 +79,26 @@ const getHomeMetricStorageKeys = (scope: string) => {
   return {
     homeWorkoutProgress: `homeWorkoutProgress:${scope}`,
   };
+};
+
+const getWorkoutSummaryStorageKeys = (scope: string) => {
+  return {
+    blogPostedSummaries: `blogPostedSummaries:${scope}`,
+  };
+};
+
+const readPostedWorkoutSummaryTokens = (scope: string) => {
+  const keys = getWorkoutSummaryStorageKeys(scope);
+  try {
+    const raw = localStorage.getItem(keys.blogPostedSummaries);
+    const parsed = raw ? JSON.parse(raw) : [];
+    if (!Array.isArray(parsed)) return [] as string[];
+    return parsed
+      .map((entry) => String(entry || '').trim())
+      .filter(Boolean);
+  } catch {
+    return [] as string[];
+  }
 };
 
 const loadLocalWorkoutState = (scope: string) => {
@@ -145,12 +181,174 @@ const parseTargetMuscles = (raw: unknown): string[] => {
   return [];
 };
 
+const normalizeExerciseLookupName = (value = '') =>
+  String(value || '')
+    .trim()
+    .toLowerCase();
+
+const normalizeMuscleName = (value = '') =>
+  String(value || '')
+    .trim()
+    .toLowerCase()
+    .split(/[\s_-]+/)
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(' ');
+
+const inferMusclesFromExerciseName = (exerciseName = '') => {
+  const name = String(exerciseName).toLowerCase();
+  const matches: string[] = [];
+
+  if (/bench|chest|fly|push-up|push up/.test(name)) matches.push('Chest', 'Triceps', 'Shoulders');
+  if (/deadlift|row|pull-up|pull up|lat|pulldown|pullover/.test(name)) matches.push('Back', 'Biceps', 'Forearms');
+  if (/squat|leg press|lunge|split squat|step up/.test(name)) matches.push('Quadriceps', 'Hamstrings', 'Calves');
+  if (/romanian deadlift|rdl|leg curl|hamstring/.test(name)) matches.push('Hamstrings');
+  if (/shoulder|overhead press|lateral raise|rear delt/.test(name)) matches.push('Shoulders', 'Triceps');
+  if (/curl/.test(name)) matches.push('Biceps', 'Forearms');
+  if (/tricep|triceps|dip/.test(name)) matches.push('Triceps');
+  if (/calf/.test(name)) matches.push('Calves');
+  if (/abs|core|crunch|plank|sit-up|sit up/.test(name)) matches.push('Abs');
+
+  return [...new Set(matches.map(normalizeMuscleName).filter(Boolean))];
+};
+
+const formatDateISO = (date = new Date()) => {
+  const d = new Date(date);
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
+const normalizeWorkoutSummary = (raw: any): WorkoutDaySummaryData | null => {
+  if (!raw || typeof raw !== 'object') return null;
+
+  const workoutName = String(raw.workoutName || raw.workout_name || '').trim();
+  if (!workoutName) return null;
+
+  const musclesRaw = Array.isArray(raw.muscles) ? raw.muscles : [];
+  const exercisesRaw = Array.isArray(raw.exercises) ? raw.exercises : [];
+
+  const muscles: SummaryMuscle[] = musclesRaw
+    .map((muscle: any) => ({
+      name: normalizeMuscleName(muscle?.name || ''),
+      score: Math.max(0, Math.min(100, Math.round(Number(muscle?.score || 0)))),
+    }))
+    .filter((muscle: SummaryMuscle) => muscle.name);
+
+  const exercises: SummaryExercise[] = exercisesRaw
+    .map((exercise: any) => {
+      const name = String(exercise?.name || '').trim();
+      if (!name) return null;
+
+      const setsRaw = Array.isArray(exercise?.sets) ? exercise.sets : [];
+      const sets = setsRaw.map((setRow: any, index: number) => ({
+        set: Math.max(1, Math.round(Number(setRow?.set || index + 1))),
+        reps: Math.max(0, Math.round(Number(setRow?.reps || 0))),
+        weight: Number(Number(setRow?.weight || 0).toFixed(2)),
+      }));
+
+      return {
+        name,
+        sets,
+        totalSets: Math.max(0, Math.round(Number(exercise?.totalSets || sets.length))),
+        totalReps: Math.max(0, Math.round(Number(exercise?.totalReps || 0))),
+        topWeight: Number(Number(exercise?.topWeight || 0).toFixed(2)),
+        volume: Number(Number(exercise?.volume || 0).toFixed(2)),
+        targetMuscles: Array.isArray(exercise?.targetMuscles)
+          ? exercise.targetMuscles.map((entry: unknown) => normalizeMuscleName(String(entry || ''))).filter(Boolean)
+          : [],
+      };
+    })
+    .filter(Boolean) as SummaryExercise[];
+
+  return {
+    id: Number(raw.id || 0) || undefined,
+    summaryDate: raw.summaryDate || raw.summary_date || null,
+    workoutName,
+    durationSeconds: Math.max(0, Math.round(Number(raw.durationSeconds ?? raw.duration_seconds ?? 0))),
+    estimatedCalories: Math.max(0, Math.round(Number(raw.estimatedCalories ?? raw.estimated_calories ?? 0))),
+    totalVolume: Number(Number(raw.totalVolume ?? raw.total_volume ?? 0).toFixed(2)),
+    recordsCount: Math.max(0, Math.round(Number(raw.recordsCount ?? raw.records_count ?? 0))),
+    muscles,
+    exercises,
+    summaryText: String(raw.summaryText || raw.summary_text || '').trim(),
+  };
+};
+
+const escapeSvgText = (value: string) =>
+  String(value || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+
+const buildSummaryShareText = (summary: WorkoutDaySummaryData) => {
+  const totalSets = summary.exercises.reduce((acc, exercise) => acc + Number(exercise.totalSets || 0), 0);
+  const topMuscles = summary.muscles
+    .slice(0, 3)
+    .map((muscle) => muscle.name)
+    .filter(Boolean)
+    .join(' - ');
+
+  const lines = [
+    `Completed ${summary.workoutName}`,
+    `Duration: ${Math.round(summary.durationSeconds / 60)} min`,
+    `Exercises: ${summary.exercises.length}`,
+    `Sets: ${totalSets}`,
+    `Volume: ${Math.round(summary.totalVolume).toLocaleString()} kg`,
+  ];
+
+  if (topMuscles) {
+    lines.push(`Target muscles: ${topMuscles}`);
+  }
+
+  return lines.join('\n');
+};
+
+const buildSummaryImageDataUrl = (summary: WorkoutDaySummaryData) => {
+  const title = escapeSvgText(summary.workoutName);
+  const dateText = escapeSvgText(
+    summary.summaryDate
+      ? new Date(summary.summaryDate).toLocaleDateString()
+      : new Date().toLocaleDateString(),
+  );
+  const durationText = `${Math.max(0, Math.round(summary.durationSeconds / 60))} min`;
+  const exercisesText = `${summary.exercises.length} exercises`;
+  const volumeText = `${Math.round(summary.totalVolume).toLocaleString()} kg`;
+  const caloriesText = `${summary.estimatedCalories.toLocaleString()} kcal`;
+
+  const svg = `
+    <svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630">
+      <defs>
+        <linearGradient id="bg" x1="0" x2="1" y1="0" y2="1">
+          <stop offset="0%" stop-color="#0b1230" />
+          <stop offset="100%" stop-color="#0f1a46" />
+        </linearGradient>
+      </defs>
+      <rect width="1200" height="630" fill="url(#bg)" />
+      <rect x="48" y="48" width="1104" height="534" rx="28" fill="#192443" stroke="#3a4b7a" />
+      <text x="88" y="120" fill="#d5def2" font-size="34" font-family="Arial, sans-serif" font-weight="600">${dateText}</text>
+      <text x="88" y="200" fill="#ffffff" font-size="68" font-family="Arial, sans-serif" font-weight="700">${title}</text>
+      <text x="88" y="286" fill="#c9d5f0" font-size="38" font-family="Arial, sans-serif">${durationText} - ${exercisesText}</text>
+      <text x="88" y="348" fill="#c9d5f0" font-size="38" font-family="Arial, sans-serif">Volume: ${volumeText}</text>
+      <text x="88" y="410" fill="#c9d5f0" font-size="38" font-family="Arial, sans-serif">Energy: ${caloriesText}</text>
+      <rect x="88" y="470" width="410" height="74" rx="37" fill="#c6f63e" />
+      <text x="126" y="520" fill="#162014" font-size="34" font-family="Arial, sans-serif" font-weight="700">RepSet Workout Recap</text>
+    </svg>
+  `;
+
+  return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`;
+};
+
 export function Workout({ onBack, workoutDay = 'Push Day' }: WorkoutProps) {
   const currentUser = readStoredUser();
   const userId = Number(currentUser?.id || 0);
   const workoutStorageScope = getUserStorageScope(currentUser);
   const workoutStorageKeys = getWorkoutStorageKeys(workoutStorageScope);
   const homeMetricStorageKeys = getHomeMetricStorageKeys(workoutStorageScope);
+  const workoutSummaryStorageKeys = getWorkoutSummaryStorageKeys(workoutStorageScope);
 
   const [view, setView] = useState<ViewState>('plan');
   const [selectedExercise, setSelectedExercise] = useState('Bench Press');
@@ -159,6 +357,12 @@ export function Workout({ onBack, workoutDay = 'Push Day' }: WorkoutProps) {
   const [loading, setLoading] = useState(true);
   const [completedExercises, setCompletedExercises] = useState<string[]>([]);
   const [exerciseSets, setExerciseSets] = useState<Record<string, any[]>>({});
+  const [summary, setSummary] = useState<WorkoutDaySummaryData | null>(null);
+  const [summaryLoading, setSummaryLoading] = useState(false);
+  const [summaryError, setSummaryError] = useState<string | null>(null);
+  const [hasLatestSummary, setHasLatestSummary] = useState(false);
+  const [lastAutoSummaryKey, setLastAutoSummaryKey] = useState('');
+  const [postedSummaryTokens, setPostedSummaryTokens] = useState<string[]>([]);
 
   const normalizeExerciseName = (name: string) => String(name || '').trim().toLowerCase();
   const isSetCompleted = (setRow: any) =>
@@ -174,6 +378,28 @@ export function Workout({ onBack, workoutDay = 'Push Day' }: WorkoutProps) {
     setCompletedExercises(state.completedExercises);
     setExerciseSets(state.exerciseSets);
   }, [workoutStorageScope]);
+
+  useEffect(() => {
+    setPostedSummaryTokens(readPostedWorkoutSummaryTokens(workoutStorageScope));
+  }, [workoutStorageScope]);
+
+  useEffect(() => {
+    const loadLatestSummaryAvailability = async () => {
+      if (!userId) {
+        setHasLatestSummary(false);
+        return;
+      }
+      try {
+        const response = await api.getLatestWorkoutDaySummary(userId);
+        const latestSummary = normalizeWorkoutSummary(response?.summary);
+        setHasLatestSummary(Boolean(latestSummary));
+      } catch {
+        setHasLatestSummary(false);
+      }
+    };
+
+    void loadLatestSummaryAvailability();
+  }, [userId]);
 
   const persistExtraExercises = (exercises: any[]) => {
     const extras = exercises
@@ -268,7 +494,7 @@ export function Workout({ onBack, workoutDay = 'Push Day' }: WorkoutProps) {
         setLoading(false);
       }
     };
-    fetchTodayWorkout();
+    void fetchTodayWorkout();
   }, [workoutDay, userId, workoutStorageScope]);
 
   const addExerciseToToday = (exercise: AddedCatalogExercise) => {
@@ -304,26 +530,337 @@ export function Workout({ onBack, workoutDay = 'Push Day' }: WorkoutProps) {
     return { added: true };
   };
 
+  const buildWorkoutSummary = async (setsByExercise: Record<string, any[]>): Promise<WorkoutDaySummaryData | null> => {
+    const exerciseMetaByName = new Map<string, any>();
+    todayExercises.forEach((exercise: any) => {
+      const normalized = normalizeExerciseLookupName(exercise.exerciseName || exercise.name || '');
+      if (!normalized || exerciseMetaByName.has(normalized)) return;
+      exerciseMetaByName.set(normalized, exercise);
+    });
+
+    const summaryExercises: SummaryExercise[] = [];
+    const completedMuscleCount = new Map<string, number>();
+    let durationSeconds = 0;
+
+    Object.entries(setsByExercise).forEach(([exerciseName, rows]) => {
+      const safeName = String(exerciseName || '').trim();
+      if (!safeName || !Array.isArray(rows)) return;
+
+      const completedRows = rows.filter((row) => isSetCompleted(row));
+      if (!completedRows.length) return;
+
+      const normalizedName = normalizeExerciseLookupName(safeName);
+      const meta = exerciseMetaByName.get(normalizedName) || null;
+
+      const sets = completedRows.map((row: any, index: number) => ({
+        set: Math.max(1, Math.round(Number(row?.set || index + 1))),
+        reps: Math.max(0, Math.round(Number(row?.reps || 0))),
+        weight: Number(Number(row?.weight || 0).toFixed(2)),
+      }));
+
+      const totalReps = sets.reduce((acc, setRow) => acc + setRow.reps, 0);
+      const topWeight = sets.reduce((max, setRow) => Math.max(max, setRow.weight), 0);
+      const volume = Number(
+        sets
+          .reduce((acc, setRow) => acc + (setRow.reps * setRow.weight), 0)
+          .toFixed(2),
+      );
+
+      const targetMuscles = (
+        Array.isArray(meta?.targetMuscles) && meta.targetMuscles.length
+          ? meta.targetMuscles.map((entry: unknown) => normalizeMuscleName(String(entry || '')))
+          : meta?.muscleGroup
+            ? [normalizeMuscleName(String(meta.muscleGroup || ''))]
+            : inferMusclesFromExerciseName(safeName)
+      ).filter(Boolean);
+
+      targetMuscles.forEach((muscle) => {
+        completedMuscleCount.set(muscle, (completedMuscleCount.get(muscle) || 0) + 1);
+      });
+
+      const rowDuration = completedRows.reduce((acc: number, row: any) => {
+        const work = Math.max(0, Math.round(Number(row?.duration || 0)));
+        const rest = Math.max(0, Math.round(Number(row?.restTime || 0)));
+        if (!work && !rest) return acc + 45;
+        return acc + work + rest;
+      }, 0);
+
+      durationSeconds += rowDuration;
+      summaryExercises.push({
+        name: safeName,
+        sets,
+        totalSets: sets.length,
+        totalReps,
+        topWeight,
+        volume,
+        targetMuscles,
+      });
+    });
+
+    if (!summaryExercises.length) return null;
+
+    if (durationSeconds <= 0) {
+      durationSeconds = summaryExercises.reduce((acc, exercise) => acc + (exercise.totalSets * 90), 0);
+    }
+
+    const totalVolume = Number(
+      summaryExercises.reduce((acc, exercise) => acc + Number(exercise.volume || 0), 0).toFixed(2),
+    );
+    const estimatedCalories = Math.max(
+      1,
+      Math.round((durationSeconds / 60) * 7 + (totalVolume * 0.015)),
+    );
+
+    const plannedMuscleCount = new Map<string, number>();
+    todayExercises.forEach((exercise: any) => {
+      const muscles = Array.isArray(exercise?.targetMuscles) && exercise.targetMuscles.length
+        ? exercise.targetMuscles.map((entry: unknown) => normalizeMuscleName(String(entry || '')))
+        : exercise?.muscleGroup
+          ? [normalizeMuscleName(String(exercise.muscleGroup || ''))]
+          : inferMusclesFromExerciseName(String(exercise?.exerciseName || exercise?.name || ''));
+
+      muscles
+        .filter(Boolean)
+        .forEach((muscle) => {
+          plannedMuscleCount.set(muscle, (plannedMuscleCount.get(muscle) || 0) + 1);
+        });
+    });
+
+    const muscleNames = new Set<string>([
+      ...Array.from(plannedMuscleCount.keys()),
+      ...Array.from(completedMuscleCount.keys()),
+    ]);
+
+    const muscles: SummaryMuscle[] = Array.from(muscleNames)
+      .map((muscleName) => {
+        const plannedCount = plannedMuscleCount.get(muscleName) || 0;
+        const completedCount = completedMuscleCount.get(muscleName) || 0;
+        const score = plannedCount > 0
+          ? Math.round((completedCount / plannedCount) * 100)
+          : 100;
+        return {
+          name: muscleName,
+          score: Math.max(0, Math.min(100, score)),
+        };
+      })
+      .sort((left, right) => right.score - left.score)
+      .slice(0, 10);
+
+    const todayDate = formatDateISO(new Date());
+    const recordsByExercise = await Promise.all(
+      summaryExercises.map(async (exercise) => {
+        if (!userId || exercise.topWeight <= 0) return 0;
+        try {
+          const historyRows = await api.getWorkoutHistory(userId, exercise.name);
+          const previousMax = (Array.isArray(historyRows) ? historyRows : [])
+            .filter((row: any) => {
+              const createdAt = row?.created_at ? new Date(row.created_at) : null;
+              const dateKey = createdAt && !Number.isNaN(createdAt.getTime())
+                ? formatDateISO(createdAt)
+                : '';
+              const completedFlag = Number(row?.completed ?? 1);
+              return dateKey && dateKey < todayDate && completedFlag === 1;
+            })
+            .reduce((max: number, row: any) => {
+              const weight = Number(row?.weight || 0);
+              return Number.isFinite(weight) ? Math.max(max, weight) : max;
+            }, 0);
+          return exercise.topWeight > previousMax ? 1 : 0;
+        } catch {
+          return 0;
+        }
+      }),
+    );
+
+    const recordsCount = recordsByExercise.reduce((acc, value) => acc + value, 0);
+    const summaryDate = formatDateISO(new Date());
+
+    return {
+      summaryDate,
+      workoutName: String(currentWorkoutName || workoutDay || 'Workout').trim() || 'Workout',
+      durationSeconds,
+      estimatedCalories,
+      totalVolume,
+      recordsCount,
+      muscles,
+      exercises: summaryExercises,
+      summaryText: '',
+    };
+  };
+
+  const saveAndShowWorkoutSummary = async (
+    setsByExercise: Record<string, any[]>,
+    openAfterSave: boolean,
+  ) => {
+    if (!userId) return;
+    setSummaryLoading(true);
+    setSummaryError(null);
+    try {
+      const generated = await buildWorkoutSummary(setsByExercise);
+      if (!generated) {
+        setSummaryError('No completed workout sets were found for today.');
+        if (openAfterSave) setView('summary');
+        return;
+      }
+
+      const summaryText = buildSummaryShareText(generated);
+      const payload = {
+        userId,
+        summaryDate: generated.summaryDate || formatDateISO(new Date()),
+        workoutName: generated.workoutName,
+        durationSeconds: generated.durationSeconds,
+        estimatedCalories: generated.estimatedCalories,
+        totalVolume: generated.totalVolume,
+        recordsCount: generated.recordsCount,
+        muscles: generated.muscles,
+        exercises: generated.exercises,
+        summaryText,
+      };
+
+      const response = await api.saveWorkoutDaySummary(payload);
+      const normalizedSummary = normalizeWorkoutSummary(response?.summary) || {
+        ...generated,
+        summaryText,
+      };
+      setSummary(normalizedSummary);
+      setHasLatestSummary(true);
+      if (openAfterSave) setView('summary');
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to save workout summary.';
+      setSummaryError(message);
+      if (openAfterSave) setView('summary');
+    } finally {
+      setSummaryLoading(false);
+    }
+  };
+
+  const openLatestSummary = async () => {
+    if (!userId) return;
+    setSummaryLoading(true);
+    setSummaryError(null);
+    try {
+      const response = await api.getLatestWorkoutDaySummary(userId);
+      const latestSummary = normalizeWorkoutSummary(response?.summary);
+      if (!latestSummary) {
+        setSummary(null);
+        setSummaryError('No workout summary found yet. Finish a workout day first.');
+        setHasLatestSummary(false);
+      } else {
+        setSummary(latestSummary);
+        setHasLatestSummary(true);
+      }
+      setView('summary');
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to load latest workout summary.';
+      setSummaryError(message);
+      setSummary(null);
+      setView('summary');
+    } finally {
+      setSummaryLoading(false);
+    }
+  };
+
+  const shareSummary = async (summaryData: WorkoutDaySummaryData) => {
+    const shareText = buildSummaryShareText(summaryData);
+    const url = typeof window !== 'undefined' ? window.location.href : '';
+    const sharePayload = {
+      title: `${summaryData.workoutName} recap`,
+      text: shareText,
+      url,
+    };
+
+    if (typeof navigator !== 'undefined' && 'share' in navigator) {
+      await (navigator as any).share(sharePayload);
+      return;
+    }
+
+    if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(`${shareText}${url ? `\n${url}` : ''}`);
+      return;
+    }
+
+    throw new Error('Sharing is not available on this device.');
+  };
+
+  const getWorkoutSummaryBlogTokens = (summaryData: WorkoutDaySummaryData) => {
+    const tokens: string[] = [];
+    const summaryId = Number(summaryData.id || 0);
+    if (Number.isInteger(summaryId) && summaryId > 0) {
+      tokens.push(`summary_${summaryId}`);
+    }
+
+    const workoutNameKey = normalizeExerciseLookupName(summaryData.workoutName || '');
+    const summaryDateKey = String(summaryData.summaryDate || formatDateISO(new Date())).trim();
+    if (workoutNameKey && summaryDateKey) {
+      tokens.push(`${summaryDateKey}:${workoutNameKey}`);
+    }
+
+    return [...new Set(tokens)];
+  };
+
+  const hasSummaryBeenPostedToBlog = (summaryData: WorkoutDaySummaryData | null) => {
+    if (!summaryData) return false;
+    return getWorkoutSummaryBlogTokens(summaryData).some((token) => postedSummaryTokens.includes(token));
+  };
+
+  const markSummaryPostedToBlog = (summaryData: WorkoutDaySummaryData) => {
+    const tokens = getWorkoutSummaryBlogTokens(summaryData);
+    if (!tokens.length) return;
+
+    setPostedSummaryTokens((prev) => {
+      const next = [...new Set([...prev, ...tokens])];
+      if (next.length === prev.length) return prev;
+      localStorage.setItem(workoutSummaryStorageKeys.blogPostedSummaries, JSON.stringify(next));
+      return next;
+    });
+  };
+
+  const postSummaryToBlog = async (summaryData: WorkoutDaySummaryData) => {
+    if (!userId) throw new Error('User is not authenticated.');
+    if (hasSummaryBeenPostedToBlog(summaryData)) {
+      return;
+    }
+
+    const description = [
+      `Workout complete: ${summaryData.workoutName}`,
+      `Duration: ${Math.round(summaryData.durationSeconds / 60)} min`,
+      `Volume: ${Math.round(summaryData.totalVolume).toLocaleString()} kg`,
+      `Energy: ${summaryData.estimatedCalories.toLocaleString()} kcal`,
+      `Exercises: ${summaryData.exercises.length}`,
+      '#WorkoutRecap #RepSet',
+    ].join('\n');
+
+    const mediaUrl = buildSummaryImageDataUrl(summaryData);
+    await api.createBlogPost({
+      userId,
+      description,
+      category: 'Training',
+      mediaType: 'image',
+      mediaUrl,
+      mediaAlt: `${summaryData.workoutName} workout recap`,
+    });
+    markSummaryPostedToBlog(summaryData);
+  };
+
   const updateExerciseSets = (sets: Record<string, any[]>) => {
     setExerciseSets(sets);
     localStorage.setItem(workoutStorageKeys.exerciseSets, JSON.stringify(sets));
-    
-    // Mark an exercise completed once all planned sets for that exercise are completed.
+
     const coreExercises = todayExercises.filter((ex: any) => !ex?.isExtra);
     const plannedSetsByExercise = new Map(
       coreExercises.map((ex: any) => [normalizeExerciseName(ex.exerciseName), Number(ex.sets || 0)]),
     );
 
-    const completed = Object.keys(sets).filter(exerciseName => {
-      const exerciseSets = sets[exerciseName] || [];
+    const completed = Object.keys(sets).filter((exerciseName) => {
+      const currentExerciseSets = sets[exerciseName] || [];
       const plannedSetCount = Number(plannedSetsByExercise.get(normalizeExerciseName(exerciseName)) || 0);
-      const completedCount = exerciseSets.filter((s: any) => isSetCompleted(s)).length;
+      const completedCount = currentExerciseSets.filter((s: any) => isSetCompleted(s)).length;
 
       if (plannedSetCount > 0) {
         return completedCount >= plannedSetCount;
       }
 
-      return exerciseSets.length > 0 && exerciseSets.every((s: any) => isSetCompleted(s));
+      return currentExerciseSets.length > 0 && currentExerciseSets.every((s: any) => isSetCompleted(s));
     });
 
     setCompletedExercises(completed);
@@ -351,8 +888,7 @@ export function Workout({ onBack, workoutDay = 'Push Day' }: WorkoutProps) {
       : 0;
     localStorage.setItem(homeMetricStorageKeys.homeWorkoutProgress, String(workoutProgress));
     window.dispatchEvent(new CustomEvent('workout-progress-updated'));
-    
-    // Trigger immediate recovery refresh when the day is fully completed.
+
     const plannedExerciseNames = coreExercises.map((ex: any) => normalizeExerciseName(ex.exerciseName));
     const completedNormalized = new Set(completed.map(normalizeExerciseName));
     const allPlannedDone =
@@ -361,19 +897,19 @@ export function Workout({ onBack, workoutDay = 'Push Day' }: WorkoutProps) {
 
     if (allPlannedDone) {
       const user = JSON.parse(localStorage.getItem('appUser') || localStorage.getItem('user') || '{}');
-      const userId = Number(user?.id || 0);
+      const currentUserId = Number(user?.id || 0);
       const todayKey = new Date().toDateString();
-      const finalizeKey = `recoveryFinalized:${userId}:${todayKey}`;
+      const finalizeKey = `recoveryFinalized:${currentUserId}:${todayKey}`;
 
       const finalizeRecovery = async () => {
-        if (!userId || localStorage.getItem(finalizeKey) === 'true') {
+        if (!currentUserId || localStorage.getItem(finalizeKey) === 'true') {
           localStorage.setItem('recoveryNeedsUpdate', 'true');
           window.dispatchEvent(new CustomEvent('recovery-updated'));
           return;
         }
 
         try {
-          await api.recalculateTodayRecovery(userId);
+          await api.recalculateTodayRecovery(currentUserId);
           localStorage.setItem(finalizeKey, 'true');
           localStorage.setItem('recoveryNeedsUpdate', 'true');
           window.dispatchEvent(new CustomEvent('recovery-updated'));
@@ -383,8 +919,15 @@ export function Workout({ onBack, workoutDay = 'Push Day' }: WorkoutProps) {
       };
 
       void finalizeRecovery();
+
+      const summaryKey = `${formatDateISO(new Date())}:${String(currentWorkoutName || '').trim().toLowerCase()}`;
+      if (lastAutoSummaryKey !== summaryKey) {
+        setLastAutoSummaryKey(summaryKey);
+        void saveAndShowWorkoutSummary(sets, true);
+      }
     }
   };
+
   if (view === 'plan') {
     return (
       <WorkoutPlanScreen
@@ -394,6 +937,10 @@ export function Workout({ onBack, workoutDay = 'Push Day' }: WorkoutProps) {
           setView('tracker');
         }}
         onAddExercise={addExerciseToToday}
+        onOpenLatestSummary={() => {
+          void openLatestSummary();
+        }}
+        hasLatestSummary={hasLatestSummary}
         workoutDay={currentWorkoutName}
         completedExercises={completedExercises}
         todayExercises={todayExercises}
@@ -401,6 +948,7 @@ export function Workout({ onBack, workoutDay = 'Push Day' }: WorkoutProps) {
       />
     );
   }
+
   if (view === 'tracker') {
     return (
       <TrackerScreen
@@ -413,6 +961,7 @@ export function Workout({ onBack, workoutDay = 'Push Day' }: WorkoutProps) {
       />
     );
   }
+
   if (view === 'video') {
     return (
       <ExerciseVideoScreen
@@ -421,13 +970,24 @@ export function Workout({ onBack, workoutDay = 'Push Day' }: WorkoutProps) {
       />
     );
   }
+
   if (view === 'live') {
     return <LiveWorkoutScreen onFinish={() => setView('summary')} />;
   }
-  if (view === 'summary') {
-    return <PostWorkoutSummary onClose={onBack} />;
-  }
-  return (
-    <WorkoutOverviewScreen onStart={() => setView('live')} onBack={onBack} />);
 
+  if (view === 'summary') {
+    return (
+      <PostWorkoutSummary
+        onClose={() => setView('plan')}
+        summary={summary}
+        loading={summaryLoading}
+        error={summaryError}
+        onShare={shareSummary}
+        onPostToBlog={postSummaryToBlog}
+        blogPosted={hasSummaryBeenPostedToBlog(summary)}
+      />
+    );
+  }
+
+  return <WorkoutOverviewScreen onStart={() => setView('live')} onBack={onBack} />;
 }

@@ -1,12 +1,14 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Header } from '../ui/Header';
 import { api } from '../../services/api';
-import { Clock3, Plus, Play, Search, X } from 'lucide-react';
+import { Bookmark, Plus, Play, Search, X } from 'lucide-react';
 
 interface WorkoutPlanScreenProps {
   onBack: () => void;
   onExerciseClick: (exercise: string) => void;
   onAddExercise: (exercise: CatalogExercise) => { added: boolean; reason?: string };
+  onOpenLatestSummary?: () => void;
+  hasLatestSummary?: boolean;
   workoutDay: string;
   completedExercises: string[];
   todayExercises: any[];
@@ -122,6 +124,8 @@ export function WorkoutPlanScreen({
   onBack,
   onExerciseClick,
   onAddExercise,
+  onOpenLatestSummary,
+  hasLatestSummary = false,
   workoutDay,
   completedExercises,
   todayExercises,
@@ -277,7 +281,24 @@ export function WorkoutPlanScreen({
     return (
       <div className="flex-1 flex flex-col h-full bg-background pb-24">
         <div className="px-4 sm:px-6 pt-2">
-          <Header title={workoutDay} onBack={onBack} />
+          <Header
+            title={workoutDay}
+            onBack={onBack}
+            rightElement={
+              <button
+                type="button"
+                onClick={onOpenLatestSummary}
+                className={`flex h-10 w-10 items-center justify-center rounded-xl border transition-colors ${
+                  hasLatestSummary
+                    ? 'border-accent/35 bg-accent/10 text-accent hover:bg-accent/20'
+                    : 'border-white/10 bg-card/60 text-text-tertiary hover:text-text-secondary'
+                }`}
+                aria-label="Open latest workout summary"
+              >
+                <Bookmark size={17} />
+              </button>
+            }
+          />
         </div>
         <div className="flex-1 flex items-center justify-center">
           <div className="text-text-secondary">Loading workout...</div>
@@ -309,7 +330,24 @@ export function WorkoutPlanScreen({
   return (
     <div className="flex-1 flex flex-col h-full bg-background overflow-y-auto pb-24">
       <div className="px-4 sm:px-6 pt-2">
-        <Header title={workoutDay} onBack={onBack} />
+        <Header
+          title={workoutDay}
+          onBack={onBack}
+          rightElement={
+            <button
+              type="button"
+              onClick={onOpenLatestSummary}
+              className={`flex h-10 w-10 items-center justify-center rounded-xl border transition-colors ${
+                hasLatestSummary
+                  ? 'border-accent/35 bg-accent/10 text-accent hover:bg-accent/20'
+                  : 'border-white/10 bg-card/60 text-text-tertiary hover:text-text-secondary'
+              }`}
+              aria-label="Open latest workout summary"
+            >
+              <Bookmark size={17} />
+            </button>
+          }
+        />
       </div>
 
       <div className="mt-2 space-y-4 px-4 sm:px-6">
