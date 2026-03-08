@@ -33,11 +33,45 @@ jobs:
       - name: Build app
         run: npm run ci:build
 
+  migrate:
+    name: Run Production Migrations
+    runs-on: ubuntu-latest
+    needs: build
+    if: github.event_name != 'pull_request'
+    env:
+      DB_HOST: ${{ secrets.PROD_DB_HOST }}
+      DB_USER: ${{ secrets.PROD_DB_USER }}
+      DB_PASSWORD: ${{ secrets.PROD_DB_PASSWORD }}
+      DB_NAME: ${{ secrets.PROD_DB_NAME }}
+      DB_PORT: ${{ secrets.PROD_DB_PORT }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run tracked SQL migrations
+        if: env.DB_HOST != '' && env.DB_USER != '' && env.DB_NAME != ''
+        run: npm run migrate:pending
+
+      - name: Warn if production DB secrets are missing
+        if: env.DB_HOST == '' || env.DB_USER == '' || env.DB_NAME == ''
+        run: echo "::warning::Production DB secrets are not fully configured. Skipping SQL migrations."
+
   deploy:
     name: Trigger Deploy Hooks
     runs-on: ubuntu-latest
-    needs: build
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs:
+      - build
+      - migrate
+    if: github.event_name != 'pull_request'
     env:
       FRONTEND_DEPLOY_HOOK_URL: ${{ secrets.FRONTEND_DEPLOY_HOOK_URL }}
       BACKEND_DEPLOY_HOOK_URL: ${{ secrets.BACKEND_DEPLOY_HOOK_URL }}

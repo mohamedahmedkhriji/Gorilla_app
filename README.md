@@ -110,6 +110,7 @@ npm run server      # Backend (Express)
 - `npm run seed:plans` - Seed workout plans
 - `npm run backfill:workout-catalog` - Backfill workout set catalog IDs
 - `npm run migrate:sql -- <path-to-sql>` - Run a SQL migration file
+- `npm run migrate:pending` - Run all tracked SQL migrations that have not yet been applied
 
 ## Full App Features and Functionality
 

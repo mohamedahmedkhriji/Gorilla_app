@@ -15,7 +15,8 @@
     "deploy:hooks": "node scripts/triggerDeployHooks.mjs",
     "seed:plans": "node server/scripts/seedWorkoutPlans.js",
     "backfill:workout-catalog": "node server/scripts/backfillWorkoutSetCatalogIds.js",
-    "migrate:sql": "node server/scripts/runMigration.js"
+    "migrate:sql": "node server/scripts/runMigration.js",
+    "migrate:pending": "node server/scripts/runPendingMigrations.js"
   },
   "dependencies": {
     "@emotion/react": "^11.13.3",
