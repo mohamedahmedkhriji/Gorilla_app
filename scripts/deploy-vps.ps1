@@ -136,6 +136,17 @@ systemctl restart gorilla-backend
 nginx -t
 systemctl restart nginx
 
+for attempt in $(seq 1 20); do
+  if curl -fsS -H 'Host: 159.89.21.234' http://127.0.0.1/health >/dev/null; then
+    break
+  fi
+  if [ "$attempt" -eq 20 ]; then
+    echo "Backend health check failed after waiting for readiness."
+    exit 1
+  fi
+  sleep 2
+done
+
 curl -fsS -H 'Host: 159.89.21.234' http://127.0.0.1/health
 curl -I -H 'Host: 159.89.21.234' http://127.0.0.1/
 curl -I -H 'Host: 159.89.21.234' http://127.0.0.1/admin.html
