@@ -438,9 +438,6 @@ export function WorkoutPlanScreen({
                       alt={exercise.name}
                       className="h-full w-full object-cover"
                     />
-                    <div className="absolute bottom-1 left-1 rounded-full bg-black/65 px-2 py-0.5 text-[10px] font-semibold text-white">
-                      {primaryMuscle}
-                    </div>
                   </div>
 
                   <div className="min-w-0 flex-1">

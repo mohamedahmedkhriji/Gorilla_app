@@ -615,7 +615,7 @@ export function Home({ onNavigate }: HomeProps) {
         className="mb-7 surface-card rounded-2xl border border-white/12 px-4 py-3 flex items-start justify-between gap-4">
 
         <div>
-          <h1 className="text-3xl font-semibold text-text-primary mt-1">
+          <h1 className="mt-1 text-3xl font-electrolize font-bold text-text-primary">
             {greeting}
           </h1>
           <p className="text-text-secondary mt-2 text-sm max-w-[200px] leading-snug">

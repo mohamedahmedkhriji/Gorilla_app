@@ -24,8 +24,8 @@ export default {
         purple: 'rgb(var(--color-purple) / <alpha-value>)',
       },
       fontFamily: {
-        sans: ['"Space Grotesk"', 'system-ui', 'sans-serif'],
-        display: ['"Bebas Neue"', '"Impact"', 'sans-serif'],
+        sans: ['"App Numbers"', '"Space Grotesk"', 'system-ui', 'sans-serif'],
+        display: ['"App Numbers"', '"Bebas Neue"', '"Impact"', 'sans-serif'],
       },
       boxShadow: {
         glow: '0 0 16px rgb(var(--color-accent) / 0.18)',

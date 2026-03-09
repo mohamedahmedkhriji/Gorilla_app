@@ -238,7 +238,7 @@ export function WorkoutCard({
               {isResolvedRestDay ? 'Rest Day' : 'Today\'s Plan'}
             </div>
 
-            <h3 className="mt-2 text-[1.9rem] font-semibold leading-tight text-text-primary">
+            <h3 className="mt-2 text-[1.9rem] font-electrolize font-bold leading-tight text-text-primary">
               {displayTitle}
             </h3>
 
