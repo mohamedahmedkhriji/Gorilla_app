@@ -20,7 +20,7 @@ ALTER TABLE users
   ADD COLUMN IF NOT EXISTS total_workouts INT NOT NULL DEFAULT 0;
 
 ALTER TABLE users
-  ADD COLUMN IF NOT EXISTS rank VARCHAR(50) NOT NULL DEFAULT 'Bronze';
+  ADD COLUMN IF NOT EXISTS `rank` VARCHAR(50) NOT NULL DEFAULT 'Bronze';
 
 ALTER TABLE users
   ADD COLUMN IF NOT EXISTS total_xp INT NOT NULL DEFAULT 0;
@@ -29,7 +29,7 @@ ALTER TABLE users
   ADD COLUMN IF NOT EXISTS current_level_id INT NULL;
 
 ALTER TABLE users
-  MODIFY COLUMN rank VARCHAR(50) NOT NULL DEFAULT 'Bronze';
+  MODIFY COLUMN `rank` VARCHAR(50) NOT NULL DEFAULT 'Bronze';
 
 ALTER TABLE users
   ADD INDEX IF NOT EXISTS idx_users_current_level_id (current_level_id);
@@ -41,10 +41,10 @@ SET total_points = COALESCE(total_points, 0),
       WHEN COALESCE(total_xp, 0) > 0 THEN total_xp
       ELSE COALESCE(total_points, 0)
     END,
-    rank = CASE
-      WHEN NULLIF(TRIM(COALESCE(rank, '')), '') IS NULL THEN 'Bronze'
-      WHEN LOWER(TRIM(rank)) = 'beginner' THEN 'Bronze'
-      ELSE rank
+    `rank` = CASE
+      WHEN NULLIF(TRIM(COALESCE(`rank`, '')), '') IS NULL THEN 'Bronze'
+      WHEN LOWER(TRIM(`rank`)) = 'beginner' THEN 'Bronze'
+      ELSE `rank`
     END;
 
 CREATE TABLE IF NOT EXISTS xp_transactions (
