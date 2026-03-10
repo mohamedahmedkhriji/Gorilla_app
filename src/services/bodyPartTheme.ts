@@ -1,7 +1,7 @@
 const absImage = new URL('../../assets/body part/abs.png', import.meta.url).href;
 const backImage = new URL('../../assets/body part/back.png', import.meta.url).href;
 const bicepsImage = new URL('../../assets/body part/biceps.png', import.meta.url).href;
-const calvesImage = new URL('../../assets/body part/Calves.png', import.meta.url).href;
+const calvesImage = new URL('../../assets/body part/calves.png', import.meta.url).href;
 const chestImage = new URL('../../assets/body part/chest.png', import.meta.url).href;
 const forearmsImage = new URL('../../assets/body part/Forearms.png', import.meta.url).href;
 const hamstringsImage = new URL('../../assets/body part/hamstring.png', import.meta.url).href;
