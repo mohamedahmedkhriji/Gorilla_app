@@ -251,12 +251,11 @@ const resolveTodayWorkoutPayload = (programData: any, weeklyWorkouts: any[]) => 
     ? normalizeTodayWorkoutExercises(todayWorkout?.exercises)
     : [];
   const weeklyExercises = normalizeTodayWorkoutExercises(resolvedWorkout?.exercises);
-  const resolvedExercises = shouldUseTodayPayload
-    ? (weeklyExercises.length > directExercises.length ? weeklyExercises : directExercises)
-    : weeklyExercises;
+  const preferWeeklyPayload = !shouldUseTodayPayload || weeklyExercises.length > directExercises.length;
+  const resolvedExercises = preferWeeklyPayload ? weeklyExercises : directExercises;
 
   const workoutName = String(
-    (shouldUseTodayPayload ? todayWorkout?.name : '')
+    (preferWeeklyPayload ? resolvedWorkout?.workout_name : todayWorkout?.name)
     || resolvedWorkout?.workout_name
     || todayWorkout?.name
     || '',
@@ -267,16 +266,16 @@ const resolveTodayWorkoutPayload = (programData: any, weeklyWorkouts: any[]) => 
   return {
     workout_name: workoutName,
     workout_type: String(
-      (shouldUseTodayPayload ? todayWorkout?.workoutType : '')
+      (preferWeeklyPayload ? resolvedWorkout?.workout_type : todayWorkout?.workoutType)
       || resolvedWorkout?.workout_type
       || todayWorkout?.workoutType
       || '',
     ).trim(),
     estimated_duration_minutes:
       Number(
-        shouldUseTodayPayload
-          ? (todayWorkout?.estimatedDurationMinutes ?? todayWorkout?.estimated_duration_minutes)
-          : null
+        (preferWeeklyPayload
+          ? resolvedWorkout?.estimated_duration_minutes
+          : (todayWorkout?.estimatedDurationMinutes ?? todayWorkout?.estimated_duration_minutes))
         ?? resolvedWorkout?.estimated_duration_minutes
         ?? todayWorkout?.estimatedDurationMinutes
         ?? todayWorkout?.estimated_duration_minutes
