@@ -219,21 +219,13 @@ export function WorkoutCard({
   const targetMuscles = collectTargetMuscles(exercises, title, workoutType);
   const inferredWorkoutLabel = inferWorkoutLabelFromTargetMuscles(targetMuscles);
   const durationMinutes = isResolvedRestDay ? null : estimateDurationMinutes(exercises, estimatedDurationMinutes);
-  const normalizedBadgeSource = cleanWorkoutLabel(badgeSource).toLowerCase();
-  const inferredLabelConflict =
-    inferredWorkoutLabel
-    && normalizedBadgeSource
-    && /(push|pull|leg|upper|full)/.test(normalizedBadgeSource)
-    && !normalizedBadgeSource.includes(cleanWorkoutLabel(inferredWorkoutLabel).toLowerCase());
   const displayTitle = isResolvedRestDay
     ? 'Rest Day'
-    : inferredLabelConflict
-      ? inferredWorkoutLabel
     : !isGenericWorkoutLabel(title)
       ? String(title).trim()
       : !isGenericWorkoutLabel(workoutType)
         ? `${toTitleCase(cleanWorkoutLabel(workoutType))} Day`
-        : 'Workout';
+        : inferredWorkoutLabel || 'Workout';
   const targetMusclesLabel = isResolvedRestDay
     ? 'Rest and recover'
     : targetMuscles.length

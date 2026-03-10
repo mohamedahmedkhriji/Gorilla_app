@@ -4596,10 +4596,20 @@ router.get('/profile/:userId/stats', async (req, res) => {
 
     const [rows] = await pool.execute(
       `SELECT
-          COUNT(DISTINCT CONCAT(DATE(created_at), '|', LOWER(TRIM(exercise_name)))) AS completed_exercises,
+          COUNT(
+            DISTINCT COALESCE(
+              CASE
+                WHEN session_id IS NOT NULL THEN CONCAT('session:', session_id, '|', LOWER(TRIM(exercise_name)))
+                ELSE NULL
+              END,
+              CONCAT('day_exercise:', DATE(created_at), '|', LOWER(TRIM(exercise_name)))
+            )
+          ) AS completed_exercises,
           MIN(created_at) AS first_completed_at
        FROM workout_sets
-       WHERE user_id = ? AND completed = 1`,
+       WHERE user_id = ?
+         AND (completed = 1 OR completed IS NULL)
+         AND NULLIF(TRIM(exercise_name), '') IS NOT NULL`,
       [userId],
     );
 
@@ -4673,11 +4683,12 @@ router.get('/profile/:userId/stats', async (req, res) => {
     }
 
     const stats = rows[0] || {};
+    const completedExercises = Number(stats.completed_exercises || 0);
     const rankPosition = Number(rankRows[0]?.rank_position || 0);
     const totalMembers = Number(membersRows[0]?.total_members || 0);
     const nextRank = getNextRankInfo(totalPoints);
     return res.json({
-      completedExercises: Number(stats.completed_exercises || 0),
+      completedExercises,
       firstCompletedAt: stats.first_completed_at || null,
       rankPosition,
       totalMembers,
@@ -5877,6 +5888,19 @@ router.get('/user/:userId/program-progress', async (req, res) => {
     const weeklyCompletionRate = workoutsPlannedThisWeek > 0
       ? Math.round((completedThisWeek / workoutsPlannedThisWeek) * 100)
       : 0;
+    const programStartDate = new Date(assignment.start_date);
+    programStartDate.setHours(0, 0, 0, 0);
+    const totalProgramDays = Math.max(0, Number(assignment.cycle_weeks || 0) * 7);
+    const programEndDate = new Date(programStartDate);
+    if (totalProgramDays > 0) {
+      programEndDate.setDate(programEndDate.getDate() + totalProgramDays - 1);
+    }
+    programEndDate.setHours(23, 59, 59, 999);
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+    const calendarDaysLeft = totalProgramDays > 0
+      ? Math.max(0, Math.floor((programEndDate.getTime() - todayStart.getTime()) / (1000 * 60 * 60 * 24)) + 1)
+      : 0;
 
     return res.json({
       hasActiveProgram: true,
@@ -5888,6 +5912,8 @@ router.get('/user/:userId/program-progress', async (req, res) => {
         goal: assignment.goal,
         daysPerWeek: assignment.days_per_week,
         cycleWeeks: assignment.cycle_weeks,
+        startDate: formatDateISO(programStartDate),
+        endDate: formatDateISO(programEndDate),
         rotationWeeks: assignment.rotation_weeks,
         nextRotationDate: assignment.next_rotation_date,
       },
@@ -5902,6 +5928,7 @@ router.get('/user/:userId/program-progress', async (req, res) => {
         workoutsMissedThisWeek: missedThisWeek,
         workoutsRemainingThisWeek: Math.max(0, workoutsPlannedThisWeek - completedThisWeek - missedThisWeek),
         weeklyCompletionRate,
+        calendarDaysLeft,
         workoutStreakDays: computeWorkoutStreak(streakRows, missedDateRows),
         totalPoints: Number(userRows[0]?.total_points || 0),
         totalWorkouts: Number(userRows[0]?.total_workouts || 0),

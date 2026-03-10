@@ -19,7 +19,7 @@ export function ProfileScreen({ onNavigate, onLogout }: ProfileScreenProps) {
   const parsedUserId = Number(user?.id || 0);
   const userId = localUserId || parsedUserId;
   const [profilePicture, setProfilePicture] = useState<string | null>(null);
-  const [completedExercises, setCompletedExercises] = useState(0);
+  const [completedExercises, setCompletedExercises] = useState<number | null>(null);
   const [rankPosition, setRankPosition] = useState<number | null>(null);
   const [rankTotalMembers, setRankTotalMembers] = useState(0);
   const [planDaysLeft, setPlanDaysLeft] = useState<number | null>(null);
@@ -80,10 +80,38 @@ export function ProfileScreen({ onNavigate, onLogout }: ProfileScreenProps) {
           try {
             const leaderboard = await api.getLeaderboard(userId, 'alltime');
             const rows = Array.isArray(leaderboard?.leaderboard) ? leaderboard.leaderboard : [];
-            const me = rows.find((row: any) => Number(row?.id || 0) === userId);
-            const fallbackRank = Number(me?.rank || 0);
+            const getRowUserId = (row: any) =>
+              Number(row?.id ?? row?.userId ?? row?.user_id ?? 0);
+            const me = rows.find((row: any) => getRowUserId(row) === userId);
+            const rowIndex = rows.findIndex((row: any) => getRowUserId(row) === userId);
+            const fallbackRank = Number(
+              me?.rank
+              ?? me?.position
+              ?? (rowIndex >= 0 ? rowIndex + 1 : 0),
+            );
             if (fallbackRank > 0) position = fallbackRank;
-            if (!(totalMembers > 0) && rows.length > 0) totalMembers = rows.length;
+            if (rows.length > 0) totalMembers = rows.length;
+
+            // If the current user is not present in leaderboard rows, estimate
+            // rank from all-time points so the UI still shows a numeric position.
+            if (!(position > 0) && rows.length > 0) {
+              const userPoints = Number(
+                stats?.totalPoints
+                ?? stats?.points
+                ?? 0,
+              );
+              const aheadCount = rows.filter((row: any) => {
+                const rowPoints = Number(
+                  row?.points
+                  ?? row?.total_points
+                  ?? row?.totalPoints
+                  ?? 0,
+                );
+                const rowUserId = getRowUserId(row);
+                return rowPoints > userPoints || (rowPoints === userPoints && rowUserId > 0 && rowUserId < userId);
+              }).length;
+              position = aheadCount + 1;
+            }
           } catch {
             // ignore fallback failure and keep base stats values
           }
@@ -110,9 +138,13 @@ export function ProfileScreen({ onNavigate, onLogout }: ProfileScreenProps) {
         const planned = Number(summary.plannedWorkouts || 0);
         const completed = Number(summary.completedWorkouts || 0);
         const sessionsLeft = Math.max(planned - completed, 0);
+        const calendarDaysLeft = Number(summary.calendarDaysLeft);
         const daysPerWeekRaw = Number(program.daysPerWeek || summary.workoutsPlannedThisWeek || 0);
         const daysPerWeek = daysPerWeekRaw > 0 ? daysPerWeekRaw : 4;
-        const daysLeft = sessionsLeft > 0 ? Math.ceil((sessionsLeft / daysPerWeek) * 7) : 0;
+        const estimatedDaysLeft = sessionsLeft > 0 ? Math.ceil((sessionsLeft / daysPerWeek) * 7) : 0;
+        const daysLeft = Number.isFinite(calendarDaysLeft) && calendarDaysLeft >= 0
+          ? Math.round(calendarDaysLeft)
+          : estimatedDaysLeft;
 
         setPlanSessionsLeft(sessionsLeft);
         setPlanDaysLeft(daysLeft);
@@ -254,7 +286,7 @@ export function ProfileScreen({ onNavigate, onLogout }: ProfileScreenProps) {
 
       <div className="grid grid-cols-3 gap-3">
         <div className="bg-card rounded-xl p-3 text-center border border-white/5">
-          <div className="text-xl font-bold text-white">{completedExercises}</div>
+          <div className="text-xl font-bold text-white">{completedExercises ?? '-'}</div>
           <div className="text-[10px] text-text-secondary uppercase">
             Exercises
           </div>
@@ -273,13 +305,11 @@ export function ProfileScreen({ onNavigate, onLogout }: ProfileScreenProps) {
           )}
         </button>
         <div className="bg-card rounded-xl p-3 text-center border border-white/5">
-          <div className="text-xl font-bold text-white">{planDaysLeft ?? '-'}</div>
+          <div className="text-xl font-bold text-white">{planDaysLeft ?? 0}</div>
           <div className="text-[10px] text-text-secondary uppercase">
             Days Left
           </div>
-          {planDaysLeft !== null && (
-            <div className="text-[10px] text-text-tertiary mt-1">{planSessionsLeft} sessions</div>
-          )}
+          <div className="text-[10px] text-text-tertiary mt-1">{planSessionsLeft} sessions</div>
         </div>
       </div>
 

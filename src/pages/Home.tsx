@@ -203,6 +203,25 @@ const normalizeTodayWorkoutExercises = (raw: unknown) => {
     .filter((exercise: any) => exercise.exerciseName || exercise.name);
 };
 
+const getWeekdayIndex = (value: unknown) => {
+  const normalized = String(value || '')
+    .trim()
+    .toLowerCase()
+    .slice(0, 3);
+
+  const map: Record<string, number> = {
+    sun: 0,
+    mon: 1,
+    tue: 2,
+    wed: 3,
+    thu: 4,
+    fri: 5,
+    sat: 6,
+  };
+
+  return Number.isInteger(map[normalized]) ? map[normalized] : null;
+};
+
 const resolveTodayWorkoutPayload = (programData: any, weeklyWorkouts: any[]) => {
   if (String(programData?.missedTodayWorkoutName || '').trim()) {
     return null;
@@ -210,54 +229,40 @@ const resolveTodayWorkoutPayload = (programData: any, weeklyWorkouts: any[]) => 
 
   const todayWorkout = programData?.todayWorkout || null;
   const normalizedWeeklyWorkouts = Array.isArray(weeklyWorkouts) ? weeklyWorkouts : [];
-  const clientWeekdayKey = new Date().toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase();
-
-  const weeklyWorkoutByName = normalizedWeeklyWorkouts.find((workout: any) =>
-    String(workout?.workout_name || '').trim().toLowerCase()
-    && String(workout?.workout_name || '').trim().toLowerCase() === String(todayWorkout?.name || '').trim().toLowerCase(),
+  const clientWeekdayIndex = new Date().getDay();
+  const scheduleHasWeekdays = normalizedWeeklyWorkouts.some(
+    (workout: any) => getWeekdayIndex(workout?.day_name) !== null,
   );
+  const weeklyWorkoutByClientDay = normalizedWeeklyWorkouts.find(
+    (workout: any) => getWeekdayIndex(workout?.day_name) === clientWeekdayIndex,
+  ) || null;
 
-  const weeklyWorkoutByServerDay = normalizedWeeklyWorkouts.find((workout: any) =>
-    String(workout?.day_name || '').trim().toLowerCase()
-    && String(workout?.day_name || '').trim().toLowerCase() === String(todayWorkout?.dayName || '').trim().toLowerCase(),
-  );
+  if (!weeklyWorkoutByClientDay && scheduleHasWeekdays) {
+    return null;
+  }
 
-  const weeklyWorkoutByClientDay = normalizedWeeklyWorkouts.find((workout: any) =>
-    String(workout?.day_name || '').trim().toLowerCase() === clientWeekdayKey,
-  );
-
-  const normalizedTodayDay = String(todayWorkout?.dayName || '').trim().toLowerCase();
-  const todayNameMatchesClientDay = !!(
-    weeklyWorkoutByName
-    && String(weeklyWorkoutByName?.day_name || '').trim().toLowerCase() === clientWeekdayKey
-  );
-  const shouldUseTodayPayload = !!(
+  const todayWorkoutWeekday = getWeekdayIndex(todayWorkout?.dayName);
+  const canUseTodayPayload = !!(
     todayWorkout
     && (
-      !normalizedTodayDay
-      || normalizedTodayDay === clientWeekdayKey
-      || todayNameMatchesClientDay
-      || !weeklyWorkoutByClientDay
+      todayWorkoutWeekday === null
+      || todayWorkoutWeekday === clientWeekdayIndex
+      || !scheduleHasWeekdays
     )
   );
 
-  const resolvedWorkout =
-    shouldUseTodayPayload
-      ? (weeklyWorkoutByName || weeklyWorkoutByServerDay || weeklyWorkoutByClientDay || null)
-      : (weeklyWorkoutByClientDay || weeklyWorkoutByServerDay || weeklyWorkoutByName || null)
-    || null;
-
-  const directExercises = shouldUseTodayPayload
+  const resolvedWorkout = weeklyWorkoutByClientDay || null;
+  const weeklyExercises = normalizeTodayWorkoutExercises(resolvedWorkout?.exercises);
+  const directExercises = canUseTodayPayload
     ? normalizeTodayWorkoutExercises(todayWorkout?.exercises)
     : [];
-  const weeklyExercises = normalizeTodayWorkoutExercises(resolvedWorkout?.exercises);
-  const preferWeeklyPayload = !shouldUseTodayPayload || weeklyExercises.length > directExercises.length;
-  const resolvedExercises = preferWeeklyPayload ? weeklyExercises : directExercises;
+  const resolvedExercises = weeklyExercises.length >= directExercises.length
+    ? weeklyExercises
+    : directExercises;
 
   const workoutName = String(
-    (preferWeeklyPayload ? resolvedWorkout?.workout_name : todayWorkout?.name)
-    || resolvedWorkout?.workout_name
-    || todayWorkout?.name
+    resolvedWorkout?.workout_name
+    || (canUseTodayPayload ? todayWorkout?.name : '')
     || '',
   ).trim();
 
@@ -266,19 +271,14 @@ const resolveTodayWorkoutPayload = (programData: any, weeklyWorkouts: any[]) => 
   return {
     workout_name: workoutName,
     workout_type: String(
-      (preferWeeklyPayload ? resolvedWorkout?.workout_type : todayWorkout?.workoutType)
-      || resolvedWorkout?.workout_type
-      || todayWorkout?.workoutType
+      resolvedWorkout?.workout_type
+      || (canUseTodayPayload ? todayWorkout?.workoutType : '')
       || '',
     ).trim(),
     estimated_duration_minutes:
       Number(
-        (preferWeeklyPayload
-          ? resolvedWorkout?.estimated_duration_minutes
-          : (todayWorkout?.estimatedDurationMinutes ?? todayWorkout?.estimated_duration_minutes))
-        ?? resolvedWorkout?.estimated_duration_minutes
-        ?? todayWorkout?.estimatedDurationMinutes
-        ?? todayWorkout?.estimated_duration_minutes
+        resolvedWorkout?.estimated_duration_minutes
+        ?? (canUseTodayPayload ? (todayWorkout?.estimatedDurationMinutes ?? todayWorkout?.estimated_duration_minutes) : 0)
         ?? 0,
       ) || null,
     exercises: resolvedExercises,
@@ -365,6 +365,7 @@ export function Home({ onNavigate }: HomeProps) {
     return readCachedPercent(homeMetricKeys.homeWorkoutProgress, 0);
   });
   const [programProgress, setProgramProgress] = useState<any>(null);
+  const [isHomeLoading, setIsHomeLoading] = useState(true);
   const [showShopComingSoon, setShowShopComingSoon] = useState(false);
   const [showBooksComingSoon, setShowBooksComingSoon] = useState(false);
   const [extraTodayExercises, setExtraTodayExercises] = useState<any[]>(
@@ -414,6 +415,7 @@ export function Home({ onNavigate }: HomeProps) {
   };
 
   useEffect(() => {
+    let isMounted = true;
     const userName = currentUser.name || 'Moha';
     
     setGreeting(userName);
@@ -456,8 +458,6 @@ export function Home({ onNavigate }: HomeProps) {
         setTodayWorkoutData(null);
       }
     };
-    fetchProgram();
-
     const fetchProgramProgress = async () => {
       if (!currentUserId) return;
       try {
@@ -467,8 +467,6 @@ export function Home({ onNavigate }: HomeProps) {
         console.error('Failed to fetch program progress:', error);
       }
     };
-    void fetchProgramProgress();
-
     // Fetch recovery status from API (same data shown on the recovery page)
     const fetchRecovery = async () => {
       const user = JSON.parse(localStorage.getItem('appUser') || localStorage.getItem('user') || '{}');
@@ -495,7 +493,19 @@ export function Home({ onNavigate }: HomeProps) {
         console.error('Failed to fetch recovery status:', error);
       }
     };
-    void fetchRecovery();
+    
+    const loadInitialHomeData = async () => {
+      setIsHomeLoading(true);
+      await Promise.allSettled([
+        fetchProgram(),
+        fetchProgramProgress(),
+        fetchRecovery(),
+      ]);
+      if (isMounted) {
+        setIsHomeLoading(false);
+      }
+    };
+    void loadInitialHomeData();
     
     const handleRecoveryUpdated = () => {
       void fetchRecovery();
@@ -544,6 +554,7 @@ export function Home({ onNavigate }: HomeProps) {
     }, 15 * 1000);
 
     return () => {
+      isMounted = false;
       window.removeEventListener('recovery-updated', handleRecoveryUpdated);
       window.removeEventListener('workout-progress-updated', handleWorkoutProgressUpdated);
       window.removeEventListener('workout-extra-exercises-updated', handleExtraExercisesUpdated);
@@ -834,6 +845,25 @@ export function Home({ onNavigate }: HomeProps) {
   return <MuscleRecoveryScreen onBack={() => setView('main')} />;
   if (view === 'rank')
   return <RankingsRewardsScreen onBack={() => setView('main')} />;
+  if (view === 'main' && isHomeLoading) {
+    return (
+      <div className="pb-24 pt-4 space-y-6 animate-pulse">
+        <div className="surface-card rounded-2xl border border-white/12 px-4 py-4">
+          <div className="h-8 w-40 rounded-lg bg-white/10" />
+          <div className="mt-3 h-4 w-52 rounded bg-white/10" />
+        </div>
+
+        <div className="grid grid-cols-2 gap-4">
+          <div className="h-24 rounded-2xl surface-card border border-white/10" />
+          <div className="h-24 rounded-2xl surface-card border border-white/10" />
+        </div>
+
+        <div className="h-44 rounded-2xl surface-card border border-white/10" />
+        <div className="h-48 rounded-2xl surface-card border border-white/10" />
+        <div className="h-40 rounded-2xl surface-card border border-white/10" />
+      </div>
+    );
+  }
   return (
     <div className="pb-24 pt-4">
       {/* Header Section */}
