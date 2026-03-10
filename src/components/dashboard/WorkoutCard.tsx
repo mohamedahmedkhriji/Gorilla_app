@@ -143,6 +143,20 @@ const collectTargetMuscles = (exercises: WorkoutExercise[], title: string, worko
   return getFallbackMuscles(title, workoutType).slice(0, 3);
 };
 
+const inferWorkoutLabelFromTargetMuscles = (muscles: string[]) => {
+  const normalized = muscles.map((entry) => toTitleCase(entry));
+  const hasPush = normalized.some((muscle) => ['Chest', 'Shoulders', 'Triceps'].includes(muscle));
+  const hasPull = normalized.some((muscle) => ['Back', 'Biceps', 'Forearms', 'Rear Delts'].includes(muscle));
+  const hasLegs = normalized.some((muscle) => ['Quadriceps', 'Hamstrings', 'Calves', 'Glutes', 'Legs'].includes(muscle));
+
+  if (hasPush && !hasPull && !hasLegs) return 'Push Day';
+  if (hasPull && !hasPush && !hasLegs) return 'Pull Day';
+  if (hasLegs && !hasPush && !hasPull) return 'Leg Day';
+  if (hasPush && hasPull && !hasLegs) return 'Upper Body';
+  if (hasPush && hasPull && hasLegs) return 'Full Body';
+  return '';
+};
+
 const estimateDurationMinutes = (
   exercises: WorkoutExercise[],
   explicitDurationMinutes?: number | null,
@@ -203,9 +217,18 @@ export function WorkoutCard({
       : 'Workout';
   const workoutLabel = cleanWorkoutLabel(badgeSource) || 'Workout';
   const targetMuscles = collectTargetMuscles(exercises, title, workoutType);
+  const inferredWorkoutLabel = inferWorkoutLabelFromTargetMuscles(targetMuscles);
   const durationMinutes = isResolvedRestDay ? null : estimateDurationMinutes(exercises, estimatedDurationMinutes);
+  const normalizedBadgeSource = cleanWorkoutLabel(badgeSource).toLowerCase();
+  const inferredLabelConflict =
+    inferredWorkoutLabel
+    && normalizedBadgeSource
+    && /(push|pull|leg|upper|full)/.test(normalizedBadgeSource)
+    && !normalizedBadgeSource.includes(cleanWorkoutLabel(inferredWorkoutLabel).toLowerCase());
   const displayTitle = isResolvedRestDay
     ? 'Rest Day'
+    : inferredLabelConflict
+      ? inferredWorkoutLabel
     : !isGenericWorkoutLabel(title)
       ? String(title).trim()
       : !isGenericWorkoutLabel(workoutType)

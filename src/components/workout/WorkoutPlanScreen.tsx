@@ -1,13 +1,14 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Header } from '../ui/Header';
 import { api } from '../../services/api';
-import { Bookmark, Plus, Play, Search, X } from 'lucide-react';
+import { Bookmark, CalendarX2, Plus, Play, Search, TriangleAlert, X } from 'lucide-react';
 import { getBodyPartImage } from '../../services/bodyPartTheme';
 
 interface WorkoutPlanScreenProps {
   onBack: () => void;
   onExerciseClick: (exercise: string) => void;
   onAddExercise: (exercise: CatalogExercise) => Promise<{ added: boolean; reason?: string }> | { added: boolean; reason?: string };
+  onMissDay?: () => Promise<{ missed: boolean; reason?: string }> | { missed: boolean; reason?: string };
   onOpenLatestSummary?: () => void;
   hasLatestSummary?: boolean;
   workoutDay: string;
@@ -81,10 +82,25 @@ const formatRestLabel = (rest: unknown) => {
   return 'Rest as needed';
 };
 
+const resolvePrimaryExerciseMuscle = (exercise: WorkoutExerciseCard) => {
+  const inferredMuscles = inferMusclesFromExerciseName(exercise.name);
+  const normalizedTargets = exercise.targetMuscles.map((entry) => toTitleCase(String(entry || ''))).filter(Boolean);
+
+  for (const inferred of inferredMuscles) {
+    const match = normalizedTargets.find((target) => target.toLowerCase() === inferred.toLowerCase());
+    if (match) return match;
+  }
+
+  if (inferredMuscles.length > 0) return inferredMuscles[0];
+  if (normalizedTargets.length > 0) return normalizedTargets[0];
+  return 'Chest';
+};
+
 export function WorkoutPlanScreen({
   onBack,
   onExerciseClick,
   onAddExercise,
+  onMissDay,
   onOpenLatestSummary,
   hasLatestSummary = false,
   workoutDay,
@@ -100,8 +116,11 @@ export function WorkoutPlanScreen({
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCatalogMuscle, setSelectedCatalogMuscle] = useState('');
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [isMissModalOpen, setIsMissModalOpen] = useState(false);
   const [addExerciseFeedback, setAddExerciseFeedback] = useState<string | null>(null);
+  const [missDayFeedback, setMissDayFeedback] = useState<string | null>(null);
   const [isSubmittingExercise, setIsSubmittingExercise] = useState(false);
+  const [isSubmittingMissDay, setIsSubmittingMissDay] = useState(false);
 
   useEffect(() => {
     const loadRecovery = async () => {
@@ -239,6 +258,38 @@ export function WorkoutPlanScreen({
     return label.includes('rest') || label.includes('recovery');
   }, [workoutDay]);
 
+  const headerActions = (
+    <div className="flex items-center gap-2">
+      {!isRestDayView && onMissDay && (
+        <button
+          type="button"
+          onClick={() => {
+            setMissDayFeedback(null);
+            setIsMissModalOpen(true);
+          }}
+          className="flex h-10 items-center gap-2 rounded-xl border border-rose-500/20 bg-rose-500/10 px-3 text-[11px] font-semibold uppercase tracking-[0.12em] text-rose-200 transition-colors hover:border-rose-400/30 hover:bg-rose-500/15"
+          aria-label="Mark today as missed"
+        >
+          <CalendarX2 size={15} />
+          <span className="hidden sm:inline">Miss Day</span>
+        </button>
+      )}
+
+      <button
+        type="button"
+        onClick={onOpenLatestSummary}
+        className={`flex h-10 w-10 items-center justify-center rounded-xl border transition-colors ${
+          hasLatestSummary
+            ? 'border-accent/35 bg-accent/10 text-accent hover:bg-accent/20'
+            : 'border-white/10 bg-card/60 text-text-tertiary hover:text-text-secondary'
+        }`}
+        aria-label="Open latest workout summary"
+      >
+        <Bookmark size={17} />
+      </button>
+    </div>
+  );
+
   if (loading) {
     return (
       <div className="flex-1 flex flex-col h-full bg-background pb-24">
@@ -246,20 +297,7 @@ export function WorkoutPlanScreen({
           <Header
             title={workoutDay}
             onBack={onBack}
-            rightElement={
-              <button
-                type="button"
-                onClick={onOpenLatestSummary}
-                className={`flex h-10 w-10 items-center justify-center rounded-xl border transition-colors ${
-                  hasLatestSummary
-                    ? 'border-accent/35 bg-accent/10 text-accent hover:bg-accent/20'
-                    : 'border-white/10 bg-card/60 text-text-tertiary hover:text-text-secondary'
-                }`}
-                aria-label="Open latest workout summary"
-              >
-                <Bookmark size={17} />
-              </button>
-            }
+            rightElement={headerActions}
           />
         </div>
         <div className="flex-1 flex items-center justify-center">
@@ -294,26 +332,30 @@ export function WorkoutPlanScreen({
     }
   };
 
+  const handleMissDay = async () => {
+    if (!onMissDay) return;
+
+    try {
+      setIsSubmittingMissDay(true);
+      setMissDayFeedback(null);
+      const result = await onMissDay();
+      if (!result?.missed) {
+        setMissDayFeedback(result?.reason || 'Could not mark this workout as missed.');
+        return;
+      }
+      setIsMissModalOpen(false);
+    } finally {
+      setIsSubmittingMissDay(false);
+    }
+  };
+
   return (
     <div className="flex-1 flex flex-col h-full bg-background overflow-y-auto pb-24">
       <div className="px-4 sm:px-6 pt-2">
         <Header
           title={workoutDay}
           onBack={onBack}
-          rightElement={
-            <button
-              type="button"
-              onClick={onOpenLatestSummary}
-              className={`flex h-10 w-10 items-center justify-center rounded-xl border transition-colors ${
-                hasLatestSummary
-                  ? 'border-accent/35 bg-accent/10 text-accent hover:bg-accent/20'
-                  : 'border-white/10 bg-card/60 text-text-tertiary hover:text-text-secondary'
-              }`}
-              aria-label="Open latest workout summary"
-            >
-              <Bookmark size={17} />
-            </button>
-          }
+          rightElement={headerActions}
         />
       </div>
 
@@ -383,7 +425,7 @@ export function WorkoutPlanScreen({
           {exercises.map((exercise, index) => {
             const isCompleted = completedLookup.has(String(exercise.name || '').trim().toLowerCase());
             const isNext = nextExercise?.name === exercise.name && !isCompleted;
-            const primaryMuscle = exercise.targetMuscles[0] || 'Chest';
+            const primaryMuscle = resolvePrimaryExerciseMuscle(exercise);
 
             return (
               <button
@@ -631,6 +673,75 @@ export function WorkoutPlanScreen({
                   </div>
                 </>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {isMissModalOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4"
+          onClick={() => setIsMissModalOpen(false)}
+        >
+          <div
+            className="relative w-full max-w-md overflow-hidden rounded-[1.75rem] border border-white/10 bg-[linear-gradient(180deg,rgba(27,31,43,0.98),rgba(15,18,28,0.98))] p-6 shadow-[0_24px_80px_rgba(0,0,0,0.45)]"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="pointer-events-none absolute inset-x-0 top-0 h-28 bg-[radial-gradient(circle_at_top,rgba(244,63,94,0.18),transparent_70%)]" />
+
+            <div className="relative">
+              <div className="flex items-start justify-between gap-4">
+                <div className="space-y-3">
+                  <div className="inline-flex h-12 w-12 items-center justify-center rounded-2xl border border-rose-500/25 bg-rose-500/12 text-rose-200">
+                    <TriangleAlert size={22} />
+                  </div>
+                  <div>
+                    <h3 className="text-xl font-semibold text-white">Miss today&apos;s workout?</h3>
+                    <p className="mt-2 text-sm leading-relaxed text-text-secondary">
+                      This will mark <span className="text-white">{workoutDay}</span> as missed, remove it from today&apos;s active flow, and break your current workout streak for today.
+                    </p>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setIsMissModalOpen(false)}
+                  className="flex h-10 w-10 items-center justify-center rounded-full bg-white/5 text-text-secondary transition-colors hover:bg-white/10 hover:text-white"
+                  aria-label="Close miss day dialog"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+
+              <div className="mt-5 rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm text-text-secondary">
+                Use this only when you are intentionally skipping the scheduled session.
+              </div>
+
+              {missDayFeedback && (
+                <div className="mt-4 rounded-2xl border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-sm text-rose-200">
+                  {missDayFeedback}
+                </div>
+              )}
+
+              <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+                <button
+                  type="button"
+                  onClick={() => setIsMissModalOpen(false)}
+                  className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-text-primary transition-colors hover:bg-white/10"
+                >
+                  Keep Workout
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    void handleMissDay();
+                  }}
+                  disabled={isSubmittingMissDay}
+                  className="rounded-2xl bg-rose-500 px-4 py-3 text-sm font-semibold text-white transition-colors hover:bg-rose-400 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {isSubmittingMissDay ? 'Marking...' : 'Yes, Miss This Day'}
+                </button>
+              </div>
             </div>
           </div>
         </div>

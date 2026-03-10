@@ -39,13 +39,13 @@ export function Onboarding({ onComplete }: OnboardingProps) {
   }, [onComplete]);
   const steps = [
   {
-    component: AppMotivationScreen,
-    title: 'Motivation',
+    component: WelcomeScreen,
+    title: '',
     showBack: false
   },
   {
-    component: WelcomeScreen,
-    title: ''
+    component: AppMotivationScreen,
+    title: 'Motivation'
   },
   {
     component: PersonalInfoScreen,

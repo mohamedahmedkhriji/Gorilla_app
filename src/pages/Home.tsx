@@ -25,7 +25,7 @@ import { api } from '../services/api';
 import { getRankBadgeImage } from '../services/rankTheme';
 import { emojiShop } from '../services/emojiTheme';
 interface HomeProps {
-  onNavigate: (tab: string) => void;
+  onNavigate: (tab: string, day?: string) => void;
 }
 
 const readStoredUser = () => {
@@ -204,12 +204,17 @@ const normalizeTodayWorkoutExercises = (raw: unknown) => {
 };
 
 const resolveTodayWorkoutPayload = (programData: any, weeklyWorkouts: any[]) => {
+  if (String(programData?.missedTodayWorkoutName || '').trim()) {
+    return null;
+  }
+
   const todayWorkout = programData?.todayWorkout || null;
   const normalizedWeeklyWorkouts = Array.isArray(weeklyWorkouts) ? weeklyWorkouts : [];
   const clientWeekdayKey = new Date().toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase();
 
-  const weeklyWorkoutByClientDay = normalizedWeeklyWorkouts.find((workout: any) =>
-    String(workout?.day_name || '').trim().toLowerCase() === clientWeekdayKey,
+  const weeklyWorkoutByName = normalizedWeeklyWorkouts.find((workout: any) =>
+    String(workout?.workout_name || '').trim().toLowerCase()
+    && String(workout?.workout_name || '').trim().toLowerCase() === String(todayWorkout?.name || '').trim().toLowerCase(),
   );
 
   const weeklyWorkoutByServerDay = normalizedWeeklyWorkouts.find((workout: any) =>
@@ -217,25 +222,42 @@ const resolveTodayWorkoutPayload = (programData: any, weeklyWorkouts: any[]) => 
     && String(workout?.day_name || '').trim().toLowerCase() === String(todayWorkout?.dayName || '').trim().toLowerCase(),
   );
 
-  const weeklyWorkoutByName = normalizedWeeklyWorkouts.find((workout: any) =>
-    String(workout?.workout_name || '').trim().toLowerCase()
-    && String(workout?.workout_name || '').trim().toLowerCase() === String(todayWorkout?.name || '').trim().toLowerCase(),
+  const weeklyWorkoutByClientDay = normalizedWeeklyWorkouts.find((workout: any) =>
+    String(workout?.day_name || '').trim().toLowerCase() === clientWeekdayKey,
+  );
+
+  const normalizedTodayDay = String(todayWorkout?.dayName || '').trim().toLowerCase();
+  const todayNameMatchesClientDay = !!(
+    weeklyWorkoutByName
+    && String(weeklyWorkoutByName?.day_name || '').trim().toLowerCase() === clientWeekdayKey
+  );
+  const shouldUseTodayPayload = !!(
+    todayWorkout
+    && (
+      !normalizedTodayDay
+      || normalizedTodayDay === clientWeekdayKey
+      || todayNameMatchesClientDay
+      || !weeklyWorkoutByClientDay
+    )
   );
 
   const resolvedWorkout =
-    weeklyWorkoutByClientDay
-    || weeklyWorkoutByServerDay
-    || weeklyWorkoutByName
+    shouldUseTodayPayload
+      ? (weeklyWorkoutByName || weeklyWorkoutByServerDay || weeklyWorkoutByClientDay || null)
+      : (weeklyWorkoutByClientDay || weeklyWorkoutByServerDay || weeklyWorkoutByName || null)
     || null;
 
-  const directExercises = normalizeTodayWorkoutExercises(todayWorkout?.exercises);
+  const directExercises = shouldUseTodayPayload
+    ? normalizeTodayWorkoutExercises(todayWorkout?.exercises)
+    : [];
   const weeklyExercises = normalizeTodayWorkoutExercises(resolvedWorkout?.exercises);
-  const resolvedExercises = weeklyExercises.length > directExercises.length
-    ? weeklyExercises
-    : directExercises;
+  const resolvedExercises = shouldUseTodayPayload
+    ? (weeklyExercises.length > directExercises.length ? weeklyExercises : directExercises)
+    : weeklyExercises;
 
   const workoutName = String(
-    resolvedWorkout?.workout_name
+    (shouldUseTodayPayload ? todayWorkout?.name : '')
+    || resolvedWorkout?.workout_name
     || todayWorkout?.name
     || '',
   ).trim();
@@ -245,13 +267,17 @@ const resolveTodayWorkoutPayload = (programData: any, weeklyWorkouts: any[]) => 
   return {
     workout_name: workoutName,
     workout_type: String(
-      resolvedWorkout?.workout_type
+      (shouldUseTodayPayload ? todayWorkout?.workoutType : '')
+      || resolvedWorkout?.workout_type
       || todayWorkout?.workoutType
       || '',
     ).trim(),
     estimated_duration_minutes:
       Number(
-        resolvedWorkout?.estimated_duration_minutes
+        shouldUseTodayPayload
+          ? (todayWorkout?.estimatedDurationMinutes ?? todayWorkout?.estimated_duration_minutes)
+          : null
+        ?? resolvedWorkout?.estimated_duration_minutes
         ?? todayWorkout?.estimatedDurationMinutes
         ?? todayWorkout?.estimated_duration_minutes
         ?? 0,
@@ -494,6 +520,12 @@ export function Home({ onNavigate }: HomeProps) {
     };
     window.addEventListener('workout-extra-exercises-updated', handleExtraExercisesUpdated);
 
+    const handleProgramUpdated = () => {
+      void fetchProgram();
+      void fetchProgramProgress();
+    };
+    window.addEventListener('program-updated', handleProgramUpdated);
+
     // Check for recovery updates every 2 seconds
     const recoveryInterval = setInterval(() => {
       if (localStorage.getItem('recoveryNeedsUpdate') === 'true') {
@@ -515,6 +547,7 @@ export function Home({ onNavigate }: HomeProps) {
       window.removeEventListener('recovery-updated', handleRecoveryUpdated);
       window.removeEventListener('workout-progress-updated', handleWorkoutProgressUpdated);
       window.removeEventListener('workout-extra-exercises-updated', handleExtraExercisesUpdated);
+      window.removeEventListener('program-updated', handleProgramUpdated);
       clearInterval(recoveryInterval);
       clearInterval(periodicRecoveryRefresh);
       clearInterval(progressRefresh);
@@ -821,7 +854,7 @@ export function Home({ onNavigate }: HomeProps) {
         <AgendaSection userProgram={userProgram} programProgress={programProgress} />
 
         {/* Today's Workout */}
-        <div onClick={() => onNavigate('workout')} className="cursor-pointer">
+        <div onClick={() => onNavigate('workout', workoutCardTitle)} className="cursor-pointer">
           <WorkoutCard
             title={workoutCardTitle}
             workoutType={todayWorkoutData?.workout_type || ''}

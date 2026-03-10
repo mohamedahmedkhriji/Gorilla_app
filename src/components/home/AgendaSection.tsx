@@ -1,12 +1,23 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { X, Bed, Check } from 'lucide-react';
+import { X, Bed, Check, CalendarX2 } from 'lucide-react';
 
 export function AgendaSection({ userProgram, programProgress }: { userProgram?: any; programProgress?: any }) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [selectedDay, setSelectedDay] = useState<any>(null);
   const today = new Date();
+  const formatDateKey = (value: Date) => {
+    const year = value.getFullYear();
+    const month = String(value.getMonth() + 1).padStart(2, '0');
+    const day = String(value.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
 
   const programWorkouts = Array.isArray(userProgram?.workouts) ? userProgram.workouts : [];
+  const missedDateKeys = new Set(
+    (Array.isArray(userProgram?.missedWorkoutDates) ? userProgram.missedWorkoutDates : [])
+      .map((value: unknown) => String(value || '').slice(0, 10))
+      .filter(Boolean),
+  );
   const normalizeDaysPerWeek = (value: any) => {
     const n = Number(value);
     if (!Number.isFinite(n)) return 4;
@@ -69,13 +80,16 @@ export function AgendaSection({ userProgram, programProgress }: { userProgram?: 
       exercises = parseWorkoutExercises(dayWorkout.exercises);
     }
     
+    const dateKey = formatDateKey(date);
+    const isMissed = missedDateKeys.has(dateKey);
+
     return {
       day: date.toLocaleDateString('en-US', { weekday: 'short' }),
       date: date.getDate(),
       fullDate: date,
       label,
       exercises,
-      status: i < 10 ? 'done' : i === 10 ? 'active' : 'upcoming',
+      status: isMissed ? 'missed' : i < 10 ? 'done' : i === 10 ? 'active' : 'upcoming',
     };
   });
 
@@ -95,8 +109,10 @@ export function AgendaSection({ userProgram, programProgress }: { userProgram?: 
   const plannedThisWeek = Number(programProgress?.workoutsPlannedThisWeek);
   const completedThisWeek = Number(programProgress?.workoutsCompletedThisWeek);
   const progressSessionsLeftThisWeek =
-    Number.isFinite(plannedThisWeek) && Number.isFinite(completedThisWeek)
-      ? Math.max(0, plannedThisWeek - completedThisWeek)
+    Number.isFinite(Number(programProgress?.workoutsRemainingThisWeek))
+      ? Math.max(0, Number(programProgress?.workoutsRemainingThisWeek || 0))
+      : Number.isFinite(plannedThisWeek) && Number.isFinite(completedThisWeek)
+        ? Math.max(0, plannedThisWeek - completedThisWeek - Number(programProgress?.workoutsMissedThisWeek || 0))
       : null;
   const sessionsLeftThisWeek =
     progressSessionsLeftThisWeek == null
@@ -128,6 +144,7 @@ export function AgendaSection({ userProgram, programProgress }: { userProgram?: 
           {days.map((d, i) => {
             const isActive = d.status === 'active';
             const isDone = d.status === 'done';
+            const isMissed = d.status === 'missed';
 
             return (
               <div
@@ -140,6 +157,8 @@ export function AgendaSection({ userProgram, programProgress }: { userProgram?: 
                     ${
                       isActive
                         ? 'text-black border-accent/60 bg-[linear-gradient(135deg,rgb(var(--color-accent)),rgb(var(--color-info)))]'
+                        : isMissed
+                          ? 'bg-rose-500/15 text-rose-100 border-rose-500/30'
                         : isDone
                           ? 'bg-white/[0.08] text-white border-white/10'
                           : 'bg-card text-text-secondary border-white/10'
@@ -153,7 +172,11 @@ export function AgendaSection({ userProgram, programProgress }: { userProgram?: 
                       className="absolute left-1/2 -bottom-1.5 h-3.5 w-3.5 -translate-x-1/2 rotate-45 rounded-[3px] border-r border-b border-white/10"
                       style={{ background: 'rgb(var(--color-accent))' }} />
                   )}
-                  <span className="relative z-10 text-sm font-bold leading-none">{d.date}</span>
+                  {isMissed ? (
+                    <CalendarX2 size={16} className="relative z-10" />
+                  ) : (
+                    <span className="relative z-10 text-sm font-bold leading-none">{d.date}</span>
+                  )}
                 </div>
                 <div className={`text-[10px] font-medium leading-none ${isActive ? 'mt-1 text-text-primary' : 'text-text-tertiary'}`}>
                   {d.day}
@@ -173,14 +196,26 @@ export function AgendaSection({ userProgram, programProgress }: { userProgram?: 
                 <h3 className="text-3xl leading-none text-white">
                   {selectedDay.fullDate.toLocaleDateString('en-US', { month: 'long', day: 'numeric' })}
                 </h3>
-                <p className="text-xs uppercase tracking-[0.1em] text-text-secondary mt-2">{selectedDay.label} Day</p>
+                <p className="text-xs uppercase tracking-[0.1em] text-text-secondary mt-2">
+                  {selectedDay.label === 'Rest' ? 'Recovery Day' : selectedDay.label}
+                </p>
               </div>
               <button onClick={() => setSelectedDay(null)} className="text-text-secondary hover:text-white">
                 <X size={20} />
               </button>
             </div>
 
-            {selectedDay.label === 'Rest' ? (
+            {selectedDay.status === 'missed' ? (
+              <div className="flex flex-col items-center justify-center py-8 text-center">
+                <div className="w-16 h-16 rounded-2xl bg-rose-500/12 border border-rose-500/30 flex items-center justify-center mb-4">
+                  <CalendarX2 size={30} className="text-rose-300" />
+                </div>
+                <h4 className="text-3xl leading-none text-white mb-2">Missed Day</h4>
+                <p className="text-sm text-text-secondary">
+                  This scheduled workout was marked as missed and no longer counts toward this week&apos;s remaining sessions.
+                </p>
+              </div>
+            ) : selectedDay.label === 'Rest' ? (
               <div className="flex flex-col items-center justify-center py-8 text-center">
                 <div className="w-16 h-16 rounded-2xl bg-accent/12 border border-accent/35 flex items-center justify-center mb-4">
                   <Bed size={30} className="text-accent" />

@@ -169,6 +169,16 @@ const loadLocalWorkoutState = (scope: string) => {
   return { completedExercises, exerciseSets, extraExercises };
 };
 
+const clearLocalWorkoutState = (scope: string) => {
+  const keys = getWorkoutStorageKeys(scope);
+  localStorage.setItem(keys.workoutDate, new Date().toDateString());
+  localStorage.removeItem(keys.completedExercises);
+  localStorage.removeItem(keys.exerciseSets);
+  localStorage.removeItem(keys.extraExercises);
+  localStorage.removeItem(keys.exerciseCount);
+  localStorage.removeItem(keys.exerciseSnapshot);
+};
+
 const parseTargetMuscles = (raw: unknown): string[] => {
   if (Array.isArray(raw)) {
     return raw
@@ -406,6 +416,139 @@ const serializeTodayExercisesSnapshot = (exercises: TodayWorkoutExercise[]) =>
     isExtra: exercise.isExtra,
   }));
 
+const inferWorkoutLabelFromExercises = (exercises: TodayWorkoutExercise[]) => {
+  const bucketScores = {
+    push: 0,
+    pull: 0,
+    legs: 0,
+    core: 0,
+  };
+
+  exercises.forEach((exercise) => {
+    const muscles = (
+      Array.isArray(exercise?.targetMuscles) && exercise.targetMuscles.length
+        ? exercise.targetMuscles
+        : exercise?.muscleGroup
+          ? [exercise.muscleGroup]
+          : inferMusclesFromExerciseName(exercise.exerciseName)
+    )
+      .map((entry) => normalizeMuscleName(String(entry || '')))
+      .filter(Boolean);
+
+    muscles.forEach((muscle) => {
+      if (['Chest', 'Shoulders', 'Triceps'].includes(muscle)) bucketScores.push += 1;
+      if (['Back', 'Biceps', 'Forearms'].includes(muscle)) bucketScores.pull += 1;
+      if (['Quadriceps', 'Hamstrings', 'Calves', 'Glutes'].includes(muscle)) bucketScores.legs += 1;
+      if (['Abs', 'Core'].includes(muscle)) bucketScores.core += 1;
+    });
+  });
+
+  if (bucketScores.legs > 0 && bucketScores.push === 0 && bucketScores.pull === 0) {
+    return 'Leg Day';
+  }
+  if (bucketScores.push > 0 && bucketScores.pull === 0 && bucketScores.legs === 0) {
+    return 'Push Day';
+  }
+  if (bucketScores.pull > 0 && bucketScores.push === 0 && bucketScores.legs === 0) {
+    return 'Pull Day';
+  }
+  if (bucketScores.push > 0 && bucketScores.pull > 0 && bucketScores.legs === 0) {
+    return 'Upper Body';
+  }
+  if (bucketScores.push > 0 && bucketScores.pull > 0 && bucketScores.legs > 0) {
+    return 'Full Body';
+  }
+  if (bucketScores.core > 0 && bucketScores.push === 0 && bucketScores.pull === 0 && bucketScores.legs === 0) {
+    return 'Core Day';
+  }
+
+  return '';
+};
+
+const resolveWorkoutDisplayName = (rawName: unknown, exercises: TodayWorkoutExercise[]) => {
+  const trimmedName = String(rawName || '').trim();
+  const inferredLabel = inferWorkoutLabelFromExercises(exercises);
+  if (!trimmedName) return inferredLabel || 'Workout';
+
+  const normalizedName = trimmedName.toLowerCase();
+  const isGenericSplitName = /(push|pull|leg|legs|upper|lower|full body|rest|recovery|core)/.test(normalizedName);
+  if (!isGenericSplitName || !inferredLabel) return trimmedName;
+
+  const normalizedInferred = inferredLabel.toLowerCase();
+  if (normalizedName.includes(normalizedInferred)) return trimmedName;
+
+  const inferredKey = normalizedInferred.split(' ')[0];
+  const namedAsRest = normalizedName.includes('rest') || normalizedName.includes('recovery');
+  if (namedAsRest) return trimmedName;
+
+  return inferredKey && !normalizedName.includes(inferredKey) ? inferredLabel : trimmedName;
+};
+
+const resolveTodayWorkoutPayload = (program: any) => {
+  if (String(program?.missedTodayWorkoutName || '').trim()) {
+    return null;
+  }
+
+  const todayWorkout = program?.todayWorkout || null;
+  const weeklyWorkouts = Array.isArray(program?.currentWeekWorkouts)
+    ? program.currentWeekWorkouts
+    : Array.isArray(program?.workouts)
+      ? program.workouts
+      : [];
+
+  if (!todayWorkout && !weeklyWorkouts.length) return null;
+
+  const clientWeekdayKey = new Date().toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase();
+  const normalizedTodayName = String(todayWorkout?.name || '').trim().toLowerCase();
+  const normalizedTodayDay = String(todayWorkout?.dayName || '').trim().toLowerCase();
+  const weeklyWorkoutByClientDay = weeklyWorkouts.find((workout: any) =>
+    String(workout?.day_name || '').trim().toLowerCase() === clientWeekdayKey,
+  );
+  const weeklyWorkoutByName = weeklyWorkouts.find((workout: any) =>
+    String(workout?.workout_name || '').trim().toLowerCase() === normalizedTodayName,
+  );
+  const weeklyWorkoutByServerDay = weeklyWorkouts.find((workout: any) =>
+    String(workout?.day_name || '').trim().toLowerCase() === normalizedTodayDay,
+  );
+  const todayNameMatchesClientDay = !!(
+    weeklyWorkoutByName
+    && String(weeklyWorkoutByName?.day_name || '').trim().toLowerCase() === clientWeekdayKey
+  );
+  const shouldUseTodayPayload = !!(
+    todayWorkout
+    && (
+      !normalizedTodayDay
+      || normalizedTodayDay === clientWeekdayKey
+      || todayNameMatchesClientDay
+      || !weeklyWorkoutByClientDay
+    )
+  );
+
+  const resolvedWorkout =
+    shouldUseTodayPayload
+      ? (weeklyWorkoutByName || weeklyWorkoutByServerDay || weeklyWorkoutByClientDay || null)
+      : (weeklyWorkoutByClientDay || weeklyWorkoutByServerDay || weeklyWorkoutByName || null)
+    || null;
+
+  const directExercises = shouldUseTodayPayload && Array.isArray(todayWorkout?.exercises)
+    ? todayWorkout.exercises.map((ex: any) => normalizeWorkoutExerciseEntry(ex, false))
+    : [];
+  const weeklyExercises = Array.isArray(resolvedWorkout?.exercises)
+    ? resolvedWorkout.exercises.map((ex: any) => normalizeWorkoutExerciseEntry(ex, false))
+    : [];
+  const exercises = shouldUseTodayPayload
+    ? (weeklyExercises.length > directExercises.length ? weeklyExercises : directExercises)
+    : weeklyExercises;
+
+  return {
+    exercises,
+    name: resolveWorkoutDisplayName(
+      (shouldUseTodayPayload ? todayWorkout?.name : '') || resolvedWorkout?.workout_name || todayWorkout?.name || '',
+      exercises,
+    ),
+  };
+};
+
 export function Workout({ onBack, workoutDay = 'Push Day' }: WorkoutProps) {
   const currentUser = readStoredUser();
   const userId = Number(currentUser?.id || 0);
@@ -518,9 +661,10 @@ export function Workout({ onBack, workoutDay = 'Push Day' }: WorkoutProps) {
         }
 
         const program = await api.getUserProgram(userId);
+        const resolvedWorkout = resolveTodayWorkoutPayload(program);
         const todayWorkout = program?.todayWorkout || null;
 
-        if (!todayWorkout) {
+        if (!todayWorkout && !resolvedWorkout) {
           setTodayExercises([]);
           setCurrentWorkoutName('Rest Day');
           localStorage.setItem(workoutStorageKeys.exerciseCount, '0');
@@ -529,9 +673,11 @@ export function Workout({ onBack, workoutDay = 'Push Day' }: WorkoutProps) {
           return;
         }
 
-        const normalizedExercises = Array.isArray(todayWorkout.exercises)
-          ? todayWorkout.exercises.map((ex: any) => normalizeWorkoutExerciseEntry(ex, false))
-          : [];
+        const normalizedExercises = Array.isArray(resolvedWorkout?.exercises)
+          ? resolvedWorkout.exercises
+          : Array.isArray(todayWorkout?.exercises)
+            ? todayWorkout.exercises.map((ex: any) => normalizeWorkoutExerciseEntry(ex, false))
+            : [];
 
         const storedState = loadLocalWorkoutState(workoutStorageScope);
         const normalizedExtras = Array.isArray(storedState.extraExercises)
@@ -539,7 +685,12 @@ export function Workout({ onBack, workoutDay = 'Push Day' }: WorkoutProps) {
           : [];
 
         syncTodayExercises([...normalizedExercises, ...normalizedExtras]);
-        setCurrentWorkoutName(todayWorkout.name || workoutDay);
+        setCurrentWorkoutName(
+          resolveWorkoutDisplayName(
+            resolvedWorkout?.name || todayWorkout?.name || workoutDay,
+            normalizedExercises,
+          ),
+        );
       } catch (error) {
         console.error('Failed to fetch today workout:', error);
         setTodayExercises([]);
@@ -1055,6 +1206,41 @@ export function Workout({ onBack, workoutDay = 'Push Day' }: WorkoutProps) {
     }
   };
 
+  const markTodayWorkoutAsMissed = async () => {
+    if (!userId) {
+      return { missed: false, reason: 'User is not authenticated.' };
+    }
+
+    try {
+      const response = await api.markTodayWorkoutMissed(userId);
+      try {
+        await api.recalculateTodayRecovery(userId);
+      } catch (recoveryError) {
+        console.error('Failed to recalculate recovery after missed day:', recoveryError);
+      }
+      clearLocalWorkoutState(workoutStorageScope);
+      setTodayExercises([]);
+      setCompletedExercises([]);
+      setExerciseSets({});
+      setCurrentWorkoutName('Rest Day');
+      localStorage.setItem(homeMetricStorageKeys.homeWorkoutProgress, '0');
+      localStorage.setItem('recoveryNeedsUpdate', 'true');
+      window.dispatchEvent(new CustomEvent('program-updated'));
+      window.dispatchEvent(new CustomEvent('workout-progress-updated'));
+      window.dispatchEvent(new CustomEvent('recovery-updated'));
+      onBack();
+      return {
+        missed: true,
+        workoutName: String(response?.workoutName || currentWorkoutName || '').trim() || 'Workout',
+      };
+    } catch (error) {
+      return {
+        missed: false,
+        reason: error instanceof Error ? error.message : 'Failed to mark this workout as missed.',
+      };
+    }
+  };
+
   if (view === 'plan') {
     return (
       <WorkoutPlanScreen
@@ -1067,6 +1253,7 @@ export function Workout({ onBack, workoutDay = 'Push Day' }: WorkoutProps) {
         onOpenLatestSummary={() => {
           void openLatestSummary();
         }}
+        onMissDay={markTodayWorkoutAsMissed}
         hasLatestSummary={hasLatestSummary}
         workoutDay={currentWorkoutName}
         completedExercises={completedExercises}

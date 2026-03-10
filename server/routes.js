@@ -2301,25 +2301,68 @@ const getCurrentWeek = (startDate, cycleWeeks) => {
   return Math.min(rawWeek, maxWeeks);
 };
 
-const computeWorkoutStreak = (dateRows) => {
-  if (!dateRows.length) return 0;
-
+const computeWorkoutStreak = (dateRows, missedDateRows = []) => {
   const dates = new Set(dateRows.map((r) => formatDateISO(r.workout_date)));
+  const missedDates = new Set(missedDateRows.map((r) => formatDateISO(r.missed_date || r.workout_date)));
+  if (!dates.size && !missedDates.size) return 0;
+
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
   let cursor = new Date(today);
+  if (missedDates.has(formatDateISO(cursor))) {
+    return 0;
+  }
+
   if (!dates.has(formatDateISO(cursor))) {
     cursor.setDate(cursor.getDate() - 1);
   }
 
   let streak = 0;
-  while (dates.has(formatDateISO(cursor))) {
+  while (true) {
+    const dateKey = formatDateISO(cursor);
+    if (missedDates.has(dateKey)) {
+      return streak;
+    }
+    if (!dates.has(dateKey)) {
+      return streak;
+    }
     streak += 1;
     cursor.setDate(cursor.getDate() - 1);
   }
+};
 
-  return streak;
+const getMissedProgramDayRows = async ({ userId, dateFrom = null, dateTo = null, limit = null } = {}) => {
+  const normalizedUserId = toNumber(userId, 0);
+  if (!normalizedUserId) return [];
+
+  const where = ['user_id = ?'];
+  const params = [normalizedUserId];
+
+  if (dateFrom) {
+    where.push('missed_date >= ?');
+    params.push(String(dateFrom).slice(0, 10));
+  }
+
+  if (dateTo) {
+    where.push('missed_date <= ?');
+    params.push(String(dateTo).slice(0, 10));
+  }
+
+  let sql = `
+    SELECT id, program_assignment_id, workout_id, missed_date, workout_name
+    FROM missed_program_days
+    WHERE ${where.join(' AND ')}
+    ORDER BY missed_date DESC
+  `;
+
+  if (Number.isFinite(Number(limit)) && Number(limit) > 0) {
+    sql += ' LIMIT ?';
+    params.push(Math.round(Number(limit)));
+  }
+
+  const [rows] = await pool.execute(sql, params);
+  return Array.isArray(rows) ? rows : [];
 };
 
 const normalizeCatalogMuscleGroup = (raw) => {
@@ -4507,7 +4550,21 @@ router.get('/user/:userId/program', async (req, res) => {
     });
 
     const dayName = now.toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase();
-    const todayWorkout = currentWeekWorkouts.find((w) => w.day_name === dayName)
+    const missedProgramDayRows = await getMissedProgramDayRows({
+      userId,
+      dateFrom: formatDateISO(new Date(now.getFullYear(), now.getMonth(), now.getDate() - 30)),
+      dateTo: formatDateISO(new Date(now.getFullYear(), now.getMonth(), now.getDate() + 30)),
+    });
+    const missedDateKeys = new Set(
+      missedProgramDayRows.map((row) => formatDateISO(row.missed_date)),
+    );
+    const todayDateKey = formatDateISO(now);
+    const isTodayMissed = missedDateKeys.has(todayDateKey);
+
+    const todayWorkout = !isTodayMissed
+      ? currentWeekWorkouts.find((w) => w.day_name === dayName) || null
+      : null;
+    const todayMissedWorkout = currentWeekWorkouts.find((w) => w.day_name === dayName)
       || null;
 
     return res.json({
@@ -4530,11 +4587,103 @@ router.get('/user/:userId/program', async (req, res) => {
               exercises: JSON.parse(todayWorkout.exercises || '[]'),
             }
           : null,
+      missedTodayWorkoutName: isTodayMissed
+        ? String(todayMissedWorkout?.workout_name || todayMissedWorkout?.name || '').trim() || null
+        : null,
+      missedWorkoutDates: Array.from(missedDateKeys),
       workouts,
       currentWeekWorkouts,
     });
   } catch (error) {
     return res.status(500).json({ error: error.message });
+  }
+});
+
+router.post('/user/:userId/program/today-workout/miss', async (req, res) => {
+  try {
+    const userId = toNumber(req.params.userId, 0);
+    if (!userId) {
+      return res.status(400).json({ error: 'Invalid userId' });
+    }
+
+    const context = await getTodayWorkoutContextForUser(pool, userId);
+    if (!context?.assignment) {
+      return res.status(404).json({ error: 'No active program found for this user' });
+    }
+
+    if (!context?.todayWorkout?.id) {
+      return res.status(400).json({ error: 'No scheduled workout found for today' });
+    }
+
+    const missedDate = formatDateISO(new Date());
+    const workoutName = String(context.todayWorkout.workout_name || context.todayWorkout.name || '').trim() || 'Workout';
+
+    const columns = await getWorkoutSessionColumns();
+    const dateColumn = columns.has('completed_at')
+      ? 'completed_at'
+      : (columns.has('created_at') ? 'created_at' : null);
+
+    if (dateColumn) {
+      const [completedRows] = await pool.execute(
+        `SELECT id
+         FROM workout_sessions
+         WHERE user_id = ?
+           AND status = 'completed'
+           AND DATE(${dateColumn}) = ?
+         ORDER BY id DESC
+         LIMIT 1`,
+        [userId, missedDate],
+      );
+
+      if (Array.isArray(completedRows) && completedRows.length > 0) {
+        return res.status(400).json({ error: 'Today already has a completed workout session.' });
+      }
+    }
+
+    const [completedSetRows] = await pool.execute(
+      `SELECT id
+       FROM workout_sets
+       WHERE user_id = ?
+         AND completed = 1
+         AND DATE(created_at) = ?
+       ORDER BY id DESC
+       LIMIT 1`,
+      [userId, missedDate],
+    );
+
+    if (Array.isArray(completedSetRows) && completedSetRows.length > 0) {
+      return res.status(400).json({ error: 'Today already has logged completed sets. Remove them before marking this day as missed.' });
+    }
+
+    await pool.execute(
+      `INSERT INTO missed_program_days
+         (user_id, program_assignment_id, workout_id, missed_date, workout_name, notes)
+       VALUES (?, ?, ?, ?, ?, ?)
+       ON DUPLICATE KEY UPDATE
+         program_assignment_id = VALUES(program_assignment_id),
+         workout_id = VALUES(workout_id),
+         workout_name = VALUES(workout_name),
+         notes = VALUES(notes),
+         updated_at = CURRENT_TIMESTAMP`,
+      [
+        userId,
+        Number(context.assignment.id || 0) || null,
+        Number(context.todayWorkout.id || 0) || null,
+        missedDate,
+        workoutName,
+        'User marked this scheduled workout as missed',
+      ],
+    );
+
+    return res.json({
+      success: true,
+      missedDate,
+      workoutName,
+      assignmentId: Number(context.assignment.id || 0) || null,
+      workoutId: Number(context.todayWorkout.id || 0) || null,
+    });
+  } catch (error) {
+    return res.status(500).json({ error: error?.message || 'Failed to mark workout day as missed' });
   }
 });
 
@@ -4782,6 +4931,8 @@ router.get('/user/:userId/program-progress', async (req, res) => {
           completionRate: 0,
           workoutsCompletedThisWeek: 0,
           workoutsPlannedThisWeek: 0,
+          workoutsMissedThisWeek: 0,
+          workoutsRemainingThisWeek: 0,
           weeklyCompletionRate: 0,
           workoutStreakDays: 0,
           totalPoints: 0,
@@ -4877,6 +5028,17 @@ router.get('/user/:userId/program-progress', async (req, res) => {
       [normalizedUserId],
     );
 
+    const missedDateRows = await getMissedProgramDayRows({
+      userId: normalizedUserId,
+      limit: 60,
+    });
+
+    const missedWeekRows = await getMissedProgramDayRows({
+      userId: normalizedUserId,
+      dateFrom: formatDateISO(weekStart),
+      dateTo: formatDateISO(weekEnd),
+    });
+
     const [userRows] = await pool.execute(
       `SELECT total_points, total_workouts, \`rank\`
        FROM users
@@ -4889,6 +5051,7 @@ router.get('/user/:userId/program-progress', async (req, res) => {
     const completedWeekFromSessions = Number(weekCompletedRows[0]?.completed_week || 0);
     const completedFromSets = Number(setCompletedRows[0]?.completed_days || 0);
     const completedWeekFromSets = Number(setWeekCompletedRows[0]?.completed_days_week || 0);
+    const missedThisWeek = Array.isArray(missedWeekRows) ? missedWeekRows.length : 0;
 
     const completedWorkouts = completedFromSessions > 0 ? completedFromSessions : completedFromSets;
     const completedThisWeek = completedWeekFromSessions > 0 ? completedWeekFromSessions : completedWeekFromSets;
@@ -4920,8 +5083,10 @@ router.get('/user/:userId/program-progress', async (req, res) => {
         completionRate,
         workoutsCompletedThisWeek: completedThisWeek,
         workoutsPlannedThisWeek,
+        workoutsMissedThisWeek: missedThisWeek,
+        workoutsRemainingThisWeek: Math.max(0, workoutsPlannedThisWeek - completedThisWeek - missedThisWeek),
         weeklyCompletionRate,
-        workoutStreakDays: computeWorkoutStreak(streakRows),
+        workoutStreakDays: computeWorkoutStreak(streakRows, missedDateRows),
         totalPoints: Number(userRows[0]?.total_points || 0),
         totalWorkouts: Number(userRows[0]?.total_workouts || 0),
         rank: userRows[0]?.rank || 'Bronze',
@@ -5078,6 +5243,27 @@ const buildRecoveryPlanAndVolumeContext = async (userId) => {
   const weekWindow = getWeekWindowForAssignment(assignment);
   const weekStartKey = formatDateISO(weekWindow.start);
   const weekEndKey = formatDateISO(weekWindow.end);
+  const missedRows = assignment
+    ? await getMissedProgramDayRows({
+      userId: normalizedUserId,
+      dateFrom: weekStartKey,
+      dateTo: weekEndKey,
+    })
+    : [];
+  const missedDateKeys = new Set();
+  const missedDayNames = new Set();
+  missedRows.forEach((row) => {
+    const assignmentId = Number(row?.program_assignment_id || 0) || null;
+    if (assignmentId && Number(assignment?.id || 0) && assignmentId !== Number(assignment.id)) {
+      return;
+    }
+    const key = formatDateISO(row?.missed_date);
+    if (!key) return;
+    missedDateKeys.add(key);
+    const dayName = new Date(row.missed_date).toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase();
+    if (dayName) missedDayNames.add(dayName);
+  });
+  const isTodayMissed = missedDateKeys.has(todayKey);
 
   const catalogIdByName = new Map();
   const catalogContextById = new Map();
@@ -5172,13 +5358,14 @@ const buildRecoveryPlanAndVolumeContext = async (userId) => {
         const totalLoad = entries.reduce((sum, entry) => sum + Number(entry.loadFactor || 1), 0) || entries.length;
         const workoutDayName = workoutDayById.get(Number(row.workout_id || 0)) || '';
         const isTodayWorkout = workoutDayName === todayDayName;
+        const isMissedWorkoutDay = missedDayNames.has(workoutDayName);
 
         entries.forEach((entry) => {
           const normalizedShare = Number(entry.loadFactor || 1) / totalLoad;
           const setUnits = targetSets * normalizedShare;
           upsertMuscleLoadMetrics(byMuscle, entry.muscle, {
-            plannedWeekSetUnits: setUnits,
-            plannedTodaySetUnits: isTodayWorkout ? setUnits : 0,
+            plannedWeekSetUnits: isMissedWorkoutDay ? 0 : setUnits,
+            plannedTodaySetUnits: isTodayWorkout && !isTodayMissed ? setUnits : 0,
           });
         });
       });

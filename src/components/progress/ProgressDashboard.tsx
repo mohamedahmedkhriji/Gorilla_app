@@ -16,6 +16,141 @@ interface MuscleDistributionItem {
   col: string;
 }
 
+const MUSCLE_DISTRIBUTION_PALETTE = [
+  'bg-blue-500',
+  'bg-indigo-500',
+  'bg-purple-500',
+  'bg-cyan-500',
+  'bg-emerald-500',
+];
+
+const toTitleCase = (value: unknown) =>
+  String(value || '')
+    .trim()
+    .toLowerCase()
+    .split(/[\s_-]+/)
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(' ');
+
+const parseTargetMuscles = (raw: unknown): string[] => {
+  if (Array.isArray(raw)) {
+    return raw.map((entry) => toTitleCase(entry)).filter(Boolean);
+  }
+
+  if (typeof raw !== 'string' || !raw.trim()) return [];
+
+  try {
+    const parsed = JSON.parse(raw);
+    if (Array.isArray(parsed)) {
+      return parsed.map((entry) => toTitleCase(entry)).filter(Boolean);
+    }
+  } catch {
+    return raw
+      .split(/[,;|]+/)
+      .map((entry) => toTitleCase(entry))
+      .filter(Boolean);
+  }
+
+  return [];
+};
+
+const inferMusclesFromExerciseName = (exerciseName: unknown) => {
+  const name = String(exerciseName || '').toLowerCase();
+  const matches: string[] = [];
+
+  if (/bench|chest|fly|push-up|push up/.test(name)) matches.push('Chest', 'Triceps', 'Shoulders');
+  if (/deadlift|row|pull-up|pull up|lat|pulldown|pullover/.test(name)) matches.push('Back', 'Biceps', 'Forearms');
+  if (/squat|leg press|lunge|split squat|step up/.test(name)) matches.push('Quadriceps', 'Hamstrings', 'Calves');
+  if (/romanian deadlift|rdl|leg curl|hamstring/.test(name)) matches.push('Hamstrings');
+  if (/shoulder|overhead press|lateral raise|rear delt/.test(name)) matches.push('Shoulders', 'Triceps');
+  if (/curl/.test(name)) matches.push('Biceps', 'Forearms');
+  if (/tricep|triceps|dip/.test(name)) matches.push('Triceps');
+  if (/calf/.test(name)) matches.push('Calves');
+  if (/abs|core|crunch|plank|sit-up|sit up/.test(name)) matches.push('Abs');
+
+  return [...new Set(matches.map((entry) => toTitleCase(entry)).filter(Boolean))];
+};
+
+const normalizeDistributionItems = (items: Array<{ muscle?: unknown; percent?: unknown }>) =>
+  items
+    .slice(0, 3)
+    .map((item, index) => ({
+      name: String(item?.muscle || '-'),
+      val: Math.max(0, Math.min(100, Number(item?.percent || 0))),
+      col: MUSCLE_DISTRIBUTION_PALETTE[index % MUSCLE_DISTRIBUTION_PALETTE.length],
+    }));
+
+const buildProgramDistribution = (programData: any): MuscleDistributionItem[] => {
+  const weeklyWorkouts = Array.isArray(programData?.currentWeekWorkouts)
+    ? programData.currentWeekWorkouts
+    : Array.isArray(programData?.workouts)
+      ? programData.workouts
+      : [];
+  const fallbackWorkouts = programData?.todayWorkout ? [programData.todayWorkout] : [];
+  const workouts = weeklyWorkouts.length ? weeklyWorkouts : fallbackWorkouts;
+  const byMuscle = new Map<string, number>();
+
+  workouts.forEach((workout: any) => {
+    const exercises = Array.isArray(workout?.exercises)
+      ? workout.exercises
+      : typeof workout?.exercises === 'string'
+        ? (() => {
+            try {
+              const parsed = JSON.parse(workout.exercises);
+              return Array.isArray(parsed) ? parsed : [];
+            } catch {
+              return [];
+            }
+          })()
+        : [];
+
+    exercises.forEach((exercise: any) => {
+      const plannedSets = Math.max(
+        1,
+        Number(
+          exercise?.sets
+          ?? exercise?.targetSets
+          ?? exercise?.target_sets
+          ?? 1,
+        ) || 1,
+      );
+
+      const muscles = [
+        ...parseTargetMuscles(exercise?.targetMuscles ?? exercise?.muscleTargets ?? exercise?.muscles),
+        toTitleCase(exercise?.muscleGroup || exercise?.muscle_group || exercise?.muscle || exercise?.bodyPart || ''),
+      ].filter(Boolean);
+
+      const resolvedMuscles = muscles.length
+        ? [...new Set(muscles)]
+        : inferMusclesFromExerciseName(exercise?.exerciseName || exercise?.exercise_name || exercise?.name || '');
+
+      if (!resolvedMuscles.length) return;
+
+      const share = plannedSets / resolvedMuscles.length;
+      resolvedMuscles.forEach((muscle) => {
+        byMuscle.set(muscle, Number(byMuscle.get(muscle) || 0) + share);
+      });
+    });
+  });
+
+  const total = Array.from(byMuscle.values()).reduce((sum, value) => sum + Number(value || 0), 0);
+  if (total <= 0) return [];
+
+  return Array.from(byMuscle.entries())
+    .map(([muscle, value]) => ({
+      muscle,
+      percent: (Number(value) / total) * 100,
+    }))
+    .sort((left, right) => Number(right.percent) - Number(left.percent))
+    .slice(0, 3)
+    .map((item, index) => ({
+      name: String(item.muscle || '-'),
+      val: Math.max(0, Math.min(100, Number(item.percent || 0))),
+      col: MUSCLE_DISTRIBUTION_PALETTE[index % MUSCLE_DISTRIBUTION_PALETTE.length],
+    }));
+};
+
 export function ProgressDashboard({ onViewReport, onViewStrengthScore }: ProgressDashboardProps) {
   const [stats, setStats] = useState({
     totalWorkouts: 0,
@@ -26,11 +161,7 @@ export function ProgressDashboard({ onViewReport, onViewStrengthScore }: Progres
     workoutsPlannedThisWeek: 0,
   });
   const [topBadge, setTopBadge] = useState('Top --');
-  const [muscleDistribution, setMuscleDistribution] = useState<MuscleDistributionItem[]>([
-    { name: 'Chest', val: 0, col: 'bg-blue-500' },
-    { name: 'Back', val: 0, col: 'bg-indigo-500' },
-    { name: 'Legs', val: 0, col: 'bg-purple-500' },
-  ]);
+  const [muscleDistribution, setMuscleDistribution] = useState<MuscleDistributionItem[]>([]);
 
   const getUserId = () => {
     const localUserId = Number(localStorage.getItem('appUserId') || localStorage.getItem('userId') || 0);
@@ -51,11 +182,7 @@ export function ProgressDashboard({ onViewReport, onViewStrengthScore }: Progres
         workoutsCompletedThisWeek: 0,
         workoutsPlannedThisWeek: 0,
       });
-      setMuscleDistribution([
-        { name: 'Chest', val: 0, col: 'bg-blue-500' },
-        { name: 'Back', val: 0, col: 'bg-indigo-500' },
-        { name: 'Legs', val: 0, col: 'bg-purple-500' },
-      ]);
+      setMuscleDistribution([]);
       return;
     }
 
@@ -106,37 +233,28 @@ export function ProgressDashboard({ onViewReport, onViewStrengthScore }: Progres
 
     try {
       const response = await api.getPlanMuscleDistribution(userId);
-      const palette = ['bg-blue-500', 'bg-indigo-500', 'bg-purple-500', 'bg-cyan-500', 'bg-emerald-500'];
       const top = Array.isArray(response?.distribution) ? response.distribution.slice(0, 3) : [];
       if (top.length > 0) {
-        setMuscleDistribution(
-          top.map((item: any, index: number) => ({
-            name: String(item.muscle || '-'),
-            val: Math.max(0, Math.min(100, Number(item.percent || 0))),
-            col: palette[index % palette.length],
-          })),
-        );
+        setMuscleDistribution(normalizeDistributionItems(top));
       } else {
+        const programData = await api.getUserProgram(userId);
+        const programFallback = buildProgramDistribution(programData);
+        if (programFallback.length > 0) {
+          setMuscleDistribution(programFallback);
+          return;
+        }
+
         const fallbackResponse = await api.getMuscleDistribution(userId, 30);
         const fallbackTop = Array.isArray(fallbackResponse?.distribution) ? fallbackResponse.distribution.slice(0, 3) : [];
         if (fallbackTop.length > 0) {
-          setMuscleDistribution(
-            fallbackTop.map((item: any, index: number) => ({
-              name: String(item.muscle || '-'),
-              val: Math.max(0, Math.min(100, Number(item.percent || 0))),
-              col: palette[index % palette.length],
-            })),
-          );
+          setMuscleDistribution(normalizeDistributionItems(fallbackTop));
         } else {
-          setMuscleDistribution([
-            { name: 'Chest', val: 0, col: 'bg-blue-500' },
-            { name: 'Back', val: 0, col: 'bg-indigo-500' },
-            { name: 'Legs', val: 0, col: 'bg-purple-500' },
-          ]);
+          setMuscleDistribution([]);
         }
       }
     } catch (error) {
       console.error('Failed to fetch muscle distribution:', error);
+      setMuscleDistribution([]);
     }
 
     setStats({
@@ -158,6 +276,7 @@ export function ProgressDashboard({ onViewReport, onViewStrengthScore }: Progres
 
     window.addEventListener('gamification-updated', handleProgressRefresh);
     window.addEventListener('recovery-updated', handleProgressRefresh);
+    window.addEventListener('program-updated', handleProgressRefresh);
 
     const intervalId = window.setInterval(() => {
       void loadStats();
@@ -166,11 +285,12 @@ export function ProgressDashboard({ onViewReport, onViewStrengthScore }: Progres
     return () => {
       window.removeEventListener('gamification-updated', handleProgressRefresh);
       window.removeEventListener('recovery-updated', handleProgressRefresh);
+      window.removeEventListener('program-updated', handleProgressRefresh);
       window.clearInterval(intervalId);
     };
   }, [loadStats]);
 
-  const streakLabel = `${stats.currentStreak}%`;
+  const streakLabel = String(stats.currentStreak || 0);
   const streakSubLabel = stats.currentStreak === 1 ? 'streak day' : 'streak days';
   const weeklyDaysLabel = `${stats.workoutsCompletedThisWeek} / ${stats.workoutsPlannedThisWeek} days`;
 
@@ -228,24 +348,30 @@ export function ProgressDashboard({ onViewReport, onViewStrengthScore }: Progres
 
       <Card>
         <h3 className="font-medium text-white mb-4">Muscle Distribution (Plan Target)</h3>
-        <div className="space-y-3">
-          {muscleDistribution.map((m) =>
-          <div key={m.name}>
-              <div className="flex justify-between text-xs mb-1 text-text-secondary">
-                <span>{m.name}</span>
-                <span className="font-electrolize">{Math.round(m.val)}%</span>
-              </div>
-              <div className="h-2 bg-white/5 rounded-full overflow-hidden">
-                <div
-                className={`h-full rounded-full ${m.col}`}
-                style={{
-                  width: `${m.val}%`
-                }} />
+        {muscleDistribution.length > 0 ? (
+          <div className="space-y-3">
+            {muscleDistribution.map((m) =>
+            <div key={m.name}>
+                <div className="flex justify-between text-xs mb-1 text-text-secondary">
+                  <span>{m.name}</span>
+                  <span className="font-electrolize">{Math.round(m.val)}%</span>
+                </div>
+                <div className="h-2 bg-white/5 rounded-full overflow-hidden">
+                  <div
+                  className={`h-full rounded-full ${m.col}`}
+                  style={{
+                    width: `${m.val}%`
+                  }} />
 
+                </div>
               </div>
-            </div>
-          )}
-        </div>
+            )}
+          </div>
+        ) : (
+          <div className="rounded-2xl border border-white/8 bg-background/50 px-4 py-4 text-sm text-text-secondary">
+            No plan distribution is available yet for this user.
+          </div>
+        )}
       </Card>
 
       <div className="grid grid-cols-1 gap-3">

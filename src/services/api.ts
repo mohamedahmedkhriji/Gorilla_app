@@ -101,6 +101,14 @@ export const api = {
     return res.json();
   },
 
+  markTodayWorkoutMissed: async (userId: number) => {
+    const res = await fetch(`${API_URL}/user/${userId}/program/today-workout/miss`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+    });
+    return parseApiResponse(res, 'Failed to mark today as missed');
+  },
+
   addExerciseToTodayWorkout: async (userId: number, payload: any = {}) => {
     const res = await fetch(`${API_URL}/user/${userId}/program/today-workout/exercises`, {
       method: 'POST',

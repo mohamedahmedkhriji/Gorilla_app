@@ -66,7 +66,7 @@ export function App() {
   const renderTab = () => {
     switch (activeTab) {
       case 'home':
-        return <Home onNavigate={(tab) => handleNavigate(tab, workoutDay)} />;
+        return <Home onNavigate={handleNavigate} />;
       case 'workout':
         return <Workout onBack={() => setActiveTab('home')} workoutDay={workoutDay} />;
       case 'progress':
@@ -76,7 +76,7 @@ export function App() {
       case 'blogs':
         return <Blogs />;
       default:
-        return <Home onNavigate={(tab) => handleNavigate(tab, workoutDay)} />;
+        return <Home onNavigate={handleNavigate} />;
     }
   };
 

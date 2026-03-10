@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
 import { CheckCircle2, Circle } from 'lucide-react';
 import { api } from '../../services/api';
+import { BrandLogo } from '../ui/BrandLogo';
 
 interface AIAnalysisScreenProps {
   onComplete: () => void;
@@ -157,8 +158,32 @@ export function AIAnalysisScreen({ onComplete, onboardingData, userId }: AIAnaly
               transition={{ duration: 1.6, repeat: Infinity, ease: 'easeInOut' }}
               className="absolute inset-9 rounded-full bg-accent/28"
             />
-            <div className="absolute inset-[3.35rem] rounded-full bg-accent/70 border border-accent/35 flex items-center justify-center">
-              <span className="text-4xl font-black text-white leading-none">{displayProgress}%</span>
+            <div className="absolute inset-[3.35rem] flex items-center justify-center">
+              <motion.div
+                animate={{
+                  scale: [1, 1.09, 0.96, 1.13, 1],
+                  filter: [
+                    'drop-shadow(0 0 0px rgba(187,255,92,0.0))',
+                    'drop-shadow(0 0 12px rgba(187,255,92,0.2))',
+                    'drop-shadow(0 0 4px rgba(187,255,92,0.08))',
+                    'drop-shadow(0 0 18px rgba(187,255,92,0.3))',
+                    'drop-shadow(0 0 0px rgba(187,255,92,0.0))',
+                  ],
+                }}
+                transition={{
+                  duration: 1.1,
+                  ease: 'easeInOut',
+                  repeat: Infinity,
+                  times: [0, 0.18, 0.34, 0.5, 1],
+                  repeatDelay: 0.08,
+                }}
+                className="h-full w-full rounded-[1.65rem] border border-accent/30 bg-black/70 p-1.5"
+              >
+                <BrandLogo
+                  className="rounded-[1.35rem] bg-black"
+                  imageClassName="object-contain scale-[1.14]"
+                />
+              </motion.div>
             </div>
           </div>
         </div>

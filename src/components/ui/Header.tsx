@@ -24,7 +24,7 @@ export function Header({ title, onBack, rightElement, compact = false }: HeaderP
             <ArrowLeft size={18} />
           </motion.button>
         )}
-        {title && <h1 className="text-xl text-text-primary truncate">{title}</h1>}
+        {title && <h1 className="flex-1 text-xl leading-tight text-text-primary">{title}</h1>}
       </div>
       {rightElement}
     </div>
