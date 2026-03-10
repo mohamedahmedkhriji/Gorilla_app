@@ -47,7 +47,7 @@ export function RecoveryIndicator({ percentage, onClick }: RecoveryIndicatorProp
             <img src={emojiMuscleRecovery} alt="Muscle Recovery" className="h-6 w-6 object-contain" />
           </div>
           <div>
-            <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-text-secondary">Recovery</span>
+            <span className="text-[13px] font-electrolize font-bold uppercase tracking-[0.14em] text-text-secondary">Recovery</span>
             <p className="text-xs text-text-tertiary mt-1">{getRecoveryStatus(safePercentage)}</p>
           </div>
         </div>

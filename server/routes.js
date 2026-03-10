@@ -20,6 +20,7 @@ import {
   generateTwoMonthPlanWithClaude,
   hasAnthropicConfig,
 } from './services/claudeCoach.js';
+import { processGamificationProgression } from './services/progressionService.js';
 
 const router = express.Router();
 
@@ -75,6 +76,24 @@ const normalizeUser = (user) => {
 const toNumber = (v, fallback = null) => {
   const n = Number(v);
   return Number.isFinite(n) ? n : fallback;
+};
+
+const toGamificationPayload = (gamification) => (gamification
+  ? {
+      totalPoints: gamification.totalPoints,
+      rank: gamification.rank,
+      completedMissions: gamification.completedMissions,
+      completedChallenges: gamification.completedChallenges,
+    }
+  : null);
+
+const runProgressionEventSafely = async (params) => {
+  try {
+    return await processGamificationProgression(params);
+  } catch (error) {
+    console.error('Progression event failed:', error?.message || error);
+    return null;
+  }
 };
 
 const getOrderedFriendPair = (userIdA, userIdB) => {
@@ -596,6 +615,23 @@ const RANK_TIERS = [
   { name: 'Diamond', minPoints: 1400 },
   { name: 'Elite', minPoints: 2200 },
 ];
+const XP_LEVELS = [
+  { levelNumber: 1, levelName: 'Beginner', xpRequired: 0, tier: 1 },
+  { levelNumber: 2, levelName: 'Rookie', xpRequired: 100, tier: 2 },
+  { levelNumber: 3, levelName: 'Trainee', xpRequired: 250, tier: 3 },
+  { levelNumber: 4, levelName: 'Active', xpRequired: 500, tier: 4 },
+  { levelNumber: 5, levelName: 'Dedicated', xpRequired: 900, tier: 5 },
+  { levelNumber: 6, levelName: 'Challenger', xpRequired: 1500, tier: 6 },
+  { levelNumber: 7, levelName: 'Performer', xpRequired: 2300, tier: 7 },
+  { levelNumber: 8, levelName: 'Athlete', xpRequired: 3500, tier: 8 },
+  { levelNumber: 9, levelName: 'Advanced', xpRequired: 5000, tier: 9 },
+  { levelNumber: 10, levelName: 'Pro', xpRequired: 7000, tier: 10 },
+  { levelNumber: 11, levelName: 'Elite', xpRequired: 9500, tier: 11 },
+  { levelNumber: 12, levelName: 'Master', xpRequired: 12500, tier: 12 },
+  { levelNumber: 13, levelName: 'Champion', xpRequired: 16000, tier: 13 },
+  { levelNumber: 14, levelName: 'Titan', xpRequired: 21000, tier: 14 },
+  { levelNumber: 15, levelName: 'Legend', xpRequired: 28000, tier: 15 },
+];
 const BLOG_POST_UPLOAD_POINTS = 10;
 
 const clampPercentage = (value) => Math.max(0, Math.min(100, Number(value || 0)));
@@ -798,33 +834,190 @@ const ensureFriendshipInfrastructureOnce = async () => {
 };
 
 const ensureGamificationInfrastructure = async () => {
+  const ensureColumnExists = async (tableName, columnName, alterSql) => {
+    const [rows] = await pool.execute(
+      `SELECT 1
+       FROM information_schema.columns
+       WHERE table_schema = DATABASE()
+         AND table_name = ?
+         AND column_name = ?
+       LIMIT 1`,
+      [tableName, columnName],
+    );
+
+    if (!rows.length) {
+      await pool.execute(alterSql);
+    }
+  };
+
+  const ensureIndexExists = async (tableName, indexName, createSql) => {
+    const [rows] = await pool.execute(
+      `SELECT 1
+       FROM information_schema.statistics
+       WHERE table_schema = DATABASE()
+         AND table_name = ?
+         AND index_name = ?
+       LIMIT 1`,
+      [tableName, indexName],
+    );
+
+    if (!rows.length) {
+      await pool.execute(createSql);
+    }
+  };
+
+  await ensureColumnExists('users', 'total_points', 'ALTER TABLE users ADD COLUMN total_points INT NOT NULL DEFAULT 0');
+  await ensureColumnExists('users', 'total_workouts', 'ALTER TABLE users ADD COLUMN total_workouts INT NOT NULL DEFAULT 0');
+  await ensureColumnExists('users', 'rank', "ALTER TABLE users ADD COLUMN `rank` VARCHAR(50) NOT NULL DEFAULT 'Bronze'");
+  await ensureColumnExists('users', 'total_xp', 'ALTER TABLE users ADD COLUMN total_xp INT NOT NULL DEFAULT 0');
+  await ensureColumnExists('users', 'current_level_id', 'ALTER TABLE users ADD COLUMN current_level_id INT NULL');
+  await ensureIndexExists('users', 'idx_users_current_level_id', 'CREATE INDEX idx_users_current_level_id ON users (current_level_id)');
+
+  await pool.execute(
+    `UPDATE users
+     SET total_points = COALESCE(total_points, 0),
+         total_workouts = COALESCE(total_workouts, 0),
+         total_xp = CASE
+           WHEN COALESCE(total_xp, 0) > 0 THEN total_xp
+           ELSE COALESCE(total_points, 0)
+         END,
+         \`rank\` = CASE
+           WHEN TRIM(COALESCE(\`rank\`, '')) = '' THEN 'Bronze'
+           WHEN LOWER(TRIM(\`rank\`)) = 'beginner' THEN 'Bronze'
+           ELSE \`rank\`
+         END`,
+  );
+
+  await pool.execute(
+    `CREATE TABLE IF NOT EXISTS levels (
+      id INT PRIMARY KEY AUTO_INCREMENT,
+      level_number INT NOT NULL UNIQUE,
+      level_name VARCHAR(80) NOT NULL,
+      xp_required INT NOT NULL,
+      tier INT NOT NULL DEFAULT 1,
+      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+    ) ENGINE=InnoDB`
+  );
+
+  await pool.execute(
+    `CREATE TABLE IF NOT EXISTS xp_transactions (
+      id BIGINT PRIMARY KEY AUTO_INCREMENT,
+      user_id INT UNSIGNED NOT NULL,
+      source_type ENUM(
+        'workout',
+        'planned_workout',
+        'pr',
+        'challenge_complete',
+        'challenge_win',
+        'mission_complete',
+        'nutrition',
+        'hydration',
+        'sleep',
+        'progress_photo',
+        'share',
+        'referral',
+        'program_week',
+        'program_complete',
+        'badge_unlock',
+        'achievement_unlock',
+        'level_up',
+        'manual_adjustment'
+      ) NOT NULL,
+      source_id BIGINT NULL,
+      xp_amount INT NOT NULL,
+      description VARCHAR(255) NULL,
+      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      CONSTRAINT fk_xp_transactions_user
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+      INDEX idx_xp_user_created (user_id, created_at)
+    ) ENGINE=InnoDB`
+  );
+
+  await pool.execute(
+    `CREATE TABLE IF NOT EXISTS user_xp (
+      user_id INT UNSIGNED PRIMARY KEY,
+      total_xp INT NOT NULL DEFAULT 0,
+      current_level_id INT NULL,
+      updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      CONSTRAINT fk_user_xp_user
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+      CONSTRAINT fk_user_xp_level
+        FOREIGN KEY (current_level_id) REFERENCES levels(id) ON DELETE SET NULL
+    ) ENGINE=InnoDB`
+  );
+
+  for (const level of XP_LEVELS) {
+    await pool.execute(
+      `INSERT INTO levels (level_number, level_name, xp_required, tier)
+       VALUES (?, ?, ?, ?)
+       ON DUPLICATE KEY UPDATE
+         level_name = VALUES(level_name),
+         xp_required = VALUES(xp_required),
+         tier = VALUES(tier)`,
+      [level.levelNumber, level.levelName, level.xpRequired, level.tier],
+    );
+  }
+
+  await pool.execute(
+    `INSERT INTO user_xp (user_id, total_xp, current_level_id)
+     SELECT u.id,
+            GREATEST(COALESCE(u.total_xp, 0), COALESCE(u.total_points, 0)),
+            (
+              SELECT l.id
+              FROM levels l
+              WHERE l.xp_required <= GREATEST(COALESCE(u.total_xp, 0), COALESCE(u.total_points, 0))
+              ORDER BY l.xp_required DESC, l.id DESC
+              LIMIT 1
+            )
+     FROM users u
+     WHERE NOT EXISTS (
+       SELECT 1
+       FROM user_xp ux
+       WHERE ux.user_id = u.id
+     )`,
+  );
+
+  await pool.execute(
+    `UPDATE users u
+     JOIN user_xp ux ON ux.user_id = u.id
+     SET u.current_level_id = ux.current_level_id
+     WHERE u.current_level_id IS NULL`,
+  );
+
   await pool.execute(
     `CREATE TABLE IF NOT EXISTS missions (
       id INT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
       title VARCHAR(255) NOT NULL,
+      name VARCHAR(120) NULL,
       description TEXT NULL,
-      mission_type ENUM('daily', 'weekly', 'monthly', 'achievement') NOT NULL,
+      mission_type ENUM('daily', 'weekly', 'monthly', 'achievement', 'special') NOT NULL,
       category VARCHAR(50) NULL,
       metric_key VARCHAR(100) NULL,
       target_value INT UNSIGNED NOT NULL DEFAULT 1,
       points_reward INT NOT NULL DEFAULT 0,
+      xp_reward INT NOT NULL DEFAULT 0,
+      reward_id BIGINT NULL,
       badge_icon VARCHAR(100) NULL,
       is_active TINYINT(1) NOT NULL DEFAULT 1,
+      active BOOLEAN NOT NULL DEFAULT TRUE,
       starts_at DATETIME NULL,
       expires_at DATETIME NULL,
       created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
       INDEX idx_missions_active (is_active),
-      INDEX idx_missions_type (mission_type)
+      INDEX idx_missions_type (mission_type),
+      INDEX idx_missions_reward (reward_id)
     ) ENGINE=InnoDB`
   );
 
   await pool.execute(
     `CREATE TABLE IF NOT EXISTS user_missions (
       id BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
-      user_id INT NOT NULL,
+      user_id INT UNSIGNED NOT NULL,
       mission_id INT UNSIGNED NOT NULL,
+      assigned_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
       instance_key VARCHAR(30) NOT NULL DEFAULT 'default',
       current_progress INT UNSIGNED NOT NULL DEFAULT 0,
+      progress_value DECIMAL(12,2) NOT NULL DEFAULT 0,
       baseline_value INT UNSIGNED NOT NULL DEFAULT 0,
       target_value INT UNSIGNED NOT NULL,
       status ENUM('active', 'completed', 'expired') NOT NULL DEFAULT 'active',
@@ -835,25 +1028,69 @@ const ensureGamificationInfrastructure = async () => {
       CONSTRAINT fk_user_missions_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
       CONSTRAINT fk_user_missions_mission FOREIGN KEY (mission_id) REFERENCES missions(id) ON DELETE CASCADE,
       UNIQUE KEY uk_user_missions_unique_instance (user_id, mission_id, instance_key),
-      INDEX idx_user_missions_user_status (user_id, status)
+      INDEX idx_user_missions_user_status (user_id, status),
+      INDEX idx_user_missions_assigned (user_id, assigned_at)
     ) ENGINE=InnoDB`
   );
 
-  const [baselineColumnRows] = await pool.execute(
-    `SELECT 1
-     FROM information_schema.columns
-     WHERE table_schema = DATABASE()
-       AND table_name = 'user_missions'
-       AND column_name = 'baseline_value'
-     LIMIT 1`,
+  await ensureColumnExists(
+    'missions',
+    'name',
+    'ALTER TABLE missions ADD COLUMN name VARCHAR(120) NULL AFTER title',
+  );
+  await ensureColumnExists(
+    'missions',
+    'xp_reward',
+    'ALTER TABLE missions ADD COLUMN xp_reward INT NOT NULL DEFAULT 0 AFTER points_reward',
+  );
+  await ensureColumnExists(
+    'missions',
+    'reward_id',
+    'ALTER TABLE missions ADD COLUMN reward_id BIGINT NULL AFTER xp_reward',
+  );
+  await ensureColumnExists(
+    'missions',
+    'active',
+    'ALTER TABLE missions ADD COLUMN active BOOLEAN NOT NULL DEFAULT TRUE AFTER reward_id',
+  );
+  await ensureIndexExists('missions', 'idx_missions_reward', 'CREATE INDEX idx_missions_reward ON missions (reward_id)');
+  await pool.execute(
+    `UPDATE missions
+     SET name = COALESCE(NULLIF(name, ''), title),
+         active = CASE
+           WHEN is_active = 0 THEN FALSE
+           ELSE TRUE
+         END`,
   );
 
-  if (!baselineColumnRows.length) {
-    await pool.execute(
-      `ALTER TABLE user_missions
-       ADD COLUMN baseline_value INT UNSIGNED NOT NULL DEFAULT 0 AFTER current_progress`,
-    );
-  }
+  await ensureColumnExists(
+    'user_missions',
+    'baseline_value',
+    'ALTER TABLE user_missions ADD COLUMN baseline_value INT UNSIGNED NOT NULL DEFAULT 0 AFTER current_progress',
+  );
+  await ensureColumnExists(
+    'user_missions',
+    'assigned_at',
+    'ALTER TABLE user_missions ADD COLUMN assigned_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP AFTER mission_id',
+  );
+  await ensureColumnExists(
+    'user_missions',
+    'progress_value',
+    'ALTER TABLE user_missions ADD COLUMN progress_value DECIMAL(12,2) NOT NULL DEFAULT 0 AFTER current_progress',
+  );
+  await ensureIndexExists(
+    'user_missions',
+    'idx_user_missions_assigned',
+    'CREATE INDEX idx_user_missions_assigned ON user_missions (user_id, assigned_at)',
+  );
+  await pool.execute(
+    `UPDATE user_missions
+     SET assigned_at = COALESCE(assigned_at, created_at),
+         progress_value = CASE
+           WHEN progress_value > 0 THEN progress_value
+           ELSE CAST(current_progress AS DECIMAL(12,2))
+         END`,
+  );
 
   await pool.execute(
     `CREATE TABLE IF NOT EXISTS challenge_templates (
@@ -1189,7 +1426,7 @@ const assignWeeklyMissionSlots = async (userId, metrics, now = new Date()) => {
   if (slotsToFill <= 0) return;
 
   const [missionTemplates] = await pool.execute(
-    `SELECT id, metric_key, target_value, expires_at
+    `SELECT id, category, metric_key, target_value, expires_at
      FROM missions
      WHERE mission_type = 'weekly'
        AND is_active = 1
@@ -1206,7 +1443,114 @@ const assignWeeklyMissionSlots = async (userId, metrics, now = new Date()) => {
     candidates = missionTemplates;
   }
 
-  const selectedMissions = candidates.slice(0, slotsToFill);
+  const candidateIds = candidates.map((mission) => Number(mission.id));
+  const candidatePlaceholders = candidateIds.map(() => '?').join(', ');
+  const historyRows = candidateIds.length
+    ? (await pool.execute(
+      `SELECT
+          mission_id,
+          COUNT(*) AS assigned_count,
+          SUM(
+            CASE
+              WHEN completed_at IS NOT NULL AND completed_at >= DATE_SUB(?, INTERVAL 30 DAY)
+                THEN 1
+              ELSE 0
+            END
+          ) AS recent_completed_count
+       FROM user_missions
+       WHERE user_id = ? AND mission_id IN (${candidatePlaceholders})
+       GROUP BY mission_id`,
+      [now, userId, ...candidateIds],
+    ))[0]
+    : [];
+
+  const historyByMissionId = new Map(
+    historyRows.map((row) => [
+      Number(row.mission_id || 0),
+      {
+        assignedCount: Number(row.assigned_count || 0),
+        recentCompletedCount: Number(row.recent_completed_count || 0),
+      },
+    ]),
+  );
+
+  const expectedByMetricKey = {
+    workouts_completed: Math.max(1, Number(metrics.workout_days_this_week || 0)),
+    training_days: Math.max(1, Number(metrics.workout_days_this_week || 0)),
+    recovery_logs_total: Math.max(1, Number(metrics.recovery_logs_this_week || 0)),
+    recovery_streak_days: Math.max(1, Number(metrics.recovery_streak_days || 1)),
+  };
+
+  const personalized = candidates
+    .map((mission) => {
+      const missionId = Number(mission.id || 0);
+      const metricKey = String(mission.metric_key || '').toLowerCase().trim();
+      const expected = Math.max(
+        1,
+        Number(
+          expectedByMetricKey[metricKey]
+          || Math.max(
+            Number(metrics.workout_days_this_week || 0),
+            Number(metrics.recovery_logs_this_week || 0),
+            1,
+          ),
+        ),
+      );
+      const target = Math.max(1, Number(mission.target_value || 1));
+      const difficultyScore = Math.abs(target - expected) / expected;
+      const history = historyByMissionId.get(missionId) || { assignedCount: 0, recentCompletedCount: 0 };
+      let seed = 2166136261;
+      const seedInput = `${userId}:${currentWeekKey}:${missionId}`;
+      for (let i = 0; i < seedInput.length; i += 1) {
+        seed ^= seedInput.charCodeAt(i);
+        seed = Math.imul(seed, 16777619);
+      }
+      const jitter = ((seed >>> 0) % 1000) / 1000;
+      return {
+        ...mission,
+        missionId,
+        metricKey,
+        category: String(mission.category || '').toLowerCase().trim(),
+        score: difficultyScore
+          + Math.min(2, history.assignedCount * 0.35)
+          + (history.recentCompletedCount > 0 ? 0.5 : 0)
+          + jitter * 0.08,
+      };
+    })
+    .sort((a, b) => (a.score - b.score) || (a.missionId - b.missionId));
+
+  const selectedMissions = [];
+  const selectedIds = new Set();
+  const usedMetricKeys = new Set();
+  const usedCategories = new Set();
+
+  for (let index = 0; index < personalized.length; index += 1) {
+    const mission = personalized[index];
+    if (selectedMissions.length >= slotsToFill) break;
+    const remainingCandidates = personalized.length - index;
+    const remainingSlots = slotsToFill - selectedMissions.length;
+    const metricAlreadyUsed = mission.metricKey && usedMetricKeys.has(mission.metricKey);
+    const categoryAlreadyUsed = mission.category && usedCategories.has(mission.category);
+    const diversityFlexible = remainingCandidates <= remainingSlots;
+
+    if ((metricAlreadyUsed || categoryAlreadyUsed) && !diversityFlexible) {
+      continue;
+    }
+
+    selectedMissions.push(mission);
+    selectedIds.add(mission.missionId);
+    if (mission.metricKey) usedMetricKeys.add(mission.metricKey);
+    if (mission.category) usedCategories.add(mission.category);
+  }
+
+  if (selectedMissions.length < slotsToFill) {
+    for (const mission of personalized) {
+      if (selectedMissions.length >= slotsToFill) break;
+      if (selectedIds.has(mission.missionId)) continue;
+      selectedMissions.push(mission);
+      selectedIds.add(mission.missionId);
+    }
+  }
 
   for (const mission of selectedMissions) {
     const target = Math.max(1, Number(mission.target_value || 1));
@@ -1256,7 +1600,7 @@ const assignMonthlyMissionSlots = async (userId, metrics, now = new Date()) => {
   if (slotsToFill <= 0) return;
 
   const [missionTemplates] = await pool.execute(
-    `SELECT id, metric_key, target_value, expires_at
+    `SELECT id, category, metric_key, target_value, expires_at
      FROM missions
      WHERE mission_type = 'monthly'
        AND is_active = 1
@@ -1273,7 +1617,114 @@ const assignMonthlyMissionSlots = async (userId, metrics, now = new Date()) => {
     candidates = missionTemplates;
   }
 
-  const selectedMissions = candidates.slice(0, slotsToFill);
+  const candidateIds = candidates.map((mission) => Number(mission.id));
+  const candidatePlaceholders = candidateIds.map(() => '?').join(', ');
+  const historyRows = candidateIds.length
+    ? (await pool.execute(
+      `SELECT
+          mission_id,
+          COUNT(*) AS assigned_count,
+          SUM(
+            CASE
+              WHEN completed_at IS NOT NULL AND completed_at >= DATE_SUB(?, INTERVAL 90 DAY)
+                THEN 1
+              ELSE 0
+            END
+          ) AS recent_completed_count
+       FROM user_missions
+       WHERE user_id = ? AND mission_id IN (${candidatePlaceholders})
+       GROUP BY mission_id`,
+      [now, userId, ...candidateIds],
+    ))[0]
+    : [];
+
+  const historyByMissionId = new Map(
+    historyRows.map((row) => [
+      Number(row.mission_id || 0),
+      {
+        assignedCount: Number(row.assigned_count || 0),
+        recentCompletedCount: Number(row.recent_completed_count || 0),
+      },
+    ]),
+  );
+
+  const expectedByMetricKey = {
+    workouts_completed: Math.max(2, Number(metrics.workout_days_this_week || 0) * 4),
+    training_days: Math.max(2, Number(metrics.workout_days_this_week || 0) * 4),
+    recovery_logs_total: Math.max(2, Number(metrics.recovery_logs_this_week || 0) * 4),
+    recovery_streak_days: Math.max(2, Number(metrics.recovery_streak_days || 1)),
+  };
+
+  const personalized = candidates
+    .map((mission) => {
+      const missionId = Number(mission.id || 0);
+      const metricKey = String(mission.metric_key || '').toLowerCase().trim();
+      const expected = Math.max(
+        1,
+        Number(
+          expectedByMetricKey[metricKey]
+          || Math.max(
+            Number(metrics.workout_days_this_week || 0) * 4,
+            Number(metrics.recovery_logs_this_week || 0) * 4,
+            4,
+          ),
+        ),
+      );
+      const target = Math.max(1, Number(mission.target_value || 1));
+      const difficultyScore = Math.abs(target - expected) / expected;
+      const history = historyByMissionId.get(missionId) || { assignedCount: 0, recentCompletedCount: 0 };
+      let seed = 2166136261;
+      const seedInput = `${userId}:${currentMonthKey}:${missionId}`;
+      for (let i = 0; i < seedInput.length; i += 1) {
+        seed ^= seedInput.charCodeAt(i);
+        seed = Math.imul(seed, 16777619);
+      }
+      const jitter = ((seed >>> 0) % 1000) / 1000;
+      return {
+        ...mission,
+        missionId,
+        metricKey,
+        category: String(mission.category || '').toLowerCase().trim(),
+        score: difficultyScore
+          + Math.min(2, history.assignedCount * 0.35)
+          + (history.recentCompletedCount > 0 ? 0.8 : 0)
+          + jitter * 0.08,
+      };
+    })
+    .sort((a, b) => (a.score - b.score) || (a.missionId - b.missionId));
+
+  const selectedMissions = [];
+  const selectedIds = new Set();
+  const usedMetricKeys = new Set();
+  const usedCategories = new Set();
+
+  for (let index = 0; index < personalized.length; index += 1) {
+    const mission = personalized[index];
+    if (selectedMissions.length >= slotsToFill) break;
+    const remainingCandidates = personalized.length - index;
+    const remainingSlots = slotsToFill - selectedMissions.length;
+    const metricAlreadyUsed = mission.metricKey && usedMetricKeys.has(mission.metricKey);
+    const categoryAlreadyUsed = mission.category && usedCategories.has(mission.category);
+    const diversityFlexible = remainingCandidates <= remainingSlots;
+
+    if ((metricAlreadyUsed || categoryAlreadyUsed) && !diversityFlexible) {
+      continue;
+    }
+
+    selectedMissions.push(mission);
+    selectedIds.add(mission.missionId);
+    if (mission.metricKey) usedMetricKeys.add(mission.metricKey);
+    if (mission.category) usedCategories.add(mission.category);
+  }
+
+  if (selectedMissions.length < slotsToFill) {
+    for (const mission of personalized) {
+      if (selectedMissions.length >= slotsToFill) break;
+      if (selectedIds.has(mission.missionId)) continue;
+      selectedMissions.push(mission);
+      selectedIds.add(mission.missionId);
+    }
+  }
 
   for (const mission of selectedMissions) {
     const target = Math.max(1, Number(mission.target_value || 1));
@@ -1331,6 +1782,7 @@ const syncUserMissionProgress = async (userId, metrics, now = new Date()) => {
        um.target_value,
        um.status,
        um.completed_at,
+       um.assigned_at,
        um.created_at,
        m.title,
        m.description,
@@ -1398,6 +1850,7 @@ const syncUserMissionProgress = async (userId, metrics, now = new Date()) => {
       status,
       mission_type: row.mission_type,
       metric_key: row.metric_key,
+      assigned_at: row.assigned_at || row.created_at,
       created_at: row.created_at,
     });
   }
@@ -1440,7 +1893,7 @@ const syncUserChallengeProgress = async (userId, metrics, now = new Date()) => {
   const templateIds = templateRows.map((row) => Number(row.id));
   const templatePlaceholders = templateIds.map(() => '?').join(', ');
   const [existingRows] = await pool.execute(
-    `SELECT challenge_template_id, instance_key, current_progress, target_value, status, completed_at
+    `SELECT id, challenge_template_id, instance_key, current_progress, target_value, status, completed_at, created_at
      FROM user_challenges
      WHERE user_id = ? AND challenge_template_id IN (${templatePlaceholders})`,
     [userId, ...templateIds],
@@ -1470,22 +1923,24 @@ const syncUserChallengeProgress = async (userId, metrics, now = new Date()) => {
     const completed = alreadyCompleted || (!isExpired && progress >= target);
     const status = completed ? 'completed' : isExpired ? 'expired' : 'active';
     const completedAt = completed ? (existing?.completed_at || now) : null;
+    const createdAt = existing?.created_at || now;
     const expiresAt = challengeType === 'daily'
       ? endOfToday
       : challengeType === 'weekly'
         ? endOfThisWeek
         : template.expires_at || null;
 
-    await pool.execute(
+    const [challengeUpsertResult] = await pool.execute(
       `INSERT INTO user_challenges
          (user_id, challenge_template_id, instance_key, current_progress, target_value, status, completed_at, expires_at)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
        ON DUPLICATE KEY UPDATE
-         current_progress = VALUES(current_progress),
-         target_value = VALUES(target_value),
-         status = CASE
-           WHEN user_challenges.status = 'completed' THEN 'completed'
-           ELSE VALUES(status)
+          id = LAST_INSERT_ID(id),
+          current_progress = VALUES(current_progress),
+          target_value = VALUES(target_value),
+          status = CASE
+            WHEN user_challenges.status = 'completed' THEN 'completed'
+            ELSE VALUES(status)
          END,
          completed_at = CASE
            WHEN user_challenges.completed_at IS NOT NULL THEN user_challenges.completed_at
@@ -1505,9 +1960,10 @@ const syncUserChallengeProgress = async (userId, metrics, now = new Date()) => {
         expiresAt,
       ],
     );
+    const userChallengeId = Number(challengeUpsertResult?.insertId || 0);
 
     normalized.push({
-      id: templateId,
+      id: userChallengeId || templateId,
       title: template.title,
       description: template.description,
       challenge_type: challengeType,
@@ -1520,6 +1976,7 @@ const syncUserChallengeProgress = async (userId, metrics, now = new Date()) => {
       completed,
       remaining: Math.max(0, target - progress),
       completed_at: completedAt || null,
+      created_at: createdAt || null,
       status,
     });
   }
@@ -1629,6 +2086,318 @@ const refreshGamificationForUser = async (userId, baseDate = new Date()) => {
     missions,
     challenges,
     ...summary,
+  };
+};
+
+const getUserProgressionSnapshot = async (userId) => {
+  const normalizedUserId = Number(userId);
+  if (!Number.isFinite(normalizedUserId) || normalizedUserId <= 0) {
+    return {
+      totalXp: 0,
+      currentLevel: null,
+      nextLevel: null,
+      unlockedBadges: 0,
+      unlockedAchievements: 0,
+      availableRewards: 0,
+    };
+  }
+
+  const [xpRows] = await pool.execute(
+    `SELECT
+        COALESCE(ux.total_xp, 0) AS total_xp,
+        l.id AS level_id,
+        l.level_number,
+        l.level_name,
+        l.xp_required,
+        l.tier
+     FROM user_xp ux
+     LEFT JOIN levels l ON l.id = ux.current_level_id
+     WHERE ux.user_id = ?
+     LIMIT 1`,
+    [normalizedUserId],
+  );
+
+  const totalXp = Number(xpRows[0]?.total_xp || 0);
+  const currentLevel = xpRows[0]?.level_id
+    ? {
+        id: Number(xpRows[0].level_id),
+        levelNumber: Number(xpRows[0].level_number || 0),
+        name: xpRows[0].level_name || '',
+        xpRequired: Number(xpRows[0].xp_required || 0),
+        tier: Number(xpRows[0].tier || 0),
+      }
+    : null;
+
+  const [nextLevelRows] = await pool.execute(
+    `SELECT id, level_number, level_name, xp_required, tier
+     FROM levels
+     WHERE xp_required > ?
+     ORDER BY xp_required ASC, id ASC
+     LIMIT 1`,
+    [Math.max(0, totalXp)],
+  );
+
+  const nextLevel = nextLevelRows.length
+    ? {
+        id: Number(nextLevelRows[0].id),
+        levelNumber: Number(nextLevelRows[0].level_number || 0),
+        name: nextLevelRows[0].level_name || '',
+        xpRequired: Number(nextLevelRows[0].xp_required || 0),
+        tier: Number(nextLevelRows[0].tier || 0),
+      }
+    : null;
+
+  const [
+    [badgeRows],
+    [achievementRows],
+    [rewardRows],
+  ] = await Promise.all([
+    pool.execute(
+      `SELECT COUNT(*) AS total
+       FROM user_badges
+       WHERE user_id = ?`,
+      [normalizedUserId],
+    ),
+    pool.execute(
+      `SELECT COUNT(*) AS total
+       FROM user_achievements
+       WHERE user_id = ?`,
+      [normalizedUserId],
+    ),
+    pool.execute(
+      `SELECT COUNT(*) AS total
+       FROM user_rewards
+       WHERE user_id = ? AND status = 'available'`,
+      [normalizedUserId],
+    ),
+  ]);
+
+  return {
+    totalXp,
+    currentLevel,
+    nextLevel,
+    unlockedBadges: Number(badgeRows[0]?.total || 0),
+    unlockedAchievements: Number(achievementRows[0]?.total || 0),
+    availableRewards: Number(rewardRows[0]?.total || 0),
+  };
+};
+
+const getUserProgressionDetails = async (userId, options = {}) => {
+  const normalizedUserId = Number(userId);
+  const xpTransactionsLimit = Math.min(
+    50,
+    Math.max(5, Number(options?.xpTransactionsLimit || 20)),
+  );
+
+  if (!Number.isFinite(normalizedUserId) || normalizedUserId <= 0) {
+    return {
+      snapshot: await getUserProgressionSnapshot(0),
+      badges: [],
+      achievements: [],
+      rewards: [],
+      xpTransactions: [],
+      badgeTotals: { total: 0, unlocked: 0, hidden: 0, hiddenUnlocked: 0 },
+      achievementTotals: { total: 0, unlocked: 0 },
+      rewardTotals: { total: 0, available: 0, consumed: 0, expired: 0 },
+    };
+  }
+
+  const snapshot = await getUserProgressionSnapshot(normalizedUserId);
+
+  const [badgeRows] = await pool.execute(
+    `SELECT
+        b.id,
+        b.name,
+        b.slug,
+        b.description,
+        b.rarity,
+        b.is_hidden,
+        b.xp_reward,
+        b.points_reward,
+        bc.name AS category_name,
+        ub.unlocked_at,
+        ub.progress_value,
+        ub.is_seen,
+        ubp.current_value,
+        ubp.target_value,
+        ubp.percent_complete
+     FROM badges b
+     LEFT JOIN badge_categories bc ON bc.id = b.category_id
+     LEFT JOIN user_badges ub
+       ON ub.badge_id = b.id AND ub.user_id = ?
+     LEFT JOIN user_badge_progress ubp
+       ON ubp.badge_id = b.id AND ubp.user_id = ?
+     WHERE b.active = TRUE
+     ORDER BY b.is_hidden ASC, b.id ASC`,
+    [normalizedUserId, normalizedUserId],
+  );
+
+  const badges = badgeRows.map((row) => {
+    const isHidden = !!row.is_hidden;
+    const unlocked = !!row.unlocked_at;
+    const revealed = !isHidden || unlocked;
+    const currentProgress = Number(
+      row.current_value != null
+        ? row.current_value
+        : row.progress_value != null
+          ? row.progress_value
+          : 0,
+    );
+    const targetProgress = Number(row.target_value || 0);
+    const percentProgress = Number(
+      row.percent_complete != null
+        ? row.percent_complete
+        : unlocked
+          ? 100
+          : 0,
+    );
+
+    return {
+      id: Number(row.id),
+      slug: revealed ? (row.slug || '') : null,
+      category: row.category_name || null,
+      name: revealed ? (row.name || 'Badge') : 'Hidden Badge',
+      description: revealed ? (row.description || '') : 'Unlock this badge to reveal details.',
+      rarity: row.rarity || 'common',
+      isHidden,
+      revealed,
+      unlocked,
+      unlockedAt: row.unlocked_at || null,
+      isSeen: unlocked ? !!row.is_seen : false,
+      xpReward: revealed ? Number(row.xp_reward || 0) : null,
+      pointsReward: revealed ? Number(row.points_reward || 0) : null,
+      progress: {
+        current: Math.max(0, currentProgress),
+        target: Math.max(0, targetProgress),
+        percent: Math.max(0, Math.min(100, percentProgress)),
+      },
+    };
+  });
+
+  const [achievementRows] = await pool.execute(
+    `SELECT
+        a.id,
+        a.name,
+        a.slug,
+        a.description,
+        a.xp_reward,
+        a.reward_id,
+        ua.unlocked_at
+     FROM achievements a
+     LEFT JOIN user_achievements ua
+       ON ua.achievement_id = a.id AND ua.user_id = ?
+     ORDER BY a.id ASC`,
+    [normalizedUserId],
+  );
+
+  const achievements = achievementRows.map((row) => ({
+    id: Number(row.id),
+    name: row.name || 'Achievement',
+    slug: row.slug || '',
+    description: row.description || '',
+    xpReward: Number(row.xp_reward || 0),
+    rewardId: row.reward_id == null ? null : Number(row.reward_id),
+    unlocked: !!row.unlocked_at,
+    unlockedAt: row.unlocked_at || null,
+  }));
+
+  const [rewardRows] = await pool.execute(
+    `SELECT
+        ur.id AS user_reward_id,
+        ur.source_type,
+        ur.source_id,
+        ur.granted_at,
+        ur.consumed_at,
+        ur.status,
+        r.id AS reward_id,
+        r.reward_type,
+        r.name,
+        r.description,
+        r.value_json
+     FROM user_rewards ur
+     JOIN rewards r ON r.id = ur.reward_id
+     WHERE ur.user_id = ?
+     ORDER BY FIELD(ur.status, 'available', 'consumed', 'expired'), ur.granted_at DESC, ur.id DESC
+     LIMIT 200`,
+    [normalizedUserId],
+  );
+
+  const rewards = rewardRows.map((row) => {
+    let value = row.value_json;
+    if (typeof value === 'string') {
+      try {
+        value = JSON.parse(value);
+      } catch {
+        value = null;
+      }
+    }
+    return {
+      userRewardId: Number(row.user_reward_id),
+      id: Number(row.reward_id),
+      name: row.name || 'Reward',
+      rewardType: row.reward_type || 'cosmetic',
+      description: row.description || null,
+      valueJson: value ?? null,
+      sourceType: row.source_type || 'manual',
+      sourceId: row.source_id == null ? null : Number(row.source_id),
+      status: row.status || 'available',
+      grantedAt: row.granted_at || null,
+      consumedAt: row.consumed_at || null,
+    };
+  });
+
+  const [xpRows] = await pool.execute(
+    `SELECT
+        id,
+        source_type,
+        source_id,
+        xp_amount,
+        description,
+        created_at
+     FROM xp_transactions
+     WHERE user_id = ?
+     ORDER BY created_at DESC, id DESC
+     LIMIT ?`,
+    [normalizedUserId, xpTransactionsLimit],
+  );
+
+  const xpTransactions = xpRows.map((row) => ({
+    id: Number(row.id),
+    sourceType: row.source_type || '',
+    sourceId: row.source_id == null ? null : Number(row.source_id),
+    xpAmount: Number(row.xp_amount || 0),
+    description: row.description || null,
+    createdAt: row.created_at || null,
+  }));
+
+  const badgeTotals = {
+    total: badges.length,
+    unlocked: badges.filter((badge) => badge.unlocked).length,
+    hidden: badges.filter((badge) => badge.isHidden).length,
+    hiddenUnlocked: badges.filter((badge) => badge.isHidden && badge.unlocked).length,
+  };
+
+  const achievementTotals = {
+    total: achievements.length,
+    unlocked: achievements.filter((achievement) => achievement.unlocked).length,
+  };
+
+  const rewardTotals = {
+    total: rewards.length,
+    available: rewards.filter((reward) => reward.status === 'available').length,
+    consumed: rewards.filter((reward) => reward.status === 'consumed').length,
+    expired: rewards.filter((reward) => reward.status === 'expired').length,
+  };
+
+  return {
+    snapshot,
+    badges,
+    achievements,
+    rewards,
+    xpTransactions,
+    badgeTotals,
+    achievementTotals,
+    rewardTotals,
   };
 };
 
@@ -4707,12 +5476,15 @@ router.post('/user/:userId/program/today-workout/miss', async (req, res) => {
       ],
     );
 
+    const gamification = await refreshGamificationForUser(userId);
+
     return res.json({
       success: true,
       missedDate,
       workoutName,
       assignmentId: Number(context.assignment.id || 0) || null,
       workoutId: Number(context.todayWorkout.id || 0) || null,
+      gamification: toGamificationPayload(gamification),
     });
   } catch (error) {
     if (isMissedProgramDaysUnavailableError(error)) {
@@ -5934,7 +6706,7 @@ router.post('/user/:userId/recovery', async (req, res) => {
       proteinIntake: normalizedProteinIntake,
     });
 
-    await pool.execute(
+    const [recoveryInsertResult] = await pool.execute(
       `INSERT INTO recovery_history
          (user_id, overall_recovery_score, sleep_hours, nutrition_quality, stress_level)
        VALUES (?, ?, ?, ?, ?)`,
@@ -5942,18 +6714,19 @@ router.post('/user/:userId/recovery', async (req, res) => {
     );
 
     const gamification = await refreshGamificationForUser(userId);
+    const progression = await runProgressionEventSafely({
+      userId,
+      gamification,
+      eventSourceType: 'sleep',
+      eventSourceId: toNumber(recoveryInsertResult?.insertId, null),
+      eventDescription: 'Recovery check-in completed',
+    });
 
     return res.json({
       success: true,
       recoveryScore,
-      gamification: gamification
-        ? {
-            totalPoints: gamification.totalPoints,
-            rank: gamification.rank,
-            completedMissions: gamification.completedMissions,
-            completedChallenges: gamification.completedChallenges,
-          }
-        : null,
+      gamification: toGamificationPayload(gamification),
+      progression,
     });
   } catch (error) {
     return res.status(500).json({ error: error.message });
@@ -6287,6 +7060,8 @@ router.get('/missions/:userId/history', async (req, res) => {
       return res.status(400).json({ error: 'Invalid userId' });
     }
 
+    await refreshGamificationForUser(userId);
+
     const [rows] = await pool.execute(
       `SELECT m.title, m.points_reward, um.completed_at,
               DATE_FORMAT(um.completed_at, '%M %Y') AS period
@@ -6338,6 +7113,8 @@ router.get('/challenges/:userId/history', async (req, res) => {
       return res.status(400).json({ error: 'Invalid userId' });
     }
 
+    await refreshGamificationForUser(userId);
+
     const [rows] = await pool.execute(
       `SELECT
           ct.title,
@@ -6370,6 +7147,11 @@ router.get('/gamification/:userId/summary', async (req, res) => {
     if (!refreshed) {
       return res.status(404).json({ error: 'User not found' });
     }
+    const progression = await runProgressionEventSafely({
+      userId,
+      gamification: refreshed,
+    });
+    const progressionSnapshot = await getUserProgressionSnapshot(userId);
 
     return res.json({
       userId: refreshed.userId,
@@ -6379,10 +7161,78 @@ router.get('/gamification/:userId/summary', async (req, res) => {
       rank: refreshed.rank,
       nextRank: refreshed.nextRank,
       totalWorkouts: refreshed.totalWorkouts,
+      totalXp: progressionSnapshot.totalXp,
+      currentLevel: progressionSnapshot.currentLevel,
+      nextLevel: progressionSnapshot.nextLevel,
+      unlockedBadges: progressionSnapshot.unlockedBadges,
+      unlockedAchievements: progressionSnapshot.unlockedAchievements,
+      availableRewards: progressionSnapshot.availableRewards,
       completedMissions: refreshed.completedMissions,
       completedChallenges: refreshed.completedChallenges,
       activeMissions: refreshed.missions.filter((m) => m.status === 'active').length,
       activeChallenges: refreshed.challenges.filter((c) => c.status === 'active').length,
+      progression,
+    });
+  } catch (error) {
+    return res.status(500).json({ error: error.message });
+  }
+});
+
+router.get('/gamification/:userId/progression', async (req, res) => {
+  try {
+    const userId = toNumber(req.params.userId);
+    if (!userId || userId <= 0) {
+      return res.status(400).json({ error: 'Invalid userId' });
+    }
+
+    const refreshed = await refreshGamificationForUser(userId);
+    if (!refreshed) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    const progression = await runProgressionEventSafely({
+      userId,
+      gamification: refreshed,
+    });
+
+    const xpTransactionsLimit = toNumber(req.query?.txLimit, 20);
+    const details = await getUserProgressionDetails(userId, {
+      xpTransactionsLimit,
+    });
+
+    return res.json({
+      userId: refreshed.userId,
+      points: {
+        total: refreshed.totalPoints,
+        mission: refreshed.missionPoints,
+        challenge: refreshed.challengePoints,
+        blog: refreshed.blogPoints,
+      },
+      rank: {
+        current: refreshed.rank,
+        next: refreshed.nextRank,
+      },
+      xp: {
+        total: details.snapshot.totalXp,
+        currentLevel: details.snapshot.currentLevel,
+        nextLevel: details.snapshot.nextLevel,
+      },
+      missions: {
+        completed: refreshed.completedMissions,
+        active: refreshed.missions.filter((m) => m.status === 'active').length,
+      },
+      challenges: {
+        completed: refreshed.completedChallenges,
+        active: refreshed.challenges.filter((c) => c.status === 'active').length,
+      },
+      badges: details.badges,
+      badgeTotals: details.badgeTotals,
+      achievements: details.achievements,
+      achievementTotals: details.achievementTotals,
+      rewards: details.rewards,
+      rewardTotals: details.rewardTotals,
+      xpTransactions: details.xpTransactions,
+      progression,
     });
   } catch (error) {
     return res.status(500).json({ error: error.message });
@@ -7447,18 +8297,18 @@ router.post('/workout-sets', async (req, res) => {
     const gamification = completed
       ? await refreshGamificationForUser(normalizedUserId)
       : null;
+    const progression = completed
+      ? await runProgressionEventSafely({
+          userId: normalizedUserId,
+          gamification,
+        })
+      : null;
 
     return res.json({
       success: true,
       exerciseCatalogId: resolvedCatalogId || null,
-      gamification: gamification
-        ? {
-            totalPoints: gamification.totalPoints,
-            rank: gamification.rank,
-            completedMissions: gamification.completedMissions,
-            completedChallenges: gamification.completedChallenges,
-          }
-        : null,
+      gamification: toGamificationPayload(gamification),
+      progression,
     });
   } catch (error) {
     return res.status(500).json({ error: error.message });
@@ -7713,19 +8563,23 @@ router.post('/workout-sessions/complete-day', async (req, res) => {
     });
 
     const gamification = await refreshGamificationForUser(userId);
+    const sourceType = req.body?.programAssignmentId ? 'planned_workout' : 'workout';
+    const progression = await runProgressionEventSafely({
+      userId,
+      gamification,
+      eventSourceType: sourceType,
+      eventSourceId: sessionResult.sessionId,
+      eventDescription: sessionResult.created
+        ? 'Workout day completed'
+        : 'Workout day completion confirmed',
+    });
 
     return res.json({
       success: true,
       sessionId: sessionResult.sessionId,
       created: sessionResult.created,
-      gamification: gamification
-        ? {
-            totalPoints: gamification.totalPoints,
-            rank: gamification.rank,
-            completedMissions: gamification.completedMissions,
-            completedChallenges: gamification.completedChallenges,
-          }
-        : null,
+      gamification: toGamificationPayload(gamification),
+      progression,
     });
   } catch (error) {
     return res.status(500).json({ error: error.message || 'Failed to finalize workout session' });
@@ -7848,8 +8702,11 @@ router.post('/workout-summaries', async (req, res) => {
       [userId, summaryDate],
     );
 
+    const gamification = await refreshGamificationForUser(userId);
+
     return res.status(201).json({
       summary: rows.length ? mapWorkoutDaySummaryRow(rows[0]) : null,
+      gamification: toGamificationPayload(gamification),
     });
   } catch (error) {
     return res.status(500).json({ error: error.message || 'Failed to save workout summary' });

@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { api } from '../services/api';
 import { Header } from '../components/ui/Header';
+import { ModernSelect } from '../components/ui/ModernSelect';
 
 type PostCategory = 'Training' | 'Nutrition' | 'Recovery' | 'Mindset';
 type FeedCategory = 'All' | 'Women' | PostCategory;
@@ -1212,15 +1213,11 @@ export function Blogs() {
               />
               <div className="text-[11px] text-text-secondary text-right">{newDescription.length}/{DESCRIPTION_MAX_LENGTH}</div>
 
-              <select
+              <ModernSelect
                 value={newCategory}
-                onChange={(event) => setNewCategory(event.target.value as PostCategory)}
-                className="w-full bg-background border border-white/10 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-accent/60"
-              >
-                {CATEGORY_OPTIONS.map((option) => (
-                  <option key={option} value={option}>{option}</option>
-                ))}
-              </select>
+                onChange={(nextValue) => setNewCategory(nextValue as PostCategory)}
+                options={CATEGORY_OPTIONS.map((option) => ({ value: option, label: option }))}
+              />
 
               {canCreateWomenOnlyPost && (
                 <label className="flex items-center gap-3 rounded-xl border border-white/10 bg-background px-3 py-3 text-sm text-white cursor-pointer">

@@ -293,51 +293,54 @@ export function WorkoutCard({
           {!isResolvedRestDay && (
             <button
               type="button"
-              className="mt-5 inline-flex w-fit items-center justify-center rounded-full border border-accent/30 bg-accent/20 px-7 py-2.5 text-sm font-semibold text-text-primary shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_8px_18px_rgba(0,0,0,0.18)]"
+              className="mt-5 inline-flex w-fit items-center justify-center whitespace-nowrap rounded-full border border-accent/30 bg-accent/20 px-7 py-2.5 text-sm font-marker text-text-primary shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_8px_18px_rgba(0,0,0,0.18)]"
             >
               Start Workout
             </button>
           )}
         </div>
 
-        <div className="relative h-32 w-32 shrink-0">
-          <svg className="h-full w-full -rotate-90" viewBox="0 0 132 132">
-            <circle cx="66" cy="66" r={radius} stroke="rgb(var(--color-border) / 0.55)" strokeWidth="6" fill="transparent" />
+        <div className="flex shrink-0 flex-col items-center">
+          <div className="relative h-36 w-36">
+            <svg className="h-full w-full -rotate-90" viewBox="0 0 132 132">
+              <circle cx="66" cy="66" r={radius} stroke="rgb(var(--color-border) / 0.55)" strokeWidth="6" fill="transparent" />
 
-            <motion.circle
-              cx="66"
-              cy="66"
-              r={radius}
-              stroke="rgb(var(--color-accent))"
-              strokeWidth="6"
-              fill="transparent"
-              strokeDasharray={circumference}
-              initial={{
-                strokeDashoffset: circumference,
-              }}
-              animate={{
-                strokeDashoffset,
-              }}
-              transition={{
-                duration: 1.3,
-                ease: 'easeOut',
-              }}
-              strokeLinecap="round"
-              className="drop-shadow-[0_0_8px_rgba(187,255,92,0.2)]"
-            />
-          </svg>
+              <motion.circle
+                cx="66"
+                cy="66"
+                r={radius}
+                stroke="rgb(var(--color-accent))"
+                strokeWidth="6"
+                fill="transparent"
+                strokeDasharray={circumference}
+                initial={{
+                  strokeDashoffset: circumference,
+                }}
+                animate={{
+                  strokeDashoffset,
+                }}
+                transition={{
+                  duration: 1.3,
+                  ease: 'easeOut',
+                }}
+                strokeLinecap="round"
+                className="drop-shadow-[0_0_8px_rgba(187,255,92,0.2)]"
+              />
+            </svg>
 
-          <div className="absolute inset-0 flex flex-col items-center justify-center px-3 text-center">
-            <span
-              className="max-w-full px-2 text-4xl text-text-primary leading-none font-electrolize"
-              style={{ fontSize: progressLabelSize }}
-            >
-              {safeProgress}%
-            </span>
-            <span className="mt-2 text-[10px] font-semibold uppercase tracking-[0.16em] text-text-tertiary">
-              {isResolvedRestDay ? 'Recovery' : 'Complete'}
-            </span>
+            <div className="absolute inset-0 grid place-items-center px-3 text-center">
+              <span
+                className="max-w-full px-2 text-4xl text-text-primary leading-none font-electrolize"
+                style={{ fontSize: progressLabelSize }}
+              >
+                {safeProgress}%
+              </span>
+            </div>
           </div>
+
+          <span className="mt-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-text-tertiary">
+            {isResolvedRestDay ? 'Recovery' : 'Complete'}
+          </span>
         </div>
       </div>
     </motion.div>

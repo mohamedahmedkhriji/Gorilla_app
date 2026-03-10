@@ -6,6 +6,7 @@ import { api } from '../services/api';
 import type { FriendMember } from './FriendsList';
 interface FriendProfileProps {
   onBack: () => void;
+  onChallenge: () => void;
   friend?: FriendMember | null;
 }
 type FriendPost = {
@@ -71,7 +72,7 @@ const formatRelativeDay = (isoDate: string) => {
 
 const QUICK_SESSION_TIMES = ['06:30', '08:00', '17:30', '19:00'];
 
-export function FriendProfile({ onBack, friend }: FriendProfileProps) {
+export function FriendProfile({ onBack, onChallenge, friend }: FriendProfileProps) {
   const [showInvite, setShowInvite] = useState(false);
   const [showAvatarPreview, setShowAvatarPreview] = useState(false);
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
@@ -254,11 +255,22 @@ export function FriendProfile({ onBack, friend }: FriendProfileProps) {
       </div>
 
       <div className="px-4 sm:px-6 space-y-6">
-        <button 
-          onClick={() => setShowInvite(true)}
-          className="w-full bg-accent text-black font-bold py-3 rounded-xl hover:bg-accent/90 transition-colors">
-          Invite to Gym Day
-        </button>
+        <div className="grid grid-cols-2 gap-3">
+          <button
+            type="button"
+            onClick={() => setShowInvite(true)}
+            className="w-full bg-accent text-black font-bold py-3 rounded-xl hover:bg-accent/90 transition-colors"
+          >
+            Invite to Gym Day
+          </button>
+          <button
+            type="button"
+            onClick={onChallenge}
+            className="w-full border border-white/15 bg-white/5 text-white font-bold py-3 rounded-xl hover:bg-white/10 transition-colors"
+          >
+            Challenge
+          </button>
+        </div>
 
         <div className="space-y-3">
           <h3 className="text-sm font-bold text-text-secondary uppercase tracking-wider">
@@ -346,14 +358,14 @@ export function FriendProfile({ onBack, friend }: FriendProfileProps) {
 
       {showInvite && (
         <div
-          className="fixed inset-0 z-50 bg-black/70 backdrop-blur-md flex items-end sm:items-center justify-center p-0 sm:p-6"
+          className="fixed inset-x-0 top-0 bottom-[calc(env(safe-area-inset-bottom,0px)+5.5rem)] z-40 bg-black/70 backdrop-blur-md flex items-end sm:inset-0 sm:items-center sm:justify-center overflow-hidden p-0 sm:p-6"
           onClick={() => setShowInvite(false)}
         >
           <div
-            className="w-full sm:max-w-md rounded-t-3xl sm:rounded-3xl border border-white/15 bg-gradient-to-b from-[#1f1f25] to-[#131318] shadow-2xl"
+            className="w-full sm:max-w-md rounded-t-3xl sm:rounded-3xl border border-white/15 bg-gradient-to-b from-[#1f1f25] to-[#131318] shadow-2xl max-h-full sm:max-h-[88vh] min-h-0 flex flex-col overflow-hidden"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="p-5 sm:p-6 border-b border-white/10">
+            <div className="shrink-0 border-b border-white/10 bg-[linear-gradient(180deg,rgba(31,31,37,0.98),rgba(19,19,24,0.95))] p-5 sm:p-6">
               <div className="flex justify-between items-start gap-4">
                 <div>
                   <h3 className="text-xl font-bold text-white">Invite to Session</h3>
@@ -376,7 +388,7 @@ export function FriendProfile({ onBack, friend }: FriendProfileProps) {
               </div>
             </div>
 
-            <div className="p-5 sm:p-6 space-y-6">
+            <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain touch-pan-y [-webkit-overflow-scrolling:touch] p-5 pb-24 sm:p-6 sm:pb-6 space-y-6">
               <div>
                 <div className="flex items-center justify-between mb-4">
                   <button

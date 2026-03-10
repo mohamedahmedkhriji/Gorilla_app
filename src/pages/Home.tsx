@@ -330,6 +330,7 @@ type HomeView =
 'main' |
 'friends' |
 'friendProfile' |
+'friendChallenge' |
 'coachList' |
 'chat' |
 'calculator' |
@@ -780,7 +781,37 @@ export function Home({ onNavigate }: HomeProps) {
 
 
   if (view === 'friendProfile')
-  return <FriendProfile onBack={() => setView('friends')} friend={selectedFriend} />;
+  return (
+    <FriendProfile
+      onBack={() => setView('friends')}
+      onChallenge={() => setView('friendChallenge')}
+      friend={selectedFriend}
+    />
+  );
+  if (view === 'friendChallenge') {
+    return (
+      <div className="flex-1 flex flex-col bg-background min-h-screen pb-24">
+        <div className="px-4 sm:px-6 pt-2">
+          <button
+            type="button"
+            onClick={() => setView('friendProfile')}
+            className="inline-flex items-center gap-2 rounded-xl surface-glass px-3 py-2 text-sm text-text-primary"
+          >
+            <ArrowLeft size={16} />
+            Back
+          </button>
+        </div>
+        <div className="px-4 sm:px-6 pt-8">
+          <div className="surface-card rounded-2xl border border-white/10 p-5">
+            <h2 className="text-xl font-semibold text-white">Challenge</h2>
+            <p className="mt-2 text-sm text-text-secondary">
+              Challenge screen placeholder for {selectedFriend?.name || 'this friend'}.
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
   if (view === 'coachList')
   return <CoachList onBack={() => setView('main')} onSelectCoach={(id, name) => { setSelectedCoach({id, name}); setView('chat'); }} />;
   if (view === 'chat') return <Messaging onBack={() => setView('coachList')} coachId={selectedCoach?.id} coachName={selectedCoach?.name} />;

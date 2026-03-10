@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { X, Bed, Check, CalendarX2 } from 'lucide-react';
 import { formatWorkoutDayLabel, formatWorkoutDayShortLabel, normalizeWorkoutDayKey } from '../../services/workoutDayLabel';
 
-export function AgendaSection({ userProgram, programProgress }: { userProgram?: any; programProgress?: any }) {
+export function AgendaSection({ userProgram }: { userProgram?: any; programProgress?: any }) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [selectedDay, setSelectedDay] = useState<any>(null);
   const today = new Date();
@@ -95,32 +95,6 @@ export function AgendaSection({ userProgram, programProgress }: { userProgram?: 
     };
   });
 
-  // Calculate sessions left this week
-  const currentWeekStart = new Date(today);
-  currentWeekStart.setDate(today.getDate() - today.getDay());
-  const currentWeekEnd = new Date(currentWeekStart);
-  currentWeekEnd.setDate(currentWeekStart.getDate() + 6);
-  
-  const fallbackSessionsLeftThisWeek = days.filter(d => {
-    const isThisWeek = d.fullDate >= currentWeekStart && d.fullDate <= currentWeekEnd;
-    const isWorkout = d.label !== 'Rest';
-    const isUpcoming = d.status === 'active' || d.status === 'upcoming';
-    return isThisWeek && isWorkout && isUpcoming;
-  }).length;
-
-  const plannedThisWeek = Number(programProgress?.workoutsPlannedThisWeek);
-  const completedThisWeek = Number(programProgress?.workoutsCompletedThisWeek);
-  const progressSessionsLeftThisWeek =
-    Number.isFinite(Number(programProgress?.workoutsRemainingThisWeek))
-      ? Math.max(0, Number(programProgress?.workoutsRemainingThisWeek || 0))
-      : Number.isFinite(plannedThisWeek) && Number.isFinite(completedThisWeek)
-        ? Math.max(0, plannedThisWeek - completedThisWeek - Number(programProgress?.workoutsMissedThisWeek || 0))
-      : null;
-  const sessionsLeftThisWeek =
-    progressSessionsLeftThisWeek == null
-      ? fallbackSessionsLeftThisWeek
-      : Math.max(progressSessionsLeftThisWeek, fallbackSessionsLeftThisWeek);
-
   // Scroll to current day on mount
   useEffect(() => {
     if (scrollRef.current) {
@@ -133,9 +107,8 @@ export function AgendaSection({ userProgram, programProgress }: { userProgram?: 
 
   return (
     <div className="space-y-3">
-      <div className="flex justify-between items-end px-1">
+      <div className="flex items-end px-1">
         <h3 className="text-[11px] font-semibold text-text-secondary uppercase tracking-[0.15em]">Weekly Agenda</h3>
-        <span className="text-[11px] text-accent font-semibold uppercase tracking-[0.1em]">{sessionsLeftThisWeek} Sessions Left</span>
       </div>
 
       <div className="rounded-2xl surface-card border border-white/15 px-2 py-3">

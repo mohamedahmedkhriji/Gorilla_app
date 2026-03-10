@@ -3,6 +3,7 @@ import { Loader2, Pencil, Trash2 } from 'lucide-react';
 import { Header } from '../ui/Header';
 import { Card } from '../ui/Card';
 import { api } from '../../services/api';
+import { ModernSelect } from '../ui/ModernSelect';
 
 type PostCategory = 'Training' | 'Nutrition' | 'Recovery' | 'Mindset';
 
@@ -367,15 +368,11 @@ export function MyPostsScreen({ onBack }: MyPostsScreenProps) {
               {editDescription.length}/{DESCRIPTION_MAX_LENGTH}
             </div>
 
-            <select
+            <ModernSelect
               value={editCategory}
-              onChange={(event) => setEditCategory(event.target.value as PostCategory)}
-              className="w-full bg-background border border-white/10 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-accent/60"
-            >
-              {CATEGORY_OPTIONS.map((category) => (
-                <option key={category} value={category}>{category}</option>
-              ))}
-            </select>
+              onChange={(nextValue) => setEditCategory(nextValue as PostCategory)}
+              options={CATEGORY_OPTIONS.map((category) => ({ value: category, label: category }))}
+            />
 
             {editError && (
               <div className="text-sm text-red-300">{editError}</div>
@@ -405,4 +402,3 @@ export function MyPostsScreen({ onBack }: MyPostsScreenProps) {
     </div>
   );
 }
-

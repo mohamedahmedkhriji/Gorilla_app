@@ -1,10 +1,17 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Header } from '../ui/Header';
 import { Card } from '../ui/Card';
-import { Trophy, BarChart3, Target, Calendar } from 'lucide-react';
+import { Trophy } from 'lucide-react';
 import { LeaderboardScreen } from './LeaderboardScreen';
 import { api } from '../../services/api';
 import { getRankBadgeImage } from '../../services/rankTheme';
+import {
+  emojiChallenges,
+  emojiDone,
+  emojiMissions,
+  emojiNew,
+  emojiViewLeaderboard,
+} from '../../services/emojiTheme';
 
 interface RankingsRewardsScreenProps {
   onBack: () => void;
@@ -21,6 +28,8 @@ type MissionItem = {
   remaining: number;
   status?: 'active' | 'completed' | 'expired';
   completed_at?: string | null;
+  assigned_at?: string | null;
+  created_at?: string | null;
 };
 
 type ChallengeItem = {
@@ -35,6 +44,7 @@ type ChallengeItem = {
   remaining: number;
   status?: 'active' | 'completed' | 'expired';
   completed_at?: string | null;
+  created_at?: string | null;
 };
 
 type Summary = {
@@ -42,6 +52,37 @@ type Summary = {
   rank: string;
   nextRank: { name: string; minPoints: number; pointsNeeded: number } | null;
 };
+
+const NEW_ITEM_WINDOW_MS = 24 * 60 * 60 * 1000;
+
+const isNewWithin24Hours = (dateValue?: string | null) => {
+  if (!dateValue) return false;
+  const timestamp = new Date(dateValue).getTime();
+  if (!Number.isFinite(timestamp)) return false;
+  return Date.now() - timestamp <= NEW_ITEM_WINDOW_MS;
+};
+
+function CardLoadingSkeleton({ tone = 'accent' }: { tone?: 'accent' | 'blue' }) {
+  const barTone = tone === 'blue' ? 'bg-blue-400/45' : 'bg-accent/45';
+  return (
+    <Card className="!p-2.5">
+      <div className="animate-pulse">
+        <div className="flex items-start justify-between mb-2">
+          <div className="h-4 w-40 rounded bg-white/10" />
+          <div className="h-5 w-12 rounded bg-white/10" />
+        </div>
+        <div className="h-3 w-full rounded bg-white/10 mb-1.5" />
+        <div className="h-3 w-2/3 rounded bg-white/10 mb-2" />
+        <div className="flex items-center gap-2">
+          <div className="flex-1 h-1.5 rounded-full bg-white/5 overflow-hidden">
+            <div className={`h-full w-1/2 rounded-full ${barTone}`} />
+          </div>
+          <div className="h-3 w-12 rounded bg-white/10" />
+        </div>
+      </div>
+    </Card>
+  );
+}
 
 export function RankingsRewardsScreen({ onBack }: RankingsRewardsScreenProps) {
   const [showLeaderboard, setShowLeaderboard] = useState(false);
@@ -240,7 +281,7 @@ export function RankingsRewardsScreen({ onBack }: RankingsRewardsScreenProps) {
           className="w-full bg-card rounded-lg p-3 border border-white/5 flex items-center justify-between hover:border-accent/20 transition-colors"
         >
           <div className="flex items-center gap-3">
-            <BarChart3 size={20} className="text-accent" />
+            <img src={emojiViewLeaderboard} alt="View Leaderboard" className="w-5 h-5 object-contain" />
             <div className="text-left">
               <h4 className="font-semibold text-white text-sm">View Leaderboard</h4>
               <p className="text-xs text-text-secondary">See gym rankings</p>
@@ -254,7 +295,7 @@ export function RankingsRewardsScreen({ onBack }: RankingsRewardsScreenProps) {
           className="w-full bg-card rounded-lg p-3 border border-white/5 flex items-center justify-between hover:border-accent/20 transition-colors"
         >
           <div className="flex items-center gap-3">
-            <Calendar size={20} className="text-accent" />
+            <img src={emojiChallenges} alt="Challenges" className="w-5 h-5 object-contain" />
             <div className="text-left">
               <h4 className="font-semibold text-white text-sm">Mission & Challenge History</h4>
               <p className="text-xs text-text-secondary">View completed items</p>
@@ -264,20 +305,47 @@ export function RankingsRewardsScreen({ onBack }: RankingsRewardsScreenProps) {
         </button>
 
         {loading ? (
-          <p className="text-center text-text-secondary text-sm">Loading rewards...</p>
+          <div className="space-y-3">
+            <div className="space-y-2">
+              <div className="flex items-center gap-2">
+                <img src={emojiMissions} alt="Missions" className="w-4 h-4 object-contain opacity-70" />
+                <h3 className="text-xs font-bold text-text-secondary uppercase tracking-wider">Active Missions</h3>
+              </div>
+              <div className="space-y-2">
+                <CardLoadingSkeleton tone="accent" />
+                <CardLoadingSkeleton tone="accent" />
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <div className="flex items-center gap-2">
+                <img src={emojiChallenges} alt="Challenges" className="w-4 h-4 object-contain opacity-70" />
+                <h3 className="text-xs font-bold text-text-secondary uppercase tracking-wider">Active Challenges</h3>
+              </div>
+              <div className="space-y-2">
+                <CardLoadingSkeleton tone="blue" />
+                <CardLoadingSkeleton tone="blue" />
+              </div>
+            </div>
+          </div>
         ) : (
           <>
             {activeMissions.length > 0 && (
               <div className="space-y-2">
                 <div className="flex items-center gap-2">
-                  <Target size={16} className="text-accent" />
+                  <img src={emojiMissions} alt="Missions" className="w-4 h-4 object-contain" />
                   <h3 className="text-xs font-bold text-text-secondary uppercase tracking-wider">Active Missions</h3>
                 </div>
                 <div className="space-y-2">
                   {activeMissions.map((mission) => (
                     <Card key={mission.id} className="!p-2.5">
                       <div className="flex justify-between items-start mb-2">
-                        <h4 className="font-semibold text-white text-sm">{mission.title}</h4>
+                        <div className="flex items-center gap-1.5">
+                          <h4 className="font-semibold text-white text-sm">{mission.title}</h4>
+                          {isNewWithin24Hours(mission.assigned_at || mission.created_at) && (
+                            <img src={emojiNew} alt="new" className="w-6 h-4 object-contain" />
+                          )}
+                        </div>
                         <span className="text-xs font-bold text-accent bg-accent/10 px-2 py-0.5 rounded">
                           +{mission.points_reward}
                         </span>
@@ -306,7 +374,7 @@ export function RankingsRewardsScreen({ onBack }: RankingsRewardsScreenProps) {
             {(activeDailyChallenges.length > 0 || activeWeeklyChallenges.length > 0) && (
               <div className="space-y-2">
                 <div className="flex items-center gap-2">
-                  <Target size={16} className="text-blue-400" />
+                  <img src={emojiMissions} alt="Missions" className="w-4 h-4 object-contain" />
                   <h3 className="text-xs font-bold text-text-secondary uppercase tracking-wider">Active Challenges</h3>
                 </div>
                 <div className="space-y-2">
@@ -314,7 +382,12 @@ export function RankingsRewardsScreen({ onBack }: RankingsRewardsScreenProps) {
                     <Card key={`${challenge.challenge_type}-${challenge.id}`} className="!p-2.5">
                       <div className="flex justify-between items-start mb-2">
                         <div>
-                          <h4 className="font-semibold text-white text-sm">{challenge.title}</h4>
+                          <div className="flex items-center gap-1.5">
+                            <h4 className="font-semibold text-white text-sm">{challenge.title}</h4>
+                            {isNewWithin24Hours(challenge.created_at) && (
+                              <img src={emojiNew} alt="new" className="w-6 h-4 object-contain" />
+                            )}
+                          </div>
                           <p className="text-[11px] text-text-secondary mt-0.5 uppercase">{challenge.challenge_type}</p>
                         </div>
                         <span className="text-xs font-bold text-blue-400 bg-blue-400/10 px-2 py-0.5 rounded">
@@ -355,7 +428,7 @@ export function RankingsRewardsScreen({ onBack }: RankingsRewardsScreenProps) {
                         <h4 className="font-semibold text-white text-sm">{mission.title}</h4>
                         <p className="text-xs text-text-secondary mt-0.5">{mission.description}</p>
                       </div>
-                      <span className="text-green-500 text-lg">✓</span>
+                      <img src={emojiDone} alt="done" className="w-4 h-4 object-contain" />
                     </div>
                   </Card>
                 ))}
@@ -375,7 +448,7 @@ export function RankingsRewardsScreen({ onBack }: RankingsRewardsScreenProps) {
                         <h4 className="font-semibold text-white text-sm">{challenge.title}</h4>
                         <p className="text-xs text-text-secondary mt-0.5">{challenge.description}</p>
                       </div>
-                      <span className="text-green-500 text-lg">✓</span>
+                      <img src={emojiDone} alt="done" className="w-4 h-4 object-contain" />
                     </div>
                   </Card>
                 ))}

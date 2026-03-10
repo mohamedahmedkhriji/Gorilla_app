@@ -320,7 +320,7 @@ export function ProfileScreen({ onNavigate, onLogout }: ProfileScreenProps) {
         <button
           type="button"
           onClick={onLogout}
-          className="w-full p-4 rounded-2xl bg-red-500/10 text-red-500 font-medium flex items-center justify-center gap-2 hover:bg-red-500/20 transition-colors"
+          className="w-full p-4 rounded-2xl bg-red-500/10 text-red-500 font-marker flex items-center justify-center gap-2 hover:bg-red-500/20 transition-colors"
         >
           <LogOut size={20} />
           Log Out
