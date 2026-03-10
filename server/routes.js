@@ -2332,6 +2332,31 @@ const computeWorkoutStreak = (dateRows, missedDateRows = []) => {
   }
 };
 
+const isMissedProgramDaysUnavailableError = (error) => {
+  const code = String(error?.code || '').toUpperCase();
+  const errno = Number(error?.errno || 0);
+  const isSchemaError = code === 'ER_NO_SUCH_TABLE'
+    || code === 'ER_BAD_FIELD_ERROR'
+    || errno === 1146
+    || errno === 1054;
+  if (!isSchemaError) return false;
+
+  const message = String(error?.sqlMessage || error?.message || '').toLowerCase();
+  return message.includes('missed_program_days');
+};
+
+const isUsersGamificationColumnError = (error) => {
+  const code = String(error?.code || '').toUpperCase();
+  const errno = Number(error?.errno || 0);
+  if (!(code === 'ER_BAD_FIELD_ERROR' || errno === 1054)) return false;
+
+  const message = String(error?.sqlMessage || error?.message || '').toLowerCase();
+  if (!message.includes('users')) return false;
+  return message.includes('total_points')
+    || message.includes('total_workouts')
+    || message.includes('rank');
+};
+
 const getMissedProgramDayRows = async ({ userId, dateFrom = null, dateTo = null, limit = null } = {}) => {
   const normalizedUserId = toNumber(userId, 0);
   if (!normalizedUserId) return [];
@@ -2361,8 +2386,15 @@ const getMissedProgramDayRows = async ({ userId, dateFrom = null, dateTo = null,
     params.push(Math.round(Number(limit)));
   }
 
-  const [rows] = await pool.execute(sql, params);
-  return Array.isArray(rows) ? rows : [];
+  try {
+    const [rows] = await pool.execute(sql, params);
+    return Array.isArray(rows) ? rows : [];
+  } catch (error) {
+    if (isMissedProgramDaysUnavailableError(error)) {
+      return [];
+    }
+    throw error;
+  }
 };
 
 const normalizeCatalogMuscleGroup = (raw) => {
@@ -4683,6 +4715,11 @@ router.post('/user/:userId/program/today-workout/miss', async (req, res) => {
       workoutId: Number(context.todayWorkout.id || 0) || null,
     });
   } catch (error) {
+    if (isMissedProgramDaysUnavailableError(error)) {
+      return res.status(503).json({
+        error: 'Missed workout tracking schema is not available yet. Run migration 2026-03-10_missed_program_days.sql.',
+      });
+    }
     return res.status(500).json({ error: error?.message || 'Failed to mark workout day as missed' });
   }
 });
@@ -4949,7 +4986,7 @@ router.get('/user/:userId/program-progress', async (req, res) => {
     let adaptationInfo = null;
     if (currentWeek % 2 === 0) {
       try {
-        adaptationInfo = await adaptProgramBiWeekly(pool, { userId: Number(userId), trigger: 'auto_progress_poll' });
+        adaptationInfo = await adaptProgramBiWeekly(pool, { userId: normalizedUserId, trigger: 'auto_progress_poll' });
       } catch {
         adaptationInfo = null;
       }
@@ -5039,13 +5076,20 @@ router.get('/user/:userId/program-progress', async (req, res) => {
       dateTo: formatDateISO(weekEnd),
     });
 
-    const [userRows] = await pool.execute(
-      `SELECT total_points, total_workouts, \`rank\`
-       FROM users
-       WHERE id = ?
-       LIMIT 1`,
-      [normalizedUserId],
-    );
+    let userRows = [];
+    try {
+      const [resolvedUserRows] = await pool.execute(
+        `SELECT total_points, total_workouts, \`rank\`
+         FROM users
+         WHERE id = ?
+         LIMIT 1`,
+        [normalizedUserId],
+      );
+      userRows = Array.isArray(resolvedUserRows) ? resolvedUserRows : [];
+    } catch (error) {
+      if (!isUsersGamificationColumnError(error)) throw error;
+      userRows = [];
+    }
 
     const completedFromSessions = Number(completedRows[0]?.completed_workouts || 0);
     const completedWeekFromSessions = Number(weekCompletedRows[0]?.completed_week || 0);
