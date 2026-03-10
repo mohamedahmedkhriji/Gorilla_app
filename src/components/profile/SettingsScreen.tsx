@@ -405,7 +405,12 @@ export function SettingsScreen({ onBack, onOpenGym }: SettingsScreenProps) {
         heightCm: personalDetails.heightCm.trim() ? Number(personalDetails.heightCm) : null,
         weightKg: personalDetails.weightKg.trim() ? Number(personalDetails.weightKg) : null,
       });
-      const nextUser = { ...user, name: personalDetails.name, email: personalDetails.email };
+      const nextUser = {
+        ...user,
+        name: personalDetails.name,
+        email: personalDetails.email,
+        gender: personalDetails.gender,
+      };
       localStorage.setItem('appUser', JSON.stringify(nextUser));
       localStorage.setItem('user', JSON.stringify(nextUser));
       setDetailsMessage(copy.savedSuccessfully);

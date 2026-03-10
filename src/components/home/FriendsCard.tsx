@@ -15,6 +15,14 @@ interface FriendProfile {
   friend_status?: string;
 }
 
+const toFriendStatus = (value: unknown) => {
+  const raw = String(value || '').trim().toLowerCase();
+  if (raw === 'accepted') return 'accepted';
+  if (raw === 'outgoing_pending') return 'outgoing_pending';
+  if (raw === 'incoming_pending') return 'incoming_pending';
+  return 'none';
+};
+
 const getActiveUserId = () => {
   try {
     const user = JSON.parse(localStorage.getItem('appUser') || localStorage.getItem('user') || '{}');
@@ -37,7 +45,7 @@ export function FriendsCard({ onClick }: FriendsCardProps) {
 
         const response = await api.getGymMembers(userId);
         const members = Array.isArray(response?.members) ? response.members : [];
-        const acceptedFriends = members.filter((member) => String(member?.friend_status || '') === 'accepted');
+        const acceptedFriends = members.filter((member) => toFriendStatus(member?.friend_status) === 'accepted');
         setFriends(acceptedFriends);
       } catch (error) {
         console.error('Failed to load friends:', error);
@@ -80,8 +88,7 @@ export function FriendsCard({ onClick }: FriendsCardProps) {
       </div>
 
       <div className="mt-4">
-        <div className="text-4xl leading-none text-white">{friends.length}</div>
-        <div className="text-[10px] text-text-secondary font-semibold uppercase tracking-[0.12em] mt-1">Friends</div>
+        <div className="text-2xl font-electrolize leading-none text-white">Friends</div>
       </div>
 
       <div className="flex -space-x-2 mt-3">

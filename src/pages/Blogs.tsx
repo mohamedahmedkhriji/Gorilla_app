@@ -18,7 +18,7 @@ import { api } from '../services/api';
 import { Header } from '../components/ui/Header';
 
 type PostCategory = 'Training' | 'Nutrition' | 'Recovery' | 'Mindset';
-type FeedCategory = 'All' | PostCategory;
+type FeedCategory = 'All' | 'Women' | PostCategory;
 
 type FeedCursor = {
   cursorCreatedAt: string;
@@ -29,6 +29,8 @@ type Post = {
   id: number;
   userId: number;
   authorName: string;
+  authorGender: string;
+  womenOnly: boolean;
   avatarUrl: string;
   verified: boolean;
   description: string;
@@ -56,7 +58,6 @@ type BlogComment = {
 type ShareDestination = 'whatsapp' | 'facebook' | 'messages' | 'instagram' | 'copy';
 
 const CATEGORY_OPTIONS: PostCategory[] = ['Training', 'Nutrition', 'Recovery', 'Mindset'];
-const CATEGORY_FILTERS: FeedCategory[] = ['All', ...CATEGORY_OPTIONS];
 const FEED_PAGE_LIMIT = 20;
 const DESCRIPTION_MAX_LENGTH = 5000;
 const MEDIA_PAYLOAD_LIMIT = 8000000;
@@ -100,6 +101,8 @@ const mapPost = (raw: Record<string, unknown>): Post => ({
   id: Number(raw.id || 0),
   userId: Number(raw.userId || 0),
   authorName: String(raw.authorName || 'User'),
+  authorGender: String(raw.authorGender || ''),
+  womenOnly: Boolean(raw.womenOnly),
   avatarUrl: String(raw.avatarUrl || ''),
   verified: true,
   description: String(raw.description || ''),
@@ -170,6 +173,21 @@ const getUserProfileImage = () => {
   }
 };
 
+const getUserGender = () => {
+  try {
+    const raw = localStorage.getItem('appUser') || localStorage.getItem('user') || '{}';
+    const user = JSON.parse(raw);
+    return String(user?.gender || '').trim().toLowerCase();
+  } catch {
+    return '';
+  }
+};
+
+const isFemaleGender = (value: unknown) => {
+  const normalized = String(value || '').trim().toLowerCase();
+  return normalized === 'female' || normalized === 'woman' || normalized === 'femme';
+};
+
 const DEFAULT_AVATAR = 'https://images.unsplash.com/photo-1633332755192-727a05c4013d?auto=format&fit=crop&w=120&q=80';
 
 const fileToDataUrl = (file: File) =>
@@ -201,6 +219,9 @@ const renderDescription = (description: string, overlay = false) =>
 export function Blogs() {
   const userId = useMemo(() => getUserId(), []);
   const userProfileImage = useMemo(() => getUserProfileImage(), []);
+  const [userGender, setUserGender] = useState(() => getUserGender());
+  const showWomenFilter = isFemaleGender(userGender);
+  const canCreateWomenOnlyPost = showWomenFilter;
   const [posts, setPosts] = useState<Post[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -221,6 +242,7 @@ export function Blogs() {
   const [newCategory, setNewCategory] = useState<PostCategory>('Recovery');
   const [newMediaType, setNewMediaType] = useState<'image' | 'video'>('image');
   const [newMediaUrl, setNewMediaUrl] = useState('');
+  const [newWomenOnly, setNewWomenOnly] = useState(false);
   const [createError, setCreateError] = useState('');
 
   const [activeCommentsPostId, setActiveCommentsPostId] = useState<number | null>(null);
@@ -251,12 +273,16 @@ export function Blogs() {
 
   const visiblePosts = useMemo(() => {
     if (activeCategory === 'All') return posts;
+    if (activeCategory === 'Women') {
+      return posts.filter((post) => isFemaleGender(post.authorGender));
+    }
     return posts.filter((post) => post.category === activeCategory);
   }, [activeCategory, posts]);
 
   const categoryCounts = useMemo(() => {
     const counts: Record<FeedCategory, number> = {
       All: posts.length,
+      Women: 0,
       Training: 0,
       Nutrition: 0,
       Recovery: 0,
@@ -264,11 +290,37 @@ export function Blogs() {
     };
 
     posts.forEach((post) => {
+      if (isFemaleGender(post.authorGender)) counts.Women += 1;
       counts[post.category] += 1;
     });
 
     return counts;
   }, [posts]);
+
+  const categoryFilters = useMemo<FeedCategory[]>(
+    () => (showWomenFilter ? ['All', 'Women', ...CATEGORY_OPTIONS] : ['All', ...CATEGORY_OPTIONS]),
+    [showWomenFilter],
+  );
+
+  useEffect(() => {
+    const loadViewerGender = async () => {
+      if (!userId) return;
+      try {
+        const profile = await api.getProfileDetails(userId);
+        setUserGender(String(profile?.gender || '').trim().toLowerCase());
+      } catch {
+        // Keep the local cached fallback if profile details fail to load.
+      }
+    };
+
+    void loadViewerGender();
+  }, [userId]);
+
+  useEffect(() => {
+    if (!showWomenFilter && activeCategory === 'Women') {
+      setActiveCategory('All');
+    }
+  }, [activeCategory, showWomenFilter]);
 
   const removePostFromView = useCallback((postId: number) => {
     setPosts((prev) => prev.filter((post) => post.id !== postId));
@@ -683,6 +735,7 @@ export function Blogs() {
         mediaType: newMediaType,
         mediaUrl: newMediaUrl,
         mediaAlt: 'User uploaded media',
+        womenOnly: canCreateWomenOnlyPost && newWomenOnly,
       });
       const created = response?.post ? mapPost(response.post) : null;
       if (created) {
@@ -696,6 +749,7 @@ export function Blogs() {
       setNewCategory('Recovery');
       setNewMediaType('image');
       setNewMediaUrl('');
+      setNewWomenOnly(false);
       setIsCreateOpen(false);
     } catch (err) {
       setCreateError(err instanceof Error ? err.message : 'Failed to publish post');
@@ -754,7 +808,7 @@ export function Blogs() {
         </p>
 
         <div className="flex gap-2 overflow-x-auto pb-1">
-          {CATEGORY_FILTERS.map((category) => {
+          {categoryFilters.map((category) => {
             const isActive = activeCategory === category;
             return (
               <button
@@ -835,7 +889,14 @@ export function Blogs() {
                 />
                 <div className="min-w-0 flex-1">
                   <h3 className="truncate text-[17px] font-semibold leading-none text-[#111827]">{post.authorName}</h3>
-                  <div className="mt-1 text-xs text-[#6B7280]">{getPostedAgo(post.createdAt).replace('Posted ', '')}</div>
+                  <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-[#6B7280]">
+                    <span>{getPostedAgo(post.createdAt).replace('Posted ', '')}</span>
+                    {post.womenOnly && (
+                      <span className="rounded-full bg-[#FCE7F3] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-[#BE185D]">
+                        Women only
+                      </span>
+                    )}
+                  </div>
                 </div>
                 <div className="relative" data-no-open="true" data-post-menu-root="true">
                   <button
@@ -1122,6 +1183,7 @@ export function Blogs() {
           onClick={() => {
             setIsCreateOpen(false);
             setCreateError('');
+            setNewWomenOnly(false);
           }}
         >
           <div className="w-full max-w-md bg-card rounded-2xl border border-white/10 p-4" onClick={(event) => event.stopPropagation()}>
@@ -1132,6 +1194,7 @@ export function Blogs() {
                 onClick={() => {
                   setIsCreateOpen(false);
                   setCreateError('');
+                  setNewWomenOnly(false);
                 }}
                 className="w-8 h-8 rounded-full bg-white/10 text-[#FFFFFF] flex items-center justify-center"
               >
@@ -1158,6 +1221,23 @@ export function Blogs() {
                   <option key={option} value={option}>{option}</option>
                 ))}
               </select>
+
+              {canCreateWomenOnlyPost && (
+                <label className="flex items-center gap-3 rounded-xl border border-white/10 bg-background px-3 py-3 text-sm text-white cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={newWomenOnly}
+                    onChange={(event) => setNewWomenOnly(event.target.checked)}
+                    className="h-4 w-4 rounded border-white/20 bg-transparent text-accent focus:ring-accent/40"
+                  />
+                  <span className="flex-1">
+                    Post for women only
+                    <span className="block text-[11px] text-text-secondary mt-0.5">
+                      Only women will see this post in the blog feed.
+                    </span>
+                  </span>
+                </label>
+              )}
 
               <label className="flex items-center justify-center gap-2 w-full border border-dashed border-white/20 rounded-xl px-3 py-3 text-sm text-text-secondary cursor-pointer hover:border-accent/60 hover:text-white transition-colors">
                 <Upload size={16} />

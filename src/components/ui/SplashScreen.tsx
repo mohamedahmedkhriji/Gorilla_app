@@ -130,9 +130,14 @@ export function SplashScreen({ onComplete }: SplashScreenProps) {
             transition={{
               delay: 0.2,
             }}
-            className="absolute z-10 bottom-12 left-0 right-0 text-center text-white/90 text-sm md:text-base font-semibold tracking-[0.35em] uppercase"
+            className="absolute z-10 bottom-12 left-0 right-0 text-center text-white/90 text-lg md:text-xl font-semibold tracking-[0.35em] uppercase leading-[1.8]"
           >
-            Train Smart Train Strong.
+            <span className="block">
+              Train <span className="font-bold text-accent">Smart</span>
+            </span>
+            <span className="block">
+              Train <span className="font-bold text-accent">Strong</span>
+            </span>
           </motion.p>
         </motion.div>
       )}

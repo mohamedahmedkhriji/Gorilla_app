@@ -293,6 +293,7 @@ export const api = {
     mediaType: 'image' | 'video';
     mediaUrl: string;
     mediaAlt?: string;
+    womenOnly?: boolean;
   }) => {
     const res = await fetch(`${API_URL}/blogs`, {
       method: 'POST',

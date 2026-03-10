@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
-import { ArrowLeft, MoonStar } from 'lucide-react';
+import { ArrowLeft, ChevronRight, MoonStar } from 'lucide-react';
 import { WorkoutCard } from '../components/dashboard/WorkoutCard';
 import { RecoveryIndicator } from '../components/dashboard/RecoveryIndicator';
 import { RankDisplay } from '../components/dashboard/RankDisplay';
@@ -340,6 +340,7 @@ export function Home({ onNavigate }: HomeProps) {
   });
   const [programProgress, setProgramProgress] = useState<any>(null);
   const [showShopComingSoon, setShowShopComingSoon] = useState(false);
+  const [showBooksComingSoon, setShowBooksComingSoon] = useState(false);
   const [extraTodayExercises, setExtraTodayExercises] = useState<any[]>(
     () => loadTodayExtraExercises(workoutStorageKeys),
   );
@@ -855,14 +856,12 @@ export function Home({ onNavigate }: HomeProps) {
           }}
           className="grid grid-cols-2 gap-4">
 
-          <GhostButton onClick={() => setView('nutrition')}>
-            My Nutrition
+          <GhostButton onClick={() => setView('nutrition')} className="justify-between">
+            <span>My Nutrition</span>
+            <ChevronRight size={18} className="mb-1 shrink-0 text-text-tertiary" />
           </GhostButton>
           <GhostButton onClick={() => setShowShopComingSoon(true)}>
-            <span className="inline-flex items-center gap-2">
-              <img src={emojiShop} alt="Shop" className="h-5 w-5 object-contain" />
-              <span>Shop</span>
-            </span>
+            Shop
           </GhostButton>
         </motion.div>
 
@@ -891,10 +890,32 @@ export function Home({ onNavigate }: HomeProps) {
           </div>
         )}
 
+        {showBooksComingSoon && (
+          <div
+            className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-6"
+            onClick={() => setShowBooksComingSoon(false)}
+          >
+            <div
+              className="w-full max-w-sm surface-glass border border-white/15 rounded-2xl p-5 text-center"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <h3 className="text-xl font-semibold text-white">Books</h3>
+              <p className="text-sm text-text-secondary mt-2">Coming soon</p>
+              <button
+                type="button"
+                onClick={() => setShowBooksComingSoon(false)}
+                className="mt-4 w-full bg-accent text-black py-2.5 rounded-xl font-semibold hover:bg-accent/90 transition-colors"
+              >
+                OK
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* Education */}
         <EducationSection
           onExercises={() => setView('exercises')}
-          onBooks={() => setView('books')} />
+          onBooks={() => setShowBooksComingSoon(true)} />
 
 
         {/* Calculators */}

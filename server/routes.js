@@ -7779,6 +7779,11 @@ const clampBlogLimit = (value, fallback = 20, max = 50) => {
   return Math.min(max, parsed);
 };
 
+const isFemaleGender = (value) => {
+  const normalized = String(value || '').trim().toLowerCase();
+  return normalized === 'female' || normalized === 'woman' || normalized === 'femme';
+};
+
 const toIsoTimestamp = (value) => {
   if (!value) return null;
   const date = value instanceof Date ? value : new Date(value);
@@ -7811,6 +7816,8 @@ const mapBlogPostRow = (row) => ({
   id: Number(row.id),
   userId: Number(row.user_id),
   authorName: row.author_name || 'User',
+  authorGender: row.author_gender || '',
+  womenOnly: Number(row.women_only || 0) === 1,
   avatarUrl: row.avatar_url || '',
   category: row.category || 'Recovery',
   description: row.description || '',
@@ -7850,8 +7857,10 @@ const fetchBlogPostById = async (postId, viewerUserId = 0) => {
        bp.media_type,
        bp.media_url,
        bp.media_alt,
+       COALESCE(bp.women_only, 0) AS women_only,
        bp.created_at,
        u.name AS author_name,
+       COALESCE(u.gender, '') AS author_gender,
        ${avatarSelect},
        COALESCE(l.like_count, 0) AS likes_count,
        COALESCE(v.view_count, 0) AS views_count,
@@ -7900,9 +7909,26 @@ router.get('/blogs', async (req, res) => {
 
     const profileImageColumn = await getProfileImageColumn();
     const avatarSelect = profileImageColumn ? `COALESCE(u.${profileImageColumn}, '') AS avatar_url` : `'' AS avatar_url`;
+    let viewerIsFemale = false;
+
+    if (viewerUserId > 0) {
+      const [viewerRows] = await pool.query(
+        `SELECT gender
+         FROM users
+         WHERE id = ?
+         LIMIT 1`,
+        [viewerUserId],
+      );
+      viewerIsFemale = isFemaleGender(viewerRows[0]?.gender);
+    }
 
     const params = [viewerUserId];
     const whereParts = [];
+
+    if (!viewerIsFemale) {
+      whereParts.push('(COALESCE(bp.women_only, 0) = 0 OR bp.user_id = ?)');
+      params.push(viewerUserId);
+    }
 
     if (authorId) {
       whereParts.push('bp.user_id = ?');
@@ -7928,8 +7954,10 @@ router.get('/blogs', async (req, res) => {
          bp.media_type,
          bp.media_url,
          bp.media_alt,
+         COALESCE(bp.women_only, 0) AS women_only,
          bp.created_at,
          u.name AS author_name,
+         COALESCE(u.gender, '') AS author_gender,
          ${avatarSelect},
          COALESCE(l.like_count, 0) AS likes_count,
          COALESCE(v.view_count, 0) AS views_count,
@@ -8013,10 +8041,14 @@ router.post('/blogs', async (req, res) => {
 
     const mediaAltRaw = String(req.body?.mediaAlt || '').trim();
     const mediaAlt = mediaAltRaw.slice(0, 255) || 'User uploaded media';
+    const womenOnly = Boolean(req.body?.womenOnly);
 
-    const [existingUsers] = await pool.execute('SELECT id FROM users WHERE id = ? LIMIT 1', [userId]);
+    const [existingUsers] = await pool.execute('SELECT id, gender FROM users WHERE id = ? LIMIT 1', [userId]);
     if (!existingUsers.length) {
       return res.status(404).json({ error: 'User not found' });
+    }
+    if (womenOnly && !isFemaleGender(existingUsers[0]?.gender)) {
+      return res.status(403).json({ error: 'Only women can publish women-only posts' });
     }
 
     const [result] = await pool.execute(
@@ -8026,9 +8058,10 @@ router.post('/blogs', async (req, res) => {
          description,
          media_type,
          media_url,
-         media_alt
-       ) VALUES (?, ?, ?, ?, ?, ?)`,
-      [userId, category, description, mediaType, mediaUrl, mediaAlt],
+         media_alt,
+         women_only
+       ) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      [userId, category, description, mediaType, mediaUrl, mediaAlt, womenOnly ? 1 : 0],
     );
 
     const postId = Number(result.insertId);
