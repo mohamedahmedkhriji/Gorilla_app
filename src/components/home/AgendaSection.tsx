@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { X, Bed, Check, CalendarX2 } from 'lucide-react';
+import { formatWorkoutDayLabel, formatWorkoutDayShortLabel, normalizeWorkoutDayKey } from '../../services/workoutDayLabel';
 
 export function AgendaSection({ userProgram, programProgress }: { userProgram?: any; programProgress?: any }) {
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -38,7 +39,7 @@ export function AgendaSection({ userProgram, programProgress }: { userProgram?: 
   programWorkouts.forEach((w: any, index: number) => {
     const order = Number(w?.day_order || index + 1);
     const fallbackDayName = fallbackWeekdays[((order - 1) % fallbackWeekdays.length + fallbackWeekdays.length) % fallbackWeekdays.length];
-    const key = String(w?.day_name || fallbackDayName).toLowerCase();
+    const key = normalizeWorkoutDayKey(w?.day_name || fallbackDayName);
     if (!key) return;
     if (!workoutByDayName.has(key)) workoutByDayName.set(key, w);
   });
@@ -73,7 +74,7 @@ export function AgendaSection({ userProgram, programProgress }: { userProgram?: 
     let label = 'Rest';
     let exercises: string[] = [];
 
-    const weekdayKey = date.toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase();
+    const weekdayKey = normalizeWorkoutDayKey(date.toLocaleDateString('en-US', { weekday: 'long' }));
     const dayWorkout = workoutByDayName.get(weekdayKey);
     if (dayWorkout) {
       label = getWorkoutLabel(dayWorkout.workout_name || dayWorkout.name || '');
@@ -84,7 +85,8 @@ export function AgendaSection({ userProgram, programProgress }: { userProgram?: 
     const isMissed = missedDateKeys.has(dateKey);
 
     return {
-      day: date.toLocaleDateString('en-US', { weekday: 'short' }),
+      day: formatWorkoutDayShortLabel(weekdayKey, date.toLocaleDateString('en-US', { weekday: 'short' })),
+      dayLabel: formatWorkoutDayLabel(weekdayKey, date.toLocaleDateString('en-US', { weekday: 'long' })),
       date: date.getDate(),
       fullDate: date,
       label,
@@ -197,12 +199,16 @@ export function AgendaSection({ userProgram, programProgress }: { userProgram?: 
                   {selectedDay.fullDate.toLocaleDateString('en-US', { month: 'long', day: 'numeric' })}
                 </h3>
                 <p className="text-xs uppercase tracking-[0.1em] text-text-secondary mt-2">
-                  {selectedDay.label === 'Rest' ? 'Recovery Day' : selectedDay.label}
+                  {(selectedDay.dayLabel || '').toUpperCase()}
                 </p>
               </div>
               <button onClick={() => setSelectedDay(null)} className="text-text-secondary hover:text-white">
                 <X size={20} />
               </button>
+            </div>
+
+            <div className="mb-4 text-sm text-text-secondary">
+              {selectedDay.label === 'Rest' ? 'Recovery Day' : selectedDay.label}
             </div>
 
             {selectedDay.status === 'missed' ? (

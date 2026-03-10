@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Header } from '../ui/Header';
 import { api } from '../../services/api';
+import { formatWorkoutDayLabel } from '../../services/workoutDayLabel';
 
 interface CurrentWeekPlanScreenProps {
   onBack: () => void;
@@ -135,7 +136,9 @@ export function CurrentWeekPlanScreen({ onBack, onOpenWorkout, onCreateCustom }:
               <div key={`${workout.id}-${workout.day_order}`} className="bg-card rounded-xl border border-white/10 p-4">
                 <div className="flex items-center justify-between gap-2">
                   <div>
-                    <div className="text-xs uppercase text-text-secondary">{workout.day_name || `Day ${workout.day_order}`}</div>
+                    <div className="text-xs uppercase text-text-secondary">
+                      {formatWorkoutDayLabel(workout.day_name, '') || `Day ${workout.day_order}`}
+                    </div>
                     <div className="text-white font-semibold">{workout.workout_name}</div>
                   </div>
                   {workout.workout_type && (

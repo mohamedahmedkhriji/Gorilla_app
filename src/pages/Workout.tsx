@@ -6,6 +6,7 @@ import { ExerciseVideoScreen } from '../components/workout/ExerciseVideoScreen';
 import { WorkoutPlanScreen } from '../components/workout/WorkoutPlanScreen';
 import { TrackerScreen } from '../components/workout/TrackerScreen';
 import { api } from '../services/api';
+import { formatWorkoutDayLabel, normalizeWorkoutDayKey } from '../services/workoutDayLabel';
 
 interface WorkoutProps {
   onBack: () => void;
@@ -498,21 +499,21 @@ const resolveTodayWorkoutPayload = (program: any) => {
 
   if (!todayWorkout && !weeklyWorkouts.length) return null;
 
-  const clientWeekdayKey = new Date().toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase();
+  const clientWeekdayKey = normalizeWorkoutDayKey(new Date().toLocaleDateString('en-US', { weekday: 'long' }));
   const normalizedTodayName = String(todayWorkout?.name || '').trim().toLowerCase();
-  const normalizedTodayDay = String(todayWorkout?.dayName || '').trim().toLowerCase();
+  const normalizedTodayDay = normalizeWorkoutDayKey(todayWorkout?.dayName);
   const weeklyWorkoutByClientDay = weeklyWorkouts.find((workout: any) =>
-    String(workout?.day_name || '').trim().toLowerCase() === clientWeekdayKey,
+    normalizeWorkoutDayKey(workout?.day_name) === clientWeekdayKey,
   );
   const weeklyWorkoutByName = weeklyWorkouts.find((workout: any) =>
     String(workout?.workout_name || '').trim().toLowerCase() === normalizedTodayName,
   );
   const weeklyWorkoutByServerDay = weeklyWorkouts.find((workout: any) =>
-    String(workout?.day_name || '').trim().toLowerCase() === normalizedTodayDay,
+    normalizeWorkoutDayKey(workout?.day_name) === normalizedTodayDay,
   );
   const todayNameMatchesClientDay = !!(
     weeklyWorkoutByName
-    && String(weeklyWorkoutByName?.day_name || '').trim().toLowerCase() === clientWeekdayKey
+    && normalizeWorkoutDayKey(weeklyWorkoutByName?.day_name) === clientWeekdayKey
   );
   const shouldUseTodayPayload = !!(
     todayWorkout
@@ -539,9 +540,14 @@ const resolveTodayWorkoutPayload = (program: any) => {
   const exercises = shouldUseTodayPayload
     ? (weeklyExercises.length > directExercises.length ? weeklyExercises : directExercises)
     : weeklyExercises;
+  const resolvedDayKey =
+    normalizeWorkoutDayKey(resolvedWorkout?.day_name)
+    || normalizeWorkoutDayKey(todayWorkout?.dayName)
+    || clientWeekdayKey;
 
   return {
     exercises,
+    dayLabel: formatWorkoutDayLabel(resolvedDayKey, 'Rest Day'),
     name: resolveWorkoutDisplayName(
       (shouldUseTodayPayload ? todayWorkout?.name : '') || resolvedWorkout?.workout_name || todayWorkout?.name || '',
       exercises,
@@ -560,6 +566,7 @@ export function Workout({ onBack, workoutDay = 'Push Day' }: WorkoutProps) {
   const [view, setView] = useState<ViewState>('plan');
   const [selectedExercise, setSelectedExercise] = useState('Bench Press');
   const [currentWorkoutName, setCurrentWorkoutName] = useState(workoutDay);
+  const [currentWorkoutDayLabel, setCurrentWorkoutDayLabel] = useState(formatWorkoutDayLabel(new Date().toLocaleDateString('en-US', { weekday: 'long' }), workoutDay));
   const [todayExercises, setTodayExercises] = useState<TodayWorkoutExercise[]>([]);
   const [loading, setLoading] = useState(true);
   const [completedExercises, setCompletedExercises] = useState<string[]>([]);
@@ -654,6 +661,7 @@ export function Workout({ onBack, workoutDay = 'Push Day' }: WorkoutProps) {
         if (!userId) {
           setTodayExercises([]);
           setCurrentWorkoutName('Rest Day');
+          setCurrentWorkoutDayLabel('Rest Day');
           localStorage.setItem(workoutStorageKeys.exerciseCount, '0');
           localStorage.removeItem(workoutStorageKeys.exerciseSnapshot);
           setLoading(false);
@@ -667,6 +675,7 @@ export function Workout({ onBack, workoutDay = 'Push Day' }: WorkoutProps) {
         if (!todayWorkout && !resolvedWorkout) {
           setTodayExercises([]);
           setCurrentWorkoutName('Rest Day');
+          setCurrentWorkoutDayLabel('Rest Day');
           localStorage.setItem(workoutStorageKeys.exerciseCount, '0');
           localStorage.removeItem(workoutStorageKeys.exerciseSnapshot);
           setLoading(false);
@@ -685,6 +694,7 @@ export function Workout({ onBack, workoutDay = 'Push Day' }: WorkoutProps) {
           : [];
 
         syncTodayExercises([...normalizedExercises, ...normalizedExtras]);
+        setCurrentWorkoutDayLabel(String(resolvedWorkout?.dayLabel || formatWorkoutDayLabel(todayWorkout?.dayName, '') || workoutDay).trim() || 'Rest Day');
         setCurrentWorkoutName(
           resolveWorkoutDisplayName(
             resolvedWorkout?.name || todayWorkout?.name || workoutDay,
@@ -695,6 +705,7 @@ export function Workout({ onBack, workoutDay = 'Push Day' }: WorkoutProps) {
         console.error('Failed to fetch today workout:', error);
         setTodayExercises([]);
         setCurrentWorkoutName('Rest Day');
+        setCurrentWorkoutDayLabel('Rest Day');
         localStorage.setItem(workoutStorageKeys.exerciseCount, '0');
         localStorage.removeItem(workoutStorageKeys.exerciseSnapshot);
       } finally {
@@ -1256,6 +1267,7 @@ export function Workout({ onBack, workoutDay = 'Push Day' }: WorkoutProps) {
         onMissDay={markTodayWorkoutAsMissed}
         hasLatestSummary={hasLatestSummary}
         workoutDay={currentWorkoutName}
+        workoutDayLabel={currentWorkoutDayLabel}
         completedExercises={completedExercises}
         todayExercises={todayExercises}
         loading={loading}

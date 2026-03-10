@@ -12,6 +12,7 @@ interface WorkoutPlanScreenProps {
   onOpenLatestSummary?: () => void;
   hasLatestSummary?: boolean;
   workoutDay: string;
+  workoutDayLabel?: string;
   completedExercises: string[];
   todayExercises: any[];
   loading: boolean;
@@ -104,6 +105,7 @@ export function WorkoutPlanScreen({
   onOpenLatestSummary,
   hasLatestSummary = false,
   workoutDay,
+  workoutDayLabel,
   completedExercises,
   todayExercises,
   loading,
@@ -254,9 +256,11 @@ export function WorkoutPlanScreen({
   }, [catalog, searchQuery, selectedCatalogMuscle]);
 
   const isRestDayView = useMemo(() => {
-    const label = String(workoutDay || '').trim().toLowerCase();
+    const label = `${String(workoutDayLabel || '').trim().toLowerCase()} ${String(workoutDay || '').trim().toLowerCase()}`;
     return label.includes('rest') || label.includes('recovery');
-  }, [workoutDay]);
+  }, [workoutDay, workoutDayLabel]);
+
+  const headerTitle = String(workoutDayLabel || workoutDay || 'Workout').trim() || 'Workout';
 
   const headerActions = (
     <div className="flex items-center gap-2">
@@ -295,7 +299,7 @@ export function WorkoutPlanScreen({
       <div className="flex-1 flex flex-col h-full bg-background pb-24">
         <div className="px-4 sm:px-6 pt-2">
           <Header
-            title={workoutDay}
+            title={headerTitle}
             onBack={onBack}
             rightElement={headerActions}
           />
@@ -353,13 +357,23 @@ export function WorkoutPlanScreen({
     <div className="flex-1 flex flex-col h-full bg-background overflow-y-auto pb-24">
       <div className="px-4 sm:px-6 pt-2">
         <Header
-          title={workoutDay}
+          title={headerTitle}
           onBack={onBack}
           rightElement={headerActions}
         />
       </div>
 
       <div className="mt-2 space-y-4 px-4 sm:px-6">
+        {!isRestDayView && (
+          <div className="rounded-2xl border border-white/10 bg-card/60 px-4 py-3">
+            <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-text-tertiary">
+              Workout
+            </div>
+            <div className="mt-1 text-lg font-semibold text-white">
+              {workoutDay}
+            </div>
+          </div>
+        )}
         {!isRestDayView && (
           <div className="space-y-3">
             <div className="text-xs font-bold uppercase tracking-wider text-text-secondary">
