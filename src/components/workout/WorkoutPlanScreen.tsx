@@ -2,11 +2,12 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Header } from '../ui/Header';
 import { api } from '../../services/api';
 import { Bookmark, Plus, Play, Search, X } from 'lucide-react';
+import { getBodyPartImage } from '../../services/bodyPartTheme';
 
 interface WorkoutPlanScreenProps {
   onBack: () => void;
   onExerciseClick: (exercise: string) => void;
-  onAddExercise: (exercise: CatalogExercise) => { added: boolean; reason?: string };
+  onAddExercise: (exercise: CatalogExercise) => Promise<{ added: boolean; reason?: string }> | { added: boolean; reason?: string };
   onOpenLatestSummary?: () => void;
   hasLatestSummary?: boolean;
   workoutDay: string;
@@ -72,47 +73,7 @@ const inferMusclesFromExerciseName = (exerciseName = '') => {
   return [...new Set(matches.map((entry) => toTitleCase(entry)).filter(Boolean))];
 };
 
-const chestImage = new URL('../../../body part/chest.jpg', import.meta.url).href;
-const shouldersImage = new URL('../../../body part/shoulders.png', import.meta.url).href;
-const tricepsImage = new URL('../../../body part/triceps.png', import.meta.url).href;
-const backImage = new URL('../../../body part/back.png', import.meta.url).href;
-const bicepsImage = new URL('../../../body part/biceps.png', import.meta.url).href;
-const forearmsImage = new URL('../../../body part/forearm.png', import.meta.url).href;
-const quadricepsImage = new URL('../../../body part/Quadriceps.png', import.meta.url).href;
-const hamstringsImage = new URL('../../../body part/hamstring.png', import.meta.url).href;
-const calvesImage = new URL('../../../body part/calves.png', import.meta.url).href;
-const absImage = new URL('../../../body part/abs.png', import.meta.url).href;
-
-const muscleImageMap: Record<string, string> = {
-  Chest: chestImage,
-  Shoulders: shouldersImage,
-  Triceps: tricepsImage,
-  Back: backImage,
-  Biceps: bicepsImage,
-  Forearms: forearmsImage,
-  Quadriceps: quadricepsImage,
-  Hamstrings: hamstringsImage,
-  Calves: calvesImage,
-  Abs: absImage,
-};
-
-const getMuscleImage = (muscle: string) => {
-  const normalized = String(muscle || '').trim().toLowerCase();
-  if (!normalized) return chestImage;
-
-  if (normalized.includes('chest') || normalized.includes('pect')) return chestImage;
-  if (normalized.includes('shoulder') || normalized.includes('delt')) return shouldersImage;
-  if (normalized.includes('tricep')) return tricepsImage;
-  if (normalized.includes('back') || normalized.includes('lat')) return backImage;
-  if (normalized.includes('bicep') || normalized === 'arms' || normalized.includes('arm')) return bicepsImage;
-  if (normalized.includes('forearm')) return forearmsImage;
-  if (normalized.includes('quad') || normalized === 'legs' || normalized.includes('leg')) return quadricepsImage;
-  if (normalized.includes('hamstring') || normalized.includes('glute')) return hamstringsImage;
-  if (normalized.includes('calf')) return calvesImage;
-  if (normalized.includes('abs') || normalized.includes('core')) return absImage;
-
-  return muscleImageMap[toTitleCase(muscle)] || chestImage;
-};
+const getMuscleImage = (muscle: string) => getBodyPartImage(muscle);
 
 const formatRestLabel = (rest: unknown) => {
   const numeric = Number(rest || 0);
@@ -140,6 +101,7 @@ export function WorkoutPlanScreen({
   const [selectedCatalogMuscle, setSelectedCatalogMuscle] = useState('');
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [addExerciseFeedback, setAddExerciseFeedback] = useState<string | null>(null);
+  const [isSubmittingExercise, setIsSubmittingExercise] = useState(false);
 
   useEffect(() => {
     const loadRecovery = async () => {
@@ -315,16 +277,21 @@ export function WorkoutPlanScreen({
     setIsAddModalOpen(true);
   };
 
-  const handleAddExercise = (exercise: CatalogExercise) => {
-    const result = onAddExercise(exercise);
-    if (!result?.added) {
-      setAddExerciseFeedback(result?.reason || 'Could not add exercise.');
-      return;
-    }
+  const handleAddExercise = async (exercise: CatalogExercise) => {
+    try {
+      setIsSubmittingExercise(true);
+      const result = await onAddExercise(exercise);
+      if (!result?.added) {
+        setAddExerciseFeedback(result?.reason || 'Could not add exercise.');
+        return;
+      }
 
-    setAddExerciseFeedback(null);
-    setSearchQuery('');
-    setIsAddModalOpen(false);
+      setAddExerciseFeedback(null);
+      setSearchQuery('');
+      setIsAddModalOpen(false);
+    } finally {
+      setIsSubmittingExercise(false);
+    }
   };
 
   return (
@@ -580,7 +547,10 @@ export function WorkoutPlanScreen({
                             <button
                               key={exercise.id}
                               type="button"
-                              onClick={() => handleAddExercise(exercise)}
+                              onClick={() => {
+                                void handleAddExercise(exercise);
+                              }}
+                              disabled={isSubmittingExercise}
                               className="surface-card rounded-2xl p-3 text-left transition-colors group hover:border-accent/20"
                             >
                               <div className="relative mb-3 aspect-video overflow-hidden rounded-lg border border-white/8 bg-white/5">

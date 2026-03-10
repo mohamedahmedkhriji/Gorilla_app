@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import { BatteryCharging } from 'lucide-react';
+import { emojiMuscleRecovery } from '../../services/emojiTheme';
 
 interface RecoveryIndicatorProps {
   percentage: number;
@@ -43,8 +43,8 @@ export function RecoveryIndicator({ percentage, onClick }: RecoveryIndicatorProp
     >
       <div className="flex justify-between items-start mb-4">
         <div className="flex items-center gap-2">
-          <div className="w-9 h-9 rounded-xl bg-accent/12 border border-accent/30 flex items-center justify-center">
-            <BatteryCharging size={17} className="text-accent" />
+          <div className="w-10 h-10 rounded-xl bg-accent/12 border border-accent/30 p-1.5 flex items-center justify-center">
+            <img src={emojiMuscleRecovery} alt="Muscle Recovery" className="h-6 w-6 object-contain" />
           </div>
           <div>
             <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-text-secondary">Recovery</span>

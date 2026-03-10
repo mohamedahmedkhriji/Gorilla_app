@@ -101,6 +101,22 @@ export const api = {
     return res.json();
   },
 
+  addExerciseToTodayWorkout: async (userId: number, payload: any = {}) => {
+    const res = await fetch(`${API_URL}/user/${userId}/program/today-workout/exercises`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    return parseApiResponse(res, 'Failed to add exercise to today\'s workout');
+  },
+
+  removeExerciseFromTodayWorkout: async (userId: number, exerciseId: number) => {
+    const res = await fetch(`${API_URL}/user/${userId}/program/today-workout/exercises/${exerciseId}`, {
+      method: 'DELETE',
+    });
+    return parseApiResponse(res, 'Failed to remove exercise from today\'s workout');
+  },
+
   getProgramProgress: async (userId: number) => {
     const res = await fetch(`${API_URL}/user/${userId}/program-progress`);
     return res.json();
@@ -423,6 +439,112 @@ export const api = {
     return data;
   },
 
+  getStrengthScore: async (userId: number, range: 'month' | '6months' | 'year' | 'all' = '6months') => {
+    const toStrengthScore = (avgE1rm: number) => {
+      const normalized = Number(avgE1rm || 0);
+      if (!Number.isFinite(normalized) || normalized <= 0) return 0;
+      return Math.max(80, Math.min(320, Math.round((normalized * 2.2) + 40)));
+    };
+    const toStrengthTier = (score: number) => {
+      if (score >= 280) return 'Elite';
+      if (score >= 240) return 'Athlete';
+      if (score >= 200) return 'Advanced';
+      if (score >= 160) return 'Intermediate';
+      return 'Beginner';
+    };
+    const rangeConfigByKey: Record<'month' | '6months' | 'year' | 'all', { weeks: number; days: number }> = {
+      month: { weeks: 4, days: 30 },
+      '6months': { weeks: 24, days: 182 },
+      year: { weeks: 24, days: 365 },
+      all: { weeks: 24, days: 365 },
+    };
+    const config = rangeConfigByKey[range] || rangeConfigByKey['6months'];
+
+    const buildFallback = async () => {
+      const [strengthProgress, muscleDistribution] = await Promise.all([
+        api.getStrengthProgress(userId, config.weeks),
+        api.getMuscleDistribution(userId, config.days),
+      ]);
+
+      const weeks = Array.isArray(strengthProgress?.weeks) ? strengthProgress.weeks : [];
+      const history = weeks.map((entry: any) => {
+        const weekStart = String(entry?.weekStart || entry?.week_start || '');
+        const parsedDate = new Date(weekStart);
+        const label = Number.isNaN(parsedDate.getTime())
+          ? '-'
+          : parsedDate.toLocaleDateString(
+            undefined,
+            range === 'month'
+              ? { month: 'short', day: 'numeric' }
+              : { month: 'short' },
+          );
+        const avgE1RM = Number(entry?.avgE1RM || entry?.avg_e1rm || 0);
+        return {
+          bucket: weekStart || label,
+          label,
+          avgE1RM,
+          score: toStrengthScore(avgE1RM),
+        };
+      });
+
+      const currentAvgE1RM = Number(
+        strengthProgress?.summary?.currentAvgE1RM
+        ?? strengthProgress?.summary?.current_avg_e1rm
+        ?? history[history.length - 1]?.avgE1RM
+        ?? 0,
+      );
+      const overallScore = toStrengthScore(currentAvgE1RM);
+
+      const distribution = Array.isArray(muscleDistribution?.distribution)
+        ? muscleDistribution.distribution
+        : [];
+      const muscles = distribution
+        .map((entry: any) => {
+          const name = String(entry?.muscle || '').trim();
+          const percent = Math.max(0, Math.min(100, Number(entry?.percent || 0)));
+          const avgE1RM = Number((currentAvgE1RM * (0.55 + (percent / 100) * 0.9)).toFixed(2));
+          const score = toStrengthScore(avgE1RM);
+          return {
+            name,
+            avgE1RM,
+            bestE1RM: Number((avgE1RM * 1.12).toFixed(2)),
+            score,
+            tier: toStrengthTier(score),
+          };
+        })
+        .filter((entry: any) => entry.name)
+        .sort((left: any, right: any) => Number(right.score || 0) - Number(left.score || 0))
+        .slice(0, 12);
+
+      const scorePool = [
+        overallScore,
+        ...history.map((entry: any) => Number(entry.score || 0)),
+        ...muscles.map((entry: any) => Number(entry.score || 0)),
+      ].filter((score) => Number.isFinite(score) && score > 0);
+
+      const rawMin = scorePool.length ? Math.min(...scorePool) : 180;
+      const rawMax = scorePool.length ? Math.max(...scorePool) : 240;
+      let minScale = Math.max(80, Math.floor((rawMin - 20) / 10) * 10);
+      let maxScale = Math.min(320, Math.ceil((rawMax + 20) / 10) * 10);
+      if (maxScale - minScale < 40) maxScale = Math.min(320, minScale + 40);
+
+      return {
+        range,
+        summary: {
+          overallScore,
+          overallAvgE1RM: Number(currentAvgE1RM.toFixed(2)),
+          level: toStrengthTier(overallScore),
+          minScale,
+          maxScale,
+          samples: history.length,
+        },
+        history,
+        muscles,
+      };
+    };
+    return buildFallback();
+  },
+
   getMuscleDistribution: async (userId: number, days = 30) => {
     const res = await fetch(`${API_URL}/progress/muscle-distribution/${userId}?days=${days}`);
     const contentType = res.headers.get('content-type') || '';
@@ -688,6 +810,34 @@ export const api = {
       body: JSON.stringify(input),
     });
     return parseApiResponse(res, 'Failed to save workout summary');
+  },
+
+  completeWorkoutDaySession: async (input: {
+    userId: number;
+    summaryDate?: string;
+    workoutName?: string;
+    durationSeconds?: number;
+    muscles?: Array<{ name: string; score?: number }>;
+    exercises?: Array<{
+      name: string;
+      sets?: Array<{ set: number; reps: number; weight: number }>;
+      totalSets?: number;
+      totalReps?: number;
+      topWeight?: number;
+      volume?: number;
+      targetMuscles?: string[];
+    }>;
+    intensity?: 'low' | 'moderate' | 'high';
+    volume?: 'low' | 'moderate' | 'high';
+    eccentricFocus?: boolean;
+    programAssignmentId?: number;
+  }) => {
+    const res = await fetch(`${API_URL}/workout-sessions/complete-day`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(input),
+    });
+    return parseApiResponse(res, 'Failed to complete workout session');
   },
 
   getLatestWorkoutDaySummary: async (userId: number) => {

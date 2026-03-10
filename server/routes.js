@@ -24,6 +24,7 @@ import {
 const router = express.Router();
 
 let profileImageColumnCache;
+let workoutSessionColumnsCache;
 
 const getProfileImageColumn = async () => {
   if (profileImageColumnCache !== undefined) return profileImageColumnCache;
@@ -559,6 +560,24 @@ const clampSessionDuration = (minutes, fallback = 60) => {
   const n = Number(minutes);
   if (!Number.isFinite(n)) return fallback;
   return Math.max(30, Math.min(120, Math.round(n)));
+};
+
+const getWorkoutSessionColumns = async () => {
+  if (workoutSessionColumnsCache) return workoutSessionColumnsCache;
+
+  const [rows] = await pool.execute(
+    `SELECT COLUMN_NAME
+     FROM INFORMATION_SCHEMA.COLUMNS
+     WHERE TABLE_SCHEMA = DATABASE()
+       AND TABLE_NAME = 'workout_sessions'`,
+  );
+
+  workoutSessionColumnsCache = new Set(
+    rows
+      .map((row) => String(row.COLUMN_NAME || row.column_name || '').trim().toLowerCase())
+      .filter(Boolean),
+  );
+  return workoutSessionColumnsCache;
 };
 
 const normalizeSplitPreference = (value) => {
@@ -1659,6 +1678,49 @@ const normalizeProgramWorkouts = (workouts, daysPerWeek = 4) => {
       day_name: dayName,
     };
   });
+};
+
+const getTodayWorkoutContextForUser = async (conn, userId) => {
+  const normalizedUserId = toNumber(userId, 0);
+  if (!normalizedUserId) return null;
+
+  const [assignmentRows] = await conn.execute(
+    `SELECT pa.id, pa.program_id, pa.start_date, p.days_per_week, p.cycle_weeks
+     FROM program_assignments pa
+     JOIN programs p ON p.id = pa.program_id
+     WHERE pa.user_id = ? AND pa.status = 'active'
+     ORDER BY pa.created_at DESC
+     LIMIT 1`,
+    [normalizedUserId],
+  );
+
+  const assignment = assignmentRows[0] || null;
+  if (!assignment) return null;
+
+  const currentWeek = getCurrentWeek(assignment.start_date, assignment.cycle_weeks);
+  const workoutsPerWeek = Math.max(1, Number(assignment.days_per_week || 1));
+  const currentWeekStartDayOrder = ((currentWeek - 1) * workoutsPerWeek) + 1;
+  const currentWeekEndDayOrder = currentWeekStartDayOrder + workoutsPerWeek - 1;
+
+  const [workoutRows] = await conn.execute(
+    `SELECT id, workout_name, workout_type, day_order, day_name, estimated_duration_minutes, notes
+     FROM workouts
+     WHERE program_id = ? AND day_order BETWEEN ? AND ?
+     ORDER BY day_order ASC`,
+    [assignment.program_id, currentWeekStartDayOrder, currentWeekEndDayOrder],
+  );
+
+  const currentWeekWorkouts = normalizeProgramWorkouts(workoutRows, assignment.days_per_week);
+  const dayName = new Date().toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase();
+  const todayWorkout = currentWeekWorkouts.find((workout) => workout.day_name === dayName) || null;
+
+  return {
+    assignment,
+    currentWeek,
+    dayName,
+    todayWorkout,
+    currentWeekWorkouts,
+  };
 };
 
 const safeParseJson = (rawValue, fallback) => {
@@ -4384,6 +4446,7 @@ router.get('/user/:userId/program', async (req, res) => {
 
     const [exerciseRows] = await pool.execute(
       `SELECT
+          we.id AS workout_exercise_id,
           we.workout_id,
           we.order_index,
           we.exercise_name_snapshot,
@@ -4406,6 +4469,7 @@ router.get('/user/:userId/program', async (req, res) => {
     exerciseRows.forEach((row) => {
       if (!exercisesByWorkout.has(row.workout_id)) exercisesByWorkout.set(row.workout_id, []);
       exercisesByWorkout.get(row.workout_id).push({
+        id: Number(row.workout_exercise_id || 0) || null,
         exerciseName: row.exercise_name_snapshot,
         targetMuscles: parseMuscleGroups(row.muscle_group_snapshot),
         muscleGroup: parseMuscleGroups(row.muscle_group_snapshot)[0] || null,
@@ -4474,9 +4538,214 @@ router.get('/user/:userId/program', async (req, res) => {
   }
 });
 
+router.post('/user/:userId/program/today-workout/exercises', async (req, res) => {
+  const userId = toNumber(req.params.userId, 0);
+  if (!userId) {
+    return res.status(400).json({ error: 'A valid userId is required' });
+  }
+
+  const requestedName = String(req.body?.exerciseName || req.body?.name || '').trim();
+  if (!requestedName) {
+    return res.status(400).json({ error: 'exerciseName is required' });
+  }
+
+  const conn = await pool.getConnection();
+  try {
+    await conn.beginTransaction();
+
+    const context = await getTodayWorkoutContextForUser(conn, userId);
+    if (!context?.todayWorkout?.id) {
+      await conn.rollback();
+      return res.status(404).json({ error: 'No workout scheduled for today' });
+    }
+
+    const workoutId = Number(context.todayWorkout.id || 0);
+    const [existingRows] = await conn.execute(
+      `SELECT id, exercise_name_snapshot
+       FROM workout_exercises
+       WHERE workout_id = ?
+       ORDER BY order_index ASC, id ASC`,
+      [workoutId],
+    );
+
+    const normalizedRequestedName = normalizeExerciseLookupName(requestedName);
+    const duplicate = existingRows.find((row) =>
+      normalizeExerciseLookupName(row.exercise_name_snapshot) === normalizedRequestedName,
+    );
+    if (duplicate) {
+      await conn.rollback();
+      return res.status(409).json({ error: 'This exercise is already in today\'s workout' });
+    }
+
+    const requestedCatalogId = toNumber(req.body?.exerciseCatalogId ?? req.body?.exercise_catalog_id, null);
+    let catalogExercise = null;
+    if (requestedCatalogId) {
+      const [catalogRows] = await conn.execute(
+        `SELECT id, name, body_part
+         FROM exercise_catalog
+         WHERE id = ?
+         LIMIT 1`,
+        [requestedCatalogId],
+      );
+      catalogExercise = catalogRows[0] || null;
+    }
+
+    const exerciseName = String(catalogExercise?.name || requestedName).trim().slice(0, 255);
+    const requestedTargets = parseMuscleGroups(
+      req.body?.targetMuscles ?? req.body?.muscleTargets ?? req.body?.muscles,
+    );
+    const fallbackTargets = requestedTargets.length
+      ? requestedTargets
+      : inferMusclesFromExerciseName(exerciseName);
+    const muscleGroupSnapshot = buildMuscleGroupSnapshot({
+      catalogBodyPart: catalogExercise?.body_part || req.body?.muscleGroup || req.body?.bodyPart || null,
+      targetMuscles: fallbackTargets,
+    });
+
+    const [orderRows] = await conn.execute(
+      `SELECT COALESCE(MAX(order_index), 0) AS max_order
+       FROM workout_exercises
+       WHERE workout_id = ?`,
+      [workoutId],
+    );
+    const orderIndex = Number(orderRows[0]?.max_order || 0) + 1;
+
+    const sets = Math.max(1, Math.min(10, Math.round(Number(
+      req.body?.sets
+      ?? req.body?.targetSets
+      ?? req.body?.target_sets
+      ?? 3,
+    ) || 3)));
+    const reps = String(
+      req.body?.reps
+      ?? req.body?.targetReps
+      ?? req.body?.target_reps
+      ?? '8-12',
+    ).trim().slice(0, 50) || '8-12';
+    const targetWeight = toNumber(req.body?.targetWeight ?? req.body?.target_weight, null);
+    const restSecondsRaw = toNumber(
+      req.body?.rest
+      ?? req.body?.restSeconds
+      ?? req.body?.rest_seconds,
+      90,
+    );
+    const restSeconds = Math.max(0, Number(restSecondsRaw || 0));
+    const tempo = req.body?.tempo ? String(req.body.tempo).trim().slice(0, 20) : null;
+    const rpeTarget = toNumber(req.body?.rpeTarget ?? req.body?.rpe_target, null);
+    const notes = String(req.body?.notes || 'Added for today').trim().slice(0, 255) || 'Added for today';
+
+    const [insertResult] = await conn.execute(
+      `INSERT INTO workout_exercises
+        (workout_id, exercise_id, order_index, exercise_name_snapshot, muscle_group_snapshot, target_sets, target_reps, target_weight, rest_seconds, tempo, rpe_target, notes)
+       VALUES (?, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        workoutId,
+        orderIndex,
+        exerciseName,
+        muscleGroupSnapshot ? String(muscleGroupSnapshot).slice(0, 255) : null,
+        sets,
+        reps,
+        targetWeight,
+        restSeconds,
+        tempo,
+        rpeTarget,
+        notes,
+      ],
+    );
+
+    await conn.commit();
+    return res.status(201).json({
+      exercise: {
+        id: Number(insertResult.insertId || 0) || null,
+        exerciseName,
+        targetMuscles: normalizeRecoveryMuscleTargets(fallbackTargets, 3),
+        muscleGroup: normalizeRecoveryMuscleTargets(muscleGroupSnapshot, 1)[0] || null,
+        sets,
+        reps,
+        targetWeight,
+        rest: restSeconds,
+        tempo,
+        rpeTarget,
+        notes,
+      },
+    });
+  } catch (error) {
+    try {
+      await conn.rollback();
+    } catch {
+      // Ignore rollback errors.
+    }
+    return res.status(500).json({ error: error.message });
+  } finally {
+    conn.release();
+  }
+});
+
+router.delete('/user/:userId/program/today-workout/exercises/:exerciseId', async (req, res) => {
+  const userId = toNumber(req.params.userId, 0);
+  const exerciseId = toNumber(req.params.exerciseId, 0);
+  if (!userId || !exerciseId) {
+    return res.status(400).json({ error: 'Valid userId and exerciseId are required' });
+  }
+
+  const conn = await pool.getConnection();
+  try {
+    await conn.beginTransaction();
+
+    const context = await getTodayWorkoutContextForUser(conn, userId);
+    if (!context?.todayWorkout?.id) {
+      await conn.rollback();
+      return res.status(404).json({ error: 'No workout scheduled for today' });
+    }
+
+    const workoutId = Number(context.todayWorkout.id || 0);
+    const [exerciseRows] = await conn.execute(
+      `SELECT id, exercise_name_snapshot
+       FROM workout_exercises
+       WHERE id = ? AND workout_id = ?
+       LIMIT 1`,
+      [exerciseId, workoutId],
+    );
+
+    const exerciseRow = exerciseRows[0] || null;
+    if (!exerciseRow) {
+      await conn.rollback();
+      return res.status(404).json({ error: 'Exercise not found in today\'s workout' });
+    }
+
+    await conn.execute(
+      `DELETE FROM workout_exercises
+       WHERE id = ?
+       LIMIT 1`,
+      [exerciseId],
+    );
+
+    await conn.commit();
+    return res.json({
+      success: true,
+      removedExercise: {
+        id: exerciseId,
+        exerciseName: String(exerciseRow.exercise_name_snapshot || '').trim(),
+      },
+    });
+  } catch (error) {
+    try {
+      await conn.rollback();
+    } catch {
+      // Ignore rollback errors.
+    }
+    return res.status(500).json({ error: error.message });
+  } finally {
+    conn.release();
+  }
+});
+
 router.get('/user/:userId/program-progress', async (req, res) => {
   try {
-    const { userId } = req.params;
+    const normalizedUserId = toNumber(req.params.userId, 0);
+    if (!normalizedUserId) {
+      return res.status(400).json({ error: 'Invalid userId' });
+    }
 
     const [assignmentRows] = await pool.execute(
       `SELECT pa.id, pa.program_id, pa.start_date, pa.next_rotation_date, pa.rotation_weeks, pa.status,
@@ -4486,11 +4755,23 @@ router.get('/user/:userId/program-progress', async (req, res) => {
        WHERE pa.user_id = ? AND pa.status = 'active'
        ORDER BY pa.created_at DESC
        LIMIT 1`,
-      [userId],
+      [normalizedUserId],
     );
 
     const assignment = assignmentRows[0];
     if (!assignment) {
+      const [volumeAllTimeRows] = await pool.execute(
+        `SELECT
+            COUNT(*) AS sets_logged_all_time,
+            COALESCE(SUM(CASE
+              WHEN weight IS NOT NULL AND reps IS NOT NULL THEN (weight * reps)
+              ELSE 0
+            END), 0) AS volume_load_all_time
+         FROM workout_sets
+         WHERE user_id = ?`,
+        [normalizedUserId],
+      );
+
       return res.json({
         hasActiveProgram: false,
         summary: {
@@ -4507,6 +4788,8 @@ router.get('/user/:userId/program-progress', async (req, res) => {
           rank: 'Bronze',
           volumeLoadLast30Days: 0,
           setsLoggedLast30Days: 0,
+          volumeLoadAllTime: Number(volumeAllTimeRows[0]?.volume_load_all_time || 0),
+          setsLoggedAllTime: Number(volumeAllTimeRows[0]?.sets_logged_all_time || 0),
         },
       });
     }
@@ -4533,7 +4816,7 @@ router.get('/user/:userId/program-progress', async (req, res) => {
       `SELECT COUNT(*) AS completed_workouts
        FROM workout_sessions
        WHERE user_id = ? AND program_assignment_id = ? AND status = 'completed'`,
-      [userId, assignment.id],
+      [normalizedUserId, assignment.id],
     );
 
     const [weekCompletedRows] = await pool.execute(
@@ -4541,7 +4824,7 @@ router.get('/user/:userId/program-progress', async (req, res) => {
        FROM workout_sessions
        WHERE user_id = ? AND program_assignment_id = ? AND status = 'completed'
          AND DATE(completed_at) BETWEEN ? AND ?`,
-      [userId, assignment.id, formatDateISO(weekStart), formatDateISO(weekEnd)],
+      [normalizedUserId, assignment.id, formatDateISO(weekStart), formatDateISO(weekEnd)],
     );
 
     const [setCompletedRows] = await pool.execute(
@@ -4549,7 +4832,7 @@ router.get('/user/:userId/program-progress', async (req, res) => {
        FROM workout_sets
        WHERE user_id = ?
          AND DATE(created_at) BETWEEN ? AND ?`,
-      [userId, formatDateISO(new Date(assignment.start_date)), formatDateISO(new Date())],
+      [normalizedUserId, formatDateISO(new Date(assignment.start_date)), formatDateISO(new Date())],
     );
 
     const [setWeekCompletedRows] = await pool.execute(
@@ -4557,10 +4840,10 @@ router.get('/user/:userId/program-progress', async (req, res) => {
        FROM workout_sets
        WHERE user_id = ?
          AND DATE(created_at) BETWEEN ? AND ?`,
-      [userId, formatDateISO(weekStart), formatDateISO(weekEnd)],
+      [normalizedUserId, formatDateISO(weekStart), formatDateISO(weekEnd)],
     );
 
-    const [volumeRows] = await pool.execute(
+    const [volumeLast30DaysRows] = await pool.execute(
       `SELECT
           COUNT(*) AS sets_logged,
           COALESCE(SUM(CASE
@@ -4570,7 +4853,19 @@ router.get('/user/:userId/program-progress', async (req, res) => {
        FROM workout_sets
        WHERE user_id = ?
          AND created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)`,
-      [userId],
+      [normalizedUserId],
+    );
+
+    const [volumeAllTimeRows] = await pool.execute(
+      `SELECT
+          COUNT(*) AS sets_logged_all_time,
+          COALESCE(SUM(CASE
+            WHEN weight IS NOT NULL AND reps IS NOT NULL THEN (weight * reps)
+            ELSE 0
+          END), 0) AS volume_load_all_time
+       FROM workout_sets
+       WHERE user_id = ?`,
+      [normalizedUserId],
     );
 
     const [streakRows] = await pool.execute(
@@ -4579,7 +4874,7 @@ router.get('/user/:userId/program-progress', async (req, res) => {
        WHERE user_id = ? AND status = 'completed'
        ORDER BY workout_date DESC
        LIMIT 60`,
-      [userId],
+      [normalizedUserId],
     );
 
     const [userRows] = await pool.execute(
@@ -4587,7 +4882,7 @@ router.get('/user/:userId/program-progress', async (req, res) => {
        FROM users
        WHERE id = ?
        LIMIT 1`,
-      [userId],
+      [normalizedUserId],
     );
 
     const completedFromSessions = Number(completedRows[0]?.completed_workouts || 0);
@@ -4630,8 +4925,10 @@ router.get('/user/:userId/program-progress', async (req, res) => {
         totalPoints: Number(userRows[0]?.total_points || 0),
         totalWorkouts: Number(userRows[0]?.total_workouts || 0),
         rank: userRows[0]?.rank || 'Bronze',
-        volumeLoadLast30Days: Number(volumeRows[0]?.volume_load || 0),
-        setsLoggedLast30Days: Number(volumeRows[0]?.sets_logged || 0),
+        volumeLoadLast30Days: Number(volumeLast30DaysRows[0]?.volume_load || 0),
+        setsLoggedLast30Days: Number(volumeLast30DaysRows[0]?.sets_logged || 0),
+        volumeLoadAllTime: Number(volumeAllTimeRows[0]?.volume_load_all_time || 0),
+        setsLoggedAllTime: Number(volumeAllTimeRows[0]?.sets_logged_all_time || 0),
         adaptationInfo,
       },
     });
@@ -5945,6 +6242,174 @@ router.get('/progress/strength/:userId', async (req, res) => {
   }
 });
 
+const toStrengthScore = (avgE1rm) => {
+  const normalized = Number(avgE1rm || 0);
+  if (!Number.isFinite(normalized) || normalized <= 0) return 0;
+  return Math.max(80, Math.min(320, Math.round((normalized * 2.2) + 40)));
+};
+
+const getStrengthTierLabel = (score) => {
+  const normalized = Number(score || 0);
+  if (normalized >= 280) return 'Elite';
+  if (normalized >= 240) return 'Athlete';
+  if (normalized >= 200) return 'Advanced';
+  if (normalized >= 160) return 'Intermediate';
+  return 'Beginner';
+};
+
+const normalizeStrengthRange = (value) => {
+  const key = String(value || '6months').trim().toLowerCase();
+  if (key === 'month') return { key: 'month', days: 30 };
+  if (key === 'year') return { key: 'year', days: 365 };
+  if (key === 'all' || key === 'alltime' || key === 'all_time') return { key: 'all', days: 0 };
+  return { key: '6months', days: 182 };
+};
+
+const getHistoryBucketKey = (isoDateValue, rangeKey) => {
+  const parsed = new Date(isoDateValue);
+  if (Number.isNaN(parsed.getTime())) return null;
+  if (rangeKey === 'month') return formatDateISO(parsed);
+  parsed.setDate(1);
+  return formatDateISO(parsed);
+};
+
+const formatStrengthHistoryLabel = (bucketKey, rangeKey) => {
+  const parsed = new Date(bucketKey);
+  if (Number.isNaN(parsed.getTime())) return bucketKey;
+
+  if (rangeKey === 'month') {
+    return parsed.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  }
+
+  return parsed.toLocaleDateString('en-US', { month: 'short' });
+};
+
+router.get('/progress/strength-score/:userId', async (req, res) => {
+  try {
+    const userId = Number(req.params.userId);
+    if (!Number.isFinite(userId) || userId <= 0) {
+      return res.status(400).json({ error: 'Invalid userId' });
+    }
+
+    const normalizedRange = normalizeStrengthRange(req.query.range);
+
+    let query = `SELECT
+      DATE(created_at) AS logged_day,
+      exercise_name,
+      MAX(weight * (1 + (reps / 30.0))) AS best_e1rm
+     FROM workout_sets
+     WHERE user_id = ?
+       AND completed = 1
+       AND weight IS NOT NULL
+       AND weight > 0
+       AND reps IS NOT NULL
+       AND reps BETWEEN 1 AND 20`;
+    const params = [userId];
+
+    if (normalizedRange.days > 0) {
+      query += ' AND created_at >= DATE_SUB(CURDATE(), INTERVAL ? DAY)';
+      params.push(normalizedRange.days);
+    }
+
+    query += `
+      GROUP BY DATE(created_at), exercise_name
+      ORDER BY logged_day ASC`;
+
+    const [rows] = await pool.execute(query, params);
+
+    const overallSamples = [];
+    const historyBuckets = new Map();
+    const muscleBuckets = new Map();
+
+    rows.forEach((row) => {
+      const e1rm = Number(row.best_e1rm || 0);
+      if (!Number.isFinite(e1rm) || e1rm <= 0) return;
+
+      const muscles = inferMusclesFromExerciseName(row.exercise_name);
+      if (!muscles.length) return;
+
+      overallSamples.push(e1rm);
+
+      const historyKey = getHistoryBucketKey(row.logged_day, normalizedRange.key);
+      if (historyKey) {
+        const entry = historyBuckets.get(historyKey) || { sum: 0, count: 0 };
+        entry.sum += e1rm;
+        entry.count += 1;
+        historyBuckets.set(historyKey, entry);
+      }
+
+      const share = e1rm / muscles.length;
+      muscles.forEach((muscle) => {
+        const existing = muscleBuckets.get(muscle) || { sum: 0, count: 0, best: 0 };
+        existing.sum += share;
+        existing.count += 1;
+        existing.best = Math.max(existing.best, share);
+        muscleBuckets.set(muscle, existing);
+      });
+    });
+
+    const overallAvgE1RM = overallSamples.length
+      ? Number((overallSamples.reduce((sum, value) => sum + value, 0) / overallSamples.length).toFixed(2))
+      : 0;
+    const overallScore = toStrengthScore(overallAvgE1RM);
+
+    const history = Array.from(historyBuckets.entries())
+      .map(([bucketKey, value]) => {
+        const avgE1rm = value.count > 0 ? value.sum / value.count : 0;
+        return {
+          bucket: bucketKey,
+          label: formatStrengthHistoryLabel(bucketKey, normalizedRange.key),
+          avgE1RM: Number(avgE1rm.toFixed(2)),
+          score: toStrengthScore(avgE1rm),
+        };
+      })
+      .sort((left, right) => left.bucket.localeCompare(right.bucket));
+
+    const muscles = Array.from(muscleBuckets.entries())
+      .map(([name, value]) => {
+        const avgE1rm = value.count > 0 ? value.sum / value.count : 0;
+        return {
+          name,
+          avgE1RM: Number(avgE1rm.toFixed(2)),
+          bestE1RM: Number(value.best.toFixed(2)),
+          score: toStrengthScore(avgE1rm),
+          tier: getStrengthTierLabel(toStrengthScore(avgE1rm)),
+        };
+      })
+      .sort((left, right) => right.score - left.score)
+      .slice(0, 12);
+
+    const scorePool = [
+      overallScore,
+      ...history.map((entry) => Number(entry.score || 0)),
+      ...muscles.map((entry) => Number(entry.score || 0)),
+    ].filter((score) => Number.isFinite(score) && score > 0);
+    const rawMinScale = scorePool.length ? Math.min(...scorePool) : 180;
+    const rawMaxScale = scorePool.length ? Math.max(...scorePool) : 240;
+    let minScale = Math.max(80, Math.floor((rawMinScale - 20) / 10) * 10);
+    let maxScale = Math.min(320, Math.ceil((rawMaxScale + 20) / 10) * 10);
+    if (maxScale - minScale < 40) {
+      maxScale = Math.min(320, minScale + 40);
+    }
+
+    return res.json({
+      range: normalizedRange.key,
+      summary: {
+        overallScore,
+        overallAvgE1RM,
+        level: getStrengthTierLabel(overallScore),
+        minScale,
+        maxScale,
+        samples: overallSamples.length,
+      },
+      history,
+      muscles,
+    });
+  } catch (error) {
+    return res.status(500).json({ error: error.message });
+  }
+});
+
 router.get('/progress/plan-muscle-distribution/:userId', async (req, res) => {
   try {
     const userId = Number(req.params.userId);
@@ -6826,6 +7291,198 @@ const mapWorkoutDaySummaryRow = (row) => ({
   summaryText: String(row.summary_text || '').trim(),
   createdAt: toIsoTimestamp(row.created_at),
   updatedAt: toIsoTimestamp(row.updated_at),
+});
+
+const normalizeSessionIntensity = (value) => {
+  const key = String(value || '').trim().toLowerCase();
+  return ['low', 'moderate', 'high'].includes(key) ? key : 'moderate';
+};
+
+const normalizeSessionVolume = (value) => {
+  const key = String(value || '').trim().toLowerCase();
+  return ['low', 'moderate', 'high'].includes(key) ? key : 'moderate';
+};
+
+const extractSummaryMuscles = (payload = {}) => {
+  const fromSummaryObjects = Array.isArray(payload.muscles)
+    ? payload.muscles.map((entry) => entry?.name)
+    : [];
+  const fromMuscleGroups = parseMuscleGroups(payload.muscleGroups);
+  const fromPrimary = payload.muscleGroup ? [payload.muscleGroup] : [];
+
+  return [...new Set(
+    [...fromSummaryObjects, ...fromMuscleGroups, ...fromPrimary]
+      .map((value) => normalizeMuscleName(String(value || '')))
+      .filter(Boolean),
+  )];
+};
+
+const resolveActiveProgramAssignmentId = async (userId) => {
+  const [rows] = await pool.execute(
+    `SELECT id
+     FROM program_assignments
+     WHERE user_id = ? AND status = 'active'
+     ORDER BY created_at DESC
+     LIMIT 1`,
+    [userId],
+  );
+  return toNumber(rows[0]?.id, null);
+};
+
+const upsertCompletedWorkoutSessionForDay = async (input = {}) => {
+  const normalizedUserId = toNumber(input.userId, null);
+  if (!Number.isInteger(normalizedUserId) || normalizedUserId <= 0) {
+    throw new Error('userId must be a positive integer');
+  }
+
+  const summaryDate = toSummaryDate(input.summaryDate);
+  if (!summaryDate) {
+    throw new Error('summaryDate is invalid');
+  }
+
+  const columns = await getWorkoutSessionColumns();
+  if (!columns.size) {
+    throw new Error('workout_sessions table is missing');
+  }
+
+  const dateColumn = columns.has('completed_at')
+    ? 'completed_at'
+    : (columns.has('created_at') ? 'created_at' : null);
+  if (!dateColumn) {
+    throw new Error('workout_sessions table requires completed_at or created_at');
+  }
+
+  const workoutName = String(input.workoutName || '').trim();
+  const normalizedMuscles = extractSummaryMuscles(input);
+  const firstMuscle = normalizedMuscles[0] || 'Chest';
+  const durationMinutes = Math.max(0, Math.round(Number(input.durationSeconds || 0) / 60));
+  const intensity = normalizeSessionIntensity(input.intensity);
+  const volume = normalizeSessionVolume(input.volume);
+  const exercises = Array.isArray(input.exercises) ? input.exercises.slice(0, 100) : [];
+  const completedAt = `${summaryDate} 23:59:59`;
+
+  let programAssignmentId = toNumber(input.programAssignmentId, null);
+  if ((!programAssignmentId || programAssignmentId <= 0) && columns.has('program_assignment_id')) {
+    programAssignmentId = await resolveActiveProgramAssignmentId(normalizedUserId);
+  }
+
+  const writeEntries = [];
+  const pushWrite = (column, value) => {
+    if (!columns.has(column)) return;
+    if (value === undefined) return;
+    writeEntries.push([column, value]);
+  };
+
+  pushWrite('status', 'completed');
+  pushWrite('completed_at', completedAt);
+  pushWrite('program_assignment_id', Number.isInteger(programAssignmentId) && programAssignmentId > 0 ? programAssignmentId : undefined);
+  pushWrite('workout_name', workoutName || undefined);
+  pushWrite('muscle_groups', JSON.stringify(normalizedMuscles));
+  pushWrite('muscle_group', firstMuscle);
+  pushWrite('intensity', intensity);
+  pushWrite('volume', volume);
+  pushWrite('eccentric_focus', toBooleanFlag(input.eccentricFocus, false) ? 1 : 0);
+  pushWrite('duration_minutes', durationMinutes);
+  pushWrite('exercises', JSON.stringify(exercises));
+
+  let existingSql = `SELECT id FROM workout_sessions WHERE user_id = ? AND DATE(${dateColumn}) = ?`;
+  const existingParams = [normalizedUserId, summaryDate];
+  if (columns.has('program_assignment_id') && Number.isInteger(programAssignmentId) && programAssignmentId > 0) {
+    existingSql += ' AND program_assignment_id = ?';
+    existingParams.push(programAssignmentId);
+  } else if (columns.has('workout_name') && workoutName) {
+    existingSql += ' AND LOWER(TRIM(workout_name)) = ?';
+    existingParams.push(workoutName.toLowerCase());
+  }
+  existingSql += ' ORDER BY id DESC LIMIT 1';
+
+  const [existingRows] = await pool.execute(existingSql, existingParams);
+  const existingId = toNumber(existingRows[0]?.id, null);
+
+  if (Number.isInteger(existingId) && existingId > 0) {
+    const updateColumns = writeEntries
+      .filter(([column]) => column !== 'user_id')
+      .map(([column]) => `${column} = ?`);
+    const updateValues = writeEntries
+      .filter(([column]) => column !== 'user_id')
+      .map(([, value]) => value);
+
+    if (columns.has('updated_at')) {
+      updateColumns.push('updated_at = CURRENT_TIMESTAMP');
+    }
+
+    if (updateColumns.length > 0) {
+      await pool.execute(
+        `UPDATE workout_sessions SET ${updateColumns.join(', ')} WHERE id = ? LIMIT 1`,
+        [...updateValues, existingId],
+      );
+    }
+
+    return { sessionId: existingId, created: false };
+  }
+
+  const insertColumns = ['user_id'];
+  const insertValues = [normalizedUserId];
+
+  writeEntries
+    .filter(([column]) => column !== 'user_id')
+    .forEach(([column, value]) => {
+      insertColumns.push(column);
+      insertValues.push(value);
+    });
+
+  const placeholders = insertColumns.map(() => '?').join(', ');
+  const [insertResult] = await pool.execute(
+    `INSERT INTO workout_sessions (${insertColumns.join(', ')}) VALUES (${placeholders})`,
+    insertValues,
+  );
+
+  return {
+    sessionId: toNumber(insertResult?.insertId, null),
+    created: true,
+  };
+};
+
+router.post('/workout-sessions/complete-day', async (req, res) => {
+  try {
+    const userId = toNumber(req.body?.userId, null);
+    if (!Number.isInteger(userId) || userId <= 0) {
+      return res.status(400).json({ error: 'userId must be a positive integer' });
+    }
+
+    const sessionResult = await upsertCompletedWorkoutSessionForDay({
+      userId,
+      summaryDate: req.body?.summaryDate,
+      workoutName: req.body?.workoutName,
+      durationSeconds: req.body?.durationSeconds,
+      muscles: req.body?.muscles,
+      muscleGroups: req.body?.muscleGroups,
+      muscleGroup: req.body?.muscleGroup,
+      exercises: req.body?.exercises,
+      intensity: req.body?.intensity,
+      volume: req.body?.volume,
+      eccentricFocus: req.body?.eccentricFocus,
+      programAssignmentId: req.body?.programAssignmentId,
+    });
+
+    const gamification = await refreshGamificationForUser(userId);
+
+    return res.json({
+      success: true,
+      sessionId: sessionResult.sessionId,
+      created: sessionResult.created,
+      gamification: gamification
+        ? {
+            totalPoints: gamification.totalPoints,
+            rank: gamification.rank,
+            completedMissions: gamification.completedMissions,
+            completedChallenges: gamification.completedChallenges,
+          }
+        : null,
+    });
+  } catch (error) {
+    return res.status(500).json({ error: error.message || 'Failed to finalize workout session' });
+  }
 });
 
 router.post('/workout-summaries', async (req, res) => {

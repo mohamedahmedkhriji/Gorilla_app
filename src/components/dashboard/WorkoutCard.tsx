@@ -24,6 +24,7 @@ interface WorkoutCardProps {
   title: string;
   workoutType?: string;
   exercises?: WorkoutExercise[];
+  exerciseCount?: number;
   estimatedDurationMinutes?: number | null;
   progress: number;
   isRestDay?: boolean;
@@ -173,6 +174,7 @@ export function WorkoutCard({
   title,
   workoutType = '',
   exercises = [],
+  exerciseCount,
   estimatedDurationMinutes = null,
   progress,
   isRestDay = false,
@@ -185,8 +187,10 @@ export function WorkoutCard({
     || normalizedType.includes('rest')
     || normalizedType.includes('recovery');
 
-  const exerciseCount = exercises.length;
-  const isResolvedRestDay = isRestDay || (looksLikeRestDay && exerciseCount === 0);
+  const resolvedExerciseCount = Number.isFinite(Number(exerciseCount))
+    ? Math.max(0, Math.round(Number(exerciseCount)))
+    : exercises.length;
+  const isResolvedRestDay = isRestDay || (looksLikeRestDay && resolvedExerciseCount === 0);
   const safeProgress = Math.max(0, Math.min(100, progress));
   const progressLabelSize = safeProgress >= 100 ? '1.8rem' : undefined;
   const radius = 54;
@@ -251,7 +255,7 @@ export function WorkoutCard({
                 <div>Rest Day</div>
               ) : (
                 <>
-                  <div>{exerciseCount} {exerciseCount === 1 ? 'exercise' : 'exercises'}</div>
+                  <div>{resolvedExerciseCount} {resolvedExerciseCount === 1 ? 'exercise' : 'exercises'}</div>
                   {!!durationMinutes && (
                     <div className="flex items-center gap-1.5">
                       <Clock3 size={13} className="text-text-tertiary" />
@@ -302,7 +306,7 @@ export function WorkoutCard({
 
           <div className="absolute inset-0 flex flex-col items-center justify-center px-3 text-center">
             <span
-              className="max-w-full text-4xl text-text-primary leading-none font-electrolize"
+              className="max-w-full px-2 text-4xl text-text-primary leading-none font-electrolize"
               style={{ fontSize: progressLabelSize }}
             >
               {safeProgress}%

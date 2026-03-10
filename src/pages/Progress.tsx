@@ -8,8 +8,9 @@ import { ProgressPhotosScreen } from '../components/progress/ProgressPhotosScree
 import { ExerciseProgressScreen } from '../components/progress/ExerciseProgressScreen';
 import { AIInsightsScreen } from '../components/progress/AIInsightsScreen';
 import { WeeklyCheckInScreen } from '../components/progress/WeeklyCheckInScreen';
+import { StrengthScoreScreen } from '../components/progress/StrengthScoreScreen';
 export function Progress() {
-  const [view, setView] = useState<'dashboard' | 'report' | 'recovery' | 'measurements' | 'photos' | 'exercise' | 'insights' | 'weeklyCheckin'>(
+  const [view, setView] = useState<'dashboard' | 'report' | 'recovery' | 'measurements' | 'photos' | 'exercise' | 'insights' | 'weeklyCheckin' | 'strengthScore'>(
     'dashboard'
   );
   if (view === 'report') {
@@ -33,11 +34,15 @@ export function Progress() {
   if (view === 'weeklyCheckin') {
     return <WeeklyCheckInScreen onBack={() => setView('dashboard')} />;
   }
+  if (view === 'strengthScore') {
+    return <StrengthScoreScreen onBack={() => setView('dashboard')} />;
+  }
   return (
     <div className="relative pb-24">
       <div className="space-y-6">
         <ProgressDashboard
           onViewReport={() => setView('report')}
+          onViewStrengthScore={() => setView('strengthScore')}
         />
 
         <div className="px-4 sm:px-6">

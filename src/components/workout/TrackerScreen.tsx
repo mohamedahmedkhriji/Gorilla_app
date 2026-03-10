@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Header } from '../ui/Header';
-import { Play, Square, BarChart3, Video } from 'lucide-react';
+import { Play, Square, BarChart3, Video, Trash2 } from 'lucide-react';
 import { api } from '../../services/api';
 
 interface TrackerScreenProps {
@@ -10,6 +10,7 @@ interface TrackerScreenProps {
   onVideoClick?: () => void;
   savedSets?: SetData[];
   onSaveSets?: (sets: SetData[]) => void;
+  onRemoveExercise?: () => Promise<void> | void;
 }
 
 interface SetData {
@@ -82,6 +83,7 @@ export function TrackerScreen({
   onVideoClick,
   savedSets,
   onSaveSets,
+  onRemoveExercise,
 }: TrackerScreenProps) {
   const user = JSON.parse(localStorage.getItem('appUser') || localStorage.getItem('user') || '{}');
   const [sets, setSets] = useState<SetData[]>(() => {
@@ -96,6 +98,9 @@ export function TrackerScreen({
   const [isResting, setIsResting] = useState(false);
   const [restTime, setRestTime] = useState(0);
   const [restReminderText, setRestReminderText] = useState<string | null>(null);
+  const [removeError, setRemoveError] = useState<string | null>(null);
+  const [isRemovingExercise, setIsRemovingExercise] = useState(false);
+  const [showRemoveConfirm, setShowRemoveConfirm] = useState(false);
   const restReminderLock = useRef(false);
   const [notificationSettings, setNotificationSettings] = useState({
     coachMessages: true,
@@ -216,6 +221,21 @@ export function TrackerScreen({
     onSaveSets?.(nextSets);
   };
 
+  const handleRemoveExercise = async () => {
+    if (!onRemoveExercise || isRemovingExercise) return;
+
+    try {
+      setRemoveError(null);
+      setIsRemovingExercise(true);
+      await onRemoveExercise();
+      setShowRemoveConfirm(false);
+    } catch (error) {
+      setRemoveError(error instanceof Error ? error.message : 'Failed to remove exercise.');
+    } finally {
+      setIsRemovingExercise(false);
+    }
+  };
+
   const toggleTimer = async () => {
     if (isRunning) {
       const firstIncomplete = sets.findIndex(s => !s.completed);
@@ -267,6 +287,12 @@ export function TrackerScreen({
       setIsRunning(false);
       return;
     } else {
+      if (areAllSetsCompleted) {
+        setIsResting(false);
+        setRestReminderText(null);
+        restReminderLock.current = false;
+        return;
+      }
       // Stop rest timer and start set timer
       setIsResting(false);
       setRestReminderText(null);
@@ -318,13 +344,30 @@ export function TrackerScreen({
   const getTotalRestTime = () => sets.filter(s => s.completed).reduce((acc, set) => acc + (set.restTime || 0), 0);
   const getTotalVolume = () => sets.filter(s => s.completed).reduce((acc, set) => acc + (set.reps * set.weight), 0);
   const getCompletedSets = () => sets.filter(s => s.completed).length;
+  const areAllSetsCompleted = sets.length > 0 && sets.every((set) => set.completed);
   const timerText = formatTime(setTimerSeconds);
   const [m1, m2, s1, s2] = timerText.replace(':', '').split('');
 
   return (
     <div className="flex-1 flex flex-col h-full bg-background pb-24">
       <div className="px-4 sm:px-6 pt-2">
-        <Header title="The Tracker" onBack={onBack} />
+        <Header
+          title="The Tracker"
+          onBack={onBack}
+          rightElement={onRemoveExercise ? (
+            <button
+              type="button"
+              onClick={() => {
+                setShowRemoveConfirm(true);
+              }}
+              disabled={isRemovingExercise}
+              className="flex h-10 w-10 items-center justify-center rounded-xl border border-red-500/25 bg-[rgb(var(--color-card))]/80 text-red-400 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] transition-colors hover:border-red-500/45 hover:bg-red-500/12 disabled:cursor-not-allowed disabled:opacity-60"
+              aria-label="Remove exercise"
+            >
+              <Trash2 size={17} />
+            </button>
+          ) : undefined}
+        />
       </div>
       <div className="px-4 sm:px-6 -mt-2 mb-2">
         <div className="w-full flex justify-center">
@@ -346,6 +389,11 @@ export function TrackerScreen({
       </div>
 
       <div className="px-4 sm:px-6 mt-6">
+        {removeError && (
+          <div className="mb-4 rounded-xl border border-red-500/35 bg-red-500/10 px-4 py-3 text-sm text-red-200">
+            {removeError}
+          </div>
+        )}
         <h2 className="text-2xl font-bold text-white mb-6 text-center">{exerciseName}</h2>
 
         {showAnalytics ? (
@@ -393,14 +441,22 @@ export function TrackerScreen({
         ) : (
           <>
             <div className="flex justify-around mb-8">
-              <button onClick={toggleTimer} className="flex flex-col items-center gap-2">
+              <button
+                onClick={toggleTimer}
+                disabled={!isRunning && areAllSetsCompleted}
+                className="flex flex-col items-center gap-2 disabled:cursor-not-allowed disabled:opacity-50"
+              >
                 <div className={`w-12 h-12 rounded-full border-2 flex items-center justify-center ${
-                  isRunning ? 'border-red-500 bg-red-500/10' : 'border-green-500 bg-green-500/10'
+                  isRunning
+                    ? 'border-red-500 bg-red-500/10'
+                    : areAllSetsCompleted
+                      ? 'border-white/15 bg-white/5'
+                      : 'border-green-500 bg-green-500/10'
                 }`}>
                   {isRunning ? (
                     <Square size={18} className="text-red-500" />
                   ) : (
-                    <Play size={18} className="text-green-500 ml-0.5" />
+                    <Play size={18} className={`${areAllSetsCompleted ? 'text-text-tertiary' : 'text-green-500'} ml-0.5`} />
                   )}
                 </div>
               </button>
@@ -449,6 +505,12 @@ export function TrackerScreen({
                     Dismiss
                   </button>
                 </div>
+              </div>
+            )}
+
+            {areAllSetsCompleted && !isRunning && (
+              <div className="mb-4 rounded-xl border border-green-500/35 bg-green-500/10 p-3 text-sm text-green-200">
+                All sets are completed for this exercise.
               </div>
             )}
 
@@ -541,6 +603,56 @@ export function TrackerScreen({
           </>
         )}
       </div>
+
+      {showRemoveConfirm && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/55 px-4 backdrop-blur-sm"
+          onClick={() => {
+            if (!isRemovingExercise) setShowRemoveConfirm(false);
+          }}
+        >
+          <div
+            className="w-full max-w-sm overflow-hidden rounded-[1.75rem] border border-white/12 bg-[rgb(var(--color-card))]/95 shadow-[0_24px_80px_rgba(0,0,0,0.35)]"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="relative overflow-hidden px-6 pb-5 pt-6">
+              <div className="relative">
+                <div className="flex h-14 w-14 items-center justify-center rounded-2xl border border-red-500/25 bg-red-500/12 text-red-400 shadow-[inset_0_1px_0_rgba(255,255,255,0.1)]">
+                  <Trash2 size={22} />
+                </div>
+                <h3 className="mt-5 text-xl font-semibold text-text-primary">Remove Exercise?</h3>
+                <p className="mt-2 text-sm leading-relaxed text-text-secondary">
+                  <span className="font-semibold text-text-primary">{exerciseName}</span> will be removed from today&apos;s workout.
+                </p>
+                <p className="mt-1 text-xs uppercase tracking-[0.18em] text-text-tertiary">
+                  This updates your workout plan immediately.
+                </p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3 border-t border-white/8 bg-black/5 px-6 py-5">
+              <button
+                type="button"
+                onClick={() => setShowRemoveConfirm(false)}
+                disabled={isRemovingExercise}
+                className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-text-primary transition-colors hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  void handleRemoveExercise();
+                }}
+                disabled={isRemovingExercise}
+                className="rounded-2xl border border-red-500/25 bg-red-500/12 px-4 py-3 text-sm font-semibold text-red-400 transition-colors hover:bg-red-500/18 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {isRemovingExercise ? 'Removing...' : 'Remove'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <style>{`
         .barbell-track-shell {

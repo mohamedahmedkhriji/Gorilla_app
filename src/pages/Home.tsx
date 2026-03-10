@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
-import { ArrowLeft, Medal, MoonStar } from 'lucide-react';
+import { ArrowLeft, MoonStar } from 'lucide-react';
 import { WorkoutCard } from '../components/dashboard/WorkoutCard';
 import { RecoveryIndicator } from '../components/dashboard/RecoveryIndicator';
 import { RankDisplay } from '../components/dashboard/RankDisplay';
@@ -22,6 +22,8 @@ import { ExerciseVideoScreen } from '../components/workout/ExerciseVideoScreen';
 import { MuscleRecoveryScreen } from '../components/progress/MuscleRecoveryScreen';
 import { RankingsRewardsScreen } from '../components/profile/RankingsRewardsScreen';
 import { api } from '../services/api';
+import { getRankBadgeImage } from '../services/rankTheme';
+import { emojiShop } from '../services/emojiTheme';
 interface HomeProps {
   onNavigate: (tab: string) => void;
 }
@@ -63,6 +65,8 @@ const getWorkoutStorageKeys = (user: any) => {
     completedExercises: `completedExercises:${scope}`,
     exerciseSets: `exerciseSets:${scope}`,
     extraExercises: `extraExercises:${scope}`,
+    exerciseCount: `exerciseCount:${scope}`,
+    exerciseSnapshot: `exerciseSnapshot:${scope}`,
   };
 };
 
@@ -123,6 +127,139 @@ const parseWorkoutExercises = (raw: unknown) => {
   }
 };
 
+const parseTargetMuscles = (raw: unknown): string[] => {
+  if (Array.isArray(raw)) {
+    return raw
+      .map((entry) => String(entry || '').trim())
+      .filter(Boolean);
+  }
+
+  if (typeof raw === 'string') {
+    const text = raw.trim();
+    if (!text) return [];
+
+    try {
+      const parsed = JSON.parse(text);
+      if (Array.isArray(parsed)) {
+        return parsed
+          .map((entry) => String(entry || '').trim())
+          .filter(Boolean);
+      }
+      if (typeof parsed === 'string' && parsed.trim()) return [parsed.trim()];
+    } catch {
+      return text
+        .split(/[,;|]+/)
+        .map((entry) => entry.trim())
+        .filter(Boolean);
+    }
+  }
+
+  return [];
+};
+
+const normalizeTodayWorkoutExercises = (raw: unknown) => {
+  const exercises = parseWorkoutExercises(raw);
+
+  return exercises
+    .map((exercise: any) => ({
+      ...exercise,
+      exerciseName: String(
+        exercise?.exerciseName
+        || exercise?.exercise_name
+        || exercise?.name
+        || '',
+      ).trim(),
+      name: String(
+        exercise?.name
+        || exercise?.exerciseName
+        || exercise?.exercise_name
+        || '',
+      ).trim(),
+      targetMuscles: parseTargetMuscles(
+        exercise?.targetMuscles
+        ?? exercise?.muscleTargets
+        ?? exercise?.muscles,
+      ),
+      muscleGroup: String(exercise?.muscleGroup || exercise?.muscle_group || '').trim(),
+      sets: Number(
+        exercise?.sets
+        ?? exercise?.targetSets
+        ?? exercise?.target_sets
+        ?? 0,
+      ) || 0,
+      reps: String(
+        exercise?.reps
+        ?? exercise?.targetReps
+        ?? exercise?.target_reps
+        ?? '',
+      ).trim(),
+      rest: Number(
+        exercise?.rest
+        ?? exercise?.restSeconds
+        ?? exercise?.rest_seconds
+        ?? 0,
+      ) || 0,
+    }))
+    .filter((exercise: any) => exercise.exerciseName || exercise.name);
+};
+
+const resolveTodayWorkoutPayload = (programData: any, weeklyWorkouts: any[]) => {
+  const todayWorkout = programData?.todayWorkout || null;
+  const normalizedWeeklyWorkouts = Array.isArray(weeklyWorkouts) ? weeklyWorkouts : [];
+  const clientWeekdayKey = new Date().toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase();
+
+  const weeklyWorkoutByClientDay = normalizedWeeklyWorkouts.find((workout: any) =>
+    String(workout?.day_name || '').trim().toLowerCase() === clientWeekdayKey,
+  );
+
+  const weeklyWorkoutByServerDay = normalizedWeeklyWorkouts.find((workout: any) =>
+    String(workout?.day_name || '').trim().toLowerCase()
+    && String(workout?.day_name || '').trim().toLowerCase() === String(todayWorkout?.dayName || '').trim().toLowerCase(),
+  );
+
+  const weeklyWorkoutByName = normalizedWeeklyWorkouts.find((workout: any) =>
+    String(workout?.workout_name || '').trim().toLowerCase()
+    && String(workout?.workout_name || '').trim().toLowerCase() === String(todayWorkout?.name || '').trim().toLowerCase(),
+  );
+
+  const resolvedWorkout =
+    weeklyWorkoutByClientDay
+    || weeklyWorkoutByServerDay
+    || weeklyWorkoutByName
+    || null;
+
+  const directExercises = normalizeTodayWorkoutExercises(todayWorkout?.exercises);
+  const weeklyExercises = normalizeTodayWorkoutExercises(resolvedWorkout?.exercises);
+  const resolvedExercises = weeklyExercises.length > directExercises.length
+    ? weeklyExercises
+    : directExercises;
+
+  const workoutName = String(
+    resolvedWorkout?.workout_name
+    || todayWorkout?.name
+    || '',
+  ).trim();
+
+  if (!workoutName) return null;
+
+  return {
+    workout_name: workoutName,
+    workout_type: String(
+      resolvedWorkout?.workout_type
+      || todayWorkout?.workoutType
+      || '',
+    ).trim(),
+    estimated_duration_minutes:
+      Number(
+        resolvedWorkout?.estimated_duration_minutes
+        ?? todayWorkout?.estimatedDurationMinutes
+        ?? todayWorkout?.estimated_duration_minutes
+        ?? 0,
+      ) || null,
+    exercises: resolvedExercises,
+  };
+};
+
 const loadTodayExtraExercises = (keys: { workoutDate: string; extraExercises: string }) => {
   const today = new Date().toDateString();
   const savedDate = localStorage.getItem(keys.workoutDate);
@@ -130,6 +267,33 @@ const loadTodayExtraExercises = (keys: { workoutDate: string; extraExercises: st
 
   try {
     const raw = localStorage.getItem(keys.extraExercises);
+    const parsed = raw ? JSON.parse(raw) : [];
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+};
+
+const loadTodayExerciseCount = (keys: { workoutDate: string; exerciseCount: string }) => {
+  const today = new Date().toDateString();
+  const savedDate = localStorage.getItem(keys.workoutDate);
+  if (savedDate && savedDate !== today) return 0;
+
+  try {
+    const raw = Number(localStorage.getItem(keys.exerciseCount) || 0);
+    return Number.isFinite(raw) && raw > 0 ? Math.round(raw) : 0;
+  } catch {
+    return 0;
+  }
+};
+
+const loadTodayExerciseSnapshot = (keys: { workoutDate: string; exerciseSnapshot: string }) => {
+  const today = new Date().toDateString();
+  const savedDate = localStorage.getItem(keys.workoutDate);
+  if (savedDate && savedDate !== today) return [];
+
+  try {
+    const raw = localStorage.getItem(keys.exerciseSnapshot);
     const parsed = raw ? JSON.parse(raw) : [];
     return Array.isArray(parsed) ? parsed : [];
   } catch {
@@ -179,21 +343,36 @@ export function Home({ onNavigate }: HomeProps) {
   const [extraTodayExercises, setExtraTodayExercises] = useState<any[]>(
     () => loadTodayExtraExercises(workoutStorageKeys),
   );
+  const [storedTodayExerciseCount, setStoredTodayExerciseCount] = useState(
+    () => loadTodayExerciseCount(workoutStorageKeys),
+  );
+  const [storedTodayExerciseSnapshot, setStoredTodayExerciseSnapshot] = useState<any[]>(
+    () => loadTodayExerciseSnapshot(workoutStorageKeys),
+  );
   const todayWorkoutExercises = useMemo(() => {
-    const baseExercises = parseWorkoutExercises(todayWorkoutData?.exercises);
+    const baseExercises = normalizeTodayWorkoutExercises(todayWorkoutData?.exercises);
+    const extraExercises = normalizeTodayWorkoutExercises(extraTodayExercises);
+    const snapshotExercises = normalizeTodayWorkoutExercises(storedTodayExerciseSnapshot);
     const seen = new Set<string>();
-    const merged = [...baseExercises, ...extraTodayExercises].filter((exercise: any) => {
+    const mergedExercises = [...baseExercises, ...extraExercises];
+    const preferredExercises = snapshotExercises.length > mergedExercises.length
+      ? snapshotExercises
+      : mergedExercises;
+
+    return preferredExercises.filter((exercise: any) => {
       const key = getExerciseName(exercise).toLowerCase();
-      if (!key) return true;
+      if (!key) return false;
       if (seen.has(key)) return false;
       seen.add(key);
       return true;
     });
-    return merged;
-  }, [todayWorkoutData, extraTodayExercises]);
-  const hasAnyTodayExercises = todayWorkoutExercises.length > 0;
+  }, [todayWorkoutData, extraTodayExercises, storedTodayExerciseSnapshot]);
+  const todayWorkoutExerciseCount = Math.max(todayWorkoutExercises.length, storedTodayExerciseCount);
+  const hasAnyTodayExercises = todayWorkoutExerciseCount > 0;
   const workoutCardTitle = todayWorkout === 'Rest Day' && hasAnyTodayExercises ? 'Custom Workout' : todayWorkout;
   const isWorkoutCardRestDay = todayWorkout === 'Rest Day' && !hasAnyTodayExercises;
+  const rankName = String(programProgress?.rank || 'Bronze');
+  const rankBadgeImage = getRankBadgeImage(rankName);
 
   const updateRecovery = (value: number) => {
     const next = clampPercent(value);
@@ -215,10 +394,13 @@ export function Home({ onNavigate }: HomeProps) {
     // Fetch user program
     const fetchProgram = async () => {
       setExtraTodayExercises(loadTodayExtraExercises(workoutStorageKeys));
+      setStoredTodayExerciseCount(loadTodayExerciseCount(workoutStorageKeys));
+      setStoredTodayExerciseSnapshot(loadTodayExerciseSnapshot(workoutStorageKeys));
       if (!currentUserId) {
         setUserProgram({ workouts: [] });
         setTodayWorkout('Rest Day');
         setTodayWorkoutData(null);
+        setStoredTodayExerciseSnapshot([]);
         return;
       }
 
@@ -232,18 +414,8 @@ export function Home({ onNavigate }: HomeProps) {
 
         setUserProgram({ ...(programData || {}), workouts: weeklyWorkouts });
 
-        if (programData?.todayWorkout?.name) {
-          const normalizedToday = {
-            workout_name: programData.todayWorkout.name,
-            workout_type: programData.todayWorkout.workoutType || '',
-            estimated_duration_minutes:
-              Number(
-                programData.todayWorkout.estimatedDurationMinutes
-                ?? programData.todayWorkout.estimated_duration_minutes
-                ?? 0,
-              ) || null,
-            exercises: JSON.stringify(programData.todayWorkout.exercises || []),
-          };
+        const normalizedToday = resolveTodayWorkoutPayload(programData, weeklyWorkouts);
+        if (normalizedToday?.workout_name) {
           setTodayWorkout(normalizedToday.workout_name);
           setTodayWorkoutData(normalizedToday);
         } else {
@@ -316,6 +488,8 @@ export function Home({ onNavigate }: HomeProps) {
 
     const handleExtraExercisesUpdated = () => {
       setExtraTodayExercises(loadTodayExtraExercises(workoutStorageKeys));
+      setStoredTodayExerciseCount(loadTodayExerciseCount(workoutStorageKeys));
+      setStoredTodayExerciseSnapshot(loadTodayExerciseSnapshot(workoutStorageKeys));
     };
     window.addEventListener('workout-extra-exercises-updated', handleExtraExercisesUpdated);
 
@@ -406,7 +580,7 @@ export function Home({ onNavigate }: HomeProps) {
       const user = JSON.parse(localStorage.getItem('appUser') || localStorage.getItem('user') || '{}');
       const userId = user.id;
 
-      const exercises = parseWorkoutExercises(todayWorkoutData.exercises) as Array<{
+      const exercises = normalizeTodayWorkoutExercises(todayWorkoutData.exercises) as Array<{
         exerciseName?: string;
         exercise_name?: string;
         name?: string;
@@ -549,7 +723,7 @@ export function Home({ onNavigate }: HomeProps) {
         <div className="space-y-3">
           {exercises.map((ex: any, i: number) => (
             <div key={i} className="surface-card rounded-2xl p-4 border border-white/15">
-              <h3 className="text-base font-semibold text-white mb-2">{ex.exerciseName}</h3>
+              <h3 className="text-base font-semibold text-white mb-2">{ex.exerciseName || ex.name}</h3>
               <div className="flex gap-4 text-xs text-text-secondary">
                 <span>{ex.sets} sets</span>
                 <span>{ex.reps} reps</span>
@@ -625,11 +799,11 @@ export function Home({ onNavigate }: HomeProps) {
         
         <div className="flex items-center gap-2 surface-glass px-3.5 py-2 rounded-2xl border border-white/15 shrink-0">
           <div className="w-8 h-8 rounded-xl bg-accent/15 border border-accent/35 flex items-center justify-center">
-            <Medal size={15} className="text-accent" />
+            <img src={rankBadgeImage} alt={rankName} className="h-5 w-5 object-contain" />
           </div>
           <div>
             <div className="text-[10px] uppercase tracking-[0.1em] text-text-secondary">Rank</div>
-            <div className="text-sm font-semibold text-accent">{programProgress?.rank || 'Bronze'}</div>
+            <div className="text-sm font-semibold text-accent">{rankName}</div>
           </div>
         </div>
       </motion.header>
@@ -652,6 +826,7 @@ export function Home({ onNavigate }: HomeProps) {
             workoutType={todayWorkoutData?.workout_type || ''}
             estimatedDurationMinutes={todayWorkoutData?.estimated_duration_minutes ?? null}
             exercises={todayWorkoutExercises}
+            exerciseCount={todayWorkoutExerciseCount}
             progress={workoutProgress}
             isRestDay={isWorkoutCardRestDay} />
         </div>
@@ -684,7 +859,10 @@ export function Home({ onNavigate }: HomeProps) {
             My Nutrition
           </GhostButton>
           <GhostButton onClick={() => setShowShopComingSoon(true)}>
-            Shop
+            <span className="inline-flex items-center gap-2">
+              <img src={emojiShop} alt="Shop" className="h-5 w-5 object-contain" />
+              <span>Shop</span>
+            </span>
           </GhostButton>
         </motion.div>
 
@@ -697,7 +875,10 @@ export function Home({ onNavigate }: HomeProps) {
               className="w-full max-w-sm surface-glass border border-white/15 rounded-2xl p-5 text-center"
               onClick={(e) => e.stopPropagation()}
             >
-              <h3 className="text-xl font-semibold text-white">Shop</h3>
+              <h3 className="text-xl font-semibold text-white inline-flex items-center gap-2">
+                <img src={emojiShop} alt="Shop" className="h-6 w-6 object-contain" />
+                <span>Shop</span>
+              </h3>
               <p className="text-sm text-text-secondary mt-2">Coming soon</p>
               <button
                 type="button"

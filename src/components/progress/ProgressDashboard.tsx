@@ -2,10 +2,12 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { Button } from '../ui/Button';
 import { StrengthChart } from './StrengthChart';
 import { Card } from '../ui/Card';
-import { Activity, TrendingUp } from 'lucide-react';
+import { Activity, ChevronRight, TrendingUp } from 'lucide-react';
 import { api } from '../../services/api';
+import { emojiFire } from '../../services/emojiTheme';
 interface ProgressDashboardProps {
   onViewReport: () => void;
+  onViewStrengthScore: () => void;
 }
 
 interface MuscleDistributionItem {
@@ -14,12 +16,14 @@ interface MuscleDistributionItem {
   col: string;
 }
 
-export function ProgressDashboard({ onViewReport }: ProgressDashboardProps) {
+export function ProgressDashboard({ onViewReport, onViewStrengthScore }: ProgressDashboardProps) {
   const [stats, setStats] = useState({
     totalWorkouts: 0,
     totalVolume: 0,
     consistency: 0,
-    currentStreak: 0
+    currentStreak: 0,
+    workoutsCompletedThisWeek: 0,
+    workoutsPlannedThisWeek: 0,
   });
   const [topBadge, setTopBadge] = useState('Top --');
   const [muscleDistribution, setMuscleDistribution] = useState<MuscleDistributionItem[]>([
@@ -44,6 +48,8 @@ export function ProgressDashboard({ onViewReport }: ProgressDashboardProps) {
         totalVolume: 0,
         consistency: 0,
         currentStreak: 0,
+        workoutsCompletedThisWeek: 0,
+        workoutsPlannedThisWeek: 0,
       });
       setMuscleDistribution([
         { name: 'Chest', val: 0, col: 'bg-blue-500' },
@@ -57,6 +63,8 @@ export function ProgressDashboard({ onViewReport }: ProgressDashboardProps) {
     let currentStreak = 0;
     let totalVolumeTons = 0;
     let totalWorkouts = 0;
+    let workoutsCompletedThisWeek = 0;
+    let workoutsPlannedThisWeek = 0;
 
     try {
       const progress = await api.getProgramProgress(userId);
@@ -64,8 +72,15 @@ export function ProgressDashboard({ onViewReport }: ProgressDashboardProps) {
       consistency = Math.max(0, Math.min(100, weeklyRate));
       currentStreak = Number(progress?.summary?.workoutStreakDays || 0);
       totalWorkouts = Number(progress?.summary?.completedWorkouts || 0);
-      const volumeLoadLast30Days = Number(progress?.summary?.volumeLoadLast30Days || 0);
-      totalVolumeTons = Math.round((volumeLoadLast30Days / 1000) * 10) / 10;
+      workoutsCompletedThisWeek = Number(progress?.summary?.workoutsCompletedThisWeek || 0);
+      workoutsPlannedThisWeek = Number(progress?.summary?.workoutsPlannedThisWeek || 0);
+      const volumeLoadAllTime = Number(
+        progress?.summary?.volumeLoadAllTime
+        ?? progress?.summary?.volumeLoadSinceStart
+        ?? progress?.summary?.volumeLoadLast30Days
+        ?? 0,
+      );
+      totalVolumeTons = Math.round((volumeLoadAllTime / 1000) * 10) / 10;
     } catch (error) {
       console.error('Failed to fetch program progress for consistency:', error);
     }
@@ -129,6 +144,8 @@ export function ProgressDashboard({ onViewReport }: ProgressDashboardProps) {
       totalVolume: totalVolumeTons,
       consistency,
       currentStreak,
+      workoutsCompletedThisWeek,
+      workoutsPlannedThisWeek,
     });
   }, []);
 
@@ -153,6 +170,10 @@ export function ProgressDashboard({ onViewReport }: ProgressDashboardProps) {
     };
   }, [loadStats]);
 
+  const streakLabel = `${stats.currentStreak}%`;
+  const streakSubLabel = stats.currentStreak === 1 ? 'streak day' : 'streak days';
+  const weeklyDaysLabel = `${stats.workoutsCompletedThisWeek} / ${stats.workoutsPlannedThisWeek} days`;
+
   return (
     <div className="space-y-6 pb-24">
       <div className="flex items-center justify-between">
@@ -166,16 +187,42 @@ export function ProgressDashboard({ onViewReport }: ProgressDashboardProps) {
 
       <div className="grid grid-cols-2 gap-4">
         <Card className="p-4">
-          <Activity className="text-green-500 mb-2" size={20} />
-          <div className="text-2xl font-bold text-white font-electrolize">{stats.consistency}%</div>
-          <div className="text-xs text-text-secondary">Consistency</div>
-        </Card>
-        <Card className="p-4">
-          <TrendingUp className="text-purple-500 mb-2" size={20} />
-          <div className="text-2xl font-bold text-white font-electrolize">
-            {Number.isInteger(stats.totalVolume) ? stats.totalVolume : stats.totalVolume.toFixed(1)}t
+          <div className="flex items-center justify-between gap-3">
+            <div className="min-w-0">
+              <Activity className="text-green-500 mb-2" size={20} />
+              <div className="text-2xl font-bold text-white font-electrolize">{streakLabel}</div>
+              <div className="text-xs text-text-secondary">{streakSubLabel}</div>
+              <div className="mt-1 text-xs text-text-tertiary">{weeklyDaysLabel}</div>
+            </div>
+            <img
+              src={emojiFire}
+              alt="Fire"
+              className="h-14 w-14 shrink-0 object-contain"
+            />
           </div>
-          <div className="text-xs text-text-secondary">Total Volume</div>
+        </Card>
+        <Card
+          className="cursor-pointer p-4"
+          onClick={onViewStrengthScore}
+          role="button"
+          tabIndex={0}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter' || event.key === ' ') {
+              event.preventDefault();
+              onViewStrengthScore();
+            }
+          }}
+        >
+          <div className="flex items-end justify-between gap-3">
+            <div className="min-w-0">
+              <TrendingUp className="text-purple-500 mb-2" size={20} />
+              <div className="text-2xl font-bold text-white font-electrolize">
+                {Number.isInteger(stats.totalVolume) ? stats.totalVolume : stats.totalVolume.toFixed(1)}t
+              </div>
+              <div className="text-xs text-text-secondary">Total Volume</div>
+            </div>
+            <ChevronRight size={18} className="mb-1 shrink-0 text-text-tertiary" />
+          </div>
         </Card>
       </div>
 

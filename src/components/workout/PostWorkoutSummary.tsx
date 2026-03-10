@@ -7,6 +7,7 @@ import {
   Share2,
   NotebookPen,
   CheckCircle2,
+  X,
 } from 'lucide-react';
 
 export type WorkoutSummarySet = {
@@ -164,9 +165,19 @@ export function PostWorkoutSummary({
     <div className="flex-1 flex flex-col h-full bg-background pb-24">
       <div className="px-4 sm:px-6 pt-4">
         <div className="mx-auto w-full max-w-xl rounded-2xl border border-white/10 bg-card/80 p-4">
-          <div className="flex items-center gap-2 text-text-secondary text-sm">
-            <CalendarDays size={15} />
-            <span>{formatSummaryDate(summary.summaryDate)}</span>
+          <div className="flex items-start justify-between gap-3">
+            <div className="flex items-center gap-2 text-text-secondary text-sm">
+              <CalendarDays size={15} />
+              <span>{formatSummaryDate(summary.summaryDate)}</span>
+            </div>
+            <button
+              type="button"
+              onClick={onClose}
+              className="flex h-8 w-8 items-center justify-center rounded-full border border-white/10 bg-white/5 text-text-secondary transition-colors hover:border-white/20 hover:bg-white/10 hover:text-white"
+              aria-label="Close summary"
+            >
+              <X size={14} />
+            </button>
           </div>
           <h1 className="mt-2 text-2xl font-semibold text-white">{summary.workoutName}</h1>
           <div className="mt-4 grid grid-cols-2 gap-3">

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Header } from '../ui/Header';
 import { SlidersHorizontal, ChevronDown, X } from 'lucide-react';
 import { api } from '../../services/api';
+import { getBodyPartImage } from '../../services/bodyPartTheme';
 interface MuscleRecoveryScreenProps {
   onBack: () => void;
 }
@@ -177,21 +178,7 @@ export function MuscleRecoveryScreen({ onBack }: MuscleRecoveryScreenProps) {
   const formatSetUnits = (value: number | undefined) => Number(value || 0).toFixed(1);
   const formatVolume = (value: number | undefined) => Math.round(Number(value || 0));
 
-  const getMuscleImage = (muscleGroup: string) => {
-    const imageMap: { [key: string]: string } = {
-      'Abs': '/body part/abs.png',
-      'Back': '/body part/back.png',
-      'Biceps': '/body part/biceps.png',
-      'Calves': '/body part/calves.png',
-      'Chest': '/body part/chest.jpg',
-      'Forearms': '/body part/forearm.png',
-      'Hamstrings': '/body part/hamstring.png',
-      'Quadriceps': '/body part/quadriceps.png',
-      'Shoulders': '/body part/shoulders.png',
-      'Triceps': '/body part/triceps.png',
-    };
-    return imageMap[muscleGroup] || '/body part/chest.jpg';
-  };
+  const getMuscleImage = (muscleGroup: string) => getBodyPartImage(muscleGroup);
 
   const readyMuscles = muscleRecoveries.filter((m) => m.score >= 90).sort((a, b) => a.score - b.score);
   const almostReadyMuscles = muscleRecoveries
@@ -319,11 +306,11 @@ export function MuscleRecoveryScreen({ onBack }: MuscleRecoveryScreenProps) {
                   key={m.muscle}
                   className="bg-card rounded-xl p-4 border border-white/5 flex items-center justify-between">
                   <div className="flex items-center gap-3">
-                    <div className="w-24 h-24 rounded-full bg-transparent flex items-center justify-center overflow-hidden">
+                    <div className="w-16 h-16 rounded-full bg-transparent flex items-center justify-center overflow-hidden">
                       <img
                         src={getMuscleImage(m.name)}
                         alt={m.name}
-                        className="w-full h-full object-contain scale-[1.35]"
+                        className="w-full h-full object-contain"
                       />
                     </div>
                     <div>
@@ -362,11 +349,11 @@ export function MuscleRecoveryScreen({ onBack }: MuscleRecoveryScreenProps) {
                   key={m.muscle}
                   className="bg-card rounded-xl p-4 border border-white/5 flex items-center justify-between">
                   <div className="flex items-center gap-3">
-                    <div className="w-24 h-24 rounded-full bg-transparent flex items-center justify-center overflow-hidden">
+                    <div className="w-16 h-16 rounded-full bg-transparent flex items-center justify-center overflow-hidden">
                       <img
                         src={getMuscleImage(m.name)}
                         alt={m.name}
-                        className="w-full h-full object-contain scale-[1.35]"
+                        className="w-full h-full object-contain"
                       />
                     </div>
                     <div>
@@ -406,11 +393,11 @@ export function MuscleRecoveryScreen({ onBack }: MuscleRecoveryScreenProps) {
                   key={m.muscle}
                   className="bg-card rounded-xl p-4 border border-white/5 flex items-center justify-between">
                   <div className="flex items-center gap-3">
-                    <div className="w-24 h-24 rounded-full bg-transparent flex items-center justify-center overflow-hidden">
+                    <div className="w-16 h-16 rounded-full bg-transparent flex items-center justify-center overflow-hidden">
                       <img
                         src={getMuscleImage(m.name)}
                         alt={m.name}
-                        className="w-full h-full object-contain scale-[1.35]"
+                        className="w-full h-full object-contain"
                       />
                     </div>
                     <div>

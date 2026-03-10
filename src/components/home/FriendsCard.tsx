@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { Card } from '../ui/Card';
-import { Users, ChevronRight } from 'lucide-react';
+import { ChevronRight } from 'lucide-react';
 import { api } from '../../services/api';
+import { emojiFriends } from '../../services/emojiTheme';
 
 interface FriendsCardProps {
   onClick: () => void;
@@ -73,7 +74,7 @@ export function FriendsCard({ onClick }: FriendsCardProps) {
     <Card onClick={onClick} className="p-4 flex flex-col justify-between h-full cursor-pointer border border-white/15 hover:border-accent/35 transition-colors group">
       <div className="flex justify-between items-start">
         <div className="w-10 h-10 rounded-2xl bg-accent/10 border border-accent/35 flex items-center justify-center text-accent group-hover:shadow-glow transition-all">
-          <Users size={18} />
+          <img src={emojiFriends} alt="Friends" className="h-7 w-7 object-contain" />
         </div>
         <ChevronRight size={16} className="text-text-tertiary group-hover:text-text-primary transition-colors" />
       </div>

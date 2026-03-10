@@ -1,7 +1,8 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Header } from '../ui/Header';
-import { Trophy, Medal, Award, User } from 'lucide-react';
+import { Trophy, Medal, Award, UserRound } from 'lucide-react';
 import { api } from '../../services/api';
+import { rankTopScoreIcon } from '../../services/rankTheme';
 
 interface LeaderboardScreenProps {
   onBack: () => void;
@@ -99,7 +100,7 @@ export function LeaderboardScreen({ onBack }: LeaderboardScreenProps) {
   const getCardBorder = (rank: number) => {
     if (rank === 1) return 'border-yellow-500';
     if (rank === 2) return 'border-gray-400';
-    if (rank === 3) return 'border-gray-400';
+    if (rank === 3) return 'border-orange-600';
     return 'border-white/5';
   };
 
@@ -149,14 +150,31 @@ export function LeaderboardScreen({ onBack }: LeaderboardScreenProps) {
                     {user.rank === 1 && <Trophy className="text-yellow-500" size={20} />}
                     {user.rank === 2 && <Medal className="text-gray-400" size={20} />}
                     {user.rank === 3 && <Award className="text-orange-600" size={20} />}
-                    {user.rank > 3 && <span className="text-text-secondary font-bold text-sm">#{user.rank}</span>}
+                    {user.rank > 3 && <Trophy className="text-text-secondary" size={20} />}
                   </div>
 
-                  <div className="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center text-xl overflow-hidden">
+                  <div
+                    className={`relative w-10 h-10 rounded-full flex items-center justify-center text-xl overflow-hidden ${
+                      user.rank === 1
+                        ? 'bg-gradient-to-br from-yellow-400/25 via-orange-500/20 to-red-500/20 ring-2 ring-yellow-400/70 shadow-[0_0_18px_rgba(250,204,21,0.22)]'
+                        : 'bg-white/10'
+                    }`}
+                  >
                     {user.profilePicture ? (
                       <img src={user.profilePicture} alt="Profile" className="w-full h-full object-cover" />
                     ) : (
-                      <User size={20} className="text-text-tertiary" />
+                      <UserRound
+                        size={20}
+                        className={user.rank === 1 ? 'text-yellow-300' : 'text-text-tertiary'}
+                      />
+                    )}
+
+                    {user.rank === 1 && (
+                      <img
+                        src={rankTopScoreIcon}
+                        alt="Top score"
+                        className="absolute -top-1.5 -right-1.5 h-5 w-5 object-contain drop-shadow-[0_2px_4px_rgba(0,0,0,0.45)]"
+                      />
                     )}
                   </div>
 

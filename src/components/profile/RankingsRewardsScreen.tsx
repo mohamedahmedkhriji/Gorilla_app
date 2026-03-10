@@ -4,6 +4,7 @@ import { Card } from '../ui/Card';
 import { Trophy, BarChart3, Target, Calendar } from 'lucide-react';
 import { LeaderboardScreen } from './LeaderboardScreen';
 import { api } from '../../services/api';
+import { getRankBadgeImage } from '../../services/rankTheme';
 
 interface RankingsRewardsScreenProps {
   onBack: () => void;
@@ -40,15 +41,6 @@ type Summary = {
   totalPoints: number;
   rank: string;
   nextRank: { name: string; minPoints: number; pointsNeeded: number } | null;
-};
-
-const rankEmojiByName: Record<string, string> = {
-  Bronze: '🥉',
-  Silver: '🥈',
-  Gold: '🥇',
-  Platinum: '🏆',
-  Diamond: '💎',
-  Elite: '👑',
 };
 
 export function RankingsRewardsScreen({ onBack }: RankingsRewardsScreenProps) {
@@ -126,7 +118,7 @@ export function RankingsRewardsScreen({ onBack }: RankingsRewardsScreenProps) {
   const activeWeeklyChallenges = weeklyChallenges.filter((c) => c.status === 'active');
   const completedChallenges = [...dailyChallenges, ...weeklyChallenges].filter((c) => c.completed);
 
-  const rankEmoji = rankEmojiByName[summary.rank] || '🏅';
+  const rankBadgeImage = getRankBadgeImage(summary.rank);
   const nextRankText = summary.nextRank
     ? `Next: ${summary.nextRank.name} (${summary.nextRank.pointsNeeded} pts)`
     : 'Top rank achieved';
@@ -236,10 +228,10 @@ export function RankingsRewardsScreen({ onBack }: RankingsRewardsScreenProps) {
       <div className="px-4 sm:px-6 space-y-2.5 mt-1">
         <div className="flex flex-col items-center py-1.5">
           <div className="w-20 h-20 rounded-full bg-accent/10 border-2 border-accent/30 flex items-center justify-center mb-2">
-            <span className="text-4xl">{rankEmoji}</span>
+            <img src={rankBadgeImage} alt={summary.rank} className="h-12 w-12 object-contain" />
           </div>
           <h2 className="text-lg font-bold text-white">{summary.rank}</h2>
-          <p className="text-sm text-text-secondary mt-0.5">{summary.totalPoints} points</p>
+          <p className="mt-0.5 text-sm text-text-secondary">{summary.totalPoints} points</p>
           <p className="text-xs text-text-secondary mt-0.5">{nextRankText}</p>
         </div>
 
@@ -403,4 +395,3 @@ export function RankingsRewardsScreen({ onBack }: RankingsRewardsScreenProps) {
     </div>
   );
 }
-
