@@ -2382,8 +2382,8 @@ const getMissedProgramDayRows = async ({ userId, dateFrom = null, dateTo = null,
   `;
 
   if (Number.isFinite(Number(limit)) && Number(limit) > 0) {
-    sql += ' LIMIT ?';
-    params.push(Math.round(Number(limit)));
+    const normalizedLimit = Math.max(1, Math.min(365, Math.round(Number(limit))));
+    sql += ` LIMIT ${normalizedLimit}`;
   }
 
   try {
@@ -5142,6 +5142,14 @@ router.get('/user/:userId/program-progress', async (req, res) => {
       },
     });
   } catch (error) {
+    console.error('GET /user/:userId/program-progress failed', {
+      userId: req.params?.userId || null,
+      code: error?.code || null,
+      errno: error?.errno || null,
+      message: error?.message || null,
+      sqlMessage: error?.sqlMessage || null,
+      stack: error?.stack || null,
+    });
     return res.status(500).json({ error: error.message });
   }
 });
@@ -6637,6 +6645,14 @@ router.get('/progress/strength-score/:userId', async (req, res) => {
       muscles,
     });
   } catch (error) {
+    console.error('GET /progress/strength-score/:userId failed', {
+      userId: req.params?.userId || null,
+      code: error?.code || null,
+      errno: error?.errno || null,
+      message: error?.message || null,
+      sqlMessage: error?.sqlMessage || null,
+      stack: error?.stack || null,
+    });
     return res.status(500).json({ error: error.message });
   }
 });

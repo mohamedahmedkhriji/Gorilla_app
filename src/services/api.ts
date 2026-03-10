@@ -127,7 +127,7 @@ export const api = {
 
   getProgramProgress: async (userId: number) => {
     const res = await fetch(`${API_URL}/user/${userId}/program-progress`);
-    return res.json();
+    return parseApiResponse(res, 'Failed to fetch program progress');
   },
 
   generatePersonalizedProgram: async (userId: number, payload: any = {}) => {
