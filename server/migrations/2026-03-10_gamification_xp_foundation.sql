@@ -48,7 +48,7 @@ SET total_points = COALESCE(total_points, 0),
     END;
 
 CREATE TABLE IF NOT EXISTS xp_transactions (
-  id BIGINT PRIMARY KEY AUTO_INCREMENT,
+  id BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
   user_id INT UNSIGNED NOT NULL,
   source_type ENUM(
     'workout',
@@ -70,7 +70,7 @@ CREATE TABLE IF NOT EXISTS xp_transactions (
     'level_up',
     'manual_adjustment'
   ) NOT NULL,
-  source_id BIGINT NULL,
+  source_id BIGINT UNSIGNED NULL,
   xp_amount INT NOT NULL,
   description VARCHAR(255) NULL,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -113,7 +113,7 @@ SELECT 'recovery', 'Rewards recovery, sleep, and readiness consistency.'
 WHERE NOT EXISTS (SELECT 1 FROM badge_categories WHERE name = 'recovery');
 
 CREATE TABLE IF NOT EXISTS badges (
-  id BIGINT PRIMARY KEY AUTO_INCREMENT,
+  id BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
   category_id INT NOT NULL,
   name VARCHAR(120) NOT NULL,
   slug VARCHAR(140) NOT NULL UNIQUE,
@@ -132,8 +132,8 @@ CREATE TABLE IF NOT EXISTS badges (
 ) ENGINE=InnoDB;
 
 CREATE TABLE IF NOT EXISTS badge_rules (
-  id BIGINT PRIMARY KEY AUTO_INCREMENT,
-  badge_id BIGINT NOT NULL,
+  id BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
+  badge_id BIGINT UNSIGNED NOT NULL,
   condition_type VARCHAR(80) NOT NULL,
   operator_symbol ENUM('>=', '=', '<=', '>', '<') NOT NULL DEFAULT '>=',
   target_value DECIMAL(12,2) NOT NULL,
@@ -149,9 +149,9 @@ CREATE TABLE IF NOT EXISTS badge_rules (
 ) ENGINE=InnoDB;
 
 CREATE TABLE IF NOT EXISTS user_badges (
-  id BIGINT PRIMARY KEY AUTO_INCREMENT,
+  id BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
   user_id INT UNSIGNED NOT NULL,
-  badge_id BIGINT NOT NULL,
+  badge_id BIGINT UNSIGNED NOT NULL,
   unlocked_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   progress_value DECIMAL(12,2) NOT NULL DEFAULT 0,
   is_seen BOOLEAN NOT NULL DEFAULT FALSE,
@@ -165,9 +165,9 @@ CREATE TABLE IF NOT EXISTS user_badges (
 ) ENGINE=InnoDB;
 
 CREATE TABLE IF NOT EXISTS user_badge_progress (
-  id BIGINT PRIMARY KEY AUTO_INCREMENT,
+  id BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
   user_id INT UNSIGNED NOT NULL,
-  badge_id BIGINT NOT NULL,
+  badge_id BIGINT UNSIGNED NOT NULL,
   current_value DECIMAL(12,2) NOT NULL DEFAULT 0,
   target_value DECIMAL(12,2) NOT NULL,
   percent_complete DECIMAL(5,2) NOT NULL DEFAULT 0,
@@ -181,19 +181,19 @@ CREATE TABLE IF NOT EXISTS user_badge_progress (
 ) ENGINE=InnoDB;
 
 CREATE TABLE IF NOT EXISTS achievements (
-  id BIGINT PRIMARY KEY AUTO_INCREMENT,
+  id BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
   name VARCHAR(120) NOT NULL,
   slug VARCHAR(140) NOT NULL UNIQUE,
   description VARCHAR(255) NOT NULL,
   xp_reward INT NOT NULL DEFAULT 0,
-  reward_id BIGINT NULL,
+  reward_id BIGINT UNSIGNED NULL,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   INDEX idx_achievements_reward (reward_id)
 ) ENGINE=InnoDB;
 
 CREATE TABLE IF NOT EXISTS achievement_rules (
-  id BIGINT PRIMARY KEY AUTO_INCREMENT,
-  achievement_id BIGINT NOT NULL,
+  id BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
+  achievement_id BIGINT UNSIGNED NOT NULL,
   condition_type VARCHAR(80) NOT NULL,
   operator_symbol ENUM('>=', '=', '<=', '>', '<') NOT NULL DEFAULT '>=',
   target_value DECIMAL(12,2) NOT NULL,
@@ -207,9 +207,9 @@ CREATE TABLE IF NOT EXISTS achievement_rules (
 ) ENGINE=InnoDB;
 
 CREATE TABLE IF NOT EXISTS user_achievements (
-  id BIGINT PRIMARY KEY AUTO_INCREMENT,
+  id BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
   user_id INT UNSIGNED NOT NULL,
-  achievement_id BIGINT NOT NULL,
+  achievement_id BIGINT UNSIGNED NOT NULL,
   unlocked_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   UNIQUE KEY uq_user_achievement (user_id, achievement_id),
   CONSTRAINT fk_user_achievements_user
@@ -221,7 +221,7 @@ CREATE TABLE IF NOT EXISTS user_achievements (
 ) ENGINE=InnoDB;
 
 CREATE TABLE IF NOT EXISTS rewards (
-  id BIGINT PRIMARY KEY AUTO_INCREMENT,
+  id BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
   reward_type ENUM(
     'xp_boost',
     'profile_frame',
@@ -241,9 +241,9 @@ CREATE TABLE IF NOT EXISTS rewards (
 ) ENGINE=InnoDB;
 
 CREATE TABLE IF NOT EXISTS level_rewards (
-  id BIGINT PRIMARY KEY AUTO_INCREMENT,
+  id BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
   level_id INT NOT NULL,
-  reward_id BIGINT NOT NULL,
+  reward_id BIGINT UNSIGNED NOT NULL,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   CONSTRAINT fk_level_rewards_level
     FOREIGN KEY (level_id) REFERENCES levels(id) ON DELETE CASCADE,
@@ -253,11 +253,11 @@ CREATE TABLE IF NOT EXISTS level_rewards (
 ) ENGINE=InnoDB;
 
 CREATE TABLE IF NOT EXISTS user_rewards (
-  id BIGINT PRIMARY KEY AUTO_INCREMENT,
+  id BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
   user_id INT UNSIGNED NOT NULL,
-  reward_id BIGINT NOT NULL,
+  reward_id BIGINT UNSIGNED NOT NULL,
   source_type ENUM('level', 'badge', 'achievement', 'mission', 'manual') NOT NULL,
-  source_id BIGINT NULL,
+  source_id BIGINT UNSIGNED NULL,
   granted_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   consumed_at TIMESTAMP NULL,
   status ENUM('available', 'consumed', 'expired') NOT NULL DEFAULT 'available',
@@ -269,16 +269,16 @@ CREATE TABLE IF NOT EXISTS user_rewards (
 ) ENGINE=InnoDB;
 
 CREATE TABLE IF NOT EXISTS titles (
-  id BIGINT PRIMARY KEY AUTO_INCREMENT,
+  id BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
   name VARCHAR(80) NOT NULL UNIQUE,
   description VARCHAR(255) NULL,
   rarity ENUM('common', 'rare', 'epic', 'legendary') NOT NULL DEFAULT 'common'
 ) ENGINE=InnoDB;
 
 CREATE TABLE IF NOT EXISTS user_titles (
-  id BIGINT PRIMARY KEY AUTO_INCREMENT,
+  id BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
   user_id INT UNSIGNED NOT NULL,
-  title_id BIGINT NOT NULL,
+  title_id BIGINT UNSIGNED NOT NULL,
   is_equipped BOOLEAN NOT NULL DEFAULT FALSE,
   unlocked_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   UNIQUE KEY uq_user_title (user_id, title_id),
@@ -301,7 +301,7 @@ CREATE TABLE IF NOT EXISTS missions (
   target_value INT UNSIGNED NOT NULL DEFAULT 1,
   points_reward INT NOT NULL DEFAULT 0,
   xp_reward INT NOT NULL DEFAULT 0,
-  reward_id BIGINT NULL,
+  reward_id BIGINT UNSIGNED NULL,
   badge_icon VARCHAR(100) NULL,
   is_active TINYINT(1) NOT NULL DEFAULT 1,
   active BOOLEAN NOT NULL DEFAULT TRUE,
@@ -323,7 +323,7 @@ ALTER TABLE missions
   ADD COLUMN IF NOT EXISTS xp_reward INT NOT NULL DEFAULT 0 AFTER points_reward;
 
 ALTER TABLE missions
-  ADD COLUMN IF NOT EXISTS reward_id BIGINT NULL AFTER xp_reward;
+  ADD COLUMN IF NOT EXISTS reward_id BIGINT UNSIGNED NULL AFTER xp_reward;
 
 ALTER TABLE missions
   ADD COLUMN IF NOT EXISTS active BOOLEAN NOT NULL DEFAULT TRUE AFTER reward_id;
@@ -342,7 +342,7 @@ SET active = CASE
 END;
 
 CREATE TABLE IF NOT EXISTS mission_rules (
-  id BIGINT PRIMARY KEY AUTO_INCREMENT,
+  id BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
   mission_id INT UNSIGNED NOT NULL,
   condition_type VARCHAR(80) NOT NULL,
   operator_symbol ENUM('>=', '=', '<=', '>', '<') NOT NULL DEFAULT '>=',
