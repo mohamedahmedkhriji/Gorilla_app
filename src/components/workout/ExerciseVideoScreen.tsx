@@ -62,13 +62,13 @@ const getActiveSegments = (percent: number) =>
 const getSegmentColor = (index: number, isActive: boolean) => {
   const ratio = SEGMENT_COUNT <= 1 ? 0 : index / (SEGMENT_COUNT - 1);
   if (isActive) {
-    const hue = 52 - ratio * 52;
-    const saturation = 96 - ratio * 6;
-    const lightness = 58 - ratio * 10;
+    // Red -> Green progression across active segments
+    const hue = ratio * 120;
+    const saturation = 90;
+    const lightness = 48;
     return `hsl(${hue} ${saturation}% ${lightness}%)`;
   }
-  const darkness = 10 + ratio * 10;
-  return `hsl(16 35% ${darkness}%)`;
+  return 'hsl(210 14% 18%)';
 };
 
 const getMuscleDistribution = (muscles: string[]) => {
@@ -248,7 +248,7 @@ export function ExerciseVideoScreen({ onBack, exercise }: ExerciseVideoScreenPro
 
       <div className="pb-24 space-y-6">
           <Card translate="no">
-            <h3 className="mb-4 font-medium text-white">Target Muscles</h3>
+            <h3 className="mb-4 font-medium text-white">Muscle Distribution (Plan Target)</h3>
             <div className="mb-5 grid grid-cols-3 gap-3">
               {muscleDistribution.map((muscle) => (
                 <div
