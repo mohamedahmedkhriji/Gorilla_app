@@ -9,6 +9,8 @@ import { resolveExerciseVideoUrl } from '../services/exerciseVideos';
 interface ExerciseLibraryProps {
   onBack: () => void;
   onExerciseClick: (exercise: {name: string, muscle: string, video?: string | null}) => void;
+  initialFilter?: string;
+  onFilterChange?: (filter: string) => void;
 }
 interface CatalogExercise {
   id: number;
@@ -18,14 +20,24 @@ interface CatalogExercise {
 }
 export function ExerciseLibrary({
   onBack,
-  onExerciseClick
+  onExerciseClick,
+  initialFilter = 'All',
+  onFilterChange,
 }: ExerciseLibraryProps) {
-  const [selectedFilter, setSelectedFilter] = useState('All');
+  const [selectedFilter, setSelectedFilter] = useState(initialFilter || 'All');
   const [filters, setFilters] = useState<string[]>(['All', 'Chest', 'Back', 'Legs', 'Shoulders', 'Arms', 'Abs']);
   const [exercises, setExercises] = useState<CatalogExercise[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [likes, setLikes] = useState<{[key: string]: {count: number, liked: boolean}}>({});
+
+  useEffect(() => {
+    setSelectedFilter(initialFilter || 'All');
+  }, [initialFilter]);
+
+  useEffect(() => {
+    onFilterChange?.(selectedFilter);
+  }, [onFilterChange, selectedFilter]);
 
   useEffect(() => {
     const load = async () => {
@@ -158,20 +170,6 @@ export function ExerciseLibrary({
 
       {!loading && !error && selectedFilter !== 'All' && (
         <>
-          <div className="px-4 sm:px-6 mb-4">
-            <div className="flex items-center justify-between gap-3">
-              <button
-                onClick={() => setSelectedFilter('All')}
-                className="rounded-full border border-accent bg-accent px-4 py-2 text-xs font-bold uppercase tracking-[0.18em] text-black transition-colors"
-              >
-                All Exercises ({getCount('All')})
-              </button>
-              <div className="text-[11px] uppercase tracking-[0.18em] text-text-secondary">
-                {selectedFilter} focus
-              </div>
-            </div>
-          </div>
-
           <div className="px-4 sm:px-6 grid grid-cols-2 gap-4">
             {filteredExercises.map((exercise) => {
               const likeData = likes[exercise.name] || { count: 0, liked: false };

@@ -350,6 +350,7 @@ export function Home({ onNavigate }: HomeProps) {
 
   const [view, setView] = useState<HomeView>('main');
   const [selectedExercise, setSelectedExercise] = useState<{name: string, muscle: string, video?: string | null} | null>(null);
+  const [exerciseLibraryFilter, setExerciseLibraryFilter] = useState('All');
   const [selectedCoach, setSelectedCoach] = useState<{id: number, name: string} | null>(null);
   const [selectedFriend, setSelectedFriend] = useState<FriendMember | null>(null);
   const [greeting, setGreeting] = useState('');
@@ -832,6 +833,8 @@ export function Home({ onNavigate }: HomeProps) {
   return (
     <ExerciseLibrary
       onBack={() => setView('main')}
+      initialFilter={exerciseLibraryFilter}
+      onFilterChange={setExerciseLibraryFilter}
       onExerciseClick={(exercise) => {
         setSelectedExercise(exercise);
         setView('video');
