@@ -68,7 +68,7 @@ const getSegmentColor = (index: number, isActive: boolean) => {
     const lightness = 48;
     return `hsl(${hue} ${saturation}% ${lightness}%)`;
   }
-  return 'hsl(210 14% 18%)';
+  return 'rgb(39, 46, 52)';
 };
 
 const getMuscleDistribution = (muscles: string[]) => {
