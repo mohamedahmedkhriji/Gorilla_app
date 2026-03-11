@@ -37,19 +37,9 @@ const inferExerciseVideoBodyPart = (value) => {
   return text;
 };
 
-const containsWholePhrase = (text, phrase) => (
-  text === phrase
-  || text.startsWith(`${phrase} `)
-  || text.endsWith(` ${phrase}`)
-  || text.includes(` ${phrase} `)
-);
-
 const matchesLookup = (exerciseName, alias) => {
   if (!exerciseName || !alias) return false;
-  return (
-    containsWholePhrase(exerciseName, alias)
-    || containsWholePhrase(alias, exerciseName)
-  );
+  return exerciseName === alias;
 };
 
 const BACK_VIDEO_MANIFEST = [

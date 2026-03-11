@@ -17,6 +17,12 @@ type ExerciseVideoAsset = {
   url: string;
 };
 
+export type ExerciseVideoAssetInfo = {
+  fileName: string;
+  bodyPart: string;
+  url: string;
+};
+
 export type ExerciseVideoMatch = {
   url: string | null;
   assetName: string | null;
@@ -125,3 +131,15 @@ export const resolveExerciseVideo = ({
 
 export const resolveExerciseVideoUrl = (input: ExerciseVideoLookupInput) =>
   resolveExerciseVideo(input).url;
+
+export const listExerciseVideoAssets = (bodyPart?: string | null): ExerciseVideoAssetInfo[] => {
+  const bodyPartKey = inferExerciseVideoBodyPart(bodyPart || '');
+  return videoAssets
+    .filter((asset) => !bodyPartKey || asset.bodyPart === bodyPartKey)
+    .map((asset) => ({
+      fileName: asset.fileName,
+      bodyPart: asset.bodyPart,
+      url: asset.url,
+    }))
+    .sort((a, b) => a.fileName.localeCompare(b.fileName));
+};

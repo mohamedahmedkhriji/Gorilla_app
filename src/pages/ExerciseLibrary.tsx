@@ -4,7 +4,8 @@ import { Card } from '../components/ui/Card';
 import { Heart, Play } from 'lucide-react';
 import { api } from '../services/api';
 import { getBodyPartImage } from '../services/bodyPartTheme';
-import { resolveExerciseVideo } from '../services/exerciseVideos';
+import { inferExerciseVideoBodyPart, normalizeExerciseVideoLookup } from '../shared/exerciseVideoManifest.js';
+import { listExerciseVideoAssets, resolveExerciseVideo } from '../services/exerciseVideos';
 
 interface ExerciseLibraryProps {
   onBack: () => void;
@@ -24,7 +25,59 @@ interface CatalogExercise {
 
 type CatalogExerciseWithVideo = CatalogExercise & {
   videoUrl: string;
+  videoAssetName: string;
 };
+
+type LibraryExercise = {
+  id: number | string;
+  name: string;
+  muscle: string;
+  bodyPart?: string | null;
+  videoUrl: string;
+  videoAssetName: string;
+};
+
+const stripExercisePrefix = (value: string) =>
+  String(value || '')
+    .replace(/^\d+(?:\.\d+)?\s+(?:back|chest|legs|shoulders|arms|abs)\s+/i, '')
+    .replace(/^\d+(?:\.\d+)?\s+/, '')
+    .trim();
+
+const toFallbackExerciseName = (fileName: string) =>
+  String(fileName || '')
+    .replace(/\.[a-z0-9]+$/i, '')
+    .replace(/\s+/g, ' ')
+    .replace(/\s*&\s*/g, ' & ')
+    .trim();
+
+const bodyPartToMuscleLabel = (bodyPart?: string | null) => {
+  const key = inferExerciseVideoBodyPart(bodyPart || '');
+  if (key === 'back') return 'Back';
+  if (key === 'chest') return 'Chest';
+  if (key === 'legs') return 'Legs';
+  if (key === 'shoulders') return 'Shoulders';
+  if (key === 'arms') return 'Arms';
+  if (key === 'abs') return 'Abs';
+  const text = String(bodyPart || '').trim();
+  if (!text) return 'General';
+  return text.charAt(0).toUpperCase() + text.slice(1);
+};
+
+const getExerciseAssetScore = (exercise: { name: string; videoAssetName: string }) => {
+  const normalizedName = normalizeExerciseVideoLookup(stripExercisePrefix(exercise.name));
+  const normalizedAsset = normalizeExerciseVideoLookup(exercise.videoAssetName.replace(/\.[^.]+$/, ''));
+  const nameTokens = new Set(normalizedName.split(' ').filter(Boolean));
+  const overlap = normalizedAsset
+    .split(' ')
+    .filter((token) => token && nameTokens.has(token)).length;
+  return overlap * 100 - normalizedName.length;
+};
+
+const isBetterAssetMatch = (
+  candidate: CatalogExerciseWithVideo,
+  current: CatalogExerciseWithVideo,
+) => getExerciseAssetScore(candidate) > getExerciseAssetScore(current);
+
 export function ExerciseLibrary({
   onBack,
   onExerciseClick,
@@ -98,7 +151,12 @@ export function ExerciseLibrary({
     [filters],
   );
 
-  const exercisesWithVideo = useMemo<CatalogExerciseWithVideo[]>(
+  const allVideoAssets = useMemo(
+    () => listExerciseVideoAssets(),
+    [],
+  );
+
+  const catalogExercisesWithVideo = useMemo<CatalogExerciseWithVideo[]>(
     () =>
       exercises
         .map((exercise) => {
@@ -107,10 +165,11 @@ export function ExerciseLibrary({
             muscle: exercise.muscle,
             bodyPart: exercise.bodyPart,
           });
+          const videoAssetName = resolvedVideo.assetName || exercise.linkedVideoAsset || '';
           const isStrictLinkedVideo =
             exercise.hasLinkedVideo === true
             && exercise.linkedVideoMatchType === 'alias'
-            && Boolean(exercise.linkedVideoAsset)
+            && Boolean(videoAssetName)
             && resolvedVideo.matchType === 'alias'
             && Boolean(resolvedVideo.url);
 
@@ -118,10 +177,57 @@ export function ExerciseLibrary({
           return {
             ...exercise,
             videoUrl: resolvedVideo.url,
+            videoAssetName,
           };
         })
         .filter((exercise): exercise is CatalogExerciseWithVideo => Boolean(exercise)),
     [exercises],
+  );
+
+  const dedupedCatalogExercises = useMemo(
+    () => {
+      const byAsset = new Map<string, CatalogExerciseWithVideo>();
+      catalogExercisesWithVideo.forEach((exercise) => {
+        const current = byAsset.get(exercise.videoAssetName);
+        if (!current || isBetterAssetMatch(exercise, current)) {
+          byAsset.set(exercise.videoAssetName, exercise);
+        }
+      });
+      return Array.from(byAsset.values());
+    },
+    [catalogExercisesWithVideo],
+  );
+
+  const fallbackVideoExercises = useMemo<LibraryExercise[]>(
+    () => {
+      const representedAssets = new Set(dedupedCatalogExercises.map((exercise) => exercise.videoAssetName));
+      return allVideoAssets
+        .filter((asset) => !representedAssets.has(asset.fileName))
+        .map((asset) => ({
+          id: `video-${asset.fileName}`,
+          name: toFallbackExerciseName(asset.fileName),
+          muscle: bodyPartToMuscleLabel(asset.bodyPart),
+          bodyPart: asset.bodyPart,
+          videoUrl: asset.url,
+          videoAssetName: asset.fileName,
+        }));
+    },
+    [allVideoAssets, dedupedCatalogExercises],
+  );
+
+  const exercisesWithVideo = useMemo<LibraryExercise[]>(
+    () => [
+      ...dedupedCatalogExercises.map((exercise) => ({
+        id: exercise.id,
+        name: toFallbackExerciseName(exercise.videoAssetName),
+        muscle: exercise.muscle,
+        bodyPart: exercise.bodyPart,
+        videoUrl: exercise.videoUrl,
+        videoAssetName: exercise.videoAssetName,
+      })),
+      ...fallbackVideoExercises,
+    ],
+    [dedupedCatalogExercises, fallbackVideoExercises],
   );
 
   const visibleMuscleFilters = useMemo(
@@ -191,16 +297,17 @@ export function ExerciseLibrary({
         <>
           <div className="px-4 sm:px-6 grid grid-cols-2 gap-4">
             {filteredExercises.map((exercise) => {
-              const likeData = likes[exercise.name] || { count: 0, liked: false };
+              const likeKey = `${exercise.muscle}:${exercise.videoAssetName}`;
+              const likeData = likes[likeKey] || { count: 0, liked: false };
               const videoUrl = exercise.videoUrl;
 
               return (
                 <Card
-                  key={exercise.id}
+                  key={`${exercise.id}-${exercise.videoAssetName}`}
                   onClick={() => onExerciseClick({ name: exercise.name, muscle: exercise.muscle, video: videoUrl })}
-                  className="cursor-pointer p-3 transition-colors group hover:border-accent/20"
+                  className="cursor-pointer overflow-hidden !p-0 transition-colors group hover:border-accent/20"
                 >
-                  <div className="relative mb-3 flex aspect-video items-center justify-center overflow-hidden rounded-lg bg-white/5">
+                  <div className="relative flex aspect-[4/3] items-center justify-center overflow-hidden bg-white/5">
                     <video
                       src={videoUrl}
                       className="h-full w-full object-cover"
@@ -214,23 +321,22 @@ export function ExerciseLibrary({
                       </div>
                     </div>
                   </div>
-                  <div className="truncate text-sm font-bold text-white">
-                    {exercise.name}
-                  </div>
-                  <div className="mt-1 flex items-center justify-between">
-                    <div className="text-[10px] uppercase tracking-wider text-text-secondary">
-                      {exercise.muscle}
+                  <div className="px-3 pb-3 pt-3">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="min-w-0 flex-1 truncate text-sm font-bold text-white">
+                        {exercise.name}
+                      </div>
+                      <button
+                        onClick={(e) => toggleLike(likeKey, e)}
+                        className="flex items-center gap-1"
+                      >
+                        <Heart
+                          size={14}
+                          className={likeData.liked ? 'fill-red-500 text-red-500' : 'text-text-secondary'}
+                        />
+                        <span className="text-[10px] text-text-secondary">{Math.max(0, likeData.count)}</span>
+                      </button>
                     </div>
-                    <button
-                      onClick={(e) => toggleLike(exercise.name, e)}
-                      className="flex items-center gap-1"
-                    >
-                      <Heart
-                        size={14}
-                        className={likeData.liked ? 'fill-red-500 text-red-500' : 'text-text-secondary'}
-                      />
-                      <span className="text-[10px] text-text-secondary">{Math.max(0, likeData.count)}</span>
-                    </button>
                   </div>
                 </Card>
               );
