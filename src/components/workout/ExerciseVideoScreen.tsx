@@ -62,8 +62,8 @@ const getActiveSegments = (percent: number) =>
 const getSegmentColor = (index: number, isActive: boolean) => {
   const ratio = SEGMENT_COUNT <= 1 ? 0 : index / (SEGMENT_COUNT - 1);
   if (isActive) {
-    // Red -> Green progression across active segments
-    const hue = ratio * 120;
+    // Yellow -> Green progression across active segments
+    const hue = 60 + (ratio * 60);
     const saturation = 90;
     const lightness = 48;
     return `hsl(${hue} ${saturation}% ${lightness}%)`;
@@ -200,9 +200,9 @@ export function ExerciseVideoScreen({ onBack, exercise }: ExerciseVideoScreenPro
   };
 
   return (
-    <div className="flex-1 flex flex-col h-full bg-background overflow-y-auto px-4">
+    <div className="flex-1 flex flex-col h-full bg-background overflow-y-auto px-4 sm:px-6">
       {/* Video Player */}
-      <div className="w-full aspect-video bg-card relative mb-6">
+      <div className="relative mb-6 w-full overflow-hidden rounded-2xl border border-white/10 bg-card aspect-video">
         {resolvedVideoUrl ? (
           <>
             <video
@@ -233,7 +233,7 @@ export function ExerciseVideoScreen({ onBack, exercise }: ExerciseVideoScreenPro
           >
             <ArrowLeft size={18} />
           </button>
-          <h1 className="flex-1 text-xl leading-tight text-white drop-shadow-md">
+          <h1 className="flex-1 text-base leading-tight text-white drop-shadow-md sm:text-xl">
             {displayExerciseName}
           </h1>
         </div>
@@ -258,7 +258,8 @@ export function ExerciseVideoScreen({ onBack, exercise }: ExerciseVideoScreenPro
                   <img
                     src={resolveWorkoutMuscleImage(muscle.name, exercise?.muscle) || getBodyPartImage(muscle.name)}
                     alt={muscle.name}
-                    className="h-24 w-full object-cover"
+                    className="h-24 w-full object-cover object-center sm:h-28"
+                    loading="lazy"
                   />
                   <div className="border-t border-white/10 px-3 py-2 text-center text-[11px] font-medium text-text-secondary">
                     {muscle.name}

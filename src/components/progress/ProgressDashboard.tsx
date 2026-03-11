@@ -5,6 +5,7 @@ import { Card } from '../ui/Card';
 import { Activity, ChevronRight, TrendingUp } from 'lucide-react';
 import { api } from '../../services/api';
 import { emojiFire } from '../../services/emojiTheme';
+import { getBodyPartImage } from '../../services/bodyPartTheme';
 interface ProgressDashboardProps {
   onViewReport: () => void;
   onViewStrengthScore: () => void;
@@ -13,16 +14,9 @@ interface ProgressDashboardProps {
 interface MuscleDistributionItem {
   name: string;
   val: number;
-  col: string;
 }
 
-const MUSCLE_DISTRIBUTION_PALETTE = [
-  'bg-blue-500',
-  'bg-indigo-500',
-  'bg-purple-500',
-  'bg-cyan-500',
-  'bg-emerald-500',
-];
+const SEGMENT_COUNT = 10;
 
 const toTitleCase = (value: unknown) =>
   String(value || '')
@@ -75,10 +69,9 @@ const inferMusclesFromExerciseName = (exerciseName: unknown) => {
 const normalizeDistributionItems = (items: Array<{ muscle?: unknown; percent?: unknown }>) =>
   items
     .slice(0, 3)
-    .map((item, index) => ({
+    .map((item) => ({
       name: String(item?.muscle || '-'),
       val: Math.max(0, Math.min(100, Number(item?.percent || 0))),
-      col: MUSCLE_DISTRIBUTION_PALETTE[index % MUSCLE_DISTRIBUTION_PALETTE.length],
     }));
 
 const buildProgramDistribution = (programData: any): MuscleDistributionItem[] => {
@@ -144,11 +137,27 @@ const buildProgramDistribution = (programData: any): MuscleDistributionItem[] =>
     }))
     .sort((left, right) => Number(right.percent) - Number(left.percent))
     .slice(0, 3)
-    .map((item, index) => ({
+    .map((item) => ({
       name: String(item.muscle || '-'),
       val: Math.max(0, Math.min(100, Number(item.percent || 0))),
-      col: MUSCLE_DISTRIBUTION_PALETTE[index % MUSCLE_DISTRIBUTION_PALETTE.length],
     }));
+};
+
+const clampPercent = (value: number) => Math.max(0, Math.min(100, value));
+
+const getActiveSegments = (percent: number) =>
+  Math.round((clampPercent(percent) / 100) * SEGMENT_COUNT);
+
+const getSegmentColor = (index: number, isActive: boolean) => {
+  const ratio = SEGMENT_COUNT <= 1 ? 0 : index / (SEGMENT_COUNT - 1);
+  if (isActive) {
+    // Yellow -> Green progression across active segments
+    const hue = 60 + (ratio * 60);
+    const saturation = 90;
+    const lightness = 48;
+    return `hsl(${hue} ${saturation}% ${lightness}%)`;
+  }
+  return 'rgb(39, 46, 52)';
 };
 
 export function ProgressDashboard({ onViewReport, onViewStrengthScore }: ProgressDashboardProps) {
@@ -349,24 +358,51 @@ export function ProgressDashboard({ onViewReport, onViewStrengthScore }: Progres
       <Card>
         <h3 className="font-medium text-white mb-4">Muscle Distribution (Plan Target)</h3>
         {muscleDistribution.length > 0 ? (
-          <div className="space-y-3">
-            {muscleDistribution.map((m) =>
-            <div key={m.name}>
-                <div className="flex justify-between text-xs mb-1 text-text-secondary">
-                  <span>{m.name}</span>
-                  <span className="font-electrolize">{Math.round(m.val)}%</span>
+          <>
+            <div className="mb-5 grid grid-cols-3 gap-3">
+              {muscleDistribution.map((m) => (
+                <div
+                  key={`${m.name}-image`}
+                  className="overflow-hidden rounded-2xl border border-white/10 bg-white/[0.03]"
+                >
+                  <img
+                    src={getBodyPartImage(m.name)}
+                    alt={m.name}
+                    className="h-24 w-full object-cover object-center sm:h-28"
+                    loading="lazy"
+                  />
+                  <div className="border-t border-white/10 px-3 py-2 text-center text-[11px] font-medium text-text-secondary">
+                    {m.name}
+                  </div>
                 </div>
-                <div className="h-2 bg-white/5 rounded-full overflow-hidden">
-                  <div
-                  className={`h-full rounded-full ${m.col}`}
-                  style={{
-                    width: `${m.val}%`
-                  }} />
+              ))}
+            </div>
 
+            <div className="space-y-3">
+              {muscleDistribution.map((m) => (
+                <div key={m.name}>
+                  <div className="mb-1 flex justify-between text-xs text-text-secondary">
+                    <span>{m.name}</span>
+                    <span className="font-electrolize">{Math.round(m.val)}%</span>
+                  </div>
+                  <div className="mt-1 rounded-md border border-white/10 bg-white/[0.02] p-1">
+                    <div className="flex h-2 items-center gap-1">
+                      {Array.from({ length: SEGMENT_COUNT }, (_, index) => {
+                        const isActive = index < getActiveSegments(m.val);
+                        return (
+                          <div
+                            key={`${m.name}-segment-${index}`}
+                            className="h-full flex-1 rounded-[2px] transition-colors duration-300"
+                            style={{ backgroundColor: getSegmentColor(index, isActive) }}
+                          />
+                        );
+                      })}
+                    </div>
+                  </div>
                 </div>
-              </div>
-            )}
-          </div>
+              ))}
+            </div>
+          </>
         ) : (
           <div className="rounded-2xl border border-white/8 bg-background/50 px-4 py-4 text-sm text-text-secondary">
             No plan distribution is available yet for this user.
