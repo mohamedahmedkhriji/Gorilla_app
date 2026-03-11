@@ -4,7 +4,7 @@ import { Card } from '../components/ui/Card';
 import { Heart, Play } from 'lucide-react';
 import { api } from '../services/api';
 import { getBodyPartImage } from '../services/bodyPartTheme';
-import { resolveExerciseVideoUrl } from '../services/exerciseVideos';
+import { resolveExerciseVideo } from '../services/exerciseVideos';
 
 interface ExerciseLibraryProps {
   onBack: () => void;
@@ -17,7 +17,14 @@ interface CatalogExercise {
   name: string;
   muscle: string;
   bodyPart?: string | null;
+  hasLinkedVideo?: boolean;
+  linkedVideoAsset?: string | null;
+  linkedVideoMatchType?: 'alias' | 'filename' | 'fallback' | 'none' | null;
 }
+
+type CatalogExerciseWithVideo = CatalogExercise & {
+  videoUrl: string;
+};
 export function ExerciseLibrary({
   onBack,
   onExerciseClick,
@@ -91,17 +98,29 @@ export function ExerciseLibrary({
     [filters],
   );
 
-  const exercisesWithVideo = useMemo(
+  const exercisesWithVideo = useMemo<CatalogExerciseWithVideo[]>(
     () =>
-      exercises.filter((exercise) =>
-        Boolean(
-          resolveExerciseVideoUrl({
+      exercises
+        .map((exercise) => {
+          const resolvedVideo = resolveExerciseVideo({
             name: exercise.name,
             muscle: exercise.muscle,
             bodyPart: exercise.bodyPart,
-          }),
-        ),
-      ),
+          });
+          const isStrictLinkedVideo =
+            exercise.hasLinkedVideo === true
+            && exercise.linkedVideoMatchType === 'alias'
+            && Boolean(exercise.linkedVideoAsset)
+            && resolvedVideo.matchType === 'alias'
+            && Boolean(resolvedVideo.url);
+
+          if (!isStrictLinkedVideo || !resolvedVideo.url) return null;
+          return {
+            ...exercise,
+            videoUrl: resolvedVideo.url,
+          };
+        })
+        .filter((exercise): exercise is CatalogExerciseWithVideo => Boolean(exercise)),
     [exercises],
   );
 
@@ -173,12 +192,7 @@ export function ExerciseLibrary({
           <div className="px-4 sm:px-6 grid grid-cols-2 gap-4">
             {filteredExercises.map((exercise) => {
               const likeData = likes[exercise.name] || { count: 0, liked: false };
-              const videoUrl =
-                resolveExerciseVideoUrl({
-                  name: exercise.name,
-                  muscle: exercise.muscle,
-                  bodyPart: exercise.bodyPart,
-                }) || null;
+              const videoUrl = exercise.videoUrl;
 
               return (
                 <Card
