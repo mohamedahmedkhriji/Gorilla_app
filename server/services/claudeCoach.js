@@ -160,6 +160,14 @@ const sanitizeText = (value, fallback = '') => {
   return text || fallback;
 };
 
+const safeJsonStringify = (value, fallback = '{}') => {
+  try {
+    return JSON.stringify(value, null, 2);
+  } catch {
+    return fallback;
+  }
+};
+
 const normalizeDayName = (value) => {
   const key = String(value || '').trim().toLowerCase();
   if (!key) return null;
@@ -496,6 +504,11 @@ const buildSystemPrompt = () => (
 const buildUserPrompt = (profile, imageCount) => {
   const daysPerWeek = clampInt(profile?.daysPerWeek, 2, 6, 4);
   const sessionDuration = clampInt(profile?.sessionDuration, 30, 120, 60);
+  const onboardingFields = profile?.onboardingFields && typeof profile.onboardingFields === 'object'
+    ? profile.onboardingFields
+    : {};
+  const onboardingFieldKeys = Object.keys(onboardingFields);
+  const onboardingFieldsJson = safeJsonStringify(onboardingFields, '{}');
 
   return [
     'Create a highly personalized 8-week gym plan.',
@@ -519,6 +532,11 @@ const buildUserPrompt = (profile, imageCount) => {
     `- Preferred training time: ${profile?.preferredTime || 'unspecified'}`,
     `- Equipment notes: ${profile?.equipment || 'full gym access'}`,
     `- Body images provided: ${imageCount}`,
+    '',
+    'Use every onboarding field below as additional context and constraints.',
+    `- Onboarding fields received (${onboardingFieldKeys.length}): ${onboardingFieldKeys.join(', ') || 'none'}`,
+    'Onboarding fields (explicit JSON):',
+    onboardingFieldsJson,
     '',
     'Output JSON schema:',
     '{',

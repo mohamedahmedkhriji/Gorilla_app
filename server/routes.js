@@ -130,6 +130,55 @@ const toBooleanFlag = (value, fallback = false) => {
   return fallback;
 };
 
+const sanitizeOnboardingFieldForPrompt = (value, depth = 0) => {
+  if (value == null) return null;
+  if (depth > 4) return '[truncated]';
+
+  if (Array.isArray(value)) {
+    return value.slice(0, 24).map((item) => sanitizeOnboardingFieldForPrompt(item, depth + 1));
+  }
+
+  if (typeof value === 'object') {
+    const output = {};
+    const entries = Object.entries(value).slice(0, 80);
+    entries.forEach(([key, entryValue]) => {
+      if (String(key) === 'bodyImages') {
+        const images = Array.isArray(entryValue) ? entryValue : [];
+        output.bodyImages = images.slice(0, 3).map((image, index) => {
+          const raw = String(image || '').trim();
+          if (!raw) return `image_${index + 1}: empty`;
+          const match = raw.match(/^data:(image\/[a-z0-9.+-]+);base64,/i);
+          if (!match) return `image_${index + 1}: non-data-uri`;
+          return `image_${index + 1}: ${String(match[1] || 'image/unknown').toLowerCase()}`;
+        });
+        return;
+      }
+      output[key] = sanitizeOnboardingFieldForPrompt(entryValue, depth + 1);
+    });
+    return output;
+  }
+
+  if (typeof value === 'string') {
+    const normalized = value.replace(/\s+/g, ' ').trim();
+    if (!normalized) return '';
+    return normalized.length > 500 ? `${normalized.slice(0, 500)}...[truncated]` : normalized;
+  }
+
+  if (typeof value === 'number' || typeof value === 'boolean') return value;
+  return String(value);
+};
+
+const buildClaudeOnboardingFields = (payload = {}, normalized = {}) => {
+  const sanitizedRaw = sanitizeOnboardingFieldForPrompt(payload, 0);
+  const rawObject = sanitizedRaw && typeof sanitizedRaw === 'object' ? { ...sanitizedRaw } : {};
+  delete rawObject.userId;
+
+  return {
+    ...rawObject,
+    _normalizedSummary: sanitizeOnboardingFieldForPrompt(normalized, 0),
+  };
+};
+
 const TRACKED_MUSCLES = [
   'Chest',
   'Back',
@@ -3598,6 +3647,30 @@ router.post('/user/onboarding', async (req, res) => {
     if (!assignedProgram && !assignmentInfo && aiPlanRequested && claudeEnabled && shouldUseClaude && !shouldDisableClaude) {
       await conn.query('SAVEPOINT onboarding_claude_plan');
       try {
+        const claudeOnboardingFields = buildClaudeOnboardingFields(req.body, {
+          userId: normalizedUserId,
+          age: normalizedAge,
+          gender: normalizedGender,
+          heightCm: normalizedHeight,
+          weightKg: normalizedWeight,
+          goal: normalizedGoal,
+          experienceLevel: normalizedExperience || 'intermediate',
+          daysPerWeek: normalizedDays,
+          sessionDuration: normalizedSessionDuration,
+          preferredTime: normalizedPreferredTime,
+          bodyType: normalizedBodyType,
+          motivation: normalizedOnboardingReason,
+          preferredSplit: normalizedSplitPreference,
+          preferredSplitLabel: normalizedSplitLabel,
+          trainingFocus: normalizedAiTrainingFocus,
+          limitations: normalizedAiLimitations,
+          recoveryPriority: normalizedAiRecoveryPriority,
+          equipmentNotes: normalizedAiEquipmentNotes,
+          equipment: equipmentProfile,
+          bodyImagesProvided: normalizedBodyImages.length,
+          claudeRequested: aiPlanRequested,
+        });
+
         const claudeProfile = {
           age: normalizedAge,
           gender: normalizedGender,
@@ -3618,6 +3691,7 @@ router.post('/user/onboarding', async (req, res) => {
           equipmentNotes: normalizedAiEquipmentNotes,
           equipment: equipmentProfile,
           userName: String(userRows[0]?.name || '').trim() || null,
+          onboardingFields: claudeOnboardingFields,
         };
 
         const generatedByClaude = await generateTwoMonthPlanWithClaude({
