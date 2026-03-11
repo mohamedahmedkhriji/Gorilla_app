@@ -90,6 +90,8 @@ export function ExerciseLibrary({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [likes, setLikes] = useState<{[key: string]: {count: number, liked: boolean}}>({});
+  const bodyPartSkeletons = Array.from({ length: 6 }, (_, index) => `body-part-skeleton-${index}`);
+  const exerciseSkeletons = Array.from({ length: 6 }, (_, index) => `exercise-skeleton-${index}`);
 
   useEffect(() => {
     setSelectedFilter(initialFilter || 'All');
@@ -285,8 +287,40 @@ export function ExerciseLibrary({
         </div>
       )}
 
-      {loading && (
-        <div className="px-4 sm:px-6 text-text-secondary text-sm">Loading exercises...</div>
+      {loading && selectedFilter === 'All' && (
+        <div className="px-4 sm:px-6 mb-6">
+          <div className="grid grid-cols-3 gap-3 sm:grid-cols-6">
+            {bodyPartSkeletons.map((key) => (
+              <div
+                key={key}
+                className="rounded-2xl border border-white/10 bg-card p-3 animate-pulse"
+              >
+                <div className="h-24 w-full rounded-xl border border-white/10 bg-white/5 sm:h-28" />
+                <div className="mt-3 h-4 w-3/4 rounded bg-white/10" />
+                <div className="mt-2 h-3 w-1/2 rounded bg-white/10" />
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {loading && selectedFilter !== 'All' && (
+        <div className="px-4 sm:px-6 grid grid-cols-2 gap-4">
+          {exerciseSkeletons.map((key) => (
+            <div
+              key={key}
+              className="surface-card rounded-2xl border border-white/10 overflow-hidden animate-pulse"
+            >
+              <div className="aspect-[4/3] w-full bg-white/5" />
+              <div className="px-3 pb-3 pt-3">
+                <div className="h-4 w-4/5 rounded bg-white/10" />
+                <div className="mt-2 flex justify-end">
+                  <div className="h-3 w-8 rounded bg-white/10" />
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
       )}
 
       {!loading && error && (
