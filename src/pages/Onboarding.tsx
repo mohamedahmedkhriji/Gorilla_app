@@ -8,6 +8,7 @@ import { FitnessGoalsScreen } from '../components/onboarding/FitnessGoalsScreen'
 import { BodyTypeSelectionScreen } from '../components/onboarding/BodyTypeSelectionScreen';
 import { GoalsAvailabilityScreen } from '../components/onboarding/GoalsAvailabilityScreen';
 import { WorkoutSplitScreen } from '../components/onboarding/WorkoutSplitScreen';
+import { AIPlanTuningScreen } from '../components/onboarding/AIPlanTuningScreen';
 import { BodyImageUploadScreen } from '../components/onboarding/BodyImageUploadScreen';
 import { AIAnalysisScreen } from '../components/onboarding/AIAnalysisScreen';
 import { BodyAnalysisResultsScreen } from '../components/onboarding/BodyAnalysisResultsScreen';
@@ -42,7 +43,9 @@ export function Onboarding({ onComplete }: OnboardingProps) {
       onComplete();
     }
   }, [onComplete]);
-  const shouldShowCustomPlanStep = String(onboardingData?.workoutSplitPreference || '').trim().toLowerCase() === 'custom';
+  const selectedSplitType = String(onboardingData?.workoutSplitPreference || '').trim().toLowerCase();
+  const shouldShowCustomPlanStep = selectedSplitType === 'custom';
+  const shouldShowAiPlanTuningStep = selectedSplitType === 'auto';
 
   const steps = [
   {
@@ -91,6 +94,14 @@ export function Onboarding({ onComplete }: OnboardingProps) {
         }
       ]
     : [
+        ...(shouldShowAiPlanTuningStep
+          ? [
+              {
+                component: AIPlanTuningScreen,
+                title: 'AI Preferences'
+              }
+            ]
+          : []),
         {
           component: BodyImageUploadScreen,
           title: 'Body Scan'
@@ -102,7 +113,10 @@ export function Onboarding({ onComplete }: OnboardingProps) {
         },
         {
           component: BodyAnalysisResultsScreen,
-          title: 'Results'
+          title: 'Results',
+          showBack: false,
+          showHeader: false,
+          showProgress: false
         }
       ])];
 
@@ -122,7 +136,9 @@ export function Onboarding({ onComplete }: OnboardingProps) {
       totalSteps={steps.length}
       onBack={back}
       title={steps[step].title}
-      showBack={steps[step].showBack !== false}>
+      showBack={steps[step].showBack !== false}
+      showHeader={steps[step].showHeader !== false}
+      showProgress={steps[step].showProgress !== false}>
 
       <CurrentComponent
         onNext={next}

@@ -10,6 +10,8 @@ interface OnboardingLayoutProps {
   onBack?: () => void;
   title?: string;
   showBack?: boolean;
+  showHeader?: boolean;
+  showProgress?: boolean;
 }
 
 export function OnboardingLayout({
@@ -19,6 +21,8 @@ export function OnboardingLayout({
   onBack,
   title,
   showBack = true,
+  showHeader = true,
+  showProgress = true,
 }: OnboardingLayoutProps) {
   return (
     <div className="min-h-screen px-4 py-6 sm:px-6 relative overflow-hidden">
@@ -26,20 +30,22 @@ export function OnboardingLayout({
       <div className="pointer-events-none absolute -bottom-24 -left-12 h-64 w-64 rounded-full blur-3xl bg-accent/20" />
 
       <div className="relative min-h-[calc(100vh-3rem)] px-2 py-1 sm:px-4 flex flex-col">
-        <div className="flex items-center h-12 mb-4 relative">
-          {showBack && onBack && (
-            <button
-              onClick={onBack}
-              className="absolute left-0 w-10 h-10 rounded-xl surface-glass flex items-center justify-center text-text-secondary hover:text-text-primary transition-colors"
-            >
-              <ArrowLeft size={18} />
-            </button>
-          )}
+        {showHeader && (
+          <div className="flex items-center h-12 mb-4 relative">
+            {showBack && onBack && (
+              <button
+                onClick={onBack}
+                className="absolute left-0 w-10 h-10 rounded-xl surface-glass flex items-center justify-center text-text-secondary hover:text-text-primary transition-colors"
+              >
+                <ArrowLeft size={18} />
+              </button>
+            )}
 
-          {title && <h1 className="w-full text-center text-xl text-text-primary font-electrolize">{title}</h1>}
-        </div>
+            {title && <h1 className="w-full text-center text-xl text-text-primary font-electrolize">{title}</h1>}
+          </div>
+        )}
 
-        <ProgressSteps currentStep={currentStep} totalSteps={totalSteps} />
+        {showProgress && <ProgressSteps currentStep={currentStep} totalSteps={totalSteps} />}
 
         <AnimatePresence mode="wait">
           <motion.div

@@ -389,6 +389,83 @@ const normalizeWeeklySchedule = (rawSchedule, daysPerWeek, preferredSplit = 'aut
   return normalized;
 };
 
+const normalizeExerciseAnchors = (value) => {
+  if (!Array.isArray(value)) return [];
+
+  return value
+    .map((day) => {
+      const workoutType = normalizeWorkoutType(day?.workoutType || day?.workoutName, 'Full Body');
+      const workoutName = sanitizeText(day?.workoutName, `${workoutType} Workout`);
+      const exercises = (Array.isArray(day?.exercises) ? day.exercises : [])
+        .map((exercise) => {
+          const normalized = normalizeExercise(exercise);
+          const name = sanitizeText(exercise?.name || exercise?.exerciseName, normalized.name);
+          if (!name) return null;
+
+          const targetMuscles = normalizeTargetMuscles(
+            exercise?.targetMuscles
+            ?? exercise?.muscleTargets
+            ?? exercise?.primaryMuscles
+            ?? exercise?.muscles
+            ?? exercise?.muscleGroup,
+          );
+
+          return {
+            ...normalized,
+            name,
+            targetMuscles: targetMuscles.length ? targetMuscles : normalized.targetMuscles,
+          };
+        })
+        .filter(Boolean)
+        .slice(0, 10);
+
+      if (!exercises.length) return null;
+      return {
+        workoutName,
+        workoutType,
+        exercises,
+      };
+    })
+    .filter(Boolean)
+    .slice(0, 6);
+};
+
+const applyExerciseAnchorsToWeeklySchedule = (weeklySchedule, anchors) => {
+  const normalizedSchedule = Array.isArray(weeklySchedule) ? weeklySchedule : [];
+  const normalizedAnchors = normalizeExerciseAnchors(anchors);
+  if (!normalizedSchedule.length || !normalizedAnchors.length) return normalizedSchedule;
+
+  return normalizedSchedule.map((row, dayIndex) => {
+    const anchorDay = normalizedAnchors[dayIndex % normalizedAnchors.length];
+    const aiExercises = Array.isArray(row?.exercises)
+      ? row.exercises.map((exercise) => normalizeExercise(exercise))
+      : [];
+
+    const anchoredExercises = anchorDay.exercises.map((anchorExercise, exerciseIndex) => {
+      const byName = aiExercises.find(
+        (exercise) => sanitizeText(exercise?.name).toLowerCase() === anchorExercise.name.toLowerCase(),
+      );
+      const source = byName || aiExercises[exerciseIndex] || anchorExercise;
+      const normalizedSource = normalizeExercise(source);
+
+      return {
+        ...normalizedSource,
+        name: anchorExercise.name,
+        targetMuscles: Array.isArray(anchorExercise.targetMuscles) && anchorExercise.targetMuscles.length
+          ? anchorExercise.targetMuscles
+          : normalizedSource.targetMuscles,
+      };
+    });
+
+    return {
+      ...row,
+      workoutName: anchorDay.workoutName || sanitizeText(row?.workoutName, `${anchorDay.workoutType} Workout`),
+      workoutType: anchorDay.workoutType || normalizeWorkoutType(row?.workoutType || row?.workoutName, 'Full Body'),
+      exercises: anchoredExercises.length ? anchoredExercises : aiExercises,
+    };
+  });
+};
+
 const findFirstBalancedJsonObject = (text) => {
   const source = String(text || '');
   const start = source.indexOf('{');
@@ -504,13 +581,16 @@ const buildSystemPrompt = () => (
 const buildUserPrompt = (profile, imageCount) => {
   const daysPerWeek = clampInt(profile?.daysPerWeek, 2, 6, 4);
   const sessionDuration = clampInt(profile?.sessionDuration, 30, 120, 60);
+  const preferredSplit = normalizeSplitPreference(profile?.preferredSplit);
+  const exerciseAnchors = normalizeExerciseAnchors(profile?.exerciseAnchors);
   const onboardingFields = profile?.onboardingFields && typeof profile.onboardingFields === 'object'
     ? profile.onboardingFields
     : {};
   const onboardingFieldKeys = Object.keys(onboardingFields);
   const onboardingFieldsJson = safeJsonStringify(onboardingFields, '{}');
+  const exerciseAnchorsJson = safeJsonStringify(exerciseAnchors, '[]');
 
-  return [
+  const lines = [
     'Create a highly personalized 8-week gym plan.',
     '',
     'User profile:',
@@ -522,7 +602,7 @@ const buildUserPrompt = (profile, imageCount) => {
     `- Experience level: ${profile?.experienceLevel || 'intermediate'}`,
     `- Body type: ${profile?.bodyType || 'unknown'}`,
     `- Main reason for using the app: ${profile?.motivation || 'unspecified'}`,
-    `- Preferred split style: ${profile?.preferredSplitLabel || profile?.preferredSplit || 'auto'}`,
+    `- Preferred split style: ${profile?.preferredSplitLabel || preferredSplit || 'auto'}`,
     `- AI focus preference: ${profile?.trainingFocus || 'balanced'}`,
     `- Injury/limitation notes: ${profile?.limitations || 'none'}`,
     `- Recovery preference: ${profile?.recoveryPriority || 'balanced'}`,
@@ -532,11 +612,28 @@ const buildUserPrompt = (profile, imageCount) => {
     `- Preferred training time: ${profile?.preferredTime || 'unspecified'}`,
     `- Equipment notes: ${profile?.equipment || 'full gym access'}`,
     `- Body images provided: ${imageCount}`,
+    `- Locked exercise templates provided: ${exerciseAnchors.length > 0 ? `yes (${exerciseAnchors.length} day templates)` : 'no'}`,
     '',
     'Use every onboarding field below as additional context and constraints.',
     `- Onboarding fields received (${onboardingFieldKeys.length}): ${onboardingFieldKeys.join(', ') || 'none'}`,
     'Onboarding fields (explicit JSON):',
     onboardingFieldsJson,
+  '',
+  ];
+
+  if (exerciseAnchors.length > 0) {
+    lines.push(
+      '',
+      'Locked exercise templates (JSON):',
+      exerciseAnchorsJson,
+      '',
+      'The user already chose training style and exercises from the existing library.',
+      'Keep the same exercise names and workout types from the locked templates.',
+      'Only optimize prescription values (sets, reps, restSeconds, targetWeight, tempo, rpeTarget, notes).',
+    );
+  }
+
+  lines.push(
     '',
     'Output JSON schema:',
     '{',
@@ -573,10 +670,30 @@ const buildUserPrompt = (profile, imageCount) => {
     '}',
     '',
     `Important: weeklySchedule must include exactly ${daysPerWeek} unique training days.`,
+  );
+
+  if (preferredSplit === 'full_body') {
+    lines.push('Important: Preferred split is Full Body, so every workoutType must be "Full Body".');
+  } else if (preferredSplit === 'upper_lower') {
+    lines.push('Important: Preferred split is Upper/Lower, so workoutType must use only "Upper Body" and "Lower Body" in rotation.');
+  } else if (preferredSplit === 'push_pull_legs') {
+    lines.push('Important: Preferred split is Push/Pull/Legs, so workoutType must use only "Push", "Pull", and "Legs" in rotation.');
+  } else if (preferredSplit === 'hybrid') {
+    lines.push('Important: Preferred split is Hybrid, so combine Push/Pull/Legs and Upper/Lower structure logically.');
+  }
+
+  if (exerciseAnchors.length > 0) {
+    lines.push('Important: Do not invent replacement exercise names when locked templates are provided.');
+  }
+
+  lines.push(
     'Prefer setting targetMuscles for each exercise to help downstream recovery modeling.',
-    'Use realistic targetWeight in kg for loaded movements and null for bodyweight/isometric exercises.',
+    'Use realistic targetWeight in kg for loaded movements and null only for bodyweight/isometric exercises.',
+    'Calibrate sets/reps/targetWeight from age, body weight, experience level, goal, and recovery profile.',
     'Keep exercise names specific and gym-usable (avoid generic placeholders).',
-  ].join('\n');
+  );
+
+  return lines.join('\n');
 };
 
 const parseClaudeText = (responsePayload) => {
@@ -776,6 +893,7 @@ export const buildCustomProgramPayloadFromClaudePlan = (plan = {}, options = {})
   const durationWeeks = clampInt(options?.cycleWeeks ?? plan?.durationWeeks, 8, 8, 8);
   const desiredDays = clampInt(options?.daysPerWeek, 2, 6, 4);
   const preferredSplit = normalizeSplitPreference(options?.splitPreference || options?.preferredSplit);
+  const exerciseAnchors = normalizeExerciseAnchors(options?.exerciseAnchors);
   let weeklySchedule = normalizeWeeklySchedule(plan?.weeklySchedule, desiredDays, preferredSplit);
   if (weeklySchedule.length > desiredDays) {
     weeklySchedule = weeklySchedule.slice(0, desiredDays);
@@ -783,6 +901,9 @@ export const buildCustomProgramPayloadFromClaudePlan = (plan = {}, options = {})
   if (weeklySchedule.length < desiredDays) {
     const fallbackSchedule = buildDefaultSchedule(desiredDays, preferredSplit);
     weeklySchedule = fallbackSchedule.slice(0, desiredDays);
+  }
+  if (exerciseAnchors.length > 0) {
+    weeklySchedule = applyExerciseAnchorsToWeeklySchedule(weeklySchedule, exerciseAnchors);
   }
 
   const fallbackDays = WEEKDAY_BY_DAYS_PER_WEEK[desiredDays] || WEEKDAY_BY_DAYS_PER_WEEK[4];

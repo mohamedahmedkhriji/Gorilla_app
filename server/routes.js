@@ -2979,6 +2979,90 @@ const findTemplateProgramBySplit = async (conn, splitPreference) => {
   return null;
 };
 
+const buildTemplateExerciseAnchorsForSplit = async (
+  conn,
+  {
+    splitPreference,
+    daysPerWeek = 4,
+  } = {},
+) => {
+  const templateProgram = await findTemplateProgramBySplit(conn, splitPreference);
+  if (!templateProgram) return [];
+
+  const normalizedDays = Math.max(2, Math.min(6, Number(daysPerWeek || 4)));
+  const [rows] = await conn.execute(
+    `SELECT
+        w.id AS workout_id,
+        w.workout_name,
+        w.workout_type,
+        w.day_order,
+        w.day_name,
+        we.order_index,
+        we.exercise_name_snapshot,
+        we.muscle_group_snapshot,
+        we.target_sets,
+        we.target_reps,
+        we.target_weight,
+        we.rest_seconds,
+        we.tempo,
+        we.rpe_target
+      FROM workouts w
+      LEFT JOIN workout_exercises we ON we.workout_id = w.id
+      WHERE w.program_id = ?
+      ORDER BY w.day_order ASC, w.id ASC, we.order_index ASC, we.id ASC`,
+    [templateProgram.id],
+  );
+
+  const byWorkout = new Map();
+  rows.forEach((row) => {
+    const workoutId = Number(row.workout_id || 0);
+    if (!workoutId) return;
+
+    if (!byWorkout.has(workoutId)) {
+      byWorkout.set(workoutId, {
+        workoutId,
+        workoutName: String(row.workout_name || '').trim() || String(row.day_name || 'Workout').trim() || 'Workout',
+        workoutType: String(row.workout_type || '').trim() || null,
+        dayOrder: Number(row.day_order || 0),
+        exercises: [],
+      });
+    }
+
+    const exerciseName = String(row.exercise_name_snapshot || '').trim();
+    if (!exerciseName) return;
+
+    const day = byWorkout.get(workoutId);
+    day.exercises.push({
+      name: exerciseName,
+      targetMuscles: normalizeRecoveryMuscleTargets(row.muscle_group_snapshot, 3),
+      sets: Number.isFinite(Number(row.target_sets)) ? Number(row.target_sets) : null,
+      reps: row.target_reps ? String(row.target_reps).trim().slice(0, 20) : null,
+      targetWeight: Number.isFinite(Number(row.target_weight)) ? Number(row.target_weight) : null,
+      restSeconds: Number.isFinite(Number(row.rest_seconds)) ? Number(row.rest_seconds) : null,
+      tempo: row.tempo ? String(row.tempo).trim().slice(0, 20) : null,
+      rpeTarget: Number.isFinite(Number(row.rpe_target)) ? Number(row.rpe_target) : null,
+    });
+  });
+
+  const workouts = [...byWorkout.values()]
+    .map((workout) => ({
+      workoutName: workout.workoutName,
+      workoutType: workout.workoutType,
+      exercises: workout.exercises.slice(0, 10),
+      dayOrder: workout.dayOrder,
+    }))
+    .filter((workout) => workout.exercises.length > 0)
+    .sort((a, b) => a.dayOrder - b.dayOrder);
+
+  if (!workouts.length) return [];
+
+  return workouts.slice(0, normalizedDays).map((workout) => ({
+    workoutName: workout.workoutName,
+    workoutType: workout.workoutType,
+    exercises: workout.exercises,
+  }));
+};
+
 const cloneTemplateProgramForUser = async (conn, userId, templateProgram) => {
   const templateName = String(templateProgram?.name || '').trim() || 'Template Program';
   const description = String(templateProgram?.description || '').trim();
@@ -3593,9 +3677,21 @@ router.post('/user/onboarding', async (req, res) => {
     const claudeEnabled = hasAnthropicConfig();
     const shouldUseClaude = toBooleanFlag(useClaude, claudeEnabled);
     const shouldDisableClaude = toBooleanFlag(disableClaude, false);
-    const templateEligibleSplit = ['full_body', 'upper_lower', 'push_pull_legs'].includes(normalizedSplitPreference);
-    const aiPlanRequested = normalizedSplitPreference === 'auto';
+    const templateEligibleSplit = ['full_body', 'upper_lower', 'push_pull_legs', 'hybrid'].includes(normalizedSplitPreference);
+    const aiPlanRequested = normalizedSplitPreference !== 'custom';
     const hasCustomPlanPayload = customPlan && typeof customPlan === 'object';
+    let claudeExerciseAnchors = [];
+
+    if (hasExplicitSplitPreference && templateEligibleSplit) {
+      try {
+        claudeExerciseAnchors = await buildTemplateExerciseAnchorsForSplit(conn, {
+          splitPreference: normalizedSplitPreference,
+          daysPerWeek: normalizedDays,
+        });
+      } catch (anchorError) {
+        console.warn('[onboarding] Failed to load template exercise anchors:', anchorError?.message || anchorError);
+      }
+    }
 
     if (!assignedProgram && !assignmentInfo && normalizedSplitPreference === 'custom' && hasCustomPlanPayload) {
       let customDraft;
@@ -3631,19 +3727,6 @@ router.post('/user/onboarding', async (req, res) => {
       });
     }
 
-    if (hasExplicitSplitPreference && templateEligibleSplit) {
-      const templateResult = await assignTemplateProgramFromLibrary(conn, {
-        userId: normalizedUserId,
-        splitPreference: normalizedSplitPreference,
-        note: `Template onboarding plan: goal=${normalizedGoal}, days=${normalizedDays}, level=${normalizedExperience || 'unknown'}${normalizedOnboardingReason ? `, reason=${normalizedOnboardingReason}` : ''}${hasExplicitSplitPreference ? `, split=${normalizedSplitPreference}` : ''}`,
-      });
-      if (templateResult) {
-        assignedProgram = templateResult.assignedProgram;
-        assignmentInfo = templateResult.assignment;
-        planSource = 'template_library';
-      }
-    }
-
     if (!assignedProgram && !assignmentInfo && aiPlanRequested && claudeEnabled && shouldUseClaude && !shouldDisableClaude) {
       await conn.query('SAVEPOINT onboarding_claude_plan');
       try {
@@ -3669,6 +3752,11 @@ router.post('/user/onboarding', async (req, res) => {
           equipment: equipmentProfile,
           bodyImagesProvided: normalizedBodyImages.length,
           claudeRequested: aiPlanRequested,
+          lockedExercisePoolDays: claudeExerciseAnchors.length,
+          lockedExercisePoolExercises: claudeExerciseAnchors.reduce(
+            (sum, day) => sum + (Array.isArray(day?.exercises) ? day.exercises.length : 0),
+            0,
+          ),
         });
 
         const claudeProfile = {
@@ -3691,6 +3779,7 @@ router.post('/user/onboarding', async (req, res) => {
           equipmentNotes: normalizedAiEquipmentNotes,
           equipment: equipmentProfile,
           userName: String(userRows[0]?.name || '').trim() || null,
+          exerciseAnchors: claudeExerciseAnchors,
           onboardingFields: claudeOnboardingFields,
         };
 
@@ -3703,6 +3792,7 @@ router.post('/user/onboarding', async (req, res) => {
           daysPerWeek: normalizedDays,
           cycleWeeks: 8,
           splitPreference: normalizedSplitPreference,
+          exerciseAnchors: claudeExerciseAnchors,
         });
 
         const draft = await buildCustomProgramDraft(conn, normalizedUserId, customPayload);
@@ -3746,6 +3836,19 @@ router.post('/user/onboarding', async (req, res) => {
           warning = rawWarning;
         }
         console.warn('[onboarding] Claude generation failed, fallback to template:', rawWarning);
+      }
+    }
+
+    if (!assignedProgram && !assignmentInfo && hasExplicitSplitPreference && templateEligibleSplit) {
+      const templateResult = await assignTemplateProgramFromLibrary(conn, {
+        userId: normalizedUserId,
+        splitPreference: normalizedSplitPreference,
+        note: `Template onboarding plan: goal=${normalizedGoal}, days=${normalizedDays}, level=${normalizedExperience || 'unknown'}${normalizedOnboardingReason ? `, reason=${normalizedOnboardingReason}` : ''}${hasExplicitSplitPreference ? `, split=${normalizedSplitPreference}` : ''}`,
+      });
+      if (templateResult) {
+        assignedProgram = templateResult.assignedProgram;
+        assignmentInfo = templateResult.assignment;
+        planSource = 'template_library';
       }
     }
 

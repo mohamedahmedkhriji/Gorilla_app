@@ -171,111 +171,102 @@ export function BodyAnalysisResultsScreen({
 
   const gymId = toNumber(appUser?.gym_id);
   const gymLabel = normalize(input.gymName) || (gymId ? `Gym #${gymId}` : 'Not selected');
-  const sessionDuration = Math.max(30, Math.min(120, Number(toNumber(input.sessionDuration) || 60)));
-  const preferredTime = normalize(input.preferredTime) ? toTitleCase(normalize(input.preferredTime)) : 'Flexible';
-
   const summaryText =
     normalize(customAdvice?.summary)
     || normalize(coachPlan?.goalMatch)
     || normalize(coachPlan?.summary)
     || `A personalized ${goal.toLowerCase()} plan built around your routine and recovery.`;
+  const planLabel = normalize(coachPlan?.planName) || 'RepSet AI';
+  const planHeadline = goal === 'Build muscle' ? 'Build and tone muscle' : goal;
 
   return (
-    <div className="flex-1 flex flex-col space-y-5">
-      <div className="space-y-1">
-        <h2 className="text-[1.85rem] leading-tight font-semibold text-white">
+    <div className="flex-1 flex flex-col space-y-6">
+      <div className="space-y-2">
+        <h2 className="text-[1.9rem] leading-tight font-semibold text-white">
           Congratulations, {firstName}! Your <span className="text-accent">AI-powered</span> coach is ready.
         </h2>
       </div>
 
-      <Card className="p-4">
-        <p className="text-sm font-semibold text-white mb-3">About you</p>
-        <div className="grid grid-cols-3 gap-3">
-          <div className="rounded-xl border border-white/10 bg-white/5 p-3 text-center">
+      <Card className="rounded-2xl border border-white/10 bg-[#091533]/80 p-4">
+        <p className="text-base font-semibold text-white mb-3">About you</p>
+        <div className="grid grid-cols-3 gap-2.5">
+          <div className="rounded-xl border border-white/10 bg-[#0c1c43]/85 p-3 text-center">
             <p className="text-[11px] uppercase tracking-[0.08em] text-text-tertiary">Weight</p>
             <p className="text-sm text-white mt-1">{weight != null ? `${weight.toFixed(1)} kg` : '-'}</p>
           </div>
-          <div className="rounded-xl border border-white/10 bg-white/5 p-3 text-center">
+          <div className="rounded-xl border border-white/10 bg-[#0c1c43]/85 p-3 text-center">
             <p className="text-[11px] uppercase tracking-[0.08em] text-text-tertiary">Age</p>
             <p className="text-sm text-white mt-1">{age != null ? `${Math.round(age)}` : '-'}</p>
           </div>
-          <div className="rounded-xl border border-white/10 bg-white/5 p-3 text-center">
+          <div className="rounded-xl border border-white/10 bg-[#0c1c43]/85 p-3 text-center">
             <p className="text-[11px] uppercase tracking-[0.08em] text-text-tertiary">Gender</p>
             <p className="text-sm text-white mt-1">{gender}</p>
           </div>
         </div>
       </Card>
 
-      <Card className="relative overflow-hidden p-0">
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(191,255,0,0.13),transparent_46%)]" />
-        <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(8,17,45,0.72),rgba(8,17,45,0.95))]" />
-        <div className="relative p-5 space-y-4">
-          <p className="text-sm font-semibold text-white">Built for you</p>
-          <div className="space-y-1">
-            <h3 className="text-lg font-semibold text-white">{coachPlan?.planName || 'Your Personalized Plan'}</h3>
-            <p className="text-sm text-text-secondary">{summaryText}</p>
-          </div>
+      <div className="space-y-2">
+        <p className="text-base font-semibold text-white">Built for you</p>
+        <Card className="relative overflow-hidden rounded-2xl border border-white/12 bg-[#0a1a3d] p-0">
+          <div className="absolute inset-0 bg-[linear-gradient(140deg,rgba(255,255,255,0.02),rgba(255,255,255,0),rgba(191,255,0,0.09))]" />
+          <div className="absolute -right-12 -top-16 h-48 w-48 rounded-full bg-accent/12 blur-3xl" />
+          <div className="relative p-5 space-y-4">
+            <p className="text-3xl font-extrabold uppercase tracking-[0.08em] text-white">{planLabel}</p>
+            <div className="space-y-1">
+              <h3 className="text-[1.55rem] leading-tight font-semibold text-white">{planHeadline}</h3>
+              <p className="text-sm text-text-secondary">{summaryText}</p>
+            </div>
 
-          {Array.isArray(customAdvice?.recommendations) && customAdvice?.recommendations.length > 0 && (
-            <div className="rounded-xl border border-accent/30 bg-accent/10 p-3">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.1em] text-accent">AI Advice Only</p>
-              <ul className="mt-2 space-y-1.5 text-sm text-text-secondary">
-                {customAdvice.recommendations.slice(0, 4).map((item) => (
-                  <li key={item}>- {item}</li>
-                ))}
-              </ul>
-            </div>
-          )}
+            {Array.isArray(customAdvice?.recommendations) && customAdvice?.recommendations.length > 0 && (
+              <div className="rounded-xl border border-accent/30 bg-accent/10 p-3">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.1em] text-accent">AI Advice</p>
+                <ul className="mt-2 space-y-1.5 text-sm text-text-secondary">
+                  {customAdvice.recommendations.slice(0, 3).map((item) => (
+                    <li key={item}>- {item}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
 
-          <div className="grid grid-cols-2 gap-2.5">
-            <div className="rounded-xl border border-white/10 bg-white/5 p-3">
-              <div className="flex items-center gap-2 text-text-tertiary">
-                <CalendarDays size={14} />
-                <span className="text-[11px] uppercase tracking-[0.08em]">Sessions</span>
+            <div className="grid grid-cols-2 gap-2.5">
+              <div className="rounded-xl border border-white/10 bg-white/5 p-3">
+                <div className="flex items-center gap-2 text-text-tertiary">
+                  <CalendarDays size={14} />
+                  <span className="text-[11px] uppercase tracking-[0.08em]">Sessions</span>
+                </div>
+                <p className="text-sm text-white mt-1">{trainingDays}/week</p>
               </div>
-              <p className="text-sm text-white mt-1">{trainingDays}/week</p>
-            </div>
-            <div className="rounded-xl border border-white/10 bg-white/5 p-3">
-              <div className="flex items-center gap-2 text-text-tertiary">
-                <Dumbbell size={14} />
-                <span className="text-[11px] uppercase tracking-[0.08em]">Fitness Level</span>
+              <div className="rounded-xl border border-white/10 bg-white/5 p-3">
+                <div className="flex items-center gap-2 text-text-tertiary">
+                  <Dumbbell size={14} />
+                  <span className="text-[11px] uppercase tracking-[0.08em]">Fitness level</span>
+                </div>
+                <p className="text-sm text-white mt-1">{level}</p>
               </div>
-              <p className="text-sm text-white mt-1">{level}</p>
-            </div>
-            <div className="rounded-xl border border-white/10 bg-white/5 p-3">
-              <div className="flex items-center gap-2 text-text-tertiary">
-                <MapPin size={14} />
-                <span className="text-[11px] uppercase tracking-[0.08em]">Location</span>
+              <div className="rounded-xl border border-white/10 bg-white/5 p-3">
+                <div className="flex items-center gap-2 text-text-tertiary">
+                  <MapPin size={14} />
+                  <span className="text-[11px] uppercase tracking-[0.08em]">Location</span>
+                </div>
+                <p className="text-sm text-white mt-1">{gymLabel}</p>
               </div>
-              <p className="text-sm text-white mt-1">{gymLabel}</p>
-            </div>
-            <div className="rounded-xl border border-white/10 bg-white/5 p-3">
-              <div className="flex items-center gap-2 text-text-tertiary">
-                <Layers3 size={14} />
-                <span className="text-[11px] uppercase tracking-[0.08em]">Workout Split</span>
+              <div className="rounded-xl border border-white/10 bg-white/5 p-3">
+                <div className="flex items-center gap-2 text-text-tertiary">
+                  <Layers3 size={14} />
+                  <span className="text-[11px] uppercase tracking-[0.08em]">Workout split</span>
+                </div>
+                <p className="text-sm text-white mt-1">{split}</p>
               </div>
-              <p className="text-sm text-white mt-1">{split}</p>
             </div>
           </div>
-        </div>
-      </Card>
-
-      <Card className="p-4">
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <p className="text-[11px] uppercase tracking-[0.08em] text-text-tertiary">Primary Goal</p>
-            <p className="text-sm text-white mt-1">{goal}</p>
-          </div>
-          <div>
-            <p className="text-[11px] uppercase tracking-[0.08em] text-text-tertiary">Session Plan</p>
-            <p className="text-sm text-white mt-1">{sessionDuration} min | {preferredTime}</p>
-          </div>
-        </div>
-      </Card>
+        </Card>
+      </div>
 
       <div className="flex-1" />
 
-      <Button onClick={onNext}>Get My Plan</Button>
+      <Button onClick={onNext} className="uppercase tracking-[0.11em]">
+        Get My Plan
+      </Button>
     </div>
   );
 }

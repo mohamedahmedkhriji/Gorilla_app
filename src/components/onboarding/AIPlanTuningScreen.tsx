@@ -1,0 +1,146 @@
+import React, { useState } from 'react';
+import { Dumbbell, HeartPulse, ShieldAlert, Sparkles, Wrench } from 'lucide-react';
+import { Button } from '../ui/Button';
+import { ModernSelect } from '../ui/ModernSelect';
+
+interface AIPlanTuningScreenProps {
+  onNext: () => void;
+  onDataChange?: (data: any) => void;
+  onboardingData?: any;
+}
+
+const TRAINING_FOCUS_OPTIONS = [
+  { value: 'balanced', label: 'Balanced' },
+  { value: 'hypertrophy', label: 'Muscle growth focus' },
+  { value: 'strength', label: 'Strength focus' },
+  { value: 'fat_loss', label: 'Fat-loss support' },
+];
+
+const RECOVERY_STRATEGY_OPTIONS = [
+  { value: 'balanced', label: 'Balanced' },
+  { value: 'performance', label: 'Push progression' },
+  { value: 'recovery', label: 'Conservative recovery-first' },
+];
+
+const resolveOptionValue = (
+  value: unknown,
+  options: { value: string; label: string }[],
+  fallback: string,
+) => {
+  const normalized = String(value || '').trim().toLowerCase();
+  return options.some((option) => option.value === normalized) ? normalized : fallback;
+};
+
+export function AIPlanTuningScreen({ onNext, onDataChange, onboardingData }: AIPlanTuningScreenProps) {
+  const [aiTrainingFocus, setAiTrainingFocus] = useState(
+    resolveOptionValue(onboardingData?.aiTrainingFocus, TRAINING_FOCUS_OPTIONS, 'balanced'),
+  );
+  const [aiRecoveryPriority, setAiRecoveryPriority] = useState(
+    resolveOptionValue(onboardingData?.aiRecoveryPriority, RECOVERY_STRATEGY_OPTIONS, 'balanced'),
+  );
+  const [aiLimitations, setAiLimitations] = useState(String(onboardingData?.aiLimitations || '').trim());
+  const [aiEquipmentNotes, setAiEquipmentNotes] = useState(String(onboardingData?.aiEquipmentNotes || '').trim());
+
+  const fieldClassName =
+    'w-full rounded-2xl border border-white/10 bg-background/80 px-4 py-3 text-sm text-white outline-none transition focus:border-accent/60 focus:bg-background focus:ring-2 focus:ring-accent/20';
+
+  const handleNext = () => {
+    onDataChange?.({
+      aiTrainingFocus,
+      aiRecoveryPriority,
+      aiLimitations: aiLimitations.trim(),
+      aiEquipmentNotes: aiEquipmentNotes.trim(),
+    });
+    onNext();
+  };
+
+  return (
+    <div className="flex-1 flex flex-col space-y-6">
+      <div className="space-y-2">
+        <span className="inline-flex items-center gap-2 rounded-full border border-accent/20 bg-accent/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-accent">
+          <Sparkles size={12} />
+          AI Plan Tuning
+        </span>
+        <h2 className="text-2xl font-light text-white">Shape how your AI program is built</h2>
+        <p className="text-text-secondary">
+          Fine-tune the coaching style, recovery bias, and equipment constraints before we generate your plan.
+        </p>
+      </div>
+
+      <div className="grid gap-4 sm:grid-cols-2">
+        <div className="space-y-2 rounded-2xl border border-white/8 bg-black/10 p-4">
+          <label className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-text-tertiary">
+            <Dumbbell size={14} className="text-accent" />
+            Training Focus
+          </label>
+          <ModernSelect
+            value={aiTrainingFocus}
+            onChange={(nextValue) => {
+              setAiTrainingFocus(nextValue);
+              onDataChange?.({ aiTrainingFocus: nextValue });
+            }}
+            options={TRAINING_FOCUS_OPTIONS}
+            className="w-full"
+          />
+        </div>
+
+        <div className="space-y-2 rounded-2xl border border-white/8 bg-black/10 p-4">
+          <label className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-text-tertiary">
+            <HeartPulse size={14} className="text-accent" />
+            Recovery Strategy
+          </label>
+          <ModernSelect
+            value={aiRecoveryPriority}
+            onChange={(nextValue) => {
+              setAiRecoveryPriority(nextValue);
+              onDataChange?.({ aiRecoveryPriority: nextValue });
+            }}
+            options={RECOVERY_STRATEGY_OPTIONS}
+            className="w-full"
+          />
+        </div>
+
+        <div className="space-y-2 rounded-2xl border border-white/8 bg-black/10 p-4 sm:col-span-2">
+          <label className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-text-tertiary">
+            <ShieldAlert size={14} className="text-accent" />
+            Injuries Or Movements To Avoid
+            <span className="text-[10px] font-medium normal-case tracking-normal text-text-secondary">(optional)</span>
+          </label>
+          <textarea
+            value={aiLimitations}
+            onChange={(e) => {
+              const nextValue = e.target.value;
+              setAiLimitations(nextValue);
+              onDataChange?.({ aiLimitations: nextValue });
+            }}
+            rows={3}
+            className={`${fieldClassName} resize-none`}
+            placeholder="e.g. lower back pain, avoid overhead pressing"
+          />
+        </div>
+
+        <div className="space-y-2 rounded-2xl border border-white/8 bg-black/10 p-4 sm:col-span-2">
+          <label className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-text-tertiary">
+            <Wrench size={14} className="text-accent" />
+            Equipment Notes
+            <span className="text-[10px] font-medium normal-case tracking-normal text-text-secondary">(optional)</span>
+          </label>
+          <input
+            value={aiEquipmentNotes}
+            onChange={(e) => {
+              const nextValue = e.target.value;
+              setAiEquipmentNotes(nextValue);
+              onDataChange?.({ aiEquipmentNotes: nextValue });
+            }}
+            className={fieldClassName}
+            placeholder="e.g. no barbell bench, dumbbells + cables only"
+          />
+        </div>
+      </div>
+
+      <div className="flex-1" />
+
+      <Button onClick={handleNext}>Next Step</Button>
+    </div>
+  );
+}
