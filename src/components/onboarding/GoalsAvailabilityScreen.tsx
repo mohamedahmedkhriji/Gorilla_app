@@ -4,18 +4,19 @@ import { Select } from '../ui/Select';
 interface GoalsAvailabilityScreenProps {
   onNext: () => void;
   onDataChange?: (data: any) => void;
+  onboardingData?: any;
 }
 export function GoalsAvailabilityScreen({
   onNext,
-  onDataChange
+  onDataChange,
+  onboardingData,
 }: GoalsAvailabilityScreenProps) {
-  const [days, setDays] = useState(4);
-  const [goal, setGoal] = useState('Muscle Gain');
-  const [duration, setDuration] = useState('60');
-  const [time, setTime] = useState('evening');
+  const initialDays = Number(onboardingData?.workoutDays || 4);
+  const [days, setDays] = useState(Math.max(2, Math.min(6, Number.isFinite(initialDays) ? Math.round(initialDays) : 4)));
+  const [duration, setDuration] = useState(String(onboardingData?.sessionDuration || '60'));
+  const [time, setTime] = useState(String(onboardingData?.preferredTime || 'evening'));
 
   const handleNext = () => {
-    onDataChange?.({ fitnessGoal: goal, workoutDays: days, sessionDuration: duration, preferredTime: time });
     onNext();
   };
 
@@ -39,7 +40,11 @@ export function GoalsAvailabilityScreen({
             min="2"
             max="6"
             value={days}
-            onChange={(e) => setDays(parseInt(e.target.value))}
+            onChange={(e) => {
+              const nextDays = parseInt(e.target.value, 10);
+              setDays(nextDays);
+              onDataChange?.({ workoutDays: nextDays });
+            }}
             className="w-full h-2 bg-card rounded-lg appearance-none cursor-pointer accent-accent" />
 
           <div className="flex justify-between text-xs text-text-tertiary px-1">
@@ -50,22 +55,14 @@ export function GoalsAvailabilityScreen({
             <span>6</span>
           </div>
         </div>
-
-        <Select
-          label="Fitness Goal"
-          value={goal}
-          onChange={(e) => setGoal(e.target.value)}
-          options={[
-          { value: 'Muscle Gain', label: 'Muscle Gain' },
-          { value: 'Weight Loss', label: 'Weight Loss' },
-          { value: 'Strength', label: 'Strength' },
-          { value: 'Endurance', label: 'Endurance' }
-          ]} />
-
         <Select
           label="Session Duration"
           value={duration}
-          onChange={(e) => setDuration(e.target.value)}
+          onChange={(e) => {
+            const nextValue = e.target.value;
+            setDuration(nextValue);
+            onDataChange?.({ sessionDuration: nextValue });
+          }}
           options={[
           {
             value: '30',
@@ -89,7 +86,11 @@ export function GoalsAvailabilityScreen({
         <Select
           label="Preferred Time"
           value={time}
-          onChange={(e) => setTime(e.target.value)}
+          onChange={(e) => {
+            const nextValue = e.target.value;
+            setTime(nextValue);
+            onDataChange?.({ preferredTime: nextValue });
+          }}
           options={[
           {
             value: 'morning',

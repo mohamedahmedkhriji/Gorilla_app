@@ -26,6 +26,17 @@ type CoachPlan = {
   usedImages?: number;
 };
 
+type CustomAdvice = {
+  summary?: string;
+  strengths?: string[];
+  recommendations?: string[];
+  metrics?: {
+    trainingDays?: number;
+    totalExercises?: number;
+    avgExercisesPerDay?: number;
+  };
+};
+
 type AssignedProgram = {
   daysPerWeek?: number;
   goal?: string;
@@ -90,6 +101,7 @@ const mapProgramTypeToSplit = (value: unknown) => {
   if (normalized === 'full_body') return 'Full Body Focus';
   if (normalized === 'upper_lower') return 'Upper / Lower';
   if (normalized === 'push_pull_legs') return 'Push / Pull / Legs';
+  if (normalized === 'hybrid') return 'Push / Pull / Legs + Upper / Lower';
   if (normalized === 'custom') return 'Custom';
   return toTitleCase(normalized);
 };
@@ -114,6 +126,11 @@ export function BodyAnalysisResultsScreen({
 
   const coachPlan = useMemo<CoachPlan | null>(
     () => parseStoredJson('onboardingCoachPlan') as CoachPlan | null,
+    [],
+  );
+
+  const customAdvice = useMemo<CustomAdvice | null>(
+    () => parseStoredJson('onboardingCustomAdvice') as CustomAdvice | null,
     [],
   );
 
@@ -158,7 +175,8 @@ export function BodyAnalysisResultsScreen({
   const preferredTime = normalize(input.preferredTime) ? toTitleCase(normalize(input.preferredTime)) : 'Flexible';
 
   const summaryText =
-    normalize(coachPlan?.goalMatch)
+    normalize(customAdvice?.summary)
+    || normalize(coachPlan?.goalMatch)
     || normalize(coachPlan?.summary)
     || `A personalized ${goal.toLowerCase()} plan built around your routine and recovery.`;
 
@@ -197,6 +215,17 @@ export function BodyAnalysisResultsScreen({
             <h3 className="text-lg font-semibold text-white">{coachPlan?.planName || 'Your Personalized Plan'}</h3>
             <p className="text-sm text-text-secondary">{summaryText}</p>
           </div>
+
+          {Array.isArray(customAdvice?.recommendations) && customAdvice?.recommendations.length > 0 && (
+            <div className="rounded-xl border border-accent/30 bg-accent/10 p-3">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.1em] text-accent">AI Advice Only</p>
+              <ul className="mt-2 space-y-1.5 text-sm text-text-secondary">
+                {customAdvice.recommendations.slice(0, 4).map((item) => (
+                  <li key={item}>- {item}</li>
+                ))}
+              </ul>
+            </div>
+          )}
 
           <div className="grid grid-cols-2 gap-2.5">
             <div className="rounded-xl border border-white/10 bg-white/5 p-3">

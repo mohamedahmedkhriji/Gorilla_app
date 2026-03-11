@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Button } from '../ui/Button';
-import { Check, User, Circle, BoxIcon } from 'lucide-react';
+import { User, Circle, BoxIcon } from 'lucide-react';
+import { SelectionCheck } from '../ui/SelectionCheck';
 interface BodyTypeSelectionScreenProps {
   onNext: () => void;
   onDataChange?: (data: any) => void;
@@ -63,11 +64,6 @@ export function BodyTypeSelectionScreen({
 
   const handleNext = () => {
     if (!selected) return;
-    const selectedType = types.find((type) => type.id === selected);
-    onDataChange?.({
-      bodyType: selected,
-      bodyTypeLabel: selectedType?.name || 'Not Sure',
-    });
     onNext();
   };
 
@@ -87,7 +83,13 @@ export function BodyTypeSelectionScreen({
           return (
             <button
               key={type.id}
-              onClick={() => setSelected(type.id)}
+              onClick={() => {
+                setSelected(type.id);
+                onDataChange?.({
+                  bodyType: type.id,
+                  bodyTypeLabel: type.name || 'Not Sure',
+                });
+              }}
               className={`
                 w-full p-4 rounded-xl border text-left transition-all duration-200 flex items-center gap-4
                 ${isSelected ? 'bg-accent/10 border-accent shadow-[0_0_15px_rgba(191,255,0,0.1)]' : 'bg-card border-white/5 hover:bg-white/5'}
@@ -115,11 +117,7 @@ export function BodyTypeSelectionScreen({
                 </p>
               </div>
 
-              {isSelected &&
-              <div className="w-6 h-6 rounded-full bg-accent flex items-center justify-center text-black">
-                  <Check size={14} strokeWidth={3} />
-                </div>
-              }
+              {isSelected && <SelectionCheck selected size={24} className="shrink-0" />}
             </button>);
 
         })}

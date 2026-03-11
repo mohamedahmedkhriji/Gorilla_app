@@ -99,7 +99,7 @@ export const AdminLogin: React.FC = () => {
           <div className="mx-auto mb-4 w-24 h-24">
             <BrandLogo imageClassName="object-contain" />
           </div>
-          <h1 className="text-3xl font-black italic">RepSet</h1>
+          <h1 className="font-brand text-3xl">RepSet</h1>
           <h2 className="text-xl font-semibold">Admin Portal</h2>
           <p className="text-gray-400 text-sm mt-2">Sign in to access your dashboard</p>
         </div>

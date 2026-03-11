@@ -44,7 +44,7 @@
 [data-theme='dark'] {
   --font-body: 'App Numbers', 'Space Grotesk', system-ui, sans-serif;
   --font-display: 'App Numbers', 'Bebas Neue', Impact, sans-serif;
-  --font-brand: 'App Numbers', 'RepSet Brand', 'Bebas Neue', cursive;
+  --font-brand: 'RepSet Brand', 'Pacifico', 'Bebas Neue', cursive;
 
   --color-accent: 187 255 92;
   --color-accent-dark: 126 198 35;
@@ -69,7 +69,7 @@
 [data-theme='light'] {
   --font-body: 'App Numbers', 'Space Grotesk', system-ui, sans-serif;
   --font-display: 'App Numbers', 'Bebas Neue', Impact, sans-serif;
-  --font-brand: 'App Numbers', 'RepSet Brand', 'Bebas Neue', cursive;
+  --font-brand: 'RepSet Brand', 'Pacifico', 'Bebas Neue', cursive;
 
   --color-accent: 155 214 52;
   --color-accent-dark: 109 149 34;

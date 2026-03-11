@@ -22,7 +22,7 @@ export function ProgressSteps({ currentStep, totalSteps }: ProgressStepsProps) {
               transition={{
                 duration: 0.35,
               }}
-              className="h-full bg-[linear-gradient(90deg,rgb(var(--color-accent)),rgb(var(--color-info)))]"
+              className="h-full bg-accent"
             />
           )}
         </div>

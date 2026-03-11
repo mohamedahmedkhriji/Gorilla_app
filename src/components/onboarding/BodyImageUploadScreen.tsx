@@ -5,14 +5,20 @@ import { ShieldCheck } from 'lucide-react';
 interface BodyImageUploadScreenProps {
   onNext: (images?: string[]) => void;
   onDataChange?: (data: any) => void;
+  onboardingData?: any;
 }
-export function BodyImageUploadScreen({ onNext, onDataChange }: BodyImageUploadScreenProps) {
-  const [images, setImages] = React.useState<string[]>([]);
+export function BodyImageUploadScreen({ onNext, onDataChange, onboardingData }: BodyImageUploadScreenProps) {
+  const [images, setImages] = React.useState<string[]>(
+    Array.isArray(onboardingData?.bodyImages)
+      ? onboardingData.bodyImages.map((entry: unknown) => String(entry || '')).filter(Boolean)
+      : [],
+  );
 
   const handleImageUpload = (index: number, base64Image: string) => {
     const newImages = [...images];
     newImages[index] = base64Image;
     setImages(newImages);
+    onDataChange?.({ bodyImages: newImages.filter((img) => img) });
   };
 
   const handleNext = () => {
@@ -29,6 +35,11 @@ export function BodyImageUploadScreen({ onNext, onDataChange }: BodyImageUploadS
         <p className="text-text-secondary">
           Upload photos for AI body composition analysis.
         </p>
+        <div className="rounded-xl border border-amber-400/45 bg-amber-400/12 px-3 py-2">
+          <p className="text-xs text-amber-100">
+            Note: Importing images here is not required. It only helps our AI analyze your body better.
+          </p>
+        </div>
       </div>
 
       <div className="grid grid-cols-3 gap-3">

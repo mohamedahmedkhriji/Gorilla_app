@@ -1,20 +1,21 @@
 import React, { useState } from 'react';
 import { Button } from '../ui/Button';
-import { Card } from '../ui/Card';
-import { Check } from 'lucide-react';
+import { SelectionCheck } from '../ui/SelectionCheck';
 interface FitnessBackgroundScreenProps {
   onNext: () => void;
   onDataChange?: (data: any) => void;
+  onboardingData?: any;
 }
 export function FitnessBackgroundScreen({
   onNext,
-  onDataChange
+  onDataChange,
+  onboardingData,
 }: FitnessBackgroundScreenProps) {
-  const [level, setLevel] = useState('Intermediate');
-  const [goal, setGoal] = useState('Muscle Gain');
+  const validLevels = new Set(['Beginner', 'Intermediate', 'Advanced']);
+  const initialLevel = String(onboardingData?.experienceLevel || 'Intermediate');
+  const [level, setLevel] = useState(validLevels.has(initialLevel) ? initialLevel : 'Intermediate');
 
   const handleNext = () => {
-    onDataChange?.({ experienceLevel: level, primaryGoal: goal });
     onNext();
   };
   const levels = [
@@ -32,24 +33,6 @@ export function FitnessBackgroundScreen({
     id: 'Advanced',
     label: 'Advanced',
     desc: '3+ years experience'
-  }];
-
-  const goals = [
-  {
-    id: 'Strength',
-    label: 'Strength'
-  },
-  {
-    id: 'Muscle Gain',
-    label: 'Build Muscle'
-  },
-  {
-    id: 'Fat Loss',
-    label: 'Fat Loss'
-  },
-  {
-    id: 'Recomposition',
-    label: 'Recomposition'
   }];
 
   return (
@@ -70,7 +53,10 @@ export function FitnessBackgroundScreen({
             {levels.map((l) =>
             <button
               key={l.id}
-              onClick={() => setLevel(l.id)}
+              onClick={() => {
+                setLevel(l.id);
+                onDataChange?.({ experienceLevel: l.id });
+              }}
               className={`
                   w-full p-4 rounded-xl border text-left transition-all duration-200 flex justify-between items-center
                   ${level === l.id ? 'bg-accent/10 border-accent text-white' : 'bg-card border-white/10 text-text-secondary hover:bg-white/5'}
@@ -80,27 +66,7 @@ export function FitnessBackgroundScreen({
                   <div className="font-medium">{l.label}</div>
                   <div className="text-xs opacity-70">{l.desc}</div>
                 </div>
-                {level === l.id && <Check size={18} className="text-accent" />}
-              </button>
-            )}
-          </div>
-        </div>
-
-        <div className="space-y-3">
-          <label className="text-sm font-medium text-text-secondary ml-1">
-            Primary Goal
-          </label>
-          <div className="grid grid-cols-2 gap-3">
-            {goals.map((g) =>
-            <button
-              key={g.id}
-              onClick={() => setGoal(g.id)}
-              className={`
-                  p-4 rounded-xl border text-center transition-all duration-200
-                  ${goal === g.id ? 'bg-accent/10 border-accent text-white' : 'bg-card border-white/10 text-text-secondary hover:bg-white/5'}
-                `}>
-
-                <div className="font-medium text-sm">{g.label}</div>
+                {level === l.id && <SelectionCheck selected />}
               </button>
             )}
           </div>

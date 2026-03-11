@@ -93,8 +93,8 @@ export function SplashScreen({ onComplete }: SplashScreenProps) {
                 className="w-full h-full"
               >
                 <BrandLogo
-                  className="w-full h-full rounded-3xl bg-black/45 border border-white/10 p-1.5 md:p-2.5"
-                  imageClassName="object-contain scale-[1.16]"
+                  className="w-full h-full rounded-3xl bg-black/45 border border-white/10 p-3 md:p-4"
+                  imageClassName="object-contain"
                 />
               </motion.div>
             </motion.div>
@@ -112,7 +112,7 @@ export function SplashScreen({ onComplete }: SplashScreenProps) {
                 duration: 0.35,
                 delay: 0.2,
               }}
-              className="mt-6 font-brand text-[2.7rem] md:text-[3.1rem] leading-[0.95] text-white tracking-[0.01em]"
+              className="mt-6 font-brand text-3xl md:text-4xl text-white"
             >
               RepSet
             </motion.h1>

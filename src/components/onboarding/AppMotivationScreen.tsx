@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { Button } from '../ui/Button';
-import { Check } from 'lucide-react';
+import { SelectionCheck } from '../ui/SelectionCheck';
 
 interface AppMotivationScreenProps {
   onNext: () => void;
@@ -44,8 +44,8 @@ export function AppMotivationScreen({ onNext, onDataChange, onboardingData }: Ap
 
   const [selectedId, setSelectedId] = useState(initialSelection);
 
-  const handleNext = () => {
-    const selectedOption = MOTIVATION_OPTIONS.find((option) => option.id === selectedId);
+  const persistMotivation = (nextId: string) => {
+    const selectedOption = MOTIVATION_OPTIONS.find((option) => option.id === nextId);
     if (!selectedOption) return;
 
     onDataChange?.({
@@ -53,6 +53,12 @@ export function AppMotivationScreen({ onNext, onDataChange, onboardingData }: Ap
       appMotivationLabel: selectedOption.title,
       onboardingReason: selectedOption.title,
     });
+  };
+
+  const handleNext = () => {
+    const selectedOption = MOTIVATION_OPTIONS.find((option) => option.id === selectedId);
+    if (!selectedOption) return;
+
     onNext();
   };
 
@@ -65,30 +71,29 @@ export function AppMotivationScreen({ onNext, onDataChange, onboardingData }: Ap
         </p>
       </div>
 
-      <div className="space-y-3">
+      <div className="space-y-4">
         {MOTIVATION_OPTIONS.map((option) => {
           const isSelected = selectedId === option.id;
           return (
             <button
               key={option.id}
               type="button"
-              onClick={() => setSelectedId(option.id)}
-              className={`w-full rounded-xl border p-4 text-left transition-colors ${
+              onClick={() => {
+                setSelectedId(option.id);
+                persistMotivation(option.id);
+              }}
+              className={`w-full min-h-[108px] rounded-2xl border px-5 py-4 text-left transition-colors ${
                 isSelected
                   ? 'bg-accent/12 border-accent text-white'
                   : 'bg-card border-white/10 text-text-secondary hover:bg-white/5'
               }`}
             >
-              <div className="flex items-start justify-between gap-3">
-                <div className="space-y-1">
-                  <p className="text-sm font-semibold text-white">{option.title}</p>
-                  <p className="text-xs text-text-secondary">{option.description}</p>
+              <div className="flex items-start justify-between gap-4">
+                <div className="space-y-1.5">
+                  <p className="text-base font-semibold leading-snug text-white">{option.title}</p>
+                  <p className="text-sm leading-relaxed text-text-secondary">{option.description}</p>
                 </div>
-                {isSelected && (
-                  <span className="mt-0.5 inline-flex h-5 w-5 items-center justify-center rounded-full bg-accent text-black">
-                    <Check size={13} strokeWidth={3} />
-                  </span>
-                )}
+                <SelectionCheck selected={isSelected} size={22} className="mt-1 shrink-0" />
               </div>
             </button>
           );

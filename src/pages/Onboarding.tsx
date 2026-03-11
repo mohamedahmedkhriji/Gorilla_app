@@ -4,13 +4,15 @@ import { AppMotivationScreen } from '../components/onboarding/AppMotivationScree
 import { WelcomeScreen } from '../components/onboarding/WelcomeScreen';
 import { PersonalInfoScreen } from '../components/onboarding/PersonalInfoScreen';
 import { FitnessBackgroundScreen } from '../components/onboarding/FitnessBackgroundScreen';
+import { FitnessGoalsScreen } from '../components/onboarding/FitnessGoalsScreen';
 import { BodyTypeSelectionScreen } from '../components/onboarding/BodyTypeSelectionScreen';
 import { GoalsAvailabilityScreen } from '../components/onboarding/GoalsAvailabilityScreen';
 import { WorkoutSplitScreen } from '../components/onboarding/WorkoutSplitScreen';
-import { GymSelectionScreen } from '../components/onboarding/GymSelectionScreen';
 import { BodyImageUploadScreen } from '../components/onboarding/BodyImageUploadScreen';
 import { AIAnalysisScreen } from '../components/onboarding/AIAnalysisScreen';
 import { BodyAnalysisResultsScreen } from '../components/onboarding/BodyAnalysisResultsScreen';
+import { CustomPlanOnboardingScreen } from '../components/onboarding/CustomPlanOnboardingScreen';
+import { CustomPlanAdviceScreen } from '../components/onboarding/CustomPlanAdviceScreen';
 
 interface OnboardingProps {
   onComplete: () => void;
@@ -19,6 +21,9 @@ interface OnboardingProps {
 export function Onboarding({ onComplete }: OnboardingProps) {
   const [step, setStep] = useState(0);
   const [onboardingData, setOnboardingData] = useState<any>({});
+  const handleDataChange = useCallback((data: any) => {
+    setOnboardingData((prev: any) => ({ ...prev, ...data }));
+  }, []);
   
   const next = () => setStep((s) => s + 1);
   const back = () => setStep((s) => s - 1);
@@ -37,6 +42,8 @@ export function Onboarding({ onComplete }: OnboardingProps) {
       onComplete();
     }
   }, [onComplete]);
+  const shouldShowCustomPlanStep = String(onboardingData?.workoutSplitPreference || '').trim().toLowerCase() === 'custom';
+
   const steps = [
   {
     component: WelcomeScreen,
@@ -56,34 +63,48 @@ export function Onboarding({ onComplete }: OnboardingProps) {
     title: 'Background'
   },
   {
+    component: FitnessGoalsScreen,
+    title: 'Fitness Goal'
+  },
+  {
     component: BodyTypeSelectionScreen,
     title: 'Body Type'
   },
   {
     component: GoalsAvailabilityScreen,
-    title: 'Goals'
-  },
-  {
-    component: GymSelectionScreen,
-    title: 'Select Gym'
-  },
-  {
-    component: BodyImageUploadScreen,
-    title: 'Body Scan'
+    title: 'Availability'
   },
   {
     component: WorkoutSplitScreen,
     title: 'Plan Selection'
   },
-  {
-    component: AIAnalysisScreen,
-    title: 'Analyzing',
-    showBack: false
-  },
-  {
-    component: BodyAnalysisResultsScreen,
-    title: 'Results'
-  }];
+  ...(shouldShowCustomPlanStep
+    ? [
+        {
+          component: CustomPlanOnboardingScreen,
+          title: 'Customize Plan'
+        },
+        {
+          component: CustomPlanAdviceScreen,
+          title: 'AI Advice',
+          showBack: false
+        }
+      ]
+    : [
+        {
+          component: BodyImageUploadScreen,
+          title: 'Body Scan'
+        },
+        {
+          component: AIAnalysisScreen,
+          title: 'Analyzing',
+          showBack: false
+        },
+        {
+          component: BodyAnalysisResultsScreen,
+          title: 'Results'
+        }
+      ])];
 
   const CurrentComponent = steps[step]?.component;
 
@@ -106,7 +127,7 @@ export function Onboarding({ onComplete }: OnboardingProps) {
       <CurrentComponent
         onNext={next}
         onComplete={step === steps.length - 1 ? handleComplete : next}
-        onDataChange={(data: any) => setOnboardingData({...onboardingData, ...data})}
+        onDataChange={handleDataChange}
         onboardingData={onboardingData}
         userId={JSON.parse(localStorage.getItem('appUser') || localStorage.getItem('user') || '{}').id}
       />

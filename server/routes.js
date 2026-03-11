@@ -3061,6 +3061,70 @@ const assignTemplateProgramFromLibrary = async (
   };
 };
 
+const buildCustomPlanAdvice = ({
+  draft,
+  normalizedGoal,
+  normalizedExperience,
+  normalizedDays,
+  normalizedSessionDuration,
+}) => {
+  const selectedDays = Array.isArray(draft?.selectedDays) ? draft.selectedDays : [];
+  const templatesByDay = draft?.templatesByDay instanceof Map ? draft.templatesByDay : new Map();
+
+  let totalExercises = 0;
+  selectedDays.forEach((dayName) => {
+    const dayTemplate = templatesByDay.get(dayName);
+    const dayExercises = Array.isArray(dayTemplate?.exercises) ? dayTemplate.exercises.length : 0;
+    totalExercises += dayExercises;
+  });
+
+  const daysCount = selectedDays.length || 1;
+  const avgExercisesPerDay = Number((totalExercises / daysCount).toFixed(1));
+  const recommendations = [];
+  const strengths = [];
+
+  if (selectedDays.length >= normalizedDays) {
+    strengths.push('Your weekly frequency matches or exceeds your availability target.');
+  } else {
+    recommendations.push('Consider adding one more training day to match your stated availability.');
+  }
+
+  if (avgExercisesPerDay < 4) {
+    recommendations.push('Add 1-2 key movements per session to improve total weekly stimulus.');
+  } else if (avgExercisesPerDay > 8) {
+    recommendations.push('Your sessions are dense; reduce overlap to keep recovery and effort quality high.');
+  } else {
+    strengths.push('Session volume per day looks balanced for steady progression.');
+  }
+
+  if (normalizedSessionDuration < 50 && avgExercisesPerDay > 6) {
+    recommendations.push('Your session length target is tight; trim exercise count or use supersets.');
+  }
+
+  if (normalizedGoal === 'hypertrophy') {
+    recommendations.push('Keep 8-15 rep work on core lifts and track weekly load increases.');
+  } else if (normalizedGoal === 'strength') {
+    recommendations.push('Anchor each day with one primary lift in lower rep ranges (3-6 reps).');
+  } else if (normalizedGoal === 'fat_loss') {
+    recommendations.push('Maintain progressive resistance and keep rest periods controlled for density.');
+  }
+
+  if ((normalizedExperience || 'intermediate') !== 'advanced') {
+    recommendations.push('Prioritize exercise technique quality before adding more volume or complexity.');
+  }
+
+  return {
+    summary: 'Your custom plan is active. AI reviewed your profile and selected schedule, then generated advice only.',
+    strengths: strengths.slice(0, 3),
+    recommendations: [...new Set(recommendations)].slice(0, 5),
+    metrics: {
+      trainingDays: selectedDays.length,
+      totalExercises,
+      avgExercisesPerDay,
+    },
+  };
+};
+
 const getCurrentWeek = (startDate, cycleWeeks) => {
   const start = new Date(startDate);
   const now = new Date();
@@ -3088,7 +3152,7 @@ const computeWorkoutStreak = (dateRows, missedDateRows = []) => {
   }
 
   let streak = 0;
-  while (true) {
+  for (;;) {
     const dateKey = formatDateISO(cursor);
     if (missedDates.has(dateKey)) {
       return streak;
@@ -3389,6 +3453,7 @@ router.post('/user/onboarding', async (req, res) => {
       workoutSplitPreference,
       workoutSplitLabel,
       workoutSplit,
+      customPlan,
       aiTrainingFocus,
       aiLimitations,
       aiRecoveryPriority,
@@ -3471,6 +3536,7 @@ router.post('/user/onboarding', async (req, res) => {
     let assignedProgram = null;
     let assignmentInfo = null;
     let claudePlan = null;
+    let customAdvice = null;
     let planSource = 'template';
     let warning = null;
     const equipmentProfile = equipment || availableEquipment || equipmentList || null;
@@ -3480,6 +3546,41 @@ router.post('/user/onboarding', async (req, res) => {
     const shouldDisableClaude = toBooleanFlag(disableClaude, false);
     const templateEligibleSplit = ['full_body', 'upper_lower', 'push_pull_legs'].includes(normalizedSplitPreference);
     const aiPlanRequested = normalizedSplitPreference === 'auto';
+    const hasCustomPlanPayload = customPlan && typeof customPlan === 'object';
+
+    if (!assignedProgram && !assignmentInfo && normalizedSplitPreference === 'custom' && hasCustomPlanPayload) {
+      let customDraft;
+      try {
+        customDraft = await buildCustomProgramDraft(conn, normalizedUserId, customPlan);
+      } catch (validationError) {
+        await conn.rollback();
+        const message = validationError?.message || 'Invalid custom plan payload';
+        if (message === 'User not found') {
+          return res.status(404).json({ error: message });
+        }
+        return res.status(400).json({ error: message });
+      }
+
+      const result = await persistCustomProgramDraft(conn, {
+        userId: normalizedUserId,
+        draft: customDraft,
+        assignmentReason: 'user_request',
+        assignmentNote: `Onboarding custom plan: ${customDraft.cycleWeeks} weeks, ${customDraft.selectedDays.length} days/week`,
+        assignmentSource: 'manual',
+        actorUserId: normalizedUserId,
+      });
+
+      assignedProgram = result.assignedProgram;
+      assignmentInfo = result.assignment;
+      planSource = 'custom_user';
+      customAdvice = buildCustomPlanAdvice({
+        draft: customDraft,
+        normalizedGoal,
+        normalizedExperience: normalizedExperience || 'intermediate',
+        normalizedDays,
+        normalizedSessionDuration,
+      });
+    }
 
     if (hasExplicitSplitPreference && templateEligibleSplit) {
       const templateResult = await assignTemplateProgramFromLibrary(conn, {
@@ -3613,6 +3714,7 @@ router.post('/user/onboarding', async (req, res) => {
       assignment: assignmentInfo,
       planSource,
       claudePlan,
+      customAdvice,
       warning,
     });
   } catch (error) {

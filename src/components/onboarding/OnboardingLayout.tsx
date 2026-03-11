@@ -36,7 +36,7 @@ export function OnboardingLayout({
             </button>
           )}
 
-          {title && <h1 className="w-full text-center text-xl text-text-primary">{title}</h1>}
+          {title && <h1 className="w-full text-center text-xl text-text-primary font-electrolize">{title}</h1>}
         </div>
 
         <ProgressSteps currentStep={currentStep} totalSteps={totalSteps} />

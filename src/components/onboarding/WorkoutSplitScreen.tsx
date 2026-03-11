@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { Button } from '../ui/Button';
-import { Check, Dumbbell, HeartPulse, ShieldAlert, Sparkles, Wrench } from 'lucide-react';
+import { Dumbbell, HeartPulse, ShieldAlert, Sparkles, Wrench } from 'lucide-react';
+import { SelectionCheck } from '../ui/SelectionCheck';
 
 interface WorkoutSplitScreenProps {
   onNext: () => void;
@@ -44,6 +45,20 @@ const SPLIT_OPTIONS: SplitOption[] = [
     summary: 'Movement-based split with focused training days',
     detail: 'Best for moderate-to-high frequency training weeks.',
     days: [3, 4, 5, 6],
+  },
+  {
+    id: 'hybrid',
+    title: 'Push / Pull / Legs + Upper / Lower',
+    summary: 'Blend PPL and upper/lower for more total volume',
+    detail: 'Great when you want extra variety and balanced weekly workload.',
+    days: [4, 5, 6],
+  },
+  {
+    id: 'custom',
+    title: 'Customized Plan',
+    summary: 'Build a tailored split around your own priorities',
+    detail: 'Designed for advanced lifters who want maximum control over structure and volume.',
+    days: [2, 3, 4, 5, 6],
   },
 ];
 
@@ -91,17 +106,23 @@ export function WorkoutSplitScreen({ onNext, onDataChange, onboardingData }: Wor
     String(onboardingData?.aiEquipmentNotes || '').trim(),
   );
 
-  const handleNext = () => {
-    const selectedOption = availableOptions.find((option) => option.id === selectedId);
+  const persistSelection = (optionId: string) => {
+    const selectedOption = availableOptions.find((option) => option.id === optionId);
     if (!selectedOption) return;
     onDataChange?.({
       workoutSplitPreference: selectedOption.id,
       workoutSplitLabel: selectedOption.title,
-      aiTrainingFocus: selectedId === 'auto' ? aiTrainingFocus : '',
-      aiLimitations: selectedId === 'auto' ? aiLimitations.trim() : '',
-      aiRecoveryPriority: selectedId === 'auto' ? aiRecoveryPriority : '',
-      aiEquipmentNotes: selectedId === 'auto' ? aiEquipmentNotes.trim() : '',
+      aiTrainingFocus: optionId === 'auto' ? aiTrainingFocus : '',
+      aiLimitations: optionId === 'auto' ? aiLimitations.trim() : '',
+      aiRecoveryPriority: optionId === 'auto' ? aiRecoveryPriority : '',
+      aiEquipmentNotes: optionId === 'auto' ? aiEquipmentNotes.trim() : '',
     });
+    return selectedOption;
+  };
+
+  const handleNext = () => {
+    const selectedOption = persistSelection(selectedId);
+    if (!selectedOption) return;
     onNext();
   };
 
@@ -125,7 +146,13 @@ export function WorkoutSplitScreen({ onNext, onDataChange, onboardingData }: Wor
             <button
               key={option.id}
               type="button"
-              onClick={() => setSelectedId(option.id)}
+              onClick={() => {
+                setSelectedId(option.id);
+                const selectedOption = persistSelection(option.id);
+                if (option.id === 'custom') {
+                  if (selectedOption) onNext();
+                }
+              }}
               className={`w-full rounded-xl border p-4 text-left transition-colors ${
                 isSelected
                   ? 'bg-accent/12 border-accent text-white'
@@ -134,6 +161,11 @@ export function WorkoutSplitScreen({ onNext, onDataChange, onboardingData }: Wor
             >
               <div className="flex items-start justify-between gap-3">
                 <div className="space-y-1">
+                  {option.id === 'custom' && (
+                    <span className="inline-flex items-center rounded-full bg-accent/20 text-accent px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide">
+                      Create + AI Feedback
+                    </span>
+                  )}
                   {isRecommended && (
                     <span className="inline-flex items-center rounded-full bg-accent px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-black">
                       Recommended for you
@@ -143,13 +175,7 @@ export function WorkoutSplitScreen({ onNext, onDataChange, onboardingData }: Wor
                   <p className="text-xs text-text-secondary">{option.summary}</p>
                   <p className="text-[11px] text-text-tertiary">{option.detail}</p>
                 </div>
-                {isSelected ? (
-                  <span className="mt-0.5 inline-flex h-5 w-5 items-center justify-center rounded-full bg-accent text-black">
-                    <Check size={13} strokeWidth={3} />
-                  </span>
-                ) : (
-                  <span className="mt-0.5 inline-flex h-5 w-5 rounded-full border border-white/20" />
-                )}
+                <SelectionCheck selected={isSelected} className="mt-0.5 shrink-0" />
               </div>
             </button>
           );
@@ -188,7 +214,11 @@ export function WorkoutSplitScreen({ onNext, onDataChange, onboardingData }: Wor
                 </label>
                 <select
                   value={aiTrainingFocus}
-                  onChange={(e) => setAiTrainingFocus(e.target.value)}
+                  onChange={(e) => {
+                    const nextValue = e.target.value;
+                    setAiTrainingFocus(nextValue);
+                    onDataChange?.({ aiTrainingFocus: nextValue });
+                  }}
                   className={fieldClassName}
                 >
                   <option value="balanced">Balanced</option>
@@ -205,7 +235,11 @@ export function WorkoutSplitScreen({ onNext, onDataChange, onboardingData }: Wor
                 </label>
                 <select
                   value={aiRecoveryPriority}
-                  onChange={(e) => setAiRecoveryPriority(e.target.value)}
+                  onChange={(e) => {
+                    const nextValue = e.target.value;
+                    setAiRecoveryPriority(nextValue);
+                    onDataChange?.({ aiRecoveryPriority: nextValue });
+                  }}
                   className={fieldClassName}
                 >
                   <option value="balanced">Balanced</option>
@@ -222,7 +256,11 @@ export function WorkoutSplitScreen({ onNext, onDataChange, onboardingData }: Wor
                 </label>
                 <textarea
                   value={aiLimitations}
-                  onChange={(e) => setAiLimitations(e.target.value)}
+                  onChange={(e) => {
+                    const nextValue = e.target.value;
+                    setAiLimitations(nextValue);
+                    onDataChange?.({ aiLimitations: nextValue });
+                  }}
                   rows={3}
                   className={`${fieldClassName} resize-none`}
                   placeholder="e.g. lower back pain, avoid overhead pressing"
@@ -237,7 +275,11 @@ export function WorkoutSplitScreen({ onNext, onDataChange, onboardingData }: Wor
                 </label>
                 <input
                   value={aiEquipmentNotes}
-                  onChange={(e) => setAiEquipmentNotes(e.target.value)}
+                  onChange={(e) => {
+                    const nextValue = e.target.value;
+                    setAiEquipmentNotes(nextValue);
+                    onDataChange?.({ aiEquipmentNotes: nextValue });
+                  }}
                   className={fieldClassName}
                   placeholder="e.g. no barbell bench, dumbbells + cables only"
                 />

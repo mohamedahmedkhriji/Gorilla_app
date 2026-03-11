@@ -37,6 +37,7 @@ export function AIAnalysisScreen({ onComplete, onboardingData, userId }: AIAnaly
         localStorage.removeItem('onboardingCoachPlan');
         localStorage.removeItem('onboardingPlanSource');
         localStorage.removeItem('onboardingPlanWarning');
+        localStorage.removeItem('onboardingCustomAdvice');
 
         const data = await api.saveOnboarding(Number(userId || 0), {
           ...(onboardingData || {}),
@@ -62,6 +63,11 @@ export function AIAnalysisScreen({ onComplete, onboardingData, userId }: AIAnaly
         } else {
           localStorage.removeItem('onboardingPlanWarning');
         }
+        if (data?.customAdvice) {
+          localStorage.setItem('onboardingCustomAdvice', JSON.stringify(data.customAdvice));
+        } else {
+          localStorage.removeItem('onboardingCustomAdvice');
+        }
       } catch (error) {
         console.error('Onboarding save error:', error);
         localStorage.removeItem('onboardingCoachPlan');
@@ -70,6 +76,7 @@ export function AIAnalysisScreen({ onComplete, onboardingData, userId }: AIAnaly
           'onboardingPlanWarning',
           error instanceof Error ? error.message : 'Failed to generate onboarding plan',
         );
+        localStorage.removeItem('onboardingCustomAdvice');
       } finally {
         if (!cancelled) {
           setIsGenerationDone(true);

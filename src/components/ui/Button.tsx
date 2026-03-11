@@ -17,7 +17,7 @@ export function Button({
   ...props
 }: ButtonProps) {
   const baseStyles =
-    'relative flex items-center justify-center gap-2 py-3.5 px-6 rounded-xl font-semibold text-sm tracking-[0.04em] transition-all duration-200 disabled:opacity-55 disabled:cursor-not-allowed';
+    'relative flex items-center justify-center gap-2 py-3.5 px-6 rounded-xl font-marker font-semibold text-base tracking-[0.08em] transition-all duration-200 disabled:opacity-55 disabled:cursor-not-allowed';
 
   const variants = {
     primary:
