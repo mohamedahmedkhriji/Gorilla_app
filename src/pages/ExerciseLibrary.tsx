@@ -33,9 +33,18 @@ type LibraryExercise = {
   name: string;
   muscle: string;
   bodyPart?: string | null;
+  sourceFolder?: string | null;
   videoUrl: string;
   videoAssetName: string;
 };
+
+const toTitleCase = (value: string) =>
+  String(value || '')
+    .trim()
+    .toLowerCase()
+    .replace(/[_-]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .replace(/\b\w/g, (char) => char.toUpperCase());
 
 const stripExercisePrefix = (value: string) =>
   String(value || '')
@@ -148,14 +157,21 @@ export function ExerciseLibrary({
     });
   };
 
-  const muscleFilters = useMemo(
-    () => filters.filter((filter) => filter !== 'All'),
-    [filters],
-  );
-
   const allVideoAssets = useMemo(
     () => listExerciseVideoAssets(),
     [],
+  );
+
+  const folderFilters = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          allVideoAssets
+            .map((asset) => toTitleCase(asset.folderName))
+            .filter(Boolean),
+        ),
+      ).sort((a, b) => a.localeCompare(b)),
+    [allVideoAssets],
   );
 
   const catalogExercisesWithVideo = useMemo<CatalogExerciseWithVideo[]>(
@@ -208,8 +224,9 @@ export function ExerciseLibrary({
         .map((asset) => ({
           id: `video-${asset.fileName}`,
           name: toFallbackExerciseName(asset.fileName),
-          muscle: bodyPartToMuscleLabel(asset.bodyPart),
+          muscle: toTitleCase(asset.folderName) || bodyPartToMuscleLabel(asset.bodyPart),
           bodyPart: asset.bodyPart,
+          sourceFolder: toTitleCase(asset.folderName),
           videoUrl: asset.url,
           videoAssetName: asset.fileName,
         }));
@@ -218,28 +235,51 @@ export function ExerciseLibrary({
   );
 
   const exercisesWithVideo = useMemo<LibraryExercise[]>(
-    () => [
-      ...dedupedCatalogExercises.map((exercise) => ({
-        id: exercise.id,
-        name: toFallbackExerciseName(exercise.videoAssetName),
-        muscle: exercise.muscle,
-        bodyPart: exercise.bodyPart,
-        videoUrl: exercise.videoUrl,
-        videoAssetName: exercise.videoAssetName,
-      })),
-      ...fallbackVideoExercises,
-    ],
-    [dedupedCatalogExercises, fallbackVideoExercises],
+    () => {
+      const folderByAssetName = new Map(
+        allVideoAssets.map((asset) => [asset.fileName, toTitleCase(asset.folderName)]),
+      );
+      return [
+        ...dedupedCatalogExercises.map((exercise) => ({
+          id: exercise.id,
+          name: toFallbackExerciseName(exercise.videoAssetName),
+          muscle: folderByAssetName.get(exercise.videoAssetName) || exercise.muscle,
+          bodyPart: exercise.bodyPart,
+          sourceFolder: folderByAssetName.get(exercise.videoAssetName) || null,
+          videoUrl: exercise.videoUrl,
+          videoAssetName: exercise.videoAssetName,
+        })),
+        ...fallbackVideoExercises,
+      ];
+    },
+    [allVideoAssets, dedupedCatalogExercises, fallbackVideoExercises],
   );
 
-  const visibleMuscleFilters = useMemo(
-    () => muscleFilters.filter((filter) => exercisesWithVideo.some((exercise) => exercise.muscle === filter)),
-    [exercisesWithVideo, muscleFilters],
-  );
+  const visibleMuscleFilters = useMemo(() => {
+    const apiFilters = filters
+      .filter((filter) => String(filter).toLowerCase() !== 'all')
+      .map((filter) => toTitleCase(filter));
+
+    return Array.from(new Set([...apiFilters, ...folderFilters]))
+      .filter(Boolean)
+      .sort((a, b) => a.localeCompare(b));
+  }, [filters, folderFilters]);
+
+  useEffect(() => {
+    if (selectedFilter === 'All') return;
+    if (!visibleMuscleFilters.includes(selectedFilter)) {
+      setSelectedFilter('All');
+    }
+  }, [visibleMuscleFilters, selectedFilter]);
 
   const filteredExercises = useMemo(() => {
     if (selectedFilter === 'All') return [];
-    return exercisesWithVideo.filter((exercise) => exercise.muscle === selectedFilter);
+    const normalizedFilter = selectedFilter.trim().toLowerCase();
+    return exercisesWithVideo.filter((exercise) => {
+      const muscleMatch = String(exercise.muscle || '').trim().toLowerCase() === normalizedFilter;
+      const folderMatch = String(exercise.sourceFolder || '').trim().toLowerCase() === normalizedFilter;
+      return muscleMatch || folderMatch;
+    });
   }, [exercisesWithVideo, selectedFilter]);
 
   const getCount = (filter: string) => {
@@ -252,12 +292,13 @@ export function ExerciseLibrary({
     <div className="flex-1 flex flex-col bg-background min-h-screen pb-24">
       <div className="px-4 sm:px-6 pt-2">
         <Header
-          title={selectedFilter === 'All' ? 'Exercise Library' : `${selectedFilter} Exercises`}
+          title={selectedFilter === 'All' ? 'Exercise Library' : `Build Stronger ${selectedFilter}`}
+          titleClassName="font-black uppercase tracking-[0.06em]"
           onBack={selectedFilter === 'All' ? onBack : () => setSelectedFilter('All')}
         />
       </div>
 
-      {selectedFilter === 'All' && (
+      {selectedFilter === 'All' && !loading && (
         <div className="px-4 sm:px-6 mb-6 space-y-3">
         <div className="grid grid-cols-3 gap-3 sm:grid-cols-6">
             {visibleMuscleFilters.map((filter) => (
@@ -276,9 +317,6 @@ export function ExerciseLibrary({
                 <div className="mt-3">
                   <div className="text-sm font-bold text-text-primary">
                     {filter}
-                  </div>
-                  <div className="mt-1 text-[11px] uppercase tracking-[0.16em] text-text-secondary">
-                    {getCount(filter)} exercises
                   </div>
                 </div>
               </button>
@@ -376,6 +414,13 @@ export function ExerciseLibrary({
               );
             })}
           </div>
+          {filteredExercises.length === 0 && (
+            <div className="px-4 sm:px-6 mt-6">
+              <div className="surface-card rounded-2xl border border-white/10 p-5 text-center text-sm text-text-secondary">
+                No videos added for this muscle yet.
+              </div>
+            </div>
+          )}
         </>
       )}
     </div>);

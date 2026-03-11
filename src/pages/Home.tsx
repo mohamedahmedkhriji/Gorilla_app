@@ -5,8 +5,6 @@ import { WorkoutCard } from '../components/dashboard/WorkoutCard';
 import { RecoveryIndicator } from '../components/dashboard/RecoveryIndicator';
 import { RankDisplay } from '../components/dashboard/RankDisplay';
 import { GhostButton } from '../components/ui/GhostButton';
-import { FriendsCard } from '../components/home/FriendsCard';
-import { CoachCard } from '../components/home/CoachCard';
 import { CalculatorCard } from '../components/home/CalculatorCard';
 import { AgendaSection } from '../components/home/AgendaSection';
 import { EducationSection } from '../components/home/EducationSection';
@@ -26,6 +24,7 @@ import { getRankBadgeImage } from '../services/rankTheme';
 import { emojiShop } from '../services/emojiTheme';
 interface HomeProps {
   onNavigate: (tab: string, day?: string) => void;
+  resetSignal?: number;
 }
 
 const readStoredUser = () => {
@@ -341,7 +340,7 @@ type HomeView =
 'rank' |
 'workoutDetail' |
 'nutrition';
-export function Home({ onNavigate }: HomeProps) {
+export function Home({ onNavigate, resetSignal = 0 }: HomeProps) {
   const currentUser = readStoredUser();
   const currentUserId = Number(currentUser?.id || 0);
   const workoutStorageKeys = getWorkoutStorageKeys(currentUser);
@@ -414,6 +413,13 @@ export function Home({ onNavigate }: HomeProps) {
     setWorkoutProgress(next);
     localStorage.setItem(homeMetricKeys.homeWorkoutProgress, String(next));
   };
+
+  useEffect(() => {
+    setView('main');
+    setSelectedExercise(null);
+    setSelectedCoach(null);
+    setSelectedFriend(null);
+  }, [resetSignal]);
 
   useEffect(() => {
     let isMounted = true;
@@ -856,11 +862,6 @@ export function Home({ onNavigate }: HomeProps) {
           <div className="mt-3 h-4 w-52 rounded bg-white/10" />
         </div>
 
-        <div className="grid grid-cols-2 gap-4">
-          <div className="h-24 rounded-2xl surface-card border border-white/10" />
-          <div className="h-24 rounded-2xl surface-card border border-white/10" />
-        </div>
-
         <div className="h-44 rounded-2xl surface-card border border-white/10" />
         <div className="h-48 rounded-2xl surface-card border border-white/10" />
         <div className="h-40 rounded-2xl surface-card border border-white/10" />
@@ -883,7 +884,8 @@ export function Home({ onNavigate }: HomeProps) {
           duration: 0.6,
           ease: 'easeOut'
         }}
-        className="mb-7 surface-card rounded-2xl border border-white/12 px-4 py-3 flex items-start justify-between gap-4">
+        onClick={() => onNavigate('profile')}
+        className="mb-7 surface-card rounded-2xl border border-white/12 px-4 py-3 flex items-start justify-between gap-4 cursor-pointer">
 
         <div>
           <h1 className="mt-1 text-3xl font-electrolize font-bold text-text-primary">
@@ -894,7 +896,14 @@ export function Home({ onNavigate }: HomeProps) {
           </p>
         </div>
         
-        <div className="flex items-center gap-2 surface-glass px-3.5 py-2 rounded-2xl border border-white/15 shrink-0">
+        <button
+          type="button"
+          onClick={(event) => {
+            event.stopPropagation();
+            setView('rank');
+          }}
+          className="flex items-center gap-2 surface-glass px-3.5 py-2 rounded-2xl border border-white/15 shrink-0"
+        >
           <div className="w-8 h-8 rounded-xl bg-accent/15 border border-accent/35 flex items-center justify-center">
             <img src={rankBadgeImage} alt={rankName} className="h-5 w-5 object-contain" />
           </div>
@@ -902,20 +911,11 @@ export function Home({ onNavigate }: HomeProps) {
             <div className="text-[10px] uppercase tracking-[0.1em] text-text-secondary">Rank</div>
             <div className="text-sm font-semibold text-accent">{rankName}</div>
           </div>
-        </div>
+        </button>
       </motion.header>
 
       {/* Main Content Grid */}
       <div className="space-y-8">
-        {/* Social & Coaching */}
-        <div className="grid grid-cols-2 gap-4">
-          <FriendsCard onClick={() => setView('friends')} />
-          <CoachCard onClick={() => setView('coachList')} />
-        </div>
-
-        {/* Agenda */}
-        <AgendaSection userProgram={userProgram} programProgress={programProgress} />
-
         {/* Today's Workout */}
         <div onClick={() => onNavigate('workout', workoutCardTitle)} className="cursor-pointer">
           <WorkoutCard
@@ -927,6 +927,9 @@ export function Home({ onNavigate }: HomeProps) {
             progress={workoutProgress}
             isRestDay={isWorkoutCardRestDay} />
         </div>
+
+        {/* Agenda */}
+        <AgendaSection userProgram={userProgram} programProgress={programProgress} />
 
         {/* Rank & Recovery */}
         <div className="grid grid-cols-1 gap-5">

@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { User, ChevronRight, Camera, Dumbbell, FileText, LogOut } from 'lucide-react';
 import { api } from '../../services/api';
+import { FriendsCard } from '../home/FriendsCard';
+import { CoachCard } from '../home/CoachCard';
 interface ProfileScreenProps {
-  onNavigate: (screen: 'gym' | 'rank' | 'settings' | 'workout' | 'weeklyPlan' | 'posts') => void;
+  onNavigate: (screen: 'gym' | 'rank' | 'settings' | 'workout' | 'weeklyPlan' | 'posts' | 'friends' | 'coachList') => void;
   onLogout: () => void;
 }
 
@@ -311,6 +313,11 @@ export function ProfileScreen({ onNavigate, onLogout }: ProfileScreenProps) {
           </div>
           <div className="text-[10px] text-text-tertiary mt-1">{planSessionsLeft} sessions</div>
         </div>
+      </div>
+
+      <div className="grid grid-cols-2 gap-4">
+        <FriendsCard onClick={() => onNavigate('friends')} />
+        <CoachCard onClick={() => onNavigate('coachList')} />
       </div>
 
       <div className="space-y-3">

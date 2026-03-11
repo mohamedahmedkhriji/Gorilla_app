@@ -8,15 +8,22 @@ import { CustomPlanBuilderScreen } from '../components/profile/CustomPlanBuilder
 import { PresetProgramScreen } from '../components/profile/PresetProgramScreen';
 import { MyPostsScreen } from '../components/profile/MyPostsScreen';
 import { NotificationsScreen } from '../components/notifications/NotificationsScreen';
+import { FriendsList, FriendMember } from './FriendsList';
+import { FriendProfile } from './FriendProfile';
+import { CoachList } from './CoachList';
+import { Messaging } from './Messaging';
 import { api } from '../services/api';
-import { Bell, Settings } from 'lucide-react';
+import { ArrowLeft, Bell, Settings } from 'lucide-react';
 interface ProfileProps {
   onNavigateTab?: (tab: string, day?: string) => void;
+  resetSignal?: number;
 }
-export function Profile({ onNavigateTab }: ProfileProps) {
+export function Profile({ onNavigateTab, resetSignal = 0 }: ProfileProps) {
   const [view, setView] = useState<
-    'main' | 'gym' | 'rank' | 'settings' | 'notifications' | 'weeklyPlan' | 'presetPlans' | 'customPlanBuilder' | 'posts'>(
+    'main' | 'gym' | 'rank' | 'settings' | 'notifications' | 'weeklyPlan' | 'presetPlans' | 'customPlanBuilder' | 'posts' | 'friends' | 'friendProfile' | 'friendChallenge' | 'coachList' | 'chat'>(
     'main');
+  const [selectedFriend, setSelectedFriend] = useState<FriendMember | null>(null);
+  const [selectedCoach, setSelectedCoach] = useState<{id: number, name: string} | null>(null);
   const [unreadCount, setUnreadCount] = useState(0);
 
   const userId = useMemo(() => {
@@ -55,7 +62,13 @@ export function Profile({ onNavigateTab }: ProfileProps) {
     };
   }, [userId, view]);
 
-  const handleNavigate = (screen: 'gym' | 'rank' | 'settings' | 'workout' | 'weeklyPlan' | 'customPlanBuilder' | 'posts') => {
+  useEffect(() => {
+    setView('main');
+    setSelectedFriend(null);
+    setSelectedCoach(null);
+  }, [resetSignal]);
+
+  const handleNavigate = (screen: 'gym' | 'rank' | 'settings' | 'workout' | 'weeklyPlan' | 'customPlanBuilder' | 'posts' | 'friends' | 'coachList') => {
     if (screen === 'workout') {
       onNavigateTab?.('workout');
       return;
@@ -70,6 +83,14 @@ export function Profile({ onNavigateTab }: ProfileProps) {
     }
     if (screen === 'posts') {
       setView('posts');
+      return;
+    }
+    if (screen === 'friends') {
+      setView('friends');
+      return;
+    }
+    if (screen === 'coachList') {
+      setView('coachList');
       return;
     }
     setView(screen);
@@ -114,6 +135,66 @@ export function Profile({ onNavigateTab }: ProfileProps) {
   );
   if (view === 'posts')
   return <MyPostsScreen onBack={() => setView('main')} />;
+  if (view === 'friends')
+  return (
+    <FriendsList
+      onBack={() => setView('main')}
+      onFriendClick={(friend) => {
+        setSelectedFriend(friend);
+        setView('friendProfile');
+      }}
+    />
+  );
+  if (view === 'friendProfile')
+  return (
+    <FriendProfile
+      onBack={() => setView('friends')}
+      onChallenge={() => setView('friendChallenge')}
+      friend={selectedFriend}
+    />
+  );
+  if (view === 'friendChallenge') {
+    return (
+      <div className="flex-1 flex flex-col bg-background min-h-screen pb-24">
+        <div className="px-4 sm:px-6 pt-2">
+          <button
+            type="button"
+            onClick={() => setView('friendProfile')}
+            className="inline-flex items-center gap-2 rounded-xl surface-glass px-3 py-2 text-sm text-text-primary"
+          >
+            <ArrowLeft size={16} />
+            Back
+          </button>
+        </div>
+        <div className="px-4 sm:px-6 pt-8">
+          <div className="surface-card rounded-2xl border border-white/10 p-5">
+            <h2 className="text-xl font-semibold text-white">Challenge</h2>
+            <p className="mt-2 text-sm text-text-secondary">
+              Challenge screen placeholder for {selectedFriend?.name || 'this friend'}.
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+  if (view === 'coachList')
+  return (
+    <CoachList
+      onBack={() => setView('main')}
+      onSelectCoach={(id, name) => {
+        setSelectedCoach({ id, name });
+        setView('chat');
+      }}
+    />
+  );
+  if (view === 'chat')
+  return (
+    <Messaging
+      onBack={() => setView('coachList')}
+      coachId={selectedCoach?.id}
+      coachName={selectedCoach?.name}
+    />
+  );
   return (
     <div className="relative">
       {/* Header action icons */}

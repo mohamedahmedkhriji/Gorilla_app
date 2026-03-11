@@ -7,9 +7,10 @@ interface HeaderProps {
   onBack?: () => void;
   rightElement?: React.ReactNode;
   compact?: boolean;
+  titleClassName?: string;
 }
 
-export function Header({ title, onBack, rightElement, compact = false }: HeaderProps) {
+export function Header({ title, onBack, rightElement, compact = false, titleClassName = '' }: HeaderProps) {
   return (
     <div className={`flex items-center justify-between ${compact ? 'py-2 mb-2' : 'py-4 mb-6'}`}>
       <div className={`flex items-center min-w-0 ${compact ? 'gap-3' : 'gap-4'}`}>
@@ -24,7 +25,7 @@ export function Header({ title, onBack, rightElement, compact = false }: HeaderP
             <ArrowLeft size={18} />
           </motion.button>
         )}
-        {title && <h1 className="flex-1 text-xl leading-tight text-text-primary">{title}</h1>}
+        {title && <h1 className={`flex-1 text-xl leading-tight text-text-primary ${titleClassName}`}>{title}</h1>}
       </div>
       {rightElement}
     </div>

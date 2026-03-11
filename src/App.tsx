@@ -17,6 +17,7 @@ export function App() {
   const [hasOnboarded, setHasOnboarded] = useState(false);
   const [showLogin, setShowLogin] = useState(false);
   const [activeTab, setActiveTab] = useState('home');
+  const [tabResetSignal, setTabResetSignal] = useState(0);
   const [workoutDay, setWorkoutDay] = useState('Push Day');
 
   useEffect(() => {
@@ -34,6 +35,11 @@ export function App() {
   const handleNavigate = (tab: string, day?: string) => {
     setActiveTab(tab);
     if (day) setWorkoutDay(day);
+  };
+
+  const handleTabChange = (tab: string) => {
+    setActiveTab(tab);
+    setTabResetSignal((prev) => prev + 1);
   };
 
   if (isLoading) {
@@ -66,17 +72,17 @@ export function App() {
   const renderTab = () => {
     switch (activeTab) {
       case 'home':
-        return <Home onNavigate={handleNavigate} />;
+        return <Home onNavigate={handleNavigate} resetSignal={tabResetSignal} />;
       case 'workout':
-        return <Workout onBack={() => setActiveTab('home')} workoutDay={workoutDay} />;
+        return <Workout onBack={() => setActiveTab('home')} workoutDay={workoutDay} resetSignal={tabResetSignal} />;
       case 'progress':
-        return <Progress />;
+        return <Progress resetSignal={tabResetSignal} />;
       case 'profile':
-        return <Profile onNavigateTab={handleNavigate} />;
+        return <Profile onNavigateTab={handleNavigate} resetSignal={tabResetSignal} />;
       case 'blogs':
         return <Blogs />;
       default:
-        return <Home onNavigate={handleNavigate} />;
+        return <Home onNavigate={handleNavigate} resetSignal={tabResetSignal} />;
     }
   };
 
@@ -120,7 +126,7 @@ export function App() {
         </AnimatePresence>
       </div>
 
-      <TabBar activeTab={activeTab} onTabChange={setActiveTab} />
+      <TabBar activeTab={activeTab} onTabChange={handleTabChange} />
     </div>
   );
 }

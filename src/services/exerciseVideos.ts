@@ -14,12 +14,14 @@ type ExerciseVideoAsset = {
   fileName: string;
   normalizedFileName: string;
   bodyPart: string;
+  folderName: string;
   url: string;
 };
 
 export type ExerciseVideoAssetInfo = {
   fileName: string;
   bodyPart: string;
+  folderName: string;
   url: string;
 };
 
@@ -54,11 +56,13 @@ const videoAssets: ExerciseVideoAsset[] = Object.entries(videoModules).map(([sou
   const normalizedPath = sourcePath.replace(/\\/g, '/');
   const pathParts = normalizedPath.split('/');
   const fileName = pathParts[pathParts.length - 1] || '';
-  const bodyPart = inferExerciseVideoBodyPart(pathParts[pathParts.length - 2] || '');
+  const folderName = String(pathParts[pathParts.length - 2] || '').trim();
+  const bodyPart = inferExerciseVideoBodyPart(folderName);
   return {
     fileName,
     normalizedFileName: normalizeExerciseVideoLookup(fileName),
     bodyPart,
+    folderName,
     url,
   };
 });
@@ -139,6 +143,7 @@ export const listExerciseVideoAssets = (bodyPart?: string | null): ExerciseVideo
     .map((asset) => ({
       fileName: asset.fileName,
       bodyPart: asset.bodyPart,
+      folderName: asset.folderName,
       url: asset.url,
     }))
     .sort((a, b) => a.fileName.localeCompare(b.fileName));

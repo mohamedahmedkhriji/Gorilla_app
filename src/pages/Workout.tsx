@@ -12,6 +12,7 @@ import { formatWorkoutDayLabel, normalizeWorkoutDayKey } from '../services/worko
 interface WorkoutProps {
   onBack: () => void;
   workoutDay?: string;
+  resetSignal?: number;
 }
 
 type AddedCatalogExercise = {
@@ -556,7 +557,7 @@ const resolveTodayWorkoutPayload = (program: any) => {
   };
 };
 
-export function Workout({ onBack, workoutDay = 'Push Day' }: WorkoutProps) {
+export function Workout({ onBack, workoutDay = 'Push Day', resetSignal = 0 }: WorkoutProps) {
   const currentUser = readStoredUser();
   const userId = Number(currentUser?.id || 0);
   const workoutStorageScope = getUserStorageScope(currentUser);
@@ -593,6 +594,10 @@ export function Workout({ onBack, workoutDay = 'Push Day' }: WorkoutProps) {
     setCompletedExercises(state.completedExercises);
     setExerciseSets(state.exerciseSets);
   }, [workoutStorageScope]);
+
+  useEffect(() => {
+    setView('plan');
+  }, [resetSignal]);
 
   useEffect(() => {
     setPostedSummaryTokens(readPostedWorkoutSummaryTokens(workoutStorageScope));
