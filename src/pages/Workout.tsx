@@ -6,6 +6,7 @@ import { ExerciseVideoScreen } from '../components/workout/ExerciseVideoScreen';
 import { WorkoutPlanScreen } from '../components/workout/WorkoutPlanScreen';
 import { TrackerScreen } from '../components/workout/TrackerScreen';
 import { api } from '../services/api';
+import { resolveExerciseVideoUrl } from '../services/exerciseVideos';
 import { formatWorkoutDayLabel, normalizeWorkoutDayKey } from '../services/workoutDayLabel';
 
 interface WorkoutProps {
@@ -1293,10 +1294,30 @@ export function Workout({ onBack, workoutDay = 'Push Day' }: WorkoutProps) {
   }
 
   if (view === 'video') {
+    const selectedWorkoutExercise = todayExercises.find(
+      (exercise) => normalizeExerciseName(exercise.exerciseName) === normalizeExerciseName(selectedExercise),
+    );
+    const primaryMuscle =
+      String(selectedWorkoutExercise?.muscleGroup || selectedWorkoutExercise?.targetMuscles?.[0] || 'General').trim()
+      || 'General';
+    const targetMuscles = Array.isArray(selectedWorkoutExercise?.targetMuscles)
+      ? selectedWorkoutExercise.targetMuscles.join(', ')
+      : primaryMuscle;
     return (
       <ExerciseVideoScreen
         onBack={() => setView('tracker')}
-        exercise={{ name: selectedExercise, muscle: 'Back', video: '/Squat.mp4' }}
+        exercise={{
+          name: selectedExercise,
+          muscle: primaryMuscle,
+          targetMuscles,
+          importance: `Technique reference for ${selectedExercise}.`,
+          anatomy: targetMuscles,
+          video: resolveExerciseVideoUrl({
+            name: selectedExercise,
+            muscle: primaryMuscle,
+            bodyPart: selectedWorkoutExercise?.muscleGroup || targetMuscles,
+          }),
+        }}
       />
     );
   }

@@ -1,4 +1,5 @@
 /* eslint-env node */
+import { resolveExerciseVideoManifest } from '../../src/shared/exerciseVideoManifest.js';
 
 const GOAL_PRESETS = {
   hypertrophy: { repRange: [8, 12], restSeconds: 90, rpeBase: 7.5, setBase: 3 },
@@ -304,11 +305,33 @@ const parseEquipmentPreferences = (input) => {
   return [];
 };
 
-const pickUniqueExercises = ({ pool, fallbackPool, count, usedNames, lastDayPrimaryMuscles, dayPrimaryMuscles }) => {
+const sortSelectionPool = (items, { preferVideoLinkedBackExercises = false } = {}) =>
+  [...items].sort((left, right) => {
+    const leftPriority = preferVideoLinkedBackExercises ? Number(left.selectionPriority || 0) : 0;
+    const rightPriority = preferVideoLinkedBackExercises ? Number(right.selectionPriority || 0) : 0;
+    if (rightPriority !== leftPriority) return rightPriority - leftPriority;
+    return String(left.name || '').localeCompare(String(right.name || ''));
+  });
+
+const pickUniqueExercises = ({
+  pool,
+  fallbackPool,
+  count,
+  usedNames,
+  lastDayPrimaryMuscles,
+  dayPrimaryMuscles,
+  preferVideoLinkedBackExercises = false,
+}) => {
   const selected = [];
   const used = new Set(usedNames);
-  const preferred = pool.filter((ex) => !used.has(ex.normalizedName));
-  const reserve = fallbackPool.filter((ex) => !used.has(ex.normalizedName));
+  const preferred = sortSelectionPool(
+    pool.filter((ex) => !used.has(ex.normalizedName)),
+    { preferVideoLinkedBackExercises },
+  );
+  const reserve = sortSelectionPool(
+    fallbackPool.filter((ex) => !used.has(ex.normalizedName)),
+    { preferVideoLinkedBackExercises },
+  );
 
   const candidates = [...preferred, ...reserve];
   for (const ex of candidates) {
@@ -334,15 +357,27 @@ const loadCatalogPool = async (conn, { userLevel, equipmentPrefs }) => {
   const userLevelRank = levelRank(userLevel);
 
   return rows
-    .map((row) => ({
-      id: Number(row.id),
-      name: row.canonical_name,
-      normalizedName: normalizeName(row.normalized_name || row.canonical_name),
-      primaryMuscle: normalizeMuscleGroup(row.body_part),
-      equipment: normalizeEquipment(row.equipment),
-      level: String(row.level || '').toLowerCase(),
-      isStretch: Number(row.is_stretch || 0) === 1 || /stretch/i.test(String(row.exercise_type || '')),
-    }))
+    .map((row) => {
+      const videoLink = resolveExerciseVideoManifest({
+        name: row.canonical_name,
+        bodyPart: row.body_part,
+      });
+
+      const exactBackVideoLink = videoLink.bodyPart === 'back' && videoLink.matchType === 'alias';
+
+      return {
+        id: Number(row.id),
+        name: row.canonical_name,
+        normalizedName: normalizeName(row.normalized_name || row.canonical_name),
+        primaryMuscle: normalizeMuscleGroup(row.body_part),
+        equipment: normalizeEquipment(row.equipment),
+        level: String(row.level || '').toLowerCase(),
+        isStretch: Number(row.is_stretch || 0) === 1 || /stretch/i.test(String(row.exercise_type || '')),
+        linkedVideoAsset: videoLink.fileName || null,
+        linkedVideoMatchType: videoLink.matchType,
+        selectionPriority: exactBackVideoLink ? 100 + Number(videoLink.priority || 0) : 0,
+      };
+    })
     .filter((ex) => !ex.isStretch)
     .filter((ex) => {
       if (!hasEquipmentRestriction) return true;
@@ -447,6 +482,9 @@ export const generatePersonalizedProgram = async (
       dayOrder += 1;
       const dayName = weekdays[dayIdx % weekdays.length];
       const dayPrimaryMuscles = new Set(day.primary);
+      const preferVideoLinkedBackExercises = dayPrimaryMuscles.has('Back')
+        && !dayPrimaryMuscles.has('Chest')
+        && !dayPrimaryMuscles.has('Legs');
 
       const dayPool = pool.filter((ex) => dayPrimaryMuscles.has(ex.primaryMuscle));
       const daySecondaryPool = pool.filter((ex) => day.secondary.includes(ex.primaryMuscle));
@@ -458,6 +496,7 @@ export const generatePersonalizedProgram = async (
         usedNames: usedPerWeek,
         lastDayPrimaryMuscles,
         dayPrimaryMuscles,
+        preferVideoLinkedBackExercises,
       });
 
       if (selection.length < Math.max(4, cfg.exercisesPerDay - 1)) {

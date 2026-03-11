@@ -349,7 +349,7 @@ export function Home({ onNavigate }: HomeProps) {
   const todayKey = new Date().toDateString();
 
   const [view, setView] = useState<HomeView>('main');
-  const [selectedExercise, setSelectedExercise] = useState<{name: string, muscle: string, video: string} | null>(null);
+  const [selectedExercise, setSelectedExercise] = useState<{name: string, muscle: string, video?: string | null} | null>(null);
   const [selectedCoach, setSelectedCoach] = useState<{id: number, name: string} | null>(null);
   const [selectedFriend, setSelectedFriend] = useState<FriendMember | null>(null);
   const [greeting, setGreeting] = useState('');

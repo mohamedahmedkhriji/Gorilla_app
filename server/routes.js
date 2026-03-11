@@ -15,6 +15,7 @@ import {
   saveUserAnalysisInsightsForUser,
 } from './services/insightPersistence.js';
 import { generateDailyNutritionPlan } from './services/nutritionPlanner.js';
+import { resolveExerciseVideoManifest } from '../src/shared/exerciseVideoManifest.js';
 import {
   buildCustomProgramPayloadFromClaudePlan,
   generateTwoMonthPlanWithClaude,
@@ -9157,16 +9158,26 @@ router.get('/exercises/catalog', async (req, res) => {
       [...params, limit],
     );
 
-    const normalized = rows.map((row) => ({
-      id: Number(row.id),
-      name: row.canonical_name,
-      muscle: normalizeCatalogMuscleGroup(row.body_part),
-      bodyPart: row.body_part || null,
-      description: row.description || null,
-      equipment: row.equipment || null,
-      level: row.level || null,
-      type: row.exercise_type || null,
-    }));
+    const normalized = rows.map((row) => {
+      const videoLink = resolveExerciseVideoManifest({
+        name: row.canonical_name,
+        bodyPart: row.body_part,
+      });
+
+      return {
+        id: Number(row.id),
+        name: row.canonical_name,
+        muscle: normalizeCatalogMuscleGroup(row.body_part),
+        bodyPart: row.body_part || null,
+        description: row.description || null,
+        equipment: row.equipment || null,
+        level: row.level || null,
+        type: row.exercise_type || null,
+        hasLinkedVideo: videoLink.matchType === 'alias',
+        linkedVideoAsset: videoLink.fileName || null,
+        linkedVideoMatchType: videoLink.matchType,
+      };
+    });
 
     return res.json({ exercises: normalized });
   } catch (error) {

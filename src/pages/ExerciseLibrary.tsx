@@ -1,11 +1,14 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Header } from '../components/ui/Header';
 import { Card } from '../components/ui/Card';
-import { Play, Heart, Search } from 'lucide-react';
+import { Heart, Play } from 'lucide-react';
 import { api } from '../services/api';
+import { getBodyPartImage } from '../services/bodyPartTheme';
+import { resolveExerciseVideoUrl } from '../services/exerciseVideos';
+
 interface ExerciseLibraryProps {
   onBack: () => void;
-  onExerciseClick: (exercise: {name: string, muscle: string, video: string}) => void;
+  onExerciseClick: (exercise: {name: string, muscle: string, video?: string | null}) => void;
 }
 interface CatalogExercise {
   id: number;
@@ -18,7 +21,6 @@ export function ExerciseLibrary({
   onExerciseClick
 }: ExerciseLibraryProps) {
   const [selectedFilter, setSelectedFilter] = useState('All');
-  const [searchQuery, setSearchQuery] = useState('');
   const [filters, setFilters] = useState<string[]>(['All', 'Chest', 'Back', 'Legs', 'Shoulders', 'Arms', 'Abs']);
   const [exercises, setExercises] = useState<CatalogExercise[]>([]);
   const [loading, setLoading] = useState(true);
@@ -60,72 +62,91 @@ export function ExerciseLibrary({
 
   const toggleLike = (exerciseName: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    setLikes(prev => {
-      const current = prev[exerciseName] || {count: 0, liked: false};
+    setLikes((prev) => {
+      const current = prev[exerciseName] || { count: 0, liked: false };
       return {
         ...prev,
         [exerciseName]: {
           count: current.liked ? current.count - 1 : current.count + 1,
-          liked: !current.liked
-        }
+          liked: !current.liked,
+        },
       };
     });
   };
 
-  const filteredExercises = useMemo(
-    () => {
-      const byFilter = selectedFilter === 'All'
-        ? exercises
-        : exercises.filter((ex) => ex.muscle === selectedFilter);
-
-      const q = searchQuery.trim().toLowerCase();
-      if (!q) return byFilter;
-      return byFilter.filter((ex) => ex.name.toLowerCase().includes(q));
-    },
-    [exercises, selectedFilter, searchQuery],
+  const muscleFilters = useMemo(
+    () => filters.filter((filter) => filter !== 'All'),
+    [filters],
   );
 
+  const exercisesWithVideo = useMemo(
+    () =>
+      exercises.filter((exercise) =>
+        Boolean(
+          resolveExerciseVideoUrl({
+            name: exercise.name,
+            muscle: exercise.muscle,
+            bodyPart: exercise.bodyPart,
+          }),
+        ),
+      ),
+    [exercises],
+  );
+
+  const visibleMuscleFilters = useMemo(
+    () => muscleFilters.filter((filter) => exercisesWithVideo.some((exercise) => exercise.muscle === filter)),
+    [exercisesWithVideo, muscleFilters],
+  );
+
+  const filteredExercises = useMemo(() => {
+    if (selectedFilter === 'All') return [];
+    return exercisesWithVideo.filter((exercise) => exercise.muscle === selectedFilter);
+  }, [exercisesWithVideo, selectedFilter]);
+
   const getCount = (filter: string) => {
-    if (filter === 'All') return exercises.length;
-    const count = exercises.filter(ex => ex.muscle === filter).length;
+    if (filter === 'All') return exercisesWithVideo.length;
+    const count = exercisesWithVideo.filter(ex => ex.muscle === filter).length;
     return count > 99 ? '99+' : count;
   };
 
   return (
     <div className="flex-1 flex flex-col bg-background min-h-screen pb-24">
       <div className="px-4 sm:px-6 pt-2">
-        <Header title="Exercise Library" onBack={onBack} />
+        <Header
+          title={selectedFilter === 'All' ? 'Exercise Library' : `${selectedFilter} Exercises`}
+          onBack={selectedFilter === 'All' ? onBack : () => setSelectedFilter('All')}
+        />
       </div>
 
-      <div className="px-4 sm:px-6 mb-4">
-        <div className="relative">
-          <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary" />
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search exercise name..."
-            className="w-full bg-card border border-white/10 rounded-xl pl-9 pr-3 py-2.5 text-sm text-white placeholder:text-text-secondary focus:outline-none focus:border-accent/60"
-          />
+      {selectedFilter === 'All' && (
+        <div className="px-4 sm:px-6 mb-6 space-y-3">
+        <div className="grid grid-cols-3 gap-3 sm:grid-cols-6">
+            {visibleMuscleFilters.map((filter) => (
+              <button
+                key={filter}
+                onClick={() => setSelectedFilter(filter)}
+                className="rounded-2xl border border-white/10 bg-card p-3 text-center transition-all hover:border-accent/30 hover:bg-white/[0.03]"
+              >
+                <div className="overflow-hidden rounded-xl border border-white/10 bg-white/[0.03]">
+                  <img
+                    src={getBodyPartImage(filter)}
+                    alt={filter}
+                    className="h-24 w-full object-cover sm:h-28"
+                  />
+                </div>
+                <div className="mt-3">
+                  <div className="text-sm font-bold text-text-primary">
+                    {filter}
+                  </div>
+                  <div className="mt-1 text-[11px] uppercase tracking-[0.16em] text-text-secondary">
+                    {getCount(filter)} exercises
+                  </div>
+                </div>
+              </button>
+            ))}
+          </div>
         </div>
-      </div>
-
-      <div className="px-4 sm:px-6 mb-6 flex gap-2 overflow-x-auto pb-2">
-        {filters.map(
-          (filter) =>
-          <button
-            key={filter}
-            onClick={() => setSelectedFilter(filter)}
-            className={`
-              px-4 py-2 rounded-full text-xs font-bold whitespace-nowrap
-              ${selectedFilter === filter ? 'bg-accent text-black' : 'bg-card border border-white/10 text-text-secondary'}
-            `}>
-
-              {filter} ({getCount(filter)})
-            </button>
-
-        )}
-      </div>
+      )}
 
       {loading && (
         <div className="px-4 sm:px-6 text-text-secondary text-sm">Loading exercises...</div>
@@ -135,44 +156,76 @@ export function ExerciseLibrary({
         <div className="px-4 sm:px-6 text-red-400 text-sm">{error}</div>
       )}
 
-      <div className="px-4 sm:px-6 grid grid-cols-2 gap-4">
-        {!loading && !error && filteredExercises.map((ex, i) => {
-          const likeData = likes[ex.name] || {count: 0, liked: false};
-          const totalLikes = Math.max(0, likeData.count);
-          return (
-          <Card
-            key={i}
-            onClick={() => onExerciseClick({ name: ex.name, muscle: ex.muscle, video: '/Squat.mp4' })}
-            className="p-3 cursor-pointer hover:border-accent/20 transition-colors group">
-
-            <div className="aspect-video bg-white/5 rounded-lg mb-3 flex items-center justify-center relative overflow-hidden">
-              <video src="/Squat.mp4" className="w-full h-full object-cover" />
-              <div className="absolute inset-0 bg-black/30 flex items-center justify-center">
-                <div className="w-8 h-8 rounded-full bg-black/50 flex items-center justify-center text-white group-hover:bg-accent group-hover:text-black transition-colors">
-                  <Play size={12} fill="currentColor" />
-                </div>
-              </div>
-            </div>
-            <div className="font-bold text-white text-sm truncate">
-              {ex.name}
-            </div>
-            <div className="flex items-center justify-between mt-1">
-              <div className="text-[10px] text-text-secondary uppercase tracking-wider">
-                {ex.muscle}
-              </div>
+      {!loading && !error && selectedFilter !== 'All' && (
+        <>
+          <div className="px-4 sm:px-6 mb-4">
+            <div className="flex items-center justify-between gap-3">
               <button
-                onClick={(e) => toggleLike(ex.name, e)}
-                className="flex items-center gap-1">
-                <Heart
-                  size={14}
-                  className={likeData.liked ? 'text-red-500 fill-red-500' : 'text-text-secondary'}
-                />
-                <span className="text-[10px] text-text-secondary">{totalLikes}</span>
+                onClick={() => setSelectedFilter('All')}
+                className="rounded-full border border-accent bg-accent px-4 py-2 text-xs font-bold uppercase tracking-[0.18em] text-black transition-colors"
+              >
+                All Exercises ({getCount('All')})
               </button>
+              <div className="text-[11px] uppercase tracking-[0.18em] text-text-secondary">
+                {selectedFilter} focus
+              </div>
             </div>
-          </Card>
-        )})}
-      </div>
+          </div>
+
+          <div className="px-4 sm:px-6 grid grid-cols-2 gap-4">
+            {filteredExercises.map((exercise) => {
+              const likeData = likes[exercise.name] || { count: 0, liked: false };
+              const videoUrl =
+                resolveExerciseVideoUrl({
+                  name: exercise.name,
+                  muscle: exercise.muscle,
+                  bodyPart: exercise.bodyPart,
+                }) || null;
+
+              return (
+                <Card
+                  key={exercise.id}
+                  onClick={() => onExerciseClick({ name: exercise.name, muscle: exercise.muscle, video: videoUrl })}
+                  className="cursor-pointer p-3 transition-colors group hover:border-accent/20"
+                >
+                  <div className="relative mb-3 flex aspect-video items-center justify-center overflow-hidden rounded-lg bg-white/5">
+                    <video
+                      src={videoUrl}
+                      className="h-full w-full object-cover"
+                      muted
+                      playsInline
+                      preload="metadata"
+                    />
+                    <div className="absolute inset-0 flex items-center justify-center bg-black/30">
+                      <div className="flex h-8 w-8 items-center justify-center rounded-full bg-black/50 text-white transition-colors group-hover:bg-accent group-hover:text-black">
+                        <Play size={12} fill="currentColor" />
+                      </div>
+                    </div>
+                  </div>
+                  <div className="truncate text-sm font-bold text-white">
+                    {exercise.name}
+                  </div>
+                  <div className="mt-1 flex items-center justify-between">
+                    <div className="text-[10px] uppercase tracking-wider text-text-secondary">
+                      {exercise.muscle}
+                    </div>
+                    <button
+                      onClick={(e) => toggleLike(exercise.name, e)}
+                      className="flex items-center gap-1"
+                    >
+                      <Heart
+                        size={14}
+                        className={likeData.liked ? 'fill-red-500 text-red-500' : 'text-text-secondary'}
+                      />
+                      <span className="text-[10px] text-text-secondary">{Math.max(0, likeData.count)}</span>
+                    </button>
+                  </div>
+                </Card>
+              );
+            })}
+          </div>
+        </>
+      )}
     </div>);
 
 }
