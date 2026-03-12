@@ -15,16 +15,35 @@ interface CoachOption {
 }
 
 export function ProfileScreen({ onNavigate, onLogout }: ProfileScreenProps) {
-  const user = JSON.parse(localStorage.getItem('appUser') || localStorage.getItem('user') || '{"name":"Moha"}');
-  const userName = user.name || 'Moha';
-  const localUserId = Number(localStorage.getItem('appUserId') || localStorage.getItem('userId') || 0);
-  const parsedUserId = Number(user?.id || 0);
-  const userId = localUserId || parsedUserId;
+  const parseStoredUser = (raw: string | null) => {
+    if (!raw) return null;
+    try {
+      const parsed = JSON.parse(raw);
+      return parsed && typeof parsed === 'object' ? parsed : null;
+    } catch {
+      return null;
+    }
+  };
+
+  const appUser = parseStoredUser(localStorage.getItem('appUser'));
+  const legacyUser = parseStoredUser(localStorage.getItem('user'));
+  const user = appUser || legacyUser || { name: 'Moha' };
+  const userName = String(user?.name || 'Moha');
+
+  const appUserId = Number(localStorage.getItem('appUserId') || 0);
+  const legacyUserId = Number(localStorage.getItem('userId') || 0);
+  const parsedUserId = Number(
+    user?.id
+    ?? user?.userId
+    ?? user?.user_id
+    ?? 0,
+  );
+  const userId = appUserId || legacyUserId || parsedUserId;
   const [profilePicture, setProfilePicture] = useState<string | null>(null);
-  const [completedExercises, setCompletedExercises] = useState<number | null>(null);
-  const [rankPosition, setRankPosition] = useState<number | null>(null);
+  const [completedExercises, setCompletedExercises] = useState(0);
+  const [rankPosition, setRankPosition] = useState(0);
   const [rankTotalMembers, setRankTotalMembers] = useState(0);
-  const [planDaysLeft, setPlanDaysLeft] = useState<number | null>(null);
+  const [planDaysLeft, setPlanDaysLeft] = useState(0);
   const [planSessionsLeft, setPlanSessionsLeft] = useState(0);
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
   const [isPlanChoiceOpen, setIsPlanChoiceOpen] = useState(false);
@@ -65,7 +84,8 @@ export function ProfileScreen({ onNavigate, onLogout }: ProfileScreenProps) {
     const fetchProfileStats = async () => {
       try {
         const stats = await api.getProfileStats(userId);
-        setCompletedExercises(Number(stats?.completedExercises || 0));
+        const completedExercisesValue = Number(stats?.completedExercises || 0);
+        setCompletedExercises(Number.isFinite(completedExercisesValue) ? Math.max(0, completedExercisesValue) : 0);
         let position = Number(
           stats?.classification?.position
           ?? stats?.rankPosition
@@ -78,7 +98,7 @@ export function ProfileScreen({ onNavigate, onLogout }: ProfileScreenProps) {
         );
 
         // Fallback for older/inconsistent profile-stats payloads.
-        if (!(position > 0) && userId > 0) {
+        if ((!(position > 0) || !(totalMembers > 0)) && userId > 0) {
           try {
             const leaderboard = await api.getLeaderboard(userId, 'alltime');
             const rows = Array.isArray(leaderboard?.leaderboard) ? leaderboard.leaderboard : [];
@@ -119,10 +139,29 @@ export function ProfileScreen({ onNavigate, onLogout }: ProfileScreenProps) {
           }
         }
 
-        setRankPosition(position > 0 ? position : null);
+        setRankPosition(position > 0 ? position : 0);
         setRankTotalMembers(totalMembers > 0 ? totalMembers : 0);
+
+        const statsSessionsLeft = Number(
+          stats?.planSessionsLeft
+          ?? (
+            Number(stats?.planPlannedWorkouts || 0)
+            - Number(stats?.planCompletedWorkouts || 0)
+          )
+          ?? 0,
+        );
+        const statsDaysLeft = Number(stats?.planDaysLeft ?? 0);
+        if (Number.isFinite(statsSessionsLeft)) {
+          setPlanSessionsLeft(Math.max(0, Math.round(statsSessionsLeft)));
+        }
+        if (Number.isFinite(statsDaysLeft)) {
+          setPlanDaysLeft(Math.max(0, Math.round(statsDaysLeft)));
+        }
       } catch (error) {
         console.error('Failed to load profile stats:', error);
+        setCompletedExercises(0);
+        setRankPosition(0);
+        setRankTotalMembers(0);
       }
     };
 
@@ -130,7 +169,7 @@ export function ProfileScreen({ onNavigate, onLogout }: ProfileScreenProps) {
       try {
         const progress = await api.getProgramProgress(userId);
         if (!progress?.hasActiveProgram) {
-          setPlanDaysLeft(null);
+          setPlanDaysLeft(0);
           setPlanSessionsLeft(0);
           return;
         }
@@ -298,16 +337,14 @@ export function ProfileScreen({ onNavigate, onLogout }: ProfileScreenProps) {
           onClick={() => onNavigate('rank')}
           className="bg-card rounded-xl p-3 text-center border border-white/5 hover:bg-white/5 transition-colors"
         >
-          <div className="text-xl font-bold text-white">{rankPosition ? `#${rankPosition}` : '-'}</div>
+          <div className="text-xl font-bold text-white">{rankPosition > 0 ? `#${rankPosition}` : '0'}</div>
           <div className="text-[10px] text-text-secondary uppercase">
             Classification
           </div>
-          {rankPosition && rankTotalMembers > 0 && (
-            <div className="text-[10px] text-text-tertiary mt-1">of {rankTotalMembers}</div>
-          )}
+          <div className="text-[10px] text-text-tertiary mt-1">of {Math.max(0, rankTotalMembers)}</div>
         </button>
         <div className="bg-card rounded-xl p-3 text-center border border-white/5">
-          <div className="text-xl font-bold text-white">{planDaysLeft ?? 0}</div>
+          <div className="text-xl font-bold text-white">{Math.max(0, planDaysLeft)}</div>
           <div className="text-[10px] text-text-secondary uppercase">
             Days Left
           </div>

@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Home, Activity, Dumbbell, User, BookOpenText } from 'lucide-react';
+import { Home, Activity, Dumbbell, User, Film } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { AppLanguage, getActiveLanguage, getStoredLanguage } from '../../services/language';
 import { AppTheme, getActiveTheme, getStoredTheme } from '../../services/theme';
@@ -72,7 +72,7 @@ export function TabBar({ activeTab, onTabChange }: TabBarProps) {
     },
     {
       id: 'blogs',
-      icon: BookOpenText,
+      icon: Film,
       label: labels.blogs,
     },
     {

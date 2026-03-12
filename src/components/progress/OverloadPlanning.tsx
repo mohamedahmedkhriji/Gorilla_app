@@ -16,9 +16,14 @@ export function OverloadPlanning() {
   const [loading, setLoading] = useState(true);
 
   const getUserId = () => {
-    const user = JSON.parse(localStorage.getItem('appUser') || localStorage.getItem('user') || '{}');
     const localUserId = Number(localStorage.getItem('appUserId') || localStorage.getItem('userId') || 0);
-    const parsedUserId = Number(user?.id || 0);
+    let parsedUserId = 0;
+    try {
+      const user = JSON.parse(localStorage.getItem('appUser') || localStorage.getItem('user') || '{}');
+      parsedUserId = Number(user?.id || 0);
+    } catch {
+      parsedUserId = 0;
+    }
     return localUserId || parsedUserId;
   };
 
@@ -55,6 +60,8 @@ export function OverloadPlanning() {
 
     window.addEventListener('gamification-updated', handleRefresh);
     window.addEventListener('recovery-updated', handleRefresh);
+    window.addEventListener('program-updated', handleRefresh);
+    window.addEventListener('workout-progress-updated', handleRefresh);
 
     const intervalId = window.setInterval(() => {
       void loadOverloadPlan();
@@ -63,6 +70,8 @@ export function OverloadPlanning() {
     return () => {
       window.removeEventListener('gamification-updated', handleRefresh);
       window.removeEventListener('recovery-updated', handleRefresh);
+      window.removeEventListener('program-updated', handleRefresh);
+      window.removeEventListener('workout-progress-updated', handleRefresh);
       window.clearInterval(intervalId);
     };
   }, [loadOverloadPlan]);

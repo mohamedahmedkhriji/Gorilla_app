@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { Button } from '../ui/Button';
 import { StrengthChart } from './StrengthChart';
 import { Card } from '../ui/Card';
-import { Activity, ChevronRight, TrendingUp } from 'lucide-react';
+import { Activity, ChevronRight, CircleQuestionMark, TrendingUp, X } from 'lucide-react';
 import { api } from '../../services/api';
 import { emojiFire } from '../../services/emojiTheme';
 import { getBodyPartImage } from '../../services/bodyPartTheme';
@@ -168,21 +168,27 @@ export function ProgressDashboard({ onViewReport, onViewStrengthScore }: Progres
     currentStreak: 0,
     workoutsCompletedThisWeek: 0,
     workoutsPlannedThisWeek: 0,
+    workoutsMissedThisWeek: 0,
+    workoutsRemainingThisWeek: 0,
   });
-  const [topBadge, setTopBadge] = useState('Top --');
   const [muscleDistribution, setMuscleDistribution] = useState<MuscleDistributionItem[]>([]);
+  const [showPageInfo, setShowPageInfo] = useState(false);
 
   const getUserId = () => {
     const localUserId = Number(localStorage.getItem('appUserId') || localStorage.getItem('userId') || 0);
-    const user = JSON.parse(localStorage.getItem('appUser') || localStorage.getItem('user') || '{}');
-    const parsedUserId = Number(user?.id || 0);
+    let parsedUserId = 0;
+    try {
+      const user = JSON.parse(localStorage.getItem('appUser') || localStorage.getItem('user') || '{}');
+      parsedUserId = Number(user?.id || 0);
+    } catch {
+      parsedUserId = 0;
+    }
     return localUserId || parsedUserId;
   };
 
   const loadStats = useCallback(async () => {
     const userId = getUserId();
     if (!userId) {
-      setTopBadge('Top --');
       setStats({
         totalWorkouts: 0,
         totalVolume: 0,
@@ -190,6 +196,8 @@ export function ProgressDashboard({ onViewReport, onViewStrengthScore }: Progres
         currentStreak: 0,
         workoutsCompletedThisWeek: 0,
         workoutsPlannedThisWeek: 0,
+        workoutsMissedThisWeek: 0,
+        workoutsRemainingThisWeek: 0,
       });
       setMuscleDistribution([]);
       return;
@@ -201,6 +209,8 @@ export function ProgressDashboard({ onViewReport, onViewStrengthScore }: Progres
     let totalWorkouts = 0;
     let workoutsCompletedThisWeek = 0;
     let workoutsPlannedThisWeek = 0;
+    let workoutsMissedThisWeek = 0;
+    let workoutsRemainingThisWeek = 0;
 
     try {
       const progress = await api.getProgramProgress(userId);
@@ -210,6 +220,8 @@ export function ProgressDashboard({ onViewReport, onViewStrengthScore }: Progres
       totalWorkouts = Number(progress?.summary?.completedWorkouts || 0);
       workoutsCompletedThisWeek = Number(progress?.summary?.workoutsCompletedThisWeek || 0);
       workoutsPlannedThisWeek = Number(progress?.summary?.workoutsPlannedThisWeek || 0);
+      workoutsMissedThisWeek = Number(progress?.summary?.workoutsMissedThisWeek || 0);
+      workoutsRemainingThisWeek = Number(progress?.summary?.workoutsRemainingThisWeek || 0);
       const volumeLoadAllTime = Number(
         progress?.summary?.volumeLoadAllTime
         ?? progress?.summary?.volumeLoadSinceStart
@@ -219,25 +231,6 @@ export function ProgressDashboard({ onViewReport, onViewStrengthScore }: Progres
       totalVolumeTons = Math.round((volumeLoadAllTime / 1000) * 10) / 10;
     } catch (error) {
       console.error('Failed to fetch program progress for consistency:', error);
-    }
-
-    try {
-      const leaderboardResponse = await api.getLeaderboard(userId, 'alltime');
-      const leaderboard = Array.isArray(leaderboardResponse?.leaderboard)
-        ? leaderboardResponse.leaderboard
-        : [];
-      const totalUsers = leaderboard.length;
-      const rankIndex = leaderboard.findIndex((item: any) => Number(item?.id || 0) === userId);
-
-      if (rankIndex >= 0 && totalUsers > 0) {
-        const percentile = Math.max(1, Math.round(((rankIndex + 1) / totalUsers) * 100));
-        setTopBadge(`Top ${percentile}%`);
-      } else {
-        setTopBadge('Top --');
-      }
-    } catch (error) {
-      console.error('Failed to fetch leaderboard badge:', error);
-      setTopBadge('Top --');
     }
 
     try {
@@ -273,6 +266,8 @@ export function ProgressDashboard({ onViewReport, onViewStrengthScore }: Progres
       currentStreak,
       workoutsCompletedThisWeek,
       workoutsPlannedThisWeek,
+      workoutsMissedThisWeek,
+      workoutsRemainingThisWeek,
     });
   }, []);
 
@@ -299,17 +294,26 @@ export function ProgressDashboard({ onViewReport, onViewStrengthScore }: Progres
     };
   }, [loadStats]);
 
-  const streakLabel = String(stats.currentStreak || 0);
-  const streakSubLabel = stats.currentStreak === 1 ? 'streak day' : 'streak days';
-  const weeklyDaysLabel = `${stats.workoutsCompletedThisWeek} / ${stats.workoutsPlannedThisWeek} days`;
+  const plannedThisWeek = Math.max(0, Number(stats.workoutsPlannedThisWeek || 0));
+  const completedThisWeek = Math.max(0, Number(stats.workoutsCompletedThisWeek || 0));
+  const completionPercent = plannedThisWeek > 0
+    ? Math.round((completedThisWeek / plannedThisWeek) * 100)
+    : Math.round(Number(stats.consistency || 0));
+  const consistencyLabel = `${completionPercent}%`;
+  const weeklyDaysLabel = `${completedThisWeek} / ${plannedThisWeek} days`;
 
   return (
-    <div className="space-y-6 pb-24">
+    <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-light text-white">Your Progress</h1>
-        <div className="px-3 py-1 rounded-full bg-accent/10 text-accent text-xs font-bold">
-          {topBadge}
-        </div>
+        <button
+          type="button"
+          className="flex h-9 w-9 items-center justify-center rounded-full border border-white/10 bg-card/70 text-text-secondary transition-colors hover:border-accent/30 hover:text-text-primary"
+          aria-label="Strength score info"
+          onClick={() => setShowPageInfo(true)}
+        >
+          <CircleQuestionMark size={16} />
+        </button>
       </div>
 
       <StrengthChart />
@@ -319,9 +323,8 @@ export function ProgressDashboard({ onViewReport, onViewStrengthScore }: Progres
           <div className="flex items-center justify-between gap-3">
             <div className="min-w-0">
               <Activity className="text-green-500 mb-2" size={20} />
-              <div className="text-2xl font-bold text-white font-electrolize">{streakLabel}</div>
-              <div className="text-xs text-text-secondary">{streakSubLabel}</div>
-              <div className="mt-1 text-xs text-text-tertiary">{weeklyDaysLabel}</div>
+              <div className="text-2xl font-bold text-white font-electrolize">{consistencyLabel}</div>
+              <div className="mt-1 text-xs text-text-secondary">{weeklyDaysLabel}</div>
             </div>
             <img
               src={emojiFire}
@@ -415,6 +418,41 @@ export function ProgressDashboard({ onViewReport, onViewStrengthScore }: Progres
           View Bi-Weekly Report
         </Button>
       </div>
+
+      {showPageInfo && (
+        <div
+          className="fixed inset-0 z-[120] flex items-center justify-center bg-black/60 px-4"
+          onClick={() => setShowPageInfo(false)}
+          role="presentation"
+        >
+          <div
+            className="w-full max-w-md rounded-2xl border border-white/10 bg-card p-5"
+            onClick={(event) => event.stopPropagation()}
+            role="dialog"
+            aria-modal="true"
+            aria-label="Progress page info dialog"
+          >
+            <div className="mb-4 flex items-center justify-between">
+              <h3 className="text-base font-semibold text-white">What&apos;s on this page</h3>
+              <button
+                type="button"
+                className="flex h-8 w-8 items-center justify-center rounded-full border border-white/10 text-text-secondary transition-colors hover:border-accent/30 hover:text-text-primary"
+                onClick={() => setShowPageInfo(false)}
+                aria-label="Close"
+              >
+                <X size={14} />
+              </button>
+            </div>
+            <div className="space-y-2 text-sm text-text-secondary">
+              <p>Your weekly strength trend (estimated 1RM).</p>
+              <p>Your weekly consistency percentage and completed days.</p>
+              <p>Your total lifted volume.</p>
+              <p>Your top target muscles for the current plan.</p>
+              <p>Next overload recommendations and quick report access.</p>
+            </div>
+          </div>
+        </div>
+      )}
     </div>);
 
 }

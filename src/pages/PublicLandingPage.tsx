@@ -87,6 +87,20 @@ export const PublicLandingPage: React.FC<PublicLandingPageProps> = ({ onGetStart
               ))}
             </motion.div>
           </div>
+
+          <div className="overflow-hidden">
+            <motion.div
+              className="flex w-max gap-3"
+              animate={{ x: ['0%', '-50%'] }}
+              transition={{ duration: 26, ease: 'linear', repeat: Infinity }}
+            >
+              {loopedLogos.map((logo, index) => (
+                <div key={`forward-bottom-${index}`} className="h-[72px] w-[72px] shrink-0 overflow-hidden rounded-2xl border border-white/10 bg-black/35">
+                  <img src={logo} alt="Gym partner logo" className="h-full w-full object-cover" loading="lazy" />
+                </div>
+              ))}
+            </motion.div>
+          </div>
         </section>
 
         <footer className="mt-10">

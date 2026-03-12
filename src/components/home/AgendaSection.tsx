@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { X, Bed, Check, CalendarX2 } from 'lucide-react';
 import { formatWorkoutDayLabel, formatWorkoutDayShortLabel, normalizeWorkoutDayKey } from '../../services/workoutDayLabel';
+import doneDayIcon from '../../../assets/emoji/done day.png';
 
 export function AgendaSection({ userProgram }: { userProgram?: any; programProgress?: any }) {
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -149,6 +150,13 @@ export function AgendaSection({ userProgram }: { userProgram?: any; programProgr
                   )}
                   {isMissed ? (
                     <CalendarX2 size={16} className="relative z-10" />
+                  ) : isDone ? (
+                    <img
+                      src={doneDayIcon}
+                      alt="Done day"
+                      className="relative z-10 h-6 w-6 object-contain"
+                      loading="lazy"
+                    />
                   ) : (
                     <span className="relative z-10 text-sm font-bold leading-none">{d.date}</span>
                   )}

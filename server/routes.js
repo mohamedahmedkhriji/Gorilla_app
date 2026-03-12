@@ -8310,6 +8310,7 @@ router.get('/progress/overload/:userId', async (req, res) => {
         `SELECT
             we.exercise_name_snapshot,
             we.target_reps,
+            w.id AS workout_id,
             w.day_order,
             we.order_index
          FROM workout_exercises we
@@ -8325,6 +8326,7 @@ router.get('/progress/overload/:userId', async (req, res) => {
           name: String(row.exercise_name_snapshot || '').trim(),
           normalizedName: normalizeExerciseLookupName(row.exercise_name_snapshot),
           targetRepHint: extractTargetRepHint(row.target_reps),
+          workoutId: Number(row.workout_id || 0),
           dayOrder: Number(row.day_order || 0),
           orderIndex: Number(row.order_index || 0),
         }))
@@ -8339,6 +8341,39 @@ router.get('/progress/overload/:userId', async (req, res) => {
       const plannedExercises = Array.from(plannedByNormalized.values());
 
       if (plannedExercises.length) {
+        const weekStart = new Date(assignment.start_date);
+        weekStart.setDate(weekStart.getDate() + ((currentWeek - 1) * 7));
+        weekStart.setHours(0, 0, 0, 0);
+        const weekEnd = new Date(weekStart);
+        weekEnd.setDate(weekEnd.getDate() + 6);
+        weekEnd.setHours(23, 59, 59, 999);
+
+        const [completedThisWeekRows] = await pool.execute(
+          `SELECT DISTINCT exercise_name
+           FROM workout_sets
+           WHERE user_id = ?
+             AND completed = 1
+             AND DATE(created_at) BETWEEN ? AND ?`,
+          [userId, formatDateISO(weekStart), formatDateISO(weekEnd)],
+        );
+
+        const completedThisWeekNormalized = new Set(
+          (Array.isArray(completedThisWeekRows) ? completedThisWeekRows : [])
+            .map((row) => normalizeExerciseLookupName(row.exercise_name))
+            .filter(Boolean),
+        );
+
+        const missedWeekRows = await getMissedProgramDayRows({
+          userId,
+          dateFrom: formatDateISO(weekStart),
+          dateTo: formatDateISO(weekEnd),
+        });
+        const missedWorkoutIds = new Set(
+          (Array.isArray(missedWeekRows) ? missedWeekRows : [])
+            .map((row) => Number(row?.workout_id || 0))
+            .filter((id) => Number.isFinite(id) && id > 0),
+        );
+
         const catalogIdByName = await resolveCatalogIdsByNormalizedNames(
           plannedExercises.map((exercise) => exercise.normalizedName),
         );
@@ -8384,6 +8419,8 @@ router.get('/progress/overload/:userId', async (req, res) => {
             if (!recommendation) return null;
             return {
               ...recommendation,
+              normalizedName: exercise.normalizedName,
+              workoutId: exercise.workoutId,
               dayOrder: exercise.dayOrder,
               orderIndex: exercise.orderIndex,
             };
@@ -8394,10 +8431,90 @@ router.get('/progress/overload/:userId', async (req, res) => {
             return a.orderIndex - b.orderIndex;
           });
 
-        const filteredPlanRecommendations = planRecommendations
+        const selectedRecommendations = [];
+        const selectedNames = new Set();
+
+        planRecommendations
           .filter((rec) => !rec.next.startsWith('+0'))
-          .slice(0, 3)
-          .map((rec) => ({
+          .forEach((rec) => {
+            if (selectedRecommendations.length >= 3) return;
+            if (completedThisWeekNormalized.has(rec.normalizedName)) return;
+            if (rec.workoutId > 0 && missedWorkoutIds.has(rec.workoutId)) return;
+            if (selectedNames.has(rec.normalizedName)) return;
+            selectedNames.add(rec.normalizedName);
+            selectedRecommendations.push({
+              name: rec.name,
+              current: rec.current,
+              next: rec.next,
+              direction: rec.direction,
+            });
+          });
+
+        if (selectedRecommendations.length < 3) {
+          const [fallbackRows] = await pool.execute(
+            `SELECT
+                exercise_name,
+                MAX(created_at) AS last_logged_at,
+                ROUND(AVG(COALESCE(rpe, 7)), 2) AS avg_rpe,
+                MAX(COALESCE(weight, 0)) AS max_weight,
+                MAX(COALESCE(reps, 0)) AS max_reps,
+                COUNT(*) AS set_count
+             FROM workout_sets
+             WHERE user_id = ?
+               AND completed = 1
+               AND created_at >= DATE_SUB(NOW(), INTERVAL 28 DAY)
+             GROUP BY exercise_name
+             HAVING COUNT(*) >= 2
+             ORDER BY MAX(created_at) DESC
+             LIMIT 24`,
+            [userId],
+          );
+
+          const fallbackRecommendations = (Array.isArray(fallbackRows) ? fallbackRows : [])
+            .map((row) => {
+              const exerciseName = String(row.exercise_name || '').trim();
+              const avgRpe = Number(row.avg_rpe || 7);
+              const maxWeight = Number(row.max_weight || 0);
+              const maxReps = Number(row.max_reps || 0);
+
+              if (isRepBasedExercise(exerciseName) || maxWeight <= 0) {
+                const repIncrease = avgRpe <= 8 ? 1 : 0;
+                return {
+                  name: exerciseName,
+                  current: `${Math.max(1, maxReps)} reps`,
+                  next: repIncrease > 0 ? `+${repIncrease} rep` : '+0 rep',
+                  direction: 'up',
+                  normalizedName: normalizeExerciseLookupName(exerciseName),
+                };
+              }
+
+              const kgIncrease = isLowerBodyExercise(exerciseName) ? 5 : 2.5;
+              const canIncrease = avgRpe <= 8.5;
+              return {
+                name: exerciseName,
+                current: `${Number(maxWeight.toFixed(1))}kg`,
+                next: canIncrease ? `+${kgIncrease}kg` : '+0kg',
+                direction: 'up',
+                normalizedName: normalizeExerciseLookupName(exerciseName),
+              };
+            })
+            .filter((rec) => rec && rec.name && rec.normalizedName && !rec.next.startsWith('+0'));
+
+          fallbackRecommendations.forEach((rec) => {
+            if (selectedRecommendations.length >= 3) return;
+            if (completedThisWeekNormalized.has(rec.normalizedName)) return;
+            if (selectedNames.has(rec.normalizedName)) return;
+            selectedNames.add(rec.normalizedName);
+            selectedRecommendations.push({
+              name: rec.name,
+              current: rec.current,
+              next: rec.next,
+              direction: rec.direction,
+            });
+          });
+        }
+
+        const filteredPlanRecommendations = selectedRecommendations.map((rec) => ({
             name: rec.name,
             current: rec.current,
             next: rec.next,
@@ -8411,6 +8528,8 @@ router.get('/progress/overload/:userId', async (req, res) => {
             currentWeek,
             daysPerWeek,
             plannedExercises: plannedExercises.length,
+            completedExercisesThisWeek: completedThisWeekNormalized.size,
+            missedWorkoutDaysThisWeek: missedWorkoutIds.size,
             sourceDays: 42,
           },
         });

@@ -48,7 +48,7 @@ export function Progress({ resetSignal = 0 }: ProgressProps) {
   }
   return (
     <div className="relative pb-24">
-      <div className="space-y-6">
+      <div className="space-y-2">
         <ProgressDashboard
           onViewReport={() => setView('report')}
           onViewStrengthScore={() => setView('strengthScore')}

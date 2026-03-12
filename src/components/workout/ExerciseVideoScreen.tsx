@@ -399,8 +399,8 @@ const resolveTargetMuscleImage = (muscleName?: string, muscleGroup?: string) => 
   const specificImage = resolveWorkoutMuscleImage(muscleName, muscleGroup);
   if (specificImage) return specificImage;
 
-  // Fallback to generic body-part icons from assets/body part
-  return getBodyPartImage(muscleGroup || muscleName || 'General');
+  // Prefer detailed theme image using both muscle label and group context.
+  return getBodyPartImage(`${muscleName || ''} ${muscleGroup || ''}`.trim() || 'General');
 };
 
 const detectExerciseGroup = (muscle?: string, videoUrl?: string) => {
