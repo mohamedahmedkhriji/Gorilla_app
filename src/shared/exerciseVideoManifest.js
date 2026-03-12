@@ -15,6 +15,22 @@ const normalizeExerciseVideoLookup = (value) =>
     .replace(/\bbent[\s-]*over\b/g, 'bent over')
     .replace(/\bbehind[\s-]*the[\s-]*head\b/g, 'behind the head')
     .replace(/\bbehind[\s-]*the[\s-]*neck\b/g, 'behind the neck')
+    // Normalize common plural variants so newly added file names match dataset entries.
+    .replace(/\bextensions\b/g, 'extension')
+    .replace(/\brows\b/g, 'row')
+    .replace(/\bcurls\b/g, 'curl')
+    .replace(/\braises\b/g, 'raise')
+    .replace(/\bpresses\b/g, 'press')
+    .replace(/\bflies\b/g, 'fly')
+    .replace(/\bflyes\b/g, 'fly')
+    .replace(/\bdeadlifts\b/g, 'deadlift')
+    .replace(/\bshrugs\b/g, 'shrug')
+    .replace(/\bsquats\b/g, 'squat')
+    .replace(/\blunges\b/g, 'lunge')
+    .replace(/\bcrunches\b/g, 'crunch')
+    .replace(/\btwists\b/g, 'twist')
+    .replace(/\bdips\b/g, 'dip')
+    .replace(/\blats\b/g, 'lat')
     .replace(/\.[a-z0-9]+$/i, '')
     .replace(/&/g, ' and ')
     .replace(/[^a-z0-9]+/g, ' ')
@@ -197,6 +213,28 @@ const BACK_VIDEO_MANIFEST = [
       'rack pull',
     ],
   },
+  {
+    bodyPart: 'back',
+    fileName: 'Back Extensions .mp4',
+    priority: 93,
+    aliases: [
+      'back extension',
+      'back extensions',
+      'hyperextension',
+      'roman chair extension',
+      'lower back extension',
+    ],
+  },
+  {
+    bodyPart: 'back',
+    fileName: 'Landmine Row.mp4',
+    priority: 89,
+    aliases: [
+      'landmine row',
+      'single arm landmine row',
+      'meadows row',
+    ],
+  },
 ].map((entry) => ({
   ...entry,
   normalizedAliases: entry.aliases.map((alias) => normalizeExerciseVideoLookup(alias)),
@@ -205,6 +243,15 @@ const BACK_VIDEO_MANIFEST = [
 const resolveBackVideoFallback = (normalizedName) => {
   if (normalizedName.includes('deadlift')) {
     return { fileName: 'Deadlift .mp4', bodyPart: 'back', matchType: 'fallback', priority: 40 };
+  }
+
+  if (
+    normalizedName.includes('back extension')
+    || normalizedName.includes('hyperextension')
+    || normalizedName.includes('roman chair extension')
+    || normalizedName.includes('lower back extension')
+  ) {
+    return { fileName: 'Back Extensions .mp4', bodyPart: 'back', matchType: 'fallback', priority: 38 };
   }
 
   if (normalizedName.includes('pullover')) {

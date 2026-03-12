@@ -145,6 +145,7 @@ const getBackMuscleDistribution = (exerciseName?: string, videoUrl?: string) => 
 
   if (
     lookup.includes('deadlift')
+    || lookup.includes('back extension')
     || lookup.includes('hyperextension')
     || lookup.includes('good morning')
   ) {
@@ -177,6 +178,7 @@ const getBackMuscleDistribution = (exerciseName?: string, videoUrl?: string) => 
     lookup.includes('bent over')
     || lookup.includes('barbell row')
     || lookup.includes('dumbbell row')
+    || lookup.includes('landmine row')
   ) {
     distribution = [40, 35, 25];
   } else if (
@@ -410,6 +412,14 @@ const detectExerciseGroup = (muscle?: string, videoUrl?: string) => {
   if (lookup.includes('body part chest') || lookup.includes('chest')) return 'chest';
   if (lookup.includes('body part biceps') || lookup.includes('biceps')) return 'biceps';
   if (lookup.includes('body part triceps') || lookup.includes('triceps')) return 'triceps';
+  if (
+    lookup.includes('body part arms')
+    || lookup.includes('arms')
+    || lookup.includes('forearm')
+  ) {
+    if (lookup.includes('tricep')) return 'triceps';
+    return 'biceps';
+  }
   if (lookup.includes('body part shoulder') || lookup.includes('shoulder')) return 'shoulders';
   if (lookup.includes('body part abs') || lookup.includes(' abs ') || lookup.includes('abdom') || lookup.includes('oblique') || lookup.includes('core')) return 'abs';
   if (lookup.includes('body part legs') || lookup.includes('body part calves') || lookup.includes('legs') || lookup.includes('quads') || lookup.includes('hamstring') || lookup.includes('glute') || lookup.includes('calf')) return 'legs';
