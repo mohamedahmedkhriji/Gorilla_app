@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import { useRef, useState } from 'react';
 import { Card } from '../ui/Card';
 import { ArrowLeft, Play } from 'lucide-react';
 import { getBodyPartImage } from '../../services/bodyPartTheme';
@@ -436,7 +436,7 @@ export function ExerciseVideoScreen({ onBack, exercise }: ExerciseVideoScreenPro
     name: exercise?.name,
     muscle: exercise?.muscle,
     bodyPart: exercise?.targetMuscles,
-  });
+  }) || undefined;
   const exerciseGroup = detectExerciseGroup(exercise?.muscle, resolvedVideoUrl);
   const muscleDistribution = exerciseGroup === 'back'
     ? getBackMuscleDistribution(exercise?.name, resolvedVideoUrl)
