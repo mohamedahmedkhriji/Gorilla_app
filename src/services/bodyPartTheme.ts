@@ -17,7 +17,7 @@ export const getBodyPartImage = (muscleGroup: unknown) => {
 
   if (key.includes('abs') || key.includes('core') || key.includes('oblique') || key.includes('abdom')) return absImage;
   if (key.includes('back') || key.includes('lat') || key.includes('trap') || key.includes('rhomboid')) return backImage;
-  if (key.includes('bicep') || key === 'arms') return bicepsImage;
+  if (key.includes('bicep') || key.includes('brachialis') || key === 'arms') return bicepsImage;
   if (key.includes('calf')) return calvesImage;
   if (key.includes('chest') || key.includes('pect')) return chestImage;
   if (key.includes('forearm') || key.includes('wrist') || key.includes('grip')) return forearmsImage;

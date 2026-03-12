@@ -41,7 +41,7 @@ const buildSmoothPath = (points: ChartPoint[]) => {
 
 const formatKg = (value: number | null | undefined) => {
   const numericValue = Number(value);
-  if (!Number.isFinite(numericValue) || numericValue <= 0) return '--';
+  if (!Number.isFinite(numericValue) || numericValue <= 0) return '0 kg';
   return `${Math.round(numericValue)} kg`;
 };
 
@@ -106,12 +106,12 @@ export function StrengthChart() {
       return {
         linePath: '',
         areaPath: '',
-        firstLabel: '-',
-        midLabel: '-',
-        lastLabel: '-',
+        firstLabel: 'Start',
+        midLabel: 'Mid',
+        lastLabel: 'Now',
         points: [] as ChartPoint[],
-        minLabel: '--',
-        maxLabel: '--',
+        minLabel: '0 kg',
+        maxLabel: '0 kg',
       };
     }
 
@@ -154,7 +154,8 @@ export function StrengthChart() {
 
   const hasStrengthData = points.length > 0;
   const pct = Number(data?.summary?.percentChange || 0);
-  const pctText = hasStrengthData ? `${pct >= 0 ? '+' : ''}${pct}%` : '--';
+  const roundedPct = Math.round(pct * 10) / 10;
+  const pctText = hasStrengthData ? `${roundedPct >= 0 ? '+' : ''}${roundedPct}%` : '0%';
   const trendToneClass = pct > 0
     ? 'border-emerald-500/35 bg-emerald-500/10 text-emerald-400'
     : pct < 0
@@ -175,18 +176,18 @@ export function StrengthChart() {
           </div>
           <div className={`rounded-xl border px-3 py-2 text-right ${trendToneClass}`}>
             <div className="text-[10px] uppercase tracking-[0.14em]">Trend</div>
-            <div className="text-xl font-electrolize leading-none">{loading ? '--' : pctText}</div>
+            <div className="text-xl font-electrolize leading-none">{loading ? '0%' : pctText}</div>
           </div>
         </div>
 
         <div className="mb-4 grid grid-cols-2 gap-3 text-xs">
           <div className="rounded-xl border border-white/10 bg-background/45 px-3 py-2">
             <div className="uppercase tracking-[0.12em] text-text-tertiary">Baseline</div>
-            <div className="mt-1 text-sm font-semibold text-text-primary">{loading ? '--' : baselineText}</div>
+            <div className="mt-1 text-sm font-semibold text-text-primary">{loading ? '0 kg' : baselineText}</div>
           </div>
           <div className="rounded-xl border border-white/10 bg-background/45 px-3 py-2">
             <div className="uppercase tracking-[0.12em] text-text-tertiary">Current</div>
-            <div className="mt-1 text-sm font-semibold text-text-primary">{loading ? '--' : currentText}</div>
+            <div className="mt-1 text-sm font-semibold text-text-primary">{loading ? '0 kg' : currentText}</div>
           </div>
         </div>
 

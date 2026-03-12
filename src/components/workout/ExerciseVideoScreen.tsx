@@ -52,6 +52,18 @@ const BACK_MUSCLE_DISTRIBUTION = [
   { name: 'Lower Back', colorClass: MUSCLE_BAR_COLORS[2] },
 ];
 
+const CHEST_MUSCLE_DISTRIBUTION = [
+  { name: 'Upper Chest', colorClass: MUSCLE_BAR_COLORS[0] },
+  { name: 'Mid Chest', colorClass: MUSCLE_BAR_COLORS[1] },
+  { name: 'Lower Chest', colorClass: MUSCLE_BAR_COLORS[2] },
+];
+
+const BICEPS_MUSCLE_DISTRIBUTION = [
+  { name: 'Long Head Biceps', colorClass: MUSCLE_BAR_COLORS[0] },
+  { name: 'Short Head Biceps', colorClass: MUSCLE_BAR_COLORS[1] },
+  { name: 'Brachialis', colorClass: MUSCLE_BAR_COLORS[2] },
+];
+
 const SEGMENT_COUNT = 10;
 
 const clampPercent = (value: number) => Math.max(0, Math.min(100, value));
@@ -111,6 +123,16 @@ const getBackMuscleDistribution = (exerciseName?: string, videoUrl?: string) => 
     || lookup.includes('good morning')
   ) {
     distribution = [30, 15, 55];
+  } else if (
+    lookup.includes('trap')
+    || lookup.includes('shrug')
+  ) {
+    distribution = [65, 20, 15];
+  } else if (
+    lookup.includes('rear delt')
+    || lookup.includes('reverse fly')
+  ) {
+    distribution = [55, 30, 15];
   } else if (lookup.includes('pullover')) {
     distribution = [20, 65, 15];
   } else if (lookup.includes('lower lats')) {
@@ -140,6 +162,66 @@ const getBackMuscleDistribution = (exerciseName?: string, videoUrl?: string) => 
   }
 
   return BACK_MUSCLE_DISTRIBUTION.map((muscle, index) => ({
+    ...muscle,
+    percent: distribution[index],
+  }));
+};
+
+const getChestMuscleDistribution = (exerciseName?: string, videoUrl?: string) => {
+  const lookup = normalizeLookup(`${exerciseName || ''} ${videoUrl || ''}`);
+  let distribution = [30, 50, 20];
+
+  if (
+    lookup.includes('upper')
+    || lookup.includes('incline')
+    || lookup.includes('45')
+  ) {
+    distribution = [60, 25, 15];
+  } else if (
+    lookup.includes('lower')
+    || lookup.includes('dip')
+    || lookup.includes('decline')
+  ) {
+    distribution = [15, 30, 55];
+  } else if (
+    lookup.includes('middle')
+    || lookup.includes('midel')
+    || lookup.includes('flat')
+    || lookup.includes('pec deck')
+    || lookup.includes('bench press')
+    || lookup.includes('guillotine')
+  ) {
+    distribution = [25, 55, 20];
+  }
+
+  return CHEST_MUSCLE_DISTRIBUTION.map((muscle, index) => ({
+    ...muscle,
+    percent: distribution[index],
+  }));
+};
+
+const getBicepsMuscleDistribution = (exerciseName?: string, videoUrl?: string) => {
+  const lookup = normalizeLookup(`${exerciseName || ''} ${videoUrl || ''}`);
+  let distribution = [40, 35, 25];
+
+  if (lookup.includes('hammer')) {
+    distribution = [20, 20, 60];
+  } else if (lookup.includes('incline')) {
+    distribution = [60, 25, 15];
+  } else if (
+    lookup.includes('scott')
+    || lookup.includes('preacher')
+  ) {
+    distribution = [25, 55, 20];
+  } else if (
+    lookup.includes('cable')
+    || lookup.includes('v ')
+    || lookup.endsWith(' v')
+  ) {
+    distribution = [35, 45, 20];
+  }
+
+  return BICEPS_MUSCLE_DISTRIBUTION.map((muscle, index) => ({
     ...muscle,
     percent: distribution[index],
   }));
@@ -182,11 +264,21 @@ export function ExerciseVideoScreen({ onBack, exercise }: ExerciseVideoScreenPro
     muscle: exercise?.muscle,
     bodyPart: exercise?.targetMuscles,
   });
-  const isBackExercise = normalizeLookup(exercise?.muscle).includes('back')
-    || normalizeLookup(resolvedVideoUrl).includes('body part back');
+  const normalizedMuscle = normalizeLookup(exercise?.muscle);
+  const normalizedVideoUrl = normalizeLookup(resolvedVideoUrl);
+  const isBackExercise = normalizedMuscle.includes('back')
+    || normalizedVideoUrl.includes('body part back');
+  const isChestExercise = normalizedMuscle.includes('chest')
+    || normalizedVideoUrl.includes('body part chest');
+  const isBicepsExercise = normalizedMuscle.includes('biceps')
+    || normalizedVideoUrl.includes('body part biceps');
   const muscleDistribution = isBackExercise
     ? getBackMuscleDistribution(exercise?.name, resolvedVideoUrl)
-    : getMuscleDistribution(targetMuscles);
+    : isChestExercise
+      ? getChestMuscleDistribution(exercise?.name, resolvedVideoUrl)
+      : isBicepsExercise
+        ? getBicepsMuscleDistribution(exercise?.name, resolvedVideoUrl)
+        : getMuscleDistribution(targetMuscles);
 
   const togglePlay = () => {
     if (videoRef.current) {
@@ -202,13 +294,13 @@ export function ExerciseVideoScreen({ onBack, exercise }: ExerciseVideoScreenPro
   return (
     <div className="flex-1 flex flex-col h-full bg-background overflow-y-auto px-4 sm:px-6">
       {/* Video Player */}
-      <div className="relative mb-6 w-full overflow-hidden rounded-2xl border border-white/10 bg-card aspect-video">
+      <div className="relative mb-6 w-full overflow-hidden rounded-2xl border border-white/10 bg-black min-h-[18rem] sm:min-h-[21rem] md:min-h-[24rem]">
         {resolvedVideoUrl ? (
           <>
             <video
               ref={videoRef}
               controls
-              className="w-full h-full object-cover"
+              className="w-full h-full object-contain bg-black"
               src={resolvedVideoUrl}
               onPlay={() => setIsPlaying(true)}
               onPause={() => setIsPlaying(false)}>
