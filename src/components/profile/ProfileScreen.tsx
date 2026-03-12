@@ -67,7 +67,7 @@ export function ProfileScreen({ onNavigate, onLogout }: ProfileScreenProps) {
     if (!userId) return;
 
     // Keep user-app storage keys aligned.
-    if (!localUserId || localUserId !== userId) {
+    if (appUserId !== userId || legacyUserId !== userId) {
       localStorage.setItem('appUserId', String(userId));
       localStorage.setItem('userId', String(userId));
     }
@@ -204,7 +204,7 @@ export function ProfileScreen({ onNavigate, onLogout }: ProfileScreenProps) {
     }, 15 * 1000);
 
     return () => clearInterval(statsRefresh);
-  }, [userId, localUserId]);
+  }, [userId, appUserId, legacyUserId]);
 
   const handleImageUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];

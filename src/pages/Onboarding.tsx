@@ -2,7 +2,11 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { OnboardingLayout } from '../components/onboarding/OnboardingLayout';
 import { AppMotivationScreen } from '../components/onboarding/AppMotivationScreen';
 import { WelcomeScreen } from '../components/onboarding/WelcomeScreen';
+import { AthleteIdentityScreen } from '../components/onboarding/AthleteIdentityScreen';
 import { PersonalInfoScreen } from '../components/onboarding/PersonalInfoScreen';
+import { SportAgeGenderScreen } from '../components/onboarding/SportAgeGenderScreen';
+import { SportExperienceYearsScreen } from '../components/onboarding/SportExperienceYearsScreen';
+import { SportPlanChoiceScreen } from '../components/onboarding/SportPlanChoiceScreen';
 import { FitnessBackgroundScreen } from '../components/onboarding/FitnessBackgroundScreen';
 import { FitnessGoalsScreen } from '../components/onboarding/FitnessGoalsScreen';
 import { BodyTypeSelectionScreen } from '../components/onboarding/BodyTypeSelectionScreen';
@@ -43,82 +47,148 @@ export function Onboarding({ onComplete }: OnboardingProps) {
       onComplete();
     }
   }, [onComplete]);
+
+  const normalizeAthleteIdentity = (value: unknown) => {
+    const normalized = String(value || '').trim().toLowerCase();
+    if (normalized === 'bodybuilder') return 'bodybuilding';
+    if (normalized === 'fotballer') return 'football';
+    if (normalized === 'basketballer') return 'basketball';
+    if (normalized === 'handballer') return 'handball';
+    if (normalized === 'swimmer') return 'swimming';
+    return normalized;
+  };
+
+  const selectedAthleteIdentity = normalizeAthleteIdentity(onboardingData?.athleteIdentity);
+  const isBodybuildingTrack = selectedAthleteIdentity === 'bodybuilding';
   const selectedSplitType = String(onboardingData?.workoutSplitPreference || '').trim().toLowerCase();
   const shouldShowCustomPlanStep = selectedSplitType === 'custom';
   const shouldShowAiPlanTuningStep = selectedSplitType === 'auto';
 
-  const steps = [
-  {
-    component: WelcomeScreen,
-    title: '',
-    showBack: false
-  },
-  {
-    component: AppMotivationScreen,
-    title: 'Motivation'
-  },
-  {
-    component: PersonalInfoScreen,
-    title: 'Personal Info'
-  },
-  {
-    component: FitnessBackgroundScreen,
-    title: 'Background'
-  },
-  {
-    component: FitnessGoalsScreen,
-    title: 'Fitness Goal'
-  },
-  {
-    component: BodyTypeSelectionScreen,
-    title: 'Body Type'
-  },
-  {
-    component: GoalsAvailabilityScreen,
-    title: 'Availability'
-  },
-  {
-    component: WorkoutSplitScreen,
-    title: 'Plan Selection'
-  },
-  ...(shouldShowCustomPlanStep
-    ? [
-        {
-          component: CustomPlanOnboardingScreen,
-          title: 'Customize Plan'
-        },
-        {
-          component: CustomPlanAdviceScreen,
-          title: 'AI Advice',
-          showBack: false
-        }
-      ]
-    : [
-        ...(shouldShowAiPlanTuningStep
-          ? [
-              {
-                component: AIPlanTuningScreen,
-                title: 'AI Preferences'
-              }
-            ]
-          : []),
-        {
-          component: BodyImageUploadScreen,
-          title: 'Body Scan'
-        },
-        {
-          component: AIAnalysisScreen,
-          title: 'Analyzing',
-          showBack: false
-        },
-        {
-          component: BodyAnalysisResultsScreen,
-          title: 'Results',
-          showBack: false,
-          showHeader: false,
-          showProgress: false
-        }
-      ])];
+  const introSteps = [
+    {
+      component: WelcomeScreen,
+      title: '',
+      showBack: false,
+    },
+    {
+      component: AppMotivationScreen,
+      title: 'Motivation',
+    },
+    {
+      component: AthleteIdentityScreen,
+      title: 'I AM',
+    },
+  ];
+
+  const bodybuildingSteps = [
+    ...introSteps,
+    {
+      component: PersonalInfoScreen,
+      title: 'Personal Info',
+    },
+    {
+      component: FitnessBackgroundScreen,
+      title: 'Background',
+    },
+    {
+      component: FitnessGoalsScreen,
+      title: 'Fitness Goal',
+    },
+    {
+      component: BodyTypeSelectionScreen,
+      title: 'Body Type',
+    },
+    {
+      component: GoalsAvailabilityScreen,
+      title: 'Availability',
+    },
+    {
+      component: WorkoutSplitScreen,
+      title: 'Plan Selection',
+    },
+    ...(shouldShowCustomPlanStep
+      ? [
+          {
+            component: CustomPlanOnboardingScreen,
+            title: 'Customize Plan',
+          },
+          {
+            component: CustomPlanAdviceScreen,
+            title: 'AI Advice',
+            showBack: false,
+          },
+        ]
+      : [
+          ...(shouldShowAiPlanTuningStep
+            ? [
+                {
+                  component: AIPlanTuningScreen,
+                  title: 'AI Preferences',
+                },
+              ]
+            : []),
+          {
+            component: BodyImageUploadScreen,
+            title: 'Body Scan',
+          },
+          {
+            component: AIAnalysisScreen,
+            title: 'Analyzing',
+            showBack: false,
+          },
+          {
+            component: BodyAnalysisResultsScreen,
+            title: 'Results',
+            showBack: false,
+            showHeader: false,
+            showProgress: false,
+          },
+        ]),
+  ];
+
+  const sportTrackSteps = [
+    ...introSteps,
+    {
+      component: SportAgeGenderScreen,
+      title: 'Age & Gender',
+    },
+    {
+      component: SportExperienceYearsScreen,
+      title: 'Sports Experience',
+    },
+    {
+      component: SportPlanChoiceScreen,
+      title: 'Plan Selection',
+    },
+    ...(shouldShowCustomPlanStep
+      ? [
+          {
+            component: CustomPlanOnboardingScreen,
+            title: 'Generate Plan',
+          },
+          {
+            component: CustomPlanAdviceScreen,
+            title: 'AI Advice',
+            showBack: false,
+          },
+        ]
+      : [
+          {
+            component: AIAnalysisScreen,
+            title: 'Analyzing',
+            showBack: false,
+          },
+          {
+            component: BodyAnalysisResultsScreen,
+            title: 'Results',
+            showBack: false,
+            showHeader: false,
+            showProgress: false,
+          },
+        ]),
+  ];
+
+  const steps = isBodybuildingTrack ? bodybuildingSteps : sportTrackSteps;
 
   const CurrentComponent = steps[step]?.component;
 

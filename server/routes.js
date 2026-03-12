@@ -657,6 +657,47 @@ const normalizeSplitPreference = (value) => {
   return 'auto';
 };
 
+const normalizeShortText = (value, maxLength = 120, lowerCase = false) => {
+  const raw = String(value || '').trim();
+  if (!raw) return null;
+  const sliced = raw.slice(0, maxLength);
+  return lowerCase ? sliced.toLowerCase() : sliced;
+};
+
+const normalizeAthleteIdentity = (value) => {
+  const key = String(value || '').trim().toLowerCase().replace(/\s+/g, '_');
+  if (!key) return null;
+
+  const aliasMap = {
+    bodybuilder: 'bodybuilding',
+    footballer: 'football',
+    fotballer: 'football',
+    basketballer: 'basketball',
+    handballer: 'handball',
+    swimmer: 'swimming',
+    'combat_sport': 'combat_sports',
+  };
+  const normalized = aliasMap[key] || key;
+  if (['bodybuilding', 'football', 'basketball', 'handball', 'swimming', 'combat_sports'].includes(normalized)) {
+    return normalized;
+  }
+  return null;
+};
+
+const normalizeAthleteIdentityCategory = (value) => {
+  const key = String(value || '').trim().toLowerCase().replace(/\s+/g, '_');
+  if (!key) return null;
+  if (key === 'fitness' || key === 'athlete_sports') return key;
+  return null;
+};
+
+const normalizeSportPracticeYears = (value) => {
+  const years = toNumber(value, null);
+  if (years == null) return null;
+  const clamped = Math.max(0, Math.min(80, years));
+  return Math.round(clamped * 100) / 100;
+};
+
 const RANK_TIERS = [
   { name: 'Bronze', minPoints: 0 },
   { name: 'Silver', minPoints: 150 },
@@ -3592,6 +3633,16 @@ router.post('/user/onboarding', async (req, res) => {
       aiLimitations,
       aiRecoveryPriority,
       aiEquipmentNotes,
+      athleteIdentity,
+      athleteIdentityLabel,
+      athleteIdentityCategory,
+      athleteSubCategoryId,
+      athleteSubCategoryLabel,
+      athleteSubCategoryGroupId,
+      athleteSubCategoryGroupLabel,
+      athleteGoal,
+      sportPracticeYears,
+      experienceLevelSource,
       useClaude,
       disableClaude,
     } = req.body;
@@ -3637,9 +3688,85 @@ router.post('/user/onboarding', async (req, res) => {
     const normalizedAiLimitations = String(aiLimitations || '').trim().slice(0, 300) || null;
     const normalizedAiRecoveryPriority = String(aiRecoveryPriority || '').trim().toLowerCase().slice(0, 40) || null;
     const normalizedAiEquipmentNotes = String(aiEquipmentNotes || '').trim().slice(0, 240) || null;
+    const normalizedAthleteIdentity = normalizeAthleteIdentity(athleteIdentity || req.body.athlete_identity);
+    const normalizedAthleteIdentityLabel = normalizeShortText(
+      athleteIdentityLabel || req.body.athlete_identity_label,
+      80,
+      false,
+    );
+    const normalizedAthleteIdentityCategory = normalizeAthleteIdentityCategory(
+      athleteIdentityCategory || req.body.athlete_identity_category,
+    );
+    const normalizedAthleteSubCategoryId = normalizeShortText(
+      athleteSubCategoryId || req.body.athlete_sub_category_id,
+      100,
+      true,
+    );
+    const normalizedAthleteSubCategoryLabel = normalizeShortText(
+      athleteSubCategoryLabel || req.body.athlete_sub_category_label,
+      120,
+      false,
+    );
+    const normalizedAthleteSubCategoryGroupId = normalizeShortText(
+      athleteSubCategoryGroupId || req.body.athlete_sub_category_group_id,
+      100,
+      true,
+    );
+    const normalizedAthleteSubCategoryGroupLabel = normalizeShortText(
+      athleteSubCategoryGroupLabel || req.body.athlete_sub_category_group_label,
+      120,
+      false,
+    );
+    const normalizedAthleteGoal = normalizeShortText(
+      athleteGoal || req.body.athlete_goal || athleteSubCategoryLabel || req.body.athlete_sub_category_label,
+      120,
+      false,
+    );
+    const normalizedSportPracticeYears = normalizeSportPracticeYears(
+      sportPracticeYears || req.body.sport_practice_years,
+    );
+    const normalizedExperienceLevelSource = normalizeShortText(
+      experienceLevelSource || req.body.experience_level_source,
+      40,
+      true,
+    );
     const normalizedBodyImages = Array.isArray(bodyImages)
       ? bodyImages.filter((image) => typeof image === 'string').slice(0, 3)
       : [];
+    const equipmentProfile = equipment || availableEquipment || equipmentList || null;
+    const onboardingProfilePayload = buildClaudeOnboardingFields(req.body, {
+      userId: normalizedUserId,
+      age: normalizedAge,
+      gender: normalizedGender,
+      heightCm: normalizedHeight,
+      weightKg: normalizedWeight,
+      goal: normalizedGoal,
+      experienceLevel: normalizedExperience || 'intermediate',
+      daysPerWeek: normalizedDays,
+      sessionDuration: normalizedSessionDuration,
+      preferredTime: normalizedPreferredTime,
+      bodyType: normalizedBodyType,
+      motivation: normalizedOnboardingReason,
+      preferredSplit: normalizedSplitPreference,
+      preferredSplitLabel: normalizedSplitLabel,
+      trainingFocus: normalizedAiTrainingFocus,
+      limitations: normalizedAiLimitations,
+      recoveryPriority: normalizedAiRecoveryPriority,
+      equipmentNotes: normalizedAiEquipmentNotes,
+      athleteIdentity: normalizedAthleteIdentity,
+      athleteIdentityLabel: normalizedAthleteIdentityLabel,
+      athleteIdentityCategory: normalizedAthleteIdentityCategory,
+      athleteSubCategoryId: normalizedAthleteSubCategoryId,
+      athleteSubCategoryLabel: normalizedAthleteSubCategoryLabel,
+      athleteSubCategoryGroupId: normalizedAthleteSubCategoryGroupId,
+      athleteSubCategoryGroupLabel: normalizedAthleteSubCategoryGroupLabel,
+      athleteGoal: normalizedAthleteGoal,
+      sportPracticeYears: normalizedSportPracticeYears,
+      experienceLevelSource: normalizedExperienceLevelSource,
+      equipment: equipmentProfile,
+      bodyImagesProvided: normalizedBodyImages.length,
+    });
+    const onboardingProfileJson = JSON.stringify(onboardingProfilePayload);
 
     await conn.execute(
       `UPDATE users
@@ -3650,7 +3777,25 @@ router.post('/user/onboarding', async (req, res) => {
            primary_goal = ?,
            fitness_goal = ?,
            experience_level = ?,
+           athlete_identity = ?,
+           athlete_identity_label = ?,
+           athlete_identity_category = ?,
+           athlete_sub_category_id = ?,
+           athlete_sub_category_label = ?,
+           athlete_sub_category_group_id = ?,
+           athlete_sub_category_group_label = ?,
+           athlete_goal = ?,
+           sport_practice_years = ?,
+           experience_level_source = ?,
+           workout_split_preference = ?,
+           workout_split_label = ?,
+           onboarding_reason = ?,
+           ai_training_focus = ?,
+           ai_limitations = ?,
+           ai_recovery_priority = ?,
+           ai_equipment_notes = ?,
            gym_id = ?,
+           onboarding_profile = ?,
            onboarding_completed = 1,
            first_login = 0
        WHERE id = ?`,
@@ -3662,7 +3807,25 @@ router.post('/user/onboarding', async (req, res) => {
         primaryGoalText || null,
         fitnessGoalText || null,
         normalizedExperience,
+        normalizedAthleteIdentity,
+        normalizedAthleteIdentityLabel,
+        normalizedAthleteIdentityCategory,
+        normalizedAthleteSubCategoryId,
+        normalizedAthleteSubCategoryLabel,
+        normalizedAthleteSubCategoryGroupId,
+        normalizedAthleteSubCategoryGroupLabel,
+        normalizedAthleteGoal,
+        normalizedSportPracticeYears,
+        normalizedExperienceLevelSource,
+        normalizedSplitPreference,
+        normalizedSplitLabel,
+        normalizedOnboardingReason,
+        normalizedAiTrainingFocus,
+        normalizedAiLimitations,
+        normalizedAiRecoveryPriority,
+        normalizedAiEquipmentNotes,
         normalizedGymId,
+        onboardingProfileJson,
         normalizedUserId,
       ],
     );
@@ -3673,7 +3836,6 @@ router.post('/user/onboarding', async (req, res) => {
     let customAdvice = null;
     let planSource = 'template';
     let warning = null;
-    const equipmentProfile = equipment || availableEquipment || equipmentList || null;
 
     const claudeEnabled = hasAnthropicConfig();
     const shouldUseClaude = toBooleanFlag(useClaude, claudeEnabled);
@@ -4651,7 +4813,24 @@ router.get('/profile/:userId/details', async (req, res) => {
           weight_kg,
           primary_goal,
           fitness_goal,
-          experience_level
+          experience_level,
+          athlete_identity,
+          athlete_identity_label,
+          athlete_identity_category,
+          athlete_sub_category_id,
+          athlete_sub_category_label,
+          athlete_sub_category_group_id,
+          athlete_sub_category_group_label,
+          athlete_goal,
+          sport_practice_years,
+          experience_level_source,
+          workout_split_preference,
+          workout_split_label,
+          onboarding_reason,
+          ai_training_focus,
+          ai_limitations,
+          ai_recovery_priority,
+          ai_equipment_notes
        FROM users
        WHERE id = ?
        LIMIT 1`,
@@ -4674,6 +4853,23 @@ router.get('/profile/:userId/details', async (req, res) => {
       primaryGoal: row.primary_goal || '',
       fitnessGoal: row.fitness_goal || '',
       experienceLevel: row.experience_level || '',
+      athleteIdentity: row.athlete_identity || '',
+      athleteIdentityLabel: row.athlete_identity_label || '',
+      athleteIdentityCategory: row.athlete_identity_category || '',
+      athleteSubCategoryId: row.athlete_sub_category_id || '',
+      athleteSubCategoryLabel: row.athlete_sub_category_label || '',
+      athleteSubCategoryGroupId: row.athlete_sub_category_group_id || '',
+      athleteSubCategoryGroupLabel: row.athlete_sub_category_group_label || '',
+      athleteGoal: row.athlete_goal || '',
+      sportPracticeYears: row.sport_practice_years == null ? null : Number(row.sport_practice_years),
+      experienceLevelSource: row.experience_level_source || '',
+      workoutSplitPreference: row.workout_split_preference || '',
+      workoutSplitLabel: row.workout_split_label || '',
+      onboardingReason: row.onboarding_reason || '',
+      aiTrainingFocus: row.ai_training_focus || '',
+      aiLimitations: row.ai_limitations || '',
+      aiRecoveryPriority: row.ai_recovery_priority || '',
+      aiEquipmentNotes: row.ai_equipment_notes || '',
     });
   } catch (error) {
     return res.status(500).json({ error: error.message });
