@@ -184,14 +184,7 @@ export function ExerciseLibrary({
             bodyPart: exercise.bodyPart,
           });
           const videoAssetName = resolvedVideo.assetName || exercise.linkedVideoAsset || '';
-          const isStrictLinkedVideo =
-            exercise.hasLinkedVideo === true
-            && exercise.linkedVideoMatchType === 'alias'
-            && Boolean(videoAssetName)
-            && resolvedVideo.matchType === 'alias'
-            && Boolean(resolvedVideo.url);
-
-          if (!isStrictLinkedVideo || !resolvedVideo.url) return null;
+          if (!resolvedVideo.url || !videoAssetName) return null;
           return {
             ...exercise,
             videoUrl: resolvedVideo.url,

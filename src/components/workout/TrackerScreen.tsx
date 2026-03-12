@@ -7,7 +7,7 @@ interface TrackerScreenProps {
   onBack: () => void;
   exerciseName: string;
   plannedSets?: number;
-  onVideoClick?: () => void;
+  onVideoClick?: (exerciseName: string) => void;
   savedSets?: SetData[];
   onSaveSets?: (sets: SetData[]) => void;
   onRemoveExercise?: () => Promise<void> | void;
@@ -460,7 +460,7 @@ export function TrackerScreen({
                   )}
                 </div>
               </button>
-              <button onClick={onVideoClick} className="flex flex-col items-center gap-2">
+              <button onClick={() => onVideoClick?.(exerciseName)} className="flex flex-col items-center gap-2">
                 <div className="w-12 h-12 rounded-full border-2 border-white/20 flex items-center justify-center">
                   <Video size={20} className="text-white" />
                 </div>

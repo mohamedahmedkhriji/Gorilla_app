@@ -3,6 +3,7 @@ import { Header } from '../ui/Header';
 import { api } from '../../services/api';
 import { Bookmark, CalendarX2, Plus, Play, Search, TriangleAlert, X } from 'lucide-react';
 import { getBodyPartImage } from '../../services/bodyPartTheme';
+import { resolveExerciseVideo } from '../../services/exerciseVideos';
 
 interface WorkoutPlanScreenProps {
   onBack: () => void;
@@ -202,6 +203,18 @@ export function WorkoutPlanScreen({
   const completedLookup = new Set(completedExercises.map((name) => String(name || '').trim().toLowerCase()));
   const nextExercise = exercises.find((exercise) => !completedLookup.has(String(exercise.name || '').trim().toLowerCase()))
     || exercises[0];
+
+  const exerciseVisuals = useMemo(() => (
+    exercises.map((exercise) => {
+      const primaryMuscle = resolvePrimaryExerciseMuscle(exercise);
+      const videoMatch = resolveExerciseVideo({
+        name: exercise.name,
+        muscle: primaryMuscle,
+        bodyPart: primaryMuscle,
+      });
+      return { primaryMuscle, videoMatch };
+    })
+  ), [exercises]);
 
   const targetMuscles = exercises.reduce((acc: Array<{ name: string; score: number }>, exercise) => {
     exercise.targetMuscles.forEach((muscle) => {
@@ -439,7 +452,9 @@ export function WorkoutPlanScreen({
           {exercises.map((exercise, index) => {
             const isCompleted = completedLookup.has(String(exercise.name || '').trim().toLowerCase());
             const isNext = nextExercise?.name === exercise.name && !isCompleted;
-            const primaryMuscle = resolvePrimaryExerciseMuscle(exercise);
+            const visual = exerciseVisuals[index];
+            const primaryMuscle = visual?.primaryMuscle || resolvePrimaryExerciseMuscle(exercise);
+            const videoUrl = visual?.videoMatch?.url || null;
 
             return (
               <button
@@ -456,11 +471,33 @@ export function WorkoutPlanScreen({
               >
                 <div className="flex items-center gap-3">
                   <div className="relative h-20 w-20 shrink-0 overflow-hidden rounded-2xl border border-white/10 bg-white/5">
-                    <img
-                      src={getMuscleImage(primaryMuscle)}
-                      alt={exercise.name}
-                      className="h-full w-full object-cover"
-                    />
+                    {videoUrl ? (
+                      <>
+                        <video
+                          src={videoUrl}
+                          className="h-full w-full object-cover"
+                          playsInline
+                          muted
+                          preload="metadata"
+                        />
+                        <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-black/30">
+                          <div className="flex h-7 w-7 items-center justify-center rounded-full bg-black/55 text-white">
+                            <Play size={11} fill="currentColor" />
+                          </div>
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        <img
+                          src={getMuscleImage(primaryMuscle)}
+                          alt={exercise.name}
+                          className="h-full w-full object-cover"
+                        />
+                        <div className="pointer-events-none absolute inset-x-0 bottom-0 bg-black/70 px-2 py-1 text-center text-[9px] font-semibold uppercase tracking-[0.12em] text-amber-200">
+                          Video missing
+                        </div>
+                      </>
+                    )}
                   </div>
 
                   <div className="min-w-0 flex-1">

@@ -22,7 +22,7 @@ export const getBodyPartImage = (muscleGroup: unknown) => {
   if (key.includes('chest') || key.includes('pect')) return chestImage;
   if (key.includes('forearm') || key.includes('wrist') || key.includes('grip')) return forearmsImage;
   if (key.includes('hamstring') || key.includes('glute')) return hamstringsImage;
-  if (key.includes('quad') || key.includes('thigh') || key === 'legs' || key.includes('leg')) return quadricepsImage;
+  if (key.includes('adductor') || key.includes('quad') || key.includes('thigh') || key === 'legs' || key.includes('leg')) return quadricepsImage;
   if (key.includes('shoulder') || key.includes('delt')) return shouldersImage;
   if (key.includes('tricep')) return tricepsImage;
 

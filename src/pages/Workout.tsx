@@ -1290,7 +1290,10 @@ export function Workout({ onBack, workoutDay = 'Push Day', resetSignal = 0 }: Wo
         onBack={() => setView('plan')}
         exerciseName={selectedExercise}
         plannedSets={getPlannedSetsForExercise(selectedExercise) || undefined}
-        onVideoClick={() => setView('video')}
+        onVideoClick={(exerciseName) => {
+          setSelectedExercise(exerciseName);
+          setView('video');
+        }}
         savedSets={exerciseSets[selectedExercise]}
         onSaveSets={(sets) => updateExerciseSets({ ...exerciseSets, [selectedExercise]: sets })}
         onRemoveExercise={selectedWorkoutExercise ? async () => removeExerciseFromToday(selectedWorkoutExercise.exerciseName) : undefined}
@@ -1302,8 +1305,18 @@ export function Workout({ onBack, workoutDay = 'Push Day', resetSignal = 0 }: Wo
     const selectedWorkoutExercise = todayExercises.find(
       (exercise) => normalizeExerciseName(exercise.exerciseName) === normalizeExerciseName(selectedExercise),
     );
+    const resolvedExerciseName = String(selectedWorkoutExercise?.exerciseName || selectedExercise || '').trim() || selectedExercise;
+    const inferredMuscles = inferMusclesFromExerciseName(resolvedExerciseName);
     const primaryMuscle =
-      String(selectedWorkoutExercise?.muscleGroup || selectedWorkoutExercise?.targetMuscles?.[0] || 'General').trim()
+      String(
+        selectedWorkoutExercise?.muscleGroup
+        || selectedWorkoutExercise?.targetMuscles?.[0]
+        || inferredMuscles[0]
+        || 'General',
+      ).trim()
+      || 'General';
+    const videoBodyPartHint =
+      String(selectedWorkoutExercise?.muscleGroup || inferredMuscles[0] || primaryMuscle).trim()
       || 'General';
     const targetMuscles = Array.isArray(selectedWorkoutExercise?.targetMuscles)
       ? selectedWorkoutExercise.targetMuscles.join(', ')
@@ -1312,15 +1325,15 @@ export function Workout({ onBack, workoutDay = 'Push Day', resetSignal = 0 }: Wo
       <ExerciseVideoScreen
         onBack={() => setView('tracker')}
         exercise={{
-          name: selectedExercise,
+          name: resolvedExerciseName,
           muscle: primaryMuscle,
           targetMuscles,
-          importance: `Technique reference for ${selectedExercise}.`,
+          importance: `Technique reference for ${resolvedExerciseName}.`,
           anatomy: targetMuscles,
           video: resolveExerciseVideoUrl({
-            name: selectedExercise,
+            name: resolvedExerciseName,
             muscle: primaryMuscle,
-            bodyPart: selectedWorkoutExercise?.muscleGroup || targetMuscles,
+            bodyPart: videoBodyPartHint,
           }),
         }}
       />

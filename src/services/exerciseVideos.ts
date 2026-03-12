@@ -13,6 +13,7 @@ type ExerciseVideoLookupInput = {
 type ExerciseVideoAsset = {
   fileName: string;
   normalizedFileName: string;
+  simplifiedFileName: string;
   bodyPart: string;
   folderName: string;
   url: string;
@@ -44,6 +45,55 @@ const containsWholePhrase = (text: string, phrase: string) => (
   || text.includes(` ${phrase} `)
 );
 
+const REMOVABLE_LOOKUP_TOKENS = new Set([
+  'single',
+  'double',
+  'one',
+  'two',
+  'left',
+  'right',
+  'unilateral',
+  'alternating',
+  'alt',
+]);
+
+const tokenizeLookup = (value: string) =>
+  String(value || '')
+    .split(/\s+/)
+    .map((token) => token.trim())
+    .filter(Boolean);
+
+const dedupeAdjacentTokens = (tokens: string[]) => {
+  const result: string[] = [];
+  tokens.forEach((token) => {
+    if (result[result.length - 1] === token) return;
+    result.push(token);
+  });
+  return result;
+};
+
+const simplifyLookup = (value: string) => {
+  const normalized = normalizeExerciseVideoLookup(value);
+  const cleanedTokens = dedupeAdjacentTokens(
+    tokenizeLookup(normalized).filter((token) => !REMOVABLE_LOOKUP_TOKENS.has(token)),
+  );
+  return cleanedTokens.join(' ').trim();
+};
+
+const tokenOverlapRatio = (left: string, right: string) => {
+  const leftTokens = [...new Set(tokenizeLookup(left))];
+  const rightTokens = [...new Set(tokenizeLookup(right))];
+  if (!leftTokens.length || !rightTokens.length) return 0;
+
+  const commonCount = leftTokens.filter((token) => rightTokens.includes(token)).length;
+  if (!commonCount) return 0;
+
+  const minLength = Math.min(leftTokens.length, rightTokens.length);
+  if (commonCount === 1 && minLength > 1) return 0;
+
+  return commonCount / minLength;
+};
+
 const matchesLookup = (exerciseName: string, alias: string) => {
   if (!exerciseName || !alias) return false;
   return (
@@ -61,6 +111,7 @@ const videoAssets: ExerciseVideoAsset[] = Object.entries(videoModules).map(([sou
   return {
     fileName,
     normalizedFileName: normalizeExerciseVideoLookup(fileName),
+    simplifiedFileName: simplifyLookup(fileName),
     bodyPart,
     folderName,
     url,
@@ -119,6 +170,34 @@ export const resolveExerciseVideo = ({
   });
   if (filenameMatch) {
     return toMatch(filenameMatch, 'filename');
+  }
+
+  const simplifiedName = simplifyLookup(name || normalizedName);
+  if (simplifiedName) {
+    const simplifiedPhraseMatch = videoAssets.find((asset) => {
+      if (bodyPartKey && asset.bodyPart && asset.bodyPart !== bodyPartKey) return false;
+      return (
+        matchesLookup(simplifiedName, asset.simplifiedFileName)
+        || containsWholePhrase(asset.simplifiedFileName, simplifiedName)
+      );
+    });
+
+    if (simplifiedPhraseMatch) {
+      return toMatch(simplifiedPhraseMatch, 'filename');
+    }
+
+    const fuzzyCandidates = videoAssets
+      .filter((asset) => !bodyPartKey || !asset.bodyPart || asset.bodyPart === bodyPartKey)
+      .map((asset) => ({
+        asset,
+        score: tokenOverlapRatio(simplifiedName, asset.simplifiedFileName || asset.normalizedFileName),
+      }))
+      .filter((entry) => entry.score >= 0.5)
+      .sort((left, right) => right.score - left.score);
+
+    if (fuzzyCandidates.length > 0) {
+      return toMatch(fuzzyCandidates[0].asset, 'filename');
+    }
   }
 
   if (manifestMatch.matchType === 'fallback' && manifestMatch.fileName) {
