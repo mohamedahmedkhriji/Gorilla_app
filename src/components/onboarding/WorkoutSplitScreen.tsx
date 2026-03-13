@@ -1,65 +1,15 @@
 import React, { useMemo, useState } from 'react';
 import { Button } from '../ui/Button';
 import { SelectionCheck } from '../ui/SelectionCheck';
+import { DEFAULT_ONBOARDING_CONFIG, type SplitOption } from '../../config/onboardingConfig';
 
 interface WorkoutSplitScreenProps {
   onNext: () => void;
   onDataChange?: (data: any) => void;
   onboardingData?: any;
+  options?: SplitOption[];
+  recommendedByDays?: Record<string, string>;
 }
-
-type SplitOption = {
-  id: string;
-  title: string;
-  summary: string;
-  detail: string;
-  days: number[];
-};
-
-const SPLIT_OPTIONS: SplitOption[] = [
-  {
-    id: 'auto',
-    title: 'AI Coach Plan',
-    summary: 'Generate a fully personalized plan with Claude AI',
-    detail: 'Uses your onboarding profile and preferences to build a structured 8-week plan.',
-    days: [2, 3, 4, 5, 6],
-  },
-  {
-    id: 'full_body',
-    title: 'Full Body Focus',
-    summary: 'Train all major muscle groups each session',
-    detail: 'Great for fewer days and steady weekly progress.',
-    days: [2, 3, 4],
-  },
-  {
-    id: 'upper_lower',
-    title: 'Upper / Lower',
-    summary: 'Alternate upper-body and lower-body days',
-    detail: 'Balanced structure with good recovery between sessions.',
-    days: [3, 4, 5, 6],
-  },
-  {
-    id: 'push_pull_legs',
-    title: 'Push / Pull / Legs',
-    summary: 'Movement-based split with focused training days',
-    detail: 'Best for moderate-to-high frequency training weeks.',
-    days: [3, 4, 5, 6],
-  },
-  {
-    id: 'hybrid',
-    title: 'Push / Pull / Legs + Upper / Lower',
-    summary: 'Blend PPL and upper/lower for more total volume',
-    detail: 'Great when you want extra variety and balanced weekly workload.',
-    days: [4, 5, 6],
-  },
-  {
-    id: 'custom',
-    title: 'Customized Plan',
-    summary: 'Build a tailored split around your own priorities',
-    detail: 'Designed for advanced lifters who want maximum control over structure and volume.',
-    days: [2, 3, 4, 5, 6],
-  },
-];
 
 const toTrainingDays = (value: unknown) => {
   const parsed = Number(value);
@@ -67,21 +17,34 @@ const toTrainingDays = (value: unknown) => {
   return Math.max(2, Math.min(6, Math.round(parsed)));
 };
 
-const recommendedSplitForDays = (days: number) => {
+const recommendedSplitForDays = (days: number, recommendations?: Record<string, string>) => {
+  const recommended = recommendations?.[String(days)];
+  if (recommended) return recommended;
   if (days <= 3) return 'full_body';
   if (days === 4) return 'upper_lower';
   return 'push_pull_legs';
 };
 
-export function WorkoutSplitScreen({ onNext, onDataChange, onboardingData }: WorkoutSplitScreenProps) {
+export function WorkoutSplitScreen({
+  onNext,
+  onDataChange,
+  onboardingData,
+  options,
+  recommendedByDays,
+}: WorkoutSplitScreenProps) {
+  const splitOptions = options?.length
+    ? options
+    : DEFAULT_ONBOARDING_CONFIG.options.workoutSplit;
+  const splitRecommendations = recommendedByDays
+    || DEFAULT_ONBOARDING_CONFIG.splitRecommendations;
   const trainingDays = toTrainingDays(onboardingData?.workoutDays);
   const levelLabel = String(onboardingData?.experienceLevel || 'intermediate').trim().toLowerCase();
   const genderLabel = String(onboardingData?.gender || 'unspecified').trim().toLowerCase();
   const availableOptions = useMemo(
-    () => SPLIT_OPTIONS.filter((option) => option.days.includes(trainingDays)),
-    [trainingDays],
+    () => splitOptions.filter((option) => option.days.includes(trainingDays)),
+    [splitOptions, trainingDays],
   );
-  const recommendedId = recommendedSplitForDays(trainingDays);
+  const recommendedId = recommendedSplitForDays(trainingDays, splitRecommendations);
 
   const initialSelection = useMemo(() => {
     const saved = String(onboardingData?.workoutSplitPreference || '').trim().toLowerCase();

@@ -2,25 +2,15 @@ import React, { useState } from 'react';
 import { Dumbbell, HeartPulse, ShieldAlert, Sparkles, Wrench } from 'lucide-react';
 import { Button } from '../ui/Button';
 import { ModernSelect } from '../ui/ModernSelect';
+import { DEFAULT_ONBOARDING_CONFIG, type SimpleOption } from '../../config/onboardingConfig';
 
 interface AIPlanTuningScreenProps {
   onNext: () => void;
   onDataChange?: (data: any) => void;
   onboardingData?: any;
+  trainingFocusOptions?: SimpleOption[];
+  recoveryStrategyOptions?: SimpleOption[];
 }
-
-const TRAINING_FOCUS_OPTIONS = [
-  { value: 'balanced', label: 'Balanced' },
-  { value: 'hypertrophy', label: 'Muscle growth focus' },
-  { value: 'strength', label: 'Strength focus' },
-  { value: 'fat_loss', label: 'Fat-loss support' },
-];
-
-const RECOVERY_STRATEGY_OPTIONS = [
-  { value: 'balanced', label: 'Balanced' },
-  { value: 'performance', label: 'Push progression' },
-  { value: 'recovery', label: 'Conservative recovery-first' },
-];
 
 const resolveOptionValue = (
   value: unknown,
@@ -31,12 +21,24 @@ const resolveOptionValue = (
   return options.some((option) => option.value === normalized) ? normalized : fallback;
 };
 
-export function AIPlanTuningScreen({ onNext, onDataChange, onboardingData }: AIPlanTuningScreenProps) {
+export function AIPlanTuningScreen({
+  onNext,
+  onDataChange,
+  onboardingData,
+  trainingFocusOptions,
+  recoveryStrategyOptions,
+}: AIPlanTuningScreenProps) {
+  const trainingOptions = trainingFocusOptions?.length
+    ? trainingFocusOptions
+    : DEFAULT_ONBOARDING_CONFIG.options.aiTrainingFocus;
+  const recoveryOptions = recoveryStrategyOptions?.length
+    ? recoveryStrategyOptions
+    : DEFAULT_ONBOARDING_CONFIG.options.aiRecoveryPriority;
   const [aiTrainingFocus, setAiTrainingFocus] = useState(
-    resolveOptionValue(onboardingData?.aiTrainingFocus, TRAINING_FOCUS_OPTIONS, 'balanced'),
+    resolveOptionValue(onboardingData?.aiTrainingFocus, trainingOptions, 'balanced'),
   );
   const [aiRecoveryPriority, setAiRecoveryPriority] = useState(
-    resolveOptionValue(onboardingData?.aiRecoveryPriority, RECOVERY_STRATEGY_OPTIONS, 'balanced'),
+    resolveOptionValue(onboardingData?.aiRecoveryPriority, recoveryOptions, 'balanced'),
   );
   const [aiLimitations, setAiLimitations] = useState(String(onboardingData?.aiLimitations || '').trim());
   const [aiEquipmentNotes, setAiEquipmentNotes] = useState(String(onboardingData?.aiEquipmentNotes || '').trim());
@@ -79,7 +81,7 @@ export function AIPlanTuningScreen({ onNext, onDataChange, onboardingData }: AIP
               setAiTrainingFocus(nextValue);
               onDataChange?.({ aiTrainingFocus: nextValue });
             }}
-            options={TRAINING_FOCUS_OPTIONS}
+            options={trainingOptions}
             className="w-full"
           />
         </div>
@@ -95,7 +97,7 @@ export function AIPlanTuningScreen({ onNext, onDataChange, onboardingData }: AIP
               setAiRecoveryPriority(nextValue);
               onDataChange?.({ aiRecoveryPriority: nextValue });
             }}
-            options={RECOVERY_STRATEGY_OPTIONS}
+            options={recoveryOptions}
             className="w-full"
           />
         </div>

@@ -2,12 +2,22 @@ import React, { useState } from 'react';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
 import { Select } from '../ui/Select';
+import { DEFAULT_ONBOARDING_CONFIG, type SelectOption } from '../../config/onboardingConfig';
 interface PersonalInfoScreenProps {
   onNext: () => void;
   onDataChange?: (data: any) => void;
   onboardingData?: any;
+  genderOptions?: SelectOption[];
 }
-export function PersonalInfoScreen({ onNext, onDataChange, onboardingData }: PersonalInfoScreenProps) {
+export function PersonalInfoScreen({
+  onNext,
+  onDataChange,
+  onboardingData,
+  genderOptions,
+}: PersonalInfoScreenProps) {
+  const genderSelectOptions = genderOptions?.length
+    ? genderOptions
+    : DEFAULT_ONBOARDING_CONFIG.options.genders;
   const [age, setAge] = useState(String(onboardingData?.age ?? ''));
   const [gender, setGender] = useState(String(onboardingData?.gender ?? '').trim().toLowerCase());
   const [height, setHeight] = useState(String(onboardingData?.height ?? ''));
@@ -93,20 +103,7 @@ export function PersonalInfoScreen({ onNext, onDataChange, onboardingData }: Per
           required
           aria-required="true"
           error={errors.gender}
-          options={[
-          {
-            value: '',
-            label: 'Select gender'
-          },
-          {
-            value: 'male',
-            label: 'Male'
-          },
-          {
-            value: 'female',
-            label: 'Female'
-          }]
-          } />
+          options={genderSelectOptions} />
 
 
         <div className="grid grid-cols-2 gap-4">

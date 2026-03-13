@@ -9,6 +9,12 @@ import {
   emojiHandball,
   emojiSwimming,
 } from '../../services/emojiTheme';
+import {
+  DEFAULT_ONBOARDING_CONFIG,
+  type AthleteOption,
+  type AthleteSubGroup,
+  type AthleteSubItem,
+} from '../../config/onboardingConfig';
 
 interface AthleteIdentityScreenProps {
   onNext: () => void;
@@ -19,247 +25,19 @@ interface AthleteIdentityScreenProps {
     athleteSubCategoryIds?: string[];
     athleteSubCategorySelections?: Record<string, string[]>;
   };
+  options?: AthleteOption[];
+  groupSelectionLimits?: Record<string, number>;
 }
 
-type AthleteSubItem = {
-  id: string;
-  label: string;
-};
-
-type AthleteSubGroup = {
-  id: string;
-  title: string;
-  items: AthleteSubItem[];
-};
-
-type AthleteOption = {
-  id: string;
-  label: string;
-  description: string;
-  icon: string;
-  category: 'fitness' | 'athlete_sports';
-  subGroups: AthleteSubGroup[];
-};
-
 type GroupSelectionMap = Record<string, string[]>;
-
-const ATHLETE_OPTIONS: AthleteOption[] = [
-  {
-    id: 'bodybuilding',
-    label: 'Bodybuilding',
-    description: 'Build muscle size, symmetry, and physique-focused strength.',
-    icon: emojiBodybuilding,
-    category: 'fitness',
-    subGroups: [
-      {
-        id: 'bodybuilding_category',
-        title: 'By Category',
-        items: [
-          { id: 'hypertrophy', label: 'Hypertrophy' },
-          { id: 'powerlifting', label: 'Powerlifting' },
-          { id: 'cutting', label: 'Cutting' },
-          { id: 'bulking', label: 'Bulking' },
-          { id: 'beginner_gym', label: 'Beginner gym' },
-          { id: 'natural_athlete', label: 'Natural athlete' },
-          { id: 'classic_physique', label: 'Classic physique' },
-        ],
-      },
-    ],
-  },
-  {
-    id: 'football',
-    label: 'Football',
-    description: 'Improve speed, agility, power, and match endurance.',
-    icon: emojiFootball,
-    category: 'athlete_sports',
-    subGroups: [
-      {
-        id: 'football_position',
-        title: 'By Position',
-        items: [
-          { id: 'striker', label: 'Striker' },
-          { id: 'winger', label: 'Winger' },
-          { id: 'midfielder', label: 'Midfielder' },
-          { id: 'defender', label: 'Defender' },
-          { id: 'goalkeeper', label: 'Goalkeeper' },
-        ],
-      },
-      {
-        id: 'football_goal',
-        title: 'By Training Goal',
-        items: [
-          { id: 'speed_acceleration', label: 'Speed & acceleration' },
-          { id: 'match_endurance', label: 'Match endurance' },
-          { id: 'shooting_power', label: 'Shooting power' },
-          { id: 'injury_prevention', label: 'Injury prevention' },
-          { id: 'strength_duels', label: 'Strength & duels' },
-        ],
-      },
-      {
-        id: 'football_phase',
-        title: 'By Season Phase (VERY PRO FEATURE)',
-        items: [
-          { id: 'pre_season', label: 'Pre-season' },
-          { id: 'in_season', label: 'In-season' },
-          { id: 'off_season', label: 'Off-season' },
-        ],
-      },
-    ],
-  },
-  {
-    id: 'basketball',
-    label: 'Basketball',
-    description: 'Train explosiveness, vertical power, and court conditioning.',
-    icon: emojiBasketball,
-    category: 'athlete_sports',
-    subGroups: [
-      {
-        id: 'basketball_role',
-        title: 'By Role',
-        items: [
-          { id: 'guard', label: 'Guard' },
-          { id: 'forward', label: 'Forward' },
-          { id: 'center', label: 'Center' },
-        ],
-      },
-      {
-        id: 'basketball_goal',
-        title: 'By Goal',
-        items: [
-          { id: 'vertical_jump', label: 'Vertical jump' },
-          { id: 'explosive_speed', label: 'Explosive speed' },
-          { id: 'lateral_agility', label: 'Lateral agility' },
-          { id: 'knee_injury_prevention', label: 'Knee injury prevention' },
-          { id: 'core_stability', label: 'Core stability' },
-        ],
-      },
-      {
-        id: 'basketball_phase',
-        title: 'By Phase',
-        items: [
-          { id: 'pre_season', label: 'Pre-season' },
-          { id: 'in_season', label: 'In-season' },
-          { id: 'off_season', label: 'Off-season' },
-        ],
-      },
-    ],
-  },
-  {
-    id: 'handball',
-    label: 'Handball',
-    description: 'Boost rotational power, acceleration, and repeat stamina.',
-    icon: emojiHandball,
-    category: 'athlete_sports',
-    subGroups: [
-      {
-        id: 'handball_position',
-        title: 'By Position',
-        items: [
-          { id: 'wing', label: 'Wing' },
-          { id: 'backcourt', label: 'Backcourt' },
-          { id: 'pivot', label: 'Pivot' },
-          { id: 'goalkeeper', label: 'Goalkeeper' },
-        ],
-      },
-      {
-        id: 'handball_goal',
-        title: 'By Goal',
-        items: [
-          { id: 'throwing_power', label: 'Throwing power' },
-          { id: 'jump_explosiveness', label: 'Jump explosiveness' },
-          { id: 'shoulder_strength', label: 'Shoulder strength' },
-          { id: 'sprint_endurance', label: 'Sprint endurance' },
-        ],
-      },
-      {
-        id: 'handball_phase',
-        title: 'By Phase',
-        items: [
-          { id: 'pre_season', label: 'Pre-season' },
-          { id: 'in_season', label: 'In-season' },
-          { id: 'off_season', label: 'Off-season' },
-        ],
-      },
-    ],
-  },
-  {
-    id: 'swimming',
-    label: 'Swimming',
-    description: 'Develop full-body endurance, lung capacity, and control.',
-    icon: emojiSwimming,
-    category: 'athlete_sports',
-    subGroups: [
-      {
-        id: 'swimming_stroke',
-        title: 'By Stroke',
-        items: [
-          { id: 'freestyle', label: 'Freestyle' },
-          { id: 'breaststroke', label: 'Breaststroke' },
-          { id: 'butterfly', label: 'Butterfly' },
-          { id: 'backstroke', label: 'Backstroke' },
-        ],
-      },
-      {
-        id: 'swimming_goal',
-        title: 'By Goal',
-        items: [
-          { id: 'shoulder_mobility', label: 'Shoulder mobility' },
-          { id: 'core_endurance', label: 'Core endurance' },
-          { id: 'breathing_capacity', label: 'Breathing capacity' },
-          { id: 'technique_strength', label: 'Technique strength' },
-        ],
-      },
-      {
-        id: 'swimming_phase',
-        title: 'By Phase',
-        items: [
-          { id: 'conditioning_phase', label: 'Conditioning phase' },
-          { id: 'competition_phase', label: 'Competition phase' },
-          { id: 'recovery_phase', label: 'Recovery phase' },
-        ],
-      },
-    ],
-  },
-  {
-    id: 'combat_sports',
-    label: 'Combat sports',
-    description: 'Build conditioning, reaction speed, and functional power.',
-    icon: emojiCombatSports,
-    category: 'athlete_sports',
-    subGroups: [
-      {
-        id: 'combat_sport_type',
-        title: 'By Sport Type',
-        items: [
-          { id: 'boxing', label: 'Boxing' },
-          { id: 'mma', label: 'MMA' },
-          { id: 'muay_thai', label: 'Muay Thai' },
-          { id: 'wrestling', label: 'Wrestling' },
-          { id: 'judo', label: 'Judo' },
-        ],
-      },
-      {
-        id: 'combat_goal',
-        title: 'By Goal',
-        items: [
-          { id: 'power_endurance', label: 'Power endurance' },
-          { id: 'speed_reaction', label: 'Speed & reaction' },
-          { id: 'weight_cut_conditioning', label: 'Weight cut conditioning' },
-          { id: 'neck_core_strength', label: 'Neck & core strength' },
-        ],
-      },
-      {
-        id: 'combat_phase',
-        title: 'By Phase',
-        items: [
-          { id: 'fight_camp', label: 'Fight camp' },
-          { id: 'off_camp', label: 'Off-camp' },
-          { id: 'recovery', label: 'Recovery' },
-        ],
-      },
-    ],
-  },
-];
+const DEFAULT_ICON_MAP: Record<string, string> = {
+  bodybuilding: emojiBodybuilding,
+  football: emojiFootball,
+  basketball: emojiBasketball,
+  handball: emojiHandball,
+  swimming: emojiSwimming,
+  combat_sports: emojiCombatSports,
+};
 
 const LEGACY_MAIN_ID_MAP: Record<string, string> = {
   bodybuilder: 'bodybuilding',
@@ -269,25 +47,7 @@ const LEGACY_MAIN_ID_MAP: Record<string, string> = {
   swimmer: 'swimming',
 };
 
-const GROUP_SELECTION_LIMITS: Record<string, number> = {
-  football_position: 2,
-  football_goal: 2,
-  football_phase: 1,
-  basketball_role: 2,
-  basketball_goal: 2,
-  basketball_phase: 1,
-  handball_position: 2,
-  handball_goal: 2,
-  handball_phase: 1,
-  swimming_stroke: 2,
-  swimming_goal: 2,
-  swimming_phase: 1,
-  combat_sport_type: 2,
-  combat_goal: 2,
-  combat_phase: 1,
-};
-
-const getGroupLimit = (groupId: string) => GROUP_SELECTION_LIMITS[groupId] ?? 1;
+const getGroupLimit = (groupId: string, limits: Record<string, number>) => limits[groupId] ?? 1;
 
 const coerceSelectionMap = (value: unknown): GroupSelectionMap => {
   if (!value || typeof value !== 'object') return {};
@@ -310,16 +70,31 @@ const applyLimit = (current: string[], nextId: string, limit: number) => {
   return [...current.slice(1), nextId];
 };
 
-export function AthleteIdentityScreen({ onNext, onDataChange, onboardingData }: AthleteIdentityScreenProps) {
+export function AthleteIdentityScreen({
+  onNext,
+  onDataChange,
+  onboardingData,
+  options,
+  groupSelectionLimits,
+}: AthleteIdentityScreenProps) {
+  const athleteOptions = options?.length
+    ? options
+    : DEFAULT_ONBOARDING_CONFIG.options.athleteIdentity;
+  const selectionLimits = groupSelectionLimits
+    ? { ...DEFAULT_ONBOARDING_CONFIG.options.athleteIdentityGroupLimits, ...groupSelectionLimits }
+    : DEFAULT_ONBOARDING_CONFIG.options.athleteIdentityGroupLimits;
+  const resolveIconUrl = (option: AthleteOption) =>
+    option.iconUrl || DEFAULT_ICON_MAP[option.iconKey || option.id] || '';
+
   const initialSelection = useMemo(() => {
     const saved = String(onboardingData?.athleteIdentity || '').trim().toLowerCase();
     const normalized = LEGACY_MAIN_ID_MAP[saved] || saved;
-    return ATHLETE_OPTIONS.some((option) => option.id === normalized) ? normalized : '';
-  }, [onboardingData?.athleteIdentity]);
+    return athleteOptions.some((option) => option.id === normalized) ? normalized : '';
+  }, [athleteOptions, onboardingData?.athleteIdentity]);
 
   const [selectedId, setSelectedId] = useState(initialSelection);
   const [selectedSubItemsByGroup, setSelectedSubItemsByGroup] = useState<GroupSelectionMap>(() => {
-    const option = ATHLETE_OPTIONS.find((entry) => entry.id === initialSelection);
+    const option = athleteOptions.find((entry) => entry.id === initialSelection);
     if (!option) return {};
 
     const fromMap = coerceSelectionMap(onboardingData?.athleteSubCategorySelections);
@@ -335,7 +110,7 @@ export function AthleteIdentityScreen({ onNext, onDataChange, onboardingData }: 
     return rawIds.reduce<GroupSelectionMap>((acc, id) => {
       const group = pickGroupForItem(option, id);
       if (!group) return acc;
-      const limit = getGroupLimit(group.id);
+      const limit = getGroupLimit(group.id, selectionLimits);
       const existing = acc[group.id] ?? [];
       acc[group.id] = applyLimit(existing, id, limit);
       return acc;
@@ -343,8 +118,8 @@ export function AthleteIdentityScreen({ onNext, onDataChange, onboardingData }: 
   });
 
   const selectedOption = useMemo(
-    () => ATHLETE_OPTIONS.find((option) => option.id === selectedId) || null,
-    [selectedId],
+    () => athleteOptions.find((option) => option.id === selectedId) || null,
+    [athleteOptions, selectedId],
   );
 
   const availableSubItemsByGroup = useMemo(
@@ -362,12 +137,12 @@ export function AthleteIdentityScreen({ onNext, onDataChange, onboardingData }: 
     if (!selectedOption) return {};
     return selectedOption.subGroups.reduce<GroupSelectionMap>((acc, group) => {
       const available = availableSubItemsByGroup[group.id] ?? new Set<string>();
-      const limit = getGroupLimit(group.id);
+      const limit = getGroupLimit(group.id, selectionLimits);
       const current = (selectedSubItemsByGroup[group.id] ?? []).filter((id) => available.has(id));
       acc[group.id] = limit > 0 ? current.slice(-limit) : current;
       return acc;
     }, {});
-  }, [availableSubItemsByGroup, selectedOption, selectedSubItemsByGroup]);
+  }, [availableSubItemsByGroup, selectedOption, selectedSubItemsByGroup, selectionLimits]);
 
   const persistMainSelection = (option: AthleteOption) => {
     onDataChange?.({
@@ -395,7 +170,7 @@ export function AthleteIdentityScreen({ onNext, onDataChange, onboardingData }: 
   };
 
   const handleSelectMain = (nextId: string) => {
-    const selected = ATHLETE_OPTIONS.find((option) => option.id === nextId);
+    const selected = athleteOptions.find((option) => option.id === nextId);
     if (!selected) return;
 
     if (selectedId === nextId) {
@@ -455,7 +230,7 @@ export function AthleteIdentityScreen({ onNext, onDataChange, onboardingData }: 
     setSelectedId(option.id);
     setSelectedSubItemsByGroup((prev) => {
       const current = prev[group.id] ?? [];
-      const limit = getGroupLimit(group.id);
+      const limit = getGroupLimit(group.id, selectionLimits);
       let nextSelection = current;
 
       if (current.includes(item.id)) {
@@ -483,9 +258,9 @@ export function AthleteIdentityScreen({ onNext, onDataChange, onboardingData }: 
         <div key={group.id} className="space-y-2">
           <div className="flex items-center justify-between gap-2">
             <p className="text-sm font-semibold text-white">{group.title}</p>
-            {getGroupLimit(group.id) > 1 ? (
+            {getGroupLimit(group.id, selectionLimits) > 1 ? (
               <span className="text-[11px] uppercase tracking-[0.12em] text-text-tertiary">
-                Choose up to {getGroupLimit(group.id)}
+                Choose up to {getGroupLimit(group.id, selectionLimits)}
               </span>
             ) : null}
           </div>
@@ -533,7 +308,9 @@ export function AthleteIdentityScreen({ onNext, onDataChange, onboardingData }: 
             <div className="space-y-1.5">
               <p className="text-base font-semibold leading-snug text-white">
                 <span className="inline-flex items-center gap-2">
-                  <img src={option.icon} alt={`${option.label} icon`} className="h-6 w-6 object-contain" />
+                {resolveIconUrl(option) ? (
+                  <img src={resolveIconUrl(option)} alt={`${option.label} icon`} className="h-6 w-6 object-contain" />
+                ) : null}
                   <span>{option.label}</span>
                 </span>
               </p>
@@ -562,12 +339,12 @@ export function AthleteIdentityScreen({ onNext, onDataChange, onboardingData }: 
       <div className="space-y-5">
         <div className="space-y-3">
           <h3 className="text-xs font-semibold uppercase tracking-[0.14em] text-accent">FITNESS / PHYSIQUE</h3>
-          <div className="space-y-3">{ATHLETE_OPTIONS.filter((option) => option.category === 'fitness').map(renderMainOptionCard)}</div>
+          <div className="space-y-3">{athleteOptions.filter((option) => option.category === 'fitness').map(renderMainOptionCard)}</div>
         </div>
 
         <div className="space-y-3">
           <h3 className="text-xs font-semibold uppercase tracking-[0.14em] text-accent">ATHLETE SPORTS</h3>
-          <div className="space-y-3">{ATHLETE_OPTIONS.filter((option) => option.category === 'athlete_sports').map(renderMainOptionCard)}</div>
+          <div className="space-y-3">{athleteOptions.filter((option) => option.category === 'athlete_sports').map(renderMainOptionCard)}</div>
         </div>
       </div>
 

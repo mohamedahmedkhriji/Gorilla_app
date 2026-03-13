@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { Button } from '../ui/Button';
 import { SelectionCheck } from '../ui/SelectionCheck';
+import { DEFAULT_ONBOARDING_CONFIG, type PlanOption } from '../../config/onboardingConfig';
 
 interface SportPlanChoiceScreenProps {
   onNext: () => void;
@@ -8,37 +9,26 @@ interface SportPlanChoiceScreenProps {
   onboardingData?: {
     workoutSplitPreference?: string;
   };
+  options?: PlanOption[];
 }
-
-type PlanOption = {
-  id: 'auto' | 'custom';
-  title: string;
-  description: string;
-};
-
-const PLAN_OPTIONS: PlanOption[] = [
-  {
-    id: 'auto',
-    title: 'Generate Workout Plan With AI',
-    description: 'AI builds your training plan based on your onboarding profile and sport goals.',
-  },
-  {
-    id: 'custom',
-    title: 'Customized Personal Plan',
-    description: 'You define your own plan structure, then continue to generate and refine it.',
-  },
-];
-
-export function SportPlanChoiceScreen({ onNext, onDataChange, onboardingData }: SportPlanChoiceScreenProps) {
+export function SportPlanChoiceScreen({
+  onNext,
+  onDataChange,
+  onboardingData,
+  options,
+}: SportPlanChoiceScreenProps) {
+  const planOptions = options?.length
+    ? options
+    : DEFAULT_ONBOARDING_CONFIG.options.sportPlan;
   const initialSelection = useMemo(() => {
     const saved = String(onboardingData?.workoutSplitPreference || '').trim().toLowerCase();
     return saved === 'custom' ? 'custom' : 'auto';
   }, [onboardingData?.workoutSplitPreference]);
 
-  const [selectedId, setSelectedId] = useState<'auto' | 'custom'>(initialSelection);
+  const [selectedId, setSelectedId] = useState<string>(initialSelection);
 
-  const persistSelection = (nextId: 'auto' | 'custom') => {
-    const selectedOption = PLAN_OPTIONS.find((option) => option.id === nextId);
+  const persistSelection = (nextId: string) => {
+    const selectedOption = planOptions.find((option) => option.id === nextId);
     if (!selectedOption) return;
     onDataChange?.({
       workoutSplitPreference: selectedOption.id,
@@ -67,7 +57,7 @@ export function SportPlanChoiceScreen({ onNext, onDataChange, onboardingData }: 
       </div>
 
       <div className="space-y-3">
-        {PLAN_OPTIONS.map((option) => {
+        {planOptions.map((option) => {
           const isSelected = selectedId === option.id;
           return (
             <button

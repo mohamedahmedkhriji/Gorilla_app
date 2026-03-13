@@ -1,55 +1,16 @@
 import React, { useMemo, useState } from 'react';
 import { Button } from '../ui/Button';
 import { SelectionCheck } from '../ui/SelectionCheck';
+import { DEFAULT_ONBOARDING_CONFIG, type GoalOption } from '../../config/onboardingConfig';
 
 interface FitnessGoalsScreenProps {
   onNext: () => void;
   onDataChange?: (data: any) => void;
   onboardingData?: any;
+  options?: GoalOption[];
 }
 
-type GoalOption = {
-  id: string;
-  title: string;
-  description: string;
-  tag?: string;
-  goalValue: 'Build Muscle' | 'General Fitness' | 'Endurance' | 'Strength';
-};
-
-const GOAL_OPTIONS: GoalOption[] = [
-  {
-    id: 'build_muscle_toned',
-    title: 'Build muscle and get toned',
-    description:
-      'Focus on muscle development and tone your body. Perform pyramid sets to improve your weights in every workout.',
-    tag: 'Popular',
-    goalValue: 'Build Muscle',
-  },
-  {
-    id: 'general_fitness',
-    title: 'Enhance general fitness',
-    description:
-      'Improve your overall fitness by lifting consistent weights and learning new exercises.',
-    goalValue: 'General Fitness',
-  },
-  {
-    id: 'conditioning',
-    title: 'Improve conditioning',
-    description:
-      'Focus on higher reps and lower weights through fast-paced supersets to boost your overall conditioning.',
-    goalValue: 'Endurance',
-  },
-  {
-    id: 'get_stronger',
-    title: 'Get stronger',
-    description:
-      'Focus on compound exercises. Train fewer muscles per workout and lift heavier weights in lower rep ranges.',
-    tag: 'Powerlifting',
-    goalValue: 'Strength',
-  },
-];
-
-const toSelectedGoalIds = (onboardingData: any) => {
+const toSelectedGoalIds = (onboardingData: any, goalOptions: GoalOption[]) => {
   const fromList = Array.isArray(onboardingData?.fitnessGoalIds)
     ? onboardingData.fitnessGoalIds.map((entry: unknown) => String(entry || '').trim())
     : [];
@@ -58,18 +19,29 @@ const toSelectedGoalIds = (onboardingData: any) => {
   const fromGoalValue = String(onboardingData?.fitnessGoal || '').trim().toLowerCase();
   if (!fromGoalValue) return [];
 
-  const matched = GOAL_OPTIONS.find(
+  const matched = goalOptions.find(
     (option) => option.goalValue.trim().toLowerCase() === fromGoalValue,
   );
   return matched ? [matched.id] : [];
 };
 
-export function FitnessGoalsScreen({ onNext, onDataChange, onboardingData }: FitnessGoalsScreenProps) {
-  const initialIds = useMemo(() => toSelectedGoalIds(onboardingData), [onboardingData]);
+export function FitnessGoalsScreen({
+  onNext,
+  onDataChange,
+  onboardingData,
+  options,
+}: FitnessGoalsScreenProps) {
+  const goalOptions = options?.length
+    ? options
+    : DEFAULT_ONBOARDING_CONFIG.options.fitnessGoals;
+  const initialIds = useMemo(
+    () => toSelectedGoalIds(onboardingData, goalOptions),
+    [goalOptions, onboardingData],
+  );
   const [selectedIds, setSelectedIds] = useState<string[]>(initialIds);
 
   const persistGoals = (goalIds: string[]) => {
-    const selectedOptions = GOAL_OPTIONS.filter((option) => goalIds.includes(option.id));
+    const selectedOptions = goalOptions.filter((option) => goalIds.includes(option.id));
     const primary = selectedOptions[0] || null;
 
     onDataChange?.({
@@ -104,7 +76,7 @@ export function FitnessGoalsScreen({ onNext, onDataChange, onboardingData }: Fit
       </div>
 
       <div className="rounded-2xl border border-white/10 bg-card/70 overflow-hidden">
-        {GOAL_OPTIONS.map((option, index) => {
+        {goalOptions.map((option, index) => {
           const selected = selectedIds.includes(option.id);
           return (
             <button
@@ -113,7 +85,7 @@ export function FitnessGoalsScreen({ onNext, onDataChange, onboardingData }: Fit
               onClick={() => toggleGoal(option.id)}
               className={`w-full px-4 py-4 text-left transition-colors ${
                 selected ? 'bg-accent/10' : 'hover:bg-white/5'
-              } ${index !== GOAL_OPTIONS.length - 1 ? 'border-b border-white/10' : ''}`}
+              } ${index !== goalOptions.length - 1 ? 'border-b border-white/10' : ''}`}
             >
               <div className="flex items-start gap-4">
                 <div className="flex-1 min-w-0">

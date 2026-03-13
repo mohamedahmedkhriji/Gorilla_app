@@ -1,32 +1,50 @@
 import React, { useEffect, useState } from 'react';
 import { Button } from '../ui/Button';
 import { Select } from '../ui/Select';
+import { DEFAULT_ONBOARDING_CONFIG, type SelectOption, type WorkoutDaysRange } from '../../config/onboardingConfig';
 interface GoalsAvailabilityScreenProps {
   onNext: () => void;
   onDataChange?: (data: any) => void;
   onboardingData?: any;
+  sessionDurationOptions?: SelectOption[];
+  preferredTimeOptions?: SelectOption[];
+  workoutDaysRange?: WorkoutDaysRange;
 }
 export function GoalsAvailabilityScreen({
   onNext,
   onDataChange,
   onboardingData,
+  sessionDurationOptions,
+  preferredTimeOptions,
+  workoutDaysRange,
 }: GoalsAvailabilityScreenProps) {
+  const durationOptions = sessionDurationOptions?.length
+    ? sessionDurationOptions
+    : DEFAULT_ONBOARDING_CONFIG.options.sessionDurations;
+  const timeOptions = preferredTimeOptions?.length
+    ? preferredTimeOptions
+    : DEFAULT_ONBOARDING_CONFIG.options.preferredTimes;
+  const daysRange = workoutDaysRange || DEFAULT_ONBOARDING_CONFIG.options.workoutDaysRange;
+
   const normalizeDays = (value: unknown) => {
     const parsed = Number(value);
-    if (!Number.isFinite(parsed)) return 4;
-    return Math.max(2, Math.min(6, Math.round(parsed)));
+    const fallback = Number(daysRange.defaultValue ?? 4);
+    if (!Number.isFinite(parsed)) return fallback;
+    return Math.max(daysRange.min, Math.min(daysRange.max, Math.round(parsed)));
   };
 
   const normalizeDuration = (value: unknown) => {
     const normalized = String(value || '').trim();
-    if (['30', '45', '60', '90'].includes(normalized)) return normalized;
-    return '60';
+    const allowed = new Set(durationOptions.map((option) => String(option.value)));
+    if (allowed.has(normalized)) return normalized;
+    return String(durationOptions[0]?.value || '60');
   };
 
   const normalizeTime = (value: unknown) => {
     const normalized = String(value || '').trim().toLowerCase();
-    if (['morning', 'afternoon', 'evening'].includes(normalized)) return normalized;
-    return 'evening';
+    const allowed = new Set(timeOptions.map((option) => String(option.value).toLowerCase()));
+    if (allowed.has(normalized)) return normalized;
+    return String(timeOptions[0]?.value || 'evening');
   };
 
   const [days, setDays] = useState(normalizeDays(onboardingData?.workoutDays));
@@ -35,15 +53,15 @@ export function GoalsAvailabilityScreen({
 
   useEffect(() => {
     setDays(normalizeDays(onboardingData?.workoutDays));
-  }, [onboardingData?.workoutDays]);
+  }, [daysRange, onboardingData?.workoutDays]);
 
   useEffect(() => {
     setDuration(normalizeDuration(onboardingData?.sessionDuration));
-  }, [onboardingData?.sessionDuration]);
+  }, [durationOptions, onboardingData?.sessionDuration]);
 
   useEffect(() => {
     setTime(normalizeTime(onboardingData?.preferredTime));
-  }, [onboardingData?.preferredTime]);
+  }, [timeOptions, onboardingData?.preferredTime]);
 
   useEffect(() => {
     onDataChange?.({
@@ -79,8 +97,8 @@ export function GoalsAvailabilityScreen({
           </div>
           <input
             type="range"
-            min="2"
-            max="6"
+            min={daysRange.min}
+            max={daysRange.max}
             value={days}
             onChange={(e) => {
               const nextDays = parseInt(e.target.value, 10);
@@ -89,11 +107,12 @@ export function GoalsAvailabilityScreen({
             className="w-full h-2 bg-card rounded-lg appearance-none cursor-pointer accent-accent" />
 
           <div className="flex justify-between text-xs text-text-tertiary px-1">
-            <span>2</span>
-            <span>3</span>
-            <span>4</span>
-            <span>5</span>
-            <span>6</span>
+            {(daysRange.labels && daysRange.labels.length
+              ? daysRange.labels
+              : Array.from({ length: daysRange.max - daysRange.min + 1 }, (_, idx) => daysRange.min + idx)
+            ).map((value) => (
+              <span key={value}>{value}</span>
+            ))}
           </div>
         </div>
         <Select
@@ -102,24 +121,7 @@ export function GoalsAvailabilityScreen({
           onValueChange={(nextValue) => {
             setDuration(nextValue);
           }}
-          options={[
-          {
-            value: '30',
-            label: '30 minutes'
-          },
-          {
-            value: '45',
-            label: '45 minutes'
-          },
-          {
-            value: '60',
-            label: '60 minutes'
-          },
-          {
-            value: '90',
-            label: '90 minutes'
-          }]
-          } />
+          options={durationOptions} />
 
 
         <Select
@@ -128,20 +130,7 @@ export function GoalsAvailabilityScreen({
           onValueChange={(nextValue) => {
             setTime(nextValue);
           }}
-          options={[
-          {
-            value: 'morning',
-            label: 'Morning'
-          },
-          {
-            value: 'afternoon',
-            label: 'Afternoon'
-          },
-          {
-            value: 'evening',
-            label: 'Evening'
-          }]
-          } />
+          options={timeOptions} />
 
       </div>
 

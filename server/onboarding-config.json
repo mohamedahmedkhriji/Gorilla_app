@@ -1,0 +1,437 @@
+{
+  "version": 1,
+  "trackMap": {
+    "bodybuilding": ["bodybuilding"],
+    "defaultTrack": "sport"
+  },
+  "steps": {
+    "intro": ["welcome", "first_name", "app_motivation", "athlete_identity"],
+    "bodybuilding": [
+      "personal_info",
+      "fitness_background",
+      "fitness_goals",
+      "body_type",
+      "goals_availability",
+      "workout_split"
+    ],
+    "sport": ["sport_age_gender", "sport_experience", "sport_plan_choice"],
+    "branchBySplit": {
+      "custom": ["custom_plan", "custom_plan_advice"],
+      "aiBodybuilding": ["ai_plan_tuning", "body_image_upload", "ai_analysis", "body_results"],
+      "aiSport": ["ai_analysis", "body_results"]
+    }
+  },
+  "stepMeta": {
+    "welcome": { "title": "", "showBack": false },
+    "first_name": { "title": "First name" },
+    "app_motivation": { "title": "Motivation" },
+    "athlete_identity": { "title": "I AM" },
+    "personal_info": { "title": "Personal Info" },
+    "fitness_background": { "title": "Background" },
+    "fitness_goals": { "title": "Fitness Goal" },
+    "body_type": { "title": "Body Type" },
+    "goals_availability": { "title": "Availability" },
+    "workout_split": { "title": "Plan Selection" },
+    "ai_plan_tuning": { "title": "AI Preferences" },
+    "body_image_upload": { "title": "Body Scan" },
+    "ai_analysis": { "title": "Analyzing", "showBack": false },
+    "body_results": { "title": "Results", "showBack": false, "showHeader": false, "showProgress": false },
+    "custom_plan": { "title": "Customize Plan" },
+    "custom_plan_advice": { "title": "AI Advice", "showBack": false },
+    "sport_age_gender": { "title": "Age & Gender" },
+    "sport_experience": { "title": "Sports Experience" },
+    "sport_plan_choice": { "title": "Plan Selection" }
+  },
+  "stepMetaByTrack": {
+    "sport": {
+      "custom_plan": { "title": "Generate Plan" }
+    }
+  },
+  "splitRecommendations": {
+    "2": "full_body",
+    "3": "full_body",
+    "4": "upper_lower",
+    "5": "push_pull_legs",
+    "6": "push_pull_legs"
+  },
+  "options": {
+    "appMotivation": [
+      {
+        "id": "guided_start",
+        "title": "I want clear guidance from day one",
+        "description": "Give me structure so I know exactly what to do each session."
+      },
+      {
+        "id": "consistency",
+        "title": "I need help staying consistent",
+        "description": "Build a realistic routine I can follow every week."
+      },
+      {
+        "id": "progress_plateau",
+        "title": "I am stuck and want better progress",
+        "description": "Help me break plateaus with smarter programming."
+      },
+      {
+        "id": "time_efficiency",
+        "title": "I want efficient workouts for my schedule",
+        "description": "Keep sessions focused and aligned to my available time."
+      },
+      {
+        "id": "accountability",
+        "title": "I want accountability and feedback",
+        "description": "Track my training and keep me on track long term."
+      }
+    ],
+    "athleteIdentity": [
+      {
+        "id": "bodybuilding",
+        "label": "Bodybuilding",
+        "description": "Build muscle size, symmetry, and physique-focused strength.",
+        "iconKey": "bodybuilding",
+        "category": "fitness",
+        "subGroups": [
+          {
+            "id": "bodybuilding_category",
+            "title": "By Category",
+            "items": [
+              { "id": "hypertrophy", "label": "Hypertrophy" },
+              { "id": "powerlifting", "label": "Powerlifting" },
+              { "id": "cutting", "label": "Cutting" },
+              { "id": "bulking", "label": "Bulking" },
+              { "id": "beginner_gym", "label": "Beginner gym" },
+              { "id": "natural_athlete", "label": "Natural athlete" },
+              { "id": "classic_physique", "label": "Classic physique" }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "football",
+        "label": "Football",
+        "description": "Improve speed, agility, power, and match endurance.",
+        "iconKey": "football",
+        "category": "athlete_sports",
+        "subGroups": [
+          {
+            "id": "football_position",
+            "title": "By Position",
+            "items": [
+              { "id": "striker", "label": "Striker" },
+              { "id": "winger", "label": "Winger" },
+              { "id": "midfielder", "label": "Midfielder" },
+              { "id": "defender", "label": "Defender" },
+              { "id": "goalkeeper", "label": "Goalkeeper" }
+            ]
+          },
+          {
+            "id": "football_goal",
+            "title": "By Training Goal",
+            "items": [
+              { "id": "speed_acceleration", "label": "Speed & acceleration" },
+              { "id": "match_endurance", "label": "Match endurance" },
+              { "id": "shooting_power", "label": "Shooting power" },
+              { "id": "injury_prevention", "label": "Injury prevention" },
+              { "id": "strength_duels", "label": "Strength & duels" }
+            ]
+          },
+          {
+            "id": "football_phase",
+            "title": "By Season Phase (VERY PRO FEATURE)",
+            "items": [
+              { "id": "pre_season", "label": "Pre-season" },
+              { "id": "in_season", "label": "In-season" },
+              { "id": "off_season", "label": "Off-season" }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "basketball",
+        "label": "Basketball",
+        "description": "Train explosiveness, vertical power, and court conditioning.",
+        "iconKey": "basketball",
+        "category": "athlete_sports",
+        "subGroups": [
+          {
+            "id": "basketball_role",
+            "title": "By Role",
+            "items": [
+              { "id": "guard", "label": "Guard" },
+              { "id": "forward", "label": "Forward" },
+              { "id": "center", "label": "Center" }
+            ]
+          },
+          {
+            "id": "basketball_goal",
+            "title": "By Goal",
+            "items": [
+              { "id": "vertical_jump", "label": "Vertical jump" },
+              { "id": "explosive_speed", "label": "Explosive speed" },
+              { "id": "lateral_agility", "label": "Lateral agility" },
+              { "id": "knee_injury_prevention", "label": "Knee injury prevention" },
+              { "id": "core_stability", "label": "Core stability" }
+            ]
+          },
+          {
+            "id": "basketball_phase",
+            "title": "By Phase",
+            "items": [
+              { "id": "pre_season", "label": "Pre-season" },
+              { "id": "in_season", "label": "In-season" },
+              { "id": "off_season", "label": "Off-season" }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "handball",
+        "label": "Handball",
+        "description": "Boost rotational power, acceleration, and repeat stamina.",
+        "iconKey": "handball",
+        "category": "athlete_sports",
+        "subGroups": [
+          {
+            "id": "handball_position",
+            "title": "By Position",
+            "items": [
+              { "id": "wing", "label": "Wing" },
+              { "id": "backcourt", "label": "Backcourt" },
+              { "id": "pivot", "label": "Pivot" },
+              { "id": "goalkeeper", "label": "Goalkeeper" }
+            ]
+          },
+          {
+            "id": "handball_goal",
+            "title": "By Goal",
+            "items": [
+              { "id": "throwing_power", "label": "Throwing power" },
+              { "id": "jump_explosiveness", "label": "Jump explosiveness" },
+              { "id": "shoulder_strength", "label": "Shoulder strength" },
+              { "id": "sprint_endurance", "label": "Sprint endurance" }
+            ]
+          },
+          {
+            "id": "handball_phase",
+            "title": "By Phase",
+            "items": [
+              { "id": "pre_season", "label": "Pre-season" },
+              { "id": "in_season", "label": "In-season" },
+              { "id": "off_season", "label": "Off-season" }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "swimming",
+        "label": "Swimming",
+        "description": "Develop full-body endurance, lung capacity, and control.",
+        "iconKey": "swimming",
+        "category": "athlete_sports",
+        "subGroups": [
+          {
+            "id": "swimming_stroke",
+            "title": "By Stroke",
+            "items": [
+              { "id": "freestyle", "label": "Freestyle" },
+              { "id": "breaststroke", "label": "Breaststroke" },
+              { "id": "butterfly", "label": "Butterfly" },
+              { "id": "backstroke", "label": "Backstroke" }
+            ]
+          },
+          {
+            "id": "swimming_goal",
+            "title": "By Goal",
+            "items": [
+              { "id": "shoulder_mobility", "label": "Shoulder mobility" },
+              { "id": "core_endurance", "label": "Core endurance" },
+              { "id": "breathing_capacity", "label": "Breathing capacity" },
+              { "id": "technique_strength", "label": "Technique strength" }
+            ]
+          },
+          {
+            "id": "swimming_phase",
+            "title": "By Phase",
+            "items": [
+              { "id": "conditioning_phase", "label": "Conditioning phase" },
+              { "id": "competition_phase", "label": "Competition phase" },
+              { "id": "recovery_phase", "label": "Recovery phase" }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "combat_sports",
+        "label": "Combat sports",
+        "description": "Build conditioning, reaction speed, and functional power.",
+        "iconKey": "combat_sports",
+        "category": "athlete_sports",
+        "subGroups": [
+          {
+            "id": "combat_sport_type",
+            "title": "By Sport Type",
+            "items": [
+              { "id": "boxing", "label": "Boxing" },
+              { "id": "mma", "label": "MMA" },
+              { "id": "muay_thai", "label": "Muay Thai" },
+              { "id": "wrestling", "label": "Wrestling" },
+              { "id": "judo", "label": "Judo" }
+            ]
+          },
+          {
+            "id": "combat_goal",
+            "title": "By Goal",
+            "items": [
+              { "id": "power_endurance", "label": "Power endurance" },
+              { "id": "speed_reaction", "label": "Speed & reaction" },
+              { "id": "weight_cut_conditioning", "label": "Weight cut conditioning" },
+              { "id": "neck_core_strength", "label": "Neck & core strength" }
+            ]
+          },
+          {
+            "id": "combat_phase",
+            "title": "By Phase",
+            "items": [
+              { "id": "fight_camp", "label": "Fight camp" },
+              { "id": "off_camp", "label": "Off-camp" },
+              { "id": "recovery", "label": "Recovery" }
+            ]
+          }
+        ]
+      }
+    ],
+    "athleteIdentityGroupLimits": {
+      "football_position": 2,
+      "football_goal": 2,
+      "football_phase": 1,
+      "basketball_role": 2,
+      "basketball_goal": 2,
+      "basketball_phase": 1,
+      "handball_position": 2,
+      "handball_goal": 2,
+      "handball_phase": 1,
+      "swimming_stroke": 2,
+      "swimming_goal": 2,
+      "swimming_phase": 1,
+      "combat_sport_type": 2,
+      "combat_goal": 2,
+      "combat_phase": 1
+    },
+    "fitnessGoals": [
+      {
+        "id": "build_muscle_toned",
+        "title": "Build muscle and get toned",
+        "description": "Focus on muscle development and tone your body. Perform pyramid sets to improve your weights in every workout.",
+        "tag": "Popular",
+        "goalValue": "Build Muscle"
+      },
+      {
+        "id": "general_fitness",
+        "title": "Enhance general fitness",
+        "description": "Improve your overall fitness by lifting consistent weights and learning new exercises.",
+        "goalValue": "General Fitness"
+      },
+      {
+        "id": "conditioning",
+        "title": "Improve conditioning",
+        "description": "Focus on higher reps and lower weights through fast-paced supersets to boost your overall conditioning.",
+        "goalValue": "Endurance"
+      },
+      {
+        "id": "get_stronger",
+        "title": "Get stronger",
+        "description": "Focus on compound exercises. Train fewer muscles per workout and lift heavier weights in lower rep ranges.",
+        "tag": "Powerlifting",
+        "goalValue": "Strength"
+      }
+    ],
+    "workoutSplit": [
+      {
+        "id": "auto",
+        "title": "AI Coach Plan",
+        "summary": "Generate a fully personalized plan with Claude AI",
+        "detail": "Uses your onboarding profile and preferences to build a structured 8-week plan.",
+        "days": [2, 3, 4, 5, 6]
+      },
+      {
+        "id": "full_body",
+        "title": "Full Body Focus",
+        "summary": "Train all major muscle groups each session",
+        "detail": "Great for fewer days and steady weekly progress.",
+        "days": [2, 3, 4]
+      },
+      {
+        "id": "upper_lower",
+        "title": "Upper / Lower",
+        "summary": "Alternate upper-body and lower-body days",
+        "detail": "Balanced structure with good recovery between sessions.",
+        "days": [3, 4, 5, 6]
+      },
+      {
+        "id": "push_pull_legs",
+        "title": "Push / Pull / Legs",
+        "summary": "Movement-based split with focused training days",
+        "detail": "Best for moderate-to-high frequency training weeks.",
+        "days": [3, 4, 5, 6]
+      },
+      {
+        "id": "hybrid",
+        "title": "Push / Pull / Legs + Upper / Lower",
+        "summary": "Blend PPL and upper/lower for more total volume",
+        "detail": "Great when you want extra variety and balanced weekly workload.",
+        "days": [4, 5, 6]
+      },
+      {
+        "id": "custom",
+        "title": "Customized Plan",
+        "summary": "Build a tailored split around your own priorities",
+        "detail": "Designed for advanced lifters who want maximum control over structure and volume.",
+        "days": [2, 3, 4, 5, 6]
+      }
+    ],
+    "sportPlan": [
+      {
+        "id": "auto",
+        "title": "Generate Workout Plan With AI",
+        "description": "AI builds your training plan based on your onboarding profile and sport goals."
+      },
+      {
+        "id": "custom",
+        "title": "Customized Personal Plan",
+        "description": "You define your own plan structure, then continue to generate and refine it."
+      }
+    ],
+    "aiTrainingFocus": [
+      { "value": "balanced", "label": "Balanced" },
+      { "value": "hypertrophy", "label": "Muscle growth focus" },
+      { "value": "strength", "label": "Strength focus" },
+      { "value": "fat_loss", "label": "Fat-loss support" }
+    ],
+    "aiRecoveryPriority": [
+      { "value": "balanced", "label": "Balanced" },
+      { "value": "performance", "label": "Push progression" },
+      { "value": "recovery", "label": "Conservative recovery-first" }
+    ],
+    "genders": [
+      { "value": "", "label": "Select gender" },
+      { "value": "male", "label": "Male" },
+      { "value": "female", "label": "Female" }
+    ],
+    "sessionDurations": [
+      { "value": "30", "label": "30 minutes" },
+      { "value": "45", "label": "45 minutes" },
+      { "value": "60", "label": "60 minutes" },
+      { "value": "90", "label": "90 minutes" }
+    ],
+    "preferredTimes": [
+      { "value": "morning", "label": "Morning" },
+      { "value": "afternoon", "label": "Afternoon" },
+      { "value": "evening", "label": "Evening" }
+    ],
+    "workoutDaysRange": {
+      "min": 2,
+      "max": 6,
+      "defaultValue": 4,
+      "labels": [2, 3, 4, 5, 6]
+    }
+  }
+}

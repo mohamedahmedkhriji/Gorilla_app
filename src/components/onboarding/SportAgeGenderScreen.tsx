@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
 import { Select } from '../ui/Select';
+import { DEFAULT_ONBOARDING_CONFIG, type SelectOption } from '../../config/onboardingConfig';
 
 interface SportAgeGenderScreenProps {
   onNext: () => void;
@@ -12,9 +13,18 @@ interface SportAgeGenderScreenProps {
     height?: number;
     weight?: number;
   };
+  genderOptions?: SelectOption[];
 }
 
-export function SportAgeGenderScreen({ onNext, onDataChange, onboardingData }: SportAgeGenderScreenProps) {
+export function SportAgeGenderScreen({
+  onNext,
+  onDataChange,
+  onboardingData,
+  genderOptions,
+}: SportAgeGenderScreenProps) {
+  const genderSelectOptions = genderOptions?.length
+    ? genderOptions
+    : DEFAULT_ONBOARDING_CONFIG.options.genders;
   const [age, setAge] = useState(String(onboardingData?.age ?? ''));
   const [gender, setGender] = useState(String(onboardingData?.gender ?? '').trim().toLowerCase());
   const [height, setHeight] = useState(String(onboardingData?.height ?? ''));
@@ -93,11 +103,7 @@ export function SportAgeGenderScreen({ onNext, onDataChange, onboardingData }: S
           required
           aria-required="true"
           error={errors.gender}
-          options={[
-            { value: '', label: 'Select gender' },
-            { value: 'male', label: 'Male' },
-            { value: 'female', label: 'Female' },
-          ]}
+          options={genderSelectOptions}
         />
 
         <div className="grid grid-cols-2 gap-4">

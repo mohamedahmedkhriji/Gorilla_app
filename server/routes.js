@@ -1,4 +1,7 @@
 import express from 'express';
+import fs from 'fs/promises';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import pool from './database.js';
 import {
   adaptProgramBiWeekly,
@@ -24,6 +27,23 @@ import {
 import { processGamificationProgression } from './services/progressionService.js';
 
 const router = express.Router();
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const ONBOARDING_CONFIG_PATH = path.join(__dirname, 'onboarding-config.json');
+
+router.get('/onboarding/config', async (_req, res) => {
+  try {
+    const raw = await fs.readFile(ONBOARDING_CONFIG_PATH, 'utf-8');
+    const parsed = JSON.parse(raw);
+    return res.json(parsed);
+  } catch (error) {
+    if (error?.code === 'ENOENT') {
+      return res.status(404).json({ error: 'Onboarding config not found' });
+    }
+    console.error('Failed to load onboarding config:', error?.message || error);
+    return res.status(500).json({ error: 'Failed to load onboarding config' });
+  }
+});
 
 let profileImageColumnCache;
 let workoutSessionColumnsCache;
@@ -3599,9 +3619,6 @@ router.get('/users', async (_req, res) => {
 router.post('/user/onboarding', async (req, res) => {
   let conn;
   try {
-    conn = await pool.getConnection();
-    await conn.beginTransaction();
-
     const {
       userId,
       age,
@@ -3649,11 +3666,10 @@ router.post('/user/onboarding', async (req, res) => {
 
     const normalizedUserId = toNumber(userId);
     if (!normalizedUserId) {
-      await conn.rollback();
       return res.status(400).json({ error: 'Valid userId is required' });
     }
 
-    const [userRows] = await conn.execute(
+    const [userRows] = await pool.execute(
       `SELECT id, gym_id, name
        FROM users
        WHERE id = ?
@@ -3661,7 +3677,6 @@ router.post('/user/onboarding', async (req, res) => {
       [normalizedUserId],
     );
     if (!userRows.length) {
-      await conn.rollback();
       return res.status(404).json({ error: 'User not found' });
     }
 
@@ -3768,6 +3783,106 @@ router.post('/user/onboarding', async (req, res) => {
     });
     const onboardingProfileJson = JSON.stringify(onboardingProfilePayload);
 
+    const claudeEnabled = hasAnthropicConfig();
+    const shouldUseClaude = toBooleanFlag(useClaude, claudeEnabled);
+    const shouldDisableClaude = toBooleanFlag(disableClaude, false);
+    const templateEligibleSplit = ['full_body', 'upper_lower', 'push_pull_legs', 'hybrid'].includes(normalizedSplitPreference);
+    const aiPlanRequested = normalizedSplitPreference !== 'custom';
+    const hasCustomPlanPayload = customPlan && typeof customPlan === 'object';
+    let claudeExerciseAnchors = [];
+    let claudeGeneration = null;
+    let warning = null;
+
+    if (hasExplicitSplitPreference && templateEligibleSplit) {
+      try {
+        claudeExerciseAnchors = await buildTemplateExerciseAnchorsForSplit(pool, {
+          splitPreference: normalizedSplitPreference,
+          daysPerWeek: normalizedDays,
+        });
+      } catch (anchorError) {
+        console.warn('[onboarding] Failed to load template exercise anchors:', anchorError?.message || anchorError);
+      }
+    }
+
+    if (aiPlanRequested && claudeEnabled && shouldUseClaude && !shouldDisableClaude) {
+      try {
+        const claudeOnboardingFields = buildClaudeOnboardingFields(req.body, {
+          userId: normalizedUserId,
+          age: normalizedAge,
+          gender: normalizedGender,
+          heightCm: normalizedHeight,
+          weightKg: normalizedWeight,
+          goal: normalizedGoal,
+          experienceLevel: normalizedExperience || 'intermediate',
+          daysPerWeek: normalizedDays,
+          sessionDuration: normalizedSessionDuration,
+          preferredTime: normalizedPreferredTime,
+          bodyType: normalizedBodyType,
+          motivation: normalizedOnboardingReason,
+          preferredSplit: normalizedSplitPreference,
+          preferredSplitLabel: normalizedSplitLabel,
+          trainingFocus: normalizedAiTrainingFocus,
+          limitations: normalizedAiLimitations,
+          recoveryPriority: normalizedAiRecoveryPriority,
+          equipmentNotes: normalizedAiEquipmentNotes,
+          equipment: equipmentProfile,
+          bodyImagesProvided: normalizedBodyImages.length,
+          claudeRequested: aiPlanRequested,
+          lockedExercisePoolDays: claudeExerciseAnchors.length,
+          lockedExercisePoolExercises: claudeExerciseAnchors.reduce(
+            (sum, day) => sum + (Array.isArray(day?.exercises) ? day.exercises.length : 0),
+            0,
+          ),
+        });
+
+        const claudeProfile = {
+          age: normalizedAge,
+          gender: normalizedGender,
+          heightCm: normalizedHeight,
+          weightKg: normalizedWeight,
+          goal: normalizedGoal,
+          experienceLevel: normalizedExperience || 'intermediate',
+          daysPerWeek: normalizedDays,
+          sessionDuration: normalizedSessionDuration,
+          preferredTime: normalizedPreferredTime,
+          bodyType: normalizedBodyType,
+          motivation: normalizedOnboardingReason,
+          preferredSplit: normalizedSplitPreference,
+          preferredSplitLabel: normalizedSplitLabel,
+          trainingFocus: normalizedAiTrainingFocus,
+          limitations: normalizedAiLimitations,
+          recoveryPriority: normalizedAiRecoveryPriority,
+          equipmentNotes: normalizedAiEquipmentNotes,
+          equipment: equipmentProfile,
+          userName: String(userRows[0]?.name || '').trim() || null,
+          exerciseAnchors: claudeExerciseAnchors,
+          onboardingFields: claudeOnboardingFields,
+        };
+
+        claudeGeneration = await generateTwoMonthPlanWithClaude({
+          profile: claudeProfile,
+          bodyImages: normalizedBodyImages,
+        });
+      } catch (claudeError) {
+        const rawWarning = claudeError?.message || 'Claude onboarding generation failed';
+        if (
+          /unexpected end of json input|invalid json|json was incomplete|did not contain a json object|no text content/i.test(rawWarning)
+        ) {
+          warning = 'Claude returned incomplete JSON. Template generator was used for this run.';
+        } else if (
+          /cloudflare|502|503|504|temporarily unavailable|gateway|timed out|timeout|rate limit|429/i.test(rawWarning)
+        ) {
+          warning = 'Claude is temporarily unavailable. Template generator was used for this run.';
+        } else {
+          warning = rawWarning;
+        }
+        console.warn('[onboarding] Claude generation failed, fallback to template:', rawWarning);
+      }
+    }
+
+    conn = await pool.getConnection();
+    await conn.beginTransaction();
+
     await conn.execute(
       `UPDATE users
        SET age = ?,
@@ -3839,26 +3954,6 @@ router.post('/user/onboarding', async (req, res) => {
     let claudePlan = null;
     let customAdvice = null;
     let planSource = 'template';
-    let warning = null;
-
-    const claudeEnabled = hasAnthropicConfig();
-    const shouldUseClaude = toBooleanFlag(useClaude, claudeEnabled);
-    const shouldDisableClaude = toBooleanFlag(disableClaude, false);
-    const templateEligibleSplit = ['full_body', 'upper_lower', 'push_pull_legs', 'hybrid'].includes(normalizedSplitPreference);
-    const aiPlanRequested = normalizedSplitPreference !== 'custom';
-    const hasCustomPlanPayload = customPlan && typeof customPlan === 'object';
-    let claudeExerciseAnchors = [];
-
-    if (hasExplicitSplitPreference && templateEligibleSplit) {
-      try {
-        claudeExerciseAnchors = await buildTemplateExerciseAnchorsForSplit(conn, {
-          splitPreference: normalizedSplitPreference,
-          daysPerWeek: normalizedDays,
-        });
-      } catch (anchorError) {
-        console.warn('[onboarding] Failed to load template exercise anchors:', anchorError?.message || anchorError);
-      }
-    }
 
     if (!assignedProgram && !assignmentInfo && normalizedSplitPreference === 'custom' && hasCustomPlanPayload) {
       let customDraft;
@@ -3894,68 +3989,10 @@ router.post('/user/onboarding', async (req, res) => {
       });
     }
 
-    if (!assignedProgram && !assignmentInfo && aiPlanRequested && claudeEnabled && shouldUseClaude && !shouldDisableClaude) {
+    if (!assignedProgram && !assignmentInfo && aiPlanRequested && claudeGeneration) {
       await conn.query('SAVEPOINT onboarding_claude_plan');
       try {
-        const claudeOnboardingFields = buildClaudeOnboardingFields(req.body, {
-          userId: normalizedUserId,
-          age: normalizedAge,
-          gender: normalizedGender,
-          heightCm: normalizedHeight,
-          weightKg: normalizedWeight,
-          goal: normalizedGoal,
-          experienceLevel: normalizedExperience || 'intermediate',
-          daysPerWeek: normalizedDays,
-          sessionDuration: normalizedSessionDuration,
-          preferredTime: normalizedPreferredTime,
-          bodyType: normalizedBodyType,
-          motivation: normalizedOnboardingReason,
-          preferredSplit: normalizedSplitPreference,
-          preferredSplitLabel: normalizedSplitLabel,
-          trainingFocus: normalizedAiTrainingFocus,
-          limitations: normalizedAiLimitations,
-          recoveryPriority: normalizedAiRecoveryPriority,
-          equipmentNotes: normalizedAiEquipmentNotes,
-          equipment: equipmentProfile,
-          bodyImagesProvided: normalizedBodyImages.length,
-          claudeRequested: aiPlanRequested,
-          lockedExercisePoolDays: claudeExerciseAnchors.length,
-          lockedExercisePoolExercises: claudeExerciseAnchors.reduce(
-            (sum, day) => sum + (Array.isArray(day?.exercises) ? day.exercises.length : 0),
-            0,
-          ),
-        });
-
-        const claudeProfile = {
-          age: normalizedAge,
-          gender: normalizedGender,
-          heightCm: normalizedHeight,
-          weightKg: normalizedWeight,
-          goal: normalizedGoal,
-          experienceLevel: normalizedExperience || 'intermediate',
-          daysPerWeek: normalizedDays,
-          sessionDuration: normalizedSessionDuration,
-          preferredTime: normalizedPreferredTime,
-          bodyType: normalizedBodyType,
-          motivation: normalizedOnboardingReason,
-          preferredSplit: normalizedSplitPreference,
-          preferredSplitLabel: normalizedSplitLabel,
-          trainingFocus: normalizedAiTrainingFocus,
-          limitations: normalizedAiLimitations,
-          recoveryPriority: normalizedAiRecoveryPriority,
-          equipmentNotes: normalizedAiEquipmentNotes,
-          equipment: equipmentProfile,
-          userName: String(userRows[0]?.name || '').trim() || null,
-          exerciseAnchors: claudeExerciseAnchors,
-          onboardingFields: claudeOnboardingFields,
-        };
-
-        const generatedByClaude = await generateTwoMonthPlanWithClaude({
-          profile: claudeProfile,
-          bodyImages: normalizedBodyImages,
-        });
-
-        const customPayload = buildCustomProgramPayloadFromClaudePlan(generatedByClaude.plan, {
+        const customPayload = buildCustomProgramPayloadFromClaudePlan(claudeGeneration.plan, {
           daysPerWeek: normalizedDays,
           cycleWeeks: 8,
           splitPreference: normalizedSplitPreference,
@@ -3976,17 +4013,17 @@ router.post('/user/onboarding', async (req, res) => {
         assignmentInfo = persisted.assignment;
         planSource = 'claude';
         claudePlan = {
-          model: generatedByClaude.model,
-          usedImages: generatedByClaude.usedImages,
-          planName: generatedByClaude.plan.planName,
-          summary: generatedByClaude.plan.summary,
-          goalMatch: generatedByClaude.plan.goalMatch,
-          durationWeeks: generatedByClaude.plan.durationWeeks,
-          weeklySchedule: generatedByClaude.plan.weeklySchedule,
-          progressionRules: generatedByClaude.plan.progressionRules,
-          recoveryRules: generatedByClaude.plan.recoveryRules,
-          nutritionGuidance: generatedByClaude.plan.nutritionGuidance,
-          checkpoints: generatedByClaude.plan.checkpoints,
+          model: claudeGeneration.model,
+          usedImages: claudeGeneration.usedImages,
+          planName: claudeGeneration.plan.planName,
+          summary: claudeGeneration.plan.summary,
+          goalMatch: claudeGeneration.plan.goalMatch,
+          durationWeeks: claudeGeneration.plan.durationWeeks,
+          weeklySchedule: claudeGeneration.plan.weeklySchedule,
+          progressionRules: claudeGeneration.plan.progressionRules,
+          recoveryRules: claudeGeneration.plan.recoveryRules,
+          nutritionGuidance: claudeGeneration.plan.nutritionGuidance,
+          checkpoints: claudeGeneration.plan.checkpoints,
         };
       } catch (claudeError) {
         await conn.query('ROLLBACK TO SAVEPOINT onboarding_claude_plan');

@@ -131,6 +131,11 @@ export const api = {
     }
   },
 
+  getOnboardingConfig: async () => {
+    const res = await fetch(`${API_URL}/onboarding/config`);
+    return parseApiResponse(res, 'Failed to load onboarding config');
+  },
+
   getUserProgram: async (userId: number) => {
     const res = await fetch(`${API_URL}/user/${userId}/program`);
     return res.json();

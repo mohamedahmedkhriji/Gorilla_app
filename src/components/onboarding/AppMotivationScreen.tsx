@@ -1,51 +1,33 @@
 import React, { useMemo, useState } from 'react';
 import { Button } from '../ui/Button';
 import { SelectionCheck } from '../ui/SelectionCheck';
+import { DEFAULT_ONBOARDING_CONFIG, type MotivationOption } from '../../config/onboardingConfig';
 
 interface AppMotivationScreenProps {
   onNext: () => void;
   onDataChange?: (data: any) => void;
   onboardingData?: any;
+  options?: MotivationOption[];
 }
 
-const MOTIVATION_OPTIONS = [
-  {
-    id: 'guided_start',
-    title: 'I want clear guidance from day one',
-    description: 'Give me structure so I know exactly what to do each session.',
-  },
-  {
-    id: 'consistency',
-    title: 'I need help staying consistent',
-    description: 'Build a realistic routine I can follow every week.',
-  },
-  {
-    id: 'progress_plateau',
-    title: 'I am stuck and want better progress',
-    description: 'Help me break plateaus with smarter programming.',
-  },
-  {
-    id: 'time_efficiency',
-    title: 'I want efficient workouts for my schedule',
-    description: 'Keep sessions focused and aligned to my available time.',
-  },
-  {
-    id: 'accountability',
-    title: 'I want accountability and feedback',
-    description: 'Track my training and keep me on track long term.',
-  },
-];
-
-export function AppMotivationScreen({ onNext, onDataChange, onboardingData }: AppMotivationScreenProps) {
+export function AppMotivationScreen({
+  onNext,
+  onDataChange,
+  onboardingData,
+  options,
+}: AppMotivationScreenProps) {
+  const motivationOptions = options?.length
+    ? options
+    : DEFAULT_ONBOARDING_CONFIG.options.appMotivation;
   const initialSelection = useMemo(() => {
     const saved = String(onboardingData?.appMotivation || '').trim();
-    return MOTIVATION_OPTIONS.some((option) => option.id === saved) ? saved : '';
-  }, [onboardingData?.appMotivation]);
+    return motivationOptions.some((option) => option.id === saved) ? saved : '';
+  }, [motivationOptions, onboardingData?.appMotivation]);
 
   const [selectedId, setSelectedId] = useState(initialSelection);
 
   const persistMotivation = (nextId: string) => {
-    const selectedOption = MOTIVATION_OPTIONS.find((option) => option.id === nextId);
+    const selectedOption = motivationOptions.find((option) => option.id === nextId);
     if (!selectedOption) return;
 
     onDataChange?.({
@@ -56,7 +38,7 @@ export function AppMotivationScreen({ onNext, onDataChange, onboardingData }: Ap
   };
 
   const handleNext = () => {
-    const selectedOption = MOTIVATION_OPTIONS.find((option) => option.id === selectedId);
+    const selectedOption = motivationOptions.find((option) => option.id === selectedId);
     if (!selectedOption) return;
 
     onNext();
@@ -72,7 +54,7 @@ export function AppMotivationScreen({ onNext, onDataChange, onboardingData }: Ap
       </div>
 
       <div className="space-y-4">
-        {MOTIVATION_OPTIONS.map((option) => {
+        {motivationOptions.map((option) => {
           const isSelected = selectedId === option.id;
           return (
             <button
