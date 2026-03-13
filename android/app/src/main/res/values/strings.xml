@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Gorella Fitness</string>
+    <string name="title_activity_main">Gorella Fitness</string>
+    <string name="package_name">com.gorella.fitness</string>
+    <string name="custom_url_scheme">com.gorella.fitness</string>
+</resources>
