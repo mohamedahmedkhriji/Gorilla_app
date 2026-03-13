@@ -3,6 +3,7 @@ import { OnboardingLayout } from '../components/onboarding/OnboardingLayout';
 import { AppMotivationScreen } from '../components/onboarding/AppMotivationScreen';
 import { WelcomeScreen } from '../components/onboarding/WelcomeScreen';
 import { AthleteIdentityScreen } from '../components/onboarding/AthleteIdentityScreen';
+import { FirstNameScreen } from '../components/onboarding/FirstNameScreen';
 import { PersonalInfoScreen } from '../components/onboarding/PersonalInfoScreen';
 import { SportAgeGenderScreen } from '../components/onboarding/SportAgeGenderScreen';
 import { SportExperienceYearsScreen } from '../components/onboarding/SportExperienceYearsScreen';
@@ -32,6 +33,16 @@ const toSafeNumber = (value: unknown) => {
 
 const mergeOnboardingIntoUser = (user: Record<string, any>, patch: Record<string, any>) => {
   const next = { ...(user || {}) };
+
+  if (hasOwn(patch, 'firstName')) {
+    const firstName = String(patch.firstName || '').trim();
+    next.firstName = firstName;
+    if (firstName) next.name = firstName;
+  }
+  if (hasOwn(patch, 'name')) {
+    const name = String(patch.name || '').trim();
+    if (name) next.name = name;
+  }
 
   if (hasOwn(patch, 'age')) next.age = toSafeNumber(patch.age);
   if (hasOwn(patch, 'gender')) next.gender = String(patch.gender || '').trim();
@@ -172,6 +183,10 @@ export function Onboarding({ onComplete }: OnboardingProps) {
       component: WelcomeScreen,
       title: '',
       showBack: false,
+    },
+    {
+      component: FirstNameScreen,
+      title: 'First name',
     },
     {
       component: AppMotivationScreen,
