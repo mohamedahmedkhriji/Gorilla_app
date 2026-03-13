@@ -3,7 +3,14 @@ import { X, Bed, Check, CalendarX2 } from 'lucide-react';
 import { formatWorkoutDayLabel, formatWorkoutDayShortLabel, normalizeWorkoutDayKey } from '../../services/workoutDayLabel';
 import doneDayIcon from '../../../assets/emoji/done day.png';
 
-export function AgendaSection({ userProgram }: { userProgram?: any; programProgress?: any }) {
+export function AgendaSection({
+  userProgram,
+  accountCreatedAt,
+}: {
+  userProgram?: any;
+  programProgress?: any;
+  accountCreatedAt?: string | Date | null;
+}) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [selectedDay, setSelectedDay] = useState<any>(null);
   const today = new Date();
@@ -15,6 +22,12 @@ export function AgendaSection({ userProgram }: { userProgram?: any; programProgr
   };
 
   const programWorkouts = Array.isArray(userProgram?.workouts) ? userProgram.workouts : [];
+  const normalizeDate = (value: unknown) => {
+    if (!value) return null;
+    const date = value instanceof Date ? value : new Date(String(value));
+    if (Number.isNaN(date.getTime())) return null;
+    return date;
+  };
   const completedDateKeys = new Set(
     (Array.isArray(userProgram?.completedWorkoutDates)
       ? userProgram.completedWorkoutDates
@@ -77,11 +90,20 @@ export function AgendaSection({ userProgram }: { userProgram?: any; programProgr
     return [];
   };
   
-  // Generate 30 days: 10 past + today + 19 future
+  // Generate 30 days starting from account creation (if recent), otherwise 10 days ago.
   const todayKey = formatDateKey(today);
+  const defaultStartDate = new Date(today);
+  defaultStartDate.setDate(today.getDate() - 10);
+  const defaultStartKey = formatDateKey(defaultStartDate);
+  const createdDate = normalizeDate(accountCreatedAt);
+  const createdKey = createdDate ? formatDateKey(createdDate) : null;
+  const startDate = createdKey && createdKey > defaultStartKey
+    ? (createdKey > todayKey ? today : createdDate!)
+    : defaultStartDate;
+
   const days = Array.from({ length: 30 }, (_, i) => {
-    const date = new Date(today);
-    date.setDate(today.getDate() + (i - 10)); // Start 10 days ago
+    const date = new Date(startDate);
+    date.setDate(startDate.getDate() + i);
 
     // Get workout by exact backend day_name mapping.
     let label = 'Rest';
@@ -113,12 +135,14 @@ export function AgendaSection({ userProgram }: { userProgram?: any; programProgr
   // Scroll to current day on mount
   useEffect(() => {
     if (scrollRef.current) {
-      const currentDayElement = scrollRef.current.children[10] as HTMLElement;
+      const todayIndex = days.findIndex((d) => formatDateKey(d.fullDate) === todayKey);
+      const targetIndex = todayIndex >= 0 ? todayIndex : 0;
+      const currentDayElement = scrollRef.current.children[targetIndex] as HTMLElement;
       if (currentDayElement) {
         scrollRef.current.scrollLeft = currentDayElement.offsetLeft - (scrollRef.current.offsetWidth / 2) + (currentDayElement.offsetWidth / 2);
       }
     }
-  }, []);
+  }, [days, todayKey]);
 
   return (
     <div className="space-y-3">

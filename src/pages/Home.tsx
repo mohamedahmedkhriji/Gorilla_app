@@ -932,7 +932,11 @@ export function Home({ onNavigate, resetSignal = 0 }: HomeProps) {
         </div>
 
         {/* Agenda */}
-        <AgendaSection userProgram={userProgram} programProgress={programProgress} />
+        <AgendaSection
+          userProgram={userProgram}
+          programProgress={programProgress}
+          accountCreatedAt={currentUser?.created_at || currentUser?.createdAt || null}
+        />
 
         {/* Rank & Recovery */}
         <div className="grid grid-cols-1 gap-5">
