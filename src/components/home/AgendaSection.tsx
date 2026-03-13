@@ -15,6 +15,17 @@ export function AgendaSection({ userProgram }: { userProgram?: any; programProgr
   };
 
   const programWorkouts = Array.isArray(userProgram?.workouts) ? userProgram.workouts : [];
+  const completedDateKeys = new Set(
+    (Array.isArray(userProgram?.completedWorkoutDates)
+      ? userProgram.completedWorkoutDates
+      : Array.isArray(userProgram?.completed_workout_dates)
+        ? userProgram.completed_workout_dates
+        : Array.isArray(userProgram?.workoutCompletedDates)
+          ? userProgram.workoutCompletedDates
+          : [])
+      .map((value: unknown) => String(value || '').slice(0, 10))
+      .filter(Boolean),
+  );
   const missedDateKeys = new Set(
     (Array.isArray(userProgram?.missedWorkoutDates) ? userProgram.missedWorkoutDates : [])
       .map((value: unknown) => String(value || '').slice(0, 10))
@@ -67,6 +78,7 @@ export function AgendaSection({ userProgram }: { userProgram?: any; programProgr
   };
   
   // Generate 30 days: 10 past + today + 19 future
+  const todayKey = formatDateKey(today);
   const days = Array.from({ length: 30 }, (_, i) => {
     const date = new Date(today);
     date.setDate(today.getDate() + (i - 10)); // Start 10 days ago
@@ -84,6 +96,8 @@ export function AgendaSection({ userProgram }: { userProgram?: any; programProgr
     
     const dateKey = formatDateKey(date);
     const isMissed = missedDateKeys.has(dateKey);
+    const isCompleted = completedDateKeys.has(dateKey);
+    const isPast = dateKey < todayKey;
 
     return {
       day: formatWorkoutDayShortLabel(weekdayKey, date.toLocaleDateString('en-US', { weekday: 'short' })),
@@ -92,7 +106,7 @@ export function AgendaSection({ userProgram }: { userProgram?: any; programProgr
       fullDate: date,
       label,
       exercises,
-      status: isMissed ? 'missed' : i < 10 ? 'done' : i === 10 ? 'active' : 'upcoming',
+      status: isMissed ? 'missed' : isCompleted ? 'done' : dateKey === todayKey ? 'active' : isPast ? 'past' : 'upcoming',
     };
   });
 
