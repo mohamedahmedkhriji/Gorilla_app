@@ -8,6 +8,7 @@ import { TrackerScreen } from '../components/workout/TrackerScreen';
 import { api } from '../services/api';
 import { resolveExerciseVideoUrl } from '../services/exerciseVideos';
 import { formatWorkoutDayLabel, normalizeWorkoutDayKey } from '../services/workoutDayLabel';
+import { useScrollToTopOnChange } from '../shared/scroll';
 
 interface WorkoutProps {
   onBack: () => void;
@@ -579,6 +580,8 @@ export function Workout({ onBack, workoutDay = 'Push Day', resetSignal = 0 }: Wo
   const [hasLatestSummary, setHasLatestSummary] = useState(false);
   const [lastAutoSummaryKey, setLastAutoSummaryKey] = useState('');
   const [postedSummaryTokens, setPostedSummaryTokens] = useState<string[]>([]);
+
+  useScrollToTopOnChange([view, resetSignal]);
 
   const normalizeExerciseName = (name: string) => String(name || '').trim().toLowerCase();
   const isSetCompleted = (setRow: any) =>

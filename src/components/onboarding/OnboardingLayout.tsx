@@ -2,6 +2,7 @@ import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ProgressSteps } from '../ui/ProgressSteps';
 import { ArrowLeft } from 'lucide-react';
+import { useScrollToTopOnChange } from '../../shared/scroll';
 
 interface OnboardingLayoutProps {
   children: React.ReactNode;
@@ -24,6 +25,8 @@ export function OnboardingLayout({
   showHeader = true,
   showProgress = true,
 }: OnboardingLayoutProps) {
+  useScrollToTopOnChange([currentStep]);
+
   return (
     <div className="min-h-screen px-4 py-6 sm:px-6 relative overflow-hidden">
       <div className="pointer-events-none absolute -top-20 -right-16 h-56 w-56 rounded-full blur-3xl bg-info/25" />

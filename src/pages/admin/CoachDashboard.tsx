@@ -11,6 +11,7 @@ import { WorkspacePlaceholderScreen } from '../../components/workspace/Workspace
 import { getWorkspacePage, getWorkspacePages } from '../../config/workspacePages';
 import { api } from '../../services/api';
 import { socketService } from '../../services/socket';
+import { useScrollToTopOnChange } from '../../shared/scroll';
 
 interface Client extends CoachPanelClient {
   lastMessage: string;
@@ -114,6 +115,8 @@ export const CoachDashboard: React.FC<CoachDashboardProps> = ({ onLogout }) => {
   const selectedClientRef = useRef<Client | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const typingTimeoutRef = useRef<number | null>(null);
+
+  useScrollToTopOnChange([view]);
 
   const formatDayLabel = (rawDay: string | undefined, fallbackIndex: number) => {
     const source = String(rawDay || `day-${fallbackIndex + 1}`).trim().toLowerCase();

@@ -32,16 +32,15 @@ export function Select({
   const listId = `${fieldId}-listbox`;
 
   const firstOptionValue = options[0]?.value ?? '';
-  const isControlled = value !== undefined && value !== null;
   const [internalValue, setInternalValue] = useState(
-    isControlled ? String(value) : String(defaultValue ?? firstOptionValue),
+    value !== undefined && value !== null ? String(value) : String(defaultValue ?? firstOptionValue),
   );
   const [isOpen, setIsOpen] = useState(false);
 
   useEffect(() => {
-    if (!isControlled) return;
+    if (value === undefined || value === null) return;
     setInternalValue(String(value ?? ''));
-  }, [isControlled, value]);
+  }, [value]);
 
   useEffect(() => {
     const onPointerDown = (event: MouseEvent) => {
@@ -54,7 +53,7 @@ export function Select({
     return () => document.removeEventListener('mousedown', onPointerDown);
   }, []);
 
-  const selectedValue = isControlled ? String(value ?? '') : internalValue;
+  const selectedValue = internalValue;
 
   const selectedOption = useMemo(
     () => options.find((opt) => String(opt.value) === selectedValue) || null,
@@ -62,9 +61,7 @@ export function Select({
   );
 
   const emitChange = (nextValue: string) => {
-    if (!isControlled) {
-      setInternalValue(nextValue);
-    }
+    setInternalValue(nextValue);
     onValueChange?.(nextValue);
 
     if (onChange) {
@@ -152,13 +149,23 @@ export function Select({
             <div className="max-h-64 overflow-y-auto py-1">
               {options.map((opt) => {
                 const isActive = String(opt.value) === selectedValue;
+                const optionValue = String(opt.value);
                 return (
                   <button
                     key={opt.value}
                     type="button"
                     role="option"
                     aria-selected={isActive}
-                    onClick={() => selectOption(String(opt.value))}
+                    onPointerDown={(event) => {
+                      event.preventDefault();
+                      selectOption(optionValue);
+                    }}
+                    onClick={(event) => {
+                      // Keyboard selection triggers click without pointer events.
+                      if (event.detail === 0) {
+                        selectOption(optionValue);
+                      }
+                    }}
                     className={`
                       w-full text-left px-4 py-3 text-sm transition-colors duration-150
                       ${isActive
@@ -179,4 +186,3 @@ export function Select({
     </div>
   );
 }
-

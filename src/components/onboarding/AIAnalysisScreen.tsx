@@ -38,6 +38,7 @@ export function AIAnalysisScreen({ onComplete, onboardingData, userId }: AIAnaly
         localStorage.removeItem('onboardingPlanSource');
         localStorage.removeItem('onboardingPlanWarning');
         localStorage.removeItem('onboardingCustomAdvice');
+        localStorage.removeItem('assignedProgramTemplate');
 
         const data = await api.saveOnboarding(Number(userId || 0), {
           ...(onboardingData || {}),
@@ -77,6 +78,7 @@ export function AIAnalysisScreen({ onComplete, onboardingData, userId }: AIAnaly
           error instanceof Error ? error.message : 'Failed to generate onboarding plan',
         );
         localStorage.removeItem('onboardingCustomAdvice');
+        localStorage.removeItem('assignedProgramTemplate');
       } finally {
         if (!cancelled) {
           setIsGenerationDone(true);

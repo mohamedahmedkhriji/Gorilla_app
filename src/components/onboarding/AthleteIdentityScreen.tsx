@@ -16,6 +16,8 @@ interface AthleteIdentityScreenProps {
   onboardingData?: {
     athleteIdentity?: string;
     athleteSubCategoryId?: string;
+    athleteSubCategoryIds?: string[];
+    athleteSubCategorySelections?: Record<string, string[]>;
   };
 }
 
@@ -38,6 +40,8 @@ type AthleteOption = {
   category: 'fitness' | 'athlete_sports';
   subGroups: AthleteSubGroup[];
 };
+
+type GroupSelectionMap = Record<string, string[]>;
 
 const ATHLETE_OPTIONS: AthleteOption[] = [
   {
@@ -265,6 +269,47 @@ const LEGACY_MAIN_ID_MAP: Record<string, string> = {
   swimmer: 'swimming',
 };
 
+const GROUP_SELECTION_LIMITS: Record<string, number> = {
+  football_position: 2,
+  football_goal: 2,
+  football_phase: 1,
+  basketball_role: 2,
+  basketball_goal: 2,
+  basketball_phase: 1,
+  handball_position: 2,
+  handball_goal: 2,
+  handball_phase: 1,
+  swimming_stroke: 2,
+  swimming_goal: 2,
+  swimming_phase: 1,
+  combat_sport_type: 2,
+  combat_goal: 2,
+  combat_phase: 1,
+};
+
+const getGroupLimit = (groupId: string) => GROUP_SELECTION_LIMITS[groupId] ?? 1;
+
+const coerceSelectionMap = (value: unknown): GroupSelectionMap => {
+  if (!value || typeof value !== 'object') return {};
+  const entries = Object.entries(value as Record<string, unknown>);
+  return entries.reduce<GroupSelectionMap>((acc, [groupId, ids]) => {
+    if (Array.isArray(ids)) {
+      acc[groupId] = ids.map((id) => String(id)).filter(Boolean);
+    }
+    return acc;
+  }, {});
+};
+
+const pickGroupForItem = (option: AthleteOption, itemId: string) =>
+  option.subGroups.find((group) => group.items.some((item) => item.id === itemId));
+
+const applyLimit = (current: string[], nextId: string, limit: number) => {
+  if (limit <= 1) return [nextId];
+  if (current.includes(nextId)) return current;
+  if (current.length < limit) return [...current, nextId];
+  return [...current.slice(1), nextId];
+};
+
 export function AthleteIdentityScreen({ onNext, onDataChange, onboardingData }: AthleteIdentityScreenProps) {
   const initialSelection = useMemo(() => {
     const saved = String(onboardingData?.athleteIdentity || '').trim().toLowerCase();
@@ -273,22 +318,56 @@ export function AthleteIdentityScreen({ onNext, onDataChange, onboardingData }: 
   }, [onboardingData?.athleteIdentity]);
 
   const [selectedId, setSelectedId] = useState(initialSelection);
-  const [selectedSubItemId, setSelectedSubItemId] = useState(String(onboardingData?.athleteSubCategoryId || '').trim());
+  const [selectedSubItemsByGroup, setSelectedSubItemsByGroup] = useState<GroupSelectionMap>(() => {
+    const option = ATHLETE_OPTIONS.find((entry) => entry.id === initialSelection);
+    if (!option) return {};
+
+    const fromMap = coerceSelectionMap(onboardingData?.athleteSubCategorySelections);
+    if (Object.keys(fromMap).length > 0) return fromMap;
+
+    const fromIds = Array.isArray(onboardingData?.athleteSubCategoryIds)
+      ? onboardingData?.athleteSubCategoryIds.map((id) => String(id))
+      : [];
+    const fromSingle = String(onboardingData?.athleteSubCategoryId || '').trim();
+    const rawIds = [...fromIds, fromSingle].filter(Boolean);
+    if (rawIds.length === 0) return {};
+
+    return rawIds.reduce<GroupSelectionMap>((acc, id) => {
+      const group = pickGroupForItem(option, id);
+      if (!group) return acc;
+      const limit = getGroupLimit(group.id);
+      const existing = acc[group.id] ?? [];
+      acc[group.id] = applyLimit(existing, id, limit);
+      return acc;
+    }, {});
+  });
 
   const selectedOption = useMemo(
     () => ATHLETE_OPTIONS.find((option) => option.id === selectedId) || null,
     [selectedId],
   );
 
-  const availableSubItems = useMemo(
-    () => (selectedOption ? selectedOption.subGroups.flatMap((group) => group.items.map((item) => item.id)) : []),
+  const availableSubItemsByGroup = useMemo(
+    () =>
+      selectedOption
+        ? selectedOption.subGroups.reduce<Record<string, Set<string>>>((acc, group) => {
+            acc[group.id] = new Set(group.items.map((item) => item.id));
+            return acc;
+          }, {})
+        : {},
     [selectedOption],
   );
 
-  const effectiveSubItemId = useMemo(
-    () => (availableSubItems.includes(selectedSubItemId) ? selectedSubItemId : ''),
-    [availableSubItems, selectedSubItemId],
-  );
+  const effectiveSelections = useMemo(() => {
+    if (!selectedOption) return {};
+    return selectedOption.subGroups.reduce<GroupSelectionMap>((acc, group) => {
+      const available = availableSubItemsByGroup[group.id] ?? new Set<string>();
+      const limit = getGroupLimit(group.id);
+      const current = (selectedSubItemsByGroup[group.id] ?? []).filter((id) => available.has(id));
+      acc[group.id] = limit > 0 ? current.slice(-limit) : current;
+      return acc;
+    }, {});
+  }, [availableSubItemsByGroup, selectedOption, selectedSubItemsByGroup]);
 
   const persistMainSelection = (option: AthleteOption) => {
     onDataChange?.({
@@ -299,13 +378,16 @@ export function AthleteIdentityScreen({ onNext, onDataChange, onboardingData }: 
   };
 
   const clearAllSelection = () => {
-    setSelectedSubItemId('');
+    setSelectedSubItemsByGroup({});
     onDataChange?.({
       athleteIdentity: '',
       athleteIdentityLabel: '',
       athleteIdentityCategory: '',
       athleteSubCategoryId: '',
       athleteSubCategoryLabel: '',
+      athleteSubCategoryIds: [],
+      athleteSubCategoryLabels: [],
+      athleteSubCategorySelections: {},
       athleteSubCategoryGroupId: '',
       athleteSubCategoryGroupLabel: '',
       athleteGoal: '',
@@ -323,10 +405,13 @@ export function AthleteIdentityScreen({ onNext, onDataChange, onboardingData }: 
     }
 
     setSelectedId(nextId);
-    setSelectedSubItemId('');
+    setSelectedSubItemsByGroup({});
     onDataChange?.({
       athleteSubCategoryId: '',
       athleteSubCategoryLabel: '',
+      athleteSubCategoryIds: [],
+      athleteSubCategoryLabels: [],
+      athleteSubCategorySelections: {},
       athleteSubCategoryGroupId: '',
       athleteSubCategoryGroupLabel: '',
       athleteGoal: '',
@@ -334,18 +419,57 @@ export function AthleteIdentityScreen({ onNext, onDataChange, onboardingData }: 
     persistMainSelection(selected);
   };
 
-  const handleSelectSub = (option: AthleteOption, group: AthleteSubGroup, item: AthleteSubItem) => {
-    setSelectedId(option.id);
-    setSelectedSubItemId(item.id);
+  const persistSubSelections = (option: AthleteOption, selections: GroupSelectionMap) => {
+    const groupDetails = option.subGroups.map((group) => {
+      const ids = selections[group.id] ?? [];
+      const labels = group.items.filter((item) => ids.includes(item.id)).map((item) => item.label);
+      return {
+        groupId: group.id,
+        groupTitle: group.title,
+        ids,
+        labels,
+      };
+    });
+
+    const allIds = groupDetails.flatMap((group) => group.ids);
+    const allLabels = groupDetails.flatMap((group) => group.labels);
+    const primaryGroup = groupDetails.find((group) => group.ids.length > 0);
+    const combinedLabel = allLabels.join(', ');
+
     onDataChange?.({
       athleteIdentity: option.id,
       athleteIdentityLabel: option.label,
       athleteIdentityCategory: option.category,
-      athleteSubCategoryId: item.id,
-      athleteSubCategoryLabel: item.label,
-      athleteSubCategoryGroupId: group.id,
-      athleteSubCategoryGroupLabel: group.title,
-      athleteGoal: item.label,
+      athleteSubCategoryId: allIds[0] || '',
+      athleteSubCategoryLabel: combinedLabel,
+      athleteSubCategoryIds: allIds,
+      athleteSubCategoryLabels: allLabels,
+      athleteSubCategorySelections: selections,
+      athleteSubCategoryGroupId: primaryGroup?.groupId || '',
+      athleteSubCategoryGroupLabel: primaryGroup?.groupTitle || '',
+      athleteGoal: combinedLabel,
+    });
+  };
+
+  const handleSelectSub = (option: AthleteOption, group: AthleteSubGroup, item: AthleteSubItem) => {
+    setSelectedId(option.id);
+    setSelectedSubItemsByGroup((prev) => {
+      const current = prev[group.id] ?? [];
+      const limit = getGroupLimit(group.id);
+      let nextSelection = current;
+
+      if (current.includes(item.id)) {
+        nextSelection = current.filter((id) => id !== item.id);
+      } else {
+        nextSelection = applyLimit(current, item.id, limit);
+      }
+
+      const next = {
+        ...prev,
+        [group.id]: nextSelection,
+      };
+      persistSubSelections(option, next);
+      return next;
     });
   };
 
@@ -357,10 +481,17 @@ export function AthleteIdentityScreen({ onNext, onDataChange, onboardingData }: 
 
       {option.subGroups.map((group) => (
         <div key={group.id} className="space-y-2">
-          <p className="text-sm font-semibold text-white">{group.title}</p>
+          <div className="flex items-center justify-between gap-2">
+            <p className="text-sm font-semibold text-white">{group.title}</p>
+            {getGroupLimit(group.id) > 1 ? (
+              <span className="text-[11px] uppercase tracking-[0.12em] text-text-tertiary">
+                Choose up to {getGroupLimit(group.id)}
+              </span>
+            ) : null}
+          </div>
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
             {group.items.map((item) => {
-              const isSelected = effectiveSubItemId === item.id;
+              const isSelected = Boolean(effectiveSelections[group.id]?.includes(item.id));
               return (
                 <button
                   key={`${group.id}-${item.id}`}
@@ -416,7 +547,10 @@ export function AthleteIdentityScreen({ onNext, onDataChange, onboardingData }: 
     );
   };
 
-  const canContinue = Boolean(selectedOption && effectiveSubItemId);
+  const canContinue = Boolean(
+    selectedOption &&
+      selectedOption.subGroups.every((group) => (effectiveSelections[group.id]?.length ?? 0) >= 1),
+  );
 
   return (
     <div className="flex-1 flex flex-col space-y-6">

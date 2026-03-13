@@ -10,6 +10,7 @@ import { PublicLandingPage } from './pages/PublicLandingPage';
 import { TabBar } from './components/ui/TabBar';
 import { SplashScreen } from './components/ui/SplashScreen';
 import { AnimatePresence, motion } from 'framer-motion';
+import { useScrollToTopOnChange } from './shared/scroll';
 
 export function App() {
   const [isLoading, setIsLoading] = useState(true);
@@ -31,6 +32,15 @@ export function App() {
       }
     }
   }, []);
+
+  useScrollToTopOnChange([
+    isLoading,
+    isLoggedIn,
+    hasOnboarded,
+    showLogin,
+    activeTab,
+    tabResetSignal,
+  ]);
 
   const handleNavigate = (tab: string, day?: string) => {
     setActiveTab(tab);

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Button } from '../ui/Button';
 import { Select } from '../ui/Select';
 interface GoalsAvailabilityScreenProps {
@@ -11,12 +11,54 @@ export function GoalsAvailabilityScreen({
   onDataChange,
   onboardingData,
 }: GoalsAvailabilityScreenProps) {
-  const initialDays = Number(onboardingData?.workoutDays || 4);
-  const [days, setDays] = useState(Math.max(2, Math.min(6, Number.isFinite(initialDays) ? Math.round(initialDays) : 4)));
-  const [duration, setDuration] = useState(String(onboardingData?.sessionDuration || '60'));
-  const [time, setTime] = useState(String(onboardingData?.preferredTime || 'evening'));
+  const normalizeDays = (value: unknown) => {
+    const parsed = Number(value);
+    if (!Number.isFinite(parsed)) return 4;
+    return Math.max(2, Math.min(6, Math.round(parsed)));
+  };
+
+  const normalizeDuration = (value: unknown) => {
+    const normalized = String(value || '').trim();
+    if (['30', '45', '60', '90'].includes(normalized)) return normalized;
+    return '60';
+  };
+
+  const normalizeTime = (value: unknown) => {
+    const normalized = String(value || '').trim().toLowerCase();
+    if (['morning', 'afternoon', 'evening'].includes(normalized)) return normalized;
+    return 'evening';
+  };
+
+  const [days, setDays] = useState(normalizeDays(onboardingData?.workoutDays));
+  const [duration, setDuration] = useState(normalizeDuration(onboardingData?.sessionDuration));
+  const [time, setTime] = useState(normalizeTime(onboardingData?.preferredTime));
+
+  useEffect(() => {
+    setDays(normalizeDays(onboardingData?.workoutDays));
+  }, [onboardingData?.workoutDays]);
+
+  useEffect(() => {
+    setDuration(normalizeDuration(onboardingData?.sessionDuration));
+  }, [onboardingData?.sessionDuration]);
+
+  useEffect(() => {
+    setTime(normalizeTime(onboardingData?.preferredTime));
+  }, [onboardingData?.preferredTime]);
+
+  useEffect(() => {
+    onDataChange?.({
+      workoutDays: days,
+      sessionDuration: duration,
+      preferredTime: time,
+    });
+  }, [days, duration, onDataChange, time]);
 
   const handleNext = () => {
+    onDataChange?.({
+      workoutDays: days,
+      sessionDuration: duration,
+      preferredTime: time,
+    });
     onNext();
   };
 
@@ -43,7 +85,6 @@ export function GoalsAvailabilityScreen({
             onChange={(e) => {
               const nextDays = parseInt(e.target.value, 10);
               setDays(nextDays);
-              onDataChange?.({ workoutDays: nextDays });
             }}
             className="w-full h-2 bg-card rounded-lg appearance-none cursor-pointer accent-accent" />
 
@@ -58,10 +99,8 @@ export function GoalsAvailabilityScreen({
         <Select
           label="Session Duration"
           value={duration}
-          onChange={(e) => {
-            const nextValue = e.target.value;
+          onValueChange={(nextValue) => {
             setDuration(nextValue);
-            onDataChange?.({ sessionDuration: nextValue });
           }}
           options={[
           {
@@ -86,10 +125,8 @@ export function GoalsAvailabilityScreen({
         <Select
           label="Preferred Time"
           value={time}
-          onChange={(e) => {
-            const nextValue = e.target.value;
+          onValueChange={(nextValue) => {
             setTime(nextValue);
-            onDataChange?.({ preferredTime: nextValue });
           }}
           options={[
           {

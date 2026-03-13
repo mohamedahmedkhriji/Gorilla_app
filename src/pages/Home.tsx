@@ -22,6 +22,7 @@ import { RankingsRewardsScreen } from '../components/profile/RankingsRewardsScre
 import { api } from '../services/api';
 import { getRankBadgeImage } from '../services/rankTheme';
 import { emojiShop } from '../services/emojiTheme';
+import { useScrollToTopOnChange } from '../shared/scroll';
 interface HomeProps {
   onNavigate: (tab: string, day?: string) => void;
   resetSignal?: number;
@@ -377,6 +378,8 @@ export function Home({ onNavigate, resetSignal = 0 }: HomeProps) {
   const [storedTodayExerciseSnapshot, setStoredTodayExerciseSnapshot] = useState<any[]>(
     () => loadTodayExerciseSnapshot(workoutStorageKeys),
   );
+
+  useScrollToTopOnChange([view, resetSignal]);
   const todayWorkoutExercises = useMemo(() => {
     const baseExercises = normalizeTodayWorkoutExercises(todayWorkoutData?.exercises);
     const extraExercises = normalizeTodayWorkoutExercises(extraTodayExercises);

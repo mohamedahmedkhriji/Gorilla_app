@@ -9,7 +9,7 @@ interface PersonalInfoScreenProps {
 }
 export function PersonalInfoScreen({ onNext, onDataChange, onboardingData }: PersonalInfoScreenProps) {
   const [age, setAge] = useState(String(onboardingData?.age ?? ''));
-  const [gender, setGender] = useState(String(onboardingData?.gender ?? ''));
+  const [gender, setGender] = useState(String(onboardingData?.gender ?? '').trim().toLowerCase());
   const [height, setHeight] = useState(String(onboardingData?.height ?? ''));
   const [weight, setWeight] = useState(String(onboardingData?.weight ?? ''));
   const [errors, setErrors] = useState<{ age?: string; gender?: string; height?: string; weight?: string }>({});
@@ -42,7 +42,12 @@ export function PersonalInfoScreen({ onNext, onDataChange, onboardingData }: Per
 
   const handleNext = () => {
     if (!validate()) return;
-    onDataChange?.({ age: parseInt(age, 10), gender, height: parseFloat(height), weight: parseFloat(weight) });
+    onDataChange?.({
+      age: parseInt(age, 10),
+      gender: gender.trim().toLowerCase(),
+      height: parseFloat(height),
+      weight: parseFloat(weight),
+    });
     onNext();
   };
 
@@ -79,10 +84,9 @@ export function PersonalInfoScreen({ onNext, onDataChange, onboardingData }: Per
         <Select
           label="Gender"
           value={gender}
-          onChange={(e) => {
-            const nextValue = e.target.value;
+          onValueChange={(nextValue) => {
             setGender(nextValue);
-            onDataChange?.({ gender: nextValue.trim() });
+            onDataChange?.({ gender: nextValue.trim().toLowerCase() });
             if (errors.gender) setErrors((prev) => ({ ...prev, gender: undefined }));
           }}
           placeholder="Select gender"
@@ -95,11 +99,11 @@ export function PersonalInfoScreen({ onNext, onDataChange, onboardingData }: Per
             label: 'Select gender'
           },
           {
-            value: 'Male',
+            value: 'male',
             label: 'Male'
           },
           {
-            value: 'Female',
+            value: 'female',
             label: 'Female'
           }]
           } />

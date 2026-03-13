@@ -10,6 +10,7 @@ import { BrandLogo } from '../../components/ui/BrandLogo';
 import { WorkspaceGrid } from '../../components/workspace/WorkspaceGrid';
 import { WorkspacePlaceholderScreen } from '../../components/workspace/WorkspacePlaceholderScreen';
 import { getWorkspacePage, getWorkspacePages } from '../../config/workspacePages';
+import { useScrollToTopOnChange } from '../../shared/scroll';
 
 type Gym = {
   id: string;
@@ -57,6 +58,8 @@ export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({ onLogo
 
   const [gyms, setGyms] = useState<Gym[]>([]);
   const [userGrowth, setUserGrowth] = useState<GrowthPoint[]>([]);
+
+  useScrollToTopOnChange([view]);
 
   useEffect(() => {
     setStats({

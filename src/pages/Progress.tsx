@@ -9,6 +9,7 @@ import { ExerciseProgressScreen } from '../components/progress/ExerciseProgressS
 import { AIInsightsScreen } from '../components/progress/AIInsightsScreen';
 import { WeeklyCheckInScreen } from '../components/progress/WeeklyCheckInScreen';
 import { StrengthScoreScreen } from '../components/progress/StrengthScoreScreen';
+import { useScrollToTopOnChange } from '../shared/scroll';
 interface ProgressProps {
   resetSignal?: number;
 }
@@ -17,6 +18,8 @@ export function Progress({ resetSignal = 0 }: ProgressProps) {
   const [view, setView] = useState<'dashboard' | 'report' | 'recovery' | 'measurements' | 'photos' | 'exercise' | 'insights' | 'weeklyCheckin' | 'strengthScore'>(
     'dashboard'
   );
+
+  useScrollToTopOnChange([view, resetSignal]);
 
   React.useEffect(() => {
     setView('dashboard');

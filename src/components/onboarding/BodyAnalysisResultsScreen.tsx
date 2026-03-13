@@ -172,10 +172,8 @@ export function BodyAnalysisResultsScreen({
   const weight = toNumber(input.weight);
   const gender = formatGender(input.gender);
 
-  const trainingDays = Math.max(
-    2,
-    Math.min(6, Number(assignedProgram?.daysPerWeek || toNumber(input.workoutDays) || 4)),
-  );
+  const preferredTrainingDays = toNumber(input.workoutDays) ?? toNumber(assignedProgram?.daysPerWeek) ?? 4;
+  const trainingDays = Math.max(2, Math.min(6, Math.round(preferredTrainingDays)));
   const level = formatLevel(input.experienceLevel);
   const split = formatSplit(
     input.workoutSplitLabel,

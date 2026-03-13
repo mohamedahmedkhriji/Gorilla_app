@@ -14,6 +14,7 @@ import { CoachList } from './CoachList';
 import { Messaging } from './Messaging';
 import { api } from '../services/api';
 import { ArrowLeft, Bell, Settings } from 'lucide-react';
+import { useScrollToTopOnChange } from '../shared/scroll';
 interface ProfileProps {
   onNavigateTab?: (tab: string, day?: string) => void;
   resetSignal?: number;
@@ -25,6 +26,8 @@ export function Profile({ onNavigateTab, resetSignal = 0 }: ProfileProps) {
   const [selectedFriend, setSelectedFriend] = useState<FriendMember | null>(null);
   const [selectedCoach, setSelectedCoach] = useState<{id: number, name: string} | null>(null);
   const [unreadCount, setUnreadCount] = useState(0);
+
+  useScrollToTopOnChange([view, resetSignal]);
 
   const userId = useMemo(() => {
     const user = JSON.parse(localStorage.getItem('appUser') || localStorage.getItem('user') || '{}');
