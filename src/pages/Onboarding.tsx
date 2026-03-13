@@ -303,13 +303,22 @@ export function Onboarding({ onComplete }: OnboardingProps) {
   }, [currentStepId, steps]);
 
   const next = useCallback(() => {
-    setCurrentStepId((prev) => {
-      if (!steps.length) return null;
-      const index = steps.findIndex((step) => step.id === prev);
-      if (index < 0) return steps[0].id;
-      return steps[index + 1]?.id ?? null;
-    });
-  }, [steps]);
+    if (!steps.length) return;
+
+    const index = steps.findIndex((step) => step.id === currentStepId);
+    if (index < 0) {
+      setCurrentStepId(steps[0].id);
+      return;
+    }
+
+    const nextStep = steps[index + 1];
+    if (!nextStep) {
+      void handleComplete();
+      return;
+    }
+
+    setCurrentStepId(nextStep.id);
+  }, [currentStepId, handleComplete, steps]);
 
   const back = useCallback(() => {
     setCurrentStepId((prev) => {

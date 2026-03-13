@@ -9,11 +9,13 @@ import { createRoot } from "react-dom/client";
 import { App } from "./App";
 import { initializeTheme } from './services/theme';
 import { initializeLanguage } from './services/language';
+import { registerServiceWorker } from './services/pwa';
 import { initializeRuntimeTranslator } from './services/runtimeTranslator';
 
 initializeTheme();
 initializeLanguage();
 initializeRuntimeTranslator();
+registerServiceWorker();
 
 const container = document.getElementById("root");
 if (!container) {

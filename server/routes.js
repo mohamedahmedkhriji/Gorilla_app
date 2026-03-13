@@ -3949,148 +3949,169 @@ router.post('/user/onboarding', async (req, res) => {
       ],
     );
 
+    await conn.query('SAVEPOINT onboarding_user_profile_saved');
+
     let assignedProgram = null;
     let assignmentInfo = null;
     let claudePlan = null;
     let customAdvice = null;
     let planSource = 'template';
 
-    if (!assignedProgram && !assignmentInfo && normalizedSplitPreference === 'custom' && hasCustomPlanPayload) {
-      let customDraft;
-      try {
-        customDraft = await buildCustomProgramDraft(conn, normalizedUserId, customPlan);
-      } catch (validationError) {
-        await conn.rollback();
-        const message = validationError?.message || 'Invalid custom plan payload';
-        if (message === 'User not found') {
-          return res.status(404).json({ error: message });
+    try {
+      if (!assignedProgram && !assignmentInfo && normalizedSplitPreference === 'custom' && hasCustomPlanPayload) {
+        let customDraft;
+        try {
+          customDraft = await buildCustomProgramDraft(conn, normalizedUserId, customPlan);
+        } catch (validationError) {
+          await conn.rollback();
+          const message = validationError?.message || 'Invalid custom plan payload';
+          if (message === 'User not found') {
+            return res.status(404).json({ error: message });
+          }
+          return res.status(400).json({ error: message });
         }
-        return res.status(400).json({ error: message });
-      }
 
-      const result = await persistCustomProgramDraft(conn, {
-        userId: normalizedUserId,
-        draft: customDraft,
-        assignmentReason: 'user_request',
-        assignmentNote: `Onboarding custom plan: ${customDraft.cycleWeeks} weeks, ${customDraft.selectedDays.length} days/week`,
-        assignmentSource: 'manual',
-        actorUserId: normalizedUserId,
-      });
-
-      assignedProgram = result.assignedProgram;
-      assignmentInfo = result.assignment;
-      planSource = 'custom_user';
-      customAdvice = buildCustomPlanAdvice({
-        draft: customDraft,
-        normalizedGoal,
-        normalizedExperience: normalizedExperience || 'intermediate',
-        normalizedDays,
-        normalizedSessionDuration,
-      });
-    }
-
-    if (!assignedProgram && !assignmentInfo && aiPlanRequested && claudeGeneration) {
-      await conn.query('SAVEPOINT onboarding_claude_plan');
-      try {
-        const customPayload = buildCustomProgramPayloadFromClaudePlan(claudeGeneration.plan, {
-          daysPerWeek: normalizedDays,
-          cycleWeeks: 8,
-          splitPreference: normalizedSplitPreference,
-          exerciseAnchors: claudeExerciseAnchors,
-        });
-
-        const draft = await buildCustomProgramDraft(conn, normalizedUserId, customPayload);
-        const persisted = await persistCustomProgramDraft(conn, {
+        const result = await persistCustomProgramDraft(conn, {
           userId: normalizedUserId,
-          draft,
+          draft: customDraft,
           assignmentReason: 'user_request',
-          assignmentNote: `Claude onboarding plan: goal=${normalizedGoal}, days=${normalizedDays}, level=${normalizedExperience || 'unknown'}${normalizedOnboardingReason ? `, reason=${normalizedOnboardingReason}` : ''}${hasExplicitSplitPreference ? `, split=${normalizedSplitPreference}` : ''}${normalizedAiTrainingFocus ? `, focus=${normalizedAiTrainingFocus}` : ''}${normalizedAiRecoveryPriority ? `, recovery=${normalizedAiRecoveryPriority}` : ''}`,
-          assignmentSource: 'ai',
+          assignmentNote: `Onboarding custom plan: ${customDraft.cycleWeeks} weeks, ${customDraft.selectedDays.length} days/week`,
+          assignmentSource: 'manual',
           actorUserId: normalizedUserId,
         });
 
-        assignedProgram = persisted.assignedProgram;
-        assignmentInfo = persisted.assignment;
-        planSource = 'claude';
-        claudePlan = {
-          model: claudeGeneration.model,
-          usedImages: claudeGeneration.usedImages,
-          planName: claudeGeneration.plan.planName,
-          summary: claudeGeneration.plan.summary,
-          goalMatch: claudeGeneration.plan.goalMatch,
-          durationWeeks: claudeGeneration.plan.durationWeeks,
-          weeklySchedule: claudeGeneration.plan.weeklySchedule,
-          progressionRules: claudeGeneration.plan.progressionRules,
-          recoveryRules: claudeGeneration.plan.recoveryRules,
-          nutritionGuidance: claudeGeneration.plan.nutritionGuidance,
-          checkpoints: claudeGeneration.plan.checkpoints,
-        };
-      } catch (claudeError) {
-        await conn.query('ROLLBACK TO SAVEPOINT onboarding_claude_plan');
-        const rawWarning = claudeError?.message || 'Claude onboarding generation failed';
-        if (
-          /unexpected end of json input|invalid json|json was incomplete|did not contain a json object|no text content/i.test(rawWarning)
-        ) {
-          warning = 'Claude returned incomplete JSON. Template generator was used for this run.';
-        } else if (
-          /cloudflare|502|503|504|temporarily unavailable|gateway|timed out|timeout|rate limit|429/i.test(rawWarning)
-        ) {
-          warning = 'Claude is temporarily unavailable. Template generator was used for this run.';
-        } else {
-          warning = rawWarning;
+        assignedProgram = result.assignedProgram;
+        assignmentInfo = result.assignment;
+        planSource = 'custom_user';
+        customAdvice = buildCustomPlanAdvice({
+          draft: customDraft,
+          normalizedGoal,
+          normalizedExperience: normalizedExperience || 'intermediate',
+          normalizedDays,
+          normalizedSessionDuration,
+        });
+      }
+
+      if (!assignedProgram && !assignmentInfo && aiPlanRequested && claudeGeneration) {
+        await conn.query('SAVEPOINT onboarding_claude_plan');
+        try {
+          const customPayload = buildCustomProgramPayloadFromClaudePlan(claudeGeneration.plan, {
+            daysPerWeek: normalizedDays,
+            cycleWeeks: 8,
+            splitPreference: normalizedSplitPreference,
+            exerciseAnchors: claudeExerciseAnchors,
+          });
+
+          const draft = await buildCustomProgramDraft(conn, normalizedUserId, customPayload);
+          const persisted = await persistCustomProgramDraft(conn, {
+            userId: normalizedUserId,
+            draft,
+            assignmentReason: 'user_request',
+            assignmentNote: `Claude onboarding plan: goal=${normalizedGoal}, days=${normalizedDays}, level=${normalizedExperience || 'unknown'}${normalizedOnboardingReason ? `, reason=${normalizedOnboardingReason}` : ''}${hasExplicitSplitPreference ? `, split=${normalizedSplitPreference}` : ''}${normalizedAiTrainingFocus ? `, focus=${normalizedAiTrainingFocus}` : ''}${normalizedAiRecoveryPriority ? `, recovery=${normalizedAiRecoveryPriority}` : ''}`,
+            assignmentSource: 'ai',
+            actorUserId: normalizedUserId,
+          });
+
+          assignedProgram = persisted.assignedProgram;
+          assignmentInfo = persisted.assignment;
+          planSource = 'claude';
+          claudePlan = {
+            model: claudeGeneration.model,
+            usedImages: claudeGeneration.usedImages,
+            planName: claudeGeneration.plan.planName,
+            summary: claudeGeneration.plan.summary,
+            goalMatch: claudeGeneration.plan.goalMatch,
+            durationWeeks: claudeGeneration.plan.durationWeeks,
+            weeklySchedule: claudeGeneration.plan.weeklySchedule,
+            progressionRules: claudeGeneration.plan.progressionRules,
+            recoveryRules: claudeGeneration.plan.recoveryRules,
+            nutritionGuidance: claudeGeneration.plan.nutritionGuidance,
+            checkpoints: claudeGeneration.plan.checkpoints,
+          };
+        } catch (claudeError) {
+          await conn.query('ROLLBACK TO SAVEPOINT onboarding_claude_plan');
+          const rawWarning = claudeError?.message || 'Claude onboarding generation failed';
+          if (
+            /unexpected end of json input|invalid json|json was incomplete|did not contain a json object|no text content/i.test(rawWarning)
+          ) {
+            warning = 'Claude returned incomplete JSON. Template generator was used for this run.';
+          } else if (
+            /cloudflare|502|503|504|temporarily unavailable|gateway|timed out|timeout|rate limit|429/i.test(rawWarning)
+          ) {
+            warning = 'Claude is temporarily unavailable. Template generator was used for this run.';
+          } else {
+            warning = rawWarning;
+          }
+          console.warn('[onboarding] Claude generation failed, fallback to template:', rawWarning);
         }
-        console.warn('[onboarding] Claude generation failed, fallback to template:', rawWarning);
       }
-    }
 
-    if (!assignedProgram && !assignmentInfo && hasExplicitSplitPreference && templateEligibleSplit) {
-      const templateResult = await assignTemplateProgramFromLibrary(conn, {
-        userId: normalizedUserId,
-        splitPreference: normalizedSplitPreference,
-        note: `Template onboarding plan: goal=${normalizedGoal}, days=${normalizedDays}, level=${normalizedExperience || 'unknown'}${normalizedOnboardingReason ? `, reason=${normalizedOnboardingReason}` : ''}${hasExplicitSplitPreference ? `, split=${normalizedSplitPreference}` : ''}`,
-      });
-      if (templateResult) {
-        assignedProgram = templateResult.assignedProgram;
-        assignmentInfo = templateResult.assignment;
-        planSource = 'template_library';
+      if (!assignedProgram && !assignmentInfo && hasExplicitSplitPreference && templateEligibleSplit) {
+        const templateResult = await assignTemplateProgramFromLibrary(conn, {
+          userId: normalizedUserId,
+          splitPreference: normalizedSplitPreference,
+          note: `Template onboarding plan: goal=${normalizedGoal}, days=${normalizedDays}, level=${normalizedExperience || 'unknown'}${normalizedOnboardingReason ? `, reason=${normalizedOnboardingReason}` : ''}${hasExplicitSplitPreference ? `, split=${normalizedSplitPreference}` : ''}`,
+        });
+        if (templateResult) {
+          assignedProgram = templateResult.assignedProgram;
+          assignmentInfo = templateResult.assignment;
+          planSource = 'template_library';
+        }
       }
-    }
 
-    if (!assignedProgram || !assignmentInfo) {
-      const generatedProgram = await generatePersonalizedProgram(conn, {
-        userId: normalizedUserId,
-        gymId: normalizedGymId,
-        goal: normalizedGoal,
-        experienceLevel: normalizedExperience || 'intermediate',
-        daysPerWeek: normalizedDays,
-        cycleWeeks: 12,
-        splitPreference: normalizedSplitPreference,
-        equipment: equipmentProfile,
-        notes: `Generated from onboarding: goal=${normalizedGoal}, days=${normalizedDays}, level=${normalizedExperience || 'unknown'}${normalizedOnboardingReason ? `, reason=${normalizedOnboardingReason}` : ''}${hasExplicitSplitPreference ? `, split=${normalizedSplitPreference}` : ''}${normalizedAiTrainingFocus ? `, focus=${normalizedAiTrainingFocus}` : ''}${normalizedAiRecoveryPriority ? `, recovery=${normalizedAiRecoveryPriority}` : ''}`,
-      });
+      if (!assignedProgram || !assignmentInfo) {
+        const generatedProgram = await generatePersonalizedProgram(conn, {
+          userId: normalizedUserId,
+          gymId: normalizedGymId,
+          goal: normalizedGoal,
+          experienceLevel: normalizedExperience || 'intermediate',
+          daysPerWeek: normalizedDays,
+          cycleWeeks: 12,
+          splitPreference: normalizedSplitPreference,
+          equipment: equipmentProfile,
+          notes: `Generated from onboarding: goal=${normalizedGoal}, days=${normalizedDays}, level=${normalizedExperience || 'unknown'}${normalizedOnboardingReason ? `, reason=${normalizedOnboardingReason}` : ''}${hasExplicitSplitPreference ? `, split=${normalizedSplitPreference}` : ''}${normalizedAiTrainingFocus ? `, focus=${normalizedAiTrainingFocus}` : ''}${normalizedAiRecoveryPriority ? `, recovery=${normalizedAiRecoveryPriority}` : ''}`,
+        });
 
-      assignmentInfo = await assignProgramToUser(conn, {
-        userId: normalizedUserId,
-        programId: generatedProgram.programId,
-        reason: 'user_request',
-        note: `Auto-generated plan from onboarding: goal=${normalizedGoal}, days=${normalizedDays}, level=${normalizedExperience || 'unknown'}${normalizedOnboardingReason ? `, reason=${normalizedOnboardingReason}` : ''}${hasExplicitSplitPreference ? `, split=${normalizedSplitPreference}` : ''}`,
-      });
+        assignmentInfo = await assignProgramToUser(conn, {
+          userId: normalizedUserId,
+          programId: generatedProgram.programId,
+          reason: 'user_request',
+          note: `Auto-generated plan from onboarding: goal=${normalizedGoal}, days=${normalizedDays}, level=${normalizedExperience || 'unknown'}${normalizedOnboardingReason ? `, reason=${normalizedOnboardingReason}` : ''}${hasExplicitSplitPreference ? `, split=${normalizedSplitPreference}` : ''}`,
+        });
 
-      assignedProgram = {
-        id: generatedProgram.programId,
-        name: generatedProgram.name,
-        programType: generatedProgram.programType,
-        goal: generatedProgram.goal,
-        daysPerWeek: generatedProgram.daysPerWeek,
-        cycleWeeks: generatedProgram.cycleWeeks,
-      };
-      planSource = 'template';
+        assignedProgram = {
+          id: generatedProgram.programId,
+          name: generatedProgram.name,
+          programType: generatedProgram.programType,
+          goal: generatedProgram.goal,
+          daysPerWeek: generatedProgram.daysPerWeek,
+          cycleWeeks: generatedProgram.cycleWeeks,
+        };
+        planSource = 'template';
+      }
+    } catch (planError) {
+      await conn.query('ROLLBACK TO SAVEPOINT onboarding_user_profile_saved');
+      const rawWarning = planError?.message || 'Plan generation failed after onboarding data was saved';
+      warning = warning || rawWarning;
+      assignedProgram = null;
+      assignmentInfo = null;
+      claudePlan = null;
+      customAdvice = null;
+      planSource = 'profile_only';
+      console.warn('[onboarding] Plan generation failed after onboarding profile save:', rawWarning);
     }
 
     await conn.commit();
 
+    const [savedUserRows] = await pool.execute(
+      'SELECT * FROM users WHERE id = ? LIMIT 1',
+      [normalizedUserId],
+    );
+    const savedUser = savedUserRows.length ? normalizeUser(savedUserRows[0]) : null;
+
     return res.json({
       success: true,
+      user: savedUser,
       assignedProgram,
       assignment: assignmentInfo,
       planSource,

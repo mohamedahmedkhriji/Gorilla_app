@@ -26,12 +26,6 @@ type CatalogExercise = {
   bodyPart?: string | null;
 };
 
-type RecoveryItem = {
-  muscle?: string;
-  name?: string;
-  score?: number;
-};
-
 type WorkoutExerciseCard = {
   name: string;
   sets: number;
@@ -42,14 +36,6 @@ type WorkoutExerciseCard = {
   targetMuscles: string[];
 };
 
-const readStoredUser = () => {
-  try {
-    return JSON.parse(localStorage.getItem('appUser') || localStorage.getItem('user') || '{}');
-  } catch {
-    return {};
-  }
-};
-
 const toTitleCase = (value: string) =>
   String(value || '')
     .trim()
@@ -58,6 +44,29 @@ const toTitleCase = (value: string) =>
     .filter(Boolean)
     .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
     .join(' ');
+
+const canonicalizeMuscleLabel = (value: unknown) => {
+  const key = String(value || '').trim().toLowerCase();
+  if (!key) return '';
+
+  if (key.includes('rear delt') || key.includes('rear deltoid') || key.includes('posterior delt')) return 'Rear Shoulders';
+  if (key.includes('lateral delt') || key.includes('side delt') || key.includes('medial delt')) return 'Side Shoulders';
+  if (key.includes('front delt') || key.includes('anterior delt') || key.includes('front deltoid')) return 'Front Shoulders';
+  if (key.includes('shoulder') || key.includes('delt')) return 'Shoulders';
+  if (key.includes('tricep') || key.includes('triceps brachii')) return 'Triceps';
+  if (key.includes('bicep') || key.includes('biceps brachii') || key.includes('brachialis')) return 'Biceps';
+  if (key.includes('chest') || key.includes('pect')) return 'Chest';
+  if (key.includes('back') || key.includes('lat') || key.includes('trap') || key.includes('rhomboid')) return 'Back';
+  if (key.includes('quad') || key.includes('thigh')) return 'Quadriceps';
+  if (key.includes('hamstring')) return 'Hamstrings';
+  if (key.includes('calf')) return 'Calves';
+  if (key.includes('abs') || key.includes('core') || key.includes('oblique') || key.includes('abdom')) return 'Abs';
+  if (key.includes('glute')) return 'Glutes';
+  if (key.includes('forearm') || key.includes('grip') || key.includes('wrist')) return 'Forearms';
+  if (key.includes('adductor')) return 'Adductors';
+
+  return toTitleCase(key);
+};
 
 const inferMusclesFromExerciseName = (exerciseName = '') => {
   const name = String(exerciseName).toLowerCase();
@@ -73,7 +82,7 @@ const inferMusclesFromExerciseName = (exerciseName = '') => {
   if (/calf/.test(name)) matches.push('Calves');
   if (/abs|core|crunch|plank|sit-up|sit up/.test(name)) matches.push('Abs');
 
-  return [...new Set(matches.map((entry) => toTitleCase(entry)).filter(Boolean))];
+  return [...new Set(matches.map((entry) => canonicalizeMuscleLabel(entry)).filter(Boolean))];
 };
 
 const getMuscleImage = (muscle: string) => getBodyPartImage(muscle);
@@ -86,7 +95,7 @@ const formatRestLabel = (rest: unknown) => {
 
 const resolvePrimaryExerciseMuscle = (exercise: WorkoutExerciseCard) => {
   const inferredMuscles = inferMusclesFromExerciseName(exercise.name);
-  const normalizedTargets = exercise.targetMuscles.map((entry) => toTitleCase(String(entry || ''))).filter(Boolean);
+  const normalizedTargets = exercise.targetMuscles.map((entry) => canonicalizeMuscleLabel(entry)).filter(Boolean);
 
   for (const inferred of inferredMuscles) {
     const match = normalizedTargets.find((target) => target.toLowerCase() === inferred.toLowerCase());
@@ -111,7 +120,6 @@ export function WorkoutPlanScreen({
   todayExercises,
   loading,
 }: WorkoutPlanScreenProps) {
-  const [recoveryByMuscle, setRecoveryByMuscle] = useState<Record<string, number>>({});
   const [catalog, setCatalog] = useState<CatalogExercise[]>([]);
   const [catalogLoading, setCatalogLoading] = useState(false);
   const [catalogLoaded, setCatalogLoaded] = useState(false);
@@ -124,32 +132,6 @@ export function WorkoutPlanScreen({
   const [missDayFeedback, setMissDayFeedback] = useState<string | null>(null);
   const [isSubmittingExercise, setIsSubmittingExercise] = useState(false);
   const [isSubmittingMissDay, setIsSubmittingMissDay] = useState(false);
-
-  useEffect(() => {
-    const loadRecovery = async () => {
-      const user = readStoredUser();
-      if (!user?.id) {
-        setRecoveryByMuscle({});
-        return;
-      }
-
-      try {
-        const data = await api.getRecoveryStatus(user.id);
-        const lookup = (Array.isArray(data?.recovery) ? data.recovery : []).reduce((acc: Record<string, number>, item: RecoveryItem) => {
-          const key = String(item?.name || item?.muscle || '').trim().toLowerCase();
-          const score = Number(item?.score || 0);
-          if (!key) return acc;
-          acc[key] = Number.isFinite(score) ? Math.max(0, Math.min(100, Math.round(score))) : 100;
-          return acc;
-        }, {});
-        setRecoveryByMuscle(lookup);
-      } catch {
-        setRecoveryByMuscle({});
-      }
-    };
-
-    void loadRecovery();
-  }, []);
 
   useEffect(() => {
     if (!isAddModalOpen || catalogLoaded || catalogLoading) return;
@@ -184,9 +166,9 @@ export function WorkoutPlanScreen({
 
   const exercises: WorkoutExerciseCard[] = todayExercises.map((ex) => {
     const targetMuscles = Array.isArray(ex?.targetMuscles) && ex.targetMuscles.length
-      ? ex.targetMuscles.map((entry: unknown) => toTitleCase(String(entry || ''))).filter(Boolean)
+      ? ex.targetMuscles.map((entry: unknown) => canonicalizeMuscleLabel(entry)).filter(Boolean)
       : ex?.muscleGroup
-        ? [toTitleCase(String(ex.muscleGroup))]
+        ? [canonicalizeMuscleLabel(ex.muscleGroup)]
         : inferMusclesFromExerciseName(String(ex.exerciseName || ex.name || ''));
 
     return {
@@ -216,30 +198,36 @@ export function WorkoutPlanScreen({
     })
   ), [exercises]);
 
-  const targetMuscles = exercises.reduce((acc: Array<{ name: string; score: number }>, exercise) => {
-    exercise.targetMuscles.forEach((muscle) => {
-      const normalized = toTitleCase(muscle);
-      if (!normalized || acc.some((entry) => entry.name === normalized)) return;
-      acc.push({
-        name: normalized,
-        score: recoveryByMuscle[normalized.toLowerCase()] ?? 100,
+  const displayTargetMuscles = useMemo(() => {
+    const plannedLoadByMuscle = new Map<string, number>();
+
+    exercises.forEach((exercise) => {
+      const muscles = exercise.targetMuscles
+        .map((entry) => canonicalizeMuscleLabel(entry))
+        .filter(Boolean);
+      if (!muscles.length) return;
+
+      const setCount = Math.max(1, Number.isFinite(exercise.sets) ? exercise.sets : Number(exercise.sets || 0) || 1);
+      const contribution = setCount / muscles.length;
+
+      muscles.forEach((muscle) => {
+        plannedLoadByMuscle.set(muscle, (plannedLoadByMuscle.get(muscle) || 0) + contribution);
       });
     });
-    return acc;
-  }, []).slice(0, 4);
 
-  const displayTargetMuscles = useMemo(() => {
-    if (targetMuscles.length > 0) return targetMuscles;
+    const totalLoad = Array.from(plannedLoadByMuscle.values()).reduce((sum, value) => sum + value, 0);
+    if (totalLoad <= 0) return [];
 
-    return Object.entries(recoveryByMuscle)
-      .map(([name, score]) => ({
-        name: toTitleCase(name),
-        score: Number.isFinite(Number(score)) ? Math.max(0, Math.min(100, Number(score))) : 100,
+    return Array.from(plannedLoadByMuscle.entries())
+      .map(([name, load]) => ({
+        name,
+        score: Math.max(1, Math.round((load / totalLoad) * 100)),
+        load,
       }))
-      .filter((entry) => entry.name)
-      .sort((left, right) => left.name.localeCompare(right.name))
-      .slice(0, 4);
-  }, [targetMuscles, recoveryByMuscle]);
+      .sort((left, right) => right.load - left.load || left.name.localeCompare(right.name))
+      .slice(0, 4)
+      .map(({ name, score }) => ({ name, score }));
+  }, [exercises]);
 
   const catalogMuscles = useMemo(() => {
     const counts = new Map<string, number>();
@@ -388,7 +376,7 @@ export function WorkoutPlanScreen({
           </div>
         )}
         {!isRestDayView && (
-          <div className="space-y-3">
+          <div className="space-y-3" data-no-translate="true">
             <div className="text-xs font-bold uppercase tracking-wider text-text-secondary">
               Target Muscles
             </div>

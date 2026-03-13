@@ -228,24 +228,19 @@ export function AthleteIdentityScreen({
 
   const handleSelectSub = (option: AthleteOption, group: AthleteSubGroup, item: AthleteSubItem) => {
     setSelectedId(option.id);
-    setSelectedSubItemsByGroup((prev) => {
-      const current = prev[group.id] ?? [];
-      const limit = getGroupLimit(group.id, selectionLimits);
-      let nextSelection = current;
+    const current = selectedSubItemsByGroup[group.id] ?? [];
+    const limit = getGroupLimit(group.id, selectionLimits);
+    const nextSelection = current.includes(item.id)
+      ? current.filter((id) => id !== item.id)
+      : applyLimit(current, item.id, limit);
 
-      if (current.includes(item.id)) {
-        nextSelection = current.filter((id) => id !== item.id);
-      } else {
-        nextSelection = applyLimit(current, item.id, limit);
-      }
+    const next = {
+      ...selectedSubItemsByGroup,
+      [group.id]: nextSelection,
+    };
 
-      const next = {
-        ...prev,
-        [group.id]: nextSelection,
-      };
-      persistSubSelections(option, next);
-      return next;
-    });
+    setSelectedSubItemsByGroup(next);
+    persistSubSelections(option, next);
   };
 
   const renderSubCategoryPanel = (option: AthleteOption) => (

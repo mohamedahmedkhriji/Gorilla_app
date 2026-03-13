@@ -3,6 +3,9 @@ import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
 import { Select } from '../ui/Select';
 import { DEFAULT_ONBOARDING_CONFIG, type SelectOption } from '../../config/onboardingConfig';
+
+const MAX_BODY_METRIC = 250;
+
 interface PersonalInfoScreenProps {
   onNext: () => void;
   onDataChange?: (data: any) => void;
@@ -39,11 +42,15 @@ export function PersonalInfoScreen({
     const heightValue = Number(height);
     if (!height.trim() || !Number.isFinite(heightValue) || heightValue <= 0) {
       nextErrors.height = 'Height is required';
+    } else if (heightValue > MAX_BODY_METRIC) {
+      nextErrors.height = `Height must be ${MAX_BODY_METRIC} cm or less`;
     }
 
     const weightValue = Number(weight);
     if (!weight.trim() || !Number.isFinite(weightValue) || weightValue <= 0) {
       nextErrors.weight = 'Weight is required';
+    } else if (weightValue > MAX_BODY_METRIC) {
+      nextErrors.weight = `Weight must be ${MAX_BODY_METRIC} kg or less`;
     }
 
     setErrors(nextErrors);
@@ -122,6 +129,7 @@ export function PersonalInfoScreen({
             }}
             required
             min={1}
+            max={MAX_BODY_METRIC}
             error={errors.height}
           />
           <Input
@@ -139,6 +147,7 @@ export function PersonalInfoScreen({
             }}
             required
             min={1}
+            max={MAX_BODY_METRIC}
             error={errors.weight}
           />
         </div>

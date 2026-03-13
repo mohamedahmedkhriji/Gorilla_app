@@ -1,10 +1,19 @@
-import React, { useState } from 'react';
-import { Dumbbell, Mail, Lock, Eye, EyeOff, Sparkles, ShieldCheck, Zap } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import { Dumbbell, Mail, Lock, Eye, EyeOff, Sparkles, ShieldCheck, Zap, Download } from 'lucide-react';
 import { api } from '../services/api';
 
 interface LoginPageProps {
   onLoginSuccess: () => void;
 }
+
+type InstallPromptEvent = Event & {
+  prompt: () => Promise<void>;
+  userChoice: Promise<{ outcome: 'accepted' | 'dismissed'; platform: string }>;
+};
+
+type NavigatorWithStandalone = Navigator & {
+  standalone?: boolean;
+};
 
 export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
   const [email, setEmail] = useState('');
@@ -12,6 +21,37 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [deferredPrompt, setDeferredPrompt] = useState<InstallPromptEvent | null>(null);
+  const [isStandalone, setIsStandalone] = useState(false);
+  const [showIosInstallHint, setShowIosInstallHint] = useState(false);
+
+  useEffect(() => {
+    const nav = navigator as NavigatorWithStandalone;
+    const standalone = window.matchMedia('(display-mode: standalone)').matches || Boolean(nav.standalone);
+    const isIos = /iphone|ipad|ipod/i.test(window.navigator.userAgent);
+
+    setIsStandalone(standalone);
+    setShowIosInstallHint(isIos && !standalone);
+
+    const handleBeforeInstallPrompt = (event: Event) => {
+      event.preventDefault();
+      setDeferredPrompt(event as InstallPromptEvent);
+    };
+
+    const handleAppInstalled = () => {
+      setDeferredPrompt(null);
+      setShowIosInstallHint(false);
+      setIsStandalone(true);
+    };
+
+    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+    window.addEventListener('appinstalled', handleAppInstalled);
+
+    return () => {
+      window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+      window.removeEventListener('appinstalled', handleAppInstalled);
+    };
+  }, []);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -35,6 +75,16 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleInstall = async () => {
+    if (!deferredPrompt) {
+      return;
+    }
+
+    await deferredPrompt.prompt();
+    await deferredPrompt.userChoice;
+    setDeferredPrompt(null);
   };
 
   return (
@@ -77,6 +127,23 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
             </div>
             <p className="text-text-secondary mt-2 text-sm">Train smart and stay consistent.</p>
           </div>
+
+          {!isStandalone && deferredPrompt ? (
+            <button
+              type="button"
+              onClick={handleInstall}
+              className="mb-4 flex w-full items-center justify-center gap-2 rounded-xl border border-accent/30 bg-accent/10 px-4 py-3 text-sm font-semibold text-accent transition-colors hover:bg-accent/15"
+            >
+              <Download size={16} />
+              Download App
+            </button>
+          ) : null}
+
+          {!isStandalone && showIosInstallHint ? (
+            <p className="mb-4 rounded-xl border border-white/10 bg-black/20 px-4 py-3 text-center text-xs leading-relaxed text-text-secondary">
+              On iPhone, tap Share in Safari, then choose Add to Home Screen.
+            </p>
+          ) : null}
 
           {error && <div className="rounded-xl border border-red-400/35 bg-red-500/10 px-3 py-2 text-sm text-red-200 mb-4">{error}</div>}
 

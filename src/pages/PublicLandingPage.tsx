@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 
 import logoA from '../../assets/gym_logo/646379168_914347981380799_6938641763717116038_n.jpg';
@@ -10,6 +10,15 @@ import logoE from '../../assets/gym_logo/Screenshot 2026-03-01 000834.png';
 interface PublicLandingPageProps {
   onGetStarted: () => void;
 }
+
+type InstallPromptEvent = Event & {
+  prompt: () => Promise<void>;
+  userChoice: Promise<{ outcome: 'accepted' | 'dismissed'; platform: string }>;
+};
+
+type NavigatorWithStandalone = Navigator & {
+  standalone?: boolean;
+};
 
 const forcedDarkThemeVars: React.CSSProperties = {
   '--color-accent': '187 255 92',
@@ -27,6 +36,48 @@ const logos = [logoA, logoB, logoC, logoD, logoE];
 const loopedLogos = [...logos, ...logos, ...logos];
 
 export const PublicLandingPage: React.FC<PublicLandingPageProps> = ({ onGetStarted }) => {
+  const [deferredPrompt, setDeferredPrompt] = useState<InstallPromptEvent | null>(null);
+  const [isStandalone, setIsStandalone] = useState(false);
+  const [showIosInstallHint, setShowIosInstallHint] = useState(false);
+
+  useEffect(() => {
+    const nav = navigator as NavigatorWithStandalone;
+    const standalone = window.matchMedia('(display-mode: standalone)').matches || Boolean(nav.standalone);
+    const isIos = /iphone|ipad|ipod/i.test(window.navigator.userAgent);
+
+    setIsStandalone(standalone);
+    setShowIosInstallHint(isIos && !standalone);
+
+    const handleBeforeInstallPrompt = (event: Event) => {
+      event.preventDefault();
+      setDeferredPrompt(event as InstallPromptEvent);
+    };
+
+    const handleAppInstalled = () => {
+      setDeferredPrompt(null);
+      setShowIosInstallHint(false);
+      setIsStandalone(true);
+    };
+
+    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+    window.addEventListener('appinstalled', handleAppInstalled);
+
+    return () => {
+      window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+      window.removeEventListener('appinstalled', handleAppInstalled);
+    };
+  }, []);
+
+  const handleInstall = async () => {
+    if (!deferredPrompt) {
+      return;
+    }
+
+    await deferredPrompt.prompt();
+    await deferredPrompt.userChoice;
+    setDeferredPrompt(null);
+  };
+
   return (
     <div
       className="relative min-h-screen overflow-hidden text-text-primary"
@@ -104,6 +155,22 @@ export const PublicLandingPage: React.FC<PublicLandingPageProps> = ({ onGetStart
         </section>
 
         <footer className="mt-10">
+          {!isStandalone && deferredPrompt ? (
+            <button
+              type="button"
+              onClick={handleInstall}
+              className="mb-3 w-full rounded-xl border border-white/10 bg-white/10 py-3 text-sm font-semibold text-white transition-colors hover:bg-white/20"
+            >
+              Install on your phone
+            </button>
+          ) : null}
+
+          {!isStandalone && showIosInstallHint ? (
+            <p className="mb-3 rounded-xl border border-white/10 bg-black/20 px-4 py-3 text-center text-xs leading-relaxed text-text-secondary">
+              On iPhone, tap the Share button in Safari, then choose Add to Home Screen.
+            </p>
+          ) : null}
+
           <button
             type="button"
             onClick={onGetStarted}

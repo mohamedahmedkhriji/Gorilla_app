@@ -46,6 +46,13 @@ export function AIAnalysisScreen({ onComplete, onboardingData, userId }: AIAnaly
           disableClaude: false,
         });
 
+        if (data?.user && typeof data.user === 'object') {
+          localStorage.setItem('appUser', JSON.stringify(data.user));
+          localStorage.setItem('user', JSON.stringify(data.user));
+          localStorage.setItem('appUserId', String(data.user.id || userId || ''));
+          localStorage.setItem('userId', String(data.user.id || userId || ''));
+        }
+
         if (data?.assignedProgram) {
           localStorage.setItem('assignedProgramTemplate', JSON.stringify(data.assignedProgram));
         }

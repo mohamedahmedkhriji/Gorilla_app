@@ -53,13 +53,12 @@ export function FitnessGoalsScreen({
   };
 
   const toggleGoal = (goalId: string) => {
-    setSelectedIds((prev) => {
-      const nextIds = prev.includes(goalId)
-        ? prev.filter((id) => id !== goalId)
-        : [...prev, goalId];
-      persistGoals(nextIds);
-      return nextIds;
-    });
+    const nextIds = selectedIds.includes(goalId)
+      ? selectedIds.filter((id) => id !== goalId)
+      : [...selectedIds, goalId];
+
+    setSelectedIds(nextIds);
+    persistGoals(nextIds);
   };
 
   const handleContinue = () => {
