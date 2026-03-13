@@ -43,6 +43,15 @@ const SETTINGS_I18N = {
     woman: 'Woman',
     heightCm: 'Height (cm)',
     weightKg: 'Weight (kg)',
+    sessionDuration: 'Gym Session Duration',
+    preferredTime: 'Preferred Training Time',
+    thirtyMinutes: '30 minutes',
+    fortyFiveMinutes: '45 minutes',
+    sixtyMinutes: '60 minutes',
+    ninetyMinutes: '90 minutes',
+    morningTime: 'Morning',
+    afternoonTime: 'Afternoon',
+    eveningTime: 'Evening',
     saving: 'Saving...',
     saveChanges: 'Save Changes',
     changePassword: 'Change Password',
@@ -165,6 +174,15 @@ const SETTINGS_I18N = {
     woman: 'Femme',
     heightCm: 'Taille (cm)',
     weightKg: 'Poids (kg)',
+    sessionDuration: 'Duree de seance',
+    preferredTime: 'Heure preferee',
+    thirtyMinutes: '30 minutes',
+    fortyFiveMinutes: '45 minutes',
+    sixtyMinutes: '60 minutes',
+    ninetyMinutes: '90 minutes',
+    morningTime: 'Matin',
+    afternoonTime: 'Apres-midi',
+    eveningTime: 'Soir',
     saving: 'Sauvegarde...',
     saveChanges: 'Enregistrer les changements',
     changePassword: 'Changer le mot de passe',
@@ -283,6 +301,8 @@ export function SettingsScreen({ onBack, onOpenGym }: SettingsScreenProps) {
     gender: '',
     heightCm: '',
     weightKg: '',
+    sessionDuration: '60',
+    preferredTime: 'evening',
     primaryGoal: '',
     fitnessGoal: '',
     experienceLevel: '',
@@ -377,6 +397,8 @@ export function SettingsScreen({ onBack, onOpenGym }: SettingsScreenProps) {
           gender: data?.gender || '',
           heightCm: data?.heightCm == null ? '' : String(data.heightCm),
           weightKg: data?.weightKg == null ? '' : String(data.weightKg),
+          sessionDuration: data?.sessionDuration == null ? '60' : String(data.sessionDuration),
+          preferredTime: data?.preferredTime || 'evening',
           primaryGoal: data?.primaryGoal || '',
           fitnessGoal: data?.fitnessGoal || '',
           experienceLevel: data?.experienceLevel || '',
@@ -404,6 +426,8 @@ export function SettingsScreen({ onBack, onOpenGym }: SettingsScreenProps) {
         age: personalDetails.age.trim() ? Number(personalDetails.age) : null,
         heightCm: personalDetails.heightCm.trim() ? Number(personalDetails.heightCm) : null,
         weightKg: personalDetails.weightKg.trim() ? Number(personalDetails.weightKg) : null,
+        sessionDuration: personalDetails.sessionDuration.trim() ? Number(personalDetails.sessionDuration) : null,
+        preferredTime: personalDetails.preferredTime || null,
       });
       const nextUser = {
         ...user,
@@ -586,6 +610,39 @@ export function SettingsScreen({ onBack, onOpenGym }: SettingsScreenProps) {
                   onChange={(e) => setPersonalDetails((prev) => ({ ...prev, weightKg: e.target.value }))}
                   className="w-full bg-background border border-white/10 rounded-lg px-3 py-2 text-white text-sm outline-none focus:border-accent/60"
                 />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs text-text-secondary mb-1">{copy.sessionDuration}</label>
+                <div className="relative">
+                  <select
+                    value={personalDetails.sessionDuration}
+                    onChange={(e) => setPersonalDetails((prev) => ({ ...prev, sessionDuration: e.target.value }))}
+                    className="w-full appearance-none bg-background border border-white/10 rounded-xl px-3 py-2.5 pr-9 text-white text-sm outline-none focus:border-accent/60 focus:ring-2 focus:ring-accent/20 transition-colors"
+                  >
+                    <option value="30">{copy.thirtyMinutes}</option>
+                    <option value="45">{copy.fortyFiveMinutes}</option>
+                    <option value="60">{copy.sixtyMinutes}</option>
+                    <option value="90">{copy.ninetyMinutes}</option>
+                  </select>
+                  <ChevronDown size={16} className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-text-tertiary" />
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs text-text-secondary mb-1">{copy.preferredTime}</label>
+                <div className="relative">
+                  <select
+                    value={personalDetails.preferredTime}
+                    onChange={(e) => setPersonalDetails((prev) => ({ ...prev, preferredTime: e.target.value }))}
+                    className="w-full appearance-none bg-background border border-white/10 rounded-xl px-3 py-2.5 pr-9 text-white text-sm outline-none focus:border-accent/60 focus:ring-2 focus:ring-accent/20 transition-colors"
+                  >
+                    <option value="morning">{copy.morningTime}</option>
+                    <option value="afternoon">{copy.afternoonTime}</option>
+                    <option value="evening">{copy.eveningTime}</option>
+                  </select>
+                  <ChevronDown size={16} className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-text-tertiary" />
+                </div>
               </div>
             </div>
 

@@ -3794,6 +3794,8 @@ router.post('/user/onboarding', async (req, res) => {
            ai_limitations = ?,
            ai_recovery_priority = ?,
            ai_equipment_notes = ?,
+           session_duration_minutes = ?,
+           preferred_time = ?,
            gym_id = ?,
            onboarding_profile = ?,
            onboarding_completed = 1,
@@ -3824,6 +3826,8 @@ router.post('/user/onboarding', async (req, res) => {
         normalizedAiLimitations,
         normalizedAiRecoveryPriority,
         normalizedAiEquipmentNotes,
+        normalizedSessionDuration,
+        normalizedPreferredTime,
         normalizedGymId,
         onboardingProfileJson,
         normalizedUserId,
@@ -4830,7 +4834,9 @@ router.get('/profile/:userId/details', async (req, res) => {
           ai_training_focus,
           ai_limitations,
           ai_recovery_priority,
-          ai_equipment_notes
+          ai_equipment_notes,
+          session_duration_minutes,
+          preferred_time
        FROM users
        WHERE id = ?
        LIMIT 1`,
@@ -4870,6 +4876,8 @@ router.get('/profile/:userId/details', async (req, res) => {
       aiLimitations: row.ai_limitations || '',
       aiRecoveryPriority: row.ai_recovery_priority || '',
       aiEquipmentNotes: row.ai_equipment_notes || '',
+      sessionDuration: row.session_duration_minutes == null ? null : Number(row.session_duration_minutes),
+      preferredTime: row.preferred_time || '',
     });
   } catch (error) {
     return res.status(500).json({ error: error.message });
@@ -4892,6 +4900,15 @@ router.put('/profile/:userId/details', async (req, res) => {
     const primaryGoal = String(req.body?.primaryGoal || '').trim();
     const fitnessGoal = String(req.body?.fitnessGoal || '').trim();
     const experienceLevel = normalizeExperienceEnum(req.body?.experienceLevel);
+    const hasSessionDuration = Object.prototype.hasOwnProperty.call(req.body || {}, 'sessionDuration');
+    const hasPreferredTime = Object.prototype.hasOwnProperty.call(req.body || {}, 'preferredTime');
+    const sessionDuration = req.body?.sessionDuration === '' || req.body?.sessionDuration == null
+      ? null
+      : clampSessionDuration(req.body.sessionDuration, 60);
+    const preferredTimeRaw = String(req.body?.preferredTime || '').trim().toLowerCase();
+    const preferredTime = ['morning', 'afternoon', 'evening'].includes(preferredTimeRaw)
+      ? preferredTimeRaw
+      : null;
 
     if (!name) {
       return res.status(400).json({ error: 'Name is required' });
@@ -4920,7 +4937,9 @@ router.put('/profile/:userId/details', async (req, res) => {
          weight_kg = ?,
          primary_goal = ?,
          fitness_goal = ?,
-         experience_level = ?
+         experience_level = ?,
+         session_duration_minutes = IF(?, ?, session_duration_minutes),
+         preferred_time = IF(?, ?, preferred_time)
        WHERE id = ?`,
       [
         name,
@@ -4932,6 +4951,10 @@ router.put('/profile/:userId/details', async (req, res) => {
         primaryGoal || null,
         fitnessGoal || null,
         experienceLevel,
+        hasSessionDuration ? 1 : 0,
+        sessionDuration,
+        hasPreferredTime ? 1 : 0,
+        preferredTime,
         userId,
       ],
     );

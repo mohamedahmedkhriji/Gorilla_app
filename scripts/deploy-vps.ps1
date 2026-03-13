@@ -5,7 +5,7 @@ param(
   [string]$RemoteAppDir = "/root/Gorilla_app",
   [string]$StaticDir = "/var/www/repset",
   [string]$NginxSite = "repset",
-  [string]$ClientUrl = "http://159.89.21.234,http://repset.org,http://www.repset.org",
+  [string]$ClientUrl = "https://repset.org,https://www.repset.org,http://repset.org,http://www.repset.org",
   [switch]$SkipNpmCi
 )
 
@@ -74,7 +74,14 @@ cat > "/etc/nginx/sites-available/${NGINX_SITE}" <<'NGINX'
 server {
     listen 80 default_server;
     listen [::]:80 default_server;
-    server_name 159.89.21.234 repset.org www.repset.org _;
+    server_name 159.89.21.234 repset.org _;
+    return 301 https://www.repset.org$request_uri;
+}
+
+server {
+    listen 80;
+    listen [::]:80;
+    server_name www.repset.org;
 
     root __STATIC_DIR__;
     index index.html;
@@ -83,6 +90,9 @@ server {
     location /api/ {
         proxy_pass http://127.0.0.1:5001;
         proxy_http_version 1.1;
+        proxy_connect_timeout 30s;
+        proxy_send_timeout 300s;
+        proxy_read_timeout 300s;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -92,6 +102,9 @@ server {
     location /socket.io/ {
         proxy_pass http://127.0.0.1:5001/socket.io/;
         proxy_http_version 1.1;
+        proxy_connect_timeout 30s;
+        proxy_send_timeout 300s;
+        proxy_read_timeout 300s;
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection "upgrade";
         proxy_set_header Host $host;
@@ -137,7 +150,7 @@ nginx -t
 systemctl restart nginx
 
 for attempt in $(seq 1 20); do
-  if curl -fsS -H 'Host: 159.89.21.234' http://127.0.0.1/health >/dev/null; then
+  if curl -fsS -H 'Host: www.repset.org' http://127.0.0.1/health >/dev/null; then
     break
   fi
   if [ "$attempt" -eq 20 ]; then
@@ -147,9 +160,9 @@ for attempt in $(seq 1 20); do
   sleep 2
 done
 
-curl -fsS -H 'Host: 159.89.21.234' http://127.0.0.1/health
-curl -I -H 'Host: 159.89.21.234' http://127.0.0.1/
-curl -I -H 'Host: 159.89.21.234' http://127.0.0.1/admin.html
+curl -fsS -H 'Host: www.repset.org' http://127.0.0.1/health
+curl -I -H 'Host: www.repset.org' http://127.0.0.1/
+curl -I -H 'Host: www.repset.org' http://127.0.0.1/admin.html
 '@
 
 $remoteScript = $remoteScript.

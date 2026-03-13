@@ -10,6 +10,19 @@ type ApiError = Error & {
   data?: unknown;
 };
 
+const isOnboardingGatewayTimeout = (error: unknown) => {
+  const status = Number((error as ApiError)?.status || 0);
+  if ([408, 502, 503, 504].includes(status)) return true;
+
+  const message = String((error as Error)?.message || '').toLowerCase();
+  return (
+    message.includes('gateway') ||
+    message.includes('timed out') ||
+    message.includes('timeout') ||
+    message.includes('temporarily unavailable')
+  );
+};
+
 const createApiError = (message: string, status: number, data?: unknown): ApiError => {
   const error = new Error(message) as ApiError;
   error.status = status;
@@ -88,12 +101,34 @@ export const api = {
   },
 
   saveOnboarding: async (userId: number, data: any) => {
-    const res = await fetch(`${API_URL}/user/onboarding`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ userId, ...data })
-    });
-    return parseApiResponse(res, 'Failed to save onboarding data');
+    const payload = { userId, ...(data || {}) };
+    try {
+      const res = await fetch(`${API_URL}/user/onboarding`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      return await parseApiResponse(res, 'Failed to save onboarding data');
+    } catch (error) {
+      if (payload?.disableClaude || !isOnboardingGatewayTimeout(error)) {
+        throw error;
+      }
+
+      const fallbackRes = await fetch(`${API_URL}/user/onboarding`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...payload,
+          useClaude: false,
+          disableClaude: true,
+        }),
+      });
+
+      return parseApiResponse(
+        fallbackRes,
+        'Failed to save onboarding data after AI timeout fallback',
+      );
+    }
   },
 
   getUserProgram: async (userId: number) => {

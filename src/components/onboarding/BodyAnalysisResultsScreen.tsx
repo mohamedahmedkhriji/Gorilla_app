@@ -1,7 +1,7 @@
 import React, { useMemo } from 'react';
 import { Button } from '../ui/Button';
 import { Card } from '../ui/Card';
-import { CalendarDays, Dumbbell, Layers3, MapPin } from 'lucide-react';
+import { CalendarDays, Clock3, Dumbbell, Layers3, MapPin } from 'lucide-react';
 
 type AnalysisInput = {
   age?: number;
@@ -95,6 +95,21 @@ const formatLevel = (value: unknown) => {
   return toTitleCase(normalized);
 };
 
+const formatSessionDuration = (value: unknown) => {
+  const parsed = toNumber(value);
+  if (parsed == null || parsed <= 0) return '-';
+  return `${Math.round(parsed)} min`;
+};
+
+const formatPreferredTime = (value: unknown) => {
+  const normalized = normalizeLower(value);
+  if (!normalized) return '-';
+  if (normalized === 'morning') return 'Morning';
+  if (normalized === 'afternoon') return 'Afternoon';
+  if (normalized === 'evening') return 'Evening';
+  return toTitleCase(normalized);
+};
+
 const mapProgramTypeToSplit = (value: unknown) => {
   const normalized = normalizeLower(value);
   if (!normalized) return '';
@@ -168,6 +183,8 @@ export function BodyAnalysisResultsScreen({
     assignedProgram?.programType,
   );
   const goal = formatGoal(input.fitnessGoal || input.primaryGoal || assignedProgram?.goal);
+  const sessionDuration = formatSessionDuration(input.sessionDuration ?? appUser?.session_duration_minutes);
+  const preferredTime = formatPreferredTime(input.preferredTime ?? appUser?.preferred_time);
 
   const gymId = toNumber(appUser?.gym_id);
   const gymLabel = normalize(input.gymName) || (gymId ? `Gym #${gymId}` : 'Not selected');
@@ -256,6 +273,20 @@ export function BodyAnalysisResultsScreen({
                   <span className="text-[11px] uppercase tracking-[0.08em]">Workout split</span>
                 </div>
                 <p className="text-sm text-white mt-1">{split}</p>
+              </div>
+              <div className="rounded-xl border border-white/10 bg-white/5 p-3">
+                <div className="flex items-center gap-2 text-text-tertiary">
+                  <Clock3 size={14} />
+                  <span className="text-[11px] uppercase tracking-[0.08em]">Session duration</span>
+                </div>
+                <p className="text-sm text-white mt-1">{sessionDuration}</p>
+              </div>
+              <div className="rounded-xl border border-white/10 bg-white/5 p-3">
+                <div className="flex items-center gap-2 text-text-tertiary">
+                  <CalendarDays size={14} />
+                  <span className="text-[11px] uppercase tracking-[0.08em]">Preferred time</span>
+                </div>
+                <p className="text-sm text-white mt-1">{preferredTime}</p>
               </div>
             </div>
           </div>
