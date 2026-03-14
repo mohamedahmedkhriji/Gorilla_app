@@ -1,0 +1,1177 @@
+{
+  "totalExercises": 330,
+  "totalVideoAssets": 113,
+  "missingCount": 232,
+  "missingByBodyPart": {
+    "arms": 35,
+    "back": 15,
+    "calves": 24,
+    "chest": 20,
+    "hips": 88,
+    "neck": 10,
+    "shoulders": 8,
+    "thighs": 32
+  },
+  "missing": [
+    {
+      "name": "Grip",
+      "muscle": "Forearm",
+      "bodyPart": "arms"
+    },
+    {
+      "name": "One Hand​​​​​​​",
+      "muscle": "Forearm",
+      "bodyPart": "arms"
+    },
+    {
+      "name": "One Hand Grip",
+      "muscle": "Forearm",
+      "bodyPart": "arms"
+    },
+    {
+      "name": "Reverse Curl",
+      "muscle": "Forearm",
+      "bodyPart": "arms"
+    },
+    {
+      "name": "Reverse Wrist Curl",
+      "muscle": "Forearm",
+      "bodyPart": "arms"
+    },
+    {
+      "name": "Seated Pronation",
+      "muscle": "Forearm",
+      "bodyPart": "arms"
+    },
+    {
+      "name": "Seated Supination",
+      "muscle": "Forearm",
+      "bodyPart": "arms"
+    },
+    {
+      "name": "Wrist Curl",
+      "muscle": "Forearm",
+      "bodyPart": "arms"
+    },
+    {
+      "name": "Arm Curl",
+      "muscle": "Upper Arms",
+      "bodyPart": "arms"
+    },
+    {
+      "name": "Bench Dip",
+      "muscle": "Upper Arms",
+      "bodyPart": "arms"
+    },
+    {
+      "name": "Bench Dip:  heel on floor",
+      "muscle": "Upper Arms",
+      "bodyPart": "arms"
+    },
+    {
+      "name": "Bent-over Triceps Extension",
+      "muscle": "Upper Arms",
+      "bodyPart": "arms"
+    },
+    {
+      "name": "Close Grip Bench Press",
+      "muscle": "Upper Arms",
+      "bodyPart": "arms"
+    },
+    {
+      "name": "Close Grip Push-up",
+      "muscle": "Upper Arms",
+      "bodyPart": "arms"
+    },
+    {
+      "name": "Close Grip Push-up:  Incline on bar",
+      "muscle": "Upper Arms",
+      "bodyPart": "arms"
+    },
+    {
+      "name": "Close Grip Push-up:  on knees",
+      "muscle": "Upper Arms",
+      "bodyPart": "arms"
+    },
+    {
+      "name": "Concentration Curl",
+      "muscle": "Upper Arms",
+      "bodyPart": "arms"
+    },
+    {
+      "name": "Curl:  One Arm Curl",
+      "muscle": "Upper Arms",
+      "bodyPart": "arms"
+    },
+    {
+      "name": "Inverted Biceps Row",
+      "muscle": "Upper Arms",
+      "bodyPart": "arms"
+    },
+    {
+      "name": "Lying Triceps Extension",
+      "muscle": "Upper Arms",
+      "bodyPart": "arms"
+    },
+    {
+      "name": "Lying Triceps Extension:  Skull Crusher",
+      "muscle": "Upper Arms",
+      "bodyPart": "arms"
+    },
+    {
+      "name": "One Arm Triceps Extension (on bench)",
+      "muscle": "Upper Arms",
+      "bodyPart": "arms"
+    },
+    {
+      "name": "Preacher Curl",
+      "muscle": "Upper Arms",
+      "bodyPart": "arms"
+    },
+    {
+      "name": "Preacher Curl: arms high",
+      "muscle": "Upper Arms",
+      "bodyPart": "arms"
+    },
+    {
+      "name": "Preacher Curl: Stirrups",
+      "muscle": "Upper Arms",
+      "bodyPart": "arms"
+    },
+    {
+      "name": "Pushdown",
+      "muscle": "Upper Arms",
+      "bodyPart": "arms"
+    },
+    {
+      "name": "Pushdown:  One Arm",
+      "muscle": "Upper Arms",
+      "bodyPart": "arms"
+    },
+    {
+      "name": "Pushdown:  with back support",
+      "muscle": "Upper Arms",
+      "bodyPart": "arms"
+    },
+    {
+      "name": "Pushdown:  with V-bar attachment",
+      "muscle": "Upper Arms",
+      "bodyPart": "arms"
+    },
+    {
+      "name": "Standing Triceps Dip",
+      "muscle": "Upper Arms",
+      "bodyPart": "arms"
+    },
+    {
+      "name": "Triceps Dip",
+      "muscle": "Upper Arms",
+      "bodyPart": "arms"
+    },
+    {
+      "name": "Triceps Dip:  alternative machine",
+      "muscle": "Upper Arms",
+      "bodyPart": "arms"
+    },
+    {
+      "name": "Triceps Dip:  kneeling",
+      "muscle": "Upper Arms",
+      "bodyPart": "arms"
+    },
+    {
+      "name": "Triceps Extension",
+      "muscle": "Upper Arms",
+      "bodyPart": "arms"
+    },
+    {
+      "name": "Triceps Extension:  with preacher pad New!",
+      "muscle": "Upper Arms",
+      "bodyPart": "arms"
+    },
+    {
+      "name": "Chin-up",
+      "muscle": "Back",
+      "bodyPart": "back"
+    },
+    {
+      "name": "Front Pulldown",
+      "muscle": "Back",
+      "bodyPart": "back"
+    },
+    {
+      "name": "Gripless Shrug",
+      "muscle": "Back",
+      "bodyPart": "back"
+    },
+    {
+      "name": "Inverted Shrug",
+      "muscle": "Back",
+      "bodyPart": "back"
+    },
+    {
+      "name": "Lying Shoulder External Rotation",
+      "muscle": "Back",
+      "bodyPart": "back"
+    },
+    {
+      "name": "Seated Shoulder External Rotation",
+      "muscle": "Back",
+      "bodyPart": "back"
+    },
+    {
+      "name": "Seated Shoulder External Rotation:  Standing",
+      "muscle": "Back",
+      "bodyPart": "back"
+    },
+    {
+      "name": "Seated Shrug",
+      "muscle": "Back",
+      "bodyPart": "back"
+    },
+    {
+      "name": "Shoulder External Rotation",
+      "muscle": "Back",
+      "bodyPart": "back"
+    },
+    {
+      "name": "Shoulder Internal Rotation",
+      "muscle": "Back",
+      "bodyPart": "back"
+    },
+    {
+      "name": "Shoulder Internal Rotation:  on floor",
+      "muscle": "Back",
+      "bodyPart": "back"
+    },
+    {
+      "name": "Shrug with Stirrups",
+      "muscle": "Back",
+      "bodyPart": "back"
+    },
+    {
+      "name": "Standing Shoulder Internal Rotation",
+      "muscle": "Back",
+      "bodyPart": "back"
+    },
+    {
+      "name": "Trap Bar Shrug",
+      "muscle": "Back",
+      "bodyPart": "back"
+    },
+    {
+      "name": "Upright Shoulder External Rotation (with support)",
+      "muscle": "Back",
+      "bodyPart": "back"
+    },
+    {
+      "name": "45° Calf Press",
+      "muscle": "Calves",
+      "bodyPart": "calves"
+    },
+    {
+      "name": "45° Calf Raise",
+      "muscle": "Calves",
+      "bodyPart": "calves"
+    },
+    {
+      "name": "45° Reverse Calf Press",
+      "muscle": "Calves",
+      "bodyPart": "calves"
+    },
+    {
+      "name": "45° Reverse Calf Raise",
+      "muscle": "Calves",
+      "bodyPart": "calves"
+    },
+    {
+      "name": "45° Reverse Calf Raise (on hack press)",
+      "muscle": "Calves",
+      "bodyPart": "calves"
+    },
+    {
+      "name": "45° Reverse Calf Raise (plate loaded)",
+      "muscle": "Calves",
+      "bodyPart": "calves"
+    },
+    {
+      "name": "Calf Extension",
+      "muscle": "Calves",
+      "bodyPart": "calves"
+    },
+    {
+      "name": "Donkey Calf Raise",
+      "muscle": "Calves",
+      "bodyPart": "calves"
+    },
+    {
+      "name": "Forward Angled Single Leg Calf Raise",
+      "muscle": "Calves",
+      "bodyPart": "calves"
+    },
+    {
+      "name": "Hack Reverse Calf Raise",
+      "muscle": "Calves",
+      "bodyPart": "calves"
+    },
+    {
+      "name": "Lying Calf Press",
+      "muscle": "Calves",
+      "bodyPart": "calves"
+    },
+    {
+      "name": "Lying Reverse Calf Press",
+      "muscle": "Calves",
+      "bodyPart": "calves"
+    },
+    {
+      "name": "Reverse Calf Extension",
+      "muscle": "Calves",
+      "bodyPart": "calves"
+    },
+    {
+      "name": "Reverse Calf Raise",
+      "muscle": "Calves",
+      "bodyPart": "calves"
+    },
+    {
+      "name": "Reverse Calf Raise:  Single Leg",
+      "muscle": "Calves",
+      "bodyPart": "calves"
+    },
+    {
+      "name": "Safety Bar Reverse Calf Raise",
+      "muscle": "Calves",
+      "bodyPart": "calves"
+    },
+    {
+      "name": "Safety Barbell Seated Calf Raise",
+      "muscle": "Calves",
+      "bodyPart": "calves"
+    },
+    {
+      "name": "Seated Calf Press",
+      "muscle": "Calves",
+      "bodyPart": "calves"
+    },
+    {
+      "name": "Seated Calf Raise",
+      "muscle": "Calves",
+      "bodyPart": "calves"
+    },
+    {
+      "name": "Seated Reverse Calf Press",
+      "muscle": "Calves",
+      "bodyPart": "calves"
+    },
+    {
+      "name": "Single Leg Calf Raise",
+      "muscle": "Calves",
+      "bodyPart": "calves"
+    },
+    {
+      "name": "Standing Calf Raise",
+      "muscle": "Calves",
+      "bodyPart": "calves"
+    },
+    {
+      "name": "Standing Calf Raise:  One Arm Single Leg Calf Raise",
+      "muscle": "Calves",
+      "bodyPart": "calves"
+    },
+    {
+      "name": "Standing Calf Raise:  Single Leg",
+      "muscle": "Calves",
+      "bodyPart": "calves"
+    },
+    {
+      "name": "Chest Press",
+      "muscle": "Chest",
+      "bodyPart": "chest"
+    },
+    {
+      "name": "Clap Push-up",
+      "muscle": "Chest",
+      "bodyPart": "chest"
+    },
+    {
+      "name": "Decline Chest Press",
+      "muscle": "Chest",
+      "bodyPart": "chest"
+    },
+    {
+      "name": "Decline Push-up",
+      "muscle": "Chest",
+      "bodyPart": "chest"
+    },
+    {
+      "name": "Decline Push-up:  on stability ball",
+      "muscle": "Chest",
+      "bodyPart": "chest"
+    },
+    {
+      "name": "Depth Push-up",
+      "muscle": "Chest",
+      "bodyPart": "chest"
+    },
+    {
+      "name": "Flies",
+      "muscle": "Chest",
+      "bodyPart": "chest"
+    },
+    {
+      "name": "Flies:  Lying Fly",
+      "muscle": "Chest",
+      "bodyPart": "chest"
+    },
+    {
+      "name": "Flies:  Seated Fly",
+      "muscle": "Chest",
+      "bodyPart": "chest"
+    },
+    {
+      "name": "Flies:  Standing Fly",
+      "muscle": "Chest",
+      "bodyPart": "chest"
+    },
+    {
+      "name": "Incline Fly",
+      "muscle": "Chest",
+      "bodyPart": "chest"
+    },
+    {
+      "name": "Incline Shoulder Raise",
+      "muscle": "Chest",
+      "bodyPart": "chest"
+    },
+    {
+      "name": "Presses:  Chest Press\n\nStanding",
+      "muscle": "Chest",
+      "bodyPart": "chest"
+    },
+    {
+      "name": "Presses:  Decline Chest Press",
+      "muscle": "Chest",
+      "bodyPart": "chest"
+    },
+    {
+      "name": "Push-up",
+      "muscle": "Chest",
+      "bodyPart": "chest"
+    },
+    {
+      "name": "Push-up Plus",
+      "muscle": "Chest",
+      "bodyPart": "chest"
+    },
+    {
+      "name": "Push-up:  Archer",
+      "muscle": "Chest",
+      "bodyPart": "chest"
+    },
+    {
+      "name": "Push-up:  Incline",
+      "muscle": "Chest",
+      "bodyPart": "chest"
+    },
+    {
+      "name": "Push-up:  on knees",
+      "muscle": "Chest",
+      "bodyPart": "chest"
+    },
+    {
+      "name": "Standing Fly",
+      "muscle": "Chest",
+      "bodyPart": "chest"
+    },
+    {
+      "name": "Assisted Wheel Rollout",
+      "muscle": "Hips",
+      "bodyPart": "hips"
+    },
+    {
+      "name": "Bent Knee Good-morning",
+      "muscle": "Hips",
+      "bodyPart": "hips"
+    },
+    {
+      "name": "Deadlifts",
+      "muscle": "Hips",
+      "bodyPart": "hips"
+    },
+    {
+      "name": "Deadlifts:  Stiff-leg Deadlift\n\nStraight-back",
+      "muscle": "Hips",
+      "bodyPart": "hips"
+    },
+    {
+      "name": "Decline Sit-up",
+      "muscle": "Hips",
+      "bodyPart": "hips"
+    },
+    {
+      "name": "Discs",
+      "muscle": "Hips",
+      "bodyPart": "hips"
+    },
+    {
+      "name": "Discs:  Pike",
+      "muscle": "Hips",
+      "bodyPart": "hips"
+    },
+    {
+      "name": "Glute Kickback",
+      "muscle": "Hips",
+      "bodyPart": "hips"
+    },
+    {
+      "name": "Glute Kickback:  Bent-over",
+      "muscle": "Hips",
+      "bodyPart": "hips"
+    },
+    {
+      "name": "Glute Kickback:  Kneeling",
+      "muscle": "Hips",
+      "bodyPart": "hips"
+    },
+    {
+      "name": "Glute Kickback:  Standing",
+      "muscle": "Hips",
+      "bodyPart": "hips"
+    },
+    {
+      "name": "Hanging Leg Raise",
+      "muscle": "Hips",
+      "bodyPart": "hips"
+    },
+    {
+      "name": "Hanging Leg Raise:  Straight Leg",
+      "muscle": "Hips",
+      "bodyPart": "hips"
+    },
+    {
+      "name": "Hip Abduction",
+      "muscle": "Hips",
+      "bodyPart": "hips"
+    },
+    {
+      "name": "Hip Bridge",
+      "muscle": "Hips",
+      "bodyPart": "hips"
+    },
+    {
+      "name": "Hip Extensions",
+      "muscle": "Hips",
+      "bodyPart": "hips"
+    },
+    {
+      "name": "Hip Extensions:  Bent-over",
+      "muscle": "Hips",
+      "bodyPart": "hips"
+    },
+    {
+      "name": "Hip Extensions:  Lying",
+      "muscle": "Hips",
+      "bodyPart": "hips"
+    },
+    {
+      "name": "Hip Extensions:  Standing\n\nalternative machine",
+      "muscle": "Hips",
+      "bodyPart": "hips"
+    },
+    {
+      "name": "Hip Flexion",
+      "muscle": "Hips",
+      "bodyPart": "hips"
+    },
+    {
+      "name": "Hip Thrust",
+      "muscle": "Hips",
+      "bodyPart": "hips"
+    },
+    {
+      "name": "Incline Leg Raise",
+      "muscle": "Hips",
+      "bodyPart": "hips"
+    },
+    {
+      "name": "Incline Leg Raise:  arms on pads",
+      "muscle": "Hips",
+      "bodyPart": "hips"
+    },
+    {
+      "name": "Incline Straight Leg Raise",
+      "muscle": "Hips",
+      "bodyPart": "hips"
+    },
+    {
+      "name": "Incline Straight Leg Raise:  arms on pads",
+      "muscle": "Hips",
+      "bodyPart": "hips"
+    },
+    {
+      "name": "Jack-knife on Ball",
+      "muscle": "Hips",
+      "bodyPart": "hips"
+    },
+    {
+      "name": "Leg Presses",
+      "muscle": "Hips",
+      "bodyPart": "hips"
+    },
+    {
+      "name": "Leg Presses:  45° Leg Press",
+      "muscle": "Hips",
+      "bodyPart": "hips"
+    },
+    {
+      "name": "Leg Presses:  Lying Leg Press",
+      "muscle": "Hips",
+      "bodyPart": "hips"
+    },
+    {
+      "name": "Leg Presses:  Seated Leg Press",
+      "muscle": "Hips",
+      "bodyPart": "hips"
+    },
+    {
+      "name": "Leg Raises",
+      "muscle": "Hips",
+      "bodyPart": "hips"
+    },
+    {
+      "name": "Leg Raises:  Hanging Leg Raise\n\nwith ab straps\nStraight Leg",
+      "muscle": "Hips",
+      "bodyPart": "hips"
+    },
+    {
+      "name": "Leg Raises:  Incline Leg Raise\n\narms on pads",
+      "muscle": "Hips",
+      "bodyPart": "hips"
+    },
+    {
+      "name": "Leg Raises:  Incline Straight Leg Raise\n\narms on pads",
+      "muscle": "Hips",
+      "bodyPart": "hips"
+    },
+    {
+      "name": "Leg Raises:  Lying Leg Raise\n\nAlternating\non floor",
+      "muscle": "Hips",
+      "bodyPart": "hips"
+    },
+    {
+      "name": "Leg Raises:  Lying Straight Leg Raise\n\nAlternating",
+      "muscle": "Hips",
+      "bodyPart": "hips"
+    },
+    {
+      "name": "Leg Raises:  Seated Leg Raise",
+      "muscle": "Hips",
+      "bodyPart": "hips"
+    },
+    {
+      "name": "Leg Raises:  Vertical Leg Raise\n\non parallel bars\nStraight Leg",
+      "muscle": "Hips",
+      "bodyPart": "hips"
+    },
+    {
+      "name": "Lunge",
+      "muscle": "Hips",
+      "bodyPart": "hips"
+    },
+    {
+      "name": "Lunge:  Rear Lunge",
+      "muscle": "Hips",
+      "bodyPart": "hips"
+    },
+    {
+      "name": "Lying Hip Abduction",
+      "muscle": "Hips",
+      "bodyPart": "hips"
+    },
+    {
+      "name": "Lying Hip Extension",
+      "muscle": "Hips",
+      "bodyPart": "hips"
+    },
+    {
+      "name": "Lying Leg Raise",
+      "muscle": "Hips",
+      "bodyPart": "hips"
+    },
+    {
+      "name": "Lying Leg Raise:  on bench",
+      "muscle": "Hips",
+      "bodyPart": "hips"
+    },
+    {
+      "name": "Lying Leg Raise:  Straight Leg",
+      "muscle": "Hips",
+      "bodyPart": "hips"
+    },
+    {
+      "name": "Mountain Climber",
+      "muscle": "Hips",
+      "bodyPart": "hips"
+    },
+    {
+      "name": "Pike",
+      "muscle": "Hips",
+      "bodyPart": "hips"
+    },
+    {
+      "name": "Rear Lunge",
+      "muscle": "Hips",
+      "bodyPart": "hips"
+    },
+    {
+      "name": "Reverse Hyper-extension",
+      "muscle": "Hips",
+      "bodyPart": "hips"
+    },
+    {
+      "name": "Roman Chair Sit-up",
+      "muscle": "Hips",
+      "bodyPart": "hips"
+    },
+    {
+      "name": "Scissor Kick",
+      "muscle": "Hips",
+      "bodyPart": "hips"
+    },
+    {
+      "name": "Seated Hip Abduction",
+      "muscle": "Hips",
+      "bodyPart": "hips"
+    },
+    {
+      "name": "Seated Hip Internal Rotation",
+      "muscle": "Hips",
+      "bodyPart": "hips"
+    },
+    {
+      "name": "Seated Leg Raise",
+      "muscle": "Hips",
+      "bodyPart": "hips"
+    },
+    {
+      "name": "Side Bend",
+      "muscle": "Hips",
+      "bodyPart": "hips"
+    },
+    {
+      "name": "Single Leg Split Squat",
+      "muscle": "Hips",
+      "bodyPart": "hips"
+    },
+    {
+      "name": "Single Leg Split Squat:  Single Leg Squat",
+      "muscle": "Hips",
+      "bodyPart": "hips"
+    },
+    {
+      "name": "Single Leg Split Squat:  Split Squat",
+      "muscle": "Hips",
+      "bodyPart": "hips"
+    },
+    {
+      "name": "Single Leg Squat",
+      "muscle": "Hips",
+      "bodyPart": "hips"
+    },
+    {
+      "name": "Single Leg Squat (leg wrapped)",
+      "muscle": "Hips",
+      "bodyPart": "hips"
+    },
+    {
+      "name": "Single Leg Stiff Leg Deadlift",
+      "muscle": "Hips",
+      "bodyPart": "hips"
+    },
+    {
+      "name": "Split Squat",
+      "muscle": "Hips",
+      "bodyPart": "hips"
+    },
+    {
+      "name": "Split Squat:  Single Leg Split Squat",
+      "muscle": "Hips",
+      "bodyPart": "hips"
+    },
+    {
+      "name": "Split Squat:  Two Arms",
+      "muscle": "Hips",
+      "bodyPart": "hips"
+    },
+    {
+      "name": "Squat",
+      "muscle": "Hips",
+      "bodyPart": "hips"
+    },
+    {
+      "name": "Squat:  Front Squat",
+      "muscle": "Hips",
+      "bodyPart": "hips"
+    },
+    {
+      "name": "Squat:  Full Squat",
+      "muscle": "Hips",
+      "bodyPart": "hips"
+    },
+    {
+      "name": "Squat:  Hack Squat",
+      "muscle": "Hips",
+      "bodyPart": "hips"
+    },
+    {
+      "name": "Squat:  Safety Squat",
+      "muscle": "Hips",
+      "bodyPart": "hips"
+    },
+    {
+      "name": "Squat:  V-Squat",
+      "muscle": "Hips",
+      "bodyPart": "hips"
+    },
+    {
+      "name": "Standing Hip Abduction",
+      "muscle": "Hips",
+      "bodyPart": "hips"
+    },
+    {
+      "name": "Standing Hip Extension",
+      "muscle": "Hips",
+      "bodyPart": "hips"
+    },
+    {
+      "name": "Standing Hip Extension:  Bent-over",
+      "muscle": "Hips",
+      "bodyPart": "hips"
+    },
+    {
+      "name": "Standing Leg Raise",
+      "muscle": "Hips",
+      "bodyPart": "hips"
+    },
+    {
+      "name": "Standing Leg Raise:  Straight Leg",
+      "muscle": "Hips",
+      "bodyPart": "hips"
+    },
+    {
+      "name": "Step Down",
+      "muscle": "Hips",
+      "bodyPart": "hips"
+    },
+    {
+      "name": "Step-up",
+      "muscle": "Hips",
+      "bodyPart": "hips"
+    },
+    {
+      "name": "Step-up:  Step Down",
+      "muscle": "Hips",
+      "bodyPart": "hips"
+    },
+    {
+      "name": "Stiff-leg Deadlift",
+      "muscle": "Hips",
+      "bodyPart": "hips"
+    },
+    {
+      "name": "Stiff-leg Deadlift:  Straight-back",
+      "muscle": "Hips",
+      "bodyPart": "hips"
+    },
+    {
+      "name": "Twist",
+      "muscle": "Hips",
+      "bodyPart": "hips"
+    },
+    {
+      "name": "Vertical Leg Raise",
+      "muscle": "Hips",
+      "bodyPart": "hips"
+    },
+    {
+      "name": "Vertical Leg Raise:  on Parallel Bars",
+      "muscle": "Hips",
+      "bodyPart": "hips"
+    },
+    {
+      "name": "Vertical Leg Raise:  Straight Leg",
+      "muscle": "Hips",
+      "bodyPart": "hips"
+    },
+    {
+      "name": "Wheel",
+      "muscle": "Hips",
+      "bodyPart": "hips"
+    },
+    {
+      "name": "Wheel:  Jack-Knife",
+      "muscle": "Hips",
+      "bodyPart": "hips"
+    },
+    {
+      "name": "Wheel:  Pike",
+      "muscle": "Hips",
+      "bodyPart": "hips"
+    },
+    {
+      "name": "Wheel:  Rollout",
+      "muscle": "Hips",
+      "bodyPart": "hips"
+    },
+    {
+      "name": "Lateral Neck Flexion",
+      "muscle": "Neck",
+      "bodyPart": "neck"
+    },
+    {
+      "name": "Lying Neck Retraction",
+      "muscle": "Neck",
+      "bodyPart": "neck"
+    },
+    {
+      "name": "Neck Extension",
+      "muscle": "Neck",
+      "bodyPart": "neck"
+    },
+    {
+      "name": "Neck Flexion",
+      "muscle": "Neck",
+      "bodyPart": "neck"
+    },
+    {
+      "name": "Neck Retraction",
+      "muscle": "Neck",
+      "bodyPart": "neck"
+    },
+    {
+      "name": "Seated Neck Extension",
+      "muscle": "Neck",
+      "bodyPart": "neck"
+    },
+    {
+      "name": "Seated Neck Extension:  Harness",
+      "muscle": "Neck",
+      "bodyPart": "neck"
+    },
+    {
+      "name": "Wall Front Neck Bridge",
+      "muscle": "Neck",
+      "bodyPart": "neck"
+    },
+    {
+      "name": "Wall Rear Neck Bridge",
+      "muscle": "Neck",
+      "bodyPart": "neck"
+    },
+    {
+      "name": "Wall Side Neck Bridge",
+      "muscle": "Neck",
+      "bodyPart": "neck"
+    },
+    {
+      "name": "Arnold Press",
+      "muscle": "Shoulder",
+      "bodyPart": "shoulders"
+    },
+    {
+      "name": "Military Press",
+      "muscle": "Shoulder",
+      "bodyPart": "shoulders"
+    },
+    {
+      "name": "Pike Press (between benches)",
+      "muscle": "Shoulder",
+      "bodyPart": "shoulders"
+    },
+    {
+      "name": "Pike Press (between benches):  Elevated (between benches)",
+      "muscle": "Shoulder",
+      "bodyPart": "shoulders"
+    },
+    {
+      "name": "Upright Row",
+      "muscle": "Shoulder",
+      "bodyPart": "shoulders"
+    },
+    {
+      "name": "Upright Row:  One Arm",
+      "muscle": "Shoulder",
+      "bodyPart": "shoulders"
+    },
+    {
+      "name": "Upright Row:  with rope",
+      "muscle": "Shoulder",
+      "bodyPart": "shoulders"
+    },
+    {
+      "name": "Y Raise",
+      "muscle": "Shoulder",
+      "bodyPart": "shoulders"
+    },
+    {
+      "name": "Bent-over Leg Curl",
+      "muscle": "Thighs",
+      "bodyPart": "thighs"
+    },
+    {
+      "name": "Glute-Ham Raise",
+      "muscle": "Thighs",
+      "bodyPart": "thighs"
+    },
+    {
+      "name": "Glute-Ham Raise:  hands behind hips",
+      "muscle": "Thighs",
+      "bodyPart": "thighs"
+    },
+    {
+      "name": "Good-morning",
+      "muscle": "Thighs",
+      "bodyPart": "thighs"
+    },
+    {
+      "name": "Hamstring Raise",
+      "muscle": "Thighs",
+      "bodyPart": "thighs"
+    },
+    {
+      "name": "Hanging Leg Curl",
+      "muscle": "Thighs",
+      "bodyPart": "thighs"
+    },
+    {
+      "name": "Hip Adduction",
+      "muscle": "Thighs",
+      "bodyPart": "thighs"
+    },
+    {
+      "name": "Hyperextension",
+      "muscle": "Thighs",
+      "bodyPart": "thighs"
+    },
+    {
+      "name": "Hyperextension (45°)",
+      "muscle": "Thighs",
+      "bodyPart": "thighs"
+    },
+    {
+      "name": "Inverse Leg Curl",
+      "muscle": "Thighs",
+      "bodyPart": "thighs"
+    },
+    {
+      "name": "Kneeling Leg Curl",
+      "muscle": "Thighs",
+      "bodyPart": "thighs"
+    },
+    {
+      "name": "Leg Curl",
+      "muscle": "Thighs",
+      "bodyPart": "thighs"
+    },
+    {
+      "name": "Leg Extension",
+      "muscle": "Thighs",
+      "bodyPart": "thighs"
+    },
+    {
+      "name": "Lying Hip Adduction",
+      "muscle": "Thighs",
+      "bodyPart": "thighs"
+    },
+    {
+      "name": "Lying Leg Curl",
+      "muscle": "Thighs",
+      "bodyPart": "thighs"
+    },
+    {
+      "name": "Seated Hip Adduction",
+      "muscle": "Thighs",
+      "bodyPart": "thighs"
+    },
+    {
+      "name": "Seated Leg Curl",
+      "muscle": "Thighs",
+      "bodyPart": "thighs"
+    },
+    {
+      "name": "Single Leg 45° Hyperextension",
+      "muscle": "Thighs",
+      "bodyPart": "thighs"
+    },
+    {
+      "name": "Single Leg Hanging Hamstring Bridge",
+      "muscle": "Thighs",
+      "bodyPart": "thighs"
+    },
+    {
+      "name": "Single Leg Split Squat:  Side Split Squat",
+      "muscle": "Thighs",
+      "bodyPart": "thighs"
+    },
+    {
+      "name": "Single Leg Squat (plate loaded)",
+      "muscle": "Thighs",
+      "bodyPart": "thighs"
+    },
+    {
+      "name": "Single Leg Squat:  Box",
+      "muscle": "Thighs",
+      "bodyPart": "thighs"
+    },
+    {
+      "name": "Squat:  Barbell Machine",
+      "muscle": "Thighs",
+      "bodyPart": "thighs"
+    },
+    {
+      "name": "Squat:  Trap Bar Squat",
+      "muscle": "Thighs",
+      "bodyPart": "thighs"
+    },
+    {
+      "name": "Standing Hip Adduction",
+      "muscle": "Thighs",
+      "bodyPart": "thighs"
+    },
+    {
+      "name": "Standing Leg Curl",
+      "muscle": "Thighs",
+      "bodyPart": "thighs"
+    },
+    {
+      "name": "Straight Hip Leg Curl",
+      "muscle": "Thighs",
+      "bodyPart": "thighs"
+    },
+    {
+      "name": "Straight Hip Leg Curl (on ball)",
+      "muscle": "Thighs",
+      "bodyPart": "thighs"
+    },
+    {
+      "name": "Straight-back Straight-leg Deadlift",
+      "muscle": "Thighs",
+      "bodyPart": "thighs"
+    },
+    {
+      "name": "Straight-leg Deadlift",
+      "muscle": "Thighs",
+      "bodyPart": "thighs"
+    },
+    {
+      "name": "Straight-leg Deadlift:  Straight-back",
+      "muscle": "Thighs",
+      "bodyPart": "thighs"
+    },
+    {
+      "name": "V-Squat",
+      "muscle": "Thighs",
+      "bodyPart": "thighs"
+    }
+  ]
+}

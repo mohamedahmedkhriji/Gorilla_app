@@ -117,7 +117,7 @@ export const AllCoaches: React.FC<AllCoachesProps> = ({ onBack }) => {
         <div className="flex gap-2">
           <button
             onClick={() => setShowAddForm(true)}
-            className="flex items-center gap-2 bg-[#BFFF00] text-black px-4 py-2 rounded-lg font-semibold hover:bg-[#a8e600] transition-colors"
+            className="flex items-center gap-2 bg-[#10b981] text-black px-4 py-2 rounded-lg font-semibold hover:bg-[#a8e600] transition-colors"
           >
             <Plus size={20} />
             Add Coach
@@ -127,7 +127,7 @@ export const AllCoaches: React.FC<AllCoachesProps> = ({ onBack }) => {
               key={range}
               onClick={() => setTimeRange(range as any)}
               className={`px-4 py-2 rounded-lg capitalize ${
-                timeRange === range ? 'bg-[#BFFF00] text-black' : 'bg-[#242424]'
+                timeRange === range ? 'bg-[#10b981] text-black' : 'bg-[#242424]'
               }`}
             >
               {range}
@@ -138,7 +138,7 @@ export const AllCoaches: React.FC<AllCoachesProps> = ({ onBack }) => {
 
       <div className="grid grid-cols-3 gap-4 mb-6">
         <div className="bg-[#242424] rounded-lg p-6">
-          <Users className="text-[#BFFF00] mb-2" size={24} />
+          <Users className="text-emerald-600 mb-2" size={24} />
           <div className="text-3xl font-bold">{coachesData.length}</div>
           <div className="text-sm text-gray-400">Total Coaches</div>
         </div>
@@ -227,7 +227,7 @@ export const AllCoaches: React.FC<AllCoachesProps> = ({ onBack }) => {
                   required
                   value={formData.name}
                   onChange={(e) => setFormData({...formData, name: e.target.value})}
-                  className="w-full bg-[#1A1A1A] text-white px-4 py-2 rounded-lg border border-gray-700 focus:border-[#BFFF00] outline-none"
+                  className="w-full bg-[#1A1A1A] text-white px-4 py-2 rounded-lg border border-gray-700 focus:border-[#10b981] outline-none"
                 />
               </div>
 
@@ -239,7 +239,7 @@ export const AllCoaches: React.FC<AllCoachesProps> = ({ onBack }) => {
                     required
                     value={formData.email}
                     onChange={(e) => setFormData({...formData, email: e.target.value})}
-                    className="w-full bg-[#1A1A1A] text-white px-4 py-2 rounded-lg border border-gray-700 focus:border-[#BFFF00] outline-none"
+                    className="w-full bg-[#1A1A1A] text-white px-4 py-2 rounded-lg border border-gray-700 focus:border-[#10b981] outline-none"
                   />
                 </div>
                 <div>
@@ -249,7 +249,7 @@ export const AllCoaches: React.FC<AllCoachesProps> = ({ onBack }) => {
                     required
                     value={formData.phone}
                     onChange={(e) => setFormData({...formData, phone: e.target.value})}
-                    className="w-full bg-[#1A1A1A] text-white px-4 py-2 rounded-lg border border-gray-700 focus:border-[#BFFF00] outline-none"
+                    className="w-full bg-[#1A1A1A] text-white px-4 py-2 rounded-lg border border-gray-700 focus:border-[#10b981] outline-none"
                   />
                 </div>
               </div>
@@ -260,7 +260,7 @@ export const AllCoaches: React.FC<AllCoachesProps> = ({ onBack }) => {
                   required
                   value={formData.gymId}
                   onChange={(e) => setFormData({...formData, gymId: e.target.value})}
-                  className="w-full bg-[#1A1A1A] text-white px-4 py-2 rounded-lg border border-gray-700 focus:border-[#BFFF00] outline-none"
+                  className="w-full bg-[#1A1A1A] text-white px-4 py-2 rounded-lg border border-gray-700 focus:border-[#10b981] outline-none"
                 >
                   <option value="">Select a gym</option>
                   {gyms.map(gym => (
@@ -276,7 +276,7 @@ export const AllCoaches: React.FC<AllCoachesProps> = ({ onBack }) => {
                   required
                   value={formData.password}
                   onChange={(e) => setFormData({...formData, password: e.target.value})}
-                  className="w-full bg-[#1A1A1A] text-white px-4 py-2 rounded-lg border border-gray-700 focus:border-[#BFFF00] outline-none"
+                  className="w-full bg-[#1A1A1A] text-white px-4 py-2 rounded-lg border border-gray-700 focus:border-[#10b981] outline-none"
                 />
               </div>
 
@@ -290,7 +290,7 @@ export const AllCoaches: React.FC<AllCoachesProps> = ({ onBack }) => {
                 </button>
                 <button
                   type="submit"
-                  className="flex-1 bg-[#BFFF00] text-black py-3 rounded-lg font-semibold hover:bg-[#a8e600] transition-colors"
+                  className="flex-1 bg-[#10b981] text-black py-3 rounded-lg font-semibold hover:bg-[#a8e600] transition-colors"
                 >
                   Create Coach Account
                 </button>
@@ -318,7 +318,7 @@ export const AllCoaches: React.FC<AllCoachesProps> = ({ onBack }) => {
                   required
                   value={formData.name}
                   onChange={(e) => setFormData({...formData, name: e.target.value})}
-                  className="w-full bg-[#1A1A1A] text-white px-4 py-2 rounded-lg border border-gray-700 focus:border-[#BFFF00] outline-none"
+                  className="w-full bg-[#1A1A1A] text-white px-4 py-2 rounded-lg border border-gray-700 focus:border-[#10b981] outline-none"
                 />
               </div>
 
@@ -330,7 +330,7 @@ export const AllCoaches: React.FC<AllCoachesProps> = ({ onBack }) => {
                     required
                     value={formData.email}
                     onChange={(e) => setFormData({...formData, email: e.target.value})}
-                    className="w-full bg-[#1A1A1A] text-white px-4 py-2 rounded-lg border border-gray-700 focus:border-[#BFFF00] outline-none"
+                    className="w-full bg-[#1A1A1A] text-white px-4 py-2 rounded-lg border border-gray-700 focus:border-[#10b981] outline-none"
                   />
                 </div>
                 <div>
@@ -340,7 +340,7 @@ export const AllCoaches: React.FC<AllCoachesProps> = ({ onBack }) => {
                     required
                     value={formData.phone}
                     onChange={(e) => setFormData({...formData, phone: e.target.value})}
-                    className="w-full bg-[#1A1A1A] text-white px-4 py-2 rounded-lg border border-gray-700 focus:border-[#BFFF00] outline-none"
+                    className="w-full bg-[#1A1A1A] text-white px-4 py-2 rounded-lg border border-gray-700 focus:border-[#10b981] outline-none"
                   />
                 </div>
               </div>
@@ -355,7 +355,7 @@ export const AllCoaches: React.FC<AllCoachesProps> = ({ onBack }) => {
                 </button>
                 <button
                   type="submit"
-                  className="flex-1 bg-[#BFFF00] text-black py-3 rounded-lg font-semibold hover:bg-[#a8e600] transition-colors"
+                  className="flex-1 bg-[#10b981] text-black py-3 rounded-lg font-semibold hover:bg-[#a8e600] transition-colors"
                 >
                   Update Coach
                 </button>
@@ -367,3 +367,4 @@ export const AllCoaches: React.FC<AllCoachesProps> = ({ onBack }) => {
     </div>
   );
 };
+

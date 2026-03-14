@@ -40,7 +40,7 @@ export function RestTimer({ duration, onComplete }: RestTimerProps) {
               cx="40"
               cy="40"
               r={radius}
-              stroke="#BFFF00"
+              stroke="#10b981"
               strokeWidth="4"
               fill="transparent"
               strokeDasharray={circumference}
@@ -80,3 +80,4 @@ export function RestTimer({ duration, onComplete }: RestTimerProps) {
     </div>);
 
 }
+

@@ -58,7 +58,7 @@ export const BodyMeasurementsScreen: React.FC<BodyMeasurementsScreenProps> = ({ 
           <h1 className="text-2xl font-bold">Body Measurements</h1>
           <button
             onClick={() => setShowAddForm(!showAddForm)}
-            className="bg-[#BFFF00] text-black p-2 rounded-lg"
+            className="bg-[#10b981] text-black p-2 rounded-lg"
           >
             <Plus size={20} />
           </button>
@@ -116,7 +116,7 @@ export const BodyMeasurementsScreen: React.FC<BodyMeasurementsScreenProps> = ({ 
                 className="bg-[#1A1A1A] rounded px-3 py-2"
               />
             </div>
-            <button onClick={handleAdd} className="w-full bg-[#BFFF00] text-black py-2 rounded-lg font-semibold">
+            <button onClick={handleAdd} className="w-full bg-[#10b981] text-black py-2 rounded-lg font-semibold">
               Save Measurement
             </button>
           </div>
@@ -184,3 +184,4 @@ export const BodyMeasurementsScreen: React.FC<BodyMeasurementsScreenProps> = ({ 
     </div>
   );
 };
+

@@ -153,7 +153,7 @@ const getTrendToneClass = (value: number) => {
 
 const getRecoveryToneClass = (value: number) => {
   if (value >= 90) return 'border-emerald-400/30 bg-emerald-400/10 text-emerald-200';
-  if (value >= 75) return 'border-[#BFFF00]/30 bg-[#BFFF00]/10 text-[#E7FF9C]';
+  if (value >= 75) return 'border-[#10b981]/30 bg-[#10b981]/10 text-[#E7FF9C]';
   if (value >= 60) return 'border-amber-400/30 bg-amber-400/10 text-amber-200';
   return 'border-rose-400/30 bg-rose-400/10 text-rose-200';
 };
@@ -471,7 +471,7 @@ export function StrengthScoreScreen({ onBack }: StrengthScoreScreenProps) {
                     </div>
                     <div className="h-2 overflow-hidden rounded-full bg-white/10">
                       <div
-                        className="h-full rounded-full bg-gradient-to-r from-rose-500 via-orange-400 to-[#BFFF00]"
+                        className="h-full rounded-full bg-gradient-to-r from-rose-500 via-orange-400 to-[#10b981]"
                         style={{ width: `${scoreRingPercent}%` }}
                       />
                     </div>
@@ -534,7 +534,7 @@ export function StrengthScoreScreen({ onBack }: StrengthScoreScreenProps) {
                     {supportLoading ? '--' : `${support.readyMuscles} ready | ${support.damagedMuscles} need rest`}
                   </div>
                 </div>
-                <Activity size={18} className="text-[#BFFF00]" />
+                <Activity size={18} className="text-emerald-600" />
               </div>
             </Card>
           </div>
@@ -606,7 +606,7 @@ export function StrengthScoreScreen({ onBack }: StrengthScoreScreenProps) {
                         <linearGradient id="strength-line-gradient" x1="0%" y1="0%" x2="100%" y2="0%">
                           <stop offset="0%" stopColor="#FB7185" />
                           <stop offset="55%" stopColor="#F59E0B" />
-                          <stop offset="100%" stopColor="#BFFF00" />
+                          <stop offset="100%" stopColor="#10b981" />
                         </linearGradient>
                         <linearGradient id="strength-fill-gradient" x1="0%" y1="0%" x2="0%" y2="100%">
                           <stop offset="0%" stopColor="rgba(251,113,133,0.32)" />
@@ -624,7 +624,7 @@ export function StrengthScoreScreen({ onBack }: StrengthScoreScreenProps) {
                           cx={point.x}
                           cy={point.y}
                           r={index === chart.points.length - 1 ? '1.8' : '1.25'}
-                          fill={index === chart.points.length - 1 ? '#BFFF00' : '#F8FAFC'}
+                          fill={index === chart.points.length - 1 ? '#10b981' : '#F8FAFC'}
                         />
                       ))}
                     </svg>
@@ -764,7 +764,7 @@ export function StrengthScoreScreen({ onBack }: StrengthScoreScreenProps) {
 
                         <div className="mt-3 h-2 overflow-hidden rounded-full bg-white/10">
                           <div
-                            className="h-full rounded-full bg-gradient-to-r from-rose-500 via-orange-400 to-[#BFFF00]"
+                            className="h-full rounded-full bg-gradient-to-r from-rose-500 via-orange-400 to-[#10b981]"
                             style={{ width: `${scoreFill}%` }}
                           />
                         </div>
@@ -871,3 +871,4 @@ export function StrengthScoreScreen({ onBack }: StrengthScoreScreenProps) {
     </div>
   );
 }
+

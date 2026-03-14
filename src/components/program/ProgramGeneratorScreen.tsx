@@ -79,14 +79,14 @@ export const ProgramGeneratorScreen: React.FC<ProgramGeneratorScreenProps> = ({ 
 
         <div className="flex gap-2 mb-8">
           {[1, 2, 3, 4].map(s => (
-            <div key={s} className={`h-1 flex-1 rounded ${s <= step ? 'bg-[#BFFF00]' : 'bg-gray-700'}`} />
+            <div key={s} className={`h-1 flex-1 rounded ${s <= step ? 'bg-[#10b981]' : 'bg-gray-700'}`} />
           ))}
         </div>
 
         {step === 1 && (
           <div className="space-y-4">
             <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">
-              <Activity size={20} className="text-[#BFFF00]" />
+              <Activity size={20} className="text-emerald-600" />
               Fitness Level
             </h2>
             {['beginner', 'intermediate', 'advanced'].map(level => (
@@ -94,7 +94,7 @@ export const ProgramGeneratorScreen: React.FC<ProgramGeneratorScreenProps> = ({ 
                 key={level}
                 onClick={() => setProfile({ ...profile, fitnessLevel: level })}
                 className={`w-full p-4 rounded-lg border-2 text-left ${
-                  profile.fitnessLevel === level ? 'border-[#BFFF00] bg-[#BFFF00]/10' : 'border-gray-700'
+                  profile.fitnessLevel === level ? 'border-[#10b981] bg-[#10b981]/10' : 'border-gray-700'
                 }`}
               >
                 <div className="font-semibold capitalize">{level}</div>
@@ -105,7 +105,7 @@ export const ProgramGeneratorScreen: React.FC<ProgramGeneratorScreenProps> = ({ 
                 </div>
               </button>
             ))}
-            <button onClick={() => setStep(2)} className="w-full bg-[#BFFF00] text-black py-3 rounded-lg font-semibold mt-6">
+            <button onClick={() => setStep(2)} className="w-full bg-[#10b981] text-black py-3 rounded-lg font-semibold mt-6">
               Continue
             </button>
           </div>
@@ -114,7 +114,7 @@ export const ProgramGeneratorScreen: React.FC<ProgramGeneratorScreenProps> = ({ 
         {step === 2 && (
           <div className="space-y-4">
             <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">
-              <User size={20} className="text-[#BFFF00]" />
+              <User size={20} className="text-emerald-600" />
               Body Type
             </h2>
             {['ectomorph', 'mesomorph', 'endomorph'].map(type => (
@@ -122,7 +122,7 @@ export const ProgramGeneratorScreen: React.FC<ProgramGeneratorScreenProps> = ({ 
                 key={type}
                 onClick={() => setProfile({ ...profile, bodyType: type })}
                 className={`w-full p-4 rounded-lg border-2 text-left ${
-                  profile.bodyType === type ? 'border-[#BFFF00] bg-[#BFFF00]/10' : 'border-gray-700'
+                  profile.bodyType === type ? 'border-[#10b981] bg-[#10b981]/10' : 'border-gray-700'
                 }`}
               >
                 <div className="font-semibold capitalize">{type}</div>
@@ -135,7 +135,7 @@ export const ProgramGeneratorScreen: React.FC<ProgramGeneratorScreenProps> = ({ 
             ))}
             <div className="flex gap-3 mt-6">
               <button onClick={() => setStep(1)} className="flex-1 border border-gray-700 py-3 rounded-lg">Back</button>
-              <button onClick={() => setStep(3)} className="flex-1 bg-[#BFFF00] text-black py-3 rounded-lg font-semibold">Continue</button>
+              <button onClick={() => setStep(3)} className="flex-1 bg-[#10b981] text-black py-3 rounded-lg font-semibold">Continue</button>
             </div>
           </div>
         )}
@@ -143,7 +143,7 @@ export const ProgramGeneratorScreen: React.FC<ProgramGeneratorScreenProps> = ({ 
         {step === 3 && (
           <div className="space-y-4">
             <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">
-              <Target size={20} className="text-[#BFFF00]" />
+              <Target size={20} className="text-emerald-600" />
               Primary Goal
             </h2>
             {['build muscle', 'gain strength', 'lose fat'].map(goal => (
@@ -151,7 +151,7 @@ export const ProgramGeneratorScreen: React.FC<ProgramGeneratorScreenProps> = ({ 
                 key={goal}
                 onClick={() => setProfile({ ...profile, goals: [goal] })}
                 className={`w-full p-4 rounded-lg border-2 text-left ${
-                  profile.goals?.includes(goal) ? 'border-[#BFFF00] bg-[#BFFF00]/10' : 'border-gray-700'
+                  profile.goals?.includes(goal) ? 'border-[#10b981] bg-[#10b981]/10' : 'border-gray-700'
                 }`}
               >
                 <div className="font-semibold capitalize">{goal}</div>
@@ -159,7 +159,7 @@ export const ProgramGeneratorScreen: React.FC<ProgramGeneratorScreenProps> = ({ 
             ))}
             <div className="flex gap-3 mt-6">
               <button onClick={() => setStep(2)} className="flex-1 border border-gray-700 py-3 rounded-lg">Back</button>
-              <button onClick={() => setStep(4)} className="flex-1 bg-[#BFFF00] text-black py-3 rounded-lg font-semibold">Continue</button>
+              <button onClick={() => setStep(4)} className="flex-1 bg-[#10b981] text-black py-3 rounded-lg font-semibold">Continue</button>
             </div>
           </div>
         )}
@@ -167,7 +167,7 @@ export const ProgramGeneratorScreen: React.FC<ProgramGeneratorScreenProps> = ({ 
         {step === 4 && (
           <div className="space-y-4">
             <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">
-              <Calendar size={20} className="text-[#BFFF00]" />
+              <Calendar size={20} className="text-emerald-600" />
               Training Days Per Week
             </h2>
             {[3, 4, 5].map(days => (
@@ -175,7 +175,7 @@ export const ProgramGeneratorScreen: React.FC<ProgramGeneratorScreenProps> = ({ 
                 key={days}
                 onClick={() => setProfile({ ...profile, availability: days })}
                 className={`w-full p-4 rounded-lg border-2 text-left ${
-                  profile.availability === days ? 'border-[#BFFF00] bg-[#BFFF00]/10' : 'border-gray-700'
+                  profile.availability === days ? 'border-[#10b981] bg-[#10b981]/10' : 'border-gray-700'
                 }`}
               >
                 <div className="font-semibold">{days} Days Per Week</div>
@@ -191,7 +191,7 @@ export const ProgramGeneratorScreen: React.FC<ProgramGeneratorScreenProps> = ({ 
               <button 
                 onClick={handleGenerate} 
                 disabled={isGenerating}
-                className="flex-1 bg-[#BFFF00] text-black py-3 rounded-lg font-semibold flex items-center justify-center gap-2 disabled:opacity-50"
+                className="flex-1 bg-[#10b981] text-black py-3 rounded-lg font-semibold flex items-center justify-center gap-2 disabled:opacity-50"
               >
                 {isGenerating ? (
                   <>
@@ -212,3 +212,4 @@ export const ProgramGeneratorScreen: React.FC<ProgramGeneratorScreenProps> = ({ 
     </div>
   );
 };
+

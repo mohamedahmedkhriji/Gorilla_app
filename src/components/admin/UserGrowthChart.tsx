@@ -33,7 +33,7 @@ export const UserGrowthChart: React.FC<UserGrowthChartProps> = ({ onBack }) => {
               key={range}
               onClick={() => setTimeRange(range as any)}
               className={`px-4 py-2 rounded-lg capitalize ${
-                timeRange === range ? 'bg-[#BFFF00] text-black' : 'bg-[#242424]'
+                timeRange === range ? 'bg-[#10b981] text-black' : 'bg-[#242424]'
               }`}
             >
               {range}
@@ -56,11 +56,11 @@ export const UserGrowthChart: React.FC<UserGrowthChartProps> = ({ onBack }) => {
               return (
                 <g key={i}>
                   {i < userGrowth.length - 1 && (
-                    <line x1={x} y1={y} x2={nextX} y2={nextY} stroke="#BFFF00" strokeWidth="4" />
+                    <line x1={x} y1={y} x2={nextX} y2={nextY} stroke="#10b981" strokeWidth="4" />
                   )}
-                  <circle cx={x} cy={y} r="8" fill="#BFFF00" />
+                  <circle cx={x} cy={y} r="8" fill="#10b981" />
                   <text x={x} y="385" fill="#888" fontSize="16" textAnchor="middle">{d.month}</text>
-                  <text x={x} y={y - 15} fill="#BFFF00" fontSize="16" textAnchor="middle" fontWeight="bold">{d.users}</text>
+                  <text x={x} y={y - 15} fill="#10b981" fontSize="16" textAnchor="middle" fontWeight="bold">{d.users}</text>
                 </g>
               );
             })}
@@ -75,7 +75,7 @@ export const UserGrowthChart: React.FC<UserGrowthChartProps> = ({ onBack }) => {
           <div className="text-sm text-gray-400">Growth This Period</div>
         </div>
         <div className="bg-[#242424] rounded-lg p-6">
-          <TrendingUp className="text-[#BFFF00] mb-2" size={24} />
+          <TrendingUp className="text-emerald-600 mb-2" size={24} />
           <div className="text-3xl font-bold">46.7%</div>
           <div className="text-sm text-gray-400">Growth Rate</div>
         </div>
@@ -88,3 +88,4 @@ export const UserGrowthChart: React.FC<UserGrowthChartProps> = ({ onBack }) => {
     </div>
   );
 };
+

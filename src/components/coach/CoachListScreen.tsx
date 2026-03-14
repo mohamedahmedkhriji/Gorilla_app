@@ -109,12 +109,12 @@ export const CoachListScreen: React.FC<CoachListScreenProps> = ({ onBack, onSele
                 <button
                   key={coach.id}
                   onClick={() => onSelectCoach(coach)}
-                  className="w-full bg-[#242424] rounded-lg p-4 border-2 border-[#BFFF00]/20 hover:border-[#BFFF00] transition-colors"
+                  className="w-full bg-[#242424] rounded-lg p-4 border-2 border-[#10b981]/20 hover:border-[#10b981] transition-colors"
                 >
                   <div className="flex items-center gap-4">
                     <div className="relative">
-                      <div className="w-14 h-14 rounded-full bg-[#BFFF00]/10 flex items-center justify-center">
-                        <span className="font-bold text-[#BFFF00]">{coach.avatar}</span>
+                      <div className="w-14 h-14 rounded-full bg-[#10b981]/10 flex items-center justify-center">
+                        <span className="font-bold text-emerald-600">{coach.avatar}</span>
                       </div>
                       {coach.isOnline && (
                         <div className="absolute -top-1 -right-1 w-4 h-4 bg-green-500 rounded-full border-2 border-[#242424]" />
@@ -137,8 +137,8 @@ export const CoachListScreen: React.FC<CoachListScreenProps> = ({ onBack, onSele
                     </div>
 
                     <div className="text-right">
-                      <div className="flex items-center gap-1 text-[#BFFF00] mb-2">
-                        <Star size={14} fill="#BFFF00" />
+                      <div className="flex items-center gap-1 text-emerald-600 mb-2">
+                        <Star size={14} fill="#10b981" />
                         <span className="text-sm font-semibold">{coach.rating}</span>
                       </div>
                       <MessageSquare size={20} className="text-gray-400" />
@@ -204,3 +204,4 @@ export const CoachListScreen: React.FC<CoachListScreenProps> = ({ onBack, onSele
     </div>
   );
 };
+

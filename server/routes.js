@@ -3595,6 +3595,10 @@ router.post('/coaches', async (req, res) => {
 
 router.get('/users', async (_req, res) => {
   try {
+    await pool.execute(
+      'UPDATE users SET is_active = 0 WHERE is_active = 1 AND ban_delete_at IS NOT NULL AND ban_delete_at <= NOW()'
+    );
+
     const profileImageColumn = await getProfileImageColumn();
     if (!profileImageColumn) {
       return res.status(500).json({ error: 'No profile image column found on users table' });
@@ -3609,6 +3613,175 @@ router.get('/users', async (_req, res) => {
     return res.json(rows);
   } catch (error) {
     return res.status(500).json({ error: error.message });
+  }
+});
+
+router.delete('/users/:userId', async (req, res) => {
+  try {
+    const userId = Number(req.params.userId);
+    if (!Number.isFinite(userId) || userId <= 0) {
+      return res.status(400).json({ error: 'Invalid user id' });
+    }
+
+    const [result] = await pool.execute(
+      "UPDATE users SET is_active = 0 WHERE id = ? AND role = 'user'",
+      [userId]
+    );
+
+    if (!result || result.affectedRows === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    return res.json({ success: true });
+  } catch (error) {
+    return res.status(500).json({ error: error.message });
+  }
+});
+
+router.post('/users/:userId/ban', async (req, res) => {
+  try {
+    const userId = Number(req.params.userId);
+    if (!Number.isFinite(userId) || userId <= 0) {
+      return res.status(400).json({ error: 'Invalid user id' });
+    }
+
+    const days = Number(req.body?.days ?? 14);
+    if (!Number.isFinite(days) || days <= 0) {
+      return res.status(400).json({ error: 'days must be a positive number' });
+    }
+
+    const reason = String(req.body?.reason || '').trim() || 'Inappropriate content or comments';
+    const coachId = Number(req.body?.coachId || 0);
+    const now = new Date();
+    const banUntil = new Date(now.getTime() + days * 24 * 60 * 60 * 1000);
+    const banWarningUntil = new Date(now.getTime() + 24 * 60 * 60 * 1000);
+    const banDeleteAt = new Date(now.getTime() + 48 * 60 * 60 * 1000);
+    const banUntilSql = banUntil.toISOString().slice(0, 19).replace('T', ' ');
+    const banWarningUntilSql = banWarningUntil.toISOString().slice(0, 19).replace('T', ' ');
+    const banDeleteAtSql = banDeleteAt.toISOString().slice(0, 19).replace('T', ' ');
+
+    const [result] = await pool.execute(
+      "UPDATE users SET banned_until = ?, ban_reason = ?, ban_created_at = NOW(), ban_delete_at = ? WHERE id = ? AND role = 'user'",
+      [banUntilSql, reason, banDeleteAtSql, userId]
+    );
+
+    if (!result || result.affectedRows === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    const message = `You are banned from posting blogs and comments for ${days} days. Reason: ${reason}. Please remove any disrespectful blogs within 24 hours or your account will be deleted in 48 hours.`;
+    await pool.execute(
+      `INSERT INTO notifications (user_id, type, title, message, data)
+       VALUES (?, 'account_ban', 'Account restricted', ?, JSON_OBJECT('banUntil', ?, 'banWarningUntil', ?, 'banDeleteAt', ?, 'reason', ?, 'days', ?, 'actorCoachId', ?))`,
+      [userId, message, banUntilSql, banWarningUntilSql, banDeleteAtSql, reason, days, coachId || null]
+    );
+
+    return res.json({
+      success: true,
+      bannedUntil: banUntil.toISOString(),
+      banWarningUntil: banWarningUntil.toISOString(),
+      banDeleteAt: banDeleteAt.toISOString(),
+    });
+  } catch (error) {
+    return res.status(500).json({ error: error.message });
+  }
+});
+
+router.get('/coaches/:coachId/schedule', async (req, res) => {
+  try {
+    const coachId = toPositiveInteger(req.params.coachId);
+    if (!coachId) {
+      return res.status(400).json({ error: 'coachId must be a positive integer' });
+    }
+
+    const startDate = toSummaryDate(req.query?.startDate);
+    const endDate = toSummaryDate(req.query?.endDate);
+
+    const columns = await getWorkoutSessionColumns();
+    const dateColumnCandidates = [
+      'scheduled_for',
+      'scheduled_at',
+      'scheduled_date',
+      'session_date',
+      'start_time',
+      'starts_at',
+      'scheduled_on',
+      'completed_at',
+      'created_at',
+    ];
+    const timeColumnCandidates = ['scheduled_time', 'session_time', 'start_time', 'starts_at'];
+    const workoutNameCandidates = ['workout_name', 'session_name', 'name', 'title'];
+    const durationCandidates = ['duration_minutes', 'session_duration_minutes', 'duration'];
+
+    const dateColumn = dateColumnCandidates.find((col) => columns.has(col)) || null;
+    if (!dateColumn) {
+      return res.status(500).json({ error: 'No session date column found in workout_sessions' });
+    }
+
+    const timeColumn = timeColumnCandidates.find((col) => columns.has(col)) || null;
+    const workoutNameColumn = workoutNameCandidates.find((col) => columns.has(col)) || null;
+    const durationColumn = durationCandidates.find((col) => columns.has(col)) || null;
+    const statusColumn = columns.has('status') ? 'status' : null;
+    const hasMuscleGroup = columns.has('muscle_group');
+
+    const dateExpr = `DATE(ws.${dateColumn})`;
+    const timeExpr = timeColumn ? `TIME(ws.${timeColumn})` : `TIME(ws.${dateColumn})`;
+    const selectColumns = [
+      'ws.id',
+      'ws.user_id',
+      'u.name AS client_name',
+      `${dateExpr} AS session_date`,
+      `${timeExpr} AS session_time`,
+    ];
+
+    if (workoutNameColumn) {
+      selectColumns.push(`ws.${workoutNameColumn} AS workout_name`);
+    }
+    if (hasMuscleGroup) {
+      selectColumns.push('ws.muscle_group AS muscle_group');
+    }
+    if (durationColumn) {
+      selectColumns.push(`ws.${durationColumn} AS duration_minutes`);
+    } else {
+      selectColumns.push('NULL AS duration_minutes');
+    }
+    if (statusColumn) {
+      selectColumns.push(`ws.${statusColumn} AS status`);
+    } else {
+      selectColumns.push('NULL AS status');
+    }
+
+    const profileImageColumn = await getProfileImageColumn();
+    const avatarSelect = profileImageColumn ? `COALESCE(u.${profileImageColumn}, '') AS avatar_url` : `'' AS avatar_url`;
+    selectColumns.push(`${avatarSelect}`);
+
+    const whereParts = ['u.role = "user"', 'u.is_active = 1', '(u.banned_until IS NULL OR u.banned_until < NOW())', 'u.coach_id = ?'];
+    const params = [coachId];
+
+    if (startDate && endDate) {
+      whereParts.push(`${dateExpr} BETWEEN ? AND ?`);
+      params.push(startDate, endDate);
+    } else if (startDate) {
+      whereParts.push(`${dateExpr} >= ?`);
+      params.push(startDate);
+    } else if (endDate) {
+      whereParts.push(`${dateExpr} <= ?`);
+      params.push(endDate);
+    }
+
+    const whereClause = whereParts.length ? `WHERE ${whereParts.join(' AND ')}` : '';
+    const [rows] = await pool.execute(
+      `SELECT ${selectColumns.join(', ')}
+       FROM workout_sessions ws
+       INNER JOIN users u ON u.id = ws.user_id
+       ${whereClause}
+       ORDER BY session_date ASC, session_time ASC, ws.id ASC`,
+      params,
+    );
+
+    return res.json({ sessions: rows });
+  } catch (error) {
+    return res.status(500).json({ error: error.message || 'Failed to load coach schedule' });
   }
 });
 
@@ -9696,14 +9869,19 @@ const fetchBlogPostById = async (postId, viewerUserId = 0) => {
        GROUP BY post_id
      ) v ON v.post_id = bp.id
      LEFT JOIN (
-       SELECT post_id, COUNT(*) AS comment_count
-       FROM blog_post_comments
-       GROUP BY post_id
+       SELECT c.post_id, COUNT(*) AS comment_count
+       FROM blog_post_comments c
+       INNER JOIN users cu ON cu.id = c.user_id
+       WHERE cu.is_active = 1
+         AND (cu.banned_until IS NULL OR cu.banned_until < NOW())
+       GROUP BY c.post_id
      ) c ON c.post_id = bp.id
      LEFT JOIN blog_post_likes ul
        ON ul.post_id = bp.id
       AND ul.user_id = ?
      WHERE bp.id = ?
+       AND u.is_active = 1
+       AND (u.banned_until IS NULL OR u.banned_until < NOW())
      LIMIT 1`,
     [safeViewerUserId, postId],
   );
@@ -9714,6 +9892,10 @@ const fetchBlogPostById = async (postId, viewerUserId = 0) => {
 
 router.get('/blogs', async (req, res) => {
   try {
+    await pool.execute(
+      'UPDATE users SET is_active = 0 WHERE is_active = 1 AND ban_delete_at IS NOT NULL AND ban_delete_at <= NOW()'
+    );
+
     const viewerUserId = toPositiveInteger(req.query.userId) || 0;
     const authorId = toPositiveInteger(req.query.authorId);
     const limit = clampBlogLimit(req.query.limit, 20, 60);
@@ -9741,6 +9923,9 @@ router.get('/blogs', async (req, res) => {
 
     const params = [viewerUserId];
     const whereParts = [];
+
+    whereParts.push('u.is_active = 1');
+    whereParts.push('(u.banned_until IS NULL OR u.banned_until < NOW())');
 
     if (!viewerIsFemale) {
       whereParts.push('(COALESCE(bp.women_only, 0) = 0 OR bp.user_id = ?)');
@@ -9781,7 +9966,7 @@ router.get('/blogs', async (req, res) => {
          COALESCE(c.comment_count, 0) AS comments_count,
          CASE WHEN ul.user_id IS NULL THEN 0 ELSE 1 END AS liked_by_viewer
        FROM blog_posts bp
-       INNER JOIN users u ON u.id = bp.user_id
+     INNER JOIN users u ON u.id = bp.user_id
        LEFT JOIN (
          SELECT post_id, COUNT(*) AS like_count
          FROM blog_post_likes
@@ -9793,9 +9978,12 @@ router.get('/blogs', async (req, res) => {
          GROUP BY post_id
        ) v ON v.post_id = bp.id
        LEFT JOIN (
-         SELECT post_id, COUNT(*) AS comment_count
-         FROM blog_post_comments
-         GROUP BY post_id
+         SELECT c.post_id, COUNT(*) AS comment_count
+         FROM blog_post_comments c
+         INNER JOIN users cu ON cu.id = c.user_id
+         WHERE cu.is_active = 1
+           AND (cu.banned_until IS NULL OR cu.banned_until < NOW())
+         GROUP BY c.post_id
        ) c ON c.post_id = bp.id
        LEFT JOIN blog_post_likes ul
          ON ul.post_id = bp.id
@@ -9860,9 +10048,19 @@ router.post('/blogs', async (req, res) => {
     const mediaAlt = mediaAltRaw.slice(0, 255) || 'User uploaded media';
     const womenOnly = Boolean(req.body?.womenOnly);
 
-    const [existingUsers] = await pool.execute('SELECT id, gender FROM users WHERE id = ? LIMIT 1', [userId]);
+    const [existingUsers] = await pool.execute('SELECT id, gender, banned_until, is_active FROM users WHERE id = ? LIMIT 1', [userId]);
     if (!existingUsers.length) {
       return res.status(404).json({ error: 'User not found' });
+    }
+    if (Number(existingUsers[0]?.is_active || 0) === 0) {
+      return res.status(403).json({ error: 'Account is inactive' });
+    }
+    const bannedUntil = existingUsers[0]?.banned_until ? new Date(existingUsers[0].banned_until) : null;
+    if (bannedUntil && bannedUntil.getTime() > Date.now()) {
+      return res.status(403).json({
+        error: `You are banned from posting blogs and comments until ${bannedUntil.toISOString()}.`,
+        bannedUntil: bannedUntil.toISOString(),
+      });
     }
     if (womenOnly && !isFemaleGender(existingUsers[0]?.gender)) {
       return res.status(403).json({ error: 'Only women can publish women-only posts' });
@@ -10247,6 +10445,8 @@ router.get('/blogs/:postId/comments', async (req, res) => {
        FROM blog_post_comments c
        INNER JOIN users u ON u.id = c.user_id
        WHERE c.post_id = ?
+         AND u.is_active = 1
+         AND (u.banned_until IS NULL OR u.banned_until < NOW())
        ORDER BY c.created_at ASC, c.id ASC
        LIMIT ?`,
       [postId, limit],
@@ -10278,6 +10478,21 @@ router.post('/blogs/:postId/comments', async (req, res) => {
     }
     if (text.length > 1000) {
       return res.status(400).json({ error: 'Comment is too long (max 1000 chars)' });
+    }
+
+    const [userRows] = await pool.execute('SELECT banned_until, is_active FROM users WHERE id = ? LIMIT 1', [userId]);
+    if (!userRows.length) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    if (Number(userRows[0]?.is_active || 0) === 0) {
+      return res.status(403).json({ error: 'Account is inactive' });
+    }
+    const bannedUntil = userRows[0]?.banned_until ? new Date(userRows[0].banned_until) : null;
+    if (bannedUntil && bannedUntil.getTime() > Date.now()) {
+      return res.status(403).json({
+        error: `You are banned from posting blogs and comments until ${bannedUntil.toISOString()}.`,
+        bannedUntil: bannedUntil.toISOString(),
+      });
     }
 
     const [postRows] = await pool.execute(
@@ -10319,8 +10534,11 @@ router.post('/blogs/:postId/comments', async (req, res) => {
 
     const [countRows] = await pool.execute(
       `SELECT COUNT(*) AS comments_count
-       FROM blog_post_comments
-       WHERE post_id = ?`,
+       FROM blog_post_comments c
+       INNER JOIN users u ON u.id = c.user_id
+       WHERE c.post_id = ?
+         AND u.is_active = 1
+         AND (u.banned_until IS NULL OR u.banned_until < NOW())`,
       [postId],
     );
 

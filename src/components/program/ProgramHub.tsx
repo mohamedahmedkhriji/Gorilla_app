@@ -77,7 +77,7 @@ export const ProgramHub: React.FC = () => {
 
         {activeProgram ? (
           <div className="space-y-4">
-            <div className="bg-[#242424] rounded-lg p-4 border-2 border-[#BFFF00]">
+            <div className="bg-[#242424] rounded-lg p-4 border-2 border-[#10b981]">
               <div className="flex items-center justify-between mb-3">
                 <div>
                   <h2 className="font-semibold">{activeProgram.programName}</h2>
@@ -85,11 +85,11 @@ export const ProgramHub: React.FC = () => {
                     Week {activeProgram.currentWeek}/{activeProgram.weeks}
                   </p>
                 </div>
-                <Dumbbell size={24} className="text-[#BFFF00]" />
+                <Dumbbell size={24} className="text-emerald-600" />
               </div>
               <button
                 onClick={() => setScreen('overview')}
-                className="w-full bg-[#BFFF00] text-black py-3 rounded-lg font-semibold"
+                className="w-full bg-[#10b981] text-black py-3 rounded-lg font-semibold"
               >
                 View Program
               </button>
@@ -100,7 +100,7 @@ export const ProgramHub: React.FC = () => {
               className="w-full bg-[#242424] rounded-lg p-4 flex items-center justify-between"
             >
               <div className="flex items-center gap-3">
-                <TrendingUp size={20} className="text-[#BFFF00]" />
+                <TrendingUp size={20} className="text-emerald-600" />
                 <span className="font-semibold">View Progress</span>
               </div>
               <span className="text-gray-400">→</span>
@@ -111,7 +111,7 @@ export const ProgramHub: React.FC = () => {
               className="w-full bg-[#242424] rounded-lg p-4 flex items-center justify-between"
             >
               <div className="flex items-center gap-3">
-                <Plus size={20} className="text-[#BFFF00]" />
+                <Plus size={20} className="text-emerald-600" />
                 <span className="font-semibold">Generate New Program</span>
               </div>
               <span className="text-gray-400">→</span>
@@ -120,14 +120,14 @@ export const ProgramHub: React.FC = () => {
         ) : (
           <div className="space-y-4">
             <div className="bg-[#242424] rounded-lg p-6 text-center">
-              <Dumbbell size={48} className="text-[#BFFF00] mx-auto mb-4" />
+              <Dumbbell size={48} className="text-emerald-600 mx-auto mb-4" />
               <h2 className="text-xl font-semibold mb-2">No Active Program</h2>
               <p className="text-gray-400 mb-4">
                 Generate a personalized training program based on your goals and experience
               </p>
               <button
                 onClick={() => setScreen('generator')}
-                className="bg-[#BFFF00] text-black px-6 py-3 rounded-lg font-semibold"
+                className="bg-[#10b981] text-black px-6 py-3 rounded-lg font-semibold"
               >
                 Generate Program
               </button>
@@ -137,23 +137,23 @@ export const ProgramHub: React.FC = () => {
               <h3 className="font-semibold mb-2">What You'll Get:</h3>
               <ul className="space-y-2 text-sm text-gray-400">
                 <li className="flex items-start gap-2">
-                  <span className="text-[#BFFF00]">✓</span>
+                  <span className="text-emerald-600">✓</span>
                   <span>8-week structured program</span>
                 </li>
                 <li className="flex items-start gap-2">
-                  <span className="text-[#BFFF00]">✓</span>
+                  <span className="text-emerald-600">✓</span>
                   <span>Exercise selection based on your level</span>
                 </li>
                 <li className="flex items-start gap-2">
-                  <span className="text-[#BFFF00]">✓</span>
+                  <span className="text-emerald-600">✓</span>
                   <span>Progressive overload built-in</span>
                 </li>
                 <li className="flex items-start gap-2">
-                  <span className="text-[#BFFF00]">✓</span>
+                  <span className="text-emerald-600">✓</span>
                   <span>Nutrition guidelines</span>
                 </li>
                 <li className="flex items-start gap-2">
-                  <span className="text-[#BFFF00]">✓</span>
+                  <span className="text-emerald-600">✓</span>
                   <span>Week-by-week progress tracking</span>
                 </li>
               </ul>
@@ -164,3 +164,4 @@ export const ProgramHub: React.FC = () => {
     </div>
   );
 };
+

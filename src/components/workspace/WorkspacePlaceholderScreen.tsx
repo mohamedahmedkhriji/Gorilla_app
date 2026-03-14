@@ -97,7 +97,7 @@ export function WorkspacePlaceholderScreen({
                       ? isLightTheme
                         ? 'bg-slate-100 text-slate-700 hover:bg-slate-200'
                         : 'bg-[#1A1A1A] text-white hover:bg-[#2A2A2A]'
-                      : 'bg-[#BFFF00] text-black hover:bg-[#a8e600]'
+                      : 'bg-[#10b981] text-black hover:bg-[#a8e600]'
                   }`}
                 >
                   {action.label}
@@ -107,7 +107,7 @@ export function WorkspacePlaceholderScreen({
                 <button
                   type="button"
                   onClick={onBack}
-                  className="w-full rounded-xl bg-[#BFFF00] px-4 py-3 text-sm font-semibold text-black hover:bg-[#a8e600] transition-colors"
+                  className="w-full rounded-xl bg-[#10b981] px-4 py-3 text-sm font-semibold text-black hover:bg-[#a8e600] transition-colors"
                 >
                   Return to Dashboard
                 </button>
@@ -119,3 +119,4 @@ export function WorkspacePlaceholderScreen({
     </div>
   );
 }
+

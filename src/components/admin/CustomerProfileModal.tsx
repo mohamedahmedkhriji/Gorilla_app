@@ -425,10 +425,10 @@ export const CustomerProfileModal: React.FC<CustomerProfileModalProps> = ({ clie
     ? 'bg-[#F8FAFC] border border-slate-200'
     : 'bg-[#1A1A1A]';
   const textPrimaryClass = resolvedIsLightTheme ? 'text-[#111827]' : 'text-white';
-  const textMutedClass = resolvedIsLightTheme ? 'text-slate-500' : 'text-gray-400';
+  const textMutedClass = resolvedIsLightTheme ? 'text-slate-600' : 'text-gray-400';
   const textSubtleClass = resolvedIsLightTheme ? 'text-slate-600' : 'text-white/70';
-  const tabBorderClass = 'border-gray-700';
-  const tabInactiveClass = 'text-gray-400';
+  const tabBorderClass = resolvedIsLightTheme ? 'border-slate-200' : 'border-gray-700';
+  const tabInactiveClass = resolvedIsLightTheme ? 'text-slate-600' : 'text-gray-400';
   const progressTrackClass = resolvedIsLightTheme ? 'bg-slate-200' : 'bg-gray-700';
   const createPlanCardClass = resolvedIsLightTheme
     ? 'bg-[#F8FAFC] border border-slate-200'
@@ -593,26 +593,29 @@ export const CustomerProfileModal: React.FC<CustomerProfileModalProps> = ({ clie
   };
 
   return (
-    <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4" onClick={onClose}>
-      <div className={`${modalClass} rounded-xl max-w-[90vw] w-full max-h-[95vh] overflow-y-auto`} onClick={(e) => e.stopPropagation()}>
-        <div className={`sticky top-0 border-b p-4 flex items-center justify-between z-10 ${modalHeaderClass}`}>
-          <h2 className={`text-2xl font-bold ${textPrimaryClass}`}>Customer Profile</h2>
+    <div className="fixed inset-0 z-50 bg-black/80 p-0 md:flex md:items-center md:justify-center md:p-4" onClick={onClose}>
+      <div className={`${modalClass} absolute inset-x-0 bottom-0 max-h-[94vh] w-full overflow-y-auto rounded-t-[28px] border border-white/10 md:relative md:max-w-[90vw] md:rounded-[28px]`} onClick={(e) => e.stopPropagation()}>
+        <div className={`sticky top-0 z-10 border-b p-4 ${modalHeaderClass}`}>
+          <div className="mx-auto mb-3 h-1.5 w-14 rounded-full bg-current/15 md:hidden" />
+          <div className="flex items-center justify-between gap-3">
+          <h2 className={`text-xl font-bold md:text-2xl ${textPrimaryClass}`}>Customer Profile</h2>
           <button
             onClick={onClose}
-            className={resolvedIsLightTheme ? 'text-slate-500 hover:text-[#111827]' : 'text-gray-400 hover:text-white'}
+            className={`rounded-2xl p-2 transition-colors ${resolvedIsLightTheme ? 'text-slate-500 hover:bg-slate-100 hover:text-[#111827]' : 'text-gray-400 hover:bg-white/10 hover:text-white'}`}
           >
             <X size={24} />
           </button>
+          </div>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 p-6">
-          <div className={`lg:col-span-1 rounded-xl p-6 ${panelClass}`}>
+        <div className="grid grid-cols-1 gap-4 p-4 md:gap-6 md:p-6 lg:grid-cols-3">
+          <div className={`lg:col-span-1 rounded-[28px] p-5 md:p-6 ${panelClass}`}>
             <h3 className={`text-xl font-bold ${textPrimaryClass}`}>{client.name}</h3>
             <p className="text-sm text-cyan-400 mb-6">{style.label}</p>
 
             <div className="flex justify-center mb-6">
-              <div className={`relative w-52 h-72 rounded-t-2xl flex flex-col items-center pt-8 border-2 ${style.bg} ${style.border} ${style.glow}`}>
-                <div className="w-28 h-28 rounded-full overflow-hidden border-2 border-white bg-white/20 flex items-center justify-center">
+              <div className={`relative w-full max-w-[240px] rounded-[28px] flex flex-col items-center px-6 pb-8 pt-8 border-2 ${style.bg} ${style.border} ${style.glow}`}>
+                <div className="w-24 h-24 rounded-3xl overflow-hidden border-2 border-white bg-white/20 flex items-center justify-center">
                   {client.profilePicture ? (
                     <img
                       src={client.profilePicture}
@@ -630,7 +633,6 @@ export const CustomerProfileModal: React.FC<CustomerProfileModalProps> = ({ clie
                 <p className="text-white/70 text-sm mt-1">
                   {typeof client.age === 'number' ? `${client.age} years` : 'Age N/A'}
                 </p>
-                <div className={`absolute -bottom-8 w-0 h-0 border-l-[104px] border-l-transparent border-r-[104px] border-r-transparent border-t-[32px] ${style.shieldBg}`} />
               </div>
             </div>
 
@@ -645,13 +647,13 @@ export const CustomerProfileModal: React.FC<CustomerProfileModalProps> = ({ clie
             )}
           </div>
 
-          <div className={`lg:col-span-2 rounded-xl p-6 ${panelClass}`}>
-            <div className={`flex gap-2 mb-6 border-b overflow-x-auto ${tabBorderClass}`}>
-              <button onClick={() => setActiveTab('overview')} className={`px-4 py-2 whitespace-nowrap ${activeTab === 'overview' ? 'border-b-2 border-[#BFFF00] text-[#BFFF00]' : tabInactiveClass}`}>Overview</button>
-              <button onClick={() => setActiveTab('workouts')} className={`px-4 py-2 whitespace-nowrap ${activeTab === 'workouts' ? 'border-b-2 border-[#BFFF00] text-[#BFFF00]' : tabInactiveClass}`}>Workouts</button>
-              <button onClick={() => setActiveTab('program')} className={`px-4 py-2 whitespace-nowrap ${activeTab === 'program' ? 'border-b-2 border-[#BFFF00] text-[#BFFF00]' : tabInactiveClass}`}>Program</button>
-              <button onClick={() => setActiveTab('progress')} className={`px-4 py-2 whitespace-nowrap ${activeTab === 'progress' ? 'border-b-2 border-[#BFFF00] text-[#BFFF00]' : tabInactiveClass}`}>Progress</button>
-              <button onClick={() => setActiveTab('createPlan')} className={`px-4 py-2 whitespace-nowrap ${activeTab === 'createPlan' ? 'border-b-2 border-[#BFFF00] text-[#BFFF00]' : tabInactiveClass}`}>Create Plan</button>
+          <div className={`lg:col-span-2 rounded-[28px] p-4 md:p-6 ${panelClass}`}>
+            <div className={`mb-6 flex gap-2 overflow-x-auto border-b pb-3 ${tabBorderClass}`}>
+              <button onClick={() => setActiveTab('overview')} className={`rounded-full px-4 py-2 whitespace-nowrap text-sm ${activeTab === 'overview' ? 'bg-[#10b981] text-black' : tabInactiveClass}`}>Overview</button>
+              <button onClick={() => setActiveTab('workouts')} className={`rounded-full px-4 py-2 whitespace-nowrap text-sm ${activeTab === 'workouts' ? 'bg-[#10b981] text-black' : tabInactiveClass}`}>Workouts</button>
+              <button onClick={() => setActiveTab('program')} className={`rounded-full px-4 py-2 whitespace-nowrap text-sm ${activeTab === 'program' ? 'bg-[#10b981] text-black' : tabInactiveClass}`}>Program</button>
+              <button onClick={() => setActiveTab('progress')} className={`rounded-full px-4 py-2 whitespace-nowrap text-sm ${activeTab === 'progress' ? 'bg-[#10b981] text-black' : tabInactiveClass}`}>Progress</button>
+              <button onClick={() => setActiveTab('createPlan')} className={`rounded-full px-4 py-2 whitespace-nowrap text-sm ${activeTab === 'createPlan' ? 'bg-[#10b981] text-black' : tabInactiveClass}`}>Create Plan</button>
             </div>
 
             {loading && (
@@ -660,9 +662,9 @@ export const CustomerProfileModal: React.FC<CustomerProfileModalProps> = ({ clie
 
             {activeTab === 'overview' && (
               <div className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                   <div className={`${cardClass} p-4 rounded-lg`}>
-                    <Calendar className="text-[#BFFF00] mb-2" size={20} />
+                    <Calendar className="text-emerald-600 mb-2" size={20} />
                     <p className={`text-2xl font-bold ${textPrimaryClass}`}>{workoutsThisWeek}</p>
                     <p className={`text-xs ${textMutedClass}`}>Workouts This Week</p>
                   </div>
@@ -674,7 +676,7 @@ export const CustomerProfileModal: React.FC<CustomerProfileModalProps> = ({ clie
                 </div>
                 <div className={`${cardClass} p-4 rounded-lg`}>
                   <h4 className={`font-semibold mb-3 ${textPrimaryClass}`}>Body Measurements</h4>
-                  <div className="grid grid-cols-2 gap-2 text-sm">
+                  <div className="grid grid-cols-1 gap-2 text-sm sm:grid-cols-2">
                     <p className={textMutedClass}>Weight: <span className={textPrimaryClass}>{formatMetric(measurements.weight, 'kg', 1)}</span></p>
                     <p className={textMutedClass}>Body Fat: <span className={textPrimaryClass}>{formatMetric(measurements.bodyFat, '%', 1)}</span></p>
                     <p className={textMutedClass}>Chest: <span className={textPrimaryClass}>{formatMetric(measurements.chest, 'cm', 1)}</span></p>
@@ -699,7 +701,7 @@ export const CustomerProfileModal: React.FC<CustomerProfileModalProps> = ({ clie
                       <div>
                         <p className={`font-semibold ${textPrimaryClass}`}>{workout.title}</p>
                         <p className={`text-xs ${textMutedClass}`}>{workout.date}</p>
-                        <p className="text-xs text-[#BFFF00] mt-1">{workout.state}</p>
+                        <p className={`text-xs mt-1 ${resolvedIsLightTheme ? 'text-emerald-600' : 'text-emerald-600'}`}>{workout.state}</p>
                       </div>
                       <div className="text-right">
                         <p className={`text-sm ${textMutedClass}`}>{workout.duration}</p>
@@ -720,14 +722,14 @@ export const CustomerProfileModal: React.FC<CustomerProfileModalProps> = ({ clie
                   </p>
                   <div className={`w-full h-2 rounded mb-4 ${progressTrackClass}`}>
                     <div
-                      className="h-2 bg-[#BFFF00] rounded"
+                      className="h-2 bg-[#10b981] rounded"
                       style={{
                         width: `${currentProgram.totalWeeks > 0 ? Math.min(100, (currentProgram.week / currentProgram.totalWeeks) * 100) : 0}%`,
                       }}
                     />
                   </div>
                   <p className={`text-sm mb-2 ${textPrimaryClass}`}>
-                    Next: <span className="text-[#BFFF00]">{currentProgram.nextWorkout}</span>
+                    Next: <span className="text-emerald-600">{currentProgram.nextWorkout}</span>
                   </p>
                 </div>
                 <div className={`${cardClass} p-4 rounded-lg`}>
@@ -747,22 +749,7 @@ export const CustomerProfileModal: React.FC<CustomerProfileModalProps> = ({ clie
               <div className="space-y-4">
                 <div className={`${cardClass} p-4 rounded-lg`}>
                   <div className="flex items-center gap-2 mb-3">
-                    <Camera className="text-[#BFFF00]" size={20} />
-                    <h4 className={`font-semibold ${textPrimaryClass}`}>Progress Photos</h4>
-                  </div>
-                  {client.profilePicture ? (
-                    <div className="grid grid-cols-3 gap-2">
-                      <div className={`aspect-square rounded-lg overflow-hidden ${progressTrackClass}`}>
-                        <img src={client.profilePicture} alt={`${client.name} progress`} className="w-full h-full object-cover" />
-                      </div>
-                    </div>
-                  ) : (
-                    <p className={`text-sm ${textMutedClass}`}>No progress photos uploaded.</p>
-                  )}
-                </div>
-                <div className={`${cardClass} p-4 rounded-lg`}>
-                  <div className="flex items-center gap-2 mb-3">
-                    <TrendingUp className="text-[#BFFF00]" size={18} />
+                    <TrendingUp className="text-emerald-600" size={18} />
                     <h4 className={`font-semibold ${textPrimaryClass}`}>Strength Progress</h4>
                   </div>
                   {strengthRecommendations.length > 0 ? (
@@ -770,7 +757,7 @@ export const CustomerProfileModal: React.FC<CustomerProfileModalProps> = ({ clie
                       {strengthRecommendations.map((item: any, idx: number) => (
                         <div key={`${item?.name || 'strength'}-${idx}`} className="flex justify-between gap-3">
                           <span className={resolvedIsLightTheme ? textPrimaryClass : textMutedClass}>{String(item?.name || 'Exercise')}</span>
-                          <span className="text-[#BFFF00]">
+                          <span className="text-emerald-600">
                             {String(item?.current || '')} {'->'} {String(item?.next || '')}
                           </span>
                         </div>
@@ -788,7 +775,7 @@ export const CustomerProfileModal: React.FC<CustomerProfileModalProps> = ({ clie
                       </div>
                       <div className="flex justify-between">
                         <span className={textMutedClass}>Change</span>
-                        <span className="text-[#BFFF00]">{formatMetric(toNumberOrNull(strengthSummary?.percentChange), '%', 1)}</span>
+                        <span className="text-emerald-600">{formatMetric(toNumberOrNull(strengthSummary?.percentChange), '%', 1)}</span>
                       </div>
                     </div>
                   ) : (
@@ -803,7 +790,7 @@ export const CustomerProfileModal: React.FC<CustomerProfileModalProps> = ({ clie
                 <div className={`${createPlanCardClass} p-4 rounded-lg`}>
                   <h4 className={`font-semibold mb-3 ${textPrimaryClass}`}>Coach Plan Builder</h4>
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
+                  <div className="grid grid-cols-1 gap-3 mb-3 md:grid-cols-2">
                     <label className="text-sm">
                       <span className={`block mb-1 ${textMutedClass}`}>Plan Name</span>
                       <input
@@ -861,7 +848,7 @@ export const CustomerProfileModal: React.FC<CustomerProfileModalProps> = ({ clie
                             onClick={() => toggleCoachDay(day.key)}
                             className={`px-3 py-1.5 rounded-lg text-xs border transition-colors ${
                               selected
-                                ? 'border-[#BFFF00] text-black bg-[#BFFF00]/10'
+                                ? 'border-[#10b981] text-black bg-[#10b981]/10'
                                 : resolvedIsLightTheme
                                   ? 'border-slate-300 text-slate-600 bg-white'
                                   : 'border-gray-700 text-gray-400 bg-[#111]'
@@ -880,12 +867,12 @@ export const CustomerProfileModal: React.FC<CustomerProfileModalProps> = ({ clie
                   const dayPlan = ensureDayPlan(dayKey);
                   return (
                     <div key={dayKey} className={`${createPlanCardClass} p-4 rounded-lg`}>
-                      <div className="flex items-center justify-between gap-3 mb-3">
+                      <div className="flex flex-col gap-3 mb-3 sm:flex-row sm:items-center sm:justify-between">
                         <h5 className={`font-semibold ${textPrimaryClass}`}>{dayLabel}</h5>
                         <button
                           type="button"
                           onClick={() => addDayExercise(dayKey)}
-                          className="px-4 py-2 rounded-lg bg-[#BFFF00] font-semibold hover:bg-[#a8e600] transition-colors disabled:opacity-50 text-white"
+                          className="px-4 py-2 rounded-lg bg-[#10b981] font-semibold hover:bg-[#a8e600] transition-colors disabled:opacity-50 text-white"
                         >
                           + Exercise
                         </button>
@@ -911,7 +898,7 @@ export const CustomerProfileModal: React.FC<CustomerProfileModalProps> = ({ clie
                           <div key={`${dayKey}-${index}`} className={`rounded-lg p-3 border ${
                             resolvedIsLightTheme ? 'border-slate-200 bg-white' : 'border-gray-700 bg-[#111]'
                           }`}>
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+                            <div className="grid grid-cols-1 gap-2 md:grid-cols-3">
                               <input
                                 type="text"
                                 value={exercise.exerciseName}
@@ -973,7 +960,7 @@ export const CustomerProfileModal: React.FC<CustomerProfileModalProps> = ({ clie
                   type="button"
                   onClick={() => void handleSaveCoachPlan()}
                   disabled={savingCoachPlan}
-                  className={`px-4 py-2 rounded-lg bg-[#BFFF00] font-semibold hover:bg-[#a8e600] transition-colors disabled:opacity-50 ${
+                  className={`px-4 py-2 rounded-lg bg-[#10b981] font-semibold hover:bg-[#a8e600] transition-colors disabled:opacity-50 ${
                     resolvedIsLightTheme ? 'text-white' : 'text-black'
                   }`}
                 >
@@ -987,3 +974,4 @@ export const CustomerProfileModal: React.FC<CustomerProfileModalProps> = ({ clie
     </div>
   );
 };
+

@@ -1,4 +1,4 @@
-ï»¿import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Eye, EyeOff } from 'lucide-react';
 import { CoachDashboard } from './CoachDashboard';
 import { SuperAdminDashboard } from './SuperAdminDashboard';
@@ -118,7 +118,7 @@ export const AdminLogin: React.FC = () => {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               placeholder="your@email.com"
-              className="w-full bg-[#1A1A1A] rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-[#BFFF00]"
+              className="w-full bg-[#1A1A1A] rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-[#10b981]"
               required
             />
           </div>
@@ -130,8 +130,8 @@ export const AdminLogin: React.FC = () => {
                 type={showPassword ? 'text' : 'password'}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                placeholder="â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢"
-                className="w-full bg-[#1A1A1A] rounded-lg px-4 py-3 pr-12 focus:outline-none focus:ring-2 focus:ring-[#BFFF00]"
+                placeholder="••••••••"
+                className="w-full bg-[#1A1A1A] rounded-lg px-4 py-3 pr-12 focus:outline-none focus:ring-2 focus:ring-[#10b981]"
                 required
               />
               <button
@@ -148,7 +148,7 @@ export const AdminLogin: React.FC = () => {
           <button
             type="submit"
             disabled={loading}
-            className="w-full bg-[#BFFF00] text-black py-3 rounded-lg font-marker hover:bg-[#BFFF00]/90 transition-colors disabled:opacity-50"
+            className="w-full bg-[#10b981] text-black py-3 rounded-lg font-marker hover:bg-[#10b981]/90 transition-colors disabled:opacity-50"
           >
             {loading ? 'Signing in...' : 'Sign In'}
           </button>
@@ -166,3 +166,4 @@ export const AdminLogin: React.FC = () => {
     </div>
   );
 };
+

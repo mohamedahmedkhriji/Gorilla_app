@@ -92,7 +92,7 @@ export function FitnessGoalsScreen({
                     <span
                       className={`inline-flex rounded px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.08em] ${
                         option.tag === 'Popular'
-                          ? 'bg-[#BFFF00] text-black'
+                          ? 'bg-[#10b981] text-black'
                           : 'bg-white text-black'
                       }`}
                     >
@@ -120,3 +120,4 @@ export function FitnessGoalsScreen({
     </div>
   );
 }
+

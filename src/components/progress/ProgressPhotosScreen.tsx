@@ -59,7 +59,7 @@ export const ProgressPhotosScreen: React.FC<ProgressPhotosScreenProps> = ({ onBa
             <div className="grid grid-cols-3 gap-3 mb-6">
               {['front', 'side', 'back'].map((type) => (
                 <label key={type} className="cursor-pointer">
-                  <div className="aspect-[3/4] bg-[#242424] rounded-lg flex flex-col items-center justify-center border-2 border-dashed border-gray-700 hover:border-[#BFFF00] transition-colors">
+                  <div className="aspect-[3/4] bg-[#242424] rounded-lg flex flex-col items-center justify-center border-2 border-dashed border-gray-700 hover:border-[#10b981] transition-colors">
                     <Camera size={24} className="text-gray-400 mb-2" />
                     <span className="text-xs text-gray-400 capitalize">{type}</span>
                   </div>
@@ -143,3 +143,4 @@ export const ProgressPhotosScreen: React.FC<ProgressPhotosScreenProps> = ({ onBa
     </div>
   );
 };
+

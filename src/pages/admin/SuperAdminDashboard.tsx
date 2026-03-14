@@ -255,7 +255,7 @@ export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({ onLogo
             key={range}
             onClick={() => setTimeRange(range)}
             className={`px-3 md:px-4 py-2 rounded-lg capitalize text-sm whitespace-nowrap ${
-              timeRange === range ? 'bg-[#BFFF00] text-black' : 'bg-[#242424]'
+              timeRange === range ? 'bg-[#10b981] text-black' : 'bg-[#242424]'
             }`}
           >
             {range}
@@ -266,7 +266,7 @@ export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({ onLogo
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4 mb-4 md:mb-6">
         <div className="bg-[#242424] rounded-lg p-4 md:p-6 cursor-pointer hover:bg-[#2A2A2A] transition-colors" onClick={() => setView('users')}>
           <div className="flex items-center justify-between mb-4">
-            <Users size={20} className="text-[#BFFF00]" />
+            <Users size={20} className="text-emerald-600" />
             <TrendingUp size={16} className="text-green-500" />
           </div>
           <div className="text-2xl md:text-3xl font-bold">{stats.totalUsers.toLocaleString()}</div>
@@ -329,11 +329,11 @@ export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({ onLogo
                 return (
                   <g key={i}>
                     {i < userGrowth.length - 1 && (
-                      <line x1={x} y1={y} x2={nextX} y2={nextY} stroke="#BFFF00" strokeWidth="3" />
+                      <line x1={x} y1={y} x2={nextX} y2={nextY} stroke="#10b981" strokeWidth="3" />
                     )}
-                    <circle cx={x} cy={y} r="5" fill="#BFFF00" />
+                    <circle cx={x} cy={y} r="5" fill="#10b981" />
                     <text x={x} y="245" fill="#888" fontSize="12" textAnchor="middle">{d.month}</text>
-                    <text x={x} y={y - 10} fill="#BFFF00" fontSize="12" textAnchor="middle">{d.users}</text>
+                    <text x={x} y={y - 10} fill="#10b981" fontSize="12" textAnchor="middle">{d.users}</text>
                   </g>
                 );
               })}
@@ -350,7 +350,7 @@ export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({ onLogo
                 <span className="font-semibold">$32,450</span>
               </div>
               <div className="h-2 bg-[#1A1A1A] rounded-full overflow-hidden">
-                <div className="h-full bg-[#BFFF00]" style={{ width: '71%' }} />
+                <div className="h-full bg-[#10b981]" style={{ width: '71%' }} />
               </div>
             </div>
             <div>
@@ -396,7 +396,7 @@ export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({ onLogo
                   <td className="py-3 px-4">${gym.revenue.toLocaleString()}</td>
                   <td className="py-3 px-4">
                     <span className={`px-2 py-1 rounded text-xs ${
-                      gym.plan === 'Premium' ? 'bg-[#BFFF00]/20 text-[#BFFF00]' : 'bg-gray-700 text-gray-300'
+                      gym.plan === 'Premium' ? 'bg-[#10b981]/20 text-emerald-600' : 'bg-gray-700 text-gray-300'
                     }`}>
                       {gym.plan}
                     </span>
@@ -417,3 +417,4 @@ export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({ onLogo
     </div>
   );
 };
+

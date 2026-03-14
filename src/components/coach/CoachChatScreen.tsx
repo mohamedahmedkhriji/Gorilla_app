@@ -119,8 +119,8 @@ export const CoachChatScreen: React.FC<CoachChatScreenProps> = ({ coach, onBack 
             <ArrowLeft size={20} />
           </button>
           <div className="relative">
-            <div className="w-10 h-10 rounded-full bg-[#BFFF00]/10 flex items-center justify-center">
-              <span className="font-bold text-[#BFFF00]">{coach.avatar}</span>
+            <div className="w-10 h-10 rounded-full bg-[#10b981]/10 flex items-center justify-center">
+              <span className="font-bold text-emerald-600">{coach.avatar}</span>
             </div>
             {coach.isOnline && (
               <div className="absolute -bottom-1 -right-1 w-3 h-3 bg-green-500 rounded-full border-2 border-[#242424]" />
@@ -145,7 +145,7 @@ export const CoachChatScreen: React.FC<CoachChatScreenProps> = ({ coach, onBack 
               <div
                 className={`rounded-2xl px-4 py-2 ${
                   message.isMe
-                    ? 'bg-[#BFFF00] text-black'
+                    ? 'bg-[#10b981] text-black'
                     : 'bg-[#242424] text-white'
                 }`}
               >
@@ -174,12 +174,12 @@ export const CoachChatScreen: React.FC<CoachChatScreenProps> = ({ coach, onBack 
             onChange={(e) => setInputText(e.target.value)}
             onKeyPress={(e) => e.key === 'Enter' && handleSend()}
             placeholder="Type a message..."
-            className="flex-1 bg-[#1A1A1A] rounded-lg px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#BFFF00]"
+            className="flex-1 bg-[#1A1A1A] rounded-lg px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#10b981]"
           />
           <button
             onClick={handleSend}
             disabled={!inputText.trim() || isSending}
-            className="p-2 bg-[#BFFF00] text-black rounded-lg hover:bg-[#BFFF00]/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            className="p-2 bg-[#10b981] text-black rounded-lg hover:bg-[#10b981]/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {isSending ? (
               <div className="w-5 h-5 border-2 border-black border-t-transparent rounded-full animate-spin" />
@@ -192,3 +192,4 @@ export const CoachChatScreen: React.FC<CoachChatScreenProps> = ({ coach, onBack 
     </div>
   );
 };
+

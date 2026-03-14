@@ -130,12 +130,12 @@ export const ProgramWorkoutTracker: React.FC<ProgramWorkoutTrackerProps> = ({ da
         <div className="bg-[#242424] rounded-lg p-4 mb-6">
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-2">
-              <Timer size={20} className="text-[#BFFF00]" />
+              <Timer size={20} className="text-emerald-600" />
               <span className="text-2xl font-bold">{formatTime(timer)}</span>
             </div>
             <button
               onClick={() => setIsRunning(!isRunning)}
-              className={`px-4 py-2 rounded-lg ${isRunning ? 'bg-red-500' : 'bg-[#BFFF00] text-black'}`}
+              className={`px-4 py-2 rounded-lg ${isRunning ? 'bg-red-500' : 'bg-[#10b981] text-black'}`}
             >
               {isRunning ? 'Pause' : 'Start'}
             </button>
@@ -155,7 +155,7 @@ export const ProgramWorkoutTracker: React.FC<ProgramWorkoutTrackerProps> = ({ da
                 {exercise.tempo && ` • Tempo: ${exercise.tempo}`}
               </p>
               {exercise.notes && (
-                <p className="text-xs text-[#BFFF00] mb-3">{exercise.notes}</p>
+                <p className="text-xs text-emerald-600 mb-3">{exercise.notes}</p>
               )}
 
               <div className="space-y-2">
@@ -179,7 +179,7 @@ export const ProgramWorkoutTracker: React.FC<ProgramWorkoutTrackerProps> = ({ da
                     />
                     <button
                       onClick={() => toggleSetComplete(exIdx, setIdx)}
-                      className={`p-2 rounded ${set.completed ? 'bg-[#BFFF00] text-black' : 'bg-[#1A1A1A]'}`}
+                      className={`p-2 rounded ${set.completed ? 'bg-[#10b981] text-black' : 'bg-[#1A1A1A]'}`}
                     >
                       <Check size={16} />
                     </button>
@@ -193,7 +193,7 @@ export const ProgramWorkoutTracker: React.FC<ProgramWorkoutTrackerProps> = ({ da
         <button
           onClick={handleFinish}
           disabled={completedSets === 0}
-          className="w-full bg-[#BFFF00] text-black py-4 rounded-lg font-semibold mt-6 disabled:opacity-50"
+          className="w-full bg-[#10b981] text-black py-4 rounded-lg font-semibold mt-6 disabled:opacity-50"
         >
           Finish Workout
         </button>
@@ -201,3 +201,4 @@ export const ProgramWorkoutTracker: React.FC<ProgramWorkoutTrackerProps> = ({ da
     </div>
   );
 };
+

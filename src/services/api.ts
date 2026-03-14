@@ -800,6 +800,49 @@ export const api = {
     return res.json();
   },
 
+  deleteUser: async (userId: number | string) => {
+    const res = await fetch(`${API_URL}/users/${userId}`, { method: 'DELETE' });
+    let body: any = null;
+    try {
+      body = await res.json();
+    } catch {
+      body = null;
+    }
+    if (!res.ok) {
+      throw new Error(body?.error || 'Failed to delete user');
+    }
+    return body;
+  },
+
+  getCoachSchedule: async (coachId: number | string, startDate: string, endDate: string) => {
+    const params = new URLSearchParams();
+    if (startDate) params.set('startDate', startDate);
+    if (endDate) params.set('endDate', endDate);
+    const res = await fetch(`${API_URL}/coaches/${coachId}/schedule?${params.toString()}`);
+    return res.json();
+  },
+
+  banUser: async (
+    userId: number | string,
+    payload: { days: number; reason: string; coachId?: number | string },
+  ) => {
+    const res = await fetch(`${API_URL}/users/${userId}/ban`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    let body: any = null;
+    try {
+      body = await res.json();
+    } catch {
+      body = null;
+    }
+    if (!res.ok) {
+      throw new Error(body?.error || 'Failed to ban user');
+    }
+    return body;
+  },
+
   getExerciseCatalogFilters: async () => {
     const res = await fetch(`${API_URL}/exercises/catalog/filters`);
     return res.json();

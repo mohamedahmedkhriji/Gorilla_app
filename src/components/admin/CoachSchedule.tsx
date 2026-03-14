@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
-import { ArrowLeft, Calendar, Clock, User, AlertCircle, Check, X } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import { ArrowLeft, Calendar, Clock, AlertCircle, Check, X } from 'lucide-react';
 import { SessionDetailsModal } from './SessionDetailsModal';
+import { api } from '../../services/api';
 
 interface Session {
   id: string;
@@ -10,6 +11,7 @@ interface Session {
   duration: number;
   type: string;
   status: 'confirmed' | 'pending' | 'completed';
+  date: string;
 }
 
 interface CoachScheduleProps {
@@ -23,225 +25,261 @@ export const CoachSchedule: React.FC<CoachScheduleProps> = ({ onBack }) => {
   const [showDetailsModal, setShowDetailsModal] = useState(false);
   const [selectedSession, setSelectedSession] = useState<Session | null>(null);
   const [newTime, setNewTime] = useState('');
-  const [sessions, setSessions] = useState<Session[]>([
-    { id: '1', clientName: 'Alex Johnson', clientAvatar: 'AJ', time: '08:00', duration: 60, type: 'Personal Training', status: 'confirmed' },
-    { id: '2', clientName: 'Sarah Smith', clientAvatar: 'SS', time: '10:00', duration: 60, type: 'Form Check', status: 'confirmed' },
-    { id: '3', clientName: 'Mike Brown', clientAvatar: 'MB', time: '14:00', duration: 90, type: 'Personal Training', status: 'pending' },
-    { id: '4', clientName: 'Emma Davis', clientAvatar: 'ED', time: '16:30', duration: 60, type: 'Consultation', status: 'confirmed' },
-    { id: '5', clientName: 'John Wilson', clientAvatar: 'JW', time: '18:00', duration: 60, type: 'Personal Training', status: 'completed' }
-  ]);
+  const [sessions, setSessions] = useState<Session[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [loadError, setLoadError] = useState('');
 
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth());
   const daysOfWeek = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
   const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
   const hours = Array.from({ length: 19 }, (_, i) => i + 6);
-
   const scrollContainerRef = React.useRef<HTMLDivElement>(null);
 
+  const formatDateKey = (date: Date) => date.toLocaleDateString('en-CA');
+  const normalizeStatus = (rawStatus: string | null | undefined, dateKey: string) => {
+    const key = String(rawStatus || '').toLowerCase();
+    if (key.includes('complete')) return 'completed';
+    if (key.includes('pending')) return 'pending';
+    if (key) return 'confirmed';
+    return dateKey < formatDateKey(new Date()) ? 'completed' : 'confirmed';
+  };
+
   React.useEffect(() => {
-    if (scrollContainerRef.current) {
-      const today = new Date();
-      if (today.getMonth() === selectedMonth) {
-        const todayIndex = today.getDate() - 1;
-        const dayWidth = 80;
-        scrollContainerRef.current.scrollLeft = todayIndex * dayWidth - 150;
+    if (!scrollContainerRef.current) return;
+    const today = new Date();
+    if (today.getMonth() !== selectedMonth) return;
+    scrollContainerRef.current.scrollLeft = (today.getDate() - 1) * 80 - 150;
+  }, [selectedMonth]);
+
+  useEffect(() => {
+    const year = new Date().getFullYear();
+    const daysInMonth = new Date(year, selectedMonth + 1, 0).getDate();
+    setSelectedDate((current) => {
+      if (current.getMonth() !== selectedMonth || current.getFullYear() !== year) {
+        const nextDay = Math.min(current.getDate(), daysInMonth);
+        return new Date(year, selectedMonth, nextDay);
       }
-    }
+      return current;
+    });
+  }, [selectedMonth]);
+
+  useEffect(() => {
+    const loadSchedule = async () => {
+      try {
+        setLoading(true);
+        setLoadError('');
+        const coach = JSON.parse(localStorage.getItem('coach') || '{}');
+        const coachId = Number(coach?.id || localStorage.getItem('coachId') || 0);
+        if (!coachId) {
+          setSessions([]);
+          return;
+        }
+
+        const year = new Date().getFullYear();
+        const start = new Date(year, selectedMonth, 1);
+        const end = new Date(year, selectedMonth + 1, 0);
+        const startDate = formatDateKey(start);
+        const endDate = formatDateKey(end);
+
+        const response = await api.getCoachSchedule(coachId, startDate, endDate);
+        const rawSessions = Array.isArray(response?.sessions) ? response.sessions : [];
+
+        const mappedSessions = rawSessions.map((session: any) => {
+          const sessionDate =
+            typeof session.session_date === 'string'
+              ? session.session_date.slice(0, 10)
+              : session.session_date
+                ? formatDateKey(new Date(session.session_date))
+                : startDate;
+          const timeRaw = session.session_time ? String(session.session_time) : '08:00';
+          const time = timeRaw.length >= 5 ? timeRaw.slice(0, 5) : timeRaw;
+          const status = normalizeStatus(session.status, sessionDate);
+
+          return {
+            id: String(session.id),
+            clientName: String(session.client_name || 'Client'),
+            clientAvatar: String(session.client_name || 'C').trim().slice(0, 2).toUpperCase(),
+            time,
+            duration: Number(session.duration_minutes || 60),
+            type: String(session.workout_name || session.muscle_group || 'Training Session'),
+            status,
+            date: sessionDate,
+          } as Session;
+        });
+
+        setSessions(mappedSessions);
+      } catch (error) {
+        console.error('Failed to load schedule', error);
+        setLoadError('Failed to load schedule. Please try again.');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadSchedule();
   }, [selectedMonth]);
 
   const get30Days = () => {
-    const days = [];
     const year = new Date().getFullYear();
     const daysInMonth = new Date(year, selectedMonth + 1, 0).getDate();
-    for (let i = 1; i <= daysInMonth; i++) {
-      const day = new Date(year, selectedMonth, i);
-      days.push(day);
-    }
-    return days;
+    return Array.from({ length: daysInMonth }, (_, index) => new Date(year, selectedMonth, index + 1));
   };
 
-  const isToday = (date: Date) => {
-    const today = new Date();
-    return date.toDateString() === today.toDateString();
-  };
-
-  const isSelected = (date: Date) => {
-    return date.toDateString() === selectedDate.toDateString();
-  };
-
-  const getSessionsForTime = (hour: number) => {
-    return sessions.filter(session => {
-      const sessionHour = parseInt(session.time.split(':')[0]);
-      return sessionHour === hour;
-    });
-  };
-
-  const handleDragStart = (session: Session) => {
-    setDraggedSession(session);
-  };
-
-  const handleDragOver = (e: React.DragEvent) => {
-    e.preventDefault();
-  };
+  const isToday = (date: Date) => date.toDateString() === new Date().toDateString();
+  const isSelected = (date: Date) => date.toDateString() === selectedDate.toDateString();
+  const selectedDateKey = formatDateKey(selectedDate);
+  const sessionsForDay = sessions.filter((session) => session.date === selectedDateKey);
+  const getSessionsForTime = (hour: number) => sessionsForDay.filter((session) => parseInt(session.time.split(':')[0], 10) === hour);
 
   const handleDrop = (hour: number) => {
     if (!draggedSession) return;
-    const timeStr = `${hour.toString().padStart(2, '0')}:00`;
-    setNewTime(timeStr);
+    setNewTime(`${hour.toString().padStart(2, '0')}:00`);
     setShowConfirmModal(true);
   };
 
   const confirmReschedule = () => {
     if (!draggedSession) return;
-    setSessions(sessions.map(s => 
-      s.id === draggedSession.id ? { ...s, time: newTime } : s
-    ));
-    alert(`✓ Session rescheduled!\n\nNotification sent to ${draggedSession.clientName}:\n"Your ${draggedSession.type} session has been rescheduled to ${newTime}"`);
+    setSessions((current) => current.map((session) => (
+      session.id === draggedSession.id ? { ...session, time: newTime } : session
+    )));
+    alert(`Session rescheduled for ${draggedSession.clientName} to ${newTime}.`);
     setShowConfirmModal(false);
     setDraggedSession(null);
     setNewTime('');
   };
 
-  const cancelReschedule = () => {
-    setShowConfirmModal(false);
-    setDraggedSession(null);
-    setNewTime('');
-  };
-
-  const handleSessionClick = (session: Session) => {
-    setSelectedSession(session);
-    setShowDetailsModal(true);
-  };
-
-  const handleUpdateSession = (sessionId: string, newTime: string, newDuration: number) => {
-    setSessions(sessions.map(s => 
-      s.id === sessionId ? { ...s, time: newTime, duration: newDuration } : s
-    ));
-    const session = sessions.find(s => s.id === sessionId);
+  const handleUpdateSession = (sessionId: string, updatedTime: string, updatedDuration: number) => {
+    setSessions((current) => current.map((session) => (
+      session.id === sessionId ? { ...session, time: updatedTime, duration: updatedDuration } : session
+    )));
+    const session = sessions.find((item) => item.id === sessionId);
     if (session) {
-      alert(`✓ Session updated!\n\nNotification sent to ${session.clientName}:\n"Your ${session.type} session has been updated to ${newTime} (${newDuration} minutes)"`);
+      alert(`Session updated for ${session.clientName} to ${updatedTime} (${updatedDuration} minutes).`);
     }
   };
 
   const days30 = get30Days();
 
   return (
-    <div className="min-h-screen bg-[#1A1A1A] text-white">
-      <div className="border-b border-gray-800 p-4">
-        <button onClick={onBack} className="flex items-center gap-2 text-gray-400 mb-4">
+    <div className="min-h-screen bg-[#F5F7FB] text-[#111827]">
+      <div className="sticky top-0 z-20 border-b border-slate-200 bg-white/95 p-4 backdrop-blur">
+        <button onClick={onBack} className="mb-4 flex items-center gap-2 text-sm text-slate-600 hover:text-[#111827]">
           <ArrowLeft size={20} />
           <span>Back to Dashboard</span>
         </button>
-        <h1 className="text-2xl font-bold">My Schedule</h1>
-        <p className="text-gray-400 text-sm">Manage your training sessions</p>
+        <h1 className="text-2xl font-semibold">My Schedule</h1>
+        <p className="text-sm text-slate-600">Manage your training sessions</p>
       </div>
 
       <div className="p-4">
-        <div className="bg-[#242424] rounded-lg p-4 mb-4">
-          <div className="flex items-center gap-2 mb-4">
-            <Calendar size={20} className="text-[#BFFF00]" />
+        <div className="mb-4 rounded-[28px] border border-slate-200 bg-white p-4">
+          <div className="mb-4 flex items-center gap-2">
+            <Calendar size={20} className="text-emerald-600" />
             <h2 className="font-semibold">Calendar</h2>
             <select
               value={selectedMonth}
-              onChange={(e) => setSelectedMonth(parseInt(e.target.value))}
-              className="ml-auto bg-[#1A1A1A] text-white px-3 py-1 rounded-lg text-sm border border-gray-700"
+              onChange={(e) => setSelectedMonth(parseInt(e.target.value, 10))}
+              className="ml-auto rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700"
             >
-              {monthNames.map((month, idx) => (
-                <option key={idx} value={idx}>{month}</option>
+              {monthNames.map((month, index) => (
+                <option key={index} value={index}>{month}</option>
               ))}
             </select>
           </div>
-          <div 
-            ref={scrollContainerRef}
-            className="flex gap-2 overflow-x-auto pb-2"
-            style={{ scrollbarWidth: 'thin' }}
-          >
-            {days30.map((day, idx) => (
+
+          <div ref={scrollContainerRef} className="flex gap-2 overflow-x-auto pb-2" style={{ scrollbarWidth: 'thin' }}>
+            {days30.map((day, index) => (
               <button
-                key={idx}
+                key={index}
                 onClick={() => setSelectedDate(day)}
-                className={`min-w-[70px] p-3 rounded-lg text-center transition-colors flex-shrink-0 ${
+                className={`min-w-[74px] rounded-2xl p-3 text-center transition-colors ${
                   isSelected(day)
-                    ? 'bg-[#BFFF00] text-black'
+                    ? 'bg-[#10b981] text-black'
                     : isToday(day)
-                    ? 'bg-[#BFFF00]/20 border border-[#BFFF00]'
-                    : 'bg-[#1A1A1A] hover:bg-[#2A2A2A]'
+                      ? 'border border-[#10b981] bg-[#10b981]/20'
+                      : 'border border-slate-200 bg-slate-50 hover:bg-slate-100'
                 }`}
               >
-                <div className="text-xs opacity-70">{daysOfWeek[day.getDay()]}</div>
+                <div className="text-xs text-slate-500">{daysOfWeek[day.getDay()]}</div>
                 <div className="text-lg font-bold">{day.getDate()}</div>
-                <div className="text-xs opacity-70">{monthNames[day.getMonth()]}</div>
+                <div className="text-xs text-slate-500">{monthNames[day.getMonth()]}</div>
               </button>
             ))}
           </div>
         </div>
 
-        <div className="bg-[#242424] rounded-lg p-4">
-          <div className="flex items-center justify-between mb-4">
+        <div className="rounded-[28px] border border-slate-200 bg-white p-4">
+          <div className="mb-4 flex items-center justify-between gap-3">
             <h2 className="font-semibold">
               {selectedDate.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
             </h2>
-            <div className="text-sm text-gray-400">{sessions.length} sessions</div>
+            <div className="text-sm text-slate-500">{sessionsForDay.length} sessions</div>
           </div>
 
-          {sessions.length === 0 ? (
-            <div className="text-center py-12">
-              <Calendar size={48} className="text-gray-600 mx-auto mb-4" />
-              <p className="text-gray-400">No sessions scheduled</p>
-              <p className="text-xs text-gray-500 mt-2">Clients with rest days are not shown</p>
+          {loading ? (
+            <div className="py-10 text-center text-sm text-slate-500">Loading schedule...</div>
+          ) : loadError ? (
+            <div className="py-10 text-center text-sm text-rose-500">{loadError}</div>
+          ) : sessionsForDay.length === 0 ? (
+            <div className="py-12 text-center">
+              <Calendar size={48} className="mx-auto mb-4 text-slate-300" />
+              <p className="text-slate-500">No sessions scheduled</p>
             </div>
           ) : (
             <div className="space-y-2">
-              {hours.map(hour => {
+              {hours.map((hour) => {
                 const hourSessions = getSessionsForTime(hour);
                 const timeStr = `${hour.toString().padStart(2, '0')}:00`;
 
                 return (
-                  <div 
-                    key={hour} 
+                  <div
+                    key={hour}
                     className="flex gap-3"
-                    onDragOver={handleDragOver}
+                    onDragOver={(e) => e.preventDefault()}
                     onDrop={() => handleDrop(hour)}
                   >
-                    <div className="w-16 text-sm text-gray-400 pt-2">{timeStr}</div>
+                    <div className="w-16 pt-2 text-sm text-slate-500">{timeStr}</div>
                     <div className="flex-1">
                       {hourSessions.length > 0 ? (
                         <div className="space-y-2">
-                          {hourSessions.map(session => (
+                          {hourSessions.map((session) => (
                             <div
                               key={session.id}
                               draggable
-                              onDragStart={() => handleDragStart(session)}
-                              onClick={() => handleSessionClick(session)}
-                              className={`p-3 rounded-lg border-l-4 cursor-pointer hover:opacity-80 transition-opacity ${
+                              onDragStart={() => setDraggedSession(session)}
+                              onClick={() => {
+                                setSelectedSession(session);
+                                setShowDetailsModal(true);
+                              }}
+                              className={`cursor-pointer rounded-2xl border-l-4 p-3 transition-opacity hover:opacity-85 ${
                                 session.status === 'confirmed'
-                                  ? 'bg-[#BFFF00]/10 border-[#BFFF00]'
+                                  ? 'border-[#10b981] bg-[#10b981]/10'
                                   : session.status === 'pending'
-                                  ? 'bg-yellow-500/10 border-yellow-500'
-                                  : 'bg-gray-700/30 border-gray-600'
+                                    ? 'border-yellow-500 bg-yellow-500/10'
+                                    : 'border-slate-200 bg-slate-50'
                               }`}
                             >
-                              <div className="flex items-center justify-between mb-2">
-                                <div className="flex items-center gap-2">
-                                  <div className="w-8 h-8 rounded-full bg-[#BFFF00]/20 flex items-center justify-center text-xs font-bold">
+                              <div className="mb-2 flex items-center justify-between gap-3">
+                                <div className="flex items-center gap-3">
+                                  <div className="flex h-9 w-9 items-center justify-center rounded-2xl bg-[#10b981]/20 text-xs font-bold text-[#111827]">
                                     {session.clientAvatar}
                                   </div>
                                   <div>
-                                    <div className="font-semibold text-sm">{session.clientName}</div>
-                                    <div className="text-xs text-gray-400">{session.type}</div>
+                                    <div className="text-sm font-semibold">{session.clientName}</div>
+                                    <div className="text-xs text-slate-500">{session.type}</div>
                                   </div>
                                 </div>
                                 <div className="text-right">
-                                  <div className="text-xs text-gray-400 flex items-center gap-1">
+                                  <div className="flex items-center gap-1 text-xs text-slate-500">
                                     <Clock size={12} />
                                     {session.duration} min
                                   </div>
-                                  <div className={`text-xs mt-1 px-2 py-0.5 rounded ${
+                                  <div className={`mt-1 rounded px-2 py-0.5 text-xs ${
                                     session.status === 'confirmed'
-                                      ? 'bg-green-500/20 text-green-500'
+                                      ? 'bg-green-500/15 text-green-700'
                                       : session.status === 'pending'
-                                      ? 'bg-yellow-500/20 text-yellow-500'
-                                      : 'bg-gray-600/20 text-gray-400'
+                                        ? 'bg-yellow-500/15 text-yellow-700'
+                                        : 'bg-slate-100 text-slate-500'
                                   }`}>
                                     {session.status}
                                   </div>
@@ -251,7 +289,7 @@ export const CoachSchedule: React.FC<CoachScheduleProps> = ({ onBack }) => {
                           ))}
                         </div>
                       ) : (
-                        <div className="h-12 border-l-2 border-dashed border-gray-800" />
+                        <div className="h-12 border-l-2 border-dashed border-slate-200" />
                       )}
                     </div>
                   </div>
@@ -274,48 +312,53 @@ export const CoachSchedule: React.FC<CoachScheduleProps> = ({ onBack }) => {
       )}
 
       {showConfirmModal && draggedSession && (
-        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
-          <div className="bg-[#242424] rounded-lg p-6 max-w-md w-full mx-4">
-            <div className="flex items-center gap-3 mb-4">
+        <div className="fixed inset-0 z-50 bg-black/40 p-4 md:flex md:items-center md:justify-center">
+          <div className="absolute inset-x-0 bottom-0 w-full rounded-t-[28px] border border-slate-200 bg-white p-6 md:relative md:mx-4 md:max-w-md md:rounded-[28px]">
+            <div className="mx-auto mb-3 h-1.5 w-14 rounded-full bg-slate-200 md:hidden" />
+            <div className="mb-4 flex items-center gap-3">
               <AlertCircle size={24} className="text-yellow-500" />
-              <h3 className="text-xl font-bold">Confirm Reschedule</h3>
+              <h3 className="text-xl font-semibold">Confirm Reschedule</h3>
             </div>
-            <p className="text-gray-300 mb-4">
-              Are you sure you want to reschedule this session?
+            <p className="mb-4 text-slate-600">
+              Are you sure you want to move this session?
             </p>
-            <div className="bg-[#1A1A1A] rounded-lg p-4 mb-6">
-              <div className="flex items-center gap-2 mb-2">
-                <div className="w-8 h-8 rounded-full bg-[#BFFF00]/20 flex items-center justify-center text-xs font-bold">
+            <div className="mb-6 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+              <div className="mb-3 flex items-center gap-3">
+                <div className="flex h-8 w-8 items-center justify-center rounded-2xl bg-[#10b981]/20 text-xs font-bold text-[#111827]">
                   {draggedSession.clientAvatar}
                 </div>
                 <div>
                   <div className="font-semibold">{draggedSession.clientName}</div>
-                  <div className="text-xs text-gray-400">{draggedSession.type}</div>
+                  <div className="text-xs text-slate-500">{draggedSession.type}</div>
                 </div>
               </div>
               <div className="flex items-center gap-2 text-sm">
-                <span className="text-gray-400">From:</span>
+                <span className="text-slate-500">From</span>
                 <span className="line-through text-red-400">{draggedSession.time}</span>
-                <span className="text-gray-400">→</span>
-                <span className="text-[#BFFF00] font-semibold">{newTime}</span>
+                <span className="text-slate-500">to</span>
+                <span className="font-semibold text-emerald-600">{newTime}</span>
               </div>
             </div>
-            <p className="text-xs text-gray-400 mb-6">
+            <p className="mb-6 text-xs text-slate-500">
               {draggedSession.clientName} will receive a notification about this change.
             </p>
             <div className="flex gap-3">
               <button
-                onClick={cancelReschedule}
-                className="flex-1 bg-gray-700 py-3 rounded-lg font-semibold flex items-center justify-center gap-2"
+                onClick={() => {
+                  setShowConfirmModal(false);
+                  setDraggedSession(null);
+                  setNewTime('');
+                }}
+                className="flex flex-1 items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white py-3 text-sm font-semibold text-slate-700 hover:bg-slate-50"
               >
-                <X size={20} />
+                <X size={18} />
                 Cancel
               </button>
               <button
                 onClick={confirmReschedule}
-                className="flex-1 bg-[#BFFF00] text-black py-3 rounded-lg font-semibold flex items-center justify-center gap-2"
+                className="flex flex-1 items-center justify-center gap-2 rounded-2xl bg-[#10b981] py-3 text-sm font-semibold text-black"
               >
-                <Check size={20} />
+                <Check size={18} />
                 Confirm
               </button>
             </div>
@@ -325,3 +368,4 @@ export const CoachSchedule: React.FC<CoachScheduleProps> = ({ onBack }) => {
     </div>
   );
 };
+

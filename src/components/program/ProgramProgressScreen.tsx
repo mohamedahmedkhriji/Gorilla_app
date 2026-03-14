@@ -50,17 +50,17 @@ export const ProgramProgressScreen: React.FC<ProgramProgressScreenProps> = ({ on
 
         <div className="grid grid-cols-3 gap-3 mb-6">
           <div className="bg-[#242424] rounded-lg p-4">
-            <Dumbbell size={20} className="text-[#BFFF00] mb-2" />
+            <Dumbbell size={20} className="text-emerald-600 mb-2" />
             <div className="text-2xl font-bold">{totalWorkouts}</div>
             <div className="text-xs text-gray-400">Workouts</div>
           </div>
           <div className="bg-[#242424] rounded-lg p-4">
-            <Clock size={20} className="text-[#BFFF00] mb-2" />
+            <Clock size={20} className="text-emerald-600 mb-2" />
             <div className="text-2xl font-bold">{avgDuration}</div>
             <div className="text-xs text-gray-400">Avg Min</div>
           </div>
           <div className="bg-[#242424] rounded-lg p-4">
-            <Award size={20} className="text-[#BFFF00] mb-2" />
+            <Award size={20} className="text-emerald-600 mb-2" />
             <div className="text-2xl font-bold">{Object.keys(weeklyData).length}</div>
             <div className="text-xs text-gray-400">Weeks</div>
           </div>
@@ -76,18 +76,18 @@ export const ProgramProgressScreen: React.FC<ProgramProgressScreenProps> = ({ on
                 const isCurrent = weekNum === activeProgram.currentWeek;
 
                 return (
-                  <div key={weekNum} className={`bg-[#242424] rounded-lg p-4 ${isCurrent ? 'border-2 border-[#BFFF00]' : ''}`}>
+                  <div key={weekNum} className={`bg-[#242424] rounded-lg p-4 ${isCurrent ? 'border-2 border-[#10b981]' : ''}`}>
                     <div className="flex items-center justify-between mb-2">
                       <div className="flex items-center gap-2">
-                        <Calendar size={16} className="text-[#BFFF00]" />
+                        <Calendar size={16} className="text-emerald-600" />
                         <span className="font-semibold">Week {weekNum}</span>
-                        {isCurrent && <span className="text-xs bg-[#BFFF00] text-black px-2 py-1 rounded">Current</span>}
+                        {isCurrent && <span className="text-xs bg-[#10b981] text-black px-2 py-1 rounded">Current</span>}
                       </div>
                       <span className="text-sm text-gray-400">{workouts.length} workouts</span>
                     </div>
                     <div className="w-full bg-[#1A1A1A] rounded-full h-2">
                       <div
-                        className="bg-[#BFFF00] h-2 rounded-full transition-all"
+                        className="bg-[#10b981] h-2 rounded-full transition-all"
                         style={{ width: `${completion}%` }}
                       />
                     </div>
@@ -128,3 +128,4 @@ export const ProgramProgressScreen: React.FC<ProgramProgressScreenProps> = ({ on
     </div>
   );
 };
+

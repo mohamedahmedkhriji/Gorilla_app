@@ -76,9 +76,9 @@ export const ExerciseProgressScreen: React.FC<ExerciseProgressScreenProps> = ({ 
           <div className="bg-[#242424] rounded-lg p-4 mb-6 flex items-center justify-between">
             <div>
               <div className="text-sm text-gray-400">Total Improvement</div>
-              <div className="text-2xl font-bold text-[#BFFF00]">+{improvement.toFixed(1)}kg</div>
+              <div className="text-2xl font-bold text-emerald-600">+{improvement.toFixed(1)}kg</div>
             </div>
-            <TrendingUp size={32} className="text-[#BFFF00]" />
+            <TrendingUp size={32} className="text-emerald-600" />
           </div>
         )}
 
@@ -96,9 +96,9 @@ export const ExerciseProgressScreen: React.FC<ExerciseProgressScreenProps> = ({ 
                   return (
                     <g key={i}>
                       {i < exerciseData.length - 1 && (
-                        <line x1={x} y1={y} x2={nextX} y2={nextY} stroke="#BFFF00" strokeWidth="2" />
+                        <line x1={x} y1={y} x2={nextX} y2={nextY} stroke="#10b981" strokeWidth="2" />
                       )}
-                      <circle cx={x} cy={y} r="4" fill="#BFFF00" />
+                      <circle cx={x} cy={y} r="4" fill="#10b981" />
                     </g>
                   );
                 })}
@@ -128,3 +128,4 @@ export const ExerciseProgressScreen: React.FC<ExerciseProgressScreenProps> = ({ 
     </div>
   );
 };
+

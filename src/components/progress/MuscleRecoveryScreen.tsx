@@ -170,7 +170,7 @@ export function MuscleRecoveryScreen({ onBack }: MuscleRecoveryScreenProps) {
 
   const getStatusColor = (val: number) => {
     if (val >= 90) return 'text-green-500 bg-green-500/10';
-    if (val >= 70) return 'text-[#BFFF00] bg-[#BFFF00]/10';
+    if (val >= 70) return 'text-emerald-600 bg-[#10b981]/10';
     if (val >= 50) return 'text-yellow-500 bg-yellow-500/10';
     return 'text-red-500 bg-red-500/10';
   };
@@ -425,4 +425,5 @@ export function MuscleRecoveryScreen({ onBack }: MuscleRecoveryScreenProps) {
     </div>);
 
 }
+
 

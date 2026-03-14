@@ -83,7 +83,7 @@ export const TotalUsers: React.FC<TotalUsersProps> = ({ onBack }) => {
               key={range}
               onClick={() => setTimeRange(range as any)}
               className={`px-4 py-2 rounded-lg capitalize ${
-                timeRange === range ? 'bg-[#BFFF00] text-black' : 'bg-[#242424]'
+                timeRange === range ? 'bg-[#10b981] text-black' : 'bg-[#242424]'
               }`}
             >
               {range}
@@ -94,7 +94,7 @@ export const TotalUsers: React.FC<TotalUsersProps> = ({ onBack }) => {
 
       <div className="grid grid-cols-3 gap-4 mb-6">
         <div className="bg-[#242424] rounded-lg p-6">
-          <Users className="text-[#BFFF00] mb-2" size={24} />
+          <Users className="text-emerald-600 mb-2" size={24} />
           <div className="text-3xl font-bold">1,247</div>
           <div className="text-sm text-gray-400">Total Users</div>
         </div>
@@ -177,7 +177,7 @@ export const TotalUsers: React.FC<TotalUsersProps> = ({ onBack }) => {
                   required
                   value={formData.name}
                   onChange={(e) => setFormData({...formData, name: e.target.value})}
-                  className="w-full bg-[#1A1A1A] text-white px-4 py-2 rounded-lg border border-gray-700 focus:border-[#BFFF00] outline-none"
+                  className="w-full bg-[#1A1A1A] text-white px-4 py-2 rounded-lg border border-gray-700 focus:border-[#10b981] outline-none"
                 />
               </div>
 
@@ -188,7 +188,7 @@ export const TotalUsers: React.FC<TotalUsersProps> = ({ onBack }) => {
                   required
                   value={formData.email}
                   onChange={(e) => setFormData({...formData, email: e.target.value})}
-                  className="w-full bg-[#1A1A1A] text-white px-4 py-2 rounded-lg border border-gray-700 focus:border-[#BFFF00] outline-none"
+                  className="w-full bg-[#1A1A1A] text-white px-4 py-2 rounded-lg border border-gray-700 focus:border-[#10b981] outline-none"
                 />
               </div>
 
@@ -197,7 +197,7 @@ export const TotalUsers: React.FC<TotalUsersProps> = ({ onBack }) => {
                 <select
                   value={formData.status}
                   onChange={(e) => setFormData({...formData, status: e.target.value})}
-                  className="w-full bg-[#1A1A1A] text-white px-4 py-2 rounded-lg border border-gray-700 focus:border-[#BFFF00] outline-none"
+                  className="w-full bg-[#1A1A1A] text-white px-4 py-2 rounded-lg border border-gray-700 focus:border-[#10b981] outline-none"
                 >
                   <option value="active">Active</option>
                   <option value="inactive">Inactive</option>
@@ -214,7 +214,7 @@ export const TotalUsers: React.FC<TotalUsersProps> = ({ onBack }) => {
                 </button>
                 <button
                   type="submit"
-                  className="flex-1 bg-[#BFFF00] text-black py-3 rounded-lg font-semibold hover:bg-[#a8e600] transition-colors"
+                  className="flex-1 bg-[#10b981] text-black py-3 rounded-lg font-semibold hover:bg-[#a8e600] transition-colors"
                 >
                   Update User
                 </button>
@@ -226,3 +226,4 @@ export const TotalUsers: React.FC<TotalUsersProps> = ({ onBack }) => {
     </div>
   );
 };
+

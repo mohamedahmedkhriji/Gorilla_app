@@ -1,14 +1,13 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { Users, Calendar, TrendingUp, Bell, LogOut, UserPlus, Send, Camera, X, Sun, Moon } from 'lucide-react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
+import { Users, Calendar, TrendingUp, Bell, LogOut, UserPlus, Send, Camera, X, Home, MessageSquare, ArrowLeft, ArrowRight, ClipboardList, Search } from 'lucide-react';
 import { CoachSchedule } from '../../components/admin/CoachSchedule';
 import { ClientsListScreen, type ClientRank, type CoachPanelClient } from '../../components/admin/ClientsListScreen';
 import { TodaysActivity } from '../../components/admin/TodaysActivity';
 import { Notifications } from '../../components/admin/Notifications';
 import { AddUser } from '../../components/admin/AddUser';
 import { BrandLogo } from '../../components/ui/BrandLogo';
-import { WorkspaceGrid } from '../../components/workspace/WorkspaceGrid';
 import { WorkspacePlaceholderScreen } from '../../components/workspace/WorkspacePlaceholderScreen';
-import { getWorkspacePage, getWorkspacePages } from '../../config/workspacePages';
+import { getWorkspacePage } from '../../config/workspacePages';
 import { api } from '../../services/api';
 import { socketService } from '../../services/socket';
 import { useScrollToTopOnChange } from '../../shared/scroll';
@@ -85,6 +84,9 @@ const toClientRank = (rankValue: unknown, pointsValue: unknown): ClientRank => {
 
 export const CoachDashboard: React.FC<CoachDashboardProps> = ({ onLogout }) => {
   const [view, setView] = useState<'dashboard' | 'schedule' | 'clients' | 'activity' | 'notifications' | 'adduser' | 'planrequests' | 'programbuilder'>('dashboard');
+  const [dashboardSection, setDashboardSection] = useState<'overview' | 'messages'>('overview');
+  const [inboxSearch, setInboxSearch] = useState('');
+  const [inboxFilter, setInboxFilter] = useState<'all' | 'unread' | 'online'>('all');
   const [clients, setClients] = useState<Client[]>([]);
   const [selectedClient, setSelectedClient] = useState<Client | null>(null);
   const [messages, setMessages] = useState<any[]>([]);
@@ -103,18 +105,29 @@ export const CoachDashboard: React.FC<CoachDashboardProps> = ({ onLogout }) => {
   const [programRequestsError, setProgramRequestsError] = useState('');
   const [pendingProgramRequestsCount, setPendingProgramRequestsCount] = useState(0);
   const [notificationsCount, setNotificationsCount] = useState(0);
+  const [scheduleStats, setScheduleStats] = useState({ activeToday: 0, sessionsThisWeek: 0 });
   const [activeRequestActionId, setActiveRequestActionId] = useState<number | null>(null);
   const [selectedProgramRequest, setSelectedProgramRequest] = useState<ProgramChangeRequest | null>(null);
   const [pendingOpenClientProfileId, setPendingOpenClientProfileId] = useState<string | null>(null);
-  const [theme, setTheme] = useState<'dark' | 'light'>(() => {
-    const saved = localStorage.getItem('coach-dashboard-theme');
-    return saved === 'light' ? 'light' : 'dark';
-  });
-  const coachWorkspacePages = getWorkspacePages('coach');
+  const [theme, setTheme] = useState<'dark' | 'light'>('light');
   const fileInputRef = useRef<HTMLInputElement>(null);
   const selectedClientRef = useRef<Client | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const typingTimeoutRef = useRef<number | null>(null);
+
+  const formatDateKey = (date: Date) => date.toLocaleDateString('en-CA');
+  const getWeekRange = (date: Date) => {
+    const copy = new Date(date);
+    const day = copy.getDay();
+    const diffToMonday = day === 0 ? -6 : 1 - day;
+    const start = new Date(copy);
+    start.setDate(copy.getDate() + diffToMonday);
+    start.setHours(0, 0, 0, 0);
+    const end = new Date(start);
+    end.setDate(start.getDate() + 6);
+    end.setHours(23, 59, 59, 999);
+    return { start, end };
+  };
 
   useScrollToTopOnChange([view]);
 
@@ -299,6 +312,49 @@ export const CoachDashboard: React.FC<CoachDashboardProps> = ({ onLogout }) => {
     if (!coachId) return;
     let cancelled = false;
 
+    const refreshScheduleStats = async () => {
+      try {
+        const today = new Date();
+        const todayKey = formatDateKey(today);
+        const { start, end } = getWeekRange(today);
+        const weekStart = formatDateKey(start);
+        const weekEnd = formatDateKey(end);
+
+        const [todayResponse, weekResponse] = await Promise.all([
+          api.getCoachSchedule(coachId, todayKey, todayKey),
+          api.getCoachSchedule(coachId, weekStart, weekEnd),
+        ]);
+
+        if (cancelled) return;
+        const todaySessions = Array.isArray(todayResponse?.sessions) ? todayResponse.sessions : [];
+        const weekSessions = Array.isArray(weekResponse?.sessions) ? weekResponse.sessions : [];
+
+        setScheduleStats({
+          activeToday: todaySessions.length,
+          sessionsThisWeek: weekSessions.length,
+        });
+      } catch (error) {
+        if (!cancelled) {
+          setScheduleStats((prev) => ({ ...prev, activeToday: 0, sessionsThisWeek: 0 }));
+        }
+      }
+    };
+
+    void refreshScheduleStats();
+    const timer = window.setInterval(() => {
+      void refreshScheduleStats();
+    }, 30000);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
+  }, [coachId]);
+
+  useEffect(() => {
+    if (!coachId) return;
+    let cancelled = false;
+
     const refreshNotificationsCount = async () => {
       try {
         const notifications = await api.getNotifications(coachId);
@@ -431,6 +487,29 @@ export const CoachDashboard: React.FC<CoachDashboardProps> = ({ onLogout }) => {
     }
   };
 
+  const handleRemoveClient = async (clientId: string) => {
+    try {
+      setNetworkError('');
+      await api.deleteUser(clientId);
+      setClients((prev) => prev.filter((client) => String(client.id) !== String(clientId)));
+    } catch (error) {
+      console.error('Failed to remove user:', error);
+      setNetworkError('Failed to remove user. Please try again.');
+      throw error;
+    }
+  };
+
+  const handleBanClient = async (clientId: string, payload: { days: number; reason: string }) => {
+    try {
+      setNetworkError('');
+      await api.banUser(clientId, { ...payload, coachId });
+    } catch (error) {
+      console.error('Failed to ban user:', error);
+      setNetworkError('Failed to ban user. Please try again.');
+      throw error;
+    }
+  };
+
   const refreshPendingProgramRequestsCount = async (resolvedCoachId: number) => {
     try {
       const response = await api.getCoachProgramChangeRequests(resolvedCoachId, 'pending');
@@ -556,6 +635,7 @@ export const CoachDashboard: React.FC<CoachDashboardProps> = ({ onLogout }) => {
 
   const handleClientSelect = async (client: Client) => {
     try {
+      setDashboardSection('messages');
       setSelectedClient(client);
       setIsClientTyping(false);
       const coach = JSON.parse(localStorage.getItem('coach') || '{}');
@@ -576,6 +656,7 @@ export const CoachDashboard: React.FC<CoachDashboardProps> = ({ onLogout }) => {
     if (!Number.isFinite(normalizedUserId) || normalizedUserId <= 0) return;
 
     setPendingOpenClientProfileId(null);
+    setDashboardSection('messages');
     setView('dashboard');
 
     let targetClient = clients.find((client) => Number(client.id) === normalizedUserId) || null;
@@ -592,159 +673,251 @@ export const CoachDashboard: React.FC<CoachDashboardProps> = ({ onLogout }) => {
     await handleClientSelect(targetClient);
   };
 
-  const openAthleteProfileWorkspace = async (preferredUserId?: number) => {
-    setNetworkError('');
-
-    let targetUserId = Number(preferredUserId || 0);
-    let availableClients = clients;
-
-    if (!targetUserId) {
-      if (!availableClients.length) {
-        availableClients = await loadClients();
-      }
-      targetUserId = Number(availableClients[0]?.id || 0);
-    }
-
-    if (!Number.isFinite(targetUserId) || targetUserId <= 0) {
-      setView('clients');
-      return;
-    }
-
-    setPendingOpenClientProfileId(String(targetUserId));
-    setView('clients');
-  };
-
-  const openMessagingWorkspace = async (preferredUserId?: number) => {
-    let targetUserId = Number(preferredUserId || 0);
-    let availableClients = clients;
-
-    if (!targetUserId) {
-      if (!availableClients.length) {
-        availableClients = await loadClients();
-      }
-      targetUserId = Number(availableClients[0]?.id || 0);
-    }
-
-    if (!Number.isFinite(targetUserId) || targetUserId <= 0) {
-      setView('dashboard');
-      setSelectedClient(null);
-      setMessages([]);
-      return;
-    }
-
-    await openClientChatFromNotification(targetUserId);
-  };
-
-  const openCoachWorkspacePage = (pageId: string) => {
-    switch (pageId) {
-      case 'coach-dashboard':
-        setView('dashboard');
-        return;
-      case 'athletes-list':
-        setView('clients');
-        return;
-      case 'athlete-profile':
-        void openAthleteProfileWorkspace();
-        return;
-      case 'program-builder':
-        setView('programbuilder');
-        return;
-      case 'messaging':
-        void openMessagingWorkspace();
-        return;
-      case 'progress-analytics':
-        setView('activity');
-        return;
-      default:
-        setView('dashboard');
-    }
-  };
-
   const stats = {
     totalClients: clients.length,
-    activeToday: 18,
+    activeToday: scheduleStats.activeToday,
     notifications: notificationsCount,
-    sessionsThisWeek: 42,
+    sessionsThisWeek: scheduleStats.sessionsThisWeek,
     planRequests: pendingProgramRequestsCount,
   };
   const isLightTheme = theme === 'light';
-
-  useEffect(() => {
-    localStorage.setItem('coach-dashboard-theme', theme);
-  }, [theme]);
-
-  const toggleTheme = () => {
-    setTheme((prev) => (prev === 'dark' ? 'light' : 'dark'));
-  };
+  const coachInitials = coachName
+    .split(' ')
+    .filter(Boolean)
+    .map((name) => name[0])
+    .join('')
+    .slice(0, 2)
+    .toUpperCase();
+  const featuredClients = clients.slice(0, 4);
+  const pendingRequestsPreview = programRequests.slice(0, 3);
+  const mobileNavItems = [
+    {
+      key: 'home',
+      label: 'Home',
+      icon: Home,
+      active: view === 'dashboard' && dashboardSection === 'overview',
+      badge: 0,
+      onClick: () => {
+        setView('dashboard');
+        setDashboardSection('overview');
+      },
+    },
+    {
+      key: 'inbox',
+      label: 'Inbox',
+      icon: MessageSquare,
+      active: view === 'dashboard' && dashboardSection === 'messages',
+      badge: clients.reduce((count, client) => count + Number(client.unread || 0), 0),
+      onClick: () => {
+        setView('dashboard');
+        setDashboardSection('messages');
+      },
+    },
+    {
+      key: 'clients',
+      label: 'Athletes',
+      icon: Users,
+      active: view === 'clients',
+      badge: 0,
+      onClick: () => setView('clients'),
+    },
+    {
+      key: 'plans',
+      label: 'Plans',
+      icon: ClipboardList,
+      active: view === 'planrequests',
+      badge: pendingProgramRequestsCount,
+      onClick: () => setView('planrequests'),
+    },
+    {
+      key: 'alerts',
+      label: 'Alerts',
+      icon: Bell,
+      active: view === 'notifications',
+      badge: notificationsCount,
+      onClick: () => setView('notifications'),
+    },
+  ] as const;
+  const mobileNav = (
+    <div className={`fixed inset-x-0 bottom-0 z-40 border-t px-3 py-3 lg:hidden ${
+      isLightTheme ? 'border-slate-200 bg-white/95 backdrop-blur' : 'border-white/10 bg-[#101315]/95 backdrop-blur'
+    }`}>
+      <div className="mx-auto flex max-w-md items-center justify-between gap-2 rounded-[24px] px-1">
+        {mobileNavItems.map((item) => {
+          const Icon = item.icon;
+          return (
+            <button
+              key={item.key}
+              type="button"
+              onClick={item.onClick}
+              className={`relative flex min-w-0 flex-1 flex-col items-center justify-center rounded-2xl px-2 py-2.5 text-[11px] font-semibold transition-colors ${
+                item.active
+                  ? isLightTheme
+                    ? 'bg-[#111827] text-white'
+                    : 'bg-[#10b981] text-black'
+                  : isLightTheme
+                    ? 'text-slate-500 hover:bg-slate-100'
+                    : 'text-white/55 hover:bg-white/10'
+              }`}
+            >
+              <Icon size={18} />
+              <span className="mt-1 truncate">{item.label}</span>
+              {item.badge > 0 && (
+                <span className={`absolute right-2 top-1 flex h-4 min-w-[16px] items-center justify-center rounded-full px-1 text-[10px] font-bold ${
+                  item.active ? 'bg-black/15 text-inherit' : 'bg-[#10b981] text-black'
+                }`}>
+                  {item.badge > 9 ? '9+' : item.badge}
+                </span>
+              )}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+  const summaryCards = [
+    {
+      key: 'clients',
+      label: 'Athletes',
+      value: stats.totalClients,
+      icon: Users,
+      tone: 'text-emerald-600',
+      onClick: () => setView('clients'),
+    },
+    {
+      key: 'activity',
+      label: 'Active Today',
+      value: stats.activeToday,
+      icon: TrendingUp,
+      tone: 'text-emerald-500',
+      onClick: () => setView('activity'),
+    },
+    {
+      key: 'notifications',
+      label: 'Alerts',
+      value: stats.notifications,
+      icon: Bell,
+      tone: 'text-sky-500',
+      onClick: () => setView('notifications'),
+    },
+    {
+      key: 'schedule',
+      label: 'Sessions',
+      value: stats.sessionsThisWeek,
+      icon: Calendar,
+      tone: 'text-violet-500',
+      onClick: () => setView('schedule'),
+    },
+  ] as const;
+  const inboxPreviewClients = useMemo(
+    () =>
+      clients.filter((client) => {
+        const matchesSearch = client.name.toLowerCase().includes(inboxSearch.toLowerCase());
+        if (!matchesSearch) return false;
+        if (inboxFilter === 'unread') return client.unread > 0;
+        if (inboxFilter === 'online') return client.lastActive === 'Online';
+        return true;
+      }),
+    [clients, inboxFilter, inboxSearch],
+  );
 
   if (view === 'schedule') {
-    return <CoachSchedule onBack={() => setView('dashboard')} />;
+    return (
+      <>
+        <CoachSchedule onBack={() => setView('dashboard')} />
+        {mobileNav}
+      </>
+    );
   }
 
   if (view === 'clients') {
     return (
-      <ClientsListScreen
-        onBack={() => setView('dashboard')}
-        clients={clients}
-        isLightTheme={isLightTheme}
-        initialSelectedClientId={pendingOpenClientProfileId}
-        onConsumedInitialSelection={() => setPendingOpenClientProfileId(null)}
-      />
+      <>
+        <ClientsListScreen
+          onBack={() => setView('dashboard')}
+          clients={clients}
+          isLightTheme={isLightTheme}
+          initialSelectedClientId={pendingOpenClientProfileId}
+          onConsumedInitialSelection={() => setPendingOpenClientProfileId(null)}
+          onRemoveClient={handleRemoveClient}
+          onBanClient={handleBanClient}
+        />
+        {mobileNav}
+      </>
     );
   }
 
   if (view === 'activity') {
-    return <TodaysActivity onBack={() => setView('dashboard')} />;
+    return (
+      <>
+        <TodaysActivity onBack={() => setView('dashboard')} />
+        {mobileNav}
+      </>
+    );
   }
 
   if (view === 'notifications') {
     return (
-      <Notifications
-        onBack={() => setView('dashboard')}
-        coachId={coachId}
-        isLightTheme={isLightTheme}
-        onOpenMessageThread={(userId) => {
-          void openClientChatFromNotification(userId);
-        }}
-        onOpenPlanInvitation={(userId) => {
-          setPendingOpenClientProfileId(String(userId));
-          setView('clients');
-        }}
-      />
+      <>
+        <Notifications
+          onBack={() => setView('dashboard')}
+          coachId={coachId}
+          isLightTheme={isLightTheme}
+          onOpenMessageThread={(userId) => {
+            void openClientChatFromNotification(userId);
+          }}
+          onOpenPlanInvitation={(userId) => {
+            setPendingOpenClientProfileId(String(userId));
+            setView('clients');
+          }}
+        />
+        {mobileNav}
+      </>
     );
   }
 
   if (view === 'adduser') {
-    return <AddUser onBack={() => setView('dashboard')} />;
+    return (
+      <>
+        <AddUser
+          onBack={() => setView('dashboard')}
+          onSuccess={() => setView('clients')}
+        />
+        {mobileNav}
+      </>
+    );
   }
 
   if (view === 'programbuilder') {
     const page = getWorkspacePage('coach', 'program-builder');
 
     return (
-      <WorkspacePlaceholderScreen
-        title={page?.title || 'Program Builder'}
-        description={page?.description || 'Coach program building tools will live here.'}
-        onBack={() => setView('dashboard')}
-        theme={theme}
-        status={page?.status}
-        implementation={page?.implementation}
-        notes={[
-          'Coaches can currently approve or reject athlete-submitted plan requests.',
-          'A dedicated builder with workout authoring controls is not wired into the web panel yet.',
-        ]}
-        actions={[
-          {
-            label: 'Review Plan Requests',
-            onClick: () => setView('planrequests'),
-          },
-          {
-            label: 'Back to Dashboard',
-            onClick: () => setView('dashboard'),
-            variant: 'secondary',
-          },
-        ]}
-      />
+      <>
+        <WorkspacePlaceholderScreen
+          title={page?.title || 'Program Builder'}
+          description={page?.description || 'Coach program building tools will live here.'}
+          onBack={() => setView('dashboard')}
+          theme={theme}
+          status={page?.status}
+          implementation={page?.implementation}
+          notes={[
+            'Coaches can currently approve or reject athlete-submitted plan requests.',
+            'A dedicated builder with workout authoring controls is not wired into the web panel yet.',
+          ]}
+          actions={[
+            {
+              label: 'Review Plan Requests',
+              onClick: () => setView('planrequests'),
+            },
+            {
+              label: 'Back to Dashboard',
+              onClick: () => setView('dashboard'),
+              variant: 'secondary',
+            },
+          ]}
+        />
+        {mobileNav}
+      </>
     );
   }
 
@@ -756,22 +929,10 @@ export const CoachDashboard: React.FC<CoachDashboardProps> = ({ onLogout }) => {
             <h1 className="text-xl md:text-2xl font-bold">Plan Requests</h1>
             <p className={`text-xs md:text-sm ${isLightTheme ? 'text-slate-600' : 'text-gray-400'}`}>Approve or reject user custom plans before activation.</p>
           </div>
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={toggleTheme}
-              className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-colors border ${
-                isLightTheme
-                  ? 'bg-white text-[#111827] border-slate-300 hover:bg-slate-50'
-                  : 'bg-[#242424] text-white border-gray-700 hover:bg-[#2A2A2A]'
-              }`}
-              title={`Switch to ${isLightTheme ? 'dark' : 'light'} mode`}
-            >
-              {isLightTheme ? <Moon size={16} /> : <Sun size={16} />}
-            </button>
-            <button
-              type="button"
-              onClick={() => setView('dashboard')}
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setView('dashboard')}
               className={`px-3 py-2 rounded-lg text-sm transition-colors ${
                 isLightTheme ? 'bg-white border border-slate-300 hover:bg-slate-50' : 'bg-[#242424] hover:bg-[#2A2A2A]'
               }`}
@@ -804,51 +965,61 @@ export const CoachDashboard: React.FC<CoachDashboardProps> = ({ onLogout }) => {
             const isActing = activeRequestActionId === request.id;
 
             return (
-              <div
-                key={request.id}
-                className="bg-[#242424] rounded-lg p-4 border border-gray-800 cursor-pointer hover:border-[#BFFF00]/40 transition-colors"
-                onClick={() => setSelectedProgramRequest(request)}
-                role="button"
-                tabIndex={0}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' || e.key === ' ') {
-                    e.preventDefault();
-                    setSelectedProgramRequest(request);
-                  }
-                }}
-              >
+                <div
+                  key={request.id}
+                  className={`rounded-lg p-4 border cursor-pointer hover:border-[#10b981]/40 transition-colors ${
+                    isLightTheme ? 'bg-white border-slate-200' : 'bg-[#242424] border-gray-800'
+                  }`}
+                  onClick={() => setSelectedProgramRequest(request)}
+                  role="button"
+                  tabIndex={0}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      setSelectedProgramRequest(request);
+                    }
+                  }}
+                >
                 <div className="flex items-center justify-between gap-2">
                   <div>
                     <div className="font-semibold">{request.userName}</div>
-                    <div className="text-xs text-gray-400">{request.userEmail}</div>
+                      <div className={`text-xs ${isLightTheme ? 'text-slate-500' : 'text-gray-400'}`}>{request.userEmail}</div>
                   </div>
-                  <span className={`text-[11px] px-2 py-1 rounded border uppercase ${
-                    request.status === 'pending'
-                      ? 'text-amber-300 border-amber-500/40 bg-amber-500/10'
-                      : request.status === 'approved'
-                        ? 'text-green-300 border-green-500/40 bg-green-500/10'
-                        : request.status === 'rejected'
-                          ? 'text-red-300 border-red-500/40 bg-red-500/10'
-                          : 'text-gray-300 border-gray-600 bg-gray-500/10'
-                  }`}
-                  >
-                    {request.status}
-                  </span>
-                </div>
-
-                <div className="mt-3 space-y-1 text-sm">
-                  <div><span className="text-gray-400">Plan:</span> {request.planName}</div>
-                  <div><span className="text-gray-400">Duration:</span> {request.cycleWeeks} weeks</div>
-                  <div><span className="text-gray-400">Days:</span> {request.selectedDays.join(', ') || '-'}</div>
-                  <div><span className="text-gray-400">Exercises per week:</span> {exercisesCount}</div>
-                  <div className="text-[#BFFF00] text-xs pt-1">Click to review full details</div>
-                </div>
-
-                {request.reviewNotes && (
-                  <div className="mt-2 text-xs text-gray-400">
-                    Review note: {request.reviewNotes}
+                    <span className={`text-[11px] px-2 py-1 rounded border uppercase ${
+                      request.status === 'pending'
+                        ? (isLightTheme ? 'text-amber-700 border-amber-200 bg-amber-50' : 'text-amber-300 border-amber-500/40 bg-amber-500/10')
+                        : request.status === 'approved'
+                          ? (isLightTheme ? 'text-emerald-700 border-emerald-200 bg-emerald-50' : 'text-green-300 border-green-500/40 bg-green-500/10')
+                          : request.status === 'rejected'
+                            ? (isLightTheme ? 'text-rose-700 border-rose-200 bg-rose-50' : 'text-red-300 border-red-500/40 bg-red-500/10')
+                            : (isLightTheme ? 'text-slate-600 border-slate-200 bg-slate-50' : 'text-gray-300 border-gray-600 bg-gray-500/10')
+                    }`}
+                    >
+                      {request.status}
+                    </span>
                   </div>
-                )}
+
+                  <div className="mt-3 space-y-1 text-sm">
+                    <div className={isLightTheme ? 'text-slate-700' : undefined}>
+                      <span className={`${isLightTheme ? 'text-slate-500' : 'text-gray-400'}`}>Plan:</span> {request.planName}
+                    </div>
+                    <div className={isLightTheme ? 'text-slate-700' : undefined}>
+                      <span className={`${isLightTheme ? 'text-slate-500' : 'text-gray-400'}`}>Duration:</span> {request.cycleWeeks} weeks
+                    </div>
+                    <div className={isLightTheme ? 'text-slate-700' : undefined}>
+                      <span className={`${isLightTheme ? 'text-slate-500' : 'text-gray-400'}`}>Days:</span> {request.selectedDays.join(', ') || '-'}
+                    </div>
+                    <div className={isLightTheme ? 'text-slate-700' : undefined}>
+                      <span className={`${isLightTheme ? 'text-slate-500' : 'text-gray-400'}`}>Exercises per week:</span> {exercisesCount}
+                    </div>
+                    <div className={`text-xs pt-1 ${isLightTheme ? 'text-emerald-600' : 'text-emerald-600'}`}>Click to review full details</div>
+                  </div>
+
+                  {request.reviewNotes && (
+                    <div className={`mt-2 text-xs ${isLightTheme ? 'text-slate-500' : 'text-gray-400'}`}>
+                      Review note: {request.reviewNotes}
+                    </div>
+                  )}
 
                 {isPending && (
                   <div className="mt-4 flex flex-wrap gap-2">
@@ -859,7 +1030,7 @@ export const CoachDashboard: React.FC<CoachDashboardProps> = ({ onLogout }) => {
                         e.stopPropagation();
                         void handleApproveProgramRequest(request.id);
                       }}
-                      className="px-4 py-2 rounded-lg bg-[#BFFF00] text-black font-semibold hover:bg-[#a8e600] transition-colors disabled:opacity-50"
+                      className="px-4 py-2 rounded-lg bg-[#10b981] text-black font-semibold hover:bg-[#a8e600] transition-colors disabled:opacity-50"
                     >
                       {isActing ? 'Working...' : 'Approve & Save'}
                     </button>
@@ -881,79 +1052,97 @@ export const CoachDashboard: React.FC<CoachDashboardProps> = ({ onLogout }) => {
           })}
         </div>
 
-        {selectedProgramRequest && (
-          <div
-            className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm p-4 flex items-center justify-center"
-            onClick={() => setSelectedProgramRequest(null)}
-          >
+          {selectedProgramRequest && (
             <div
-              className="w-full max-w-3xl max-h-[90vh] overflow-y-auto rounded-2xl bg-[#202020] border border-gray-700 p-5"
-              onClick={(e) => e.stopPropagation()}
+              className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm p-0 md:flex md:items-center md:justify-center md:p-4"
+              onClick={() => setSelectedProgramRequest(null)}
             >
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <h2 className="text-xl font-semibold">{selectedProgramRequest.planName}</h2>
-                  <p className="text-sm text-gray-400">
-                    {selectedProgramRequest.userName} • {selectedProgramRequest.userEmail}
-                  </p>
-                  <p className="text-xs text-gray-500 mt-1">
-                    {selectedProgramRequest.cycleWeeks} weeks • {selectedProgramRequest.selectedDays.length} training days
-                  </p>
+              <div
+                className={`absolute inset-x-0 bottom-0 max-h-[92vh] w-full overflow-y-auto rounded-t-[28px] border p-5 md:relative md:max-w-3xl md:rounded-[28px] ${
+                  isLightTheme ? 'bg-white border-slate-200 text-[#111827]' : 'bg-[#202020] border-gray-700'
+                }`}
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="mx-auto mb-3 h-1.5 w-14 rounded-full bg-current/15 md:hidden" />
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <h2 className="text-xl font-semibold">{selectedProgramRequest.planName}</h2>
+                    <p className={`text-sm ${isLightTheme ? 'text-slate-500' : 'text-gray-400'}`}>
+                      {selectedProgramRequest.userName} • {selectedProgramRequest.userEmail}
+                    </p>
+                    <p className={`text-xs mt-1 ${isLightTheme ? 'text-slate-500' : 'text-gray-500'}`}>
+                      {selectedProgramRequest.cycleWeeks} weeks • {selectedProgramRequest.selectedDays.length} training days
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedProgramRequest(null)}
+                    className={`w-9 h-9 rounded-lg flex items-center justify-center ${
+                      isLightTheme ? 'bg-slate-100 hover:bg-slate-200 text-slate-700' : 'bg-[#2A2A2A] hover:bg-[#333]'
+                    }`}
+                    title="Close"
+                  >
+                    <X size={18} />
+                  </button>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => setSelectedProgramRequest(null)}
-                  className="w-9 h-9 rounded-lg bg-[#2A2A2A] hover:bg-[#333] flex items-center justify-center"
-                  title="Close"
-                >
-                  <X size={18} />
-                </button>
-              </div>
 
-              {selectedProgramRequest.description && (
-                <div className="mt-4 text-sm text-gray-300 bg-[#1A1A1A] border border-gray-700 rounded-lg p-3">
-                  {selectedProgramRequest.description}
-                </div>
-              )}
+                {selectedProgramRequest.description && (
+                  <div className={`mt-4 text-sm rounded-lg p-3 ${
+                    isLightTheme ? 'text-slate-700 bg-slate-50 border border-slate-200' : 'text-gray-300 bg-[#1A1A1A] border border-gray-700'
+                  }`}>
+                    {selectedProgramRequest.description}
+                  </div>
+                )}
 
-              <div className="mt-4 space-y-3">
-                {selectedProgramRequest.weeklyWorkouts.map((workout, workoutIndex) => {
-                  const exercises = Array.isArray(workout.exercises) ? workout.exercises : [];
-                  return (
-                    <div key={`detail-workout-${workoutIndex}`} className="bg-[#1A1A1A] border border-gray-700 rounded-lg p-3">
-                      <div className="flex items-center justify-between gap-2">
-                        <div className="font-semibold">
-                          {formatDayLabel(workout.dayName, workoutIndex)}
-                          {workout.workoutName ? ` • ${workout.workoutName}` : ''}
-                        </div>
-                        <span className="text-xs text-gray-400">{exercises.length} exercises</span>
-                      </div>
-                      <div className="mt-2 space-y-1.5">
-                        {exercises.map((exercise, exerciseIndex) => (
-                          <div
-                            key={`detail-workout-${workoutIndex}-exercise-${exerciseIndex}`}
-                            className="text-sm text-gray-300 flex items-center justify-between gap-3 bg-[#232323] rounded-md px-2.5 py-1.5"
-                          >
-                            <span className="text-white">{exercise.exerciseName || `Exercise ${exerciseIndex + 1}`}</span>
-                            <span className="text-xs text-gray-400">
-                              {Number(exercise.sets || 0)} sets • {String(exercise.reps || '-')} reps
-                            </span>
+                <div className="mt-4 space-y-3">
+                  {selectedProgramRequest.weeklyWorkouts.map((workout, workoutIndex) => {
+                    const exercises = Array.isArray(workout.exercises) ? workout.exercises : [];
+                    return (
+                      <div
+                        key={`detail-workout-${workoutIndex}`}
+                        className={`rounded-lg p-3 ${
+                          isLightTheme ? 'bg-white border border-slate-200' : 'bg-[#1A1A1A] border border-gray-700'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="font-semibold">
+                            {formatDayLabel(workout.dayName, workoutIndex)}
+                            {workout.workoutName ? ` • ${workout.workoutName}` : ''}
                           </div>
-                        ))}
-                        {exercises.length === 0 && (
-                          <div className="text-xs text-gray-500">No exercises in this day.</div>
-                        )}
+                          <span className={`text-xs ${isLightTheme ? 'text-slate-500' : 'text-gray-400'}`}>{exercises.length} exercises</span>
+                        </div>
+                        <div className="mt-2 space-y-1.5">
+                          {exercises.map((exercise, exerciseIndex) => (
+                            <div
+                              key={`detail-workout-${workoutIndex}-exercise-${exerciseIndex}`}
+                              className={`text-sm flex items-center justify-between gap-3 rounded-md px-2.5 py-1.5 ${
+                                isLightTheme
+                                  ? 'text-slate-700 bg-slate-50 border border-slate-200/70'
+                                  : 'text-gray-300 bg-[#232323]'
+                              }`}
+                            >
+                              <span className={isLightTheme ? 'text-slate-800' : 'text-white'}>
+                                {exercise.exerciseName || `Exercise ${exerciseIndex + 1}`}
+                              </span>
+                              <span className={`text-xs ${isLightTheme ? 'text-slate-500' : 'text-gray-400'}`}>
+                                {Number(exercise.sets || 0)} sets • {String(exercise.reps || '-')} reps
+                              </span>
+                            </div>
+                          ))}
+                          {exercises.length === 0 && (
+                            <div className={`text-xs ${isLightTheme ? 'text-slate-500' : 'text-gray-500'}`}>No exercises in this day.</div>
+                          )}
+                        </div>
                       </div>
-                    </div>
-                  );
-                })}
-              </div>
-
-              {selectedProgramRequest.reviewNotes && (
-                <div className="mt-4 text-sm text-gray-300">
-                  <span className="text-gray-400">Review note:</span> {selectedProgramRequest.reviewNotes}
+                    );
+                  })}
                 </div>
-              )}
+
+                {selectedProgramRequest.reviewNotes && (
+                  <div className={`mt-4 text-sm ${isLightTheme ? 'text-slate-700' : 'text-gray-300'}`}>
+                    <span className={`${isLightTheme ? 'text-slate-500' : 'text-gray-400'}`}>Review note:</span> {selectedProgramRequest.reviewNotes}
+                  </div>
+                )}
 
               {selectedProgramRequest.status === 'pending' && (
                 <div className="mt-5 flex flex-wrap gap-2">
@@ -961,7 +1150,7 @@ export const CoachDashboard: React.FC<CoachDashboardProps> = ({ onLogout }) => {
                     type="button"
                     disabled={activeRequestActionId === selectedProgramRequest.id}
                     onClick={() => void handleApproveSelectedRequest()}
-                    className="px-4 py-2 rounded-lg bg-[#BFFF00] text-black font-semibold hover:bg-[#a8e600] transition-colors disabled:opacity-50"
+                    className="px-4 py-2 rounded-lg bg-[#10b981] text-black font-semibold hover:bg-[#a8e600] transition-colors disabled:opacity-50"
                   >
                     {activeRequestActionId === selectedProgramRequest.id ? 'Working...' : 'Approve & Save'}
                   </button>
@@ -976,224 +1165,320 @@ export const CoachDashboard: React.FC<CoachDashboardProps> = ({ onLogout }) => {
                 </div>
               )}
             </div>
-          </div>
-        )}
-      </div>
-    );
-  }
+            </div>
+          )}
+          {mobileNav}
+        </div>
+      );
+    }
 
   return (
     <>
       <div className={`min-h-screen ${isLightTheme ? 'bg-[#F5F7FB] text-[#111827]' : 'bg-[#1A1A1A] text-white'}`}>
-      <div className={`border-b p-3 md:p-4 ${isLightTheme ? 'border-slate-200' : 'border-gray-800'}`}>
-        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-          <div className="flex items-center gap-3">
-            <div className="w-11 h-11 md:w-12 md:h-12">
-              <BrandLogo imageClassName="object-contain" />
+      {dashboardSection === 'overview' && (
+      <div className={`border-b px-3 pb-4 pt-3 md:px-4 md:pb-6 ${isLightTheme ? 'border-slate-200 bg-[radial-gradient(circle_at_top_right,_rgba(191,255,0,0.2),_transparent_28%),linear-gradient(180deg,_#ffffff,_#f5f7fb)]' : 'border-white/10 bg-[radial-gradient(circle_at_top_right,_rgba(191,255,0,0.16),_transparent_24%),linear-gradient(180deg,_#171b18,_#111315)]'}`}>
+        <div className="mx-auto max-w-7xl">
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <div className="w-11 h-11 rounded-2xl border border-white/40 bg-white/70 p-2 shadow-[0_12px_28px_rgba(15,23,42,0.08)] md:w-12 md:h-12 md:p-2.5">
+                <BrandLogo imageClassName="object-contain" />
+              </div>
+              <div>
+                <p className={`text-[11px] uppercase tracking-[0.22em] ${isLightTheme ? 'text-slate-500' : 'text-white/45'}`}>Coach Panel</p>
+                <h1 className="text-xl font-semibold md:text-2xl">{coachName}</h1>
+              </div>
             </div>
-            <div>
-              <h1 className="text-xl md:text-2xl font-bold">{coachName}</h1>
-              <p className={`text-xs md:text-sm ${isLightTheme ? 'text-slate-600' : 'text-gray-400'}`}>Manage your clients</p>
+
+            <div className="flex items-center gap-2">
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={handleProfileImageChange}
+              />
+              <button
+                onClick={() => {
+                  if (onLogout) {
+                    onLogout();
+                    return;
+                  }
+                  localStorage.removeItem('adminUser');
+                  localStorage.removeItem('adminUserId');
+                  localStorage.removeItem('coach');
+                  localStorage.removeItem('coachId');
+                  window.location.href = '/admin.html';
+                }}
+                className={`inline-flex h-11 w-11 items-center justify-center rounded-2xl border transition-colors ${
+                  isLightTheme
+                    ? 'border-rose-200 bg-rose-50 text-rose-600 hover:bg-rose-100'
+                    : 'border-rose-500/30 bg-rose-500/10 text-rose-300 hover:bg-rose-500/20'
+                }`}
+                title="Logout"
+              >
+                <LogOut size={18} />
+              </button>
             </div>
           </div>
-          <div className="flex items-center gap-3">
+
+          <div className={`mt-5 overflow-hidden rounded-[28px] border p-4 md:p-6 ${
+            isLightTheme
+              ? 'border-slate-200 bg-white/90 shadow-[0_20px_50px_rgba(15,23,42,0.08)]'
+              : 'border-white/10 bg-white/5 shadow-[0_18px_45px_rgba(0,0,0,0.22)]'
+          }`}>
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+              <div className="flex items-start gap-4">
+                <button
+                  type="button"
+                  onClick={handleProfileImagePick}
+                  disabled={uploadingPicture}
+                  className={`relative h-16 w-16 shrink-0 overflow-hidden rounded-2xl border transition-colors disabled:opacity-60 md:h-20 md:w-20 ${
+                    isLightTheme
+                      ? 'border-slate-200 bg-slate-50 hover:border-[#10b981]'
+                      : 'border-white/10 bg-black/20 hover:border-[#10b981]'
+                  }`}
+                  title="Change profile image"
+                >
+                  {coachProfilePicture ? (
+                    <img src={coachProfilePicture} alt="Coach profile" className="h-full w-full object-cover" />
+                  ) : (
+                    <span className="flex h-full w-full items-center justify-center text-lg font-bold text-emerald-600">
+                      {coachInitials || 'CO'}
+                    </span>
+                  )}
+                  <span className="absolute bottom-1.5 right-1.5 rounded-full bg-[#10b981] p-1 text-black">
+                    <Camera size={12} />
+                  </span>
+                </button>
+
+                <div className="min-w-0">
+                  <div className={`inline-flex items-center rounded-full px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] ${
+                    isLightTheme ? 'bg-[#10b981]/20 text-[#3c4d00]' : 'bg-[#10b981]/15 text-[#dfff84]'
+                  }`}>
+                    Ready to coach
+                  </div>
+                  <h2 className="mt-3 text-2xl font-semibold md:text-3xl">Mobile-first workspace</h2>
+                  <p className={`mt-2 max-w-2xl text-sm leading-6 md:text-base ${
+                    isLightTheme ? 'text-slate-600' : 'text-white/65'
+                  }`}>
+                    Keep roster, chat, approvals, and alerts one tap away with a cleaner mobile coaching flow.
+                  </p>
+
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setView('adduser')}
+                      className="inline-flex items-center gap-2 rounded-2xl bg-[#10b981] px-4 py-3 text-sm font-semibold text-black transition-colors hover:bg-[#a8e600]"
+                    >
+                      <UserPlus size={18} />
+                      Add Athlete
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setView('planrequests')}
+                      className={`inline-flex items-center gap-2 rounded-2xl px-4 py-3 text-sm font-semibold transition-colors ${
+                        isLightTheme
+                          ? 'border border-slate-200 bg-white text-slate-800 hover:bg-slate-50'
+                          : 'border border-white/10 bg-white/5 text-white hover:bg-white/10'
+                      }`}
+                    >
+                      <ClipboardList size={18} />
+                      Review Plans
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3 lg:w-[320px]">
+                <div className={`rounded-2xl border p-4 ${
+                  isLightTheme ? 'border-slate-200 bg-slate-50' : 'border-white/10 bg-black/20'
+                }`}>
+                  <p className={`text-[11px] uppercase tracking-[0.2em] ${isLightTheme ? 'text-slate-500' : 'text-white/45'}`}>Unread</p>
+                  <p className="mt-2 text-2xl font-semibold">{clients.reduce((count, client) => count + Number(client.unread || 0), 0)}</p>
+                  <p className={`mt-1 text-xs ${isLightTheme ? 'text-slate-500' : 'text-white/55'}`}>Messages waiting</p>
+                </div>
+                <div className={`rounded-2xl border p-4 ${
+                  isLightTheme ? 'border-slate-200 bg-slate-50' : 'border-white/10 bg-black/20'
+                }`}>
+                  <p className={`text-[11px] uppercase tracking-[0.2em] ${isLightTheme ? 'text-slate-500' : 'text-white/45'}`}>Plans</p>
+                  <p className="mt-2 text-2xl font-semibold">{pendingProgramRequestsCount}</p>
+                  <p className={`mt-1 text-xs ${isLightTheme ? 'text-slate-500' : 'text-white/55'}`}>Pending approvals</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {pictureError && (
+            <p className="mt-3 text-xs text-red-500">{pictureError}</p>
+          )}
+          {networkError && (
+            <p className={`mt-2 text-xs ${isLightTheme ? 'text-amber-600' : 'text-amber-300'}`}>{networkError}</p>
+          )}
+        </div>
+      </div>
+      )}
+
+      {dashboardSection === 'overview' && (
+      <div className="grid grid-cols-2 gap-3 p-3 md:grid-cols-4 md:gap-4 md:p-4">
+        {summaryCards.map((card) => {
+          const Icon = card.icon;
+          return (
+            <button
+              key={card.key}
+              type="button"
+              onClick={card.onClick}
+              className={`rounded-[24px] border p-4 text-left transition-transform hover:-translate-y-0.5 ${
+                isLightTheme
+                  ? 'border-slate-200 bg-white shadow-[0_10px_24px_rgba(15,23,42,0.05)] hover:bg-slate-50'
+                  : 'border-white/10 bg-white/5 hover:bg-white/10'
+              }`}
+            >
+              <Icon size={18} className={card.tone} />
+              <div className="mt-4 text-2xl font-semibold md:text-3xl">{card.value}</div>
+              <div className={`mt-1 text-xs md:text-sm ${isLightTheme ? 'text-slate-500' : 'text-white/55'}`}>{card.label}</div>
+            </button>
+          );
+        })}
+      </div>
+      )}
+
+      <div className={`grid grid-cols-1 gap-3 p-3 pb-0 md:gap-4 md:p-4 lg:pb-4 lg:grid-cols-3 lg:h-[calc(100vh-250px)] ${dashboardSection === 'messages' ? 'block' : 'hidden lg:grid'}`}>
+        <div className={`overflow-y-auto rounded-[32px] p-3 md:p-4 h-[calc(100dvh-84px)] lg:h-full ${selectedClient ? 'hidden lg:block' : 'block'} ${isLightTheme ? 'bg-white border border-slate-200 shadow-[0_10px_24px_rgba(15,23,42,0.05)]' : 'bg-[#f7f3ef] text-[#161616] border border-[#eadfd4] shadow-[0_18px_40px_rgba(0,0,0,0.18)]'}`}>
+
+          <div className={`mb-3 flex items-center gap-3 rounded-full px-4 py-3 ${isLightTheme ? 'bg-slate-100 text-slate-500' : 'bg-white text-[#7a756e] shadow-[inset_0_1px_0_rgba(255,255,255,0.8)]'}`}>
+            <Search size={16} />
             <input
-              ref={fileInputRef}
-              type="file"
-              accept="image/*"
-              className="hidden"
-              onChange={handleProfileImageChange}
+              type="text"
+              value={inboxSearch}
+              onChange={(e) => setInboxSearch(e.target.value)}
+              placeholder="Search chats..."
+              className={`w-full bg-transparent text-sm outline-none ${isLightTheme ? 'placeholder:text-slate-400' : 'placeholder:text-[#999287]'}`}
             />
-            <button
-              type="button"
-              onClick={handleProfileImagePick}
-              disabled={uploadingPicture}
-              className={`relative w-12 h-12 md:w-14 md:h-14 rounded-full overflow-hidden border transition-colors disabled:opacity-60 ${
-                isLightTheme
-                  ? 'border-slate-300 bg-white hover:border-[#BFFF00]'
-                  : 'border-gray-700 bg-[#242424] hover:border-[#BFFF00]'
-              }`}
-              title="Change profile image"
-            >
-              {coachProfilePicture ? (
-                <img src={coachProfilePicture} alt="Coach profile" className="w-full h-full object-cover" />
-              ) : (
-                <span className="w-full h-full flex items-center justify-center text-sm font-bold text-[#BFFF00]">
-                  {coachName
-                    .split(' ')
-                    .filter(Boolean)
-                    .map((n) => n[0])
-                    .join('')
-                    .slice(0, 2)
-                    .toUpperCase()}
-                </span>
-              )}
-              <span className="absolute -bottom-0.5 -right-0.5 bg-[#BFFF00] text-black rounded-full p-1">
-                <Camera size={12} />
-              </span>
-            </button>
-            <button
-              type="button"
-              onClick={toggleTheme}
-              className={`flex items-center gap-2 px-3 md:px-4 py-2 rounded-lg text-sm transition-colors border ${
-                isLightTheme
-                  ? 'bg-white text-[#111827] border-slate-300 hover:bg-slate-50'
-                  : 'bg-[#242424] text-white border-gray-700 hover:bg-[#2A2A2A]'
-              }`}
-              title={`Switch to ${isLightTheme ? 'dark' : 'light'} mode`}
-            >
-              {isLightTheme ? <Moon size={16} /> : <Sun size={16} />}
-              <span className="hidden sm:inline">{isLightTheme ? 'Dark' : 'Light'}</span>
-            </button>
-            <button
-              onClick={() => setView('adduser')}
-              className="flex items-center gap-2 bg-[#BFFF00] text-black px-3 md:px-4 py-2 rounded-lg text-sm font-semibold hover:bg-[#a8e600] transition-colors"
-            >
-              <UserPlus size={18} />
-              <span className="hidden sm:inline">Add User</span>
-            </button>
-            <button
-              onClick={() => {
-                if (onLogout) {
-                  onLogout();
-                  return;
-                }
-                localStorage.removeItem('adminUser');
-                localStorage.removeItem('adminUserId');
-                localStorage.removeItem('coach');
-                localStorage.removeItem('coachId');
-                window.location.href = '/admin.html';
-              }}
-              className="flex items-center gap-2 bg-red-500 hover:bg-red-600 px-3 md:px-4 py-2 rounded-lg text-sm transition-colors"
-            >
-              <LogOut size={18} />
-              <span className="hidden sm:inline">Logout</span>
-            </button>
           </div>
-        </div>
-        {pictureError && (
-          <p className="text-xs text-red-500 mt-2">{pictureError}</p>
-        )}
-        {networkError && (
-          <p className="text-xs text-amber-400 mt-2">{networkError}</p>
-        )}
-      </div>
 
-      <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 md:gap-4 p-3 md:p-4">
-        <div className={`rounded-lg p-3 md:p-4 cursor-pointer transition-colors ${isLightTheme ? 'bg-white border border-slate-200 hover:bg-slate-50' : 'bg-[#242424] hover:bg-[#2A2A2A]'}`} onClick={() => setView('clients')}>
-          <Users size={18} className="text-[#BFFF00] mb-2" />
-          <div className="text-xl md:text-2xl font-bold">{stats.totalClients}</div>
-          <div className={`text-xs ${isLightTheme ? 'text-slate-500' : 'text-gray-400'}`}>Total Clients</div>
-        </div>
-        <div className={`rounded-lg p-3 md:p-4 cursor-pointer transition-colors ${isLightTheme ? 'bg-white border border-slate-200 hover:bg-slate-50' : 'bg-[#242424] hover:bg-[#2A2A2A]'}`} onClick={() => setView('activity')}>
-          <TrendingUp size={18} className="text-green-500 mb-2" />
-          <div className="text-xl md:text-2xl font-bold">{stats.activeToday}</div>
-          <div className={`text-xs ${isLightTheme ? 'text-slate-500' : 'text-gray-400'}`}>Active Today</div>
-        </div>
-        <div className={`rounded-lg p-3 md:p-4 cursor-pointer transition-colors ${isLightTheme ? 'bg-white border border-slate-200 hover:bg-slate-50' : 'bg-[#242424] hover:bg-[#2A2A2A]'}`} onClick={() => setView('notifications')}>
-          <Bell size={18} className="text-blue-500 mb-2" />
-          <div className="text-xl md:text-2xl font-bold">{stats.notifications}</div>
-          <div className={`text-xs ${isLightTheme ? 'text-slate-500' : 'text-gray-400'}`}>Notifications</div>
-        </div>
-        <div className={`rounded-lg p-3 md:p-4 cursor-pointer transition-colors ${isLightTheme ? 'bg-white border border-slate-200 hover:bg-slate-50' : 'bg-[#242424] hover:bg-[#2A2A2A]'}`} onClick={() => setView('schedule')}>
-          <Calendar size={18} className="text-purple-500 mb-2" />
-          <div className="text-xl md:text-2xl font-bold">{stats.sessionsThisWeek}</div>
-          <div className={`text-xs ${isLightTheme ? 'text-slate-500' : 'text-gray-400'}`}>Sessions This Week</div>
-        </div>
-        <div className={`rounded-lg p-3 md:p-4 cursor-pointer transition-colors ${isLightTheme ? 'bg-white border border-slate-200 hover:bg-slate-50' : 'bg-[#242424] hover:bg-[#2A2A2A]'}`} onClick={() => setView('planrequests')}>
-          <UserPlus size={18} className="text-[#BFFF00] mb-2" />
-          <div className="text-xl md:text-2xl font-bold">{stats.planRequests}</div>
-          <div className={`text-xs ${isLightTheme ? 'text-slate-500' : 'text-gray-400'}`}>Plan Requests</div>
-        </div>
-      </div>
+          <div className="mb-4 flex gap-2 overflow-x-auto pb-1">
+            {[
+              { key: 'all', label: 'All' },
+              { key: 'unread', label: `Unread ${clients.filter((client) => client.unread > 0).length}` },
+              { key: 'online', label: 'Online' },
+            ].map((filter) => (
+              <button
+                key={filter.key}
+                type="button"
+                onClick={() => setInboxFilter(filter.key as 'all' | 'unread' | 'online')}
+                className={`whitespace-nowrap rounded-full px-3 py-1.5 text-xs font-semibold transition-colors ${
+                  inboxFilter === filter.key
+                    ? isLightTheme
+                      ? 'bg-[#2563eb] text-white'
+                      : 'bg-white text-[#2563eb] shadow-[0_6px_12px_rgba(0,0,0,0.08)]'
+                    : isLightTheme
+                      ? 'bg-slate-100 text-slate-500'
+                      : 'bg-[#efe7de] text-[#8a8279]'
+                }`}
+              >
+                {filter.label}
+              </button>
+            ))}
+          </div>
 
-      <div className="px-3 md:px-4 pb-1">
-        <WorkspaceGrid
-          title="Coach Workspace"
-          subtitle="This maps the requested coach panel pages to the current implementation."
-          pages={coachWorkspacePages}
-          onSelect={(page) => openCoachWorkspacePage(page.id)}
-          theme={theme}
-        />
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 md:gap-4 p-3 md:p-4 h-auto lg:h-[calc(100vh-250px)]">
-        <div className={`rounded-lg p-3 md:p-4 overflow-y-auto max-h-96 lg:max-h-none ${isLightTheme ? 'bg-white border border-slate-200' : 'bg-[#242424]'}`}>
-          <h2 className="font-semibold mb-3 md:mb-4 text-sm md:text-base">Clients</h2>
-          <div className="space-y-2">
-            {clients.map(client => (
+          <div className="space-y-1">
+            {inboxPreviewClients.map(client => (
               <button
                 key={client.id}
                 onClick={() => handleClientSelect(client)}
-                className={`w-full p-2 md:p-3 rounded-lg text-left transition-colors ${
+                className={`w-full p-3 rounded-[22px] text-left transition-colors ${
                   selectedClient?.id === client.id
-                    ? 'bg-[#BFFF00]/10 border border-[#BFFF00]'
+                    ? isLightTheme
+                      ? 'bg-blue-50 border border-blue-200'
+                      : 'bg-white border border-[#d9cec2]'
                     : isLightTheme
-                      ? 'bg-slate-50 border border-slate-200 hover:bg-slate-100'
-                      : 'bg-[#1A1A1A] hover:bg-[#2A2A2A]'
+                      ? 'bg-white border border-transparent hover:bg-slate-50'
+                      : 'bg-transparent border border-transparent hover:bg-white/60'
                 }`}
               >
                 <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 md:w-10 md:h-10 rounded-full bg-[#BFFF00]/20 flex items-center justify-center">
+                  <div className={`w-11 h-11 rounded-full flex items-center justify-center overflow-hidden ${isLightTheme ? 'bg-slate-200' : 'bg-[#e0d4c7]'}`}>
                     {client.profilePicture ? (
                       <div
                         onClick={(e) => {
                           e.stopPropagation();
                           openImagePreview(client.profilePicture || '', `${client.name} profile`);
                         }}
-                        className="w-full h-full rounded-full overflow-hidden cursor-zoom-in"
+                        className="w-full h-full overflow-hidden cursor-zoom-in"
                       >
                         <img
                           src={client.profilePicture}
                           alt={`${client.name} profile`}
-                          className="w-full h-full rounded-full object-cover"
+                          className="w-full h-full object-cover"
                         />
                       </div>
                     ) : (
-                      <span className="font-bold text-xs md:text-sm">{client.avatar}</span>
+                      <span className="font-bold text-sm">{client.avatar}</span>
                     )}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center justify-between">
-                      <span className="font-semibold text-sm">{client.name}</span>
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <span className="block truncate font-semibold text-sm">{client.name}</span>
+                        <p className={`mt-0.5 truncate text-xs ${isLightTheme ? 'text-slate-500' : 'text-[#7e776f]'}`}>
+                          {client.lastMessage || 'Tap to open conversation'}
+                        </p>
+                      </div>
+                      <div className="flex shrink-0 flex-col items-end gap-1">
+                        <span className={`text-[11px] ${isLightTheme ? 'text-slate-400' : 'text-[#8f877d]'}`}>{client.lastActive}</span>
                       {client.unread > 0 && (
-                        <span className="bg-red-500 text-xs px-2 py-0.5 rounded-full">{client.unread}</span>
+                          <span className="flex h-4 min-w-[16px] items-center justify-center rounded-full bg-[#2563eb] px-1 text-[10px] font-semibold text-white">{client.unread}</span>
                       )}
+                      </div>
                     </div>
-                    <p className={`text-xs truncate ${isLightTheme ? 'text-slate-500' : 'text-gray-400'}`}>{client.lastMessage}</p>
-                    <p className={`text-xs ${isLightTheme ? 'text-slate-400' : 'text-gray-500'}`}>{client.lastActive}</p>
                   </div>
                 </div>
               </button>
             ))}
+            {inboxPreviewClients.length === 0 && (
+              <div className={`rounded-[22px] px-4 py-6 text-center text-sm ${isLightTheme ? 'bg-slate-50 text-slate-500' : 'bg-white/60 text-[#7e776f]'}`}>
+                No chats match this filter.
+              </div>
+            )}
           </div>
         </div>
 
-        <div className={`lg:col-span-2 rounded-lg flex flex-col h-auto lg:h-[calc(100vh-250px)] ${isLightTheme ? 'bg-white border border-slate-200' : 'bg-[#242424]'}`}>
-          {selectedClient ? (
-            <>
-              <div className={`p-4 border-b ${isLightTheme ? 'border-slate-200' : 'border-gray-800'}`}>
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-full bg-[#BFFF00]/20 flex items-center justify-center">
-                    {selectedClient.profilePicture ? (
-                      <button
-                        type="button"
-                        onClick={() => openImagePreview(selectedClient.profilePicture || '', `${selectedClient.name} profile`)}
-                        className="w-full h-full rounded-full overflow-hidden"
-                      >
-                        <img
-                          src={selectedClient.profilePicture}
-                          alt={`${selectedClient.name} profile`}
-                          className="w-full h-full rounded-full object-cover"
-                        />
-                      </button>
-                    ) : (
-                      <span className="font-bold">{selectedClient.avatar}</span>
-                    )}
-                  </div>
-                  <div>
-                    <div className="font-semibold">{selectedClient.name}</div>
-                    <div className={`text-xs ${isLightTheme ? 'text-slate-500' : 'text-gray-400'}`}>Active {selectedClient.lastActive}</div>
+        {selectedClient ? (
+          <div className={`lg:col-span-2 rounded-[28px] flex flex-col min-h-[58vh] h-[calc(100dvh-84px)] lg:h-[calc(100vh-250px)] ${isLightTheme ? 'bg-white border border-slate-200 shadow-[0_10px_24px_rgba(15,23,42,0.05)]' : 'bg-white/5 border border-white/10'}`}>
+              <div className={`p-4 border-b ${isLightTheme ? 'border-slate-200' : 'border-white/10'}`}>
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-3">
+                    <button
+                      type="button"
+                      onClick={() => setSelectedClient(null)}
+                      className={`lg:hidden inline-flex h-10 w-10 items-center justify-center rounded-full ${
+                        isLightTheme ? 'bg-slate-100 text-slate-700' : 'bg-white/10 text-white/70'
+                      }`}
+                      aria-label="Go back to conversations"
+                    >
+                      <ArrowLeft className="h-4 w-4" />
+                    </button>
+                    <div className="w-10 h-10 rounded-full bg-[#10b981]/20 flex items-center justify-center">
+                      {selectedClient.profilePicture ? (
+                        <button
+                          type="button"
+                          onClick={() => openImagePreview(selectedClient.profilePicture || '', `${selectedClient.name} profile`)}
+                          className="w-full h-full rounded-full overflow-hidden"
+                        >
+                          <img
+                            src={selectedClient.profilePicture}
+                            alt={`${selectedClient.name} profile`}
+                            className="w-full h-full rounded-full object-cover"
+                          />
+                        </button>
+                      ) : (
+                        <span className="font-bold">{selectedClient.avatar}</span>
+                      )}
+                    </div>
+                    <div>
+                      <div className="font-semibold">{selectedClient.name}</div>
+                      <div className={`text-xs ${isLightTheme ? 'text-slate-500' : 'text-gray-400'}`}>Active {selectedClient.lastActive}</div>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -1211,11 +1496,13 @@ export const CoachDashboard: React.FC<CoachDashboardProps> = ({ onLogout }) => {
                       className={`flex items-end gap-2 chat-message-in ${isCoach ? 'justify-end' : 'justify-start'}`}
                     >
                       {!isCoach && (
-                        <div
-                          className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold text-text-secondary shrink-0 overflow-hidden ${
-                            isLightTheme ? 'bg-white border border-slate-200' : 'bg-card border border-white/10'
-                          }`}
-                        >
+                          <div
+                            className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold shrink-0 overflow-hidden ${
+                              isLightTheme
+                                ? 'bg-white border border-slate-200 text-slate-600'
+                                : 'bg-card border border-white/10 text-text-secondary'
+                            }`}
+                          >
                           {selectedClient?.profilePicture ? (
                             <img
                               src={selectedClient.profilePicture}
@@ -1229,7 +1516,11 @@ export const CoachDashboard: React.FC<CoachDashboardProps> = ({ onLogout }) => {
                       )}
 
                       <div className={`flex flex-col ${isCoach ? 'items-end' : 'items-start'}`}>
-                        {!isCoach && <div className="text-xs text-text-tertiary mb-1 ml-1">{senderName}</div>}
+                          {!isCoach && (
+                            <div className={`text-xs mb-1 ml-1 ${isLightTheme ? 'text-slate-400' : 'text-text-tertiary'}`}>
+                              {senderName}
+                            </div>
+                          )}
                         <div
                           className={`relative w-fit min-w-[88px] max-w-[75vw] md:max-w-[70%] px-4 py-2.5 rounded-[20px] shadow-[0_2px_10px_rgba(0,0,0,0.14)] ${
                             isCoach
@@ -1240,9 +1531,11 @@ export const CoachDashboard: React.FC<CoachDashboardProps> = ({ onLogout }) => {
                           }`}
                         >
                           <p className="text-base leading-relaxed whitespace-pre-wrap break-words">{msg.message}</p>
-                          <p className={`text-xs mt-1 whitespace-nowrap leading-none ${isCoach ? 'text-black/60' : 'text-text-tertiary'}`}>
-                            {time}
-                          </p>
+                            <p className={`text-xs mt-1 whitespace-nowrap leading-none ${
+                              isCoach ? 'text-black/60' : isLightTheme ? 'text-slate-400' : 'text-text-tertiary'
+                            }`}>
+                              {time}
+                            </p>
                           <span
                             className={`absolute bottom-2 w-2.5 h-2.5 rotate-45 ${
                               isCoach
@@ -1274,11 +1567,13 @@ export const CoachDashboard: React.FC<CoachDashboardProps> = ({ onLogout }) => {
 
                 {isClientTyping && (
                   <div className="flex items-end gap-2 justify-start chat-message-in">
-                    <div
-                      className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold text-text-secondary shrink-0 overflow-hidden ${
-                        isLightTheme ? 'bg-white border border-slate-200' : 'bg-card border border-white/10'
-                      }`}
-                    >
+                      <div
+                        className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold shrink-0 overflow-hidden ${
+                          isLightTheme
+                            ? 'bg-white border border-slate-200 text-slate-600'
+                            : 'bg-card border border-white/10 text-text-secondary'
+                        }`}
+                      >
                       {selectedClient?.profilePicture ? (
                         <img
                           src={selectedClient.profilePicture}
@@ -1340,16 +1635,13 @@ export const CoachDashboard: React.FC<CoachDashboardProps> = ({ onLogout }) => {
                     <Send size={20} />
                   </button>
                 </div>
-              </div>
-            </>
-          ) : (
-            <div className={`flex-1 flex items-center justify-center ${isLightTheme ? 'text-slate-500' : 'text-gray-400'}`}>
-              Select a client to start messaging
-            </div>
-          )}
-        </div>
+                </div>
+          </div>
+        ) : null}
       </div>
-    </div>
+
+        {mobileNav}
+      </div>
 
       {previewImage && (
         <div
@@ -1379,3 +1671,4 @@ export const CoachDashboard: React.FC<CoachDashboardProps> = ({ onLogout }) => {
     </>
   );
 };
+

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, Clock, Calendar, Dumbbell, Check } from 'lucide-react';
+import { X, Clock, Dumbbell, Check } from 'lucide-react';
 
 interface SessionDetailsModalProps {
   session: any;
@@ -16,7 +16,7 @@ export const SessionDetailsModal: React.FC<SessionDetailsModalProps> = ({ sessio
     { name: 'Bench Press', sets: 4, reps: '8-10', weight: '80kg' },
     { name: 'Incline Dumbbell Press', sets: 3, reps: '10-12', weight: '30kg' },
     { name: 'Cable Flyes', sets: 3, reps: '12-15', weight: '15kg' },
-    { name: 'Tricep Pushdowns', sets: 3, reps: '12-15', weight: '25kg' }
+    { name: 'Tricep Pushdowns', sets: 3, reps: '12-15', weight: '25kg' },
   ];
 
   const handleConfirm = () => {
@@ -25,122 +25,128 @@ export const SessionDetailsModal: React.FC<SessionDetailsModalProps> = ({ sessio
   };
 
   return (
-    <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
-      <div className="bg-[#242424] rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-        <div className="sticky top-0 bg-[#242424] border-b border-gray-800 p-4 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-12 h-12 rounded-full bg-[#BFFF00]/20 flex items-center justify-center font-bold">
-              {session.clientAvatar}
+    <div className="fixed inset-0 z-50 bg-black/40 p-0 md:p-4" onClick={onClose}>
+      <div
+        className="absolute inset-x-0 bottom-0 max-h-[92vh] overflow-y-auto rounded-t-[28px] border border-slate-200 bg-white text-[#111827] md:relative md:mx-auto md:mt-8 md:max-w-2xl md:rounded-[28px]"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="sticky top-0 z-10 border-b border-slate-200 bg-white/95 px-4 pb-4 pt-3 backdrop-blur md:px-6 md:pt-5">
+          <div className="mx-auto mb-3 h-1.5 w-14 rounded-full bg-slate-200 md:hidden" />
+          <div className="flex items-start justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#10b981]/20 font-bold text-emerald-600">
+                {session.clientAvatar}
+              </div>
+              <div>
+                <h2 className="text-xl font-semibold">{session.clientName}</h2>
+                <p className="text-sm text-slate-500">{session.type}</p>
+              </div>
             </div>
-            <div>
-              <h2 className="text-xl font-bold">{session.clientName}</h2>
-              <p className="text-sm text-gray-400">{session.type}</p>
-            </div>
+            <button onClick={onClose} className="rounded-2xl p-2 text-slate-600 transition-colors hover:bg-slate-100 hover:text-[#111827]">
+              <X size={20} />
+            </button>
           </div>
-          <button onClick={onClose} className="p-2 hover:bg-[#1A1A1A] rounded-lg transition-colors">
-            <X size={20} />
-          </button>
         </div>
 
-        <div className="p-6 space-y-6">
-          <div className="bg-[#1A1A1A] rounded-lg p-4">
-            <h3 className="font-semibold mb-4 flex items-center gap-2">
-              <Clock size={18} className="text-[#BFFF00]" />
+        <div className="space-y-4 px-4 py-4 md:px-6 md:py-6">
+          <div className="rounded-[24px] border border-slate-200 bg-slate-50 p-4">
+            <h3 className="mb-4 flex items-center gap-2 font-semibold">
+              <Clock size={18} className="text-emerald-600" />
               Session Details
             </h3>
-            
+
             {isEditing ? (
               <div className="space-y-3">
-                <div>
-                  <label className="text-sm text-gray-400 block mb-2">Time</label>
+                <label className="block text-sm">
+                  <span className="mb-2 block text-slate-500">Time</span>
                   <input
                     type="time"
                     value={newTime}
                     onChange={(e) => setNewTime(e.target.value)}
-                    className="w-full bg-[#242424] rounded px-3 py-2"
+                    className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 outline-none"
                   />
-                </div>
-                <div>
-                  <label className="text-sm text-gray-400 block mb-2">Duration (minutes)</label>
+                </label>
+                <label className="block text-sm">
+                  <span className="mb-2 block text-slate-500">Duration (minutes)</span>
                   <input
                     type="number"
                     value={newDuration}
                     onChange={(e) => setNewDuration(Number(e.target.value))}
-                    className="w-full bg-[#242424] rounded px-3 py-2"
+                    className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 outline-none"
                     step="15"
                     min="30"
                     max="180"
                   />
-                </div>
-                <div className="flex gap-2 pt-2">
+                </label>
+                <div className="flex gap-3 pt-2">
                   <button
                     onClick={() => setIsEditing(false)}
-                    className="flex-1 bg-gray-700 py-2 rounded-lg"
+                    className="flex-1 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-50"
                   >
                     Cancel
                   </button>
                   <button
                     onClick={handleConfirm}
-                    className="flex-1 bg-[#BFFF00] text-black py-2 rounded-lg font-semibold flex items-center justify-center gap-2"
+                    className="flex flex-1 items-center justify-center gap-2 rounded-2xl bg-[#10b981] px-4 py-3 text-sm font-semibold text-black"
                   >
                     <Check size={18} />
-                    Confirm Change
+                    Confirm
                   </button>
                 </div>
               </div>
             ) : (
-              <div className="space-y-2">
-                <div className="flex justify-between">
-                  <span className="text-gray-400">Start Time:</span>
+              <div className="space-y-3 text-sm">
+                <div className="flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3">
+                  <span className="text-slate-500">Start time</span>
                   <span className="font-semibold">{session.time}</span>
                 </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-400">Duration:</span>
+                <div className="flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3">
+                  <span className="text-slate-500">Duration</span>
                   <span className="font-semibold">{session.duration} minutes</span>
                 </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-400">Status:</span>
-                  <span className={`px-2 py-1 rounded text-xs ${
+                <div className="flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3">
+                  <span className="text-slate-500">Status</span>
+                  <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${
                     session.status === 'confirmed'
-                      ? 'bg-green-500/20 text-green-500'
+                      ? 'bg-green-500/15 text-green-700'
                       : session.status === 'pending'
-                      ? 'bg-yellow-500/20 text-yellow-500'
-                      : 'bg-gray-600/20 text-gray-400'
+                        ? 'bg-amber-500/15 text-amber-700'
+                        : 'bg-slate-100 text-slate-500'
                   }`}>
                     {session.status}
                   </span>
                 </div>
                 <button
                   onClick={() => setIsEditing(true)}
-                  className="w-full mt-3 bg-[#242424] py-2 rounded-lg text-sm hover:bg-[#2A2A2A] transition-colors"
+                  className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-50"
                 >
-                  Edit Session Time
+                  Edit session time
                 </button>
               </div>
             )}
           </div>
 
-          <div className="bg-[#1A1A1A] rounded-lg p-4">
-            <h3 className="font-semibold mb-4 flex items-center gap-2">
-              <Dumbbell size={18} className="text-[#BFFF00]" />
+          <div className="rounded-[24px] border border-slate-200 bg-slate-50 p-4">
+            <h3 className="mb-4 flex items-center gap-2 font-semibold">
+              <Dumbbell size={18} className="text-emerald-600" />
               Workout Plan
             </h3>
             <div className="space-y-3">
-              {exercises.map((ex, idx) => (
-                <div key={idx} className="bg-[#242424] rounded-lg p-3">
-                  <div className="font-semibold mb-2">{ex.name}</div>
-                  <div className="grid grid-cols-3 gap-2 text-sm text-gray-400">
+              {exercises.map((exercise, index) => (
+                <div key={index} className="rounded-2xl border border-slate-200 bg-white p-4">
+                  <div className="font-semibold">{exercise.name}</div>
+                  <div className="mt-3 grid grid-cols-3 gap-2 text-sm">
                     <div>
-                      <span className="text-xs">Sets:</span>
-                      <div className="text-white font-semibold">{ex.sets}</div>
+                      <p className="text-slate-500">Sets</p>
+                      <p className="mt-1 font-semibold">{exercise.sets}</p>
                     </div>
                     <div>
-                      <span className="text-xs">Reps:</span>
-                      <div className="text-white font-semibold">{ex.reps}</div>
+                      <p className="text-slate-500">Reps</p>
+                      <p className="mt-1 font-semibold">{exercise.reps}</p>
                     </div>
                     <div>
-                      <span className="text-xs">Weight:</span>
-                      <div className="text-white font-semibold">{ex.weight}</div>
+                      <p className="text-slate-500">Weight</p>
+                      <p className="mt-1 font-semibold">{exercise.weight}</p>
                     </div>
                   </div>
                 </div>
@@ -148,11 +154,11 @@ export const SessionDetailsModal: React.FC<SessionDetailsModalProps> = ({ sessio
             </div>
           </div>
 
-          <div className="bg-[#1A1A1A] rounded-lg p-4">
-            <h3 className="font-semibold mb-2">Notes</h3>
+          <div className="rounded-[24px] border border-slate-200 bg-slate-50 p-4">
+            <h3 className="mb-3 font-semibold">Notes</h3>
             <textarea
               placeholder="Add session notes..."
-              className="w-full bg-[#242424] rounded px-3 py-2 text-sm min-h-[80px] resize-none"
+              className="min-h-[110px] w-full resize-none rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none placeholder:text-slate-400"
             />
           </div>
         </div>
@@ -160,3 +166,4 @@ export const SessionDetailsModal: React.FC<SessionDetailsModalProps> = ({ sessio
     </div>
   );
 };
+

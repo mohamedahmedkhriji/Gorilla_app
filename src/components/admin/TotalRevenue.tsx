@@ -31,7 +31,7 @@ export const TotalRevenue: React.FC<TotalRevenueProps> = ({ onBack }) => {
               key={range}
               onClick={() => setTimeRange(range as any)}
               className={`px-4 py-2 rounded-lg capitalize ${
-                timeRange === range ? 'bg-[#BFFF00] text-black' : 'bg-[#242424]'
+                timeRange === range ? 'bg-[#10b981] text-black' : 'bg-[#242424]'
               }`}
             >
               {range}
@@ -47,7 +47,7 @@ export const TotalRevenue: React.FC<TotalRevenueProps> = ({ onBack }) => {
           <div className="text-sm text-gray-400">Total Revenue</div>
         </div>
         <div className="bg-[#242424] rounded-lg p-6">
-          <TrendingUp className="text-[#BFFF00] mb-2" size={24} />
+          <TrendingUp className="text-emerald-600 mb-2" size={24} />
           <div className="text-3xl font-bold">$12,340</div>
           <div className="text-sm text-gray-400">This Month</div>
         </div>
@@ -84,3 +84,4 @@ export const TotalRevenue: React.FC<TotalRevenueProps> = ({ onBack }) => {
     </div>
   );
 };
+

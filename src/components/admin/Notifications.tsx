@@ -26,7 +26,7 @@ const iconByType: Record<string, { icon: React.ComponentType<{ size?: number; cl
   session: { icon: Calendar, color: 'text-purple-500' },
   achievement: { icon: TrendingUp, color: 'text-green-500' },
   plan_review_request: { icon: Bell, color: 'text-yellow-500' },
-  plan_coach_request: { icon: Bell, color: 'text-[#BFFF00]' },
+  plan_coach_request: { icon: Bell, color: 'text-emerald-600' },
   plan_review_approved: { icon: Trophy, color: 'text-green-500' },
   plan_review_rejected: { icon: Gift, color: 'text-red-500' },
 };
@@ -215,7 +215,7 @@ export const Notifications: React.FC<NotificationsProps> = ({
               onClick={() => setFilterMode('all')}
               className={`px-3 py-1.5 rounded-lg text-xs border transition-colors ${
                 filterMode === 'all'
-                  ? 'border-[#BFFF00] text-black bg-[#BFFF00]/80'
+                  ? 'border-[#10b981] text-black bg-[#10b981]/80'
                   : resolvedIsLightTheme
                     ? 'border-slate-300 text-slate-600 bg-white hover:bg-slate-50'
                     : 'border-gray-700 text-gray-400 bg-[#242424] hover:bg-[#2A2A2A]'
@@ -228,7 +228,7 @@ export const Notifications: React.FC<NotificationsProps> = ({
               onClick={() => setFilterMode('unread')}
               className={`px-3 py-1.5 rounded-lg text-xs border transition-colors ${
                 filterMode === 'unread'
-                  ? 'border-[#BFFF00] text-black bg-[#BFFF00]/80'
+                  ? 'border-[#10b981] text-black bg-[#10b981]/80'
                   : resolvedIsLightTheme
                     ? 'border-slate-300 text-slate-600 bg-white hover:bg-slate-50'
                     : 'border-gray-700 text-gray-400 bg-[#242424] hover:bg-[#2A2A2A]'
@@ -256,8 +256,8 @@ export const Notifications: React.FC<NotificationsProps> = ({
               disabled={!unreadCount || markingAllRead}
               className={`px-3 py-1.5 rounded-lg text-xs border transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
                 resolvedIsLightTheme
-                  ? 'border-[#BFFF00]/70 text-[#111827] bg-[#BFFF00]/25 hover:bg-[#BFFF00]/40'
-                  : 'border-[#BFFF00]/40 text-[#BFFF00] bg-[#BFFF00]/10 hover:bg-[#BFFF00]/20'
+                  ? 'border-[#10b981]/70 text-[#111827] bg-[#10b981]/25 hover:bg-[#10b981]/40'
+                  : 'border-[#10b981]/40 text-emerald-600 bg-[#10b981]/10 hover:bg-[#10b981]/20'
               }`}
             >
               {markingAllRead ? 'Marking...' : 'Mark All Read'}
@@ -294,8 +294,8 @@ export const Notifications: React.FC<NotificationsProps> = ({
               onClick={() => void handleOpenNotification(notification)}
               className={`w-full text-left rounded-lg p-4 transition-colors ${
                 resolvedIsLightTheme
-                  ? `bg-white border ${notification.unread ? 'border-[#BFFF00]/70' : 'border-slate-200'} hover:bg-slate-50`
-                  : `bg-[#242424] ${notification.unread ? 'border-l-4 border-[#BFFF00]' : 'border border-gray-800'} hover:bg-[#2A2A2A]`
+                  ? `bg-white border ${notification.unread ? 'border-[#10b981]/70' : 'border-slate-200'} hover:bg-slate-50`
+                  : `bg-[#242424] ${notification.unread ? 'border-l-4 border-[#10b981]' : 'border border-gray-800'} hover:bg-[#2A2A2A]`
               }`}
             >
               <div className="flex items-start gap-3">
@@ -314,7 +314,7 @@ export const Notifications: React.FC<NotificationsProps> = ({
                   </p>
                 </div>
                 {notification.unread && (
-                  <div className="w-2 h-2 bg-[#BFFF00] rounded-full mt-2" />
+                  <div className="w-2 h-2 bg-[#10b981] rounded-full mt-2" />
                 )}
               </div>
             </button>
@@ -324,3 +324,4 @@ export const Notifications: React.FC<NotificationsProps> = ({
     </div>
   );
 };
+

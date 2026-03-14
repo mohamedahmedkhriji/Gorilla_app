@@ -132,7 +132,7 @@ export const PartnerGyms: React.FC<PartnerGymsProps> = ({ onBack }) => {
         <div className="flex gap-2">
           <button
             onClick={() => setShowAddForm(true)}
-            className="flex items-center gap-2 bg-[#BFFF00] text-black px-4 py-2 rounded-lg font-semibold hover:bg-[#a8e600] transition-colors"
+            className="flex items-center gap-2 bg-[#10b981] text-black px-4 py-2 rounded-lg font-semibold hover:bg-[#a8e600] transition-colors"
           >
             <Plus size={20} />
             Add Gym
@@ -142,7 +142,7 @@ export const PartnerGyms: React.FC<PartnerGymsProps> = ({ onBack }) => {
               key={range}
               onClick={() => setTimeRange(range as any)}
               className={`px-4 py-2 rounded-lg capitalize ${
-                timeRange === range ? 'bg-[#BFFF00] text-black' : 'bg-[#242424]'
+                timeRange === range ? 'bg-[#10b981] text-black' : 'bg-[#242424]'
               }`}
             >
               {range}
@@ -194,7 +194,7 @@ export const PartnerGyms: React.FC<PartnerGymsProps> = ({ onBack }) => {
                 <td className="py-3 px-4">${gym.revenue.toLocaleString()}</td>
                 <td className="py-3 px-4">
                   <span className={`px-2 py-1 rounded text-xs ${
-                    gym.plan === 'Premium' ? 'bg-[#BFFF00]/20 text-[#BFFF00]' : 'bg-gray-700 text-gray-300'
+                    gym.plan === 'Premium' ? 'bg-[#10b981]/20 text-emerald-600' : 'bg-gray-700 text-gray-300'
                   }`}>
                     {gym.plan}
                   </span>
@@ -256,7 +256,7 @@ export const PartnerGyms: React.FC<PartnerGymsProps> = ({ onBack }) => {
                     required
                     value={formState.name}
                     onChange={(e) => setFormState({...formState, name: e.target.value})}
-                    className="w-full bg-[#1A1A1A] text-white px-4 py-2 rounded-lg border border-gray-700 focus:border-[#BFFF00] outline-none"
+                    className="w-full bg-[#1A1A1A] text-white px-4 py-2 rounded-lg border border-gray-700 focus:border-[#10b981] outline-none"
                   />
                 </div>
                 <div>
@@ -265,7 +265,7 @@ export const PartnerGyms: React.FC<PartnerGymsProps> = ({ onBack }) => {
                     type="text"
                     value={formState.fiscalNumber}
                     onChange={(e) => setFormState({...formState, fiscalNumber: e.target.value})}
-                    className="w-full bg-[#1A1A1A] text-white px-4 py-2 rounded-lg border border-gray-700 focus:border-[#BFFF00] outline-none"
+                    className="w-full bg-[#1A1A1A] text-white px-4 py-2 rounded-lg border border-gray-700 focus:border-[#10b981] outline-none"
                   />
                 </div>
               </div>
@@ -277,7 +277,7 @@ export const PartnerGyms: React.FC<PartnerGymsProps> = ({ onBack }) => {
                     type="date"
                     value={formState.creatingDate}
                     onChange={(e) => setFormState({...formState, creatingDate: e.target.value})}
-                    className="w-full bg-[#1A1A1A] text-white px-4 py-2 rounded-lg border border-gray-700 focus:border-[#BFFF00] outline-none"
+                    className="w-full bg-[#1A1A1A] text-white px-4 py-2 rounded-lg border border-gray-700 focus:border-[#10b981] outline-none"
                   />
                 </div>
                 <div>
@@ -287,7 +287,7 @@ export const PartnerGyms: React.FC<PartnerGymsProps> = ({ onBack }) => {
                     required
                     value={formState.location}
                     onChange={(e) => setFormState({...formState, location: e.target.value})}
-                    className="w-full bg-[#1A1A1A] text-white px-4 py-2 rounded-lg border border-gray-700 focus:border-[#BFFF00] outline-none"
+                    className="w-full bg-[#1A1A1A] text-white px-4 py-2 rounded-lg border border-gray-700 focus:border-[#10b981] outline-none"
                   />
                 </div>
               </div>
@@ -302,7 +302,7 @@ export const PartnerGyms: React.FC<PartnerGymsProps> = ({ onBack }) => {
                       required
                       value={formState.ownerName}
                       onChange={(e) => setFormState({...formState, ownerName: e.target.value})}
-                      className="w-full bg-[#1A1A1A] text-white px-4 py-2 rounded-lg border border-gray-700 focus:border-[#BFFF00] outline-none"
+                      className="w-full bg-[#1A1A1A] text-white px-4 py-2 rounded-lg border border-gray-700 focus:border-[#10b981] outline-none"
                     />
                   </div>
                   <div>
@@ -312,7 +312,7 @@ export const PartnerGyms: React.FC<PartnerGymsProps> = ({ onBack }) => {
                       required
                       value={formState.ownerPhone}
                       onChange={(e) => setFormState({...formState, ownerPhone: e.target.value})}
-                      className="w-full bg-[#1A1A1A] text-white px-4 py-2 rounded-lg border border-gray-700 focus:border-[#BFFF00] outline-none"
+                      className="w-full bg-[#1A1A1A] text-white px-4 py-2 rounded-lg border border-gray-700 focus:border-[#10b981] outline-none"
                     />
                   </div>
                 </div>
@@ -323,7 +323,7 @@ export const PartnerGyms: React.FC<PartnerGymsProps> = ({ onBack }) => {
                     required
                     value={formState.ownerEmail}
                     onChange={(e) => setFormState({...formState, ownerEmail: e.target.value})}
-                    className="w-full bg-[#1A1A1A] text-white px-4 py-2 rounded-lg border border-gray-700 focus:border-[#BFFF00] outline-none"
+                    className="w-full bg-[#1A1A1A] text-white px-4 py-2 rounded-lg border border-gray-700 focus:border-[#10b981] outline-none"
                   />
                 </div>
               </div>
@@ -337,7 +337,7 @@ export const PartnerGyms: React.FC<PartnerGymsProps> = ({ onBack }) => {
                       type="number"
                       value={formState.numberOfCoaches}
                       onChange={(e) => setFormState({...formState, numberOfCoaches: e.target.value})}
-                      className="w-full bg-[#1A1A1A] text-white px-4 py-2 rounded-lg border border-gray-700 focus:border-[#BFFF00] outline-none"
+                      className="w-full bg-[#1A1A1A] text-white px-4 py-2 rounded-lg border border-gray-700 focus:border-[#10b981] outline-none"
                     />
                   </div>
                   <div>
@@ -346,7 +346,7 @@ export const PartnerGyms: React.FC<PartnerGymsProps> = ({ onBack }) => {
                       type="text"
                       value={formState.coachName}
                       onChange={(e) => setFormState({...formState, coachName: e.target.value})}
-                      className="w-full bg-[#1A1A1A] text-white px-4 py-2 rounded-lg border border-gray-700 focus:border-[#BFFF00] outline-none"
+                      className="w-full bg-[#1A1A1A] text-white px-4 py-2 rounded-lg border border-gray-700 focus:border-[#10b981] outline-none"
                     />
                   </div>
                 </div>
@@ -357,7 +357,7 @@ export const PartnerGyms: React.FC<PartnerGymsProps> = ({ onBack }) => {
                       type="tel"
                       value={formState.coachPhone}
                       onChange={(e) => setFormState({...formState, coachPhone: e.target.value})}
-                      className="w-full bg-[#1A1A1A] text-white px-4 py-2 rounded-lg border border-gray-700 focus:border-[#BFFF00] outline-none"
+                      className="w-full bg-[#1A1A1A] text-white px-4 py-2 rounded-lg border border-gray-700 focus:border-[#10b981] outline-none"
                     />
                   </div>
                   <div>
@@ -366,7 +366,7 @@ export const PartnerGyms: React.FC<PartnerGymsProps> = ({ onBack }) => {
                       type="email"
                       value={formState.coachEmail}
                       onChange={(e) => setFormState({...formState, coachEmail: e.target.value})}
-                      className="w-full bg-[#1A1A1A] text-white px-4 py-2 rounded-lg border border-gray-700 focus:border-[#BFFF00] outline-none"
+                      className="w-full bg-[#1A1A1A] text-white px-4 py-2 rounded-lg border border-gray-700 focus:border-[#10b981] outline-none"
                     />
                   </div>
                 </div>
@@ -382,7 +382,7 @@ export const PartnerGyms: React.FC<PartnerGymsProps> = ({ onBack }) => {
                 </button>
                 <button
                   type="submit"
-                  className="flex-1 bg-[#BFFF00] text-black py-3 rounded-lg font-semibold hover:bg-[#a8e600] transition-colors"
+                  className="flex-1 bg-[#10b981] text-black py-3 rounded-lg font-semibold hover:bg-[#a8e600] transition-colors"
                 >
                   Create Gym Account
                 </button>
@@ -411,7 +411,7 @@ export const PartnerGyms: React.FC<PartnerGymsProps> = ({ onBack }) => {
                     required
                     value={formState.name}
                     onChange={(e) => setFormState({...formState, name: e.target.value})}
-                    className="w-full bg-[#1A1A1A] text-white px-4 py-2 rounded-lg border border-gray-700 focus:border-[#BFFF00] outline-none"
+                    className="w-full bg-[#1A1A1A] text-white px-4 py-2 rounded-lg border border-gray-700 focus:border-[#10b981] outline-none"
                   />
                 </div>
                 <div>
@@ -421,7 +421,7 @@ export const PartnerGyms: React.FC<PartnerGymsProps> = ({ onBack }) => {
                     required
                     value={formState.location}
                     onChange={(e) => setFormState({...formState, location: e.target.value})}
-                    className="w-full bg-[#1A1A1A] text-white px-4 py-2 rounded-lg border border-gray-700 focus:border-[#BFFF00] outline-none"
+                    className="w-full bg-[#1A1A1A] text-white px-4 py-2 rounded-lg border border-gray-700 focus:border-[#10b981] outline-none"
                   />
                 </div>
               </div>
@@ -434,7 +434,7 @@ export const PartnerGyms: React.FC<PartnerGymsProps> = ({ onBack }) => {
                     required
                     value={formState.ownerPhone}
                     onChange={(e) => setFormState({...formState, ownerPhone: e.target.value})}
-                    className="w-full bg-[#1A1A1A] text-white px-4 py-2 rounded-lg border border-gray-700 focus:border-[#BFFF00] outline-none"
+                    className="w-full bg-[#1A1A1A] text-white px-4 py-2 rounded-lg border border-gray-700 focus:border-[#10b981] outline-none"
                   />
                 </div>
                 <div>
@@ -444,7 +444,7 @@ export const PartnerGyms: React.FC<PartnerGymsProps> = ({ onBack }) => {
                     required
                     value={formState.ownerEmail}
                     onChange={(e) => setFormState({...formState, ownerEmail: e.target.value})}
-                    className="w-full bg-[#1A1A1A] text-white px-4 py-2 rounded-lg border border-gray-700 focus:border-[#BFFF00] outline-none"
+                    className="w-full bg-[#1A1A1A] text-white px-4 py-2 rounded-lg border border-gray-700 focus:border-[#10b981] outline-none"
                   />
                 </div>
               </div>
@@ -459,7 +459,7 @@ export const PartnerGyms: React.FC<PartnerGymsProps> = ({ onBack }) => {
                 </button>
                 <button
                   type="submit"
-                  className="flex-1 bg-[#BFFF00] text-black py-3 rounded-lg font-semibold hover:bg-[#a8e600] transition-colors"
+                  className="flex-1 bg-[#10b981] text-black py-3 rounded-lg font-semibold hover:bg-[#a8e600] transition-colors"
                 >
                   Update Gym
                 </button>
@@ -481,7 +481,7 @@ export const PartnerGyms: React.FC<PartnerGymsProps> = ({ onBack }) => {
 
             <div className="grid grid-cols-2 gap-4 mb-6">
               <div className="bg-[#1A1A1A] p-4 rounded-lg">
-                <Users className="text-[#BFFF00] mb-2" size={20} />
+                <Users className="text-emerald-600 mb-2" size={20} />
                 <div className="text-2xl font-bold">{selectedGym.members}</div>
                 <div className="text-sm text-gray-400">Total Members</div>
               </div>
@@ -496,7 +496,7 @@ export const PartnerGyms: React.FC<PartnerGymsProps> = ({ onBack }) => {
               <div className="flex justify-between">
                 <span className="text-gray-400">Plan:</span>
                 <span className={`px-2 py-1 rounded text-xs ${
-                  selectedGym.plan === 'Premium' ? 'bg-[#BFFF00]/20 text-[#BFFF00]' : 'bg-gray-700 text-gray-300'
+                  selectedGym.plan === 'Premium' ? 'bg-[#10b981]/20 text-emerald-600' : 'bg-gray-700 text-gray-300'
                 }`}>
                   {selectedGym.plan}
                 </span>
@@ -532,3 +532,4 @@ export const PartnerGyms: React.FC<PartnerGymsProps> = ({ onBack }) => {
     </div>
   );
 };
+

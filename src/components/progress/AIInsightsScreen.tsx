@@ -57,18 +57,18 @@ export const AIInsightsScreen: React.FC<AIInsightsScreenProps> = ({ onBack }) =>
         </button>
 
         <div className="flex items-center gap-2 mb-6">
-          <Sparkles size={24} className="text-[#BFFF00]" />
+          <Sparkles size={24} className="text-emerald-600" />
           <h1 className="text-2xl font-bold">AI Insights</h1>
         </div>
 
         {isLoading ? (
           <div className="bg-[#242424] rounded-lg p-8 flex flex-col items-center justify-center">
-            <div className="w-12 h-12 border-4 border-[#BFFF00] border-t-transparent rounded-full animate-spin mb-4" />
+            <div className="w-12 h-12 border-4 border-[#10b981] border-t-transparent rounded-full animate-spin mb-4" />
             <p className="text-gray-400">Analyzing your progress...</p>
           </div>
         ) : (
           <div className="space-y-4">
-            <div className="bg-gradient-to-br from-[#BFFF00]/10 to-purple-500/10 border border-[#BFFF00]/20 rounded-lg p-4">
+            <div className="bg-gradient-to-br from-[#10b981]/10 to-purple-500/10 border border-[#10b981]/20 rounded-lg p-4">
               <div className="whitespace-pre-wrap text-sm leading-relaxed">
                 {insights}
               </div>
@@ -87,3 +87,4 @@ export const AIInsightsScreen: React.FC<AIInsightsScreenProps> = ({ onBack }) =>
     </div>
   );
 };
+

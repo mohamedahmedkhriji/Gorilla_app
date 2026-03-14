@@ -9,7 +9,7 @@ export const RevenueBreakdown: React.FC<RevenueBreakdownProps> = ({ onBack }) =>
   const [timeRange, setTimeRange] = useState<'week' | 'month' | 'year'>('month');
 
   const breakdown = [
-    { category: 'Subscriptions', amount: 32450, percentage: 71, color: '#BFFF00' },
+    { category: 'Subscriptions', amount: 32450, percentage: 71, color: '#10b981' },
     { category: 'In-App Purchases', amount: 8920, percentage: 20, color: '#22c55e' },
     { category: 'Gym Partnerships', amount: 4310, percentage: 9, color: '#3b82f6' }
   ];
@@ -29,7 +29,7 @@ export const RevenueBreakdown: React.FC<RevenueBreakdownProps> = ({ onBack }) =>
               key={range}
               onClick={() => setTimeRange(range as any)}
               className={`px-4 py-2 rounded-lg capitalize ${
-                timeRange === range ? 'bg-[#BFFF00] text-black' : 'bg-[#242424]'
+                timeRange === range ? 'bg-[#10b981] text-black' : 'bg-[#242424]'
               }`}
             >
               {range}
@@ -64,7 +64,7 @@ export const RevenueBreakdown: React.FC<RevenueBreakdownProps> = ({ onBack }) =>
           <h2 className="text-xl font-semibold mb-6">Pie Chart</h2>
           <div className="flex items-center justify-center h-64">
             <svg width="250" height="250" viewBox="0 0 250 250">
-              <circle cx="125" cy="125" r="100" fill="#BFFF00" />
+              <circle cx="125" cy="125" r="100" fill="#10b981" />
               <path d="M 125 125 L 125 25 A 100 100 0 0 1 196.65 196.65 Z" fill="#22c55e" />
               <path d="M 125 125 L 196.65 196.65 A 100 100 0 0 1 125 225 Z" fill="#3b82f6" />
             </svg>
@@ -82,7 +82,7 @@ export const RevenueBreakdown: React.FC<RevenueBreakdownProps> = ({ onBack }) =>
 
       <div className="grid grid-cols-3 gap-4 mt-6">
         <div className="bg-[#242424] rounded-lg p-6">
-          <DollarSign className="text-[#BFFF00] mb-2" size={24} />
+          <DollarSign className="text-emerald-600 mb-2" size={24} />
           <div className="text-3xl font-bold">$32,450</div>
           <div className="text-sm text-gray-400">Subscriptions</div>
         </div>
@@ -100,3 +100,4 @@ export const RevenueBreakdown: React.FC<RevenueBreakdownProps> = ({ onBack }) =>
     </div>
   );
 };
+
