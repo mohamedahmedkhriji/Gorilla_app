@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Card } from '../ui/Card';
 import { MessageSquare, ChevronRight } from 'lucide-react';
 import { api } from '../../services/api';
+import coachSupportLogo from '../../../assets/emoji/coach.png';
 
 interface CoachCardProps {
   onClick: () => void;
@@ -9,7 +10,6 @@ interface CoachCardProps {
 
 export function CoachCard({ onClick }: CoachCardProps) {
   const [unreadCount, setUnreadCount] = useState(0);
-  const coachSupportLogo = '/assets/emoji/coach.png';
 
   useEffect(() => {
     loadUnreadCount();
