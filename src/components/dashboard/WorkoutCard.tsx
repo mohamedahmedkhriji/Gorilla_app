@@ -1,7 +1,7 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 import { Clock3 } from 'lucide-react';
-import { emojiGymWallpaper } from '../../services/emojiTheme';
+import { emojiRestDayBg } from '../../services/emojiTheme';
 
 type WorkoutExercise = {
   exerciseName?: unknown;
@@ -207,10 +207,11 @@ export function WorkoutCard({
     : exercises.length;
   const isResolvedRestDay = isRestDay || (looksLikeRestDay && resolvedExerciseCount === 0);
   const safeProgress = Math.max(0, Math.min(100, progress));
-  const progressLabelSize = safeProgress >= 100 ? '1.8rem' : undefined;
+  const displayedProgress = isResolvedRestDay ? 100 : safeProgress;
+  const progressLabelSize = displayedProgress >= 100 ? '1.8rem' : undefined;
   const radius = 54;
   const circumference = 2 * Math.PI * radius;
-  const strokeDashoffset = circumference - (safeProgress / 100) * circumference;
+  const strokeDashoffset = circumference - (displayedProgress / 100) * circumference;
   const badgeSource = !isGenericWorkoutLabel(title)
     ? title
     : !isGenericWorkoutLabel(workoutType)
@@ -255,7 +256,7 @@ export function WorkoutCard({
         <>
           <div
             className="absolute inset-0 bg-cover bg-center opacity-60"
-            style={{ backgroundImage: `url(${emojiGymWallpaper})` }}
+            style={{ backgroundImage: `url(${emojiRestDayBg})` }}
             aria-hidden="true"
           />
           <div
@@ -340,7 +341,7 @@ export function WorkoutCard({
                 className="max-w-full px-2 text-4xl text-text-primary leading-none font-electrolize"
                 style={{ fontSize: progressLabelSize }}
               >
-                {safeProgress}%
+                {displayedProgress}%
               </span>
             </div>
           </div>

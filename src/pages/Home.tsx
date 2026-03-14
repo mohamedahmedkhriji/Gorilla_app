@@ -577,7 +577,7 @@ export function Home({ onNavigate, resetSignal = 0 }: HomeProps) {
 
   useEffect(() => {
     if (!todayWorkoutData || todayWorkout === 'Rest Day') {
-      if (todayWorkout === 'Rest Day') updateWorkoutProgress(0);
+      if (todayWorkout === 'Rest Day') updateWorkoutProgress(100);
       return;
     }
 

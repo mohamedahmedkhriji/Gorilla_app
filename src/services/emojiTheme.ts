@@ -11,6 +11,7 @@ export const emojiExercisesBg = new URL('../../assets/emoji/exercicesbg.jpg', im
 export const emojiRecoveryBg = new URL('../../assets/emoji/recoverybg.webp', import.meta.url).href;
 export const emojiBooksBg = new URL('../../assets/emoji/booksbg.jpg', import.meta.url).href;
 export const emojiLevelUpBg = new URL('../../assets/emoji/levelupbg.jpg', import.meta.url).href;
+export const emojiRestDayBg = new URL('../../assets/emoji/restdaybg.jpg', import.meta.url).href;
 export const emojiViewLeaderboard = new URL('../../assets/emoji/View Leaderboard.png', import.meta.url).href;
 export const emojiChallenges = new URL('../../assets/emoji/Challenges.png', import.meta.url).href;
 export const emojiMissions = new URL('../../assets/emoji/Missions.png', import.meta.url).href;
