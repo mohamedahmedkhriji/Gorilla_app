@@ -9,12 +9,10 @@ interface CoachCardProps {
 
 export function CoachCard({ onClick }: CoachCardProps) {
   const [unreadCount, setUnreadCount] = useState(0);
-  const [coachName, setCoachName] = useState('Coach Mike');
-  const [coachProfilePicture, setCoachProfilePicture] = useState<string | null>(null);
+  const coachSupportLogo = '/assets/emoji/coach.png';
 
   useEffect(() => {
     loadUnreadCount();
-    loadCoachProfile();
   }, []);
 
   const loadUnreadCount = async () => {
@@ -26,36 +24,12 @@ export function CoachCard({ onClick }: CoachCardProps) {
     }
   };
 
-  const loadCoachProfile = async () => {
-    const user = JSON.parse(localStorage.getItem('appUser') || localStorage.getItem('user') || '{}');
-    if (!user.coach_id) return;
-
-    const coaches = await api.getAllCoaches();
-    const assignedCoach = coaches.find((c: any) => Number(c.id) === Number(user.coach_id));
-    if (!assignedCoach) return;
-
-    setCoachName(assignedCoach.name || 'Coach');
-    setCoachProfilePicture(assignedCoach.profile_picture || null);
-  };
-
-  const coachInitials = coachName
-    .split(' ')
-    .filter(Boolean)
-    .map((n: string) => n[0])
-    .join('')
-    .slice(0, 2)
-    .toUpperCase();
-
   return (
     <Card onClick={onClick} className="p-4 flex flex-col justify-between h-full cursor-pointer border border-white/15 hover:border-info/35 transition-colors group">
       <div className="flex justify-between items-start">
         <div className="relative">
           <div className="w-10 h-10 rounded-2xl bg-white/10 border border-white/15 flex items-center justify-center text-text-secondary overflow-hidden">
-            {coachProfilePicture ? (
-              <img src={coachProfilePicture} alt={`${coachName} profile`} className="w-full h-full object-cover" />
-            ) : (
-              <span className="font-bold text-xs text-text-primary">{coachInitials || 'CM'}</span>
-            )}
+            <img src={coachSupportLogo} alt="Coach support logo" className="w-full h-full object-cover" />
           </div>
           <div className="absolute -top-1 -right-1 w-3 h-3 bg-accent rounded-full border-2 border-card shadow-glow" />
         </div>
@@ -63,8 +37,8 @@ export function CoachCard({ onClick }: CoachCardProps) {
       </div>
 
       <div className="mt-4 min-w-0">
-        <div className="text-lg leading-none text-white truncate">{coachName}</div>
-        <div className="text-[10px] text-text-secondary uppercase tracking-[0.12em] mt-1">Assigned Coach</div>
+        <div className="text-lg leading-none text-white truncate">Our Coach Support</div>
+        <div className="text-[10px] text-text-secondary uppercase tracking-[0.12em] mt-1">Chat Support</div>
       </div>
 
       <div className="mt-3 flex items-center gap-2 text-accent text-[11px] font-semibold uppercase tracking-[0.1em] relative">

@@ -249,13 +249,37 @@ export function ExerciseLibrary({
   );
 
   const visibleMuscleFilters = useMemo(() => {
+    const normalizeKey = (value: string) =>
+      String(value || '')
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, ' ')
+        .trim();
+
+    const toCanonicalLabel = (value: string) => {
+      const key = normalizeKey(value);
+      if (!key) return '';
+      if (key === 'shoulder' || key === 'shoulders') return 'Shoulders';
+      if (key === 'arm' || key === 'arms') return 'Arms';
+      if (key === 'leg' || key === 'legs') return 'Legs';
+      if (key === 'ab' || key === 'abs' || key === 'core') return 'Abs';
+      if (key === 'bicep' || key === 'biceps') return 'Biceps';
+      if (key === 'tricep' || key === 'triceps') return 'Triceps';
+      return toTitleCase(value);
+    };
+
     const apiFilters = filters
       .filter((filter) => String(filter).toLowerCase() !== 'all')
-      .map((filter) => toTitleCase(filter));
+      .map((filter) => toCanonicalLabel(filter));
 
-    return Array.from(new Set([...apiFilters, ...folderFilters]))
-      .filter(Boolean)
-      .sort((a, b) => a.localeCompare(b));
+    const merged = [...apiFilters, ...folderFilters.map(toCanonicalLabel)].filter(Boolean);
+    const byKey = new Map<string, string>();
+    merged.forEach((label) => {
+      const key = normalizeKey(label);
+      if (!key || byKey.has(key)) return;
+      byKey.set(key, label);
+    });
+
+    return Array.from(byKey.values()).sort((a, b) => a.localeCompare(b));
   }, [filters, folderFilters]);
 
   useEffect(() => {
@@ -298,15 +322,16 @@ export function ExerciseLibrary({
               <button
                 key={filter}
                 onClick={() => setSelectedFilter(filter)}
-                className="rounded-2xl border border-white/10 bg-card p-3 text-center transition-all hover:border-accent/30 hover:bg-white/[0.03]"
+                className="rounded-2xl border border-white/10 bg-card p-3 text-center transition-all hover:border-accent/30 hover:bg-white/[0.03] overflow-hidden"
               >
-                <div className="overflow-hidden rounded-xl border border-white/10 bg-white/[0.03]">
+                <div className="-mx-3 -mt-1 overflow-hidden">
                   <img
                     src={getBodyPartImage(filter)}
                     alt={filter}
-                    className="h-24 w-full object-cover sm:h-28"
+                    className="h-28 w-full object-cover sm:h-32"
                   />
                 </div>
+                <div className="-mx-3 mt-1 border-t border-white/10" />
                 <div className="mt-3">
                   <div className="text-sm font-bold text-text-primary">
                     {filter}
@@ -324,9 +349,10 @@ export function ExerciseLibrary({
             {bodyPartSkeletons.map((key) => (
               <div
                 key={key}
-                className="rounded-2xl border border-white/10 bg-card p-3 animate-pulse"
+                className="rounded-2xl border border-white/10 bg-card p-3 animate-pulse overflow-hidden"
               >
-                <div className="h-24 w-full rounded-xl border border-white/10 bg-white/5 sm:h-28" />
+                <div className="-mx-3 -mt-1 h-28 w-[calc(100%+1.5rem)] bg-white/5 sm:h-32" />
+                <div className="-mx-3 mt-1 border-t border-white/10" />
                 <div className="mt-3 h-4 w-3/4 rounded bg-white/10" />
                 <div className="mt-2 h-3 w-1/2 rounded bg-white/10" />
               </div>

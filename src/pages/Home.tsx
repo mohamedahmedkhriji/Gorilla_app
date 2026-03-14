@@ -21,7 +21,7 @@ import { MuscleRecoveryScreen } from '../components/progress/MuscleRecoveryScree
 import { RankingsRewardsScreen } from '../components/profile/RankingsRewardsScreen';
 import { api } from '../services/api';
 import { getRankBadgeImage } from '../services/rankTheme';
-import { emojiShop } from '../services/emojiTheme';
+import { emojiComingSoon, emojiMyNutrition, emojiProfile, emojiShop } from '../services/emojiTheme';
 import { useScrollToTopOnChange } from '../shared/scroll';
 interface HomeProps {
   onNavigate: (tab: string, day?: string) => void;
@@ -888,9 +888,18 @@ export function Home({ onNavigate, resetSignal = 0 }: HomeProps) {
           ease: 'easeOut'
         }}
         onClick={() => onNavigate('profile')}
-        className="mb-7 surface-card rounded-2xl border border-white/12 px-4 py-3 flex items-start justify-between gap-4 cursor-pointer">
+        className="mb-7 surface-card relative overflow-hidden rounded-2xl border border-white/12 px-4 py-3 flex items-start justify-between gap-4 cursor-pointer">
+        <div
+          className="absolute inset-0 bg-cover bg-center opacity-60"
+          style={{ backgroundImage: `url(${emojiProfile})` }}
+          aria-hidden="true"
+        />
+        <div
+          className="absolute inset-0 bg-gradient-to-r from-background/65 via-background/45 to-background/25"
+          aria-hidden="true"
+        />
 
-        <div>
+        <div className="relative z-10">
           <h1 className="mt-1 text-3xl font-electrolize font-bold text-text-primary">
             {greeting}
           </h1>
@@ -905,7 +914,7 @@ export function Home({ onNavigate, resetSignal = 0 }: HomeProps) {
             event.stopPropagation();
             setView('rank');
           }}
-          className="flex items-center gap-2 surface-glass px-3.5 py-2 rounded-2xl border border-white/15 shrink-0"
+          className="relative z-10 flex items-center gap-2 surface-glass px-3.5 py-2 rounded-2xl border border-white/15 shrink-0"
         >
           <div className="w-8 h-8 rounded-xl bg-accent/15 border border-accent/35 flex items-center justify-center">
             <img src={rankBadgeImage} alt={rankName} className="h-5 w-5 object-contain" />
@@ -963,11 +972,17 @@ export function Home({ onNavigate, resetSignal = 0 }: HomeProps) {
           className="grid grid-cols-2 gap-4">
 
           <GhostButton onClick={() => setView('nutrition')} className="justify-between">
-            <span>My Nutrition</span>
+            <span className="flex items-center gap-2">
+              <img src={emojiMyNutrition} alt="My nutrition" className="h-4 w-4 object-contain" />
+              <span>My Nutrition</span>
+            </span>
             <ChevronRight size={18} className="mb-1 shrink-0 text-text-tertiary" />
           </GhostButton>
           <GhostButton onClick={() => setShowShopComingSoon(true)}>
-            Shop
+            <span className="flex items-center gap-2">
+              <img src={emojiComingSoon} alt="Coming soon" className="h-4 w-4 object-contain" />
+              <span>Shop</span>
+            </span>
           </GhostButton>
         </motion.div>
 

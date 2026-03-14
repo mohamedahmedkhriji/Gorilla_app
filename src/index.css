@@ -186,6 +186,7 @@ textarea {
   backdrop-filter: blur(8px);
 }
 
+
 .text-gradient {
   background: linear-gradient(120deg, rgb(var(--color-accent-dark)), rgb(var(--color-accent)));
   -webkit-background-clip: text;

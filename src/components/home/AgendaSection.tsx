@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { X, Bed, Check, CalendarX2 } from 'lucide-react';
 import { formatWorkoutDayLabel, formatWorkoutDayShortLabel, normalizeWorkoutDayKey } from '../../services/workoutDayLabel';
+import { emojiAgenda } from '../../services/emojiTheme';
 import doneDayIcon from '../../../assets/emoji/done day.png';
 
 export function AgendaSection({
@@ -150,10 +151,19 @@ export function AgendaSection({
         <h3 className="text-[11px] font-semibold text-text-secondary uppercase tracking-[0.15em]">Weekly Agenda</h3>
       </div>
 
-      <div className="rounded-2xl surface-card border border-white/15 px-2 py-3">
+      <div className="rounded-2xl surface-card border border-white/15 px-2 py-3 relative overflow-hidden">
+        <div
+          className="absolute inset-0 bg-cover bg-center opacity-60"
+          style={{ backgroundImage: `url(${emojiAgenda})` }}
+          aria-hidden="true"
+        />
+        <div
+          className="absolute inset-0 bg-gradient-to-r from-background/65 via-background/45 to-background/25"
+          aria-hidden="true"
+        />
         <div
           ref={scrollRef}
-          className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide"
+          className="relative z-10 flex gap-2 overflow-x-auto pb-1 scrollbar-hide"
           style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
           {days.map((d, i) => {
             const isActive = d.status === 'active';

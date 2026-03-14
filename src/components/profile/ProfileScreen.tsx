@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { User, ChevronRight, Camera, Dumbbell, FileText, LogOut } from 'lucide-react';
+import { User, ChevronRight, Camera, Dumbbell, FileText, LogOut, X } from 'lucide-react';
 import { api } from '../../services/api';
 import { FriendsCard } from '../home/FriendsCard';
 import { CoachCard } from '../home/CoachCard';
@@ -48,6 +48,7 @@ export function ProfileScreen({ onNavigate, onLogout }: ProfileScreenProps) {
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
   const [isPlanChoiceOpen, setIsPlanChoiceOpen] = useState(false);
   const [isCoachPickerOpen, setIsCoachPickerOpen] = useState(false);
+  const [isLogoutOpen, setIsLogoutOpen] = useState(false);
   const [coaches, setCoaches] = useState<CoachOption[]>([]);
   const [coachesLoading, setCoachesLoading] = useState(false);
   const [coachRequestingId, setCoachRequestingId] = useState<number | null>(null);
@@ -393,7 +394,7 @@ export function ProfileScreen({ onNavigate, onLogout }: ProfileScreenProps) {
 
         <button
           type="button"
-          onClick={onLogout}
+          onClick={() => setIsLogoutOpen(true)}
           className="w-full p-4 rounded-2xl bg-red-500/10 text-red-500 font-marker flex items-center justify-center gap-2 hover:bg-red-500/20 transition-colors"
         >
           <LogOut size={20} />
@@ -426,6 +427,56 @@ export function ProfileScreen({ onNavigate, onLogout }: ProfileScreenProps) {
             >
               With Coach
             </button>
+          </div>
+        </div>
+      )}
+
+      {isLogoutOpen && (
+        <div
+          className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4"
+          onClick={() => setIsLogoutOpen(false)}
+        >
+          <div
+            className="w-full max-w-sm bg-card border border-white/10 rounded-3xl p-5 shadow-card"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between">
+              <button
+                type="button"
+                onClick={() => setIsLogoutOpen(false)}
+                className="w-9 h-9 rounded-full bg-white/10 text-text-secondary hover:bg-white/20 transition-colors flex items-center justify-center"
+                aria-label="Close logout dialog"
+              >
+                <X size={18} />
+              </button>
+              <h3 className="text-base font-semibold text-error">Logout</h3>
+              <div className="w-9 h-9" aria-hidden="true" />
+            </div>
+
+            <div className="mt-4 text-center">
+              <p className="text-sm font-semibold text-text-primary">Are you sure want to Logout?</p>
+              <p className="text-xs text-text-secondary mt-1">Thank you and see you again!</p>
+            </div>
+
+            <div className="mt-6 grid grid-cols-2 gap-3">
+              <button
+                type="button"
+                onClick={() => setIsLogoutOpen(false)}
+                className="w-full rounded-full border border-success/30 bg-success/10 py-2.5 text-sm font-semibold text-success hover:bg-success/20 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setIsLogoutOpen(false);
+                  onLogout();
+                }}
+                className="w-full rounded-full bg-success py-2.5 text-sm font-semibold text-text-primary hover:bg-success/90 transition-colors"
+              >
+                Yes, Logout
+              </button>
+            </div>
           </div>
         </div>
       )}

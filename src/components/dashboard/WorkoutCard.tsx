@@ -1,6 +1,7 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 import { Clock3 } from 'lucide-react';
+import { emojiGymWallpaper } from '../../services/emojiTheme';
 
 type WorkoutExercise = {
   exerciseName?: unknown;
@@ -250,7 +251,21 @@ export function WorkoutCard({
       }}
       className="surface-card relative overflow-hidden rounded-2xl border border-white/12 p-5"
     >
-      <div className="grid min-h-[10.75rem] grid-cols-[minmax(0,1fr)_auto] items-center gap-4">
+      {isResolvedRestDay && (
+        <>
+          <div
+            className="absolute inset-0 bg-cover bg-center opacity-60"
+            style={{ backgroundImage: `url(${emojiGymWallpaper})` }}
+            aria-hidden="true"
+          />
+          <div
+            className="absolute inset-0 bg-gradient-to-r from-background/65 via-background/45 to-background/25"
+            aria-hidden="true"
+          />
+        </>
+      )}
+
+      <div className="relative z-10 grid min-h-[10.75rem] grid-cols-[minmax(0,1fr)_auto] items-center gap-4">
         <div className="flex min-w-0 flex-col justify-between self-stretch text-left">
           <div>
             <div className="text-sm font-medium text-text-secondary">
