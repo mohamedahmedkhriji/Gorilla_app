@@ -27,6 +27,7 @@ import {
   type OnboardingStepId,
   type OnboardingTrack,
 } from '../config/onboardingConfig';
+import { getStoredAppUser, persistStoredUser } from '../shared/authStorage';
 
 interface OnboardingProps {
   onComplete: () => void;
@@ -206,15 +207,13 @@ export function Onboarding({ onComplete }: OnboardingProps) {
         if (typeof window !== 'undefined') {
           localStorage.setItem('onboardingData', JSON.stringify(next));
 
-          const storedUserRaw = localStorage.getItem('appUser') || localStorage.getItem('user') || '{}';
-          const storedUser = JSON.parse(storedUserRaw);
+          const storedUser = getStoredAppUser() || {};
           const mergedUser = mergeOnboardingIntoUser(
             storedUser && typeof storedUser === 'object' ? storedUser : {},
             data || {},
           );
 
-          localStorage.setItem('appUser', JSON.stringify(mergedUser));
-          localStorage.setItem('user', JSON.stringify(mergedUser));
+          persistStoredUser(mergedUser);
         }
       } catch (storageError) {
         console.warn('Failed to persist onboarding draft:', storageError);
@@ -226,7 +225,7 @@ export function Onboarding({ onComplete }: OnboardingProps) {
 
   const handleComplete = useCallback(async () => {
     try {
-      const user = JSON.parse(localStorage.getItem('appUser') || localStorage.getItem('user') || '{}');
+      const user = getStoredAppUser() || {};
       const mergedUser = mergeOnboardingIntoUser(
         user && typeof user === 'object' ? user : {},
         onboardingData || {},
@@ -235,9 +234,7 @@ export function Onboarding({ onComplete }: OnboardingProps) {
       mergedUser.onboarding_completed = true;
       mergedUser.first_login = false;
 
-      localStorage.setItem('appUser', JSON.stringify(mergedUser));
-      localStorage.setItem('appUserId', String(mergedUser.id || ''));
-      localStorage.setItem('user', JSON.stringify(mergedUser));
+      persistStoredUser(mergedUser);
       localStorage.setItem('onboardingData', JSON.stringify(onboardingData || {}));
       onComplete();
     } catch (error) {

@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { X, Bed, Check, CalendarX2 } from 'lucide-react';
 import { formatWorkoutDayLabel, formatWorkoutDayShortLabel, normalizeWorkoutDayKey } from '../../services/workoutDayLabel';
-import { emojiAgenda } from '../../services/emojiTheme';
+import { emojiAgenda, emojiDoneDayBg, emojiMissedDayBg } from '../../services/emojiTheme';
 import doneDayIcon from '../../../assets/emoji/done day.png';
 
 export function AgendaSection({
@@ -177,7 +177,7 @@ export function AgendaSection({
                 onClick={() => setSelectedDay(d)}>
                 <div
                   className={`
-                    relative w-11 h-12 rounded-[14px] flex items-center justify-center border transition-transform duration-200
+                    relative overflow-hidden w-11 h-12 rounded-[14px] flex items-center justify-center border transition-transform duration-200
                     ${
                       isActive
                         ? 'text-black border-accent/60 bg-[linear-gradient(135deg,rgb(var(--color-accent)),rgb(var(--color-info)))]'
@@ -190,6 +190,23 @@ export function AgendaSection({
                     hover:-translate-y-0.5
                   `}
                 >
+                  {(isDone || isMissed) && (
+                    <>
+                      <div
+                        className="absolute inset-0 bg-cover bg-center opacity-65"
+                        style={{ backgroundImage: `url(${isDone ? emojiDoneDayBg : emojiMissedDayBg})` }}
+                        aria-hidden="true"
+                      />
+                      <div
+                        className={`absolute inset-0 ${
+                          isDone
+                            ? 'bg-gradient-to-r from-background/55 via-background/30 to-background/15'
+                            : 'bg-gradient-to-r from-background/55 via-rose-950/45 to-rose-900/25'
+                        }`}
+                        aria-hidden="true"
+                      />
+                    </>
+                  )}
                   {isActive && (
                     <span
                       aria-hidden

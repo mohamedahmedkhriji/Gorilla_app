@@ -192,6 +192,38 @@ app.get('/health', (req, res) => {
   res.json({ status: 'OK', timestamp: new Date().toISOString() });
 });
 
+const hasHealthyServerOnPort = async (port) => {
+  try {
+    const response = await fetch(`http://127.0.0.1:${port}/health`);
+    if (!response.ok) return false;
+
+    const data = await response.json();
+    return data?.status === 'OK';
+  } catch {
+    return false;
+  }
+};
+
+server.on('error', (error) => {
+  if (error?.code !== 'EADDRINUSE') {
+    throw error;
+  }
+
+  void (async () => {
+    const hasHealthyServer = await hasHealthyServerOnPort(PORT);
+    if (hasHealthyServer) {
+      console.log(`Backend already running on port ${PORT}. Reusing existing server.`);
+      console.log('Restart the existing backend manually if you need fresh server code loaded.');
+      process.exit(0);
+      return;
+    }
+
+    console.error(`Port ${PORT} is already in use by another process.`);
+    console.error('Stop the process using that port or change PORT in .env before starting the server.');
+    process.exit(1);
+  })();
+});
+
 server.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });

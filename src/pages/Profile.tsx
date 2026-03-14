@@ -15,6 +15,7 @@ import { Messaging } from './Messaging';
 import { api } from '../services/api';
 import { ArrowLeft, Bell, Settings } from 'lucide-react';
 import { useScrollToTopOnChange } from '../shared/scroll';
+import { clearStoredUserSession, getStoredUserId } from '../shared/authStorage';
 interface ProfileProps {
   onNavigateTab?: (tab: string, day?: string) => void;
   resetSignal?: number;
@@ -30,8 +31,7 @@ export function Profile({ onNavigateTab, resetSignal = 0 }: ProfileProps) {
   useScrollToTopOnChange([view, resetSignal]);
 
   const userId = useMemo(() => {
-    const user = JSON.parse(localStorage.getItem('appUser') || localStorage.getItem('user') || '{}');
-    return Number(localStorage.getItem('appUserId') || localStorage.getItem('userId') || user?.id || 0);
+    return Number(getStoredUserId() || 0);
   }, []);
 
   useEffect(() => {
@@ -100,10 +100,7 @@ export function Profile({ onNavigateTab, resetSignal = 0 }: ProfileProps) {
   };
 
   const handleLogout = () => {
-    localStorage.removeItem('appUser');
-    localStorage.removeItem('appUserId');
-    localStorage.removeItem('user');
-    localStorage.removeItem('userId');
+    clearStoredUserSession();
     window.location.href = '/';
   };
   if (view === 'gym') return <GymAccessScreen onBack={() => setView('main')} />;

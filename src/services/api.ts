@@ -800,6 +800,11 @@ export const api = {
     return res.json();
   },
 
+  getUserSessionStatus: async (userId: number | string) => {
+    const res = await fetch(`${API_URL}/users/${userId}/exists`);
+    return parseApiResponse(res, 'Failed to validate user session');
+  },
+
   deleteUser: async (userId: number | string) => {
     const res = await fetch(`${API_URL}/users/${userId}`, { method: 'DELETE' });
     let body: any = null;

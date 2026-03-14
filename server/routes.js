@@ -3616,6 +3616,47 @@ router.get('/users', async (_req, res) => {
   }
 });
 
+router.get('/users/:userId/exists', async (req, res) => {
+  try {
+    const userId = toPositiveInteger(req.params.userId);
+    if (!userId) {
+      return res.status(400).json({ error: 'Invalid user id' });
+    }
+
+    const [rows] = await pool.execute(
+      `SELECT
+          id,
+          role,
+          is_active,
+          CASE
+            WHEN banned_until IS NOT NULL AND banned_until >= NOW() THEN 1
+            ELSE 0
+          END AS is_banned
+       FROM users
+       WHERE id = ?
+       LIMIT 1`,
+      [userId],
+    );
+
+    if (!rows.length) {
+      return res.json({ exists: false, active: false });
+    }
+
+    const row = rows[0];
+    const isActiveUser =
+      row.role === 'user' &&
+      Number(row.is_active || 0) === 1 &&
+      Number(row.is_banned || 0) === 0;
+
+    return res.json({
+      exists: true,
+      active: isActiveUser,
+    });
+  } catch (error) {
+    return res.status(500).json({ error: error.message });
+  }
+});
+
 router.delete('/users/:userId', async (req, res) => {
   try {
     const userId = Number(req.params.userId);

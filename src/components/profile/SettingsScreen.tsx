@@ -4,6 +4,7 @@ import { Bell, Shield, User, Moon, Sun, Database, Lock, SlidersHorizontal, Share
 import { applyTheme, getActiveTheme, getStoredTheme } from '../../services/theme';
 import { AppLanguage, applyLanguage, getActiveLanguage, getStoredLanguage } from '../../services/language';
 import { api } from '../../services/api';
+import { persistStoredUser } from '../../shared/authStorage';
 interface SettingsScreenProps {
   onBack: () => void;
   onOpenGym?: () => void;
@@ -435,8 +436,7 @@ export function SettingsScreen({ onBack, onOpenGym }: SettingsScreenProps) {
         email: personalDetails.email,
         gender: personalDetails.gender,
       };
-      localStorage.setItem('appUser', JSON.stringify(nextUser));
-      localStorage.setItem('user', JSON.stringify(nextUser));
+      persistStoredUser(nextUser);
       setDetailsMessage(copy.savedSuccessfully);
     } catch (error: any) {
       setDetailsError(error?.message || copy.failedSavePersonalDetails);

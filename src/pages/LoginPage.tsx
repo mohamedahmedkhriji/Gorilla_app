@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Dumbbell, Mail, Lock, Eye, EyeOff, Sparkles, ShieldCheck, Zap, Download } from 'lucide-react';
 import { api } from '../services/api';
+import { persistStoredUser } from '../shared/authStorage';
 
 interface LoginPageProps {
   onLoginSuccess: () => void;
@@ -65,10 +66,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
         return;
       }
 
-      localStorage.setItem('user', JSON.stringify(result.user));
-      localStorage.setItem('userId', String(result.user.id));
-      localStorage.setItem('appUser', JSON.stringify(result.user));
-      localStorage.setItem('appUserId', String(result.user.id));
+      persistStoredUser(result.user);
       onLoginSuccess();
     } catch (err: any) {
       setError(err.message || 'Login failed');

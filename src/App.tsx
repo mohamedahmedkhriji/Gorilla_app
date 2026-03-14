@@ -10,10 +10,13 @@ import { PublicLandingPage } from './pages/PublicLandingPage';
 import { TabBar } from './components/ui/TabBar';
 import { SplashScreen } from './components/ui/SplashScreen';
 import { AnimatePresence, motion } from 'framer-motion';
+import { api } from './services/api';
 import { useScrollToTopOnChange } from './shared/scroll';
+import { clearStoredUserSession, getStoredAppUser, getStoredUserId } from './shared/authStorage';
 
 export function App() {
   const [isLoading, setIsLoading] = useState(true);
+  const [isSessionReady, setIsSessionReady] = useState(false);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [hasOnboarded, setHasOnboarded] = useState(false);
   const [showLogin, setShowLogin] = useState(false);
@@ -22,15 +25,55 @@ export function App() {
   const [workoutDay, setWorkoutDay] = useState('Push Day');
 
   useEffect(() => {
-    const userId = localStorage.getItem('appUserId') || localStorage.getItem('userId');
-    const user = localStorage.getItem('appUser') || localStorage.getItem('user');
-    if (userId && user) {
-      const userData = JSON.parse(user);
-      if (userData?.role === 'user') {
-        setIsLoggedIn(true);
-        setHasOnboarded(userData.onboarding_completed || false);
+    let cancelled = false;
+
+    const restoreSession = async () => {
+      const user = getStoredAppUser();
+      const userId = getStoredUserId();
+
+      try {
+        if (!user || !userId || user.role !== 'user') {
+          clearStoredUserSession();
+          if (!cancelled) {
+            setIsLoggedIn(false);
+            setHasOnboarded(false);
+            setShowLogin(false);
+          }
+          return;
+        }
+
+        try {
+          const session = await api.getUserSessionStatus(userId);
+          if (!session?.exists || session?.active === false) {
+            clearStoredUserSession();
+            if (!cancelled) {
+              setIsLoggedIn(false);
+              setHasOnboarded(false);
+              setShowLogin(false);
+              setActiveTab('home');
+            }
+            return;
+          }
+        } catch {
+          // Keep the local session if the validation check is temporarily unavailable.
+        }
+
+        if (!cancelled) {
+          setIsLoggedIn(true);
+          setHasOnboarded(Boolean(user.onboarding_completed));
+        }
+      } finally {
+        if (!cancelled) {
+          setIsSessionReady(true);
+        }
       }
-    }
+    };
+
+    void restoreSession();
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   useScrollToTopOnChange([
@@ -52,7 +95,7 @@ export function App() {
     setTabResetSignal((prev) => prev + 1);
   };
 
-  if (isLoading) {
+  if (isLoading || !isSessionReady) {
     return <SplashScreen onComplete={() => setIsLoading(false)} />;
   }
 
@@ -64,10 +107,11 @@ export function App() {
     return (
       <LoginPage
         onLoginSuccess={() => {
-          const user = JSON.parse(localStorage.getItem('appUser') || localStorage.getItem('user') || '{}');
-          if (user?.role === 'user') {
+          const user = getStoredAppUser();
+          const userId = getStoredUserId();
+          if (user?.role === 'user' && userId) {
             setIsLoggedIn(true);
-            setHasOnboarded(user.onboarding_completed || false);
+            setHasOnboarded(Boolean(user.onboarding_completed));
             setShowLogin(false);
           }
         }}

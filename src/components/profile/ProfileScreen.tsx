@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { User, ChevronRight, Camera, Dumbbell, FileText, LogOut, X } from 'lucide-react';
 import { api } from '../../services/api';
+import { getStoredAppUser, getStoredUserId, persistStoredUser } from '../../shared/authStorage';
 import { FriendsCard } from '../home/FriendsCard';
 import { CoachCard } from '../home/CoachCard';
 interface ProfileScreenProps {
@@ -15,30 +16,16 @@ interface CoachOption {
 }
 
 export function ProfileScreen({ onNavigate, onLogout }: ProfileScreenProps) {
-  const parseStoredUser = (raw: string | null) => {
-    if (!raw) return null;
-    try {
-      const parsed = JSON.parse(raw);
-      return parsed && typeof parsed === 'object' ? parsed : null;
-    } catch {
-      return null;
-    }
-  };
-
-  const appUser = parseStoredUser(localStorage.getItem('appUser'));
-  const legacyUser = parseStoredUser(localStorage.getItem('user'));
-  const user = appUser || legacyUser || { name: 'Moha' };
+  const user = getStoredAppUser() || { name: 'Moha' };
   const userName = String(user?.name || 'Moha');
 
-  const appUserId = Number(localStorage.getItem('appUserId') || 0);
-  const legacyUserId = Number(localStorage.getItem('userId') || 0);
   const parsedUserId = Number(
     user?.id
     ?? user?.userId
     ?? user?.user_id
     ?? 0,
   );
-  const userId = appUserId || legacyUserId || parsedUserId;
+  const userId = Number(getStoredUserId() || parsedUserId || 0);
   const [profilePicture, setProfilePicture] = useState<string | null>(null);
   const [completedExercises, setCompletedExercises] = useState(0);
   const [rankPosition, setRankPosition] = useState(0);
@@ -68,10 +55,7 @@ export function ProfileScreen({ onNavigate, onLogout }: ProfileScreenProps) {
     if (!userId) return;
 
     // Keep user-app storage keys aligned.
-    if (appUserId !== userId || legacyUserId !== userId) {
-      localStorage.setItem('appUserId', String(userId));
-      localStorage.setItem('userId', String(userId));
-    }
+    persistStoredUser({ ...user, id: userId });
 
     const fetchProfilePicture = async () => {
       try {
@@ -205,7 +189,7 @@ export function ProfileScreen({ onNavigate, onLogout }: ProfileScreenProps) {
     }, 15 * 1000);
 
     return () => clearInterval(statsRefresh);
-  }, [userId, appUserId, legacyUserId]);
+  }, [userId]);
 
   const handleImageUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];

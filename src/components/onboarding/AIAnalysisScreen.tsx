@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
 import { CheckCircle2, Circle } from 'lucide-react';
 import { api } from '../../services/api';
+import { persistStoredUser } from '../../shared/authStorage';
 import { BrandLogo } from '../ui/BrandLogo';
 
 interface AIAnalysisScreenProps {
@@ -47,10 +48,10 @@ export function AIAnalysisScreen({ onComplete, onboardingData, userId }: AIAnaly
         });
 
         if (data?.user && typeof data.user === 'object') {
-          localStorage.setItem('appUser', JSON.stringify(data.user));
-          localStorage.setItem('user', JSON.stringify(data.user));
-          localStorage.setItem('appUserId', String(data.user.id || userId || ''));
-          localStorage.setItem('userId', String(data.user.id || userId || ''));
+          persistStoredUser({
+            ...data.user,
+            id: data.user.id || userId || undefined,
+          });
         }
 
         if (data?.assignedProgram) {

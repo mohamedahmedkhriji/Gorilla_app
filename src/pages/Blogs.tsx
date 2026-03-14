@@ -17,6 +17,7 @@ import {
 import { api } from '../services/api';
 import { Header } from '../components/ui/Header';
 import { ModernSelect } from '../components/ui/ModernSelect';
+import { clearStoredUserSession, getStoredAppUser, getStoredUserId } from '../shared/authStorage';
 
 type PostCategory = 'Training' | 'Nutrition' | 'Recovery' | 'Mindset';
 type FeedCategory = 'All' | 'Women' | PostCategory;
@@ -151,37 +152,17 @@ const mergePostsById = (current: Post[], incoming: Post[]) => {
 };
 
 const getUserId = () => {
-  const fromKey = Number(localStorage.getItem('appUserId') || localStorage.getItem('userId') || 0);
-  if (Number.isInteger(fromKey) && fromKey > 0) return fromKey;
-
-  try {
-    const raw = localStorage.getItem('appUser') || localStorage.getItem('user') || '{}';
-    const user = JSON.parse(raw);
-    const inferred = Number(user?.id || user?.userId || 0);
-    return Number.isInteger(inferred) && inferred > 0 ? inferred : null;
-  } catch {
-    return null;
-  }
+  return getStoredUserId();
 };
 
 const getUserProfileImage = () => {
-  try {
-    const raw = localStorage.getItem('appUser') || localStorage.getItem('user') || '{}';
-    const user = JSON.parse(raw);
-    return String(user?.profile_picture || user?.profile_photo || '').trim();
-  } catch {
-    return '';
-  }
+  const user = getStoredAppUser();
+  return String(user?.profile_picture || user?.profile_photo || '').trim();
 };
 
 const getUserGender = () => {
-  try {
-    const raw = localStorage.getItem('appUser') || localStorage.getItem('user') || '{}';
-    const user = JSON.parse(raw);
-    return String(user?.gender || '').trim().toLowerCase();
-  } catch {
-    return '';
-  }
+  const user = getStoredAppUser();
+  return String(user?.gender || '').trim().toLowerCase();
 };
 
 const isFemaleGender = (value: unknown) => {
@@ -305,17 +286,21 @@ export function Blogs() {
 
   useEffect(() => {
     const loadViewerGender = async () => {
-      if (!userId) return;
+      if (!userId || userGender) return;
       try {
         const profile = await api.getProfileDetails(userId);
         setUserGender(String(profile?.gender || '').trim().toLowerCase());
-      } catch {
-        // Keep the local cached fallback if profile details fail to load.
+      } catch (error) {
+        const status = Number((error as { status?: number })?.status || 0);
+        if (status === 404) {
+          clearStoredUserSession();
+          window.location.replace('/');
+        }
       }
     };
 
     void loadViewerGender();
-  }, [userId]);
+  }, [userGender, userId]);
 
   useEffect(() => {
     if (!showWomenFilter && activeCategory === 'Women') {
