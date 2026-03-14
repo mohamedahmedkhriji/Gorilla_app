@@ -10390,20 +10390,24 @@ router.post('/blogs/:postId/like/toggle', async (req, res) => {
 
     const postOwnerId = Number(postRows[0]?.user_id || 0);
     if (createdLike && postOwnerId && postOwnerId !== userId) {
-      const [actorRows] = await pool.execute(
-        `SELECT name
-         FROM users
-         WHERE id = ?
-         LIMIT 1`,
-        [userId],
-      );
-      const actorName = String(actorRows[0]?.name || '').trim() || 'Someone';
+      try {
+        const [actorRows] = await pool.execute(
+          `SELECT name
+           FROM users
+           WHERE id = ?
+           LIMIT 1`,
+          [userId],
+        );
+        const actorName = String(actorRows[0]?.name || '').trim() || 'Someone';
 
-      await pool.execute(
-        `INSERT INTO notifications (user_id, type, title, message, data)
-         VALUES (?, 'blog_like', 'New like on your post', ?, JSON_OBJECT('postId', ?, 'actorUserId', ?, 'event', 'like'))`,
-        [postOwnerId, `${actorName} liked your post.`, postId, userId],
-      );
+        await pool.execute(
+          `INSERT INTO notifications (user_id, type, title, message, data)
+           VALUES (?, 'blog_like', 'New like on your post', ?, JSON_OBJECT('postId', ?, 'actorUserId', ?, 'event', 'like'))`,
+          [postOwnerId, `${actorName} liked your post.`, postId, userId],
+        );
+      } catch (notifyError) {
+        console.warn('Blog like notification insert skipped:', notifyError?.message || notifyError);
+      }
     }
 
     const [likeCountRows] = await pool.execute(
@@ -10585,14 +10589,18 @@ router.post('/blogs/:postId/comments', async (req, res) => {
 
     const postOwnerId = Number(postRows[0]?.user_id || 0);
     if (postOwnerId && postOwnerId !== userId) {
-      const actorName = String(commentRows[0]?.author_name || '').trim() || 'Someone';
-      const preview = text.length > 120 ? `${text.slice(0, 117)}...` : text;
+      try {
+        const actorName = String(commentRows[0]?.author_name || '').trim() || 'Someone';
+        const preview = text.length > 120 ? `${text.slice(0, 117)}...` : text;
 
-      await pool.execute(
-        `INSERT INTO notifications (user_id, type, title, message, data)
-         VALUES (?, 'blog_comment', 'New comment on your post', ?, JSON_OBJECT('postId', ?, 'commentId', ?, 'actorUserId', ?, 'event', 'comment'))`,
-        [postOwnerId, `${actorName} commented: "${preview}"`, postId, insertedCommentId, userId],
-      );
+        await pool.execute(
+          `INSERT INTO notifications (user_id, type, title, message, data)
+           VALUES (?, 'blog_comment', 'New comment on your post', ?, JSON_OBJECT('postId', ?, 'commentId', ?, 'actorUserId', ?, 'event', 'comment'))`,
+          [postOwnerId, `${actorName} commented: "${preview}"`, postId, insertedCommentId, userId],
+        );
+      } catch (notifyError) {
+        console.warn('Blog comment notification insert skipped:', notifyError?.message || notifyError);
+      }
     }
 
     return res.status(201).json({
