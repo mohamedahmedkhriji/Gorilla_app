@@ -151,17 +151,28 @@ const toBooleanFlag = (value, fallback = false) => {
   return fallback;
 };
 
-const sanitizeOnboardingFieldForPrompt = (value, depth = 0) => {
+const sanitizeOnboardingFieldForPrompt = (
+  value,
+  depth = 0,
+  options = {},
+) => {
+  const maxDepth = Number.isFinite(Number(options.maxDepth)) ? Number(options.maxDepth) : 8;
+  const maxArrayItems = Number.isFinite(Number(options.maxArrayItems)) ? Number(options.maxArrayItems) : 200;
+  const maxObjectEntries = Number.isFinite(Number(options.maxObjectEntries)) ? Number(options.maxObjectEntries) : 300;
+  const maxStringLength = Number.isFinite(Number(options.maxStringLength)) ? Number(options.maxStringLength) : 2500;
+
   if (value == null) return null;
-  if (depth > 4) return '[truncated]';
+  if (depth > maxDepth) return '[truncated]';
 
   if (Array.isArray(value)) {
-    return value.slice(0, 24).map((item) => sanitizeOnboardingFieldForPrompt(item, depth + 1));
+    return value
+      .slice(0, maxArrayItems)
+      .map((item) => sanitizeOnboardingFieldForPrompt(item, depth + 1, options));
   }
 
   if (typeof value === 'object') {
     const output = {};
-    const entries = Object.entries(value).slice(0, 80);
+    const entries = Object.entries(value).slice(0, maxObjectEntries);
     entries.forEach(([key, entryValue]) => {
       if (String(key) === 'bodyImages') {
         const images = Array.isArray(entryValue) ? entryValue : [];
@@ -174,7 +185,7 @@ const sanitizeOnboardingFieldForPrompt = (value, depth = 0) => {
         });
         return;
       }
-      output[key] = sanitizeOnboardingFieldForPrompt(entryValue, depth + 1);
+      output[key] = sanitizeOnboardingFieldForPrompt(entryValue, depth + 1, options);
     });
     return output;
   }
@@ -182,21 +193,29 @@ const sanitizeOnboardingFieldForPrompt = (value, depth = 0) => {
   if (typeof value === 'string') {
     const normalized = value.replace(/\s+/g, ' ').trim();
     if (!normalized) return '';
-    return normalized.length > 500 ? `${normalized.slice(0, 500)}...[truncated]` : normalized;
+    return normalized.length > maxStringLength
+      ? `${normalized.slice(0, maxStringLength)}...[truncated]`
+      : normalized;
   }
 
   if (typeof value === 'number' || typeof value === 'boolean') return value;
   return String(value);
 };
 
-const buildClaudeOnboardingFields = (payload = {}, normalized = {}) => {
-  const sanitizedRaw = sanitizeOnboardingFieldForPrompt(payload, 0);
+const buildClaudeOnboardingFields = (payload = {}, normalized = {}, sanitizeOptions = {}) => {
+  const safePayload = payload && typeof payload === 'object' ? payload : {};
+  const topLevelKeys = Object.keys(safePayload).filter((key) => key !== 'userId');
+  const sanitizedRaw = sanitizeOnboardingFieldForPrompt(safePayload, 0, sanitizeOptions);
   const rawObject = sanitizedRaw && typeof sanitizedRaw === 'object' ? { ...sanitizedRaw } : {};
   delete rawObject.userId;
 
   return {
     ...rawObject,
-    _normalizedSummary: sanitizeOnboardingFieldForPrompt(normalized, 0),
+    _normalizedSummary: sanitizeOnboardingFieldForPrompt(normalized, 0, sanitizeOptions),
+    _ingestionMeta: {
+      topLevelFieldsReceived: topLevelKeys.length,
+      includedBodyImages: Array.isArray(rawObject.bodyImages) ? rawObject.bodyImages.length : 0,
+    },
   };
 };
 

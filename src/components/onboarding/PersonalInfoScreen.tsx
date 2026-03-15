@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
-import { Select } from '../ui/Select';
 import { DEFAULT_ONBOARDING_CONFIG, type SelectOption } from '../../config/onboardingConfig';
 
 const MAX_BODY_METRIC = 250;
@@ -21,6 +20,18 @@ export function PersonalInfoScreen({
   const genderSelectOptions = genderOptions?.length
     ? genderOptions
     : DEFAULT_ONBOARDING_CONFIG.options.genders;
+  const genderButtonOptions = genderSelectOptions
+    .filter((option) => ['male', 'female'].includes(String(option?.value || '').trim().toLowerCase()))
+    .map((option) => ({
+      value: String(option.value || '').trim().toLowerCase(),
+      label: String(option.value || '').trim().toLowerCase() === 'male' ? 'Man' : 'Woman',
+    }));
+  if (!genderButtonOptions.length) {
+    genderButtonOptions.push(
+      { value: 'male', label: 'Man' },
+      { value: 'female', label: 'Woman' },
+    );
+  }
   const [age, setAge] = useState(String(onboardingData?.age ?? ''));
   const [gender, setGender] = useState(String(onboardingData?.gender ?? '').trim().toLowerCase());
   const [height, setHeight] = useState(String(onboardingData?.height ?? ''));
@@ -98,19 +109,38 @@ export function PersonalInfoScreen({
           error={errors.age}
         />
 
-        <Select
-          label="Gender"
-          value={gender}
-          onValueChange={(nextValue) => {
-            setGender(nextValue);
-            onDataChange?.({ gender: nextValue.trim().toLowerCase() });
-            if (errors.gender) setErrors((prev) => ({ ...prev, gender: undefined }));
-          }}
-          placeholder="Select gender"
-          required
-          aria-required="true"
-          error={errors.gender}
-          options={genderSelectOptions} />
+        <div className="space-y-2">
+          <p className="text-sm font-medium text-text-secondary ml-1">
+            Gender <span className="text-accent">*</span>
+          </p>
+          <div className="grid grid-cols-2 gap-3">
+            {genderButtonOptions.map((option) => {
+              const selected = gender === option.value;
+              return (
+                <button
+                  key={option.value}
+                  type="button"
+                  aria-pressed={selected}
+                  onClick={() => {
+                    setGender(option.value);
+                    onDataChange?.({ gender: option.value });
+                    if (errors.gender) setErrors((prev) => ({ ...prev, gender: undefined }));
+                  }}
+                  className={`rounded-2xl border px-4 py-3 text-sm font-medium transition-all duration-200 ${
+                    selected
+                      ? 'border-accent bg-accent/15 text-white'
+                      : 'border-white/15 bg-white/[0.03] text-text-secondary hover:border-white/25 hover:bg-white/[0.05]'
+                  }`}
+                >
+                  {option.label}
+                </button>
+              );
+            })}
+          </div>
+          {errors.gender ? (
+            <p className="text-xs text-red-400 ml-1">{errors.gender}</p>
+          ) : null}
+        </div>
 
 
         <div className="grid grid-cols-2 gap-4">

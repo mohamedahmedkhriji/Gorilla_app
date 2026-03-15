@@ -1,6 +1,5 @@
 import React, { useEffect, useState } from 'react';
 import { Button } from '../ui/Button';
-import { Select } from '../ui/Select';
 import { DEFAULT_ONBOARDING_CONFIG, type SelectOption, type WorkoutDaysRange } from '../../config/onboardingConfig';
 interface GoalsAvailabilityScreenProps {
   onNext: () => void;
@@ -50,6 +49,10 @@ export function GoalsAvailabilityScreen({
   const [days, setDays] = useState(normalizeDays(onboardingData?.workoutDays));
   const [duration, setDuration] = useState(normalizeDuration(onboardingData?.sessionDuration));
   const [time, setTime] = useState(normalizeTime(onboardingData?.preferredTime));
+  const dayOptions = (daysRange.labels && daysRange.labels.length
+    ? daysRange.labels
+    : Array.from({ length: daysRange.max - daysRange.min + 1 }, (_, idx) => daysRange.min + idx)
+  ).map((value) => Number(value));
 
   useEffect(() => {
     setDays(normalizeDays(onboardingData?.workoutDays));
@@ -88,49 +91,84 @@ export function GoalsAvailabilityScreen({
       </div>
 
       <div className="space-y-8">
-        <div className="space-y-4">
-          <div className="flex justify-between items-end">
-            <label className="text-sm font-medium text-text-secondary ml-1">
-              Days per week
-            </label>
-            <span className="text-2xl font-light text-accent">{days} days</span>
-          </div>
-          <input
-            type="range"
-            min={daysRange.min}
-            max={daysRange.max}
-            value={days}
-            onChange={(e) => {
-              const nextDays = parseInt(e.target.value, 10);
-              setDays(nextDays);
-            }}
-            className="w-full h-2 bg-card rounded-lg appearance-none cursor-pointer accent-accent" />
-
-          <div className="flex justify-between text-xs text-text-tertiary px-1">
-            {(daysRange.labels && daysRange.labels.length
-              ? daysRange.labels
-              : Array.from({ length: daysRange.max - daysRange.min + 1 }, (_, idx) => daysRange.min + idx)
-            ).map((value) => (
-              <span key={value}>{value}</span>
-            ))}
+        <div className="space-y-2">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.1em] text-text-secondary ml-1">
+            Days Per Week
+          </p>
+          <div className="grid grid-cols-5 gap-2">
+            {dayOptions.map((value) => {
+              const selected = days === value;
+              return (
+                <button
+                  key={value}
+                  type="button"
+                  aria-pressed={selected}
+                  onClick={() => setDays(value)}
+                  className={`rounded-xl border px-3 py-2.5 text-sm font-medium transition-all duration-200 ${
+                    selected
+                      ? 'border-accent bg-accent/15 text-white'
+                      : 'border-white/15 bg-white/[0.03] text-text-secondary hover:border-white/25 hover:bg-white/[0.05]'
+                  }`}
+                >
+                  {value}
+                </button>
+              );
+            })}
           </div>
         </div>
-        <Select
-          label="Session Duration"
-          value={duration}
-          onValueChange={(nextValue) => {
-            setDuration(nextValue);
-          }}
-          options={durationOptions} />
+        <div className="space-y-2">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.1em] text-text-secondary ml-1">
+            Session Duration
+          </p>
+          <div className="grid grid-cols-2 gap-2">
+            {durationOptions.map((option) => {
+              const optionValue = String(option.value || '');
+              const selected = duration === optionValue;
+              return (
+                <button
+                  key={optionValue}
+                  type="button"
+                  aria-pressed={selected}
+                  onClick={() => setDuration(optionValue)}
+                  className={`rounded-xl border px-3 py-2.5 text-sm font-medium transition-all duration-200 ${
+                    selected
+                      ? 'border-accent bg-accent/15 text-white'
+                      : 'border-white/15 bg-white/[0.03] text-text-secondary hover:border-white/25 hover:bg-white/[0.05]'
+                  }`}
+                >
+                  {String(option.label || optionValue)}
+                </button>
+              );
+            })}
+          </div>
+        </div>
 
-
-        <Select
-          label="Preferred Time"
-          value={time}
-          onValueChange={(nextValue) => {
-            setTime(nextValue);
-          }}
-          options={timeOptions} />
+        <div className="space-y-2">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.1em] text-text-secondary ml-1">
+            Preferred Time
+          </p>
+          <div className="grid grid-cols-3 gap-2">
+            {timeOptions.map((option) => {
+              const optionValue = String(option.value || '').trim().toLowerCase();
+              const selected = time === optionValue;
+              return (
+                <button
+                  key={optionValue}
+                  type="button"
+                  aria-pressed={selected}
+                  onClick={() => setTime(optionValue)}
+                  className={`rounded-xl border px-3 py-2.5 text-sm font-medium transition-all duration-200 ${
+                    selected
+                      ? 'border-accent bg-accent/15 text-white'
+                      : 'border-white/15 bg-white/[0.03] text-text-secondary hover:border-white/25 hover:bg-white/[0.05]'
+                  }`}
+                >
+                  {String(option.label || optionValue)}
+                </button>
+              );
+            })}
+          </div>
+        </div>
 
       </div>
 
