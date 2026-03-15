@@ -102,6 +102,8 @@ export function TrackerScreen({
   const [isRemovingExercise, setIsRemovingExercise] = useState(false);
   const [showRemoveConfirm, setShowRemoveConfirm] = useState(false);
   const restReminderLock = useRef(false);
+  const setTimerIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const restTimerIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [notificationSettings, setNotificationSettings] = useState({
     coachMessages: true,
     restTimer: true,
@@ -117,23 +119,43 @@ export function TrackerScreen({
   }, [exerciseName, plannedSets, savedSets]);
 
   useEffect(() => {
-    let interval: NodeJS.Timeout;
+    if (setTimerIntervalRef.current) {
+      clearInterval(setTimerIntervalRef.current);
+      setTimerIntervalRef.current = null;
+    }
+
     if (isRunning) {
-      interval = setInterval(() => {
+      setTimerIntervalRef.current = setInterval(() => {
         setSetTimerSeconds((prev) => prev + 1);
       }, 1000);
     }
-    return () => clearInterval(interval);
+
+    return () => {
+      if (setTimerIntervalRef.current) {
+        clearInterval(setTimerIntervalRef.current);
+        setTimerIntervalRef.current = null;
+      }
+    };
   }, [isRunning]);
 
   useEffect(() => {
-    let interval: NodeJS.Timeout;
+    if (restTimerIntervalRef.current) {
+      clearInterval(restTimerIntervalRef.current);
+      restTimerIntervalRef.current = null;
+    }
+
     if (isResting) {
-      interval = setInterval(() => {
+      restTimerIntervalRef.current = setInterval(() => {
         setRestTime((prev) => prev + 1);
       }, 1000);
     }
-    return () => clearInterval(interval);
+
+    return () => {
+      if (restTimerIntervalRef.current) {
+        clearInterval(restTimerIntervalRef.current);
+        restTimerIntervalRef.current = null;
+      }
+    };
   }, [isResting]);
 
   useEffect(() => {
@@ -236,64 +258,87 @@ export function TrackerScreen({
     }
   };
 
-  const toggleTimer = async () => {
+  const toggleTimer = () => {
     if (isRunning) {
       const firstIncomplete = sets.findIndex(s => !s.completed);
+      const setDuration = Math.max(0, setTimerSeconds);
+      const completedRestTime = Math.max(0, restTime);
+
+      // Stop the active set timer immediately before any async work.
+      if (setTimerIntervalRef.current) {
+        clearInterval(setTimerIntervalRef.current);
+        setTimerIntervalRef.current = null;
+      }
+      setIsRunning(false);
+      setSetTimerSeconds(0);
+
       if (firstIncomplete !== -1) {
         const newSets = [...sets];
-        const setDuration = Math.max(0, setTimerSeconds);
         newSets[firstIncomplete].completed = true;
         newSets[firstIncomplete].duration = setDuration;
-        newSets[firstIncomplete].restTime = restTime;
+        newSets[firstIncomplete].restTime = completedRestTime;
         persistSets(newSets);
-        
-        // Save to database
+
+        // Save to database without blocking UI updates.
         if (user?.id) {
-          try {
-            await api.saveWorkoutSet({
+          void api.saveWorkoutSet({
               userId: user.id,
               exerciseName,
               setNumber: newSets[firstIncomplete].set,
               reps: newSets[firstIncomplete].reps,
               weight: newSets[firstIncomplete].weight,
               duration: setDuration,
-              restTime: restTime,
+              restTime: completedRestTime,
               completed: true,
-            });
+            }).then(() => {
             window.dispatchEvent(new CustomEvent('gamification-updated'));
             localStorage.setItem('recoveryNeedsUpdate', 'true');
             window.dispatchEvent(new CustomEvent('recovery-updated'));
-          } catch (error) {
+          }).catch((error) => {
             console.error('Failed to save workout set:', error);
-          }
+          });
         }
 
         const hasMoreSets = newSets.some((s) => !s.completed);
+        setRestReminderText(null);
+        restReminderLock.current = false;
+
         if (hasMoreSets) {
-          // Start rest timer between sets.
+          // Start rest timer between sets immediately.
+          if (restTimerIntervalRef.current) {
+            clearInterval(restTimerIntervalRef.current);
+            restTimerIntervalRef.current = null;
+          }
           setRestTime(0);
-          setRestReminderText(null);
-          restReminderLock.current = false;
           setIsResting(true);
         } else {
           // All sets done for this exercise.
+          if (restTimerIntervalRef.current) {
+            clearInterval(restTimerIntervalRef.current);
+            restTimerIntervalRef.current = null;
+          }
           setRestTime(0);
-          setRestReminderText(null);
-          restReminderLock.current = false;
           setIsResting(false);
         }
       }
-      setSetTimerSeconds(0);
-      setIsRunning(false);
       return;
     } else {
       if (areAllSetsCompleted) {
+        if (restTimerIntervalRef.current) {
+          clearInterval(restTimerIntervalRef.current);
+          restTimerIntervalRef.current = null;
+        }
         setIsResting(false);
         setRestReminderText(null);
         restReminderLock.current = false;
         return;
       }
-      // Stop rest timer and start set timer
+
+      // Stop rest timer and start set timer immediately.
+      if (restTimerIntervalRef.current) {
+        clearInterval(restTimerIntervalRef.current);
+        restTimerIntervalRef.current = null;
+      }
       setIsResting(false);
       setRestReminderText(null);
       restReminderLock.current = false;
