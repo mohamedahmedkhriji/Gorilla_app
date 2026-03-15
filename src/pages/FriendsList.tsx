@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Header } from '../components/ui/Header';
 import { Input } from '../components/ui/Input';
 import { Card } from '../components/ui/Card';
@@ -68,6 +68,14 @@ const toFriendStatus = (value: unknown): FriendRelationshipStatus => {
 const getErrorMessage = (error: unknown, fallback: string) =>
   error instanceof Error ? error.message : fallback;
 
+type RequestFeedbackTone = 'success' | 'info' | 'error';
+
+const requestFeedbackClassByTone: Record<RequestFeedbackTone, string> = {
+  success: 'border-emerald-500/40 bg-emerald-500/10 text-emerald-300',
+  info: 'border-accent/40 bg-accent/10 text-accent',
+  error: 'border-red-500/40 bg-red-500/10 text-red-300',
+};
+
 const getFriendshipConflictStatus = (error: unknown): 'accepted' | 'declined' | null => {
   const apiError = error as ApiLikeError;
   if (apiError?.status !== 409) return null;
@@ -125,6 +133,19 @@ export function FriendsList({ onBack, onFriendClick }: FriendsListProps) {
   const [activeUserId, setActiveUserId] = useState<number>(0);
   const [busyMemberId, setBusyMemberId] = useState<number | null>(null);
   const [refreshTick, setRefreshTick] = useState(0);
+  const [requestFeedback, setRequestFeedback] = useState<{ tone: RequestFeedbackTone; message: string } | null>(null);
+  const requestFeedbackTimerRef = useRef<number | null>(null);
+
+  const showRequestFeedback = (tone: RequestFeedbackTone, message: string) => {
+    if (requestFeedbackTimerRef.current) {
+      window.clearTimeout(requestFeedbackTimerRef.current);
+    }
+    setRequestFeedback({ tone, message });
+    requestFeedbackTimerRef.current = window.setTimeout(() => {
+      setRequestFeedback(null);
+      requestFeedbackTimerRef.current = null;
+    }, 3200);
+  };
 
   useEffect(() => {
     const loadMembers = async () => {
@@ -154,6 +175,12 @@ export function FriendsList({ onBack, onFriendClick }: FriendsListProps) {
     };
     window.addEventListener('friends-updated', handleFriendsUpdated);
     return () => window.removeEventListener('friends-updated', handleFriendsUpdated);
+  }, []);
+
+  useEffect(() => () => {
+    if (requestFeedbackTimerRef.current) {
+      window.clearTimeout(requestFeedbackTimerRef.current);
+    }
   }, []);
 
   const filteredMembers = useMemo(() => {
@@ -205,12 +232,12 @@ export function FriendsList({ onBack, onFriendClick }: FriendsListProps) {
       }));
 
       if (response?.alreadyPending) {
-        alert('Invitation already sent and still pending.');
+        showRequestFeedback('info', `${member.name}: invitation already pending.`);
       } else {
-        alert('Friend invitation sent.');
+        showRequestFeedback('success', `Friend request sent to ${member.name}.`);
       }
     } catch (error) {
-      alert(getErrorMessage(error, 'Failed to send invitation.'));
+      showRequestFeedback('error', getErrorMessage(error, 'Failed to send invitation.'));
     } finally {
       setBusyMemberId(null);
     }
@@ -304,6 +331,14 @@ export function FriendsList({ onBack, onFriendClick }: FriendsListProps) {
           </button>
         </div>
       </div>
+
+      {requestFeedback && (
+        <div className="px-4 sm:px-6 mb-4">
+          <div className={`rounded-xl border px-4 py-3 text-sm ${requestFeedbackClassByTone[requestFeedback.tone]}`}>
+            {requestFeedback.message}
+          </div>
+        </div>
+      )}
 
       <div className="px-4 sm:px-6 mb-6 relative">
         <Input

@@ -1,6 +1,15 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { X, Calendar, Target, Camera, TrendingUp } from 'lucide-react';
+import { X, Calendar, Target, TrendingUp } from 'lucide-react';
 import { api } from '../../services/api';
+import {
+  extractCycleWeeksFromPrompt,
+  inferTemplateFromPrompt,
+  mapAiWorkoutTypesToTemplate,
+  READY_PLAN_TEMPLATES,
+  recommendTemplateByDays,
+  type ReadyPlanTemplate,
+  type ReadyTemplateId,
+} from './coachPlanTemplates';
 
 interface Client {
   id: string;
@@ -29,6 +38,16 @@ interface PlanExerciseDraft {
 interface DayPlanDraft {
   workoutName: string;
   exercises: PlanExerciseDraft[];
+}
+
+type CreatePlanMode = ReadyTemplateId | 'ai' | 'edit' | null;
+
+interface CoachPlanDraftInput {
+  planName: string;
+  description: string;
+  cycleWeeks: number;
+  selectedDays: string[];
+  dayPlans: Record<string, DayPlanDraft>;
 }
 
 const DAY_OPTIONS = [
@@ -168,6 +187,54 @@ const extractMeasurementInput = (snapshot: any): Record<string, unknown> => {
   return input && typeof input === 'object' ? input : {};
 };
 
+const buildPlanDraftFromTemplate = (
+  template: ReadyPlanTemplate,
+  input: {
+    clientName: string;
+    planName?: string;
+    description?: string;
+    cycleWeeks?: number;
+  },
+): CoachPlanDraftInput => {
+  const dayPlans: Record<string, DayPlanDraft> = {};
+
+  template.weeklyWorkouts.forEach((workout, index) => {
+    const normalizedDay = normalizeDayKey(workout.dayName);
+    const dayKey = normalizedDay || template.selectedDays[index];
+    if (!dayKey) return;
+    dayPlans[dayKey] = {
+      workoutName: String(workout.workoutName || `Workout ${index + 1}`).trim() || `Workout ${index + 1}`,
+      exercises: workout.exercises.length
+        ? workout.exercises.map((exercise) => ({
+          exerciseName: String(exercise.exerciseName || '').trim(),
+          sets: Math.max(1, Math.min(10, Number(exercise.sets || 3) || 3)),
+          reps: String(exercise.reps || '8-12').trim() || '8-12',
+          notes: String(exercise.notes || '').trim(),
+        }))
+        : [defaultExercise()],
+    };
+  });
+
+  template.selectedDays.forEach((dayKey, index) => {
+    if (!dayPlans[dayKey]) {
+      dayPlans[dayKey] = {
+        workoutName: `Workout ${index + 1}`,
+        exercises: [defaultExercise()],
+      };
+    }
+  });
+
+  const defaultPlanName = `${template.title} Plan`;
+  const defaultDescription = `${template.title} template assigned by coach for ${input.clientName}`;
+  return {
+    planName: String(input.planName || defaultPlanName).trim() || defaultPlanName,
+    description: String(input.description || defaultDescription).trim() || defaultDescription,
+    cycleWeeks: Math.max(8, Math.min(16, Math.round(Number(input.cycleWeeks || template.cycleWeeks) || 8))),
+    selectedDays: [...template.selectedDays],
+    dayPlans,
+  };
+};
+
 export const CustomerProfileModal: React.FC<CustomerProfileModalProps> = ({ client, onClose, isLightTheme }) => {
   const [activeTab, setActiveTab] = useState<ActiveTab>('overview');
   const [loading, setLoading] = useState(false);
@@ -192,6 +259,11 @@ export const CustomerProfileModal: React.FC<CustomerProfileModalProps> = ({ clie
   const [savingCoachPlan, setSavingCoachPlan] = useState(false);
   const [coachPlanError, setCoachPlanError] = useState('');
   const [coachPlanSuccess, setCoachPlanSuccess] = useState('');
+  const [selectedCreatePlanMode, setSelectedCreatePlanMode] = useState<CreatePlanMode>(null);
+  const [aiCoachPrompt, setAiCoachPrompt] = useState('');
+  const [generatingAiDraft, setGeneratingAiDraft] = useState(false);
+  const [aiDraftTemplateId, setAiDraftTemplateId] = useState<ReadyTemplateId | null>(null);
+  const [assigningTemplateId, setAssigningTemplateId] = useState<ReadyTemplateId | null>(null);
 
   const style = rankStyles[client.rank];
   const userId = useMemo(() => Number(client.id), [client.id]);
@@ -210,6 +282,10 @@ export const CustomerProfileModal: React.FC<CustomerProfileModalProps> = ({ clie
     setPlanInitialized(false);
     setCoachPlanError('');
     setCoachPlanSuccess('');
+    setSelectedCreatePlanMode(null);
+    setAiCoachPrompt('');
+    setAiDraftTemplateId(null);
+    setAssigningTemplateId(null);
   }, [userId]);
 
   useEffect(() => {
@@ -411,6 +487,18 @@ export const CustomerProfileModal: React.FC<CustomerProfileModalProps> = ({ clie
     ? overloadPlan.recommendations.slice(0, 3)
     : [];
   const strengthSummary = strengthProgress?.summary || null;
+  const readyTemplateById = useMemo(() => {
+    const map = new Map<ReadyTemplateId, ReadyPlanTemplate>();
+    READY_PLAN_TEMPLATES.forEach((template) => {
+      map.set(template.id, template);
+    });
+    return map;
+  }, []);
+  const selectedReadyTemplate = useMemo(() => {
+    if (!selectedCreatePlanMode) return null;
+    if (selectedCreatePlanMode === 'ai' || selectedCreatePlanMode === 'edit') return null;
+    return readyTemplateById.get(selectedCreatePlanMode) || null;
+  }, [selectedCreatePlanMode, readyTemplateById]);
 
   const modalClass = resolvedIsLightTheme
     ? 'bg-white text-[#111827]'
@@ -529,22 +617,42 @@ export const CustomerProfileModal: React.FC<CustomerProfileModalProps> = ({ clie
     });
   };
 
-  const handleSaveCoachPlan = async () => {
+  const applyPlanDraftToBuilder = (draft: CoachPlanDraftInput) => {
+    const orderedDays = DAY_OPTIONS
+      .map((day) => day.key)
+      .filter((dayKey) => draft.selectedDays.includes(dayKey));
+    setCoachSelectedDays(orderedDays);
+    setCoachDayPlans({ ...draft.dayPlans });
+    setCoachPlanName(String(draft.planName || '').trim() || 'Coach Custom Plan');
+    setCoachPlanDescription(String(draft.description || '').trim() || `Coach-created plan for ${client.name}`);
+    setCoachCycleWeeks(Math.max(8, Math.min(16, Math.round(Number(draft.cycleWeeks) || 8))));
+    setPlanInitialized(true);
+  };
+
+  const saveCoachPlanDraft = async (
+    draft: CoachPlanDraftInput,
+    successMessage = 'Plan saved and activated for this user.',
+  ): Promise<boolean> => {
     if (!coachId || coachId <= 0) {
       setCoachPlanError('Coach session not found. Please login again.');
-      return;
+      return false;
     }
     if (!userId || userId <= 0) {
       setCoachPlanError('Invalid user profile.');
-      return;
-    }
-    if (!coachSelectedDays.length) {
-      setCoachPlanError('Select at least one training day.');
-      return;
+      return false;
     }
 
-    const weeklyWorkouts = coachSelectedDays.map((dayKey) => {
-      const day = ensureDayPlan(dayKey);
+    const selectedDays = DAY_OPTIONS
+      .map((day) => day.key)
+      .filter((dayKey) => draft.selectedDays.includes(dayKey));
+
+    if (!selectedDays.length) {
+      setCoachPlanError('Select at least one training day.');
+      return false;
+    }
+
+    const weeklyWorkouts = selectedDays.map((dayKey) => {
+      const day = getDayPlanFrom(draft.dayPlans, dayKey);
       return {
         dayName: dayKey,
         workoutName: String(day.workoutName || '').trim() || 'Workout',
@@ -562,7 +670,7 @@ export const CustomerProfileModal: React.FC<CustomerProfileModalProps> = ({ clie
 
     if (weeklyWorkouts.some((workout) => workout.exercises.length === 0)) {
       setCoachPlanError('Each selected day must have at least one exercise name.');
-      return;
+      return false;
     }
 
     try {
@@ -570,10 +678,10 @@ export const CustomerProfileModal: React.FC<CustomerProfileModalProps> = ({ clie
       setCoachPlanError('');
       setCoachPlanSuccess('');
       await api.coachSaveCustomProgram(coachId, userId, {
-        planName: String(coachPlanName || '').trim() || 'Coach Custom Plan',
-        description: String(coachPlanDescription || '').trim() || null,
-        cycleWeeks: Math.max(8, Math.min(16, Math.round(Number(coachCycleWeeks) || 8))),
-        selectedDays: coachSelectedDays,
+        planName: String(draft.planName || '').trim() || 'Coach Custom Plan',
+        description: String(draft.description || '').trim() || null,
+        cycleWeeks: Math.max(8, Math.min(16, Math.round(Number(draft.cycleWeeks) || 8))),
+        selectedDays,
         weeklyWorkouts,
       });
 
@@ -583,14 +691,133 @@ export const CustomerProfileModal: React.FC<CustomerProfileModalProps> = ({ clie
       ]);
       setProgramData(latestProgram);
       setProgramProgress(latestProgress);
-      setCoachPlanSuccess('Plan saved and activated for this user.');
+      setCoachPlanSuccess(successMessage);
+      setPlanInitialized(false);
+      window.dispatchEvent(new CustomEvent('program-updated'));
+      return true;
     } catch (error: any) {
       console.error('Failed to save coach plan:', error);
       setCoachPlanError(error?.message || 'Failed to save plan.');
+      return false;
     } finally {
       setSavingCoachPlan(false);
     }
   };
+
+  const handleSaveCoachPlan = async () => saveCoachPlanDraft({
+    planName: coachPlanName,
+    description: coachPlanDescription,
+    cycleWeeks: coachCycleWeeks,
+    selectedDays: coachSelectedDays,
+    dayPlans: coachDayPlans,
+  });
+
+  const handleAssignTemplate = async (templateId: ReadyTemplateId) => {
+    const template = readyTemplateById.get(templateId);
+    if (!template) {
+      setCoachPlanError('Template not found.');
+      return;
+    }
+
+    setCoachPlanError('');
+    setCoachPlanSuccess('');
+    setSelectedCreatePlanMode(templateId);
+    setAiDraftTemplateId(null);
+
+    const draft = buildPlanDraftFromTemplate(template, {
+      clientName: client.name,
+      planName: `${template.title} Program`,
+      description: `${template.title} assigned by coach for ${client.name}`,
+      cycleWeeks: template.cycleWeeks,
+    });
+    applyPlanDraftToBuilder(draft);
+
+    try {
+      setAssigningTemplateId(templateId);
+      await saveCoachPlanDraft(draft, `${template.title} assigned and activated for this user.`);
+    } finally {
+      setAssigningTemplateId(null);
+    }
+  };
+
+  const handleGenerateAiDraft = async () => {
+    const prompt = String(aiCoachPrompt || '').trim();
+    if (!prompt) {
+      setCoachPlanError('Write a short AI prompt first.');
+      return;
+    }
+
+    const fallbackDays = Math.max(
+      2,
+      Math.min(
+        6,
+        Number(summary?.workoutsPlannedThisWeek || weeklyProgramWorkouts.length || coachSelectedDays.length || 4),
+      ),
+    );
+
+    setGeneratingAiDraft(true);
+    setCoachPlanError('');
+    setCoachPlanSuccess('');
+
+    try {
+      let templateId = inferTemplateFromPrompt(prompt);
+
+      if (!templateId) {
+        const insights = await api.getOnboardingInsights({
+          age: client.age ?? null,
+          weightKg: measurements.weight,
+          bodyFatPercentage: measurements.bodyFat,
+          chestCm: measurements.chest,
+          waistCm: measurements.waist,
+          armsCm: measurements.arms,
+          legsCm: measurements.legs,
+          workoutFrequency: fallbackDays,
+          fitnessGoal: profileDetails?.fitnessGoal ?? profileDetails?.fitness_goal ?? null,
+          prompt,
+          coachPrompt: prompt,
+        });
+
+        const suggestedWorkoutTypes = Array.isArray(insights?.interpretation?.suggestedWorkoutTypes)
+          ? insights.interpretation.suggestedWorkoutTypes
+            .map((item: unknown) => String(item || '').trim())
+            .filter(Boolean)
+          : [];
+        const suggestedDaysRaw = Number(
+          insights?.interpretation?.workoutFrequency
+          ?? insights?.interpretation?.recommendedWorkoutDays
+          ?? fallbackDays,
+        );
+        const suggestedDays = Number.isFinite(suggestedDaysRaw)
+          ? Math.max(2, Math.min(6, Math.round(suggestedDaysRaw)))
+          : fallbackDays;
+        templateId = mapAiWorkoutTypesToTemplate(suggestedWorkoutTypes, suggestedDays);
+      }
+
+      const resolvedTemplateId = templateId || recommendTemplateByDays(fallbackDays);
+      const template = readyTemplateById.get(resolvedTemplateId) || READY_PLAN_TEMPLATES[0];
+      const cycleWeeks = extractCycleWeeksFromPrompt(prompt) || template.cycleWeeks;
+
+      const draft = buildPlanDraftFromTemplate(template, {
+        clientName: client.name,
+        planName: `AI ${template.title} Plan`,
+        description: `AI draft for ${client.name}: ${prompt}`.slice(0, 255),
+        cycleWeeks,
+      });
+      applyPlanDraftToBuilder(draft);
+      setSelectedCreatePlanMode('ai');
+      setAiDraftTemplateId(template.id);
+      setCoachPlanSuccess(`AI drafted ${template.title}. Review the workouts, edit anything, then save.`);
+    } catch (error: any) {
+      console.error('Failed to generate AI draft:', error);
+      setCoachPlanError(error?.message || 'Failed to generate AI draft.');
+    } finally {
+      setGeneratingAiDraft(false);
+    }
+  };
+
+  const showEditableBuilder = selectedCreatePlanMode === 'edit'
+    || (selectedCreatePlanMode === 'ai' && Boolean(aiDraftTemplateId));
+  const selectedAiTemplate = aiDraftTemplateId ? readyTemplateById.get(aiDraftTemplateId) || null : null;
 
   return (
     <div className="fixed inset-0 z-50 bg-black/80 p-0 md:flex md:items-center md:justify-center md:p-4" onClick={onClose}>
@@ -788,166 +1015,201 @@ export const CustomerProfileModal: React.FC<CustomerProfileModalProps> = ({ clie
             {activeTab === 'createPlan' && (
               <div className="space-y-4">
                 <div className={`${createPlanCardClass} p-4 rounded-lg`}>
-                  <h4 className={`font-semibold mb-3 ${textPrimaryClass}`}>Coach Plan Builder</h4>
+                  <h4 className={`font-semibold mb-1 ${textPrimaryClass}`}>Choose Plan Action</h4>
+                  <p className={`text-sm mb-3 ${textMutedClass}`}>
+                    Assign a ready split, generate a draft with AI, or edit the user&apos;s current plan.
+                  </p>
+                  <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
+                    {READY_PLAN_TEMPLATES.map((template) => {
+                      const isSelected = selectedCreatePlanMode === template.id;
+                      const isAssigning = savingCoachPlan && assigningTemplateId === template.id;
+                      return (
+                        <div
+                          key={template.id}
+                          className={`rounded-xl border p-3 transition-colors ${
+                            isSelected
+                              ? 'border-[#10b981] bg-[#10b981]/10'
+                              : resolvedIsLightTheme
+                                ? 'border-slate-200 bg-white'
+                                : 'border-gray-700 bg-[#111]'
+                          }`}
+                        >
+                          <button
+                            type="button"
+                            onClick={() => setSelectedCreatePlanMode(template.id)}
+                            className="w-full text-left"
+                          >
+                            <div className={`font-semibold ${textPrimaryClass}`}>{template.title}</div>
+                            <div className={`text-xs mt-1 ${textMutedClass}`}>{template.subtitle}</div>
+                            <div className={`text-xs mt-2 ${textMutedClass}`}>
+                              {template.selectedDays.length} days/week
+                            </div>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => void handleAssignTemplate(template.id)}
+                            disabled={savingCoachPlan || generatingAiDraft}
+                            className="mt-3 w-full rounded-lg px-3 py-2 text-xs font-semibold bg-[#10b981] text-white hover:bg-[#0ea574] transition-colors disabled:opacity-60"
+                          >
+                            {isAssigning ? 'Assigning...' : 'Assign To User'}
+                          </button>
+                        </div>
+                      );
+                    })}
 
-                  <div className="grid grid-cols-1 gap-3 mb-3 md:grid-cols-2">
-                    <label className="text-sm">
-                      <span className={`block mb-1 ${textMutedClass}`}>Plan Name</span>
-                      <input
-                        type="text"
-                        value={coachPlanName}
-                        onChange={(e) => setCoachPlanName(e.target.value)}
-                        className={`w-full rounded-lg px-3 py-2 text-sm border outline-none ${
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedCreatePlanMode('ai');
+                        setCoachPlanError('');
+                        setCoachPlanSuccess('');
+                      }}
+                      className={`rounded-xl border p-3 text-left transition-colors ${
+                        selectedCreatePlanMode === 'ai'
+                          ? 'border-[#10b981] bg-[#10b981]/10'
+                          : resolvedIsLightTheme
+                            ? 'border-slate-200 bg-white'
+                            : 'border-gray-700 bg-[#111]'
+                      }`}
+                    >
+                      <div className={`font-semibold ${textPrimaryClass}`}>Create with AI</div>
+                      <div className={`text-xs mt-1 ${textMutedClass}`}>
+                        Coach writes a prompt, AI drafts the program, coach reviews and saves.
+                      </div>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedCreatePlanMode('edit');
+                        setAiDraftTemplateId(null);
+                        setCoachPlanError('');
+                        setCoachPlanSuccess('');
+                        setPlanInitialized(false);
+                      }}
+                      className={`rounded-xl border p-3 text-left transition-colors ${
+                        selectedCreatePlanMode === 'edit'
+                          ? 'border-[#10b981] bg-[#10b981]/10'
+                          : resolvedIsLightTheme
+                            ? 'border-slate-200 bg-white'
+                            : 'border-gray-700 bg-[#111]'
+                      }`}
+                    >
+                      <div className={`font-semibold ${textPrimaryClass}`}>Edit Existing Plan</div>
+                      <div className={`text-xs mt-1 ${textMutedClass}`}>
+                        Load the active user plan, edit it, and save the update.
+                      </div>
+                    </button>
+                  </div>
+                </div>
+
+                {selectedReadyTemplate && (
+                  <div className={`${createPlanCardClass} p-4 rounded-lg space-y-3`}>
+                    <div className="flex items-center justify-between gap-3">
+                      <h4 className={`font-semibold ${textPrimaryClass}`}>{selectedReadyTemplate.title} Plan Content</h4>
+                      <span className={`text-xs ${textMutedClass}`}>
+                        {selectedReadyTemplate.selectedDays.length} days/week
+                      </span>
+                    </div>
+                    <p className={`text-sm ${textMutedClass}`}>{selectedReadyTemplate.subtitle}</p>
+
+                    <div className="flex flex-wrap gap-2">
+                      {selectedReadyTemplate.selectedDays.map((dayKey) => {
+                        const label = DAY_OPTIONS.find((day) => day.key === dayKey)?.label || dayKey;
+                        return (
+                          <span
+                            key={`preview-day-${selectedReadyTemplate.id}-${dayKey}`}
+                            className="px-2.5 py-1 rounded-full text-xs border border-[#10b981]/40 bg-[#10b981]/10 text-[#10b981]"
+                          >
+                            {label}
+                          </span>
+                        );
+                      })}
+                    </div>
+
+                    <div className="space-y-2">
+                      {selectedReadyTemplate.weeklyWorkouts.map((workout) => (
+                        <div
+                          key={`preview-workout-${selectedReadyTemplate.id}-${workout.dayName}`}
+                          className={`rounded-lg border p-3 ${
+                            resolvedIsLightTheme ? 'bg-white border-slate-200' : 'bg-[#111] border-gray-700'
+                          }`}
+                        >
+                          <div className="flex items-center justify-between gap-2">
+                            <p className={`text-sm font-semibold ${textPrimaryClass}`}>
+                              {(DAY_OPTIONS.find((day) => day.key === workout.dayName)?.label || workout.dayName)} - {workout.workoutName}
+                            </p>
+                            <span className={`text-[10px] uppercase ${textMutedClass}`}>{workout.workoutType}</span>
+                          </div>
+                          <div className="mt-2 space-y-1">
+                            {workout.exercises.map((exercise, index) => (
+                              <p
+                                key={`preview-exercise-${selectedReadyTemplate.id}-${workout.dayName}-${exercise.exerciseName}-${index}`}
+                                className={`text-xs ${textMutedClass}`}
+                              >
+                                <span className={textPrimaryClass}>{exercise.exerciseName}</span>
+                                {' | '}
+                                {exercise.sets} sets
+                                {' | '}
+                                {exercise.reps}
+                              </p>
+                            ))}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {selectedCreatePlanMode === 'ai' && (
+                  <div className={`${createPlanCardClass} p-4 rounded-lg space-y-3`}>
+                    <h4 className={`font-semibold ${textPrimaryClass}`}>Create with AI</h4>
+                    <div className="grid grid-cols-1 gap-2 text-sm sm:grid-cols-2">
+                      <p className={textMutedClass}>Age: <span className={textPrimaryClass}>{client.age ?? 'N/A'}</span></p>
+                      <p className={textMutedClass}>Weight: <span className={textPrimaryClass}>{formatMetric(measurements.weight, 'kg', 1)}</span></p>
+                      <p className={textMutedClass}>Body Fat: <span className={textPrimaryClass}>{formatMetric(measurements.bodyFat, '%', 1)}</span></p>
+                      <p className={textMutedClass}>Chest: <span className={textPrimaryClass}>{formatMetric(measurements.chest, 'cm', 1)}</span></p>
+                      <p className={textMutedClass}>Waist: <span className={textPrimaryClass}>{formatMetric(measurements.waist, 'cm', 1)}</span></p>
+                      <p className={textMutedClass}>Arms: <span className={textPrimaryClass}>{formatMetric(measurements.arms, 'cm', 1)}</span></p>
+                      <p className={textMutedClass}>Legs: <span className={textPrimaryClass}>{formatMetric(measurements.legs, 'cm', 1)}</span></p>
+                    </div>
+                    <label className="text-sm block">
+                      <span className={`block mb-1 ${textMutedClass}`}>Coach Prompt</span>
+                      <textarea
+                        rows={3}
+                        value={aiCoachPrompt}
+                        onChange={(e) => setAiCoachPrompt(e.target.value)}
+                        placeholder="Example: Build an 8-week hypertrophy plan with extra shoulder and glute focus, moderate recovery demand."
+                        className={`w-full rounded-lg px-3 py-2 text-sm border outline-none resize-none ${
                           resolvedIsLightTheme
                             ? 'bg-white border-slate-300 text-[#111827]'
                             : 'bg-[#111] border-gray-700 text-white'
                         }`}
                       />
                     </label>
-                    <label className="text-sm">
-                      <span className={`block mb-1 ${textMutedClass}`}>Cycle Weeks</span>
-                      <select
-                        value={coachCycleWeeks}
-                        onChange={(e) => setCoachCycleWeeks(Number(e.target.value))}
-                        className={`w-full rounded-lg px-3 py-2 text-sm border outline-none ${
-                          resolvedIsLightTheme
-                            ? 'bg-white border-slate-300 text-[#111827]'
-                            : 'bg-[#111] border-gray-700 text-white'
-                        }`}
-                      >
-                        {[8, 9, 10, 11, 12, 13, 14, 15, 16].map((weeks) => (
-                          <option key={weeks} value={weeks}>{weeks} weeks</option>
-                        ))}
-                      </select>
-                    </label>
+                    <button
+                      type="button"
+                      onClick={() => void handleGenerateAiDraft()}
+                      disabled={generatingAiDraft || savingCoachPlan}
+                      className="px-4 py-2 rounded-lg bg-[#10b981] font-semibold hover:bg-[#0ea574] transition-colors disabled:opacity-60 text-white"
+                    >
+                      {generatingAiDraft ? 'Generating AI Draft...' : 'Generate AI Draft'}
+                    </button>
+                    {selectedAiTemplate && (
+                      <p className={`text-xs ${textMutedClass}`}>
+                        Draft template selected: <span className={textPrimaryClass}>{selectedAiTemplate.title}</span>.
+                      </p>
+                    )}
                   </div>
+                )}
 
-                  <label className="text-sm block mb-3">
-                    <span className={`block mb-1 ${textMutedClass}`}>Description</span>
-                    <textarea
-                      rows={2}
-                      value={coachPlanDescription}
-                      onChange={(e) => setCoachPlanDescription(e.target.value)}
-                      className={`w-full rounded-lg px-3 py-2 text-sm border outline-none resize-none ${
-                        resolvedIsLightTheme
-                          ? 'bg-white border-slate-300 text-[#111827]'
-                          : 'bg-[#111] border-gray-700 text-white'
-                      }`}
-                    />
-                  </label>
-
-                  <div className="mb-3">
-                    <div className={`text-sm mb-2 ${textMutedClass}`}>Training Days</div>
-                    <div className="flex flex-wrap gap-2">
-                      {DAY_OPTIONS.map((day) => {
-                        const selected = coachSelectedDays.includes(day.key);
-                        return (
-                          <button
-                            key={day.key}
-                            type="button"
-                            onClick={() => toggleCoachDay(day.key)}
-                            className={`px-3 py-1.5 rounded-lg text-xs border transition-colors ${
-                              selected
-                                ? 'border-[#10b981] text-black bg-[#10b981]/10'
-                                : resolvedIsLightTheme
-                                  ? 'border-slate-300 text-slate-600 bg-white'
-                                  : 'border-gray-700 text-gray-400 bg-[#111]'
-                            }`}
-                          >
-                            {day.label}
-                          </button>
-                        );
-                      })}
-                    </div>
+                {selectedCreatePlanMode === 'edit' && (
+                  <div className={`${createPlanCardClass} p-4 rounded-lg`}>
+                    <p className={`text-sm ${textMutedClass}`}>
+                      The user&apos;s active plan is loaded below. Edit any field then save.
+                    </p>
                   </div>
-                </div>
-
-                {coachSelectedDays.map((dayKey, dayIndex) => {
-                  const dayLabel = DAY_OPTIONS.find((day) => day.key === dayKey)?.label || dayKey;
-                  const dayPlan = ensureDayPlan(dayKey);
-                  return (
-                    <div key={dayKey} className={`${createPlanCardClass} p-4 rounded-lg`}>
-                      <div className="flex flex-col gap-3 mb-3 sm:flex-row sm:items-center sm:justify-between">
-                        <h5 className={`font-semibold ${textPrimaryClass}`}>{dayLabel}</h5>
-                        <button
-                          type="button"
-                          onClick={() => addDayExercise(dayKey)}
-                          className="px-4 py-2 rounded-lg bg-[#10b981] font-semibold hover:bg-[#a8e600] transition-colors disabled:opacity-50 text-white"
-                        >
-                          + Exercise
-                        </button>
-                      </div>
-
-                      <label className="text-sm block mb-3">
-                        <span className={`block mb-1 ${textMutedClass}`}>Workout Name</span>
-                        <input
-                          type="text"
-                          value={dayPlan.workoutName}
-                          onChange={(e) => updateWorkoutName(dayKey, e.target.value)}
-                          className={`w-full rounded-lg px-3 py-2 text-sm border outline-none ${
-                            resolvedIsLightTheme
-                              ? 'bg-white border-slate-300 text-[#111827]'
-                              : 'bg-[#111] border-gray-700 text-white'
-                          }`}
-                          placeholder={`Workout ${dayIndex + 1}`}
-                        />
-                      </label>
-
-                      <div className="space-y-2">
-                        {dayPlan.exercises.map((exercise, index) => (
-                          <div key={`${dayKey}-${index}`} className={`rounded-lg p-3 border ${
-                            resolvedIsLightTheme ? 'border-slate-200 bg-white' : 'border-gray-700 bg-[#111]'
-                          }`}>
-                            <div className="grid grid-cols-1 gap-2 md:grid-cols-3">
-                              <input
-                                type="text"
-                                value={exercise.exerciseName}
-                                onChange={(e) => updateDayExercise(dayKey, index, { exerciseName: e.target.value })}
-                                placeholder="Exercise name"
-                                className={`rounded-lg px-3 py-2 text-sm border outline-none md:col-span-3 ${
-                                  resolvedIsLightTheme
-                                    ? 'bg-white border-slate-300 text-[#111827]'
-                                    : 'bg-[#0d0d0d] border-gray-700 text-white'
-                                }`}
-                              />
-                              <input
-                                type="number"
-                                min={1}
-                                max={10}
-                                value={exercise.sets}
-                                onChange={(e) => updateDayExercise(dayKey, index, { sets: Number(e.target.value || 3) })}
-                                placeholder="Sets"
-                                className={`rounded-lg px-3 py-2 text-sm border outline-none ${
-                                  resolvedIsLightTheme
-                                    ? 'bg-white border-slate-300 text-[#111827]'
-                                    : 'bg-[#0d0d0d] border-gray-700 text-white'
-                                }`}
-                              />
-                              <input
-                                type="text"
-                                value={exercise.reps}
-                                onChange={(e) => updateDayExercise(dayKey, index, { reps: e.target.value })}
-                                placeholder="Reps (e.g. 8-12)"
-                                className={`rounded-lg px-3 py-2 text-sm border outline-none ${
-                                  resolvedIsLightTheme
-                                    ? 'bg-white border-slate-300 text-[#111827]'
-                                    : 'bg-[#0d0d0d] border-gray-700 text-white'
-                                }`}
-                              />
-                              <button
-                                type="button"
-                                onClick={() => removeDayExercise(dayKey, index)}
-                                className="rounded-lg px-3 py-2 text-xs border border-red-500/40 text-red-400 hover:bg-red-500/10"
-                              >
-                                Remove
-                              </button>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  );
-                })}
+                )}
 
                 {coachPlanError && (
                   <div className="text-sm text-red-400">{coachPlanError}</div>
@@ -956,16 +1218,182 @@ export const CustomerProfileModal: React.FC<CustomerProfileModalProps> = ({ clie
                   <div className="text-sm text-green-500">{coachPlanSuccess}</div>
                 )}
 
-                <button
-                  type="button"
-                  onClick={() => void handleSaveCoachPlan()}
-                  disabled={savingCoachPlan}
-                  className={`px-4 py-2 rounded-lg bg-[#10b981] font-semibold hover:bg-[#a8e600] transition-colors disabled:opacity-50 ${
-                    resolvedIsLightTheme ? 'text-white' : 'text-black'
-                  }`}
-                >
-                  {savingCoachPlan ? 'Saving...' : 'Save Plan For User'}
-                </button>
+                {showEditableBuilder && (
+                  <>
+                    <div className={`${createPlanCardClass} p-4 rounded-lg`}>
+                      <h4 className={`font-semibold mb-3 ${textPrimaryClass}`}>Coach Plan Builder</h4>
+
+                      <div className="grid grid-cols-1 gap-3 mb-3 md:grid-cols-2">
+                        <label className="text-sm">
+                          <span className={`block mb-1 ${textMutedClass}`}>Plan Name</span>
+                          <input
+                            type="text"
+                            value={coachPlanName}
+                            onChange={(e) => setCoachPlanName(e.target.value)}
+                            className={`w-full rounded-lg px-3 py-2 text-sm border outline-none ${
+                              resolvedIsLightTheme
+                                ? 'bg-white border-slate-300 text-[#111827]'
+                                : 'bg-[#111] border-gray-700 text-white'
+                            }`}
+                          />
+                        </label>
+                        <label className="text-sm">
+                          <span className={`block mb-1 ${textMutedClass}`}>Cycle Weeks</span>
+                          <select
+                            value={coachCycleWeeks}
+                            onChange={(e) => setCoachCycleWeeks(Number(e.target.value))}
+                            className={`w-full rounded-lg px-3 py-2 text-sm border outline-none ${
+                              resolvedIsLightTheme
+                                ? 'bg-white border-slate-300 text-[#111827]'
+                                : 'bg-[#111] border-gray-700 text-white'
+                            }`}
+                          >
+                            {[8, 9, 10, 11, 12, 13, 14, 15, 16].map((weeks) => (
+                              <option key={weeks} value={weeks}>{weeks} weeks</option>
+                            ))}
+                          </select>
+                        </label>
+                      </div>
+
+                      <label className="text-sm block mb-3">
+                        <span className={`block mb-1 ${textMutedClass}`}>Description</span>
+                        <textarea
+                          rows={2}
+                          value={coachPlanDescription}
+                          onChange={(e) => setCoachPlanDescription(e.target.value)}
+                          className={`w-full rounded-lg px-3 py-2 text-sm border outline-none resize-none ${
+                            resolvedIsLightTheme
+                              ? 'bg-white border-slate-300 text-[#111827]'
+                              : 'bg-[#111] border-gray-700 text-white'
+                          }`}
+                        />
+                      </label>
+
+                      <div className="mb-3">
+                        <div className={`text-sm mb-2 ${textMutedClass}`}>Training Days</div>
+                        <div className="flex flex-wrap gap-2">
+                          {DAY_OPTIONS.map((day) => {
+                            const selected = coachSelectedDays.includes(day.key);
+                            return (
+                              <button
+                                key={day.key}
+                                type="button"
+                                onClick={() => toggleCoachDay(day.key)}
+                                className={`px-3 py-1.5 rounded-lg text-xs border transition-colors ${
+                                  selected
+                                    ? 'border-[#10b981] text-black bg-[#10b981]/10'
+                                    : resolvedIsLightTheme
+                                      ? 'border-slate-300 text-slate-600 bg-white'
+                                      : 'border-gray-700 text-gray-400 bg-[#111]'
+                                }`}
+                              >
+                                {day.label}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    </div>
+
+                    {coachSelectedDays.map((dayKey, dayIndex) => {
+                      const dayLabel = DAY_OPTIONS.find((day) => day.key === dayKey)?.label || dayKey;
+                      const dayPlan = ensureDayPlan(dayKey);
+                      return (
+                        <div key={dayKey} className={`${createPlanCardClass} p-4 rounded-lg`}>
+                          <div className="flex flex-col gap-3 mb-3 sm:flex-row sm:items-center sm:justify-between">
+                            <h5 className={`font-semibold ${textPrimaryClass}`}>{dayLabel}</h5>
+                            <button
+                              type="button"
+                              onClick={() => addDayExercise(dayKey)}
+                              className="px-4 py-2 rounded-lg bg-[#10b981] font-semibold hover:bg-[#a8e600] transition-colors disabled:opacity-50 text-white"
+                            >
+                              + Exercise
+                            </button>
+                          </div>
+
+                          <label className="text-sm block mb-3">
+                            <span className={`block mb-1 ${textMutedClass}`}>Workout Name</span>
+                            <input
+                              type="text"
+                              value={dayPlan.workoutName}
+                              onChange={(e) => updateWorkoutName(dayKey, e.target.value)}
+                              className={`w-full rounded-lg px-3 py-2 text-sm border outline-none ${
+                                resolvedIsLightTheme
+                                  ? 'bg-white border-slate-300 text-[#111827]'
+                                  : 'bg-[#111] border-gray-700 text-white'
+                              }`}
+                              placeholder={`Workout ${dayIndex + 1}`}
+                            />
+                          </label>
+
+                          <div className="space-y-2">
+                            {dayPlan.exercises.map((exercise, index) => (
+                              <div key={`${dayKey}-${index}`} className={`rounded-lg p-3 border ${
+                                resolvedIsLightTheme ? 'border-slate-200 bg-white' : 'border-gray-700 bg-[#111]'
+                              }`}>
+                                <div className="grid grid-cols-1 gap-2 md:grid-cols-3">
+                                  <input
+                                    type="text"
+                                    value={exercise.exerciseName}
+                                    onChange={(e) => updateDayExercise(dayKey, index, { exerciseName: e.target.value })}
+                                    placeholder="Exercise name"
+                                    className={`rounded-lg px-3 py-2 text-sm border outline-none md:col-span-3 ${
+                                      resolvedIsLightTheme
+                                        ? 'bg-white border-slate-300 text-[#111827]'
+                                        : 'bg-[#0d0d0d] border-gray-700 text-white'
+                                    }`}
+                                  />
+                                  <input
+                                    type="number"
+                                    min={1}
+                                    max={10}
+                                    value={exercise.sets}
+                                    onChange={(e) => updateDayExercise(dayKey, index, { sets: Number(e.target.value || 3) })}
+                                    placeholder="Sets"
+                                    className={`rounded-lg px-3 py-2 text-sm border outline-none ${
+                                      resolvedIsLightTheme
+                                        ? 'bg-white border-slate-300 text-[#111827]'
+                                        : 'bg-[#0d0d0d] border-gray-700 text-white'
+                                    }`}
+                                  />
+                                  <input
+                                    type="text"
+                                    value={exercise.reps}
+                                    onChange={(e) => updateDayExercise(dayKey, index, { reps: e.target.value })}
+                                    placeholder="Reps (e.g. 8-12)"
+                                    className={`rounded-lg px-3 py-2 text-sm border outline-none ${
+                                      resolvedIsLightTheme
+                                        ? 'bg-white border-slate-300 text-[#111827]'
+                                        : 'bg-[#0d0d0d] border-gray-700 text-white'
+                                    }`}
+                                  />
+                                  <button
+                                    type="button"
+                                    onClick={() => removeDayExercise(dayKey, index)}
+                                    className="rounded-lg px-3 py-2 text-xs border border-red-500/40 text-red-400 hover:bg-red-500/10"
+                                  >
+                                    Remove
+                                  </button>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      );
+                    })}
+
+                    <button
+                      type="button"
+                      onClick={() => void handleSaveCoachPlan()}
+                      disabled={savingCoachPlan}
+                      className={`px-4 py-2 rounded-lg bg-[#10b981] font-semibold hover:bg-[#a8e600] transition-colors disabled:opacity-50 ${
+                        resolvedIsLightTheme ? 'text-white' : 'text-black'
+                      }`}
+                    >
+                      {savingCoachPlan ? 'Saving...' : 'Save Plan For User'}
+                    </button>
+                  </>
+                )}
               </div>
             )}
           </div>
