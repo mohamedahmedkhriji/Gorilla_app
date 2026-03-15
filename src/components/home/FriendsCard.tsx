@@ -1,8 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Card } from '../ui/Card';
-import { ChevronRight } from 'lucide-react';
 import { api } from '../../services/api';
-import { emojiFriends } from '../../services/emojiTheme';
+import { emojiFriends, emojiGymFriendsBg, emojiRightArrow } from '../../services/emojiTheme';
 
 interface FriendsCardProps {
   onClick: () => void;
@@ -79,19 +78,25 @@ export function FriendsCard({ onClick }: FriendsCardProps) {
       .toUpperCase();
 
   return (
-    <Card onClick={onClick} className="p-4 flex flex-col justify-between h-full cursor-pointer border border-white/15 hover:border-accent/35 transition-colors group">
-      <div className="flex justify-between items-start">
+    <Card onClick={onClick} className="relative overflow-hidden p-4 flex flex-col justify-between h-full cursor-pointer border border-white/15 hover:border-accent/35 transition-colors group">
+      <div
+        className="absolute inset-0 bg-cover bg-center opacity-45 transition-transform duration-300 group-hover:scale-105"
+        style={{ backgroundImage: `url(${emojiGymFriendsBg})` }}
+      />
+      <div className="absolute inset-0 bg-gradient-to-b from-black/45 via-black/50 to-black/70" />
+
+      <div className="relative z-10 flex justify-between items-start">
         <div className="w-10 h-10 rounded-2xl bg-accent/10 border border-accent/35 flex items-center justify-center text-accent group-hover:shadow-glow transition-all">
           <img src={emojiFriends} alt="Friends" className="h-7 w-7 object-contain" />
         </div>
-        <ChevronRight size={16} className="text-text-tertiary group-hover:text-text-primary transition-colors" />
+        <img src={emojiRightArrow} alt="" aria-hidden="true" className="h-4 w-4 object-contain opacity-70 group-hover:opacity-100 transition-opacity" />
       </div>
 
-      <div className="mt-4">
+      <div className="relative z-10 mt-4">
         <div className="text-2xl font-electrolize leading-none text-white">Friends</div>
       </div>
 
-      <div className="flex -space-x-2 mt-3">
+      <div className="relative z-10 flex -space-x-2 mt-3">
         {visibleFriends.map((friend) => (
           <div
             key={friend.id}

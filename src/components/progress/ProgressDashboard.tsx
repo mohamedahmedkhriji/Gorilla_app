@@ -2,9 +2,9 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { Button } from '../ui/Button';
 import { StrengthChart } from './StrengthChart';
 import { Card } from '../ui/Card';
-import { Activity, ChevronRight, CircleQuestionMark, TrendingUp, X } from 'lucide-react';
+import { Activity, CircleQuestionMark, TrendingUp, X } from 'lucide-react';
 import { api } from '../../services/api';
-import { emojiFire } from '../../services/emojiTheme';
+import { emojiFire, emojiRightArrow } from '../../services/emojiTheme';
 import { getBodyPartImage } from '../../services/bodyPartTheme';
 interface ProgressDashboardProps {
   onViewReport: () => void;
@@ -353,7 +353,7 @@ export function ProgressDashboard({ onViewReport, onViewStrengthScore }: Progres
               </div>
               <div className="text-xs text-text-secondary">Total Volume</div>
             </div>
-            <ChevronRight size={18} className="mb-1 shrink-0 text-text-tertiary" />
+            <img src={emojiRightArrow} alt="" aria-hidden="true" className="mb-1 h-[18px] w-[18px] shrink-0 object-contain opacity-70" />
           </div>
         </Card>
       </div>

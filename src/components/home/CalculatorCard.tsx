@@ -1,7 +1,6 @@
 import React from 'react';
 import { Card } from '../ui/Card';
-import { ChevronRight } from 'lucide-react';
-import { emojiMyNutrition, emojiNutritionBg } from '../../services/emojiTheme';
+import { emojiMyNutrition, emojiNutritionBg, emojiRightArrow } from '../../services/emojiTheme';
 
 interface CalculatorCardProps {
   onClick: () => void;
@@ -28,7 +27,12 @@ export function CalculatorCard({ onClick }: CalculatorCardProps) {
           <div className="text-[11px] uppercase tracking-[0.09em] text-text-secondary mt-1">Calories and protein targets</div>
         </div>
       </div>
-      <ChevronRight size={18} className="relative z-10 text-text-tertiary group-hover:text-text-primary transition-colors" />
+      <img
+        src={emojiRightArrow}
+        alt=""
+        aria-hidden="true"
+        className="relative z-10 h-[18px] w-[18px] object-contain opacity-70 group-hover:opacity-100 transition-opacity"
+      />
     </Card>
   );
 }

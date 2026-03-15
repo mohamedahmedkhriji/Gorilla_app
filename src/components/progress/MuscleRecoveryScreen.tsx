@@ -26,25 +26,6 @@ type MuscleRecoveryItem = {
   completedWeekVolume?: number;
 };
 
-type RecoverySummary = {
-  readyMuscles?: number;
-  almostReadyMuscles?: number;
-  damagedMuscles?: number;
-  planBased?: {
-    hasActiveProgram?: boolean;
-    weekStart?: string;
-    weekEnd?: string;
-    plannedTodaySetUnits?: number;
-    completedTodaySetUnits?: number;
-    plannedWeekSetUnits?: number;
-    completedWeekSetUnits?: number;
-    completedTodayVolume?: number;
-    completedWeekVolume?: number;
-    todayPlanCompletionPct?: number;
-    weekPlanCompletionPct?: number;
-  };
-};
-
 const DEFAULT_MUSCLES: MuscleRecoveryItem[] = [
   { muscle: 'chest', name: 'Chest', score: 100, lastWorkout: null },
   { muscle: 'back', name: 'Back', score: 100, lastWorkout: null },
@@ -95,8 +76,6 @@ export function MuscleRecoveryScreen({ onBack }: MuscleRecoveryScreenProps) {
   const [muscleRecoveries, setMuscleRecoveries] = useState<MuscleRecoveryItem[]>(DEFAULT_MUSCLES);
   const [showFactors, setShowFactors] = useState(false);
   const [factors, setFactors] = useState({ sleepHours: '7', proteinIntake: 'medium', supplements: 'none', soreness: 3, energy: 3 });
-  const [overallRecovery, setOverallRecovery] = useState(100);
-  const [summary, setSummary] = useState<RecoverySummary>({});
   const [error, setError] = useState('');
 
   const loadRecovery = async () => {
@@ -104,15 +83,11 @@ export function MuscleRecoveryScreen({ onBack }: MuscleRecoveryScreenProps) {
       const user = JSON.parse(localStorage.getItem('appUser') || localStorage.getItem('user') || '{}');
       if (!user.id) {
         setMuscleRecoveries(DEFAULT_MUSCLES);
-        setOverallRecovery(100);
-        setSummary({});
         return;
       }
 
       const data = await api.getRecoveryStatus(user.id);
       setMuscleRecoveries(mergeRecoveryWithDefaults(Array.isArray(data?.recovery) ? data.recovery : []));
-      setOverallRecovery(Number.isFinite(Number(data?.overallRecovery)) ? Math.max(0, Math.min(100, Math.round(Number(data.overallRecovery)))) : 100);
-      setSummary((data?.summary && typeof data.summary === 'object') ? data.summary : {});
       if (data.factors) setFactors((prev) => ({ ...prev, ...data.factors }));
       setError('');
     } catch (loadError) {
@@ -185,7 +160,6 @@ export function MuscleRecoveryScreen({ onBack }: MuscleRecoveryScreenProps) {
     .filter((m) => m.score >= 70 && m.score < 90)
     .sort((a, b) => a.score - b.score);
   const damagedMuscles = muscleRecoveries.filter((m) => m.score < 70).sort((a, b) => a.score - b.score);
-  const planSummary = summary.planBased;
   return (
     <div className="flex-1 flex flex-col h-full bg-background pb-24">
       <div className="px-4 sm:px-6 pt-2">
@@ -277,22 +251,6 @@ export function MuscleRecoveryScreen({ onBack }: MuscleRecoveryScreenProps) {
             {error}
           </div>
         )}
-
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-          <div className="rounded-xl border border-white/10 bg-card px-3 py-2">
-            <p className="text-[10px] uppercase tracking-wider text-text-tertiary">Overall Recovery</p>
-            <p className="text-xl font-semibold text-white mt-1 font-electrolize">{overallRecovery}%</p>
-          </div>
-          <div className="rounded-xl border border-white/10 bg-card px-3 py-2">
-            <p className="text-[10px] uppercase tracking-wider text-text-tertiary">Today Plan</p>
-            <p className="text-xl font-semibold text-white mt-1 font-electrolize">
-              {Number(planSummary?.todayPlanCompletionPct || 0)}%
-            </p>
-            <p className="text-[11px] text-text-secondary mt-0.5 font-electrolize">
-              {formatSetUnits(planSummary?.completedTodaySetUnits)} / {formatSetUnits(planSummary?.plannedTodaySetUnits)} sets
-            </p>
-          </div>
-        </div>
 
         {/* Damaged Muscles Section */}
         {damagedMuscles.length > 0 && (

@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
-import { ArrowLeft, ChevronRight, MoonStar } from 'lucide-react';
+import { ArrowLeft, MoonStar } from 'lucide-react';
 import { WorkoutCard } from '../components/dashboard/WorkoutCard';
 import { RecoveryIndicator } from '../components/dashboard/RecoveryIndicator';
 import { RankDisplay } from '../components/dashboard/RankDisplay';
@@ -21,7 +21,7 @@ import { MuscleRecoveryScreen } from '../components/progress/MuscleRecoveryScree
 import { RankingsRewardsScreen } from '../components/profile/RankingsRewardsScreen';
 import { api } from '../services/api';
 import { getRankBadgeImage } from '../services/rankTheme';
-import { emojiComingSoon, emojiMyNutrition, emojiProfile, emojiShop } from '../services/emojiTheme';
+import { emojiComingSoon, emojiMyNutrition, emojiProfile, emojiRightArrow, emojiShop } from '../services/emojiTheme';
 import { useScrollToTopOnChange } from '../shared/scroll';
 interface HomeProps {
   onNavigate: (tab: string, day?: string) => void;
@@ -976,7 +976,7 @@ export function Home({ onNavigate, resetSignal = 0 }: HomeProps) {
               <img src={emojiMyNutrition} alt="My nutrition" className="h-4 w-4 object-contain" />
               <span>My Nutrition</span>
             </span>
-            <ChevronRight size={18} className="mb-1 shrink-0 text-text-tertiary" />
+            <img src={emojiRightArrow} alt="" aria-hidden="true" className="mb-1 h-[18px] w-[18px] shrink-0 object-contain opacity-70" />
           </GhostButton>
           <GhostButton onClick={() => setShowShopComingSoon(true)}>
             <span className="flex items-center gap-2">

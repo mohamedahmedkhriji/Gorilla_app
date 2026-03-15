@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { User, ChevronRight, Camera, Dumbbell, FileText, LogOut, X } from 'lucide-react';
+import { User, Camera, Dumbbell, FileText, LogOut, X } from 'lucide-react';
 import { api } from '../../services/api';
 import { getStoredAppUser, getStoredUserId, persistStoredUser } from '../../shared/authStorage';
 import { FriendsCard } from '../home/FriendsCard';
 import { CoachCard } from '../home/CoachCard';
+import { emojiRightArrow } from '../../services/emojiTheme';
 interface ProfileScreenProps {
   onNavigate: (screen: 'gym' | 'rank' | 'settings' | 'workout' | 'weeklyPlan' | 'posts' | 'friends' | 'coachList') => void;
   onLogout: () => void;
@@ -342,49 +343,54 @@ export function ProfileScreen({ onNavigate, onLogout }: ProfileScreenProps) {
         <CoachCard onClick={() => onNavigate('coachList')} />
       </div>
 
-      <div className="space-y-3">
+      <div className="grid grid-cols-2 gap-4">
         <button
           type="button"
           onClick={() => onNavigate('posts')}
-          className="w-full bg-card rounded-xl p-4 border border-white/5 flex items-center justify-between hover:bg-white/5 transition-colors"
+          className="surface-card rounded-2xl p-5 relative overflow-hidden p-4 flex flex-col justify-between h-full cursor-pointer border border-white/15 hover:border-emerald-400/35 transition-colors group text-left"
         >
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-emerald-500/10 rounded-lg text-emerald-500">
+          <div className="absolute inset-0 bg-gradient-to-b from-black/45 via-black/50 to-black/70" />
+          <div className="relative z-10 flex justify-between items-start">
+            <div className="w-10 h-10 rounded-2xl bg-emerald-500/10 border border-emerald-400/30 flex items-center justify-center text-emerald-400">
               <FileText size={20} />
             </div>
-            <div className="text-left">
-              <div className="font-medium text-white">My Blog Posts</div>
-              <div className="text-xs text-text-secondary">Edit or remove your uploads</div>
-            </div>
+            <img src={emojiRightArrow} alt="" aria-hidden="true" className="h-4 w-4 object-contain opacity-70 group-hover:opacity-100 transition-opacity" />
           </div>
-          <ChevronRight size={20} className="text-text-tertiary" />
+          <div className="relative z-10 mt-4 min-w-0">
+            <div className="text-lg leading-none text-white truncate">My Blog Posts</div>
+            <div className="text-[10px] text-text-secondary uppercase tracking-[0.12em] mt-1">Manage Uploads</div>
+          </div>
+          <div className="relative z-10 mt-3 text-[11px] text-emerald-300 font-semibold uppercase tracking-[0.1em]">Open</div>
         </button>
 
         <button
           type="button"
           onClick={() => setIsPlanChoiceOpen(true)}
-          className="w-full bg-card rounded-xl p-4 border border-white/5 flex items-center justify-between hover:bg-white/5 transition-colors">
-
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-accent/10 rounded-lg text-accent">
+          className="surface-card rounded-2xl p-5 relative overflow-hidden p-4 flex flex-col justify-between h-full cursor-pointer border border-white/15 hover:border-accent/35 transition-colors group text-left"
+        >
+          <div className="absolute inset-0 bg-gradient-to-b from-black/45 via-black/50 to-black/70" />
+          <div className="relative z-10 flex justify-between items-start">
+            <div className="w-10 h-10 rounded-2xl bg-accent/10 border border-accent/35 flex items-center justify-center text-accent">
               <Dumbbell size={20} />
             </div>
-            <div className="text-left">
-              <div className="font-medium text-white">Create My Workout Plan</div>
-            </div>
+            <img src={emojiRightArrow} alt="" aria-hidden="true" className="h-4 w-4 object-contain opacity-70 group-hover:opacity-100 transition-opacity" />
           </div>
-          <ChevronRight size={20} className="text-text-tertiary" />
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setIsLogoutOpen(true)}
-          className="w-full p-4 rounded-2xl bg-red-500/10 text-red-500 font-marker flex items-center justify-center gap-2 hover:bg-red-500/20 transition-colors"
-        >
-          <LogOut size={20} />
-          Log Out
+          <div className="relative z-10 mt-4 min-w-0">
+            <div className="text-lg leading-none text-white truncate">Create My Workout Plan</div>
+            <div className="text-[10px] text-text-secondary uppercase tracking-[0.12em] mt-1">Plan Builder</div>
+          </div>
+          <div className="relative z-10 mt-3 text-[11px] text-accent font-semibold uppercase tracking-[0.1em]">Start</div>
         </button>
       </div>
+
+      <button
+        type="button"
+        onClick={() => setIsLogoutOpen(true)}
+        className="w-full p-4 rounded-2xl bg-red-500/10 text-red-500 font-marker flex items-center justify-center gap-2 hover:bg-red-500/20 transition-colors"
+      >
+        <LogOut size={20} />
+        Log Out
+      </button>
 
       {isPlanChoiceOpen && (
         <div
