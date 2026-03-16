@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Button } from '../ui/Button';
 import { SelectionCheck } from '../ui/SelectionCheck';
+import { getOnboardingLanguage } from './onboardingI18n';
 interface FitnessBackgroundScreenProps {
   onNext: () => void;
   onDataChange?: (data: any) => void;
@@ -11,6 +12,8 @@ export function FitnessBackgroundScreen({
   onDataChange,
   onboardingData,
 }: FitnessBackgroundScreenProps) {
+  const language = getOnboardingLanguage();
+  const isArabic = language === 'ar';
   const validLevels = new Set(['Beginner', 'Intermediate', 'Advanced']);
   const initialLevel = String(onboardingData?.experienceLevel || 'Intermediate');
   const [level, setLevel] = useState(validLevels.has(initialLevel) ? initialLevel : 'Intermediate');
@@ -19,35 +22,38 @@ export function FitnessBackgroundScreen({
     onNext();
   };
   const levels = [
-  {
-    id: 'Beginner',
-    label: 'Beginner',
-    desc: 'New to lifting'
-  },
-  {
-    id: 'Intermediate',
-    label: 'Intermediate',
-    desc: '1-2 years experience'
-  },
-  {
-    id: 'Advanced',
-    label: 'Advanced',
-    desc: '3+ years experience'
-  }];
+    {
+      id: 'Beginner',
+      label: isArabic ? 'مبتدئ' : 'Beginner',
+      desc: isArabic ? 'جديد على تمارين الحديد' : 'New to lifting',
+    },
+    {
+      id: 'Intermediate',
+      label: isArabic ? 'متوسط' : 'Intermediate',
+      desc: isArabic ? 'خبرة 1-2 سنة' : '1-2 years experience',
+    },
+    {
+      id: 'Advanced',
+      label: isArabic ? 'متقدم' : 'Advanced',
+      desc: isArabic ? 'خبرة 3 سنوات أو أكثر' : '3+ years experience',
+    },
+  ];
 
   return (
     <div className="flex-1 flex flex-col space-y-8">
       <div className="space-y-2">
-        <h2 className="text-2xl font-light text-white">Fitness Background</h2>
+        <h2 className="text-2xl font-light text-white">
+          {isArabic ? 'الخلفية التدريبية' : 'Fitness Background'}
+        </h2>
         <p className="text-text-secondary">
-          Help us understand your starting point.
+          {isArabic ? 'ساعدنا على فهم نقطة البداية لديك.' : 'Help us understand your starting point.'}
         </p>
       </div>
 
       <div className="space-y-6">
         <div className="space-y-3">
           <label className="text-sm font-medium text-text-secondary ml-1">
-            Experience Level
+            {isArabic ? 'مستوى الخبرة' : 'Experience Level'}
           </label>
           <div className="grid grid-cols-1 gap-3">
             {levels.map((l) =>
@@ -75,7 +81,7 @@ export function FitnessBackgroundScreen({
 
       <div className="flex-1" />
 
-      <Button onClick={handleNext}>Next Step</Button>
+      <Button onClick={handleNext}>{isArabic ? 'الخطوة التالية' : 'Next Step'}</Button>
     </div>);
 
 }

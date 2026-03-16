@@ -2,6 +2,12 @@ import React, { useMemo, useState } from 'react';
 import { Button } from '../ui/Button';
 import { SelectionCheck } from '../ui/SelectionCheck';
 import { DEFAULT_ONBOARDING_CONFIG, type SplitOption } from '../../config/onboardingConfig';
+import {
+  getOnboardingLanguage,
+  localizeExperienceLevel,
+  localizeGenderButtonLabel,
+  localizeWorkoutSplitOptions,
+} from './onboardingI18n';
 
 interface WorkoutSplitScreenProps {
   onNext: () => void;
@@ -32,17 +38,20 @@ export function WorkoutSplitScreen({
   options,
   recommendedByDays,
 }: WorkoutSplitScreenProps) {
+  const language = getOnboardingLanguage();
+  const isArabic = language === 'ar';
   const splitOptions = options?.length
     ? options
     : DEFAULT_ONBOARDING_CONFIG.options.workoutSplit;
+  const localizedOptions = localizeWorkoutSplitOptions(splitOptions, language);
   const splitRecommendations = recommendedByDays
     || DEFAULT_ONBOARDING_CONFIG.splitRecommendations;
   const trainingDays = toTrainingDays(onboardingData?.workoutDays);
   const levelLabel = String(onboardingData?.experienceLevel || 'intermediate').trim().toLowerCase();
   const genderLabel = String(onboardingData?.gender || 'unspecified').trim().toLowerCase();
   const availableOptions = useMemo(
-    () => splitOptions.filter((option) => option.days.includes(trainingDays)),
-    [splitOptions, trainingDays],
+    () => localizedOptions.filter((option) => option.days.includes(trainingDays)),
+    [localizedOptions, trainingDays],
   );
   const recommendedId = recommendedSplitForDays(trainingDays, splitRecommendations);
 
@@ -82,9 +91,13 @@ export function WorkoutSplitScreen({
   return (
     <div className="flex-1 flex flex-col space-y-6">
       <div className="space-y-2">
-        <h2 className="text-2xl font-light text-white">Choose your plan type</h2>
+        <h2 className="text-2xl font-light text-white">
+          {isArabic ? 'اختر نوع خطتك' : 'Choose your plan type'}
+        </h2>
         <p className="text-text-secondary">
-          Based on {trainingDays} training day{trainingDays > 1 ? 's' : ''}, {levelLabel} level, and {genderLabel} profile, these are your best-fit options.
+          {isArabic
+            ? `بناءً على ${trainingDays} يوم تدريب، ومستوى ${localizeExperienceLevel(levelLabel, language)}، وملف ${localizeGenderButtonLabel(genderLabel, language)}، هذه أفضل الخيارات لك.`
+            : `Based on ${trainingDays} training day${trainingDays > 1 ? 's' : ''}, ${levelLabel} level, and ${genderLabel} profile, these are your best-fit options.`}
         </p>
       </div>
 
@@ -113,12 +126,12 @@ export function WorkoutSplitScreen({
                 <div className="space-y-1">
                   {option.id === 'custom' && (
                     <span className="inline-flex items-center rounded-full bg-accent/20 text-accent px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide">
-                      Create + AI Feedback
+                      {isArabic ? 'إنشاء + ملاحظات الذكاء الاصطناعي' : 'Create + AI Feedback'}
                     </span>
                   )}
                   {isRecommended && (
                     <span className="inline-flex items-center rounded-full bg-accent px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-black">
-                      Recommended for you
+                      {isArabic ? 'موصى به لك' : 'Recommended for you'}
                     </span>
                   )}
                   <p className="text-sm font-semibold text-white">{option.title}</p>
@@ -135,7 +148,7 @@ export function WorkoutSplitScreen({
       <div className="flex-1" />
 
       <Button onClick={handleNext} disabled={!selectedId}>
-        Next Step
+        {isArabic ? 'الخطوة التالية' : 'Next Step'}
       </Button>
     </div>
   );

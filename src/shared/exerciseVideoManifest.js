@@ -1,6 +1,16 @@
 const normalizeExerciseVideoLookup = (value) =>
   String(value || '')
     .toLowerCase()
+    .replace(/\bskull\s*crusher\b/g, 'skull crusher')
+    .replace(/\bskullcrusher\b/g, 'skull crusher')
+    .replace(/\bkick\s*back\b/g, 'kick back')
+    .replace(/\bkickback\b/g, 'kick back')
+    .replace(/\bpush\s*down\b/g, 'push down')
+    .replace(/\bpushdown\b/g, 'push down')
+    .replace(/\bpress\s*down\b/g, 'push down')
+    .replace(/\bpressdown\b/g, 'push down')
+    .replace(/\bsit\s*up\b/g, 'sit up')
+    .replace(/\bsitup\b/g, 'sit up')
     .replace(/\bpull[\s-]*downs?\b/g, 'pulldown')
     .replace(/\bpull[\s-]*ups?\b/g, 'pullup')
     .replace(/\bchin[\s-]*ups?\b/g, 'chinup')
@@ -46,11 +56,11 @@ const inferExerciseVideoBodyPart = (value) => {
   if (!text) return '';
   if (/(back|lat|lats|trap|traps|rhomboid|erector|teres)/.test(text)) return 'back';
   if (/(chest|pector|pec)/.test(text)) return 'chest';
-  if (/(leg|quad|hamstring|glute|calf)/.test(text)) return 'legs';
+  if (/(leg|quad|hamstring|glute|calf|thigh)/.test(text)) return 'legs';
   if (/(shoulder|delt)/.test(text)) return 'shoulders';
   if (/(bicep|tricep|forearm|arm)/.test(text)) return 'arms';
   if (/(abs|abdom|core|oblique)/.test(text)) return 'abs';
-  return text;
+  return '';
 };
 
 const matchesLookup = (exerciseName, alias) => {

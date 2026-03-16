@@ -15,6 +15,7 @@ import {
   type AthleteSubGroup,
   type AthleteSubItem,
 } from '../../config/onboardingConfig';
+import { getOnboardingLanguage, localizeAthleteOptions } from './onboardingI18n';
 
 interface AthleteIdentityScreenProps {
   onNext: () => void;
@@ -77,9 +78,12 @@ export function AthleteIdentityScreen({
   options,
   groupSelectionLimits,
 }: AthleteIdentityScreenProps) {
+  const language = getOnboardingLanguage();
+  const isArabic = language === 'ar';
   const athleteOptions = options?.length
     ? options
     : DEFAULT_ONBOARDING_CONFIG.options.athleteIdentity;
+  const localizedOptions = localizeAthleteOptions(athleteOptions, language);
   const selectionLimits = groupSelectionLimits
     ? { ...DEFAULT_ONBOARDING_CONFIG.options.athleteIdentityGroupLimits, ...groupSelectionLimits }
     : DEFAULT_ONBOARDING_CONFIG.options.athleteIdentityGroupLimits;
@@ -89,12 +93,12 @@ export function AthleteIdentityScreen({
   const initialSelection = useMemo(() => {
     const saved = String(onboardingData?.athleteIdentity || '').trim().toLowerCase();
     const normalized = LEGACY_MAIN_ID_MAP[saved] || saved;
-    return athleteOptions.some((option) => option.id === normalized) ? normalized : '';
-  }, [athleteOptions, onboardingData?.athleteIdentity]);
+    return localizedOptions.some((option) => option.id === normalized) ? normalized : '';
+  }, [localizedOptions, onboardingData?.athleteIdentity]);
 
   const [selectedId, setSelectedId] = useState(initialSelection);
   const [selectedSubItemsByGroup, setSelectedSubItemsByGroup] = useState<GroupSelectionMap>(() => {
-    const option = athleteOptions.find((entry) => entry.id === initialSelection);
+    const option = localizedOptions.find((entry) => entry.id === initialSelection);
     if (!option) return {};
 
     const fromMap = coerceSelectionMap(onboardingData?.athleteSubCategorySelections);
@@ -118,8 +122,8 @@ export function AthleteIdentityScreen({
   });
 
   const selectedOption = useMemo(
-    () => athleteOptions.find((option) => option.id === selectedId) || null,
-    [athleteOptions, selectedId],
+    () => localizedOptions.find((option) => option.id === selectedId) || null,
+    [localizedOptions, selectedId],
   );
 
   const availableSubItemsByGroup = useMemo(
@@ -246,7 +250,7 @@ export function AthleteIdentityScreen({
   const renderSubCategoryPanel = (option: AthleteOption) => (
     <div className="space-y-4 rounded-2xl border border-white/10 bg-card/60 p-4">
       <h3 className="text-sm font-semibold uppercase tracking-[0.14em] text-accent">
-        {option.label.toUpperCase()} - Sub-Categories
+        {isArabic ? `${option.label} - الفئات الفرعية` : `${option.label.toUpperCase()} - Sub-Categories`}
       </h3>
 
       {option.subGroups.map((group) => (
@@ -255,7 +259,9 @@ export function AthleteIdentityScreen({
             <p className="text-sm font-semibold text-white">{group.title}</p>
             {getGroupLimit(group.id, selectionLimits) > 1 ? (
               <span className="text-[11px] uppercase tracking-[0.12em] text-text-tertiary">
-                Choose up to {getGroupLimit(group.id, selectionLimits)}
+                {isArabic
+                  ? `اختر حتى ${getGroupLimit(group.id, selectionLimits)}`
+                  : `Choose up to ${getGroupLimit(group.id, selectionLimits)}`}
               </span>
             ) : null}
           </div>
@@ -327,26 +333,32 @@ export function AthleteIdentityScreen({
   return (
     <div className="flex-1 flex flex-col space-y-6">
       <div className="space-y-2">
-        <h2 className="text-2xl font-light text-white">I AM</h2>
-        <p className="text-text-secondary">Choose one profile and one specific goal.</p>
+        <h2 className="text-2xl font-light text-white">{isArabic ? 'أنا' : 'I AM'}</h2>
+        <p className="text-text-secondary">
+          {isArabic ? 'اختر ملفًا واحدًا وهدفًا محددًا.' : 'Choose one profile and one specific goal.'}
+        </p>
       </div>
 
       <div className="space-y-5">
         <div className="space-y-3">
-          <h3 className="text-xs font-semibold uppercase tracking-[0.14em] text-accent">FITNESS / PHYSIQUE</h3>
-          <div className="space-y-3">{athleteOptions.filter((option) => option.category === 'fitness').map(renderMainOptionCard)}</div>
+          <h3 className="text-xs font-semibold uppercase tracking-[0.14em] text-accent">
+            {isArabic ? 'لياقة / هيئة' : 'FITNESS / PHYSIQUE'}
+          </h3>
+          <div className="space-y-3">{localizedOptions.filter((option) => option.category === 'fitness').map(renderMainOptionCard)}</div>
         </div>
 
         <div className="space-y-3">
-          <h3 className="text-xs font-semibold uppercase tracking-[0.14em] text-accent">ATHLETE SPORTS</h3>
-          <div className="space-y-3">{athleteOptions.filter((option) => option.category === 'athlete_sports').map(renderMainOptionCard)}</div>
+          <h3 className="text-xs font-semibold uppercase tracking-[0.14em] text-accent">
+            {isArabic ? 'رياضات الرياضيين' : 'ATHLETE SPORTS'}
+          </h3>
+          <div className="space-y-3">{localizedOptions.filter((option) => option.category === 'athlete_sports').map(renderMainOptionCard)}</div>
         </div>
       </div>
 
       <div className="flex-1" />
 
       <Button onClick={onNext} disabled={!canContinue}>
-        Continue
+        {isArabic ? 'متابعة' : 'Continue'}
       </Button>
     </div>
   );

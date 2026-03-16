@@ -1,6 +1,11 @@
 import React, { useEffect, useState } from 'react';
 import { Button } from '../ui/Button';
 import { DEFAULT_ONBOARDING_CONFIG, type SelectOption, type WorkoutDaysRange } from '../../config/onboardingConfig';
+import {
+  getOnboardingLanguage,
+  localizePreferredTimeOptions,
+  localizeSessionDurationOptions,
+} from './onboardingI18n';
 interface GoalsAvailabilityScreenProps {
   onNext: () => void;
   onDataChange?: (data: any) => void;
@@ -17,12 +22,16 @@ export function GoalsAvailabilityScreen({
   preferredTimeOptions,
   workoutDaysRange,
 }: GoalsAvailabilityScreenProps) {
+  const language = getOnboardingLanguage();
+  const isArabic = language === 'ar';
   const durationOptions = sessionDurationOptions?.length
     ? sessionDurationOptions
     : DEFAULT_ONBOARDING_CONFIG.options.sessionDurations;
   const timeOptions = preferredTimeOptions?.length
     ? preferredTimeOptions
     : DEFAULT_ONBOARDING_CONFIG.options.preferredTimes;
+  const localizedDurations = localizeSessionDurationOptions(durationOptions, language);
+  const localizedTimes = localizePreferredTimeOptions(timeOptions, language);
   const daysRange = workoutDaysRange || DEFAULT_ONBOARDING_CONFIG.options.workoutDaysRange;
 
   const normalizeDays = (value: unknown) => {
@@ -86,14 +95,16 @@ export function GoalsAvailabilityScreen({
   return (
     <div className="flex-1 flex flex-col space-y-8">
       <div className="space-y-2">
-        <h2 className="text-2xl font-light text-white">Availability</h2>
-        <p className="text-text-secondary">How often can you train?</p>
+        <h2 className="text-2xl font-light text-white">{isArabic ? 'الوقت المتاح' : 'Availability'}</h2>
+        <p className="text-text-secondary">
+          {isArabic ? 'كم مرة يمكنك التدريب؟' : 'How often can you train?'}
+        </p>
       </div>
 
       <div className="space-y-8">
         <div className="space-y-2">
           <p className="text-[11px] font-semibold uppercase tracking-[0.1em] text-text-secondary ml-1">
-            Days Per Week
+            {isArabic ? 'الأيام في الأسبوع' : 'Days Per Week'}
           </p>
           <div className="grid grid-cols-5 gap-2">
             {dayOptions.map((value) => {
@@ -118,10 +129,10 @@ export function GoalsAvailabilityScreen({
         </div>
         <div className="space-y-2">
           <p className="text-[11px] font-semibold uppercase tracking-[0.1em] text-text-secondary ml-1">
-            Session Duration
+            {isArabic ? 'مدة الجلسة' : 'Session Duration'}
           </p>
           <div className="grid grid-cols-2 gap-2">
-            {durationOptions.map((option) => {
+            {localizedDurations.map((option) => {
               const optionValue = String(option.value || '');
               const selected = duration === optionValue;
               return (
@@ -145,10 +156,10 @@ export function GoalsAvailabilityScreen({
 
         <div className="space-y-2">
           <p className="text-[11px] font-semibold uppercase tracking-[0.1em] text-text-secondary ml-1">
-            Preferred Time
+            {isArabic ? 'الوقت المفضل' : 'Preferred Time'}
           </p>
           <div className="grid grid-cols-3 gap-2">
-            {timeOptions.map((option) => {
+            {localizedTimes.map((option) => {
               const optionValue = String(option.value || '').trim().toLowerCase();
               const selected = time === optionValue;
               return (
@@ -174,7 +185,7 @@ export function GoalsAvailabilityScreen({
 
       <div className="flex-1" />
 
-      <Button onClick={handleNext}>Next Step</Button>
+      <Button onClick={handleNext}>{isArabic ? 'الخطوة التالية' : 'Next Step'}</Button>
     </div>);
 
 }

@@ -2,6 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { Button } from '../ui/Button';
 import { SelectionCheck } from '../ui/SelectionCheck';
 import { DEFAULT_ONBOARDING_CONFIG, type PlanOption } from '../../config/onboardingConfig';
+import { getOnboardingLanguage, localizeSportPlanOptions } from './onboardingI18n';
 
 interface SportPlanChoiceScreenProps {
   onNext: () => void;
@@ -17,9 +18,12 @@ export function SportPlanChoiceScreen({
   onboardingData,
   options,
 }: SportPlanChoiceScreenProps) {
+  const language = getOnboardingLanguage();
+  const isArabic = language === 'ar';
   const planOptions = options?.length
     ? options
     : DEFAULT_ONBOARDING_CONFIG.options.sportPlan;
+  const localizedOptions = localizeSportPlanOptions(planOptions, language);
   const initialSelection = useMemo(() => {
     const saved = String(onboardingData?.workoutSplitPreference || '').trim().toLowerCase();
     return saved === 'custom' ? 'custom' : 'auto';
@@ -28,7 +32,7 @@ export function SportPlanChoiceScreen({
   const [selectedId, setSelectedId] = useState<string>(initialSelection);
 
   const persistSelection = (nextId: string) => {
-    const selectedOption = planOptions.find((option) => option.id === nextId);
+    const selectedOption = localizedOptions.find((option) => option.id === nextId);
     if (!selectedOption) return;
     onDataChange?.({
       workoutSplitPreference: selectedOption.id,
@@ -52,12 +56,16 @@ export function SportPlanChoiceScreen({
   return (
     <div className="flex-1 flex flex-col space-y-6">
       <div className="space-y-2">
-        <h2 className="text-2xl font-light text-white">Plan Generation</h2>
-        <p className="text-text-secondary">Choose how you want to create your workout plan.</p>
+        <h2 className="text-2xl font-light text-white">
+          {isArabic ? 'إنشاء الخطة' : 'Plan Generation'}
+        </h2>
+        <p className="text-text-secondary">
+          {isArabic ? 'اختر الطريقة التي تريد بها إنشاء خطة تدريبك.' : 'Choose how you want to create your workout plan.'}
+        </p>
       </div>
 
       <div className="space-y-3">
-        {planOptions.map((option) => {
+        {localizedOptions.map((option) => {
           const isSelected = selectedId === option.id;
           return (
             <button
@@ -87,7 +95,7 @@ export function SportPlanChoiceScreen({
 
       <div className="flex-1" />
 
-      <Button onClick={handleNext}>Next Step</Button>
+      <Button onClick={handleNext}>{isArabic ? 'الخطوة التالية' : 'Next Step'}</Button>
     </div>
   );
 }

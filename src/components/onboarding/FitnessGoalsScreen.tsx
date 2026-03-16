@@ -2,6 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { Button } from '../ui/Button';
 import { SelectionCheck } from '../ui/SelectionCheck';
 import { DEFAULT_ONBOARDING_CONFIG, type GoalOption } from '../../config/onboardingConfig';
+import { getOnboardingLanguage, localizeFitnessGoals } from './onboardingI18n';
 
 interface FitnessGoalsScreenProps {
   onNext: () => void;
@@ -31,9 +32,12 @@ export function FitnessGoalsScreen({
   onboardingData,
   options,
 }: FitnessGoalsScreenProps) {
+  const language = getOnboardingLanguage();
+  const isArabic = language === 'ar';
   const goalOptions = options?.length
     ? options
     : DEFAULT_ONBOARDING_CONFIG.options.fitnessGoals;
+  const localizedOptions = localizeFitnessGoals(goalOptions, language);
   const initialIds = useMemo(
     () => toSelectedGoalIds(onboardingData, goalOptions),
     [goalOptions, onboardingData],
@@ -41,7 +45,7 @@ export function FitnessGoalsScreen({
   const [selectedIds, setSelectedIds] = useState<string[]>(initialIds);
 
   const persistGoals = (goalIds: string[]) => {
-    const selectedOptions = goalOptions.filter((option) => goalIds.includes(option.id));
+    const selectedOptions = localizedOptions.filter((option) => goalIds.includes(option.id));
     const primary = selectedOptions[0] || null;
 
     onDataChange?.({
@@ -68,14 +72,18 @@ export function FitnessGoalsScreen({
   return (
     <div className="flex-1 flex flex-col space-y-5">
       <div className="space-y-2">
-        <h2 className="text-2xl font-light text-white">What are your top fitness goals?</h2>
+        <h2 className="text-2xl font-light text-white">
+          {isArabic ? 'ما أهم أهدافك في اللياقة؟' : 'What are your top fitness goals?'}
+        </h2>
         <p className="text-text-secondary">
-          This helps us tailor the right exercises and set targets for your plan.
+          {isArabic
+            ? 'يساعدنا ذلك على اختيار التمارين المناسبة وتحديد أهداف خطتك.'
+            : 'This helps us tailor the right exercises and set targets for your plan.'}
         </p>
       </div>
 
       <div className="rounded-2xl border border-white/10 bg-card/70 overflow-hidden">
-        {goalOptions.map((option, index) => {
+        {localizedOptions.map((option, index) => {
           const selected = selectedIds.includes(option.id);
           return (
             <button
@@ -91,7 +99,7 @@ export function FitnessGoalsScreen({
                   {option.tag ? (
                     <span
                       className={`inline-flex rounded px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.08em] ${
-                        option.tag === 'Popular'
+                        option.tag === 'Popular' || option.tag === 'شائع'
                           ? 'bg-[#10b981] text-black'
                           : 'bg-white text-black'
                       }`}
@@ -115,7 +123,7 @@ export function FitnessGoalsScreen({
       <div className="flex-1" />
 
       <Button onClick={handleContinue} disabled={!selectedIds.length}>
-        Continue
+        {isArabic ? 'متابعة' : 'Continue'}
       </Button>
     </div>
   );

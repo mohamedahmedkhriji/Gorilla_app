@@ -3,6 +3,11 @@ import { Dumbbell, HeartPulse, ShieldAlert, Sparkles, Wrench } from 'lucide-reac
 import { Button } from '../ui/Button';
 import { ModernSelect } from '../ui/ModernSelect';
 import { DEFAULT_ONBOARDING_CONFIG, type SimpleOption } from '../../config/onboardingConfig';
+import {
+  getOnboardingLanguage,
+  localizeRecoveryOptions,
+  localizeTrainingFocusOptions,
+} from './onboardingI18n';
 
 interface AIPlanTuningScreenProps {
   onNext: () => void;
@@ -28,12 +33,16 @@ export function AIPlanTuningScreen({
   trainingFocusOptions,
   recoveryStrategyOptions,
 }: AIPlanTuningScreenProps) {
+  const language = getOnboardingLanguage();
+  const isArabic = language === 'ar';
   const trainingOptions = trainingFocusOptions?.length
     ? trainingFocusOptions
     : DEFAULT_ONBOARDING_CONFIG.options.aiTrainingFocus;
   const recoveryOptions = recoveryStrategyOptions?.length
     ? recoveryStrategyOptions
     : DEFAULT_ONBOARDING_CONFIG.options.aiRecoveryPriority;
+  const localizedTrainingOptions = localizeTrainingFocusOptions(trainingOptions, language);
+  const localizedRecoveryOptions = localizeRecoveryOptions(recoveryOptions, language);
   const [aiTrainingFocus, setAiTrainingFocus] = useState(
     resolveOptionValue(onboardingData?.aiTrainingFocus, trainingOptions, 'balanced'),
   );
@@ -61,11 +70,15 @@ export function AIPlanTuningScreen({
       <div className="space-y-2">
         <span className="inline-flex items-center gap-2 rounded-full border border-accent/20 bg-accent/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-accent">
           <Sparkles size={12} />
-          AI Plan Tuning
+          {isArabic ? 'ضبط خطة الذكاء الاصطناعي' : 'AI Plan Tuning'}
         </span>
-        <h2 className="text-2xl font-light text-white">Shape how your AI program is built</h2>
+        <h2 className="text-2xl font-light text-white">
+          {isArabic ? 'حدّد كيف تُبنى خطتك بالذكاء الاصطناعي' : 'Shape how your AI program is built'}
+        </h2>
         <p className="text-text-secondary">
-          Fine-tune the coaching style, recovery bias, and equipment constraints before we generate your plan.
+          {isArabic
+            ? 'قم بضبط أسلوب التدريب وأولوية التعافي وقيود المعدات قبل إنشاء الخطة.'
+            : 'Fine-tune the coaching style, recovery bias, and equipment constraints before we generate your plan.'}
         </p>
       </div>
 
@@ -73,7 +86,7 @@ export function AIPlanTuningScreen({
         <div className="space-y-2 rounded-2xl border border-white/8 bg-black/10 p-4">
           <label className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-text-tertiary">
             <Dumbbell size={14} className="text-accent" />
-            Training Focus
+            {isArabic ? 'تركيز التدريب' : 'Training Focus'}
           </label>
           <ModernSelect
             value={aiTrainingFocus}
@@ -81,7 +94,7 @@ export function AIPlanTuningScreen({
               setAiTrainingFocus(nextValue);
               onDataChange?.({ aiTrainingFocus: nextValue });
             }}
-            options={trainingOptions}
+            options={localizedTrainingOptions}
             className="w-full"
           />
         </div>
@@ -89,7 +102,7 @@ export function AIPlanTuningScreen({
         <div className="space-y-2 rounded-2xl border border-white/8 bg-black/10 p-4">
           <label className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-text-tertiary">
             <HeartPulse size={14} className="text-accent" />
-            Recovery Strategy
+            {isArabic ? 'استراتيجية التعافي' : 'Recovery Strategy'}
           </label>
           <ModernSelect
             value={aiRecoveryPriority}
@@ -97,7 +110,7 @@ export function AIPlanTuningScreen({
               setAiRecoveryPriority(nextValue);
               onDataChange?.({ aiRecoveryPriority: nextValue });
             }}
-            options={recoveryOptions}
+            options={localizedRecoveryOptions}
             className="w-full"
           />
         </div>
@@ -105,8 +118,10 @@ export function AIPlanTuningScreen({
         <div className="space-y-2 rounded-2xl border border-white/8 bg-black/10 p-4 sm:col-span-2">
           <label className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-text-tertiary">
             <ShieldAlert size={14} className="text-accent" />
-            Injuries Or Movements To Avoid
-            <span className="text-[10px] font-medium normal-case tracking-normal text-text-secondary">(optional)</span>
+            {isArabic ? 'إصابات أو حركات يجب تجنبها' : 'Injuries Or Movements To Avoid'}
+            <span className="text-[10px] font-medium normal-case tracking-normal text-text-secondary">
+              {isArabic ? '(اختياري)' : '(optional)'}
+            </span>
           </label>
           <textarea
             value={aiLimitations}
@@ -117,15 +132,17 @@ export function AIPlanTuningScreen({
             }}
             rows={3}
             className={`${fieldClassName} resize-none`}
-            placeholder="e.g. lower back pain, avoid overhead pressing"
+            placeholder={isArabic ? 'مثال: ألم أسفل الظهر، تجنب الضغط العلوي' : 'e.g. lower back pain, avoid overhead pressing'}
           />
         </div>
 
         <div className="space-y-2 rounded-2xl border border-white/8 bg-black/10 p-4 sm:col-span-2">
           <label className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-text-tertiary">
             <Wrench size={14} className="text-accent" />
-            Equipment Notes
-            <span className="text-[10px] font-medium normal-case tracking-normal text-text-secondary">(optional)</span>
+            {isArabic ? 'ملاحظات المعدات' : 'Equipment Notes'}
+            <span className="text-[10px] font-medium normal-case tracking-normal text-text-secondary">
+              {isArabic ? '(اختياري)' : '(optional)'}
+            </span>
           </label>
           <input
             value={aiEquipmentNotes}
@@ -135,14 +152,14 @@ export function AIPlanTuningScreen({
               onDataChange?.({ aiEquipmentNotes: nextValue });
             }}
             className={fieldClassName}
-            placeholder="e.g. no barbell bench, dumbbells + cables only"
+            placeholder={isArabic ? 'مثال: لا يوجد بنش بار، دمبل وكوابل فقط' : 'e.g. no barbell bench, dumbbells + cables only'}
           />
         </div>
       </div>
 
       <div className="flex-1" />
 
-      <Button onClick={handleNext}>Next Step</Button>
+      <Button onClick={handleNext}>{isArabic ? 'الخطوة التالية' : 'Next Step'}</Button>
     </div>
   );
 }

@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Button } from '../ui/Button';
 import { api } from '../../services/api';
+import { getOnboardingLanguage } from './onboardingI18n';
 
 type CustomAdvice = {
   summary?: string;
@@ -20,6 +21,8 @@ interface CustomPlanAdviceScreenProps {
 }
 
 export function CustomPlanAdviceScreen({ onComplete, onboardingData, userId }: CustomPlanAdviceScreenProps) {
+  const language = getOnboardingLanguage();
+  const isArabic = language === 'ar';
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [advice, setAdvice] = useState<CustomAdvice | null>(null);
@@ -63,7 +66,7 @@ export function CustomPlanAdviceScreen({ onComplete, onboardingData, userId }: C
         }
       } catch (e) {
         if (cancelled) return;
-        setError(e instanceof Error ? e.message : 'Failed to generate custom-plan advice.');
+        setError(e instanceof Error ? e.message : (isArabic ? 'تعذر إنشاء نصائح الخطة المخصصة.' : 'Failed to generate custom-plan advice.'));
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -78,15 +81,19 @@ export function CustomPlanAdviceScreen({ onComplete, onboardingData, userId }: C
   return (
     <div className="flex-1 flex flex-col space-y-5">
       <div className="space-y-2">
-        <h2 className="text-2xl font-light text-white">AI advice for your custom plan</h2>
+        <h2 className="text-2xl font-light text-white">
+          {isArabic ? 'نصائح الذكاء الاصطناعي لخطةك المخصصة' : 'AI advice for your custom plan'}
+        </h2>
         <p className="text-text-secondary">
-          Your plan is saved. Here are improvements tailored to your profile and schedule.
+          {isArabic
+            ? 'تم حفظ خطتك. إليك تحسينات مخصصة لملفك وجدولك.'
+            : 'Your plan is saved. Here are improvements tailored to your profile and schedule.'}
         </p>
       </div>
 
       {loading && (
         <div className="rounded-2xl border border-white/10 bg-card/70 p-4 text-sm text-text-secondary">
-          Reviewing your plan and generating advice...
+          {isArabic ? 'جاري مراجعة خطتك وإنشاء النصائح...' : 'Reviewing your plan and generating advice...'}
         </div>
       )}
 
@@ -100,13 +107,17 @@ export function CustomPlanAdviceScreen({ onComplete, onboardingData, userId }: C
         <>
           <div className="rounded-2xl border border-accent/30 bg-accent/10 p-4">
             <p className="text-sm text-white">
-              {advice?.summary || 'Your custom plan looks good. Keep progressing with steady overload and recovery.'}
+              {advice?.summary || (isArabic
+                ? 'خطتك المخصصة تبدو جيدة. واصل التقدم مع حمل تدريبي ثابت وتعافٍ كافٍ.'
+                : 'Your custom plan looks good. Keep progressing with steady overload and recovery.')}
             </p>
           </div>
 
           {Array.isArray(advice?.strengths) && advice.strengths.length > 0 && (
             <div className="rounded-2xl border border-white/10 bg-card/70 p-4">
-              <p className="text-xs font-semibold uppercase tracking-[0.1em] text-accent">What is working</p>
+              <p className="text-xs font-semibold uppercase tracking-[0.1em] text-accent">
+                {isArabic ? 'ما يعمل بشكل جيد' : 'What is working'}
+              </p>
               <div className="mt-2 space-y-1.5 text-sm text-text-secondary">
                 {advice.strengths.slice(0, 4).map((item) => (
                   <p key={item}>- {item}</p>
@@ -117,7 +128,9 @@ export function CustomPlanAdviceScreen({ onComplete, onboardingData, userId }: C
 
           {Array.isArray(advice?.recommendations) && advice.recommendations.length > 0 && (
             <div className="rounded-2xl border border-white/10 bg-card/70 p-4">
-              <p className="text-xs font-semibold uppercase tracking-[0.1em] text-accent">AI recommendations</p>
+              <p className="text-xs font-semibold uppercase tracking-[0.1em] text-accent">
+                {isArabic ? 'توصيات الذكاء الاصطناعي' : 'AI recommendations'}
+              </p>
               <div className="mt-2 space-y-1.5 text-sm text-text-secondary">
                 {advice.recommendations.slice(0, 5).map((item) => (
                   <p key={item}>- {item}</p>
@@ -131,7 +144,7 @@ export function CustomPlanAdviceScreen({ onComplete, onboardingData, userId }: C
       <div className="flex-1" />
 
       <Button onClick={onComplete} disabled={loading}>
-        Start Home
+        {isArabic ? 'ابدأ الآن' : 'Start Home'}
       </Button>
     </div>
   );

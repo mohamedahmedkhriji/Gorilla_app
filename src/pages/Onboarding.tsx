@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { OnboardingLayout } from '../components/onboarding/OnboardingLayout';
 import { AppMotivationScreen } from '../components/onboarding/AppMotivationScreen';
 import { WelcomeScreen } from '../components/onboarding/WelcomeScreen';
+import { LanguageScreen } from '../components/onboarding/LanguageScreen';
 import { AthleteIdentityScreen } from '../components/onboarding/AthleteIdentityScreen';
 import { FirstNameScreen } from '../components/onboarding/FirstNameScreen';
 import { PersonalInfoScreen } from '../components/onboarding/PersonalInfoScreen';
@@ -20,6 +21,7 @@ import { BodyAnalysisResultsScreen } from '../components/onboarding/BodyAnalysis
 import { CustomPlanOnboardingScreen } from '../components/onboarding/CustomPlanOnboardingScreen';
 import { CustomPlanAdviceScreen } from '../components/onboarding/CustomPlanAdviceScreen';
 import { api } from '../services/api';
+import { getOnboardingLanguage, resolveOnboardingTitle } from '../components/onboarding/onboardingI18n';
 import {
   DEFAULT_ONBOARDING_CONFIG,
   mergeOnboardingConfig,
@@ -119,6 +121,7 @@ const mergeOnboardingIntoUser = (user: Record<string, any>, patch: Record<string
 
 const STEP_COMPONENTS: Record<OnboardingStepId, React.ComponentType<any>> = {
   welcome: WelcomeScreen,
+  language: LanguageScreen,
   first_name: FirstNameScreen,
   app_motivation: AppMotivationScreen,
   athlete_identity: AthleteIdentityScreen,
@@ -165,8 +168,18 @@ const buildStepIds = (
   const splitPreference = String(onboardingData?.workoutSplitPreference || '').trim().toLowerCase();
   const isCustom = splitPreference === 'custom';
   const includeAiTuning = splitPreference === 'auto';
+  const ensureLanguageStep = (steps: OnboardingStepId[]) => {
+    if (steps.includes('language')) return steps;
+    const welcomeIndex = steps.indexOf('welcome');
+    if (welcomeIndex >= 0) {
+      const next = [...steps];
+      next.splice(welcomeIndex + 1, 0, 'language');
+      return next;
+    }
+    return ['language', ...steps];
+  };
   const base = [
-    ...config.steps.intro,
+    ...ensureLanguageStep(config.steps.intro),
     ...(track === 'bodybuilding' ? config.steps.bodybuilding : config.steps.sport),
   ];
 
@@ -198,6 +211,7 @@ export function Onboarding({ onComplete }: OnboardingProps) {
   const [onboardingData, setOnboardingData] = useState<any>({});
   const [remoteConfig, setRemoteConfig] = useState<Partial<OnboardingConfig> | null>(null);
   const [currentStepId, setCurrentStepId] = useState<OnboardingStepId | null>(null);
+  const onboardingLanguage = getOnboardingLanguage();
 
   const handleDataChange = useCallback((data: any) => {
     setOnboardingData((prev: any) => {
@@ -380,7 +394,11 @@ export function Onboarding({ onComplete }: OnboardingProps) {
       currentStep={stepIndex}
       totalSteps={steps.length}
       onBack={back}
-      title={currentStep?.meta?.title || ''}
+      title={
+        currentStep
+          ? resolveOnboardingTitle(currentStep.id, currentStep?.meta?.title || '', onboardingLanguage)
+          : ''
+      }
       showBack={currentStep?.meta?.showBack !== false}
       showHeader={currentStep?.meta?.showHeader !== false}
       showProgress={currentStep?.meta?.showProgress !== false}

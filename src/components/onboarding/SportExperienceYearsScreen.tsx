@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { Button } from '../ui/Button';
 import { SelectionCheck } from '../ui/SelectionCheck';
+import { getOnboardingLanguage } from './onboardingI18n';
 
 interface SportExperienceYearsScreenProps {
   onNext: () => void;
@@ -36,6 +37,8 @@ export function SportExperienceYearsScreen({
   onDataChange,
   onboardingData,
 }: SportExperienceYearsScreenProps) {
+  const language = getOnboardingLanguage();
+  const isArabic = language === 'ar';
   const sportName = useMemo(
     () => normalizeAthleteName(onboardingData?.athleteIdentityLabel, onboardingData?.athleteIdentity),
     [onboardingData?.athleteIdentity, onboardingData?.athleteIdentityLabel],
@@ -65,20 +68,31 @@ export function SportExperienceYearsScreen({
   return (
     <div className="flex-1 flex flex-col space-y-8">
       <div className="space-y-2">
-        <h2 className="text-2xl font-light text-white">Fitness Background</h2>
+        <h2 className="text-2xl font-light text-white">
+          {isArabic ? 'الخلفية التدريبية' : 'Fitness Background'}
+        </h2>
         <p className="text-text-secondary">
-          Help us understand your starting point{specialty ? ` for ${specialty}` : ` in ${sportName}`}.
+          {isArabic
+            ? `ساعدنا على فهم نقطة البداية لديك${specialty ? ` في ${specialty}` : ` في ${sportName}`}.`
+            : `Help us understand your starting point${specialty ? ` for ${specialty}` : ` in ${sportName}`}.`}
         </p>
       </div>
 
       <div className="space-y-6">
         <div className="space-y-3">
-          <label className="text-sm font-medium text-text-secondary ml-1">Experience Level</label>
+          <label className="text-sm font-medium text-text-secondary ml-1">
+            {isArabic ? 'مستوى الخبرة' : 'Experience Level'}
+          </label>
           <div className="grid grid-cols-1 gap-3">
             {LEVELS.map((entry) => {
               const isSelected = level === entry.id;
-              const description =
-                entry.id === 'Beginner'
+              const description = isArabic
+                ? entry.id === 'Beginner'
+                  ? `مبتدئ في تدريب ${specializationLabel}`
+                  : entry.id === 'Intermediate'
+                    ? `خبرة 1-2 سنة في ${specializationLabel}`
+                    : `خبرة 3 سنوات أو أكثر في ${specializationLabel}`
+                : entry.id === 'Beginner'
                   ? `New to ${specializationLabel.toLowerCase()} training`
                   : entry.id === 'Intermediate'
                     ? `1-2 years in ${specializationLabel.toLowerCase()}`
@@ -97,7 +111,15 @@ export function SportExperienceYearsScreen({
                   `}
                 >
                   <div>
-                    <div className="font-medium">{entry.label}</div>
+                    <div className="font-medium">
+                      {isArabic
+                        ? entry.id === 'Beginner'
+                          ? 'مبتدئ'
+                          : entry.id === 'Intermediate'
+                            ? 'متوسط'
+                            : 'متقدم'
+                        : entry.label}
+                    </div>
                     <div className="text-xs opacity-70">{description}</div>
                   </div>
                   {isSelected && <SelectionCheck selected size={20} />}
@@ -110,7 +132,7 @@ export function SportExperienceYearsScreen({
 
       <div className="flex-1" />
 
-      <Button onClick={handleNext}>Next Step</Button>
+      <Button onClick={handleNext}>{isArabic ? 'الخطوة التالية' : 'Next Step'}</Button>
     </div>
   );
 }

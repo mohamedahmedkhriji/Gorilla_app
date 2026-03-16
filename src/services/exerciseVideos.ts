@@ -55,6 +55,15 @@ const REMOVABLE_LOOKUP_TOKENS = new Set([
   'unilateral',
   'alternating',
   'alt',
+  'arms',
+  'arm',
+  'barbell',
+  'dumbbell',
+  'cable',
+  'machine',
+  'smith',
+  'rope',
+  'bfr',
 ]);
 
 const tokenizeLookup = (value: string) =>

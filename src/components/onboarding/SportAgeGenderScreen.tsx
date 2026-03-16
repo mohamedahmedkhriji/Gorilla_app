@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
 import { DEFAULT_ONBOARDING_CONFIG, type SelectOption } from '../../config/onboardingConfig';
+import { getOnboardingLanguage, localizeGenderButtonLabel } from './onboardingI18n';
 
 interface SportAgeGenderScreenProps {
   onNext: () => void;
@@ -21,6 +22,41 @@ export function SportAgeGenderScreen({
   onboardingData,
   genderOptions,
 }: SportAgeGenderScreenProps) {
+  const language = getOnboardingLanguage();
+  const isArabic = language === 'ar';
+  const copy = isArabic
+    ? {
+        title: 'أخبرنا عن نفسك',
+        subtitle: 'نستخدم هذا لضبط خطتك الأولى.',
+        age: 'العمر',
+        gender: 'الجنس',
+        height: 'الطول',
+        weight: 'الوزن',
+        next: 'الخطوة التالية',
+        ageRequired: 'العمر مطلوب',
+        genderRequired: 'الجنس مطلوب',
+        heightRequired: 'الطول مطلوب',
+        weightRequired: 'الوزن مطلوب',
+        agePlaceholder: 'مثال: 28',
+        heightPlaceholder: 'سم',
+        weightPlaceholder: 'كجم',
+      }
+    : {
+        title: 'Tell us about yourself',
+        subtitle: 'We use this to calibrate your initial plan.',
+        age: 'Age',
+        gender: 'Gender',
+        height: 'Height',
+        weight: 'Weight',
+        next: 'Next Step',
+        ageRequired: 'Age is required',
+        genderRequired: 'Gender is required',
+        heightRequired: 'Height is required',
+        weightRequired: 'Weight is required',
+        agePlaceholder: 'e.g. 28',
+        heightPlaceholder: 'cm',
+        weightPlaceholder: 'kg',
+      };
   const genderSelectOptions = genderOptions?.length
     ? genderOptions
     : DEFAULT_ONBOARDING_CONFIG.options.genders;
@@ -49,16 +85,16 @@ export function SportAgeGenderScreen({
     const weightValue = Number(weight);
 
     if (!age.trim() || !Number.isFinite(ageValue) || ageValue <= 0) {
-      nextErrors.age = 'Age is required';
+      nextErrors.age = copy.ageRequired;
     }
     if (!gender.trim()) {
-      nextErrors.gender = 'Gender is required';
+      nextErrors.gender = copy.genderRequired;
     }
     if (!height.trim() || !Number.isFinite(heightValue) || heightValue <= 0) {
-      nextErrors.height = 'Height is required';
+      nextErrors.height = copy.heightRequired;
     }
     if (!weight.trim() || !Number.isFinite(weightValue) || weightValue <= 0) {
-      nextErrors.weight = 'Weight is required';
+      nextErrors.weight = copy.weightRequired;
     }
 
     setErrors(nextErrors);
@@ -79,17 +115,17 @@ export function SportAgeGenderScreen({
   return (
     <div className="flex-1 flex flex-col space-y-6">
       <div className="space-y-2">
-        <h2 className="text-2xl font-light text-white">Tell us about yourself</h2>
-        <p className="text-text-secondary">We use this to calibrate your initial plan.</p>
+        <h2 className="text-2xl font-light text-white">{copy.title}</h2>
+        <p className="text-text-secondary">{copy.subtitle}</p>
       </div>
 
       <div className="space-y-4">
         <Input
-          label="Age"
+          label={copy.age}
           type="number"
           inputMode="numeric"
           pattern="[0-9]*"
-          placeholder="e.g. 28"
+          placeholder={copy.agePlaceholder}
           value={age}
           onChange={(e) => {
             const nextValue = e.target.value;
@@ -104,7 +140,7 @@ export function SportAgeGenderScreen({
 
         <div className="space-y-2">
           <p className="text-sm font-medium text-text-secondary ml-1">
-            Gender <span className="text-accent">*</span>
+            {copy.gender} <span className="text-accent">*</span>
           </p>
           <div className="grid grid-cols-2 gap-3">
             {genderButtonOptions.map((option) => {
@@ -119,13 +155,13 @@ export function SportAgeGenderScreen({
                     onDataChange?.({ gender: option.value });
                     if (errors.gender) setErrors((prev) => ({ ...prev, gender: undefined }));
                   }}
-                  className={`rounded-2xl border px-4 py-3 text-sm font-medium transition-all duration-200 ${
-                    selected
-                      ? 'border-accent bg-accent/15 text-white'
-                      : 'border-white/15 bg-white/[0.03] text-text-secondary hover:border-white/25 hover:bg-white/[0.05]'
-                  }`}
-                >
-                  {option.label}
+                className={`rounded-2xl border px-4 py-3 text-sm font-medium transition-all duration-200 ${
+                  selected
+                    ? 'border-accent bg-accent/15 text-white'
+                    : 'border-white/15 bg-white/[0.03] text-text-secondary hover:border-white/25 hover:bg-white/[0.05]'
+                }`}
+              >
+                  {localizeGenderButtonLabel(option.value, language)}
                 </button>
               );
             })}
@@ -137,8 +173,8 @@ export function SportAgeGenderScreen({
 
         <div className="grid grid-cols-2 gap-4">
           <Input
-            label="Height"
-            placeholder="cm"
+            label={copy.height}
+            placeholder={copy.heightPlaceholder}
             type="number"
             inputMode="decimal"
             pattern="[0-9]*"
@@ -154,8 +190,8 @@ export function SportAgeGenderScreen({
             error={errors.height}
           />
           <Input
-            label="Weight"
-            placeholder="kg"
+            label={copy.weight}
+            placeholder={copy.weightPlaceholder}
             type="number"
             inputMode="decimal"
             pattern="[0-9]*"
@@ -175,7 +211,7 @@ export function SportAgeGenderScreen({
 
       <div className="flex-1" />
 
-      <Button onClick={handleNext}>Next Step</Button>
+      <Button onClick={handleNext}>{copy.next}</Button>
     </div>
   );
 }

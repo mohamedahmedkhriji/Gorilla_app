@@ -2,6 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { Button } from '../ui/Button';
 import { SelectionCheck } from '../ui/SelectionCheck';
 import { DEFAULT_ONBOARDING_CONFIG, type MotivationOption } from '../../config/onboardingConfig';
+import { getOnboardingLanguage, localizeMotivationOptions } from './onboardingI18n';
 
 interface AppMotivationScreenProps {
   onNext: () => void;
@@ -16,9 +17,12 @@ export function AppMotivationScreen({
   onboardingData,
   options,
 }: AppMotivationScreenProps) {
+  const language = getOnboardingLanguage();
+  const isArabic = language === 'ar';
   const motivationOptions = options?.length
     ? options
     : DEFAULT_ONBOARDING_CONFIG.options.appMotivation;
+  const localizedOptions = localizeMotivationOptions(motivationOptions, language);
   const initialSelection = useMemo(() => {
     const saved = String(onboardingData?.appMotivation || '').trim();
     return motivationOptions.some((option) => option.id === saved) ? saved : '';
@@ -27,7 +31,7 @@ export function AppMotivationScreen({
   const [selectedId, setSelectedId] = useState(initialSelection);
 
   const persistMotivation = (nextId: string) => {
-    const selectedOption = motivationOptions.find((option) => option.id === nextId);
+    const selectedOption = localizedOptions.find((option) => option.id === nextId);
     if (!selectedOption) return;
 
     onDataChange?.({
@@ -38,7 +42,7 @@ export function AppMotivationScreen({
   };
 
   const handleNext = () => {
-    const selectedOption = motivationOptions.find((option) => option.id === selectedId);
+    const selectedOption = localizedOptions.find((option) => option.id === selectedId);
     if (!selectedOption) return;
 
     onNext();
@@ -47,14 +51,18 @@ export function AppMotivationScreen({
   return (
     <div className="flex-1 flex flex-col space-y-6">
       <div className="space-y-2">
-        <h2 className="text-2xl font-light text-white">What brings you to RepSet?</h2>
+        <h2 className="text-2xl font-light text-white">
+          {isArabic ? 'ما الذي جاء بك إلى RepSet؟' : 'What brings you to RepSet?'}
+        </h2>
         <p className="text-text-secondary">
-          Pick the main reason so we can tailor your onboarding and first plan.
+          {isArabic
+            ? 'اختر السبب الرئيسي لنخصص لك خطوات البداية والخطة الأولى.'
+            : 'Pick the main reason so we can tailor your onboarding and first plan.'}
         </p>
       </div>
 
       <div className="space-y-4">
-        {motivationOptions.map((option) => {
+        {localizedOptions.map((option) => {
           const isSelected = selectedId === option.id;
           return (
             <button
@@ -85,7 +93,7 @@ export function AppMotivationScreen({
       <div className="flex-1" />
 
       <Button onClick={handleNext} disabled={!selectedId}>
-        Continue
+        {isArabic ? 'متابعة' : 'Continue'}
       </Button>
     </div>
   );

@@ -1,7 +1,8 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Button } from '../ui/Button';
 import { api } from '../../services/api';
 import { stripExercisePrefix } from '../../services/exerciseName';
+import { getOnboardingLanguage } from './onboardingI18n';
 
 interface CustomPlanOnboardingScreenProps {
   onNext: () => void;
@@ -43,6 +44,8 @@ interface ExerciseAutocompleteFieldProps {
   onSelect: (exercise: CatalogExercise) => void;
   placeholder?: string;
   className?: string;
+  noResultsLabel?: string;
+  generalLabel?: string;
 }
 
 const WEEK_DAYS: Array<{ key: string; label: string }> = [
@@ -54,6 +57,26 @@ const WEEK_DAYS: Array<{ key: string; label: string }> = [
   { key: 'saturday', label: 'Sat' },
   { key: 'sunday', label: 'Sun' },
 ];
+
+const DAY_LABELS_AR: Record<string, string> = {
+  monday: 'الاثنين',
+  tuesday: 'الثلاثاء',
+  wednesday: 'الأربعاء',
+  thursday: 'الخميس',
+  friday: 'الجمعة',
+  saturday: 'السبت',
+  sunday: 'الأحد',
+};
+
+const DAY_LABELS_AR_SHORT: Record<string, string> = {
+  monday: 'اثن',
+  tuesday: 'ثلا',
+  wednesday: 'أرب',
+  thursday: 'خم',
+  friday: 'جم',
+  saturday: 'سبت',
+  sunday: 'أحد',
+};
 
 const toTrainingDays = (value: unknown) => {
   const parsed = Number(value);
@@ -69,8 +92,8 @@ const createDefaultExercise = (): ExerciseDraft => ({
   restSeconds: 90,
 });
 
-const createDefaultDayPlan = (dayKey: string): DayPlanDraft => ({
-  workoutName: `${dayKey.charAt(0).toUpperCase()}${dayKey.slice(1)} Workout`,
+const createDefaultDayPlan = (dayKey: string, workoutName?: string): DayPlanDraft => ({
+  workoutName: workoutName || `${dayKey.charAt(0).toUpperCase()}${dayKey.slice(1)} Workout`,
   exercises: [createDefaultExercise()],
 });
 
@@ -100,6 +123,8 @@ function ExerciseAutocompleteField({
   onSelect,
   placeholder = 'Exercise name',
   className = '',
+  noResultsLabel = 'No matching exercise',
+  generalLabel = 'General',
 }: ExerciseAutocompleteFieldProps) {
   const [isOpen, setIsOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement | null>(null);
@@ -169,12 +194,12 @@ function ExerciseAutocompleteField({
               >
                 <div>{stripExercisePrefix(exercise.name)}</div>
                 <div className="text-[11px] uppercase tracking-[0.08em] text-text-secondary">
-                  {getCatalogExerciseMuscle(exercise) || 'General'}
+                  {getCatalogExerciseMuscle(exercise) || generalLabel}
                 </div>
               </button>
             ))
           ) : (
-            <div className="px-3 py-2 text-sm text-text-secondary">No matching exercise</div>
+            <div className="px-3 py-2 text-sm text-text-secondary">{noResultsLabel}</div>
           )}
         </div>
       )}
@@ -187,6 +212,69 @@ export function CustomPlanOnboardingScreen({
   onDataChange,
   onboardingData,
 }: CustomPlanOnboardingScreenProps) {
+  const language = getOnboardingLanguage();
+  const isArabic = language === 'ar';
+  const copy = isArabic
+    ? {
+        title: 'ابنِ خطتك المخصصة',
+        subtitle: 'أنشئ هيكل أسبوعك بنفسك. سيحفظ الذكاء الاصطناعي الخطة ويقترح تحسينات فقط.',
+        planNameLabel: 'اسم الخطة',
+        planDurationLabel: 'المدة (أسابيع)',
+        trainingDays: 'أيام التدريب',
+        addExercise: 'إضافة تمرين',
+        workoutNamePlaceholder: 'اسم التمرين',
+        exerciseNamePlaceholder: 'اسم التمرين',
+        setsPlaceholder: 'المجموعات',
+        repsPlaceholder: 'التكرارات',
+        restPlaceholder: 'الراحة',
+        removeExerciseTitle: 'حذف التمرين',
+        targets: 'يستهدف',
+        saveContinue: 'حفظ والمتابعة',
+        defaultPlanName: 'خطتي المخصصة',
+        noMatch: 'لا توجد تمارين مطابقة',
+        general: 'عام',
+        selectDayError: 'اختر يوم تدريب واحدًا على الأقل.',
+        invalidPlan: 'خطة مخصصة غير صالحة.',
+      }
+    : {
+        title: 'Build your customized plan',
+        subtitle: 'Create your own weekly structure. AI will keep this plan and only provide suggestions to improve it.',
+        planNameLabel: 'Plan Name',
+        planDurationLabel: 'Duration (Weeks)',
+        trainingDays: 'Training Days',
+        addExercise: 'Add Exercise',
+        workoutNamePlaceholder: 'Workout name',
+        exerciseNamePlaceholder: 'Exercise name',
+        setsPlaceholder: 'Sets',
+        repsPlaceholder: 'Reps',
+        restPlaceholder: 'Rest',
+        removeExerciseTitle: 'Remove exercise',
+        targets: 'Targets',
+        saveContinue: 'Save And Continue',
+        defaultPlanName: 'My Custom Plan',
+        noMatch: 'No matching exercise',
+        general: 'General',
+        selectDayError: 'Select at least one training day.',
+        invalidPlan: 'Invalid custom plan.',
+      };
+
+  const capitalize = (value: string) => `${value.charAt(0).toUpperCase()}${value.slice(1)}`;
+  const getDayLabel = useCallback((dayKey: string, variant: 'short' | 'full' = 'short') => {
+    if (isArabic) {
+      return variant === 'short'
+        ? (DAY_LABELS_AR_SHORT[dayKey] || dayKey)
+        : (DAY_LABELS_AR[dayKey] || dayKey);
+    }
+    if (variant === 'short') {
+      return WEEK_DAYS.find((entry) => entry.key === dayKey)?.label || capitalize(dayKey);
+    }
+    return capitalize(dayKey);
+  }, [isArabic]);
+  const getDefaultWorkoutName = useCallback(
+    (dayKey: string) =>
+      isArabic ? `تمرين ${getDayLabel(dayKey, 'full')}` : `${capitalize(dayKey)} Workout`,
+    [getDayLabel, isArabic],
+  );
   const trainingDays = toTrainingDays(onboardingData?.workoutDays);
   const existing = onboardingData?.customPlan || {};
 
@@ -200,7 +288,7 @@ export function CustomPlanOnboardingScreen({
   );
 
   const [planName, setPlanName] = useState<string>(
-    String(existing.planName || 'My Custom Plan'),
+    String(existing.planName || copy.defaultPlanName),
   );
   const [cycleWeeks, setCycleWeeks] = useState<number>(
     Math.max(8, Math.min(16, Number(existing.cycleWeeks || 8))),
@@ -253,10 +341,10 @@ export function CustomPlanOnboardingScreen({
 
     const nextPlans: Record<string, DayPlanDraft> = {};
     WEEK_DAYS.forEach((day) => {
-      nextPlans[day.key] = fromPayload.get(day.key) || createDefaultDayPlan(day.key);
+      nextPlans[day.key] = fromPayload.get(day.key) || createDefaultDayPlan(day.key, getDefaultWorkoutName(day.key));
     });
     return nextPlans;
-  }, [existing.weeklyWorkouts]);
+  }, [existing.weeklyWorkouts, getDefaultWorkoutName]);
 
   const [dayPlans, setDayPlans] = useState<Record<string, DayPlanDraft>>(initialDayPlans);
 
@@ -297,7 +385,7 @@ export function CustomPlanOnboardingScreen({
     ));
     setDayPlans((prev) => ({
       ...prev,
-      [dayKey]: prev[dayKey] || createDefaultDayPlan(dayKey),
+      [dayKey]: prev[dayKey] || createDefaultDayPlan(dayKey, getDefaultWorkoutName(dayKey)),
     }));
   };
 
@@ -385,10 +473,11 @@ export function CustomPlanOnboardingScreen({
 
   useEffect(() => {
     const draftWorkouts = selectedDays.map((dayName) => {
-      const plan = dayPlans[dayName] || createDefaultDayPlan(dayName);
+      const fallbackName = getDefaultWorkoutName(dayName);
+      const plan = dayPlans[dayName] || createDefaultDayPlan(dayName, fallbackName);
       return {
         dayName,
-        workoutName: String(plan.workoutName || `${dayName} workout`).trim() || `${dayName} workout`,
+        workoutName: String(plan.workoutName || fallbackName).trim() || fallbackName,
         workoutType: 'Custom',
         exercises: plan.exercises.map((exercise) => ({
           exerciseName: stripExercisePrefix(String(exercise.exerciseName || '').trim()),
@@ -402,24 +491,25 @@ export function CustomPlanOnboardingScreen({
 
     onDataChange?.({
       customPlan: {
-        planName: String(planName || 'My Custom Plan').trim() || 'My Custom Plan',
+        planName: String(planName || copy.defaultPlanName).trim() || copy.defaultPlanName,
         cycleWeeks: Math.max(8, Math.min(16, Math.round(Number(cycleWeeks || 8)))),
         selectedDays,
         weeklyWorkouts: draftWorkouts,
       },
     });
-  }, [cycleWeeks, dayPlans, onDataChange, planName, selectedDays]);
+  }, [cycleWeeks, dayPlans, onDataChange, planName, selectedDays, copy.defaultPlanName, getDefaultWorkoutName]);
 
   const handleContinue = () => {
     setError('');
     if (!selectedDays.length) {
-      setError('Select at least one training day.');
+      setError(copy.selectDayError);
       return;
     }
 
     try {
       const weeklyWorkouts = selectedDays.map((dayName) => {
         const plan = dayPlans[dayName];
+        const fallbackName = getDefaultWorkoutName(dayName);
         const cleanedExercises = plan.exercises
           .map((exercise) => ({
             exerciseName: stripExercisePrefix(String(exercise.exerciseName || '').trim()),
@@ -431,12 +521,13 @@ export function CustomPlanOnboardingScreen({
           .filter((exercise) => exercise.exerciseName.length > 0 || Boolean(exercise.exerciseCatalogId));
 
         if (!cleanedExercises.length) {
-          throw new Error(`Add at least one exercise for ${dayName}.`);
+          const label = getDayLabel(dayName, 'full');
+          throw new Error(isArabic ? `أضف تمرينًا واحدًا على الأقل ليوم ${label}.` : `Add at least one exercise for ${label}.`);
         }
 
         return {
           dayName,
-          workoutName: String(plan.workoutName || `${dayName} workout`).trim() || `${dayName} workout`,
+          workoutName: String(plan.workoutName || fallbackName).trim() || fallbackName,
           workoutType: 'Custom',
           exercises: cleanedExercises,
         };
@@ -444,7 +535,7 @@ export function CustomPlanOnboardingScreen({
 
       onDataChange?.({
         customPlan: {
-          planName: String(planName || 'My Custom Plan').trim() || 'My Custom Plan',
+          planName: String(planName || copy.defaultPlanName).trim() || copy.defaultPlanName,
           cycleWeeks: Math.max(8, Math.min(16, Math.round(Number(cycleWeeks || 8)))),
           selectedDays,
           weeklyWorkouts,
@@ -452,17 +543,15 @@ export function CustomPlanOnboardingScreen({
       });
       onNext();
     } catch (validationError) {
-      setError(validationError instanceof Error ? validationError.message : 'Invalid custom plan.');
+      setError(validationError instanceof Error ? validationError.message : copy.invalidPlan);
     }
   };
 
   return (
     <div className="flex-1 flex flex-col space-y-5">
       <div className="space-y-2">
-        <h2 className="text-2xl font-light text-white">Build your customized plan</h2>
-        <p className="text-text-secondary">
-          Create your own weekly structure. AI will keep this plan and only provide suggestions to improve it.
-        </p>
+        <h2 className="text-2xl font-light text-white">{copy.title}</h2>
+        <p className="text-text-secondary">{copy.subtitle}</p>
       </div>
 
       {error && (
@@ -473,7 +562,7 @@ export function CustomPlanOnboardingScreen({
 
       <div className="rounded-2xl border border-white/10 bg-card/70 p-4 space-y-3">
         <label className="block">
-          <span className="text-xs uppercase text-text-secondary">Plan Name</span>
+          <span className="text-xs uppercase text-text-secondary">{copy.planNameLabel}</span>
           <input
             value={planName}
             onChange={(e) => setPlanName(e.target.value)}
@@ -483,7 +572,7 @@ export function CustomPlanOnboardingScreen({
         </label>
 
         <label className="block">
-          <span className="text-xs uppercase text-text-secondary">Duration (Weeks)</span>
+          <span className="text-xs uppercase text-text-secondary">{copy.planDurationLabel}</span>
           <input
             type="number"
             min={8}
@@ -496,7 +585,7 @@ export function CustomPlanOnboardingScreen({
       </div>
 
       <div className="rounded-2xl border border-white/10 bg-card/70 p-4">
-        <p className="text-xs uppercase text-text-secondary mb-3">Training Days</p>
+        <p className="text-xs uppercase text-text-secondary mb-3">{copy.trainingDays}</p>
         <div className="grid grid-cols-4 gap-2">
           {WEEK_DAYS.map((day) => {
             const active = selectedDays.includes(day.key);
@@ -511,7 +600,7 @@ export function CustomPlanOnboardingScreen({
                     : 'border-white/10 bg-background text-text-secondary hover:text-white'
                 }`}
               >
-                {day.label}
+                {isArabic ? (DAY_LABELS_AR_SHORT[day.key] || day.label) : day.label}
               </button>
             );
           })}
@@ -521,13 +610,15 @@ export function CustomPlanOnboardingScreen({
       {selectedDays.map((dayKey) => (
         <div key={dayKey} className="rounded-2xl border border-white/10 bg-card/70 p-4 space-y-3">
           <div className="flex items-center justify-between">
-            <p className="font-semibold text-white capitalize">{dayKey} plan</p>
+            <p className="font-semibold text-white">
+              {isArabic ? `خطة ${getDayLabel(dayKey, 'full')}` : `${capitalize(dayKey)} plan`}
+            </p>
             <button
               type="button"
               onClick={() => addExercise(dayKey)}
               className="text-xs text-accent hover:text-white transition-colors"
             >
-              + Add Exercise
+              + {copy.addExercise}
             </button>
           </div>
 
@@ -535,7 +626,7 @@ export function CustomPlanOnboardingScreen({
             value={dayPlans[dayKey].workoutName}
             onChange={(e) => updateWorkoutName(dayKey, e.target.value)}
             className="w-full rounded-lg border border-white/10 bg-background px-3 py-2 text-sm text-white outline-none focus:border-accent/60"
-            placeholder="Workout name"
+            placeholder={copy.workoutNamePlaceholder}
           />
 
           <div className="space-y-2">
@@ -551,7 +642,9 @@ export function CustomPlanOnboardingScreen({
                       onChange={(nextValue) => handleExerciseNameChange(dayKey, index, nextValue)}
                       onSelect={(selected) => handleExerciseSelect(dayKey, index, selected)}
                       className="col-span-12 sm:col-span-5"
-                      placeholder="Exercise name"
+                      placeholder={copy.exerciseNamePlaceholder}
+                      noResultsLabel={copy.noMatch}
+                      generalLabel={copy.general}
                     />
                     <input
                       type="number"
@@ -560,13 +653,13 @@ export function CustomPlanOnboardingScreen({
                       value={exercise.sets}
                       onChange={(e) => updateExercise(dayKey, index, { sets: Number(e.target.value || 1) })}
                       className="col-span-3 sm:col-span-2 rounded-lg border border-white/10 bg-background px-2 py-2 text-sm text-white outline-none focus:border-accent/60"
-                      placeholder="Sets"
+                      placeholder={copy.setsPlaceholder}
                     />
                     <input
                       value={exercise.reps}
                       onChange={(e) => updateExercise(dayKey, index, { reps: e.target.value })}
                       className="col-span-5 sm:col-span-3 rounded-lg border border-white/10 bg-background px-2 py-2 text-sm text-white outline-none focus:border-accent/60"
-                      placeholder="Reps"
+                      placeholder={copy.repsPlaceholder}
                     />
                     <input
                       type="number"
@@ -575,19 +668,19 @@ export function CustomPlanOnboardingScreen({
                       value={exercise.restSeconds}
                       onChange={(e) => updateExercise(dayKey, index, { restSeconds: Number(e.target.value || 90) })}
                       className="col-span-3 sm:col-span-1 rounded-lg border border-white/10 bg-background px-2 py-2 text-sm text-white outline-none focus:border-accent/60"
-                      placeholder="Rest"
+                      placeholder={copy.restPlaceholder}
                     />
                     <button
                       type="button"
                       onClick={() => removeExercise(dayKey, index)}
                       className="col-span-1 text-red-400 hover:text-red-300 text-sm"
-                      title="Remove exercise"
+                      title={copy.removeExerciseTitle}
                     >
                       x
                     </button>
                     {targetLabel && (
                       <p className="col-span-12 text-[11px] text-accent">
-                        Targets: {targetLabel}
+                        {copy.targets}: {targetLabel}
                       </p>
                     )}
                   </div>
@@ -600,7 +693,7 @@ export function CustomPlanOnboardingScreen({
 
       <div className="flex-1" />
 
-      <Button onClick={handleContinue}>Save And Continue</Button>
+      <Button onClick={handleContinue}>{copy.saveContinue}</Button>
     </div>
   );
 }

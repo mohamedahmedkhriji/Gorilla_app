@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Button } from '../ui/Button';
 import { User, Circle, BoxIcon } from 'lucide-react';
 import { SelectionCheck } from '../ui/SelectionCheck';
+import { getOnboardingLanguage } from './onboardingI18n';
 interface BodyTypeSelectionScreenProps {
   onNext: () => void;
   onDataChange?: (data: any) => void;
@@ -12,35 +13,38 @@ export function BodyTypeSelectionScreen({
   onDataChange,
   onboardingData
 }: BodyTypeSelectionScreenProps) {
+  const language = getOnboardingLanguage();
+  const isArabic = language === 'ar';
   const initialBodyType = typeof onboardingData?.bodyType === 'string'
     ? onboardingData.bodyType.toLowerCase()
     : null;
   const [selected, setSelected] = useState<string | null>(initialBodyType);
   const types = [
-  {
-    id: 'ectomorph',
-    name: 'Ectomorph',
-    desc: 'Lean, slim build. Harder to gain mass.',
-    icon: User
-  },
-  {
-    id: 'mesomorph',
-    name: 'Mesomorph',
-    desc: 'Naturally muscular. Gains muscle easily.',
-    icon: BoxIcon
-  },
-  {
-    id: 'endomorph',
-    name: 'Endomorph',
-    desc: 'Broader build. Gains size easily.',
-    icon: Circle
-  },
-  {
-    id: 'unsure',
-    name: 'Not Sure',
-    desc: 'Let RepSet AI analyze your photos.',
-    icon: Zap
-  }];
+    {
+      id: 'ectomorph',
+      name: isArabic ? 'إكتومورف' : 'Ectomorph',
+      desc: isArabic ? 'بنية نحيفة وصعبة في زيادة الكتلة.' : 'Lean, slim build. Harder to gain mass.',
+      icon: User,
+    },
+    {
+      id: 'mesomorph',
+      name: isArabic ? 'ميزومورف' : 'Mesomorph',
+      desc: isArabic ? 'عضلي بطبيعته ويكتسب العضلات بسهولة.' : 'Naturally muscular. Gains muscle easily.',
+      icon: BoxIcon,
+    },
+    {
+      id: 'endomorph',
+      name: isArabic ? 'إندومورف' : 'Endomorph',
+      desc: isArabic ? 'بنية أعرض وتزيد الكتلة بسهولة.' : 'Broader build. Gains size easily.',
+      icon: Circle,
+    },
+    {
+      id: 'unsure',
+      name: isArabic ? 'غير متأكد' : 'Not Sure',
+      desc: isArabic ? 'دع RepSet AI يحلل صورك.' : 'Let RepSet AI analyze your photos.',
+      icon: Zap,
+    },
+  ];
 
   // Mock Zap icon for the last option
   function Zap(props: any) {
@@ -70,9 +74,11 @@ export function BodyTypeSelectionScreen({
   return (
     <div className="flex-1 flex flex-col space-y-6">
       <div className="space-y-2">
-        <h2 className="text-2xl font-bold text-white">Body Type</h2>
+        <h2 className="text-2xl font-bold text-white">{isArabic ? 'نوع الجسم' : 'Body Type'}</h2>
         <p className="text-text-secondary">
-          This helps RepSet personalize your training and recovery.
+          {isArabic
+            ? 'يساعد ذلك RepSet على تخصيص تدريبك وتعافيك.'
+            : 'This helps RepSet personalize your training and recovery.'}
         </p>
       </div>
 
@@ -87,7 +93,7 @@ export function BodyTypeSelectionScreen({
                 setSelected(type.id);
                 onDataChange?.({
                   bodyType: type.id,
-                  bodyTypeLabel: type.name || 'Not Sure',
+                  bodyTypeLabel: type.name || (isArabic ? 'غير متأكد' : 'Not Sure'),
                 });
               }}
               className={`
@@ -126,7 +132,7 @@ export function BodyTypeSelectionScreen({
       <div className="flex-1" />
 
       <Button onClick={handleNext} disabled={!selected}>
-        Next Step
+        {isArabic ? 'الخطوة التالية' : 'Next Step'}
       </Button>
     </div>);
 

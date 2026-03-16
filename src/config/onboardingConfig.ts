@@ -66,6 +66,7 @@ export type WorkoutDaysRange = {
 
 export const ONBOARDING_STEP_IDS = [
   'welcome',
+  'language',
   'first_name',
   'app_motivation',
   'athlete_identity',
@@ -139,7 +140,7 @@ export const DEFAULT_ONBOARDING_CONFIG: OnboardingConfig = {
     defaultTrack: 'sport',
   },
   steps: {
-    intro: ['welcome', 'first_name', 'app_motivation', 'athlete_identity'],
+    intro: ['welcome', 'language', 'first_name', 'app_motivation', 'athlete_identity'],
     bodybuilding: [
       'personal_info',
       'fitness_background',
@@ -157,6 +158,7 @@ export const DEFAULT_ONBOARDING_CONFIG: OnboardingConfig = {
   },
   stepMeta: {
     welcome: { title: '', showBack: false },
+    language: { title: 'Language' },
     first_name: { title: 'First name' },
     app_motivation: { title: 'Motivation' },
     athlete_identity: { title: 'I AM' },
@@ -170,7 +172,7 @@ export const DEFAULT_ONBOARDING_CONFIG: OnboardingConfig = {
     body_image_upload: { title: 'Body Scan' },
     ai_analysis: { title: 'Analyzing', showBack: false },
     body_results: { title: 'Results', showBack: false, showHeader: false, showProgress: false },
-    custom_plan: { title: 'Customize Plan' },
+    custom_plan: { title: 'Customize Plan', showBack: false },
     custom_plan_advice: { title: 'AI Advice', showBack: false },
     sport_age_gender: { title: 'Age & Gender' },
     sport_experience: { title: 'Sports Experience' },

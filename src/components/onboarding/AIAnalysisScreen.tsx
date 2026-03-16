@@ -4,6 +4,7 @@ import { CheckCircle2, Circle } from 'lucide-react';
 import { api } from '../../services/api';
 import { persistStoredUser } from '../../shared/authStorage';
 import { BrandLogo } from '../ui/BrandLogo';
+import { getOnboardingLanguage } from './onboardingI18n';
 
 interface AIAnalysisScreenProps {
   onComplete: () => void;
@@ -11,24 +12,31 @@ interface AIAnalysisScreenProps {
   userId?: number;
 }
 
-const CHECKPOINTS = [
-  'Analyzing your profile and activity level',
-  'Building your personalized training schedule',
-  'Finalizing plan and recovery targets',
-];
-
 export function AIAnalysisScreen({ onComplete, onboardingData, userId }: AIAnalysisScreenProps) {
+  const language = getOnboardingLanguage();
+  const isArabic = language === 'ar';
+  const checkpoints = isArabic
+    ? [
+        'جاري تحليل ملفك ومستوى نشاطك',
+        'جاري بناء جدول تدريبك المخصص',
+        'جاري إنهاء الخطة وأهداف التعافي',
+      ]
+    : [
+        'Analyzing your profile and activity level',
+        'Building your personalized training schedule',
+        'Finalizing plan and recovery targets',
+      ];
   const [isGenerationDone, setIsGenerationDone] = useState(false);
   const [progress, setProgress] = useState(0);
   const [completedSteps, setCompletedSteps] = useState<boolean[]>(
-    () => CHECKPOINTS.map(() => false),
+    () => checkpoints.map(() => false),
   );
   const completedRef = useRef(false);
 
   const checkpointThresholds = useMemo(() => {
-    const count = CHECKPOINTS.length;
-    return CHECKPOINTS.map((_, index) => Math.round(((index + 1) / count) * 100));
-  }, []);
+    const count = checkpoints.length;
+    return checkpoints.map((_, index) => Math.round(((index + 1) / count) * 100));
+  }, [checkpoints]);
 
   useEffect(() => {
     let cancelled = false;
@@ -137,7 +145,7 @@ export function AIAnalysisScreen({ onComplete, onboardingData, userId }: AIAnaly
 
   const roundedProgress = Math.round(progress);
   const completedCount = completedSteps.filter(Boolean).length;
-  const checkpointProgress = Math.round((completedCount / CHECKPOINTS.length) * 100);
+  const checkpointProgress = Math.round((completedCount / checkpoints.length) * 100);
   const displayProgress = Math.max(roundedProgress, checkpointProgress);
 
   useEffect(() => {
@@ -163,7 +171,7 @@ export function AIAnalysisScreen({ onComplete, onboardingData, userId }: AIAnaly
         className="mx-auto w-full max-w-sm rounded-3xl surface-card border border-white/10 px-6 py-8 sm:py-10"
       >
         <h2 className="text-center text-2xl sm:text-[2rem] leading-[1.05] text-white font-bold">
-          Generating your daily schedule...
+          {isArabic ? 'جاري إنشاء جدولك اليومي...' : 'Generating your daily schedule...'}
         </h2>
 
         <div className="mt-10 flex justify-center">
@@ -206,7 +214,7 @@ export function AIAnalysisScreen({ onComplete, onboardingData, userId }: AIAnaly
         </div>
 
         <div className="mt-9 space-y-3.5">
-          {CHECKPOINTS.map((item, index) => {
+          {checkpoints.map((item, index) => {
             const done = completedSteps[index];
             return (
               <div key={item} className="flex items-center gap-3">
@@ -224,7 +232,9 @@ export function AIAnalysisScreen({ onComplete, onboardingData, userId }: AIAnaly
         </div>
 
         <p className="mt-6 text-center text-xs text-text-tertiary">
-          {isGenerationDone ? 'Finalizing your plan...' : 'Preparing everything for you...'}
+          {isGenerationDone
+            ? isArabic ? 'جاري إنهاء خطتك...' : 'Finalizing your plan...'
+            : isArabic ? 'نجهّز كل شيء لك...' : 'Preparing everything for you...'}
         </p>
       </motion.div>
     </div>
