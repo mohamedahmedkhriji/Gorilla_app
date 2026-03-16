@@ -1,6 +1,12 @@
 import React from 'react';
 import { Card } from '../ui/Card';
-import { emojiBooksBg, emojiComingSoon, emojiExercises, emojiExercisesBg } from '../../services/emojiTheme';
+import {
+  emojiBooksBg,
+  emojiComingSoon,
+  emojiExercises,
+  emojiExercisesBg,
+  emojiRightArrow,
+} from '../../services/emojiTheme';
 import { getActiveLanguage, getStoredLanguage } from '../../services/language';
 
 interface EducationSectionProps {
@@ -44,7 +50,7 @@ export function EducationSection({ onExercises, onBooks }: EducationSectionProps
                 </div>
               </div>
               <img
-                src="/assets/emoji/right-arrow.png"
+                src={emojiRightArrow}
                 alt=""
                 aria-hidden="true"
                 className="mb-1 h-[18px] w-[18px] shrink-0 object-contain opacity-70"

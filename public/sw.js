@@ -28,6 +28,7 @@ self.addEventListener('fetch', (event) => {
 
   const requestUrl = new URL(event.request.url);
   const isSameOrigin = requestUrl.origin === self.location.origin;
+  const hasRangeHeader = event.request.headers.has('range');
 
   if (!isSameOrigin) {
     return;
@@ -41,8 +42,10 @@ self.addEventListener('fetch', (event) => {
     event.respondWith(
       fetch(event.request)
         .then((response) => {
-          const copy = response.clone();
-          caches.open(CACHE_NAME).then((cache) => cache.put('/index.html', copy));
+          if (response.ok && response.type === 'basic') {
+            const copy = response.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put('/index.html', copy));
+          }
           return response;
         })
         .catch(async () => {
@@ -60,8 +63,17 @@ self.addEventListener('fetch', (event) => {
       }
 
       return fetch(event.request).then((response) => {
-        const copy = response.clone();
-        caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copy));
+        const isCacheable =
+          response.ok &&
+          response.type === 'basic' &&
+          response.status !== 206 &&
+          !response.headers.has('content-range') &&
+          !hasRangeHeader;
+
+        if (isCacheable) {
+          const copy = response.clone();
+          caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copy));
+        }
         return response;
       });
     }),
