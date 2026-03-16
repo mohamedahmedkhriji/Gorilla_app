@@ -8,6 +8,7 @@ import { TrackerScreen } from '../components/workout/TrackerScreen';
 import { api } from '../services/api';
 import { resolveExerciseVideoUrl } from '../services/exerciseVideos';
 import { formatWorkoutDayLabel, normalizeWorkoutDayKey } from '../services/workoutDayLabel';
+import { getActiveLanguage, getStoredLanguage } from '../services/language';
 import { useScrollToTopOnChange } from '../shared/scroll';
 
 interface WorkoutProps {
@@ -567,6 +568,7 @@ export function Workout({ onBack, workoutDay = 'Push Day', resetSignal = 0 }: Wo
   const workoutSummaryStorageKeys = getWorkoutSummaryStorageKeys(workoutStorageScope);
 
   const [view, setView] = useState<ViewState>('plan');
+  const [videoReturnView, setVideoReturnView] = useState<ViewState>('tracker');
   const [selectedExercise, setSelectedExercise] = useState('Bench Press');
   const [currentWorkoutName, setCurrentWorkoutName] = useState(workoutDay);
   const [currentWorkoutDayLabel, setCurrentWorkoutDayLabel] = useState(formatWorkoutDayLabel(new Date().toLocaleDateString('en-US', { weekday: 'long' }), workoutDay));
@@ -725,14 +727,20 @@ export function Workout({ onBack, workoutDay = 'Push Day', resetSignal = 0 }: Wo
   }, [workoutDay, userId, workoutStorageScope]);
 
   const addExerciseToToday = async (exercise: AddedCatalogExercise) => {
+    const isArabic = getActiveLanguage(getStoredLanguage()) === 'ar';
+    const addCopy = {
+      selectFirst: isArabic ? 'اختر تمرينًا أولاً.' : 'Select an exercise first.',
+      duplicate: isArabic ? 'هذا التمرين موجود بالفعل في تمرين اليوم.' : "This exercise is already in today's workout.",
+      addFail: isArabic ? 'تعذر إضافة التمرين.' : 'Could not add exercise.',
+    };
     const exerciseName = String(exercise?.name || '').trim();
     if (!exerciseName) {
-      return { added: false, reason: 'Select an exercise first.' };
+      return { added: false, reason: addCopy.selectFirst };
     }
 
     const normalizedName = normalizeExerciseName(exerciseName);
     if (todayExercises.some((entry: any) => normalizeExerciseName(entry?.exerciseName) === normalizedName)) {
-      return { added: false, reason: 'This exercise is already in today\'s workout.' };
+      return { added: false, reason: addCopy.duplicate };
     }
 
     const nextExercise = {
@@ -763,7 +771,7 @@ export function Workout({ onBack, workoutDay = 'Push Day', resetSignal = 0 }: Wo
         }
         return { added: true };
       } catch (error) {
-        const message = error instanceof Error ? error.message : 'Could not add exercise.';
+        const message = error instanceof Error ? error.message : addCopy.addFail;
         return { added: false, reason: message };
       }
     }
@@ -1269,6 +1277,11 @@ export function Workout({ onBack, workoutDay = 'Push Day', resetSignal = 0 }: Wo
           setSelectedExercise(exercise);
           setView('tracker');
         }}
+        onPreviewExercise={(exercise) => {
+          setSelectedExercise(exercise);
+          setVideoReturnView('plan');
+          setView('video');
+        }}
         onAddExercise={addExerciseToToday}
         onOpenLatestSummary={() => {
           void openLatestSummary();
@@ -1295,6 +1308,7 @@ export function Workout({ onBack, workoutDay = 'Push Day', resetSignal = 0 }: Wo
         plannedSets={getPlannedSetsForExercise(selectedExercise) || undefined}
         onVideoClick={(exerciseName) => {
           setSelectedExercise(exerciseName);
+          setVideoReturnView('tracker');
           setView('video');
         }}
         savedSets={exerciseSets[selectedExercise]}
@@ -1326,7 +1340,7 @@ export function Workout({ onBack, workoutDay = 'Push Day', resetSignal = 0 }: Wo
       : primaryMuscle;
     return (
       <ExerciseVideoScreen
-        onBack={() => setView('tracker')}
+        onBack={() => setView(videoReturnView)}
         exercise={{
           name: resolvedExerciseName,
           muscle: primaryMuscle,

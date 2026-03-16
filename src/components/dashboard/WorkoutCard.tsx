@@ -2,6 +2,7 @@ import React from 'react';
 import { motion } from 'framer-motion';
 import { Clock3 } from 'lucide-react';
 import { emojiGymWallpaper, emojiRestDayBg } from '../../services/emojiTheme';
+import { getActiveLanguage, getStoredLanguage } from '../../services/language';
 
 type WorkoutExercise = {
   exerciseName?: unknown;
@@ -185,6 +186,62 @@ const estimateDurationMinutes = (
   return Math.max(totalMinutes, exercises.length * 6);
 };
 
+const AR_MUSCLE_LABELS: Record<string, string> = {
+  chest: 'الصدر',
+  back: 'الظهر',
+  shoulders: 'الأكتاف',
+  triceps: 'الترايسبس',
+  biceps: 'البايسبس',
+  forearms: 'الساعد',
+  quadriceps: 'الرباعية',
+  hamstrings: 'الخلفية',
+  calves: 'السمانة',
+  glutes: 'الألوية',
+  legs: 'الأرجل',
+  abs: 'البطن',
+  core: 'الجذع',
+  'rear delts': 'الدالية الخلفية',
+  'side delts': 'الدالية الجانبية',
+  'front delts': 'الدالية الأمامية',
+  'upper back': 'أعلى الظهر',
+  'lower back': 'أسفل الظهر',
+  lats: 'اللاتس',
+  mobility: 'الحركة',
+  walking: 'المشي',
+  sleep: 'النوم',
+  'full body': 'كامل الجسم',
+};
+
+const localizeWorkoutTitle = (value: string, isArabic: boolean) => {
+  if (!isArabic) return value;
+  let next = String(value || '').trim();
+  if (!next) return next;
+
+  next = next.replace(/^(?:week\s*\d+\s*-\s*){2,}/i, (match) => {
+    const single = match.match(/week\s*\d+\s*-\s*/i)?.[0];
+    return single || match;
+  });
+
+  next = next.replace(/week\s*(\d+)/gi, 'الأسبوع $1');
+  next = next.replace(/\brest day\b/gi, 'يوم راحة');
+  next = next.replace(/\bcustom workout\b/gi, 'تمرين مخصص');
+  next = next.replace(/\bworkout\b/gi, 'تمرين');
+  next = next.replace(/\bpush day\b/gi, 'يوم الدفع');
+  next = next.replace(/\bpull day\b/gi, 'يوم السحب');
+  next = next.replace(/\bleg day\b/gi, 'يوم الأرجل');
+  next = next.replace(/\bupper body\b/gi, 'الجزء العلوي');
+  next = next.replace(/\blower body\b/gi, 'الجزء السفلي');
+  next = next.replace(/\bfull body\b/gi, 'كامل الجسم');
+  next = next.replace(/\bpush\b/gi, 'دفع');
+  next = next.replace(/\bpull\b/gi, 'سحب');
+  next = next.replace(/\blegs?\b/gi, 'أرجل');
+  next = next.replace(/^(?:الأسبوع\s*\d+\s*-\s*){2,}/, (match) => {
+    const single = match.match(/الأسبوع\s*\d+\s*-\s*/)?.[0];
+    return single || match;
+  });
+  return next;
+};
+
 export function WorkoutCard({
   title,
   workoutType = '',
@@ -194,6 +251,22 @@ export function WorkoutCard({
   progress,
   isRestDay = false,
 }: WorkoutCardProps) {
+  const isArabic = getActiveLanguage(getStoredLanguage()) === 'ar';
+  const copy = {
+    todayPlan: isArabic ? 'خطة اليوم' : 'Today\'s Plan',
+    restDay: isArabic ? 'يوم راحة' : 'Rest Day',
+    restAndRecover: isArabic ? 'راحة وتعافٍ' : 'Rest and recover',
+    fullBodyFocus: isArabic ? 'تركيز كامل للجسم' : 'Full body focus',
+    exercisesLabel: (count: number) => {
+      if (!isArabic) return `${count} ${count === 1 ? 'exercise' : 'exercises'}`;
+      return `${count} ${count === 1 ? 'تمرين' : 'تمارين'}`;
+    },
+    estimated: (minutes: number) =>
+      isArabic ? `المدة المتوقعة ${minutes} دقيقة` : `Estimated ${minutes} min`,
+    startWorkout: isArabic ? 'ابدأ التمرين' : 'Start Workout',
+    complete: isArabic ? 'مكتمل' : 'Complete',
+    recovery: isArabic ? 'تعافٍ' : 'Recovery',
+  };
   const normalizedTitle = String(title || '').trim().toLowerCase();
   const normalizedType = String(workoutType || '').trim().toLowerCase();
   const looksLikeRestDay =
@@ -229,12 +302,19 @@ export function WorkoutCard({
         ? `${toTitleCase(cleanWorkoutLabel(workoutType))} Day`
         : inferredWorkoutLabel || 'Workout';
   const targetMusclesLabel = isResolvedRestDay
-    ? 'Rest and recover'
+    ? copy.restAndRecover
     : targetMuscles.length
-      ? targetMuscles.join(' - ')
+      ? targetMuscles
+        .map((entry) => {
+          if (!isArabic) return entry;
+          const key = String(entry || '').trim().toLowerCase();
+          return AR_MUSCLE_LABELS[key] || entry;
+        })
+        .join(' - ')
       : !isGenericWorkoutLabel(workoutLabel)
-        ? toTitleCase(workoutLabel)
-        : 'Full body focus';
+        ? (isArabic ? localizeWorkoutTitle(toTitleCase(workoutLabel), true) : toTitleCase(workoutLabel))
+        : copy.fullBodyFocus;
+  const displayTitleText = localizeWorkoutTitle(displayTitle, isArabic);
   const cardBackgroundImage = isResolvedRestDay ? emojiRestDayBg : emojiGymWallpaper;
 
   return (
@@ -267,11 +347,11 @@ export function WorkoutCard({
         <div className="flex min-w-0 flex-col justify-between self-stretch text-left">
           <div>
             <div className="text-sm font-medium text-text-secondary">
-              {isResolvedRestDay ? 'Rest Day' : 'Today\'s Plan'}
+              {isResolvedRestDay ? copy.restDay : copy.todayPlan}
             </div>
 
             <h3 className="mt-2 text-[1.9rem] font-electrolize font-bold leading-tight text-text-primary">
-              {displayTitle}
+              {displayTitleText}
             </h3>
 
             <p className="mt-1 text-sm text-text-secondary">
@@ -280,14 +360,14 @@ export function WorkoutCard({
 
             <div className="mt-4 space-y-1.5 text-sm font-medium text-text-secondary">
               {isResolvedRestDay ? (
-                <div>Rest Day</div>
+                <div>{copy.restDay}</div>
               ) : (
                 <>
-                  <div>{resolvedExerciseCount} {resolvedExerciseCount === 1 ? 'exercise' : 'exercises'}</div>
+                  <div>{copy.exercisesLabel(resolvedExerciseCount)}</div>
                   {!!durationMinutes && (
                     <div className="flex items-center gap-1.5">
                       <Clock3 size={13} className="text-text-tertiary" />
-                      <span>Estimated {durationMinutes} min</span>
+                      <span>{copy.estimated(durationMinutes)}</span>
                     </div>
                   )}
                 </>
@@ -300,7 +380,7 @@ export function WorkoutCard({
               type="button"
               className="mt-5 inline-flex w-fit items-center justify-center whitespace-nowrap rounded-full border border-accent/30 bg-accent/20 px-7 py-2.5 text-sm font-marker text-text-primary shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_8px_18px_rgba(0,0,0,0.18)]"
             >
-              Start Workout
+              {copy.startWorkout}
             </button>
           )}
         </div>
@@ -344,7 +424,7 @@ export function WorkoutCard({
           </div>
 
           <span className="mt-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-text-tertiary">
-            {isResolvedRestDay ? 'Recovery' : 'Complete'}
+            {isResolvedRestDay ? copy.recovery : copy.complete}
           </span>
         </div>
       </div>

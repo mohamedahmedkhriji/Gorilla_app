@@ -16,8 +16,8 @@ import {
 } from 'lucide-react';
 import { api } from '../services/api';
 import { Header } from '../components/ui/Header';
-import { ModernSelect } from '../components/ui/ModernSelect';
 import { clearStoredUserSession, getStoredAppUser, getStoredUserId } from '../shared/authStorage';
+import { AppLanguage, getActiveLanguage, getStoredLanguage } from '../services/language';
 
 type PostCategory = 'Training' | 'Nutrition' | 'Recovery' | 'Mindset';
 type FeedCategory = 'All' | 'Women' | PostCategory;
@@ -64,6 +64,189 @@ const FEED_PAGE_LIMIT = 20;
 const DESCRIPTION_MAX_LENGTH = 5000;
 const MEDIA_PAYLOAD_LIMIT = 8000000;
 
+const BLOGS_I18N = {
+  en: {
+    refreshFeedAria: 'Refresh feed',
+    createPostAria: 'Create new post',
+    subtitle: 'Training, nutrition, recovery and mindset updates from the community.',
+    categories: {
+      All: 'All',
+      Women: 'Women',
+      Training: 'Training',
+      Nutrition: 'Nutrition',
+      Recovery: 'Recovery',
+      Mindset: 'Mindset',
+    },
+    noPosts: 'No posts yet. Tap + to add your first post.',
+    noCategoryPosts: (categoryLabel: string) => `No ${categoryLabel.toLowerCase()} posts in the loaded feed yet.`,
+    showAllCategories: 'Show all categories',
+    loading: 'Loading...',
+    loadMore: 'Load more',
+    loadingMorePosts: 'Loading more posts...',
+    loadMorePosts: 'Load more posts',
+    caughtUp: 'You are all caught up.',
+    womenOnly: 'Women only',
+    postOptions: 'Post options',
+    deletePost: 'Delete post',
+    hidePost: 'Hide post',
+    deleteConfirm: 'Delete this post? This cannot be undone.',
+    deleteTitle: 'Delete Post',
+    deleteMessage: 'Are you sure you want to delete this post? This action cannot be undone.',
+    deleteCancel: 'Cancel',
+    deleteConfirmButton: 'Delete',
+    sharePostAria: 'Share post',
+    shareTitle: 'Share Post',
+    closeShare: 'Close share modal',
+    shareEmpty: 'Choose where you want to share this post.',
+    copyLink: 'Copy Link',
+    linkCopied: 'Link copied.',
+    linkCopiedInstagram: 'Link copied. Paste it into Instagram DM.',
+    linkCopyFailed: 'Could not copy link automatically.',
+    closeFullScreen: 'Close full screen posts',
+    newPostTitle: 'New Post',
+    newPostPlaceholder: 'Share your update...',
+    womenOnlyLabel: 'Post for women only',
+    womenOnlyHint: 'Only women will see this post in the blog feed.',
+    uploadMedia: 'Upload image or video',
+    newPostPreviewAlt: 'New post preview',
+    publishing: 'Publishing...',
+    publish: 'Publish Post',
+    commentsTitle: 'Comments',
+    existingComments: (count: number) => `Existing comments: ${count}`,
+    loadingComments: 'Loading comments...',
+    noComments: 'No comments yet. Add one below.',
+    addCommentPlaceholder: 'Add a comment...',
+    postComment: 'Post Comment',
+    postedRecently: 'Posted recently',
+    postedRecentlyShort: 'recently',
+    postedJustNow: 'Posted just now',
+    postedJustNowShort: 'just now',
+    postedMinutes: (value: number) => `Posted ${value}m ago`,
+    postedMinutesShort: (value: number) => `${value}m ago`,
+    postedHours: (value: number) => `Posted ${value}h ago`,
+    postedHoursShort: (value: number) => `${value}h ago`,
+    postedDays: (value: number) => `Posted ${value}d ago`,
+    postedDaysShort: (value: number) => `${value}d ago`,
+    shareDefaultDescription: 'Check out this post on RepSet.',
+    shareCopiedFeedback: 'Link copied.',
+    shareCopiedInstagramFeedback: 'Link copied. Paste it into Instagram DM.',
+    shareCopyFailedFeedback: 'Could not copy link automatically.',
+    errorDeletePost: 'Failed to delete post',
+    errorMissingUser: 'Missing logged-in user id. Please login again.',
+    errorLoadFeed: 'Failed to load blog feed',
+    errorLoadMore: 'Failed to load more posts',
+    errorUpdateLike: 'Failed to update like',
+    errorLoadComments: 'Failed to load comments',
+    errorPostComment: 'Failed to post comment',
+    errorReadFile: 'Failed to read uploaded file.',
+    errorFileTooLarge: 'Media file is too large.',
+    errorDescriptionRequired: 'Write a short post description.',
+    errorDescriptionTooLong: (max: number) => `Description is too long (max ${max} characters).`,
+    errorMediaRequired: 'Upload an image or video.',
+    errorPublish: 'Failed to publish post',
+    errorCopyLink: 'Copy to clipboard failed',
+    commentRequired: 'Write a comment before posting.',
+    mediaAlt: 'Post media',
+    mediaAltUserUpload: 'User uploaded media',
+    fallbackUser: 'User',
+    avatarAlt: (name: string) => `${name} avatar`,
+    uploadTitle: 'Creating Post',
+    uploadMessage: 'Please wait a moment...',
+    maxTwoCategories: 'Choose up to 2 categories',
+  },
+  ar: {
+    refreshFeedAria: 'تحديث الخلاصة',
+    createPostAria: 'إنشاء منشور جديد',
+    subtitle: 'تحديثات التدريب والتغذية والاستشفاء والعقلية من المجتمع.',
+    categories: {
+      All: 'الكل',
+      Women: 'للنساء',
+      Training: 'التدريب',
+      Nutrition: 'التغذية',
+      Recovery: 'الاستشفاء',
+      Mindset: 'العقلية',
+    },
+    noPosts: 'لا توجد منشورات بعد. اضغط + لإضافة أول منشور لك.',
+    noCategoryPosts: (categoryLabel: string) => `لا توجد منشورات ${categoryLabel} في الخلاصة المحمّلة حتى الآن.`,
+    showAllCategories: 'عرض كل الفئات',
+    loading: 'جارٍ التحميل...',
+    loadMore: 'تحميل المزيد',
+    loadingMorePosts: 'جارٍ تحميل المزيد من المنشورات...',
+    loadMorePosts: 'تحميل المزيد من المنشورات',
+    caughtUp: 'لا توجد منشورات جديدة.',
+    womenOnly: 'للنساء فقط',
+    postOptions: 'خيارات المنشور',
+    deletePost: 'حذف المنشور',
+    hidePost: 'إخفاء المنشور',
+    deleteConfirm: 'هل تريد حذف هذا المنشور؟ لا يمكن التراجع.',
+    deleteTitle: 'حذف المنشور',
+    deleteMessage: 'هل أنت متأكد من حذف هذا المنشور؟ لا يمكن التراجع عن هذا الإجراء.',
+    deleteCancel: 'إلغاء',
+    deleteConfirmButton: 'حذف',
+    sharePostAria: 'مشاركة المنشور',
+    shareTitle: 'مشاركة المنشور',
+    closeShare: 'إغلاق نافذة المشاركة',
+    shareEmpty: 'اختر المكان الذي تريد مشاركة المنشور فيه.',
+    copyLink: 'نسخ الرابط',
+    linkCopied: 'تم نسخ الرابط.',
+    linkCopiedInstagram: 'تم نسخ الرابط. الصقه في رسائل إنستغرام.',
+    linkCopyFailed: 'تعذر نسخ الرابط تلقائيًا.',
+    closeFullScreen: 'إغلاق العرض الكامل للمنشورات',
+    newPostTitle: 'منشور جديد',
+    newPostPlaceholder: 'شارك تحديثك...',
+    womenOnlyLabel: 'منشور للنساء فقط',
+    womenOnlyHint: 'لن يرى هذا المنشور إلا النساء في خلاصة المدونة.',
+    uploadMedia: 'رفع صورة أو فيديو',
+    newPostPreviewAlt: 'معاينة المنشور الجديد',
+    publishing: 'جارٍ النشر...',
+    publish: 'نشر المنشور',
+    commentsTitle: 'التعليقات',
+    existingComments: (count: number) => `التعليقات الحالية: ${count}`,
+    loadingComments: 'جارٍ تحميل التعليقات...',
+    noComments: 'لا توجد تعليقات بعد. أضف تعليقًا بالأسفل.',
+    addCommentPlaceholder: 'أضف تعليقًا...',
+    postComment: 'إرسال التعليق',
+    postedRecently: 'نُشر مؤخرًا',
+    postedRecentlyShort: 'مؤخرًا',
+    postedJustNow: 'نُشر الآن',
+    postedJustNowShort: 'الآن',
+    postedMinutes: (value: number) => `نُشر قبل ${value} دقيقة`,
+    postedMinutesShort: (value: number) => `قبل ${value} دقيقة`,
+    postedHours: (value: number) => `نُشر قبل ${value} ساعة`,
+    postedHoursShort: (value: number) => `قبل ${value} ساعة`,
+    postedDays: (value: number) => `نُشر قبل ${value} يومًا`,
+    postedDaysShort: (value: number) => `قبل ${value} يومًا`,
+    shareDefaultDescription: 'اطّلع على هذا المنشور في RepSet.',
+    shareCopiedFeedback: 'تم نسخ الرابط.',
+    shareCopiedInstagramFeedback: 'تم نسخ الرابط. الصقه في رسائل إنستغرام.',
+    shareCopyFailedFeedback: 'تعذر نسخ الرابط تلقائيًا.',
+    errorDeletePost: 'تعذر حذف المنشور',
+    errorMissingUser: 'معرّف المستخدم غير موجود. يرجى تسجيل الدخول مرة أخرى.',
+    errorLoadFeed: 'تعذر تحميل خلاصة المدونة',
+    errorLoadMore: 'تعذر تحميل المزيد من المنشورات',
+    errorUpdateLike: 'تعذر تحديث الإعجاب',
+    errorLoadComments: 'تعذر تحميل التعليقات',
+    errorPostComment: 'تعذر نشر التعليق',
+    errorReadFile: 'تعذر قراءة الملف المرفوع.',
+    errorFileTooLarge: 'حجم الملف كبير جدًا.',
+    errorDescriptionRequired: 'اكتب وصفًا قصيرًا للمنشور.',
+    errorDescriptionTooLong: (max: number) => `الوصف طويل جدًا (الحد الأقصى ${max} حرفًا).`,
+    errorMediaRequired: 'ارفع صورة أو فيديو.',
+    errorPublish: 'تعذر نشر المنشور',
+    errorCopyLink: 'فشل نسخ الرابط إلى الحافظة',
+    commentRequired: 'اكتب تعليقًا قبل الإرسال.',
+    mediaAlt: 'وسائط المنشور',
+    mediaAltUserUpload: 'وسائط مرفوعة من المستخدم',
+    fallbackUser: 'مستخدم',
+    avatarAlt: (name: string) => `الصورة الرمزية لـ ${name}`,
+    uploadTitle: 'جارٍ إنشاء المنشور',
+    uploadMessage: 'يرجى الانتظار لحظة...',
+    maxTwoCategories: 'اختر حتى فئتين',
+  },
+} as const;
+
+type BlogCopy = typeof BLOGS_I18N.en;
+
 const toCount = (value: unknown) => {
   const n = Number(value);
   return Number.isFinite(n) ? Math.max(0, n) : 0;
@@ -87,22 +270,23 @@ const formatCount = (value: number) => {
   return `${formatted.replace(/\.0$/, '')}K`;
 };
 
-const getPostedAgo = (createdAt: string | null) => {
-  if (!createdAt) return 'Posted recently';
+const getPostedAgo = (createdAt: string | null, copy: BlogCopy, short = false) => {
+  if (!createdAt) return short ? copy.postedRecentlyShort : copy.postedRecently;
   const date = new Date(createdAt);
-  if (Number.isNaN(date.getTime())) return 'Posted recently';
+  if (Number.isNaN(date.getTime())) return short ? copy.postedRecentlyShort : copy.postedRecently;
   const diffMinutes = Math.max(0, Math.floor((Date.now() - date.getTime()) / 60000));
-  if (diffMinutes < 1) return 'Posted just now';
-  if (diffMinutes < 60) return `Posted ${diffMinutes}m ago`;
+  if (diffMinutes < 1) return short ? copy.postedJustNowShort : copy.postedJustNow;
+  if (diffMinutes < 60) return short ? copy.postedMinutesShort(diffMinutes) : copy.postedMinutes(diffMinutes);
   const diffHours = Math.floor(diffMinutes / 60);
-  if (diffHours < 24) return `Posted ${diffHours}h ago`;
-  return `Posted ${Math.floor(diffHours / 24)}d ago`;
+  if (diffHours < 24) return short ? copy.postedHoursShort(diffHours) : copy.postedHours(diffHours);
+  const diffDays = Math.floor(diffHours / 24);
+  return short ? copy.postedDaysShort(diffDays) : copy.postedDays(diffDays);
 };
 
 const mapPost = (raw: Record<string, unknown>): Post => ({
   id: Number(raw.id || 0),
   userId: Number(raw.userId || 0),
-  authorName: String(raw.authorName || 'User'),
+  authorName: String(raw.authorName || ''),
   authorGender: String(raw.authorGender || ''),
   womenOnly: Boolean(raw.womenOnly),
   avatarUrl: String(raw.avatarUrl || ''),
@@ -111,7 +295,7 @@ const mapPost = (raw: Record<string, unknown>): Post => ({
   category: CATEGORY_OPTIONS.includes(raw.category as PostCategory) ? (raw.category as PostCategory) : 'Recovery',
   mediaType: raw.mediaType === 'video' ? 'video' : 'image',
   mediaUrl: String(raw.mediaUrl || ''),
-  mediaAlt: String(raw.mediaAlt || 'Post media'),
+  mediaAlt: typeof raw.mediaAlt === 'string' && raw.mediaAlt.trim() ? String(raw.mediaAlt) : '',
   createdAt: typeof raw.createdAt === 'string' ? raw.createdAt : null,
   likedByMe: Boolean(raw.likedByMe),
   views: toCount((raw.metrics as Record<string, unknown> | undefined)?.views),
@@ -204,6 +388,9 @@ export function Blogs() {
   const [userGender, setUserGender] = useState(() => getUserGender());
   const showWomenFilter = isFemaleGender(userGender);
   const canCreateWomenOnlyPost = showWomenFilter;
+  const [language, setLanguage] = useState<AppLanguage>('en');
+  const copy = BLOGS_I18N[language] || BLOGS_I18N.en;
+  const isArabic = language === 'ar';
   const [posts, setPosts] = useState<Post[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -221,7 +408,7 @@ export function Blogs() {
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [isPublishing, setIsPublishing] = useState(false);
   const [newDescription, setNewDescription] = useState('');
-  const [newCategory, setNewCategory] = useState<PostCategory>('Recovery');
+  const [selectedCategories, setSelectedCategories] = useState<PostCategory[]>(['Recovery']);
   const [newMediaType, setNewMediaType] = useState<'image' | 'video'>('image');
   const [newMediaUrl, setNewMediaUrl] = useState('');
   const [newWomenOnly, setNewWomenOnly] = useState(false);
@@ -233,8 +420,47 @@ export function Blogs() {
   const [newCommentText, setNewCommentText] = useState('');
   const [commentError, setCommentError] = useState('');
   const [openPostMenuId, setOpenPostMenuId] = useState<number | null>(null);
+  const [pendingDeletePostId, setPendingDeletePostId] = useState<number | null>(null);
   const [activeSharePostId, setActiveSharePostId] = useState<number | null>(null);
   const [shareFeedback, setShareFeedback] = useState('');
+
+  const getCategoryLabel = useCallback(
+    (category: FeedCategory) => copy.categories[category] || String(category),
+    [copy],
+  );
+  const getAuthorName = useCallback(
+    (name: string) => name || copy.fallbackUser,
+    [copy],
+  );
+  const primaryCategory = selectedCategories[0] || 'Recovery';
+  const toggleCategorySelection = useCallback(
+    (category: PostCategory) => {
+      setSelectedCategories((prev) => {
+        if (prev.includes(category)) {
+          const next = prev.filter((item) => item !== category);
+          return next.length ? next : [category];
+        }
+        if (prev.length >= 2) return prev;
+        return [...prev, category];
+      });
+    },
+    [],
+  );
+
+  useEffect(() => {
+    setLanguage(getActiveLanguage());
+
+    const handleLanguageChanged = () => {
+      setLanguage(getStoredLanguage());
+    };
+
+    window.addEventListener('app-language-changed', handleLanguageChanged);
+    window.addEventListener('storage', handleLanguageChanged);
+    return () => {
+      window.removeEventListener('app-language-changed', handleLanguageChanged);
+      window.removeEventListener('storage', handleLanguageChanged);
+    };
+  }, []);
 
   const hiddenPostStorageKey = useMemo(() => `blogs:hidden:${userId || 'guest'}`, [userId]);
 
@@ -334,21 +560,24 @@ export function Blogs() {
 
   const deleteOwnPost = useCallback(async (postId: number) => {
     if (!userId) return;
-    setOpenPostMenuId(null);
-    const confirmed = window.confirm('Delete this post? This cannot be undone.');
-    if (!confirmed) return;
-
     try {
       await api.deleteBlogPost(postId, userId);
       removePostFromView(postId);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to delete post');
+      setError(err instanceof Error ? err.message : copy.errorDeletePost);
     }
-  }, [removePostFromView, userId]);
+  }, [copy.errorDeletePost, removePostFromView, userId]);
+
+  const confirmDeletePost = useCallback(async () => {
+    if (!pendingDeletePostId) return;
+    const postId = pendingDeletePostId;
+    setPendingDeletePostId(null);
+    await deleteOwnPost(postId);
+  }, [deleteOwnPost, pendingDeletePostId]);
 
   const loadFeedChunk = useCallback(async (cursor: FeedCursor | null) => {
     if (!userId) {
-      throw new Error('Missing logged-in user id. Please login again.');
+      throw new Error(copy.errorMissingUser);
     }
 
     const response = await api.getBlogsFeed(userId, {
@@ -369,11 +598,11 @@ export function Blogs() {
       cursor: parsedCursor,
       hasMore: Boolean(response?.hasMore) && Boolean(parsedCursor),
     };
-  }, [readHiddenPostIds, userId]);
+  }, [copy.errorMissingUser, readHiddenPostIds, userId]);
 
   const loadInitialFeed = useCallback(async (mode: 'initial' | 'refresh' = 'initial') => {
     if (!userId) {
-      setError('Missing logged-in user id. Please login again.');
+      setError(copy.errorMissingUser);
       setLoading(false);
       setRefreshing(false);
       return;
@@ -389,12 +618,12 @@ export function Blogs() {
       setNextCursor(response.cursor);
       setHasMore(response.hasMore);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load blog feed');
+      setError(err instanceof Error ? err.message : copy.errorLoadFeed);
     } finally {
       if (mode === 'initial') setLoading(false);
       if (mode === 'refresh') setRefreshing(false);
     }
-  }, [loadFeedChunk, userId]);
+  }, [copy.errorLoadFeed, copy.errorMissingUser, loadFeedChunk, userId]);
 
   const loadMoreFeed = useCallback(async () => {
     if (!userId) return;
@@ -408,11 +637,11 @@ export function Blogs() {
       setNextCursor(response.cursor);
       setHasMore(response.hasMore);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load more posts');
+      setError(err instanceof Error ? err.message : copy.errorLoadMore);
     } finally {
       setLoadingMore(false);
     }
-  }, [hasMore, loadFeedChunk, loadingMore, nextCursor, userId]);
+  }, [copy.errorLoadMore, hasMore, loadFeedChunk, loadingMore, nextCursor, userId]);
 
   useEffect(() => {
     void loadInitialFeed('initial');
@@ -467,7 +696,7 @@ export function Blogs() {
       const likesCount = toCount(response?.likesCount);
       setPosts((prev) => prev.map((post) => (post.id === postId ? { ...post, likedByMe: liked, likes: likesCount } : post)));
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to update like');
+      setError(err instanceof Error ? err.message : copy.errorUpdateLike);
     }
   };
 
@@ -486,11 +715,11 @@ export function Blogs() {
       setCommentsByPost((prev) => ({ ...prev, [postId]: comments }));
       setPosts((prev) => prev.map((post) => (post.id === postId ? { ...post, comments: comments.length } : post)));
     } catch (err) {
-      setCommentError(err instanceof Error ? err.message : 'Failed to load comments');
+      setCommentError(err instanceof Error ? err.message : copy.errorLoadComments);
     } finally {
       setCommentsLoading(false);
     }
-  }, []);
+  }, [copy.errorLoadComments]);
 
   const openComments = (postId: number) => {
     setActiveCommentsPostId(postId);
@@ -505,10 +734,10 @@ export function Blogs() {
     const cleanedDescription = post.description.replace(/\s+/g, ' ').trim();
     const summary = cleanedDescription
       ? cleanedDescription.slice(0, 120).trim() + (cleanedDescription.length > 120 ? '...' : '')
-      : 'Check out this post on RepSet.';
-    const shareText = `${post.authorName}: ${summary}`;
+      : copy.shareDefaultDescription;
+    const shareText = `${getAuthorName(post.authorName)}: ${summary}`;
     return { shareUrl, shareText };
-  }, []);
+  }, [copy.shareDefaultDescription, getAuthorName]);
 
   const copyToClipboard = useCallback(async (value: string) => {
     if (navigator.clipboard?.writeText) {
@@ -526,9 +755,9 @@ export function Blogs() {
     const copied = document.execCommand('copy');
     document.body.removeChild(textArea);
     if (!copied) {
-      throw new Error('Copy to clipboard failed');
+      throw new Error(copy.errorCopyLink);
     }
-  }, []);
+  }, [copy.errorCopyLink]);
 
   const openShareModal = (postId: number) => {
     setActiveSharePostId(postId);
@@ -577,17 +806,17 @@ export function Blogs() {
 
     try {
       await copyToClipboard(shareMessage);
-      setShareFeedback(destination === 'instagram' ? 'Link copied. Paste it into Instagram DM.' : 'Link copied.');
+      setShareFeedback(destination === 'instagram' ? copy.shareCopiedInstagramFeedback : copy.shareCopiedFeedback);
     } catch {
-      setShareFeedback('Could not copy link automatically.');
+      setShareFeedback(copy.shareCopyFailedFeedback);
     }
-  }, [activeSharePostId, copyToClipboard, getSharePayload, posts]);
+  }, [activeSharePostId, copy.shareCopiedFeedback, copy.shareCopiedInstagramFeedback, copy.shareCopyFailedFeedback, copyToClipboard, getSharePayload, posts]);
 
   const addComment = async () => {
     if (!activeCommentsPostId || !userId) return;
     const text = newCommentText.trim();
     if (!text) {
-      setCommentError('Write a comment before posting.');
+      setCommentError(copy.commentRequired);
       return;
     }
 
@@ -609,7 +838,7 @@ export function Blogs() {
       setNewCommentText('');
       setCommentError('');
     } catch (err) {
-      setCommentError(err instanceof Error ? err.message : 'Failed to post comment');
+      setCommentError(err instanceof Error ? err.message : copy.errorPostComment);
     }
   };
 
@@ -674,11 +903,11 @@ export function Blogs() {
     try {
       const dataUrl = await fileToDataUrl(file);
       if (!dataUrl) {
-        setCreateError('Failed to read uploaded file.');
+        setCreateError(copy.errorReadFile);
         return;
       }
       if (dataUrl.length > MEDIA_PAYLOAD_LIMIT) {
-        setCreateError('Media file is too large.');
+        setCreateError(copy.errorFileTooLarge);
         return;
       }
 
@@ -686,27 +915,27 @@ export function Blogs() {
       setNewMediaType(file.type.startsWith('video/') ? 'video' : 'image');
       setCreateError('');
     } catch {
-      setCreateError('Failed to read uploaded file.');
+      setCreateError(copy.errorReadFile);
     }
   };
 
   const publishPost = async () => {
     if (!userId) {
-      setCreateError('Missing logged-in user id. Please login again.');
+      setCreateError(copy.errorMissingUser);
       return;
     }
 
     const description = newDescription.trim();
     if (!description) {
-      setCreateError('Write a short post description.');
+      setCreateError(copy.errorDescriptionRequired);
       return;
     }
     if (description.length > DESCRIPTION_MAX_LENGTH) {
-      setCreateError(`Description is too long (max ${DESCRIPTION_MAX_LENGTH} characters).`);
+      setCreateError(copy.errorDescriptionTooLong(DESCRIPTION_MAX_LENGTH));
       return;
     }
     if (!newMediaUrl) {
-      setCreateError('Upload an image or video.');
+      setCreateError(copy.errorMediaRequired);
       return;
     }
 
@@ -717,10 +946,10 @@ export function Blogs() {
       const response = await api.createBlogPost({
         userId,
         description,
-        category: newCategory,
+        category: primaryCategory,
         mediaType: newMediaType,
         mediaUrl: newMediaUrl,
-        mediaAlt: 'User uploaded media',
+        mediaAlt: copy.mediaAltUserUpload,
         womenOnly: canCreateWomenOnlyPost && newWomenOnly,
       });
       const created = response?.post ? mapPost(response.post) : null;
@@ -732,13 +961,13 @@ export function Blogs() {
       }
 
       setNewDescription('');
-      setNewCategory('Recovery');
+      setSelectedCategories(['Recovery']);
       setNewMediaType('image');
       setNewMediaUrl('');
       setNewWomenOnly(false);
       setIsCreateOpen(false);
     } catch (err) {
-      setCreateError(err instanceof Error ? err.message : 'Failed to publish post');
+      setCreateError(err instanceof Error ? err.message : copy.errorPublish);
     } finally {
       setIsPublishing(false);
     }
@@ -771,7 +1000,7 @@ export function Blogs() {
                 onClick={() => { void loadInitialFeed('refresh'); }}
                 disabled={refreshing || loading}
                 className="w-11 h-11 rounded-full border border-[#D9DDE7] bg-white text-[#111827] flex items-center justify-center hover:border-[#BAC2D4] transition-colors disabled:opacity-60"
-                aria-label="Refresh feed"
+                aria-label={copy.refreshFeedAria}
               >
                 <RefreshCcw size={17} className={refreshing ? 'animate-spin' : ''} />
               </button>
@@ -782,7 +1011,7 @@ export function Blogs() {
                   setCreateError('');
                 }}
                 className="w-11 h-11 rounded-full bg-accent text-black flex items-center justify-center shadow-glow hover:opacity-90 transition-opacity"
-                aria-label="Create new post"
+                aria-label={copy.createPostAria}
               >
                 <Plus size={20} />
               </button>
@@ -790,7 +1019,7 @@ export function Blogs() {
           )}
         />
         <p className="text-xs text-[#6B7280]">
-          Training, nutrition, recovery and mindset updates from the community.
+          {copy.subtitle}
         </p>
 
         <div className="flex gap-2 overflow-x-auto pb-1">
@@ -807,7 +1036,7 @@ export function Blogs() {
                     : 'border-[#D9DDE7] bg-white text-[#6B7280] hover:text-[#111827]'
                 }`}
               >
-                {category}
+                {getCategoryLabel(category)}
                 <span className="ml-1.5 text-[11px] opacity-80">{formatCount(categoryCounts[category])}</span>
               </button>
             );
@@ -830,18 +1059,18 @@ export function Blogs() {
           </div>
         ) : posts.length === 0 ? (
           <div className="bg-white border border-[#D9DDE7] rounded-2xl p-4 text-sm text-[#6B7280]">
-            <div>No posts yet. Tap + to add your first post.</div>
+            <div>{copy.noPosts}</div>
           </div>
         ) : visiblePosts.length === 0 ? (
           <div className="bg-white border border-[#D9DDE7] rounded-2xl p-4 text-sm text-[#6B7280] space-y-3">
-            <div>No {activeCategory.toLowerCase()} posts in the loaded feed yet.</div>
+            <div>{copy.noCategoryPosts(getCategoryLabel(activeCategory))}</div>
             <div className="flex items-center gap-2">
               <button
                 type="button"
                 onClick={() => setActiveCategory('All')}
                 className="rounded-lg border border-[#D9DDE7] px-3 py-1.5 text-xs text-[#111827] hover:border-[#BAC2D4]"
               >
-                Show all categories
+                {copy.showAllCategories}
               </button>
               {hasMore && (
                 <button
@@ -850,7 +1079,7 @@ export function Blogs() {
                   disabled={loadingMore}
                   className="rounded-lg border border-[#D9DDE7] px-3 py-1.5 text-xs text-[#111827] hover:border-[#BAC2D4] disabled:opacity-60"
                 >
-                  {loadingMore ? 'Loading...' : 'Load more'}
+                  {loadingMore ? copy.loading : copy.loadMore}
                 </button>
               )}
             </div>
@@ -870,16 +1099,16 @@ export function Blogs() {
               <header className="flex min-w-0 items-center gap-3 px-1 pt-1">
                 <img
                   src={resolvePostAvatar(post)}
-                  alt={`${post.authorName} avatar`}
+                  alt={copy.avatarAlt(getAuthorName(post.authorName))}
                   className="h-11 w-11 rounded-full border border-[#D9DDE7] object-cover"
                 />
                 <div className="min-w-0 flex-1">
-                  <h3 className="truncate text-[17px] font-semibold leading-none text-[#111827]">{post.authorName}</h3>
+                  <h3 className="truncate text-[17px] font-semibold leading-none text-[#111827]">{getAuthorName(post.authorName)}</h3>
                   <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-[#6B7280]">
-                    <span>{getPostedAgo(post.createdAt).replace('Posted ', '')}</span>
+                    <span>{getPostedAgo(post.createdAt, copy, true)}</span>
                     {post.womenOnly && (
                       <span className="rounded-full bg-[#FCE7F3] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-[#BE185D]">
-                        Women only
+                        {copy.womenOnly}
                       </span>
                     )}
                   </div>
@@ -893,7 +1122,7 @@ export function Blogs() {
                       setOpenPostMenuId((prev) => (prev === post.id ? null : post.id));
                     }}
                     className="flex h-8 w-8 items-center justify-center rounded-full text-[#6B7280] hover:bg-[#EEF1F7] hover:text-[#111827]"
-                    aria-label="Post options"
+                    aria-label={copy.postOptions}
                   >
                     <MoreHorizontal size={17} />
                   </button>
@@ -903,10 +1132,13 @@ export function Blogs() {
                       {post.userId === userId ? (
                         <button
                           type="button"
-                          onClick={() => { void deleteOwnPost(post.id); }}
+                          onClick={() => {
+                            setOpenPostMenuId(null);
+                            setPendingDeletePostId(post.id);
+                          }}
                           className="w-full px-3 py-2.5 text-left text-sm text-red-600 hover:bg-red-50"
                         >
-                          Delete post
+                          {copy.deletePost}
                         </button>
                       ) : (
                         <button
@@ -914,7 +1146,7 @@ export function Blogs() {
                           onClick={() => hidePost(post.id)}
                           className="w-full px-3 py-2.5 text-left text-sm text-[#111827] hover:bg-[#F3F4F6]"
                         >
-                          Hide post
+                          {copy.hidePost}
                         </button>
                       )}
                     </div>
@@ -940,7 +1172,7 @@ export function Blogs() {
                 ) : (
                   <img
                     src={post.mediaUrl}
-                    alt={post.mediaAlt}
+                    alt={post.mediaAlt || copy.mediaAlt}
                     className="h-full w-full object-cover transition-all duration-300 group-hover:scale-[1.02]"
                     loading="lazy"
                   />
@@ -992,7 +1224,7 @@ export function Blogs() {
                       openShareModal(post.id);
                     }}
                     className="flex h-8 w-8 items-center justify-center rounded-full hover:bg-[#EEF1F7]"
-                    aria-label="Share post"
+                    aria-label={copy.sharePostAria}
                   >
                     <Send size={16} />
                   </button>
@@ -1009,14 +1241,67 @@ export function Blogs() {
             disabled={loadingMore}
             className="w-full rounded-xl border border-[#D9DDE7] bg-white px-4 py-3 text-sm text-[#111827] hover:border-[#BAC2D4] transition-colors disabled:opacity-60"
           >
-            {loadingMore ? 'Loading more posts...' : 'Load more posts'}
+            {loadingMore ? copy.loadingMorePosts : copy.loadMorePosts}
           </button>
         )}
 
         {!loading && posts.length > 0 && visiblePosts.length > 0 && !hasMore && (
-          <div className="py-2 text-center text-xs text-[#6B7280]">You are all caught up.</div>
+          <div className="py-2 text-center text-xs text-[#6B7280]">{copy.caughtUp}</div>
         )}
       </div>
+
+      {isPublishing && (
+        <div className="fixed inset-0 z-[90] flex items-center justify-center bg-black/60 p-4">
+          <div className="w-full max-w-[280px] rounded-2xl border border-white/10 bg-card px-5 py-4 text-center text-text-primary shadow-2xl">
+            <div className="text-base font-semibold">{copy.uploadTitle}</div>
+            <div className="mt-1 text-sm text-text-secondary">{copy.uploadMessage}</div>
+            <div className="mt-4 flex justify-center">
+              <div className="h-7 w-7 animate-spin rounded-full border-2 border-text-tertiary border-t-transparent" />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {pendingDeletePostId != null && (
+        <div
+          className="fixed inset-0 z-[95] flex items-center justify-center bg-black/70 p-4"
+          onClick={() => setPendingDeletePostId(null)}
+        >
+          <div
+            className={`w-full max-w-sm rounded-2xl border border-white/10 bg-card p-4 shadow-2xl ${isArabic ? 'text-right' : 'text-left'}`}
+            dir={isArabic ? 'rtl' : 'ltr'}
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className={`flex items-center justify-between ${isArabic ? 'flex-row-reverse' : ''}`}>
+              <h3 className="text-base font-semibold text-white">{copy.deleteTitle}</h3>
+              <button
+                type="button"
+                onClick={() => setPendingDeletePostId(null)}
+                className="flex h-8 w-8 items-center justify-center rounded-full bg-white/10 text-[#FFFFFF]"
+              >
+                <X size={16} className="text-[#FFFFFF]" />
+              </button>
+            </div>
+            <p className="mt-2 text-sm text-text-secondary">{copy.deleteMessage}</p>
+            <div className={`mt-4 flex gap-2 ${isArabic ? 'justify-start' : 'justify-end'}`}>
+              <button
+                type="button"
+                onClick={() => setPendingDeletePostId(null)}
+                className="rounded-lg border border-white/10 px-3 py-2 text-sm text-text-secondary hover:border-accent/30 hover:text-text-primary"
+              >
+                {copy.deleteCancel}
+              </button>
+              <button
+                type="button"
+                onClick={() => { void confirmDeletePost(); }}
+                className="rounded-lg bg-rose-500/90 px-3 py-2 text-sm font-semibold text-white hover:bg-rose-500"
+              >
+                {copy.deleteConfirmButton}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {activeReelIndex != null && (
         <div className="fixed inset-0 z-[60] bg-black">
@@ -1024,7 +1309,7 @@ export function Blogs() {
             type="button"
             onClick={() => setActiveReelIndex(null)}
             className="fixed top-4 right-4 z-[95] w-12 h-12 rounded-full bg-black/80 border-2 border-[#FFFFFF] hover:bg-black text-[#FFFFFF] shadow-[0_0_18px_rgba(0,0,0,0.55)] backdrop-blur-sm flex items-center justify-center"
-            aria-label="Close full screen posts"
+            aria-label={copy.closeFullScreen}
           >
             <X size={20} className="text-[#FFFFFF]" />
           </button>
@@ -1058,21 +1343,21 @@ export function Blogs() {
                     className="h-full w-full object-contain cursor-pointer"
                   />
                 ) : (
-                  <img src={post.mediaUrl} alt={post.mediaAlt} className="h-full w-full object-contain" />
+                  <img src={post.mediaUrl} alt={post.mediaAlt || copy.mediaAlt} className="h-full w-full object-contain" />
                 )}
 
                 <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/90 via-black/50 to-transparent px-4 sm:px-6 pb-8 pt-16">
                   <div className="flex items-center gap-3">
-                    <img
-                      src={resolvePostAvatar(post)}
-                      alt={`${post.authorName} avatar`}
-                      className="w-10 h-10 rounded-full object-cover border border-white/20"
-                    />
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-1.5">
-                        <h3 className="text-sm font-bold text-[#FFFFFF] truncate">{post.authorName}</h3>
-                      </div>
-                      <div className="text-xs text-[#FFFFFF]">{getPostedAgo(post.createdAt)}</div>
+                  <img
+                    src={resolvePostAvatar(post)}
+                    alt={copy.avatarAlt(getAuthorName(post.authorName))}
+                    className="w-10 h-10 rounded-full object-cover border border-white/20"
+                  />
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-1.5">
+                      <h3 className="text-sm font-bold text-[#FFFFFF] truncate">{getAuthorName(post.authorName)}</h3>
+                    </div>
+                      <div className="text-xs text-[#FFFFFF]">{getPostedAgo(post.createdAt, copy)}</div>
                     </div>
                   </div>
 
@@ -1108,12 +1393,12 @@ export function Blogs() {
             onClick={(event) => event.stopPropagation()}
           >
             <div className="flex items-center justify-between">
-              <h3 className="text-base font-semibold text-[#111827]">Share Post</h3>
+              <h3 className="text-base font-semibold text-[#111827]">{copy.shareTitle}</h3>
               <button
                 type="button"
                 onClick={closeShareModal}
                 className="flex h-8 w-8 items-center justify-center rounded-full text-[#6B7280] hover:bg-[#EEF1F7] hover:text-[#111827]"
-                aria-label="Close share modal"
+                aria-label={copy.closeShare}
               >
                 <X size={16} />
               </button>
@@ -1121,7 +1406,7 @@ export function Blogs() {
             <p className="mt-1 text-sm text-[#6B7280]">
               {activeSharePost.description.trim()
                 ? `${activeSharePost.description.trim().slice(0, 90)}${activeSharePost.description.trim().length > 90 ? '...' : ''}`
-                : 'Choose where you want to share this post.'}
+                : copy.shareEmpty}
             </p>
 
             <div className="mt-4 grid grid-cols-2 gap-2">
@@ -1155,7 +1440,7 @@ export function Blogs() {
                 className="flex flex-col items-center justify-center gap-1 rounded-xl border border-[#D9DDE7] px-2 py-3 text-[#111827] hover:border-[#BAC2D4] hover:bg-[#F8FAFC]"
               >
                 <Copy size={20} className="text-[#374151]" />
-                <span className="text-[11px] font-medium leading-none">Copy Link</span>
+                <span className="text-[11px] font-medium leading-none">{copy.copyLink}</span>
               </button>
             </div>
 
@@ -1172,9 +1457,13 @@ export function Blogs() {
             setNewWomenOnly(false);
           }}
         >
-          <div className="w-full max-w-md bg-card rounded-2xl border border-white/10 p-4" onClick={(event) => event.stopPropagation()}>
-            <div className="flex items-center justify-between mb-3">
-              <h3 className="text-base font-semibold text-white">New Post</h3>
+          <div
+            className={`w-full max-w-md max-h-[85vh] overflow-y-auto bg-card rounded-2xl border border-white/10 p-4 ${isArabic ? 'text-right' : 'text-left'}`}
+            dir={isArabic ? 'rtl' : 'ltr'}
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className={`flex items-center justify-between mb-3 ${isArabic ? 'flex-row-reverse' : ''}`}>
+              <h3 className="text-base font-semibold text-white">{copy.newPostTitle}</h3>
               <button
                 type="button"
                 onClick={() => {
@@ -1192,20 +1481,37 @@ export function Blogs() {
               <textarea
                 value={newDescription}
                 onChange={(event) => setNewDescription(event.target.value.slice(0, DESCRIPTION_MAX_LENGTH))}
-                placeholder="Share your update..."
+                placeholder={copy.newPostPlaceholder}
                 rows={4}
-                className="w-full bg-background border border-white/10 rounded-xl px-3 py-2 text-white placeholder:text-text-secondary focus:outline-none focus:border-accent/60"
+                className={`w-full bg-background border border-white/10 rounded-xl px-3 py-2 text-white placeholder:text-text-secondary focus:outline-none focus:border-accent/60 ${isArabic ? 'text-right' : 'text-left'}`}
               />
-              <div className="text-[11px] text-text-secondary text-right">{newDescription.length}/{DESCRIPTION_MAX_LENGTH}</div>
+              <div className={`text-[11px] text-text-secondary ${isArabic ? 'text-left' : 'text-right'}`}>{newDescription.length}/{DESCRIPTION_MAX_LENGTH}</div>
 
-              <ModernSelect
-                value={newCategory}
-                onChange={(nextValue) => setNewCategory(nextValue as PostCategory)}
-                options={CATEGORY_OPTIONS.map((option) => ({ value: option, label: option }))}
-              />
+              <div className="space-y-2">
+                <div className={`text-[11px] text-text-secondary ${isArabic ? 'text-right' : 'text-left'}`}>{copy.maxTwoCategories}</div>
+                <div className="grid grid-cols-2 gap-2">
+                  {CATEGORY_OPTIONS.map((option) => {
+                    const isSelected = selectedCategories.includes(option);
+                    return (
+                      <button
+                        key={option}
+                        type="button"
+                        onClick={() => toggleCategorySelection(option)}
+                        className={`rounded-xl border px-3 py-2 text-sm font-medium transition-colors ${
+                          isSelected
+                            ? 'border-accent/50 bg-accent/15 text-white'
+                            : 'border-white/10 bg-background text-text-secondary hover:border-accent/40 hover:text-text-primary'
+                        }`}
+                      >
+                        {copy.categories[option] || option}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
 
               {canCreateWomenOnlyPost && (
-                <label className="flex items-center gap-3 rounded-xl border border-white/10 bg-background px-3 py-3 text-sm text-white cursor-pointer">
+                <label className={`flex items-center gap-3 rounded-xl border border-white/10 bg-background px-3 py-3 text-sm text-white cursor-pointer ${isArabic ? 'flex-row-reverse text-right' : 'text-left'}`}>
                   <input
                     type="checkbox"
                     checked={newWomenOnly}
@@ -1213,17 +1519,17 @@ export function Blogs() {
                     className="h-4 w-4 rounded border-white/20 bg-transparent text-accent focus:ring-accent/40"
                   />
                   <span className="flex-1">
-                    Post for women only
+                    {copy.womenOnlyLabel}
                     <span className="block text-[11px] text-text-secondary mt-0.5">
-                      Only women will see this post in the blog feed.
+                      {copy.womenOnlyHint}
                     </span>
                   </span>
                 </label>
               )}
 
-              <label className="flex items-center justify-center gap-2 w-full border border-dashed border-white/20 rounded-xl px-3 py-3 text-sm text-text-secondary cursor-pointer hover:border-accent/60 hover:text-white transition-colors">
+              <label className={`flex items-center justify-center gap-2 w-full border border-dashed border-white/20 rounded-xl px-3 py-3 text-sm text-text-secondary cursor-pointer hover:border-accent/60 hover:text-white transition-colors ${isArabic ? 'flex-row-reverse' : ''}`}>
                 <Upload size={16} />
-                Upload image or video
+                {copy.uploadMedia}
                 <input type="file" accept="image/*,video/*" onChange={handleFilePicked} className="hidden" />
               </label>
 
@@ -1232,7 +1538,7 @@ export function Blogs() {
                   {newMediaType === 'video' ? (
                     <video src={newMediaUrl} controls className="w-full max-h-56 object-contain" />
                   ) : (
-                    <img src={newMediaUrl} alt="New post preview" className="w-full max-h-56 object-contain" />
+                    <img src={newMediaUrl} alt={copy.newPostPreviewAlt} className="w-full max-h-56 object-contain" />
                   )}
                 </div>
               )}
@@ -1245,7 +1551,7 @@ export function Blogs() {
                 disabled={!canPublish}
                 className="w-full py-2.5 rounded-xl bg-accent text-black font-semibold hover:opacity-90 transition-opacity disabled:opacity-60 disabled:cursor-not-allowed"
               >
-                {isPublishing ? 'Publishing...' : 'Publish Post'}
+                {isPublishing ? copy.publishing : copy.publish}
               </button>
             </div>
           </div>
@@ -1262,7 +1568,7 @@ export function Blogs() {
         >
           <div className="w-full max-w-md bg-card rounded-2xl border border-white/10 p-4" onClick={(event) => event.stopPropagation()}>
             <div className="flex items-center justify-between mb-3">
-              <h3 className="text-base font-semibold text-white">Comments</h3>
+              <h3 className="text-base font-semibold text-white">{copy.commentsTitle}</h3>
               <button
                 type="button"
                 onClick={() => {
@@ -1275,19 +1581,19 @@ export function Blogs() {
               </button>
             </div>
 
-            <div className="text-xs text-text-secondary mb-2">Existing comments: {formatCount(activeCommentsPost.comments)}</div>
+            <div className="text-xs text-text-secondary mb-2">{copy.existingComments(formatCount(activeCommentsPost.comments))}</div>
 
             <div className="max-h-52 overflow-y-auto space-y-2 pr-1">
               {commentsLoading ? (
-                <div className="text-sm text-text-secondary bg-white/5 rounded-lg px-3 py-2">Loading comments...</div>
+                <div className="text-sm text-text-secondary bg-white/5 rounded-lg px-3 py-2">{copy.loadingComments}</div>
               ) : localComments.length === 0 ? (
-                <div className="text-sm text-text-secondary bg-white/5 rounded-lg px-3 py-2">No comments yet. Add one below.</div>
+                <div className="text-sm text-text-secondary bg-white/5 rounded-lg px-3 py-2">{copy.noComments}</div>
               ) : (
                 localComments.map((comment) => (
                   <div key={comment.id} className="bg-white/5 rounded-lg px-3 py-2">
                     <div className="flex items-center justify-between gap-2">
-                      <div className="text-sm font-semibold text-white">{comment.authorName}</div>
-                      <div className="text-[11px] text-text-secondary">{getPostedAgo(comment.createdAt).replace('Posted ', '')}</div>
+                      <div className="text-sm font-semibold text-white">{getAuthorName(comment.authorName)}</div>
+                      <div className="text-[11px] text-text-secondary">{getPostedAgo(comment.createdAt, copy, true)}</div>
                     </div>
                     <div className="text-sm text-text-primary mt-1">{comment.text}</div>
                   </div>
@@ -1299,7 +1605,7 @@ export function Blogs() {
               <textarea
                 value={newCommentText}
                 onChange={(event) => setNewCommentText(event.target.value)}
-                placeholder="Add a comment..."
+                placeholder={copy.addCommentPlaceholder}
                 rows={3}
                 className="w-full bg-background border border-white/10 rounded-xl px-3 py-2 text-white placeholder:text-text-secondary focus:outline-none focus:border-accent/60"
               />
@@ -1311,7 +1617,7 @@ export function Blogs() {
                 onClick={() => { void addComment(); }}
                 className="w-full py-2.5 rounded-xl bg-accent text-black font-semibold hover:opacity-90 transition-opacity"
               >
-                Post Comment
+                {copy.postComment}
               </button>
             </div>
           </div>

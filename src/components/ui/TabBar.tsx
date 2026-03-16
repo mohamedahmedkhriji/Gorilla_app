@@ -43,13 +43,13 @@ export function TabBar({ activeTab, onTabChange }: TabBarProps) {
     };
   }, []);
 
-  const labels = language === 'fr'
+  const labels = language === 'ar'
     ? {
-      home: 'Accueil',
-      workout: 'Entrainement',
-      blogs: 'Blogs',
-      progress: 'Progres',
-      profile: 'Profil',
+      home: 'الرئيسية',
+      workout: 'التمرين',
+      blogs: 'المدونات',
+      progress: 'التقدم',
+      profile: 'الملف',
     }
     : {
       home: 'Home',

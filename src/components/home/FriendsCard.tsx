@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Card } from '../ui/Card';
 import { api } from '../../services/api';
 import { emojiFriends, emojiGymFriendsBg, emojiRightArrow } from '../../services/emojiTheme';
+import { AppLanguage, getActiveLanguage, getStoredLanguage } from '../../services/language';
 
 interface FriendsCardProps {
   onClick: () => void;
@@ -13,6 +14,19 @@ interface FriendProfile {
   profile_picture?: string | null;
   friend_status?: string;
 }
+
+const FRIENDS_CARD_I18N = {
+  en: {
+    friends: 'Friends',
+    friendsLogoAlt: 'Friends',
+    profileSuffix: 'profile',
+  },
+  ar: {
+    friends: 'الأصدقاء',
+    friendsLogoAlt: 'الأصدقاء',
+    profileSuffix: 'الملف الشخصي',
+  },
+} as const;
 
 const toFriendStatus = (value: unknown) => {
   const raw = String(value || '').trim().toLowerCase();
@@ -35,6 +49,23 @@ const getActiveUserId = () => {
 
 export function FriendsCard({ onClick }: FriendsCardProps) {
   const [friends, setFriends] = useState<FriendProfile[]>([]);
+  const [language, setLanguage] = useState<AppLanguage>('en');
+  const copy = FRIENDS_CARD_I18N[language] || FRIENDS_CARD_I18N.en;
+
+  useEffect(() => {
+    setLanguage(getActiveLanguage());
+
+    const handleLanguageChanged = () => {
+      setLanguage(getStoredLanguage());
+    };
+
+    window.addEventListener('app-language-changed', handleLanguageChanged);
+    window.addEventListener('storage', handleLanguageChanged);
+    return () => {
+      window.removeEventListener('app-language-changed', handleLanguageChanged);
+      window.removeEventListener('storage', handleLanguageChanged);
+    };
+  }, []);
 
   useEffect(() => {
     const loadFriends = async () => {
@@ -87,13 +118,13 @@ export function FriendsCard({ onClick }: FriendsCardProps) {
 
       <div className="relative z-10 flex justify-between items-start">
         <div className="w-10 h-10 rounded-2xl bg-accent/10 border border-accent/35 flex items-center justify-center text-accent group-hover:shadow-glow transition-all">
-          <img src={emojiFriends} alt="Friends" className="h-7 w-7 object-contain" />
+          <img src={emojiFriends} alt={copy.friendsLogoAlt} className="h-7 w-7 object-contain" />
         </div>
         <img src={emojiRightArrow} alt="" aria-hidden="true" className="h-4 w-4 object-contain opacity-70 group-hover:opacity-100 transition-opacity" />
       </div>
 
       <div className="relative z-10 mt-4">
-        <div className="text-2xl font-electrolize leading-none text-white">Friends</div>
+        <div className="text-2xl font-electrolize leading-none text-white">{copy.friends}</div>
       </div>
 
       <div className="relative z-10 flex -space-x-2 mt-3">
@@ -103,7 +134,7 @@ export function FriendsCard({ onClick }: FriendsCardProps) {
             className="w-7 h-7 rounded-full bg-white/10 border border-card overflow-hidden flex items-center justify-center text-[9px] text-white"
           >
             {friend.profile_picture ? (
-              <img src={friend.profile_picture} alt={`${friend.name} profile`} className="w-full h-full object-cover" />
+              <img src={friend.profile_picture} alt={`${friend.name} ${copy.profileSuffix}`} className="w-full h-full object-cover" />
             ) : (
               <span>{getInitials(friend.name)}</span>
             )}

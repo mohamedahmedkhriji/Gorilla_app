@@ -2,6 +2,7 @@ import React, { useEffect, useState, useCallback } from 'react';
 import { Card } from '../ui/Card';
 import { TrendingUp, ArrowUp } from 'lucide-react';
 import { api } from '../../services/api';
+import { AppLanguage, getActiveLanguage, getStoredLanguage } from '../../services/language';
 
 interface OverloadRecommendation {
   name: string;
@@ -9,11 +10,49 @@ interface OverloadRecommendation {
   next: string;
 }
 
+const OVERLOAD_I18N = {
+  en: {
+    title: 'Next Period Overload',
+    sourcePrefix: 'Source',
+    sourcePlan: 'Current plan week',
+    sourceRecent: 'Recent performance',
+    empty: 'No overload recommendations yet. Log more sets to generate your next progression targets.',
+    footerPlan: 'Recommendations are generated from your active plan week and your latest completed sets.',
+    footerRecent: 'Based on your recent performance, RepSet recommends these increases to maintain progressive overload.',
+  },
+  ar: {
+    title: 'الزيادة التدريجية للفترة القادمة',
+    sourcePrefix: 'المصدر',
+    sourcePlan: 'أسبوع الخطة الحالي',
+    sourceRecent: 'الأداء الأخير',
+    empty: 'لا توجد توصيات زيادة بعد. سجّل مجموعات أكثر لتوليد أهداف التقدم التالية.',
+    footerPlan: 'يتم إنشاء التوصيات من أسبوع خطتك الحالي وآخر مجموعات مكتملة لديك.',
+    footerRecent: 'استنادًا إلى أدائك الأخير، يقترح RepSet هذه الزيادات للحفاظ على الزيادة التدريجية.',
+  },
+} as const;
+
 export function OverloadPlanning() {
+  const [language, setLanguage] = useState<AppLanguage>('en');
   const [recommendations, setRecommendations] = useState<OverloadRecommendation[]>([]);
-  const [sourceLabel, setSourceLabel] = useState('Recent performance');
   const [sourceMode, setSourceMode] = useState<'plan' | 'recent'>('recent');
   const [loading, setLoading] = useState(true);
+  const copy = OVERLOAD_I18N[language] || OVERLOAD_I18N.en;
+  const sourceLabel = sourceMode === 'plan' ? copy.sourcePlan : copy.sourceRecent;
+
+  useEffect(() => {
+    setLanguage(getActiveLanguage());
+
+    const handleLanguageChanged = () => {
+      setLanguage(getStoredLanguage());
+    };
+
+    window.addEventListener('app-language-changed', handleLanguageChanged);
+    window.addEventListener('storage', handleLanguageChanged);
+    return () => {
+      window.removeEventListener('app-language-changed', handleLanguageChanged);
+      window.removeEventListener('storage', handleLanguageChanged);
+    };
+  }, []);
 
   const getUserId = () => {
     const localUserId = Number(localStorage.getItem('appUserId') || localStorage.getItem('userId') || 0);
@@ -41,7 +80,6 @@ export function OverloadPlanning() {
       const source = String(data?.meta?.source || '').toLowerCase();
       const fromPlan = source === 'active_program_plan';
       setSourceMode(fromPlan ? 'plan' : 'recent');
-      setSourceLabel(fromPlan ? 'Current plan week' : 'Recent performance');
       setRecommendations(list.slice(0, 3));
     } catch (error) {
       console.error('Failed to load overload plan:', error);
@@ -80,16 +118,16 @@ export function OverloadPlanning() {
     <Card className="bg-gradient-to-br from-card to-accent/5 border-accent/20">
       <div className="flex items-center gap-2 mb-4">
         <TrendingUp className="text-accent" size={20} />
-        <h3 className="font-bold text-white">Next Period Overload</h3>
+        <h3 className="font-bold text-white">{copy.title}</h3>
       </div>
       <p className="text-[11px] text-text-tertiary -mt-2 mb-3">
-        Source: {sourceLabel}
+        {copy.sourcePrefix}: {sourceLabel}
       </p>
 
       <div className="space-y-3">
         {!loading && recommendations.length === 0 && (
           <div className="p-3 bg-black/20 rounded-xl border border-white/5 text-xs text-text-secondary">
-            No overload recommendations yet. Log more sets to generate your next progression targets.
+            {copy.empty}
           </div>
         )}
 
@@ -110,8 +148,8 @@ export function OverloadPlanning() {
 
       <p className="text-xs text-text-secondary mt-4 leading-relaxed">
         {sourceMode === 'plan'
-          ? 'Recommendations are generated from your active plan week and your latest completed sets.'
-          : 'Based on your recent performance, RepSet recommends these increases to maintain progressive overload.'}
+          ? copy.footerPlan
+          : copy.footerRecent}
       </p>
     </Card>);
 

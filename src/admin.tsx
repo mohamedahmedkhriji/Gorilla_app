@@ -2,12 +2,12 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { AdminLogin } from './pages/admin';
 import { initializeTheme } from './services/theme';
-import { initializeLanguage } from './services/language';
+import { applyLanguage } from './services/language';
 import { initializeRuntimeTranslator } from './services/runtimeTranslator';
 import './index.css';
 
 initializeTheme();
-initializeLanguage();
+applyLanguage('en', false);
 initializeRuntimeTranslator();
 
 const container = document.getElementById('root');

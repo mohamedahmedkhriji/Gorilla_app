@@ -6,6 +6,7 @@ import { api } from '../services/api';
 import { getBodyPartImage } from '../services/bodyPartTheme';
 import { inferExerciseVideoBodyPart, normalizeExerciseVideoLookup } from '../shared/exerciseVideoManifest.js';
 import { listExerciseVideoAssets, resolveExerciseVideo } from '../services/exerciseVideos';
+import { getActiveLanguage, getStoredLanguage } from '../services/language';
 
 interface ExerciseLibraryProps {
   onBack: () => void;
@@ -93,6 +94,13 @@ export function ExerciseLibrary({
   initialFilter = 'All',
   onFilterChange,
 }: ExerciseLibraryProps) {
+  const isArabic = getActiveLanguage(getStoredLanguage()) === 'ar';
+  const copy = {
+    title: isArabic ? 'مكتبة التمارين' : 'Exercise Library',
+    buildStronger: (label: string) => (isArabic ? `قوِّ عضلات ${label}` : `Build Stronger ${label}`),
+    loadError: isArabic ? 'تعذر تحميل التمارين' : 'Failed to load exercises',
+    empty: isArabic ? 'لا توجد فيديوهات لهذه العضلة بعد.' : 'No videos added for this muscle yet.',
+  };
   const [selectedFilter, setSelectedFilter] = useState(initialFilter || 'All');
   const [filters, setFilters] = useState<string[]>(['All', 'Chest', 'Back', 'Legs', 'Shoulders', 'Arms', 'Abs']);
   const [exercises, setExercises] = useState<CatalogExercise[]>([]);
@@ -109,6 +117,28 @@ export function ExerciseLibrary({
   useEffect(() => {
     onFilterChange?.(selectedFilter);
   }, [onFilterChange, selectedFilter]);
+
+  const getMuscleLabel = (value: string) => {
+    if (!isArabic) return value;
+    const key = String(value || '').trim().toLowerCase();
+    const map: Record<string, string> = {
+      abs: 'البطن',
+      arms: 'الذراعين',
+      arm: 'الذراعين',
+      back: 'الظهر',
+      biceps: 'العضلة ذات الرأسين',
+      bicep: 'العضلة ذات الرأسين',
+      chest: 'الصدر',
+      legs: 'الأرجل',
+      leg: 'الأرجل',
+      shoulders: 'الأكتاف',
+      shoulder: 'الأكتاف',
+      triceps: 'العضلة ثلاثية الرؤوس',
+      tricep: 'العضلة ثلاثية الرؤوس',
+      general: 'عام',
+    };
+    return map[key] ?? value;
+  };
 
   useEffect(() => {
     const load = async () => {
@@ -133,7 +163,7 @@ export function ExerciseLibrary({
         }
       } catch (loadError) {
         console.error('Failed to load exercise catalog:', loadError);
-        setError('Failed to load exercises');
+        setError(copy.loadError);
         setExercises([]);
       } finally {
         setLoading(false);
@@ -309,7 +339,7 @@ export function ExerciseLibrary({
     <div className="flex-1 flex flex-col bg-background min-h-screen pb-24">
       <div className="px-4 sm:px-6 pt-2">
         <Header
-          title={selectedFilter === 'All' ? 'Exercise Library' : `Build Stronger ${selectedFilter}`}
+          title={selectedFilter === 'All' ? copy.title : copy.buildStronger(getMuscleLabel(selectedFilter))}
           titleClassName="font-black uppercase tracking-[0.06em]"
           onBack={selectedFilter === 'All' ? onBack : () => setSelectedFilter('All')}
         />
@@ -318,27 +348,28 @@ export function ExerciseLibrary({
       {selectedFilter === 'All' && !loading && (
         <div className="px-4 sm:px-6 mb-6 space-y-3">
         <div className="grid grid-cols-3 gap-3 sm:grid-cols-6">
-            {visibleMuscleFilters.map((filter) => (
-              <button
-                key={filter}
-                onClick={() => setSelectedFilter(filter)}
-                className="rounded-2xl border border-white/10 bg-card p-3 text-center transition-all hover:border-accent/30 hover:bg-white/[0.03] overflow-hidden"
-              >
-                <div className="-mx-3 -mt-1 overflow-hidden">
-                  <img
-                    src={getBodyPartImage(filter)}
-                    alt={filter}
-                    className="h-28 w-full object-cover sm:h-32"
-                  />
-                </div>
-                <div className="-mx-3 mt-1 border-t border-white/10" />
-                <div className="mt-3">
-                  <div className="text-sm font-bold text-text-primary">
-                    {filter}
+            {visibleMuscleFilters.map((filter) => {
+              const label = getMuscleLabel(filter);
+              return (
+                <button
+                  key={filter}
+                  onClick={() => setSelectedFilter(filter)}
+                  className="rounded-2xl border border-white/10 bg-card p-3 text-center transition-all hover:border-accent/30 hover:bg-white/[0.03] overflow-hidden"
+                >
+                  <div className="-mx-3 -mt-1 overflow-hidden">
+                    <img
+                      src={getBodyPartImage(filter)}
+                      alt={label}
+                      className="h-28 w-full object-cover sm:h-32"
+                    />
                   </div>
-                </div>
-              </button>
-            ))}
+                  <div className="-mx-3 mt-1 border-t border-white/10" />
+                  <div className="mt-3">
+                    <div className="text-sm font-bold text-text-primary">{label}</div>
+                  </div>
+                </button>
+              );
+            })}
           </div>
         </div>
       )}
@@ -436,7 +467,7 @@ export function ExerciseLibrary({
           {filteredExercises.length === 0 && (
             <div className="px-4 sm:px-6 mt-6">
               <div className="surface-card rounded-2xl border border-white/10 p-5 text-center text-sm text-text-secondary">
-                No videos added for this muscle yet.
+                {copy.empty}
               </div>
             </div>
           )}

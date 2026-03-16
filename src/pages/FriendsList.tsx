@@ -4,6 +4,7 @@ import { Input } from '../components/ui/Input';
 import { Card } from '../components/ui/Card';
 import { Search, Trophy, ChevronRight } from 'lucide-react';
 import { api } from '../services/api';
+import { AppLanguage, getActiveLanguage, getStoredLanguage } from '../services/language';
 
 interface FriendsListProps {
   onBack: () => void;
@@ -126,6 +127,59 @@ const isUsableProfileImage = (value: unknown) => {
   );
 };
 
+const FRIENDS_LIST_I18N = {
+  en: {
+    title: 'Friends',
+    tabFriends: 'Friends',
+    tabGymMembers: 'Gym Members',
+    tabRequests: 'Requests',
+    searchPlaceholder: 'Search gym members by name...',
+    invitationAlreadyPending: 'invitation already pending.',
+    requestSentPrefix: 'Friend request sent to',
+    failedToSendInvitation: 'Failed to send invitation.',
+    failedToAcceptRequest: 'Failed to accept request.',
+    failedToDeclineRequest: 'Failed to decline request.',
+    profileSuffix: 'profile',
+    member: 'Member',
+    workouts: 'workouts',
+    friendRequest: 'Friend request',
+    sameGym: 'Same gym',
+    view: 'View',
+    sending: 'Sending...',
+    sendInvite: 'Send Invite',
+    pending: 'Pending',
+    accept: 'Accept',
+    decline: 'Decline',
+    noPendingFriendRequests: 'No pending friend requests.',
+    noUsersForFilter: 'No users found for this filter.',
+  },
+  ar: {
+    title: 'الأصدقاء',
+    tabFriends: 'الأصدقاء',
+    tabGymMembers: 'أعضاء النادي',
+    tabRequests: 'الطلبات',
+    searchPlaceholder: 'ابحث عن أعضاء النادي بالاسم...',
+    invitationAlreadyPending: 'الدعوة معلقة بالفعل.',
+    requestSentPrefix: 'تم إرسال طلب صداقة إلى',
+    failedToSendInvitation: 'فشل إرسال الدعوة.',
+    failedToAcceptRequest: 'فشل قبول الطلب.',
+    failedToDeclineRequest: 'فشل رفض الطلب.',
+    profileSuffix: 'الملف الشخصي',
+    member: 'عضو',
+    workouts: 'تمرين',
+    friendRequest: 'طلب صداقة',
+    sameGym: 'نفس النادي',
+    view: 'عرض',
+    sending: 'جارٍ الإرسال...',
+    sendInvite: 'إرسال دعوة',
+    pending: 'قيد الانتظار',
+    accept: 'قبول',
+    decline: 'رفض',
+    noPendingFriendRequests: 'لا توجد طلبات صداقة معلقة.',
+    noUsersForFilter: 'لم يتم العثور على مستخدمين لهذا الفلتر.',
+  },
+} as const;
+
 export function FriendsList({ onBack, onFriendClick }: FriendsListProps) {
   const [members, setMembers] = useState<FriendMember[]>([]);
   const [search, setSearch] = useState('');
@@ -135,6 +189,23 @@ export function FriendsList({ onBack, onFriendClick }: FriendsListProps) {
   const [refreshTick, setRefreshTick] = useState(0);
   const [requestFeedback, setRequestFeedback] = useState<{ tone: RequestFeedbackTone; message: string } | null>(null);
   const requestFeedbackTimerRef = useRef<number | null>(null);
+  const [language, setLanguage] = useState<AppLanguage>('en');
+  const copy = FRIENDS_LIST_I18N[language] || FRIENDS_LIST_I18N.en;
+
+  useEffect(() => {
+    setLanguage(getActiveLanguage());
+
+    const handleLanguageChanged = () => {
+      setLanguage(getStoredLanguage());
+    };
+
+    window.addEventListener('app-language-changed', handleLanguageChanged);
+    window.addEventListener('storage', handleLanguageChanged);
+    return () => {
+      window.removeEventListener('app-language-changed', handleLanguageChanged);
+      window.removeEventListener('storage', handleLanguageChanged);
+    };
+  }, []);
 
   const showRequestFeedback = (tone: RequestFeedbackTone, message: string) => {
     if (requestFeedbackTimerRef.current) {
@@ -232,12 +303,12 @@ export function FriendsList({ onBack, onFriendClick }: FriendsListProps) {
       }));
 
       if (response?.alreadyPending) {
-        showRequestFeedback('info', `${member.name}: invitation already pending.`);
+        showRequestFeedback('info', `${member.name}: ${copy.invitationAlreadyPending}`);
       } else {
-        showRequestFeedback('success', `Friend request sent to ${member.name}.`);
+        showRequestFeedback('success', `${copy.requestSentPrefix} ${member.name}.`);
       }
     } catch (error) {
-      showRequestFeedback('error', getErrorMessage(error, 'Failed to send invitation.'));
+      showRequestFeedback('error', getErrorMessage(error, copy.failedToSendInvitation));
     } finally {
       setBusyMemberId(null);
     }
@@ -288,7 +359,10 @@ export function FriendsList({ onBack, onFriendClick }: FriendsListProps) {
         window.dispatchEvent(new Event('friends-updated'));
         return;
       }
-      alert(getErrorMessage(error, `Failed to ${action} request.`));
+      const fallbackMessage = action === 'accept'
+        ? copy.failedToAcceptRequest
+        : copy.failedToDeclineRequest;
+      alert(getErrorMessage(error, fallbackMessage));
     } finally {
       setBusyMemberId(null);
     }
@@ -297,7 +371,7 @@ export function FriendsList({ onBack, onFriendClick }: FriendsListProps) {
   return (
     <div className="flex-1 flex flex-col bg-background min-h-screen pb-24">
       <div className="px-4 sm:px-6 pt-2">
-        <Header title="Friends" onBack={onBack} />
+        <Header title={copy.title} onBack={onBack} />
       </div>
 
       <div className="px-4 sm:px-6 mb-4">
@@ -309,7 +383,7 @@ export function FriendsList({ onBack, onFriendClick }: FriendsListProps) {
               filter === 'friends' ? 'bg-accent text-black' : 'bg-card text-text-secondary border border-white/10'
             }`}
           >
-            Friends
+            {copy.tabFriends}
           </button>
           <button
             type="button"
@@ -318,7 +392,7 @@ export function FriendsList({ onBack, onFriendClick }: FriendsListProps) {
               filter === 'all' ? 'bg-accent text-black' : 'bg-card text-text-secondary border border-white/10'
             }`}
           >
-            Gym Members
+            {copy.tabGymMembers}
           </button>
           <button
             type="button"
@@ -327,7 +401,7 @@ export function FriendsList({ onBack, onFriendClick }: FriendsListProps) {
               filter === 'requests' ? 'bg-accent text-black' : 'bg-card text-text-secondary border border-white/10'
             }`}
           >
-            Requests
+            {copy.tabRequests}
           </button>
         </div>
       </div>
@@ -342,7 +416,7 @@ export function FriendsList({ onBack, onFriendClick }: FriendsListProps) {
 
       <div className="px-4 sm:px-6 mb-6 relative">
         <Input
-          placeholder="Search gym members by name..."
+          placeholder={copy.searchPlaceholder}
           className="pl-10"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
@@ -376,7 +450,7 @@ export function FriendsList({ onBack, onFriendClick }: FriendsListProps) {
                 {isUsableProfileImage(member.profile_picture) ? (
                   <img
                     src={String(member.profile_picture)}
-                    alt={`${member.name} profile`}
+                    alt={`${member.name} ${copy.profileSuffix}`}
                     className="w-full h-full rounded-full object-cover"
                   />
                 ) : (
@@ -387,18 +461,18 @@ export function FriendsList({ onBack, onFriendClick }: FriendsListProps) {
                 <h3 className="font-bold text-white truncate">{member.name}</h3>
                 <div className="flex items-center gap-2 mt-1 flex-wrap">
                   <span className="text-xs text-accent bg-accent/10 px-2 py-0.5 rounded font-medium flex items-center gap-1">
-                    <Trophy size={10} /> {member.rank || 'Member'}
+                    <Trophy size={10} /> {member.rank || copy.member}
                   </span>
                   <span className="text-xs text-text-tertiary">
-                    {toNonNegativeNumber(member.total_workouts)} workouts
+                    {toNonNegativeNumber(member.total_workouts)} {copy.workouts}
                   </span>
                   {status === 'incoming_pending' && (
                     <span className="text-[11px] text-accent bg-accent/10 px-2 py-0.5 rounded">
-                      Friend request
+                      {copy.friendRequest}
                     </span>
                   )}
                   <span className="text-[11px] text-text-secondary bg-white/5 px-2 py-0.5 rounded">
-                    Same gym
+                    {copy.sameGym}
                   </span>
                 </div>
               </div>
@@ -412,7 +486,7 @@ export function FriendsList({ onBack, onFriendClick }: FriendsListProps) {
                   }}
                   className="px-3 py-2 rounded-lg text-xs font-semibold bg-accent text-black hover:bg-accent/90 transition-colors inline-flex items-center gap-1"
                 >
-                  View
+                  {copy.view}
                   <ChevronRight size={14} />
                 </button>
               )}
@@ -427,13 +501,13 @@ export function FriendsList({ onBack, onFriendClick }: FriendsListProps) {
                   }}
                   className="px-3 py-2 rounded-lg text-xs font-semibold border border-accent/40 text-accent hover:bg-accent/10 disabled:opacity-60"
                 >
-                  {isBusy ? 'Sending...' : 'Send Invite'}
+                  {isBusy ? copy.sending : copy.sendInvite}
                 </button>
               )}
 
               {status === 'outgoing_pending' && (
                 <span className="px-3 py-2 rounded-lg text-xs font-semibold border border-white/15 text-text-secondary">
-                  Pending
+                  {copy.pending}
                 </span>
               )}
 
@@ -448,7 +522,7 @@ export function FriendsList({ onBack, onFriendClick }: FriendsListProps) {
                     }}
                     className="px-3 py-2 rounded-lg text-xs font-semibold bg-accent text-black hover:bg-accent/90 disabled:opacity-60"
                   >
-                    Accept
+                    {copy.accept}
                   </button>
                   <button
                     type="button"
@@ -459,7 +533,7 @@ export function FriendsList({ onBack, onFriendClick }: FriendsListProps) {
                     }}
                     className="px-3 py-2 rounded-lg text-xs font-semibold border border-white/15 text-text-secondary hover:bg-white/5 disabled:opacity-60"
                   >
-                    Decline
+                    {copy.decline}
                   </button>
                 </div>
               )}
@@ -469,7 +543,7 @@ export function FriendsList({ onBack, onFriendClick }: FriendsListProps) {
 
         {filteredMembers.length === 0 && (
           <Card className="p-4 text-sm text-text-secondary border border-white/10">
-            {filter === 'requests' ? 'No pending friend requests.' : 'No users found for this filter.'}
+            {filter === 'requests' ? copy.noPendingFriendRequests : copy.noUsersForFilter}
           </Card>
         )}
       </div>

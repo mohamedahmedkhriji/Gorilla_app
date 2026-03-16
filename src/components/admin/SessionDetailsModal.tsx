@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { X, Clock, Dumbbell, Check } from 'lucide-react';
+import { stripExercisePrefix } from '../../services/exerciseName';
 
 interface SessionDetailsModalProps {
   session: any;
@@ -134,7 +135,7 @@ export const SessionDetailsModal: React.FC<SessionDetailsModalProps> = ({ sessio
             <div className="space-y-3">
               {exercises.map((exercise, index) => (
                 <div key={index} className="rounded-2xl border border-slate-200 bg-white p-4">
-                  <div className="font-semibold">{exercise.name}</div>
+                  <div className="font-semibold">{stripExercisePrefix(exercise.name)}</div>
                   <div className="mt-3 grid grid-cols-3 gap-2 text-sm">
                     <div>
                       <p className="text-slate-500">Sets</p>

@@ -15,6 +15,7 @@ import { Header } from '../components/ui/Header';
 import { Card } from '../components/ui/Card';
 import { api } from '../services/api';
 import { getNutritionInputsOverride, NUTRITION_INPUTS_UPDATED_EVENT } from '../services/nutritionOverrides';
+import { getActiveLanguage, getStoredLanguage } from '../services/language';
 
 interface MyNutritionProps {
   onBack: () => void;
@@ -211,10 +212,43 @@ function CircularMeter({
 }
 
 export function MyNutrition({ onBack }: MyNutritionProps) {
+  const isArabic = getActiveLanguage(getStoredLanguage()) === 'ar';
+  const copy = {
+    title: isArabic ? 'تغذيتي' : 'My Nutrition',
+    today: isArabic ? 'اليوم' : 'Today',
+    remaining: isArabic ? 'متبقي' : 'Remaining',
+    over: isArabic ? 'فائض' : 'Over',
+    baseGoal: isArabic ? 'الهدف الأساسي' : 'Base Goal',
+    food: isArabic ? 'الطعام' : 'Food',
+    exercise: isArabic ? 'التمرين' : 'Exercise',
+    goalPrefix: isArabic ? 'الهدف' : 'Goal',
+    tdee: isArabic ? 'معدل الحرق اليومي' : 'TDEE',
+    carbs: isArabic ? 'الكربوهيدرات' : 'Carbs',
+    protein: isArabic ? 'البروتين' : 'Protein',
+    fat: isArabic ? 'الدهون' : 'Fat',
+    meals: isArabic ? 'الوجبات' : 'Meals',
+    activity: isArabic ? 'النشاط' : 'Activity',
+    hydration: isArabic ? 'الترطيب' : 'Hydration',
+    dailyTotals: isArabic ? 'الإجماليات اليومية' : 'Daily Totals',
+    dailyWater: isArabic ? 'الماء اليومي' : 'Daily water',
+    fromFoods: isArabic ? 'من الطعام' : 'From foods',
+    drinkDirectly: isArabic ? 'اشرب مباشرة' : 'Drink directly',
+    caloriesPlanned: isArabic ? 'السعرات المخططة' : 'Calories planned',
+    proteinPlanned: isArabic ? 'البروتين المخطط' : 'Protein planned',
+    fiber: isArabic ? 'الألياف' : 'Fiber',
+    sodium: isArabic ? 'الصوديوم' : 'Sodium',
+    loadingPlan: isArabic ? 'جارٍ إعداد خطة الطعام اليومية...' : 'Building your daily food plan...',
+    noSession: isArabic ? 'لا توجد جلسة مستخدم نشطة. يرجى تسجيل الدخول مرة أخرى.' : 'No active user session found. Please login again.',
+    missingProfile: isArabic
+      ? 'بيانات الملف الشخصي ناقصة (العمر، الوزن، الطول). حدّث بياناتك لإنشاء خطة التغذية.'
+      : 'Missing profile data (age, weight, height). Update profile details to generate automatic nutrition.',
+    loadFailed: isArabic ? 'تعذر إنشاء خطة التغذية.' : 'Failed to build nutrition plan.',
+  };
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [plan, setPlan] = useState<NutritionPlanResponse | null>(null);
   const [goalLabel, setGoalLabel] = useState('General Fitness');
+  const [goalKey, setGoalKey] = useState('general_fitness');
   const [tdee, setTdee] = useState<number | null>(null);
   const [refreshSeed, setRefreshSeed] = useState(0);
   const [activeView, setActiveView] = useState<NutritionView>('meals');
@@ -242,7 +276,7 @@ export function MyNutrition({ onBack }: MyNutritionProps) {
       setError('');
 
       if (!userId) {
-        setError('No active user session found. Please login again.');
+        setError(copy.noSession);
         setLoading(false);
         return;
       }
@@ -261,7 +295,7 @@ export function MyNutrition({ onBack }: MyNutritionProps) {
         const heightCm = Number((persistedOverride?.heightCm ?? profile?.heightCm) || 0);
 
         if (!(age > 0 && weightKg > 0 && heightCm > 0)) {
-          setError('Missing profile data (age, weight, height). Update profile details to generate automatic nutrition.');
+          setError(copy.missingProfile);
           setPlan(null);
           setLoading(false);
           return;
@@ -308,12 +342,13 @@ export function MyNutrition({ onBack }: MyNutritionProps) {
         if (cancelled) return;
         setPlan(dailyPlan as NutritionPlanResponse);
         setGoalLabel(formatGoalLabel(goalRaw));
+        setGoalKey(goalRaw);
         setTdee(computedTdee);
       } catch (loadError: unknown) {
-        const message = loadError instanceof Error ? loadError.message : 'Failed to build nutrition plan.';
+        const message = loadError instanceof Error ? loadError.message : copy.loadFailed;
         if (!cancelled) {
           setPlan(null);
-          setError(message);
+          setError(isArabic ? copy.loadFailed : message);
         }
       } finally {
         if (!cancelled) setLoading(false);
@@ -344,13 +379,44 @@ export function MyNutrition({ onBack }: MyNutritionProps) {
     let snackNumber = 0;
     return plan.meals.map((meal) => {
       const slot = String(meal.slot || 'Meal');
-      if (slot.toLowerCase().includes('snack')) {
+      const slotKey = slot.toLowerCase();
+      if (slotKey.includes('snack')) {
         snackNumber += 1;
-        return `Snack ${snackNumber}`;
+        return isArabic ? `وجبة خفيفة ${snackNumber}` : `Snack ${snackNumber}`;
       }
+      if (!isArabic) return slot;
+      if (slotKey.includes('breakfast')) return 'الإفطار';
+      if (slotKey.includes('lunch')) return 'الغداء';
+      if (slotKey.includes('dinner')) return 'العشاء';
       return slot;
     });
-  }, [plan]);
+  }, [isArabic, plan]);
+
+  const goalDisplay = useMemo(() => {
+    if (!isArabic) return goalLabel;
+    const key = normalizeGoal(goalKey);
+    if (!key) return 'لياقة عامة';
+    if (key.includes('fat') || key.includes('loss')) return 'خسارة الدهون';
+    if (key.includes('recomp')) return 'إعادة تركيب الجسم';
+    if (key.includes('hypertrophy') || key.includes('muscle')) return 'بناء العضلات';
+    if (key.includes('strength')) return 'زيادة القوة';
+    if (key.includes('endurance')) return 'تحمل أعلى';
+    return 'لياقة عامة';
+  }, [goalKey, goalLabel, isArabic]);
+
+  const translateCategory = (value: string) => {
+    if (!isArabic) return value;
+    const key = String(value || '').trim().toLowerCase();
+    const categoryMap: Record<string, string> = {
+      'meal/protein': 'وجبة/بروتين',
+      'meal/carbs': 'وجبة/كربوهيدرات',
+      'meal/fat': 'وجبة/دهون',
+      'snack/protein': 'سناك/بروتين',
+      'snack/carbs': 'سناك/كربوهيدرات',
+      'snack/fat': 'سناك/دهون',
+    };
+    return categoryMap[key] ?? value;
+  };
 
   const toggleMeal = (mealKey: string) =>
     setExpandedMeals((prev) => ({ ...prev, [mealKey]: !prev[mealKey] }));
@@ -358,13 +424,13 @@ export function MyNutrition({ onBack }: MyNutritionProps) {
   return (
     <div className="flex-1 flex flex-col bg-background min-h-screen pb-24">
       <div className="px-4 sm:px-6 pt-2">
-        <Header title="My Nutrition" onBack={onBack} />
+        <Header title={copy.title} onBack={onBack} />
       </div>
 
       <div className="px-4 sm:px-6 space-y-4 pb-4">
         {loading && (
           <Card className="border border-white/5 bg-card/80 p-4">
-            <div className="text-sm text-text-secondary">Building your daily food plan...</div>
+            <div className="text-sm text-text-secondary">{copy.loadingPlan}</div>
           </Card>
         )}
 
@@ -379,7 +445,7 @@ export function MyNutrition({ onBack }: MyNutritionProps) {
             <Card className="relative overflow-hidden border border-white/15 bg-[#14181f] p-4">
               <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_85%_10%,rgba(34,211,238,0.2),transparent_45%)]" />
               <div className="relative">
-                <div className="text-center text-sm font-semibold text-text-secondary">Today</div>
+                <div className="text-center text-sm font-semibold text-text-secondary">{copy.today}</div>
 
                 <div className="mt-3 grid grid-cols-[126px_minmax(0,1fr)] items-center gap-3">
                   <CircularMeter
@@ -393,7 +459,7 @@ export function MyNutrition({ onBack }: MyNutritionProps) {
                     <div className="text-center leading-none">
                       <div className="text-[44px] font-black text-white">{Math.abs(caloriesRemaining)}</div>
                       <div className="mt-1.5 text-[9px] uppercase tracking-[0.14em] text-text-secondary">
-                        {caloriesRemaining >= 0 ? 'Remaining' : 'Over'}
+                        {caloriesRemaining >= 0 ? copy.remaining : copy.over}
                       </div>
                     </div>
                   </CircularMeter>
@@ -404,7 +470,7 @@ export function MyNutrition({ onBack }: MyNutritionProps) {
                         <Flag size={13} className="text-cyan-400" />
                       </div>
                       <div className="leading-none">
-                        <div className="text-xs text-text-secondary">Base Goal</div>
+                        <div className="text-xs text-text-secondary">{copy.baseGoal}</div>
                         <div className="mt-1 text-[30px] font-semibold tabular-nums text-white">{baseGoalCalories}</div>
                       </div>
                     </div>
@@ -414,7 +480,7 @@ export function MyNutrition({ onBack }: MyNutritionProps) {
                         <UtensilsCrossed size={13} className="text-cyan-400" />
                       </div>
                       <div className="leading-none">
-                        <div className="text-xs text-text-secondary">Food</div>
+                        <div className="text-xs text-text-secondary">{copy.food}</div>
                         <div className="mt-1 text-[30px] font-semibold tabular-nums text-white">{plan.totals.calories}</div>
                       </div>
                     </div>
@@ -424,7 +490,7 @@ export function MyNutrition({ onBack }: MyNutritionProps) {
                         <Dumbbell size={13} className="text-cyan-400" />
                       </div>
                       <div className="leading-none">
-                        <div className="text-xs text-text-secondary">Exercise</div>
+                        <div className="text-xs text-text-secondary">{copy.exercise}</div>
                         <div className={`mt-1 text-[30px] font-semibold tabular-nums ${exerciseAdjustment >= 0 ? 'text-cyan-400' : 'text-orange-400'}`}>
                           {formatSigned(exerciseAdjustment)}
                         </div>
@@ -440,7 +506,7 @@ export function MyNutrition({ onBack }: MyNutritionProps) {
                   />
                 </div>
                 <div className="mt-3 text-[11px] leading-tight text-text-tertiary">
-                  Goal: {goalLabel}{tdee ? ` | TDEE ${tdee} kcal` : ''}
+                  {copy.goalPrefix}: {goalDisplay}{tdee ? ` | ${copy.tdee} ${tdee} kcal` : ''}
                 </div>
               </div>
             </Card>
@@ -448,19 +514,19 @@ export function MyNutrition({ onBack }: MyNutritionProps) {
             <Card className="border border-white/5 bg-[#14181f] p-4">
               <div className="grid grid-cols-3 gap-1">
                 <div className="flex min-w-0 flex-col items-center gap-1.5">
-                  <div className="text-sm font-semibold text-white">Carbs</div>
+                  <div className="text-sm font-semibold text-white">{copy.carbs}</div>
                   <CircularMeter value={plan.totals.carbs} max={plan.targets.carbs} size={64} strokeWidth={5} color="#14d3df">
                     <div className="text-sm font-bold tabular-nums text-white">{plan.totals.carbs}g</div>
                   </CircularMeter>
                 </div>
                 <div className="flex min-w-0 flex-col items-center gap-1.5">
-                  <div className="text-sm font-semibold text-white">Protein</div>
+                  <div className="text-sm font-semibold text-white">{copy.protein}</div>
                   <CircularMeter value={plan.totals.protein} max={plan.targets.protein} size={64} strokeWidth={5} color="#0ea5e9">
                     <div className="text-sm font-bold tabular-nums text-white">{plan.totals.protein}g</div>
                   </CircularMeter>
                 </div>
                 <div className="flex min-w-0 flex-col items-center gap-1.5">
-                  <div className="text-sm font-semibold text-white">Fat</div>
+                  <div className="text-sm font-semibold text-white">{copy.fat}</div>
                   <CircularMeter value={plan.totals.fat} max={plan.targets.fat} size={64} strokeWidth={5} color="#22d3ee">
                     <div className="text-sm font-bold tabular-nums text-white">{plan.totals.fat}g</div>
                   </CircularMeter>
@@ -477,7 +543,7 @@ export function MyNutrition({ onBack }: MyNutritionProps) {
                     ${activeView === 'meals' ? 'bg-cyan-400 text-black' : 'text-text-secondary hover:text-white'}
                   `}>
                   <UtensilsCrossed size={15} />
-                  Meals
+                  {copy.meals}
                 </button>
                 <button
                   onClick={() => setActiveView('activity')}
@@ -486,7 +552,7 @@ export function MyNutrition({ onBack }: MyNutritionProps) {
                     ${activeView === 'activity' ? 'bg-cyan-400 text-black' : 'text-text-secondary hover:text-white'}
                   `}>
                   <Flame size={15} />
-                  Activity
+                  {copy.activity}
                 </button>
               </div>
             </div>
@@ -524,7 +590,7 @@ export function MyNutrition({ onBack }: MyNutritionProps) {
                               <div className="flex items-start justify-between gap-3">
                                 <div className="text-sm font-semibold text-white">{item.name}</div>
                                 <div className="rounded-full bg-white/10 px-2 py-0.5 text-[10px] uppercase tracking-wide text-text-secondary">
-                                  {item.category}
+                                  {translateCategory(item.category)}
                                 </div>
                               </div>
                               <div className="mt-1 text-[11px] text-text-secondary">
@@ -543,29 +609,29 @@ export function MyNutrition({ onBack }: MyNutritionProps) {
             {activeView === 'activity' && (
               <div className="space-y-3">
                 <Card className="border border-white/5 bg-[#14181f] p-4">
-                  <h3 className="mb-3 text-sm font-semibold text-white">Hydration</h3>
+                  <h3 className="mb-3 text-sm font-semibold text-white">{copy.hydration}</h3>
                   <div className="grid grid-cols-3 gap-2 text-xs">
                     <div className="rounded-xl bg-white/5 p-2.5">
-                      <div className="text-text-secondary">Daily water</div>
+                      <div className="text-text-secondary">{copy.dailyWater}</div>
                       <div className="mt-1 text-sm font-semibold text-white">{toLitersLabel(plan.hydration.recommendedWaterMl)}</div>
                     </div>
                     <div className="rounded-xl bg-white/5 p-2.5">
-                      <div className="text-text-secondary">From foods</div>
+                      <div className="text-text-secondary">{copy.fromFoods}</div>
                       <div className="mt-1 text-sm font-semibold text-white">{toLitersLabel(plan.hydration.waterFromFoodsMl)}</div>
                     </div>
                     <div className="rounded-xl bg-white/5 p-2.5">
-                      <div className="text-text-secondary">Drink directly</div>
+                      <div className="text-text-secondary">{copy.drinkDirectly}</div>
                       <div className="mt-1 text-sm font-semibold text-white">{toLitersLabel(plan.hydration.remainingWaterMl)}</div>
                     </div>
                   </div>
                 </Card>
 
                 <Card className="border border-white/5 bg-[#14181f] p-4">
-                  <h3 className="mb-3 text-sm font-semibold text-white">Daily Totals</h3>
+                  <h3 className="mb-3 text-sm font-semibold text-white">{copy.dailyTotals}</h3>
                   <div className="space-y-2">
                     <div>
                       <div className="mb-1 flex justify-between text-[11px] text-text-secondary">
-                        <span>Calories planned</span>
+                        <span>{copy.caloriesPlanned}</span>
                         <span className="text-white">{plan.totals.calories} / {plan.targets.calories}</span>
                       </div>
                       <div className="h-2 overflow-hidden rounded-full bg-white/10">
@@ -574,7 +640,7 @@ export function MyNutrition({ onBack }: MyNutritionProps) {
                     </div>
                     <div>
                       <div className="mb-1 flex justify-between text-[11px] text-text-secondary">
-                        <span>Protein planned</span>
+                        <span>{copy.proteinPlanned}</span>
                         <span className="text-white">{plan.totals.protein}g / {plan.targets.protein}g</span>
                       </div>
                       <div className="h-2 overflow-hidden rounded-full bg-white/10">
@@ -584,10 +650,10 @@ export function MyNutrition({ onBack }: MyNutritionProps) {
                   </div>
 
                   <div className="mt-4 grid grid-cols-2 gap-2 text-xs">
-                    <div className="rounded-lg bg-white/5 p-2 text-text-secondary">Carbs <span className="font-semibold text-white">{plan.totals.carbs} g</span></div>
-                    <div className="rounded-lg bg-white/5 p-2 text-text-secondary">Fat <span className="font-semibold text-white">{plan.totals.fat} g</span></div>
-                    <div className="rounded-lg bg-white/5 p-2 text-text-secondary">Fiber <span className="font-semibold text-white">{plan.totals.fiber} g</span></div>
-                    <div className="rounded-lg bg-white/5 p-2 text-text-secondary">Sodium <span className="font-semibold text-white">{plan.totals.sodium} mg</span></div>
+                    <div className="rounded-lg bg-white/5 p-2 text-text-secondary">{copy.carbs} <span className="font-semibold text-white">{plan.totals.carbs} g</span></div>
+                    <div className="rounded-lg bg-white/5 p-2 text-text-secondary">{copy.fat} <span className="font-semibold text-white">{plan.totals.fat} g</span></div>
+                    <div className="rounded-lg bg-white/5 p-2 text-text-secondary">{copy.fiber} <span className="font-semibold text-white">{plan.totals.fiber} g</span></div>
+                    <div className="rounded-lg bg-white/5 p-2 text-text-secondary">{copy.sodium} <span className="font-semibold text-white">{plan.totals.sodium} mg</span></div>
                   </div>
                 </Card>
               </div>

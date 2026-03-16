@@ -14,6 +14,7 @@ import { Header } from '../ui/Header';
 import { Card } from '../ui/Card';
 import { api } from '../../services/api';
 import { getBodyPartImage } from '../../services/bodyPartTheme';
+import { AppLanguage, getActiveLanguage, getStoredLanguage } from '../../services/language';
 
 interface StrengthScoreScreenProps {
   onBack: () => void;
@@ -75,12 +76,7 @@ type StrengthSupportData = {
 
 const getMuscleImage = (muscle: string) => getBodyPartImage(muscle);
 
-const rangeOptions: Array<{ key: RangeKey; label: string }> = [
-  { key: 'month', label: 'Month' },
-  { key: '6months', label: '6 months' },
-  { key: 'year', label: 'Year' },
-  { key: 'all', label: 'All time' },
-];
+const rangeOptions: RangeKey[] = ['month', '6months', 'year', 'all'];
 
 const defaultSupportData: StrengthSupportData = {
   workoutStreakDays: 0,
@@ -158,14 +154,257 @@ const getRecoveryToneClass = (value: number) => {
   return 'border-rose-400/30 bg-rose-400/10 text-rose-200';
 };
 
+const STRENGTH_SCORE_I18N = {
+  en: {
+    title: 'Strength Score',
+    infoAria: 'Strength score info',
+    trendPending: 'Trend pending',
+    recovery: 'Recovery',
+    avgSummary: (avgText: string, samples: number, range: string) =>
+      `Avg E1RM ${avgText} from ${samples} weighted exercise-day samples in the selected ${range} range.`,
+    noScoreYet: 'No strength score yet. Complete weighted sets and this page will start charting your score, muscle ranking, and trend.',
+    rank: 'Rank',
+    thisWeek: 'This Week',
+    completion: 'completion',
+    load30D: '30D Load',
+    setsLogged: (sets: number) => `${sets} sets logged`,
+    totalPoints: (points: number) => `${points.toLocaleString()} pts`,
+    streak: 'Streak',
+    workoutDaySingular: 'workout day',
+    workoutDayPlural: 'workout days',
+    score: 'Score',
+    recent: 'recent',
+    scoreRange: 'Score range',
+    momentum: 'Momentum',
+    weightedSamples: 'Weighted Samples',
+    rangeStillBuilding: 'Range still building',
+    samplesPerBucket: (value: number) => `${value} samples per bucket`,
+    muscleAverage: 'Muscle Average',
+    rankingPending: 'Ranking pending',
+    musclesTracked: (count: number) => `${count} muscles tracked`,
+    readiness: 'Readiness',
+    readyNeedRest: (ready: number, needRest: number) => `${ready} ready | ${needRest} need rest`,
+    strengthHistory: 'Strength History',
+    start: 'Start',
+    current: 'Current',
+    change: 'Change',
+    notEnoughWeightedSets: 'Not enough weighted sets yet. Log completed weighted sets to start building your trend.',
+    vsPreviousBucket: (delta: string) => `${delta} vs previous bucket`,
+    firstTrackedBucket: 'First tracked bucket',
+    peakMuscle: 'Peak Muscle',
+    developmentLane: 'Development Lane',
+    trainingStatus: 'Training Status',
+    needMoreStrengthData: 'Need more strength data',
+    logMoreWeightedSets: 'Log more weighted sets to rank muscles.',
+    opportunity: 'Opportunity',
+    highlightsFurthest: 'This card highlights the muscle furthest from your top score.',
+    planCompletionWeek: (percent: number) => `${percent}% plan completion this week`,
+    musclesRecoverySummary: (ready: number, almost: number, damaged: number) =>
+      `${ready} muscles ready, ${almost} almost ready, ${damaged} need more recovery.`,
+    strengthPerMuscle: 'Strength per Muscle',
+    muscleLeaderboard: 'Muscle leaderboard',
+    rankedMuscles: (count: number) => `${count} ranked muscles from tracked exercise output`,
+    rankingAppears: 'Ranking will appear once enough weighted sets are logged.',
+    scoreBand: 'Score Band',
+    outputGap: 'Output Gap',
+    recShort: 'Rec',
+    na: 'N/A',
+    unlockLeaderboard: 'Start logging weighted sets to unlock your muscle leaderboard, strength tiers, and recovery-linked breakdown.',
+    aboutTitle: 'About Strength Score',
+    aboutSubtitle: (range: string) =>
+      `This page combines your logged lifting output with training adherence and recovery data for the current ${range} range.`,
+    closeInfo: 'Close strength score info',
+    snapshotLine: 'Your main score is a strength snapshot built from completed weighted sets.',
+    scoreCalcLine: 'For each exercise on each training day, the app takes your best estimated 1-rep max (E1RM), averages those values, and converts the result into a score from 80 to 320.',
+    sectionMeaning: 'What each section means',
+    heroMeaning: 'The hero card shows your current score, tier, score range, recent trend, weekly adherence, and 30-day load.',
+    historyMeaning: 'Strength History shows how that score changes over time. In `Month` view each point is a day, while `6 months`, `Year`, and `All time` group results by month.',
+    leaderboardMeaning: 'Muscle leaderboard ranks the muscle groups you train most strongly and pairs them with recovery readiness when that data is available.',
+    rangeCoverage: 'Current range coverage',
+    rangeCoverageWithSamples: (samples: number) =>
+      `This view is currently based on ${samples} logged exercise-day samples. More completed weighted sets make the score and muscle rankings more stable.`,
+    rangeCoverageNoSamples: 'No weighted training samples were found in this range yet. Log completed weighted sets to generate your score, history, and muscle ranking.',
+    couldNotLoadScore: 'Could not load strength score.',
+    noScoreLabel: 'No score yet',
+    waitingForSessions: 'Waiting for your first weighted sessions',
+    strengthClimbing: 'Strength is climbing',
+    smallUpward: 'Small upward trend',
+    offRecentPeak: 'You are off your recent peak',
+    slightDip: 'Slight dip in output',
+    holdingSteady: 'Holding steady',
+    completeSetsForDashboard: 'Complete weighted sets and this screen will turn into a real strength dashboard.',
+    rangeTrendText: (delta: string, range: string, deltaPct: string) =>
+      `${delta} across the current ${range.toLowerCase()} window, with ${deltaPct} change from your baseline.`,
+    rangeWindow: (range: string) => `${range} window`,
+    firstPointMessage: 'One tracked point so far. Add more sessions to unlock trend direction.',
+    tierAtScore: (tier: string, score: number) => `${tier} at ${score}`,
+    avgBestSummary: (avgText: string, bestText: string) => `Avg ${avgText} | Best ${bestText}`,
+    bestOpportunitySummary: (bestText: string, gapText: string) => `Best ${bestText} | Opportunity ${gapText}`,
+    pointsSuffix: ' pts',
+    rangeLabel: {
+      month: 'Month',
+      '6months': '6 months',
+      year: 'Year',
+      all: 'All time',
+    } as Record<RangeKey, string>,
+  },
+  ar: {
+    title: 'درجة القوة',
+    infoAria: 'معلومات درجة القوة',
+    trendPending: 'الاتجاه غير متاح بعد',
+    recovery: 'الاستشفاء',
+    avgSummary: (avgText: string, samples: number, range: string) =>
+      `متوسط 1RM خلال نطاق ${range} هو ${avgText} بناءً على ${samples} عينة من أيام التمرين الموزون.`,
+    noScoreYet: 'لا توجد درجة قوة بعد. أكمل مجموعات موزونة وسيبدأ هذا القسم بعرض درجتك وترتيب العضلات والاتجاه.',
+    rank: 'الرتبة',
+    thisWeek: 'هذا الأسبوع',
+    completion: 'إنجاز',
+    load30D: 'حمل 30 يوم',
+    setsLogged: (sets: number) => `${sets} مجموعات مسجلة`,
+    totalPoints: (points: number) => `${points.toLocaleString()} نقطة`,
+    streak: 'التتابع',
+    workoutDaySingular: 'يوم تمرين',
+    workoutDayPlural: 'أيام تمرين',
+    score: 'الدرجة',
+    recent: 'حديثًا',
+    scoreRange: 'نطاق الدرجة',
+    momentum: 'الزخم',
+    weightedSamples: 'العينات الموزونة',
+    rangeStillBuilding: 'النطاق ما زال قيد البناء',
+    samplesPerBucket: (value: number) => `${value} عينة لكل فترة`,
+    muscleAverage: 'متوسط العضلات',
+    rankingPending: 'الترتيب قيد الانتظار',
+    musclesTracked: (count: number) => `${count} عضلات متتبعة`,
+    readiness: 'الجاهزية',
+    readyNeedRest: (ready: number, needRest: number) => `${ready} جاهز | ${needRest} يحتاج راحة`,
+    strengthHistory: 'سجل القوة',
+    start: 'البداية',
+    current: 'الحالي',
+    change: 'التغيير',
+    notEnoughWeightedSets: 'لا توجد مجموعات موزونة كافية بعد. سجّل مجموعات موزونة مكتملة لبدء بناء الاتجاه.',
+    vsPreviousBucket: (delta: string) => `${delta} مقارنة بالفترة السابقة`,
+    firstTrackedBucket: 'أول فترة متتبعة',
+    peakMuscle: 'أقوى عضلة',
+    developmentLane: 'مسار التطوير',
+    trainingStatus: 'حالة التدريب',
+    needMoreStrengthData: 'نحتاج المزيد من بيانات القوة',
+    logMoreWeightedSets: 'سجّل مجموعات موزونة أكثر لترتيب العضلات.',
+    opportunity: 'فرصة',
+    highlightsFurthest: 'تعرض هذه البطاقة العضلة الأبعد عن أعلى نتيجة لديك.',
+    planCompletionWeek: (percent: number) => `${percent}% إنجاز الخطة هذا الأسبوع`,
+    musclesRecoverySummary: (ready: number, almost: number, damaged: number) =>
+      `${ready} عضلات جاهزة، ${almost} شبه جاهزة، ${damaged} تحتاج استشفاء أكثر.`,
+    strengthPerMuscle: 'القوة لكل عضلة',
+    muscleLeaderboard: 'لوحة ترتيب العضلات',
+    rankedMuscles: (count: number) => `${count} عضلات مرتبة من ناتج التمرين المتتبع`,
+    rankingAppears: 'سيظهر الترتيب بعد تسجيل مجموعات موزونة كافية.',
+    scoreBand: 'نطاق الدرجة',
+    outputGap: 'فجوة الأداء',
+    recShort: 'استشفاء',
+    na: 'غير متاح',
+    unlockLeaderboard: 'ابدأ بتسجيل مجموعات موزونة لفتح ترتيب العضلات ومستويات القوة وربطها بالاستشفاء.',
+    aboutTitle: 'حول درجة القوة',
+    aboutSubtitle: (range: string) =>
+      `تجمع هذه الصفحة بين ناتج الرفع المسجل والالتزام التدريبي وبيانات الاستشفاء ضمن نطاق ${range} الحالي.`,
+    closeInfo: 'إغلاق معلومات درجة القوة',
+    snapshotLine: 'درجتك الرئيسية هي لقطة قوة مبنية على المجموعات الموزونة المكتملة.',
+    scoreCalcLine: 'لكل تمرين وفي كل يوم تدريب، يأخذ التطبيق أفضل تقدير 1RM لك، ثم يحسب المتوسط ويحوّله إلى درجة من 80 إلى 320.',
+    sectionMeaning: 'ماذا تعني الأقسام',
+    heroMeaning: 'تعرض البطاقة الرئيسية درجتك الحالية، المستوى، نطاق الدرجة، الاتجاه الأخير، الالتزام الأسبوعي، وحمل 30 يوم.',
+    historyMeaning: 'يعرض سجل القوة تغير الدرجة مع الوقت. في عرض `شهر` تكون كل نقطة يومًا، بينما `6 أشهر` و`سنة` و`كل الوقت` تجمع النتائج شهريًا.',
+    leaderboardMeaning: 'يرتب قسم لوحة العضلات المجموعات العضلية الأقوى لديك ويربطها بجاهزية الاستشفاء عند توفر البيانات.',
+    rangeCoverage: 'تغطية النطاق الحالي',
+    rangeCoverageWithSamples: (samples: number) =>
+      `هذا العرض مبني حاليًا على ${samples} عينة أيام تمرين مسجلة. كلما زادت المجموعات الموزونة أصبحت الدرجة والترتيب أكثر ثباتًا.`,
+    rangeCoverageNoSamples: 'لا توجد عينات تمرين موزون في هذا النطاق بعد. سجّل مجموعات موزونة لتوليد الدرجة والسجل وترتيب العضلات.',
+    couldNotLoadScore: 'تعذر تحميل درجة القوة.',
+    noScoreLabel: 'لا توجد درجة بعد',
+    waitingForSessions: 'بانتظار أول جلساتك الموزونة',
+    strengthClimbing: 'القوة في صعود',
+    smallUpward: 'اتجاه صاعد بسيط',
+    offRecentPeak: 'أنت بعيد عن قمتك الأخيرة',
+    slightDip: 'هبوط طفيف في الأداء',
+    holdingSteady: 'ثبات في المستوى',
+    completeSetsForDashboard: 'أكمل مجموعات موزونة وسيتحول هذا القسم إلى لوحة قوة فعلية.',
+    rangeTrendText: (delta: string, range: string, deltaPct: string) =>
+      `${delta} عبر نطاق ${range} الحالي، مع تغير ${deltaPct} عن خط الأساس.`,
+    rangeWindow: (range: string) => `نافذة ${range}`,
+    firstPointMessage: 'لا توجد سوى نقطة واحدة حتى الآن. أضف جلسات أخرى ليظهر اتجاه واضح.',
+    tierAtScore: (tier: string, score: number) => `${tier} عند ${score}`,
+    avgBestSummary: (avgText: string, bestText: string) => `المتوسط ${avgText} | الأفضل ${bestText}`,
+    bestOpportunitySummary: (bestText: string, gapText: string) => `الأفضل ${bestText} | الفرصة ${gapText}`,
+    pointsSuffix: ' نقطة',
+    rangeLabel: {
+      month: 'شهر',
+      '6months': '6 أشهر',
+      year: 'سنة',
+      all: 'كل الوقت',
+    } as Record<RangeKey, string>,
+  },
+} as const;
+
+const AR_TIER_LABELS: Record<string, string> = {
+  beginner: 'مبتدئ',
+  intermediate: 'متوسط',
+  advanced: 'متقدم',
+  elite: 'نخبة',
+  athlete: 'رياضي',
+  bronze: 'برونزي',
+  silver: 'فضي',
+  gold: 'ذهبي',
+  platinum: 'بلاتيني',
+  diamond: 'ماسي',
+};
+
+const AR_MUSCLE_LABELS: Record<string, string> = {
+  chest: 'الصدر',
+  back: 'الظهر',
+  shoulder: 'الكتف',
+  shoulders: 'الأكتاف',
+  tricep: 'الترايسبس',
+  triceps: 'الترايسبس',
+  bicep: 'البايسبس',
+  biceps: 'البايسبس',
+  abs: 'البطن',
+  quadriceps: 'الرباعية',
+  hamstrings: 'الخلفية',
+  calves: 'السمانة',
+  forearms: 'الساعد',
+};
+
 export function StrengthScoreScreen({ onBack }: StrengthScoreScreenProps) {
   const [activeRange, setActiveRange] = useState<RangeKey>('6months');
+  const [language, setLanguage] = useState<AppLanguage>('en');
   const [loading, setLoading] = useState(true);
   const [supportLoading, setSupportLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [data, setData] = useState<StrengthScorePayload | null>(null);
   const [support, setSupport] = useState<StrengthSupportData>(defaultSupportData);
   const [showInfo, setShowInfo] = useState(false);
+  const copy = STRENGTH_SCORE_I18N[language] || STRENGTH_SCORE_I18N.en;
+  const toLocalizedTier = useCallback(
+    (value: string) => (language === 'ar' ? (AR_TIER_LABELS[value.trim().toLowerCase()] || value) : value),
+    [language],
+  );
+  const toLocalizedMuscle = useCallback(
+    (value: string) => (language === 'ar' ? (AR_MUSCLE_LABELS[value.trim().toLowerCase()] || value) : value),
+    [language],
+  );
+
+  useEffect(() => {
+    setLanguage(getActiveLanguage());
+
+    const handleLanguageChanged = () => {
+      setLanguage(getStoredLanguage());
+    };
+
+    window.addEventListener('app-language-changed', handleLanguageChanged);
+    window.addEventListener('storage', handleLanguageChanged);
+    return () => {
+      window.removeEventListener('app-language-changed', handleLanguageChanged);
+      window.removeEventListener('storage', handleLanguageChanged);
+    };
+  }, []);
 
   const loadScore = useCallback(async (range: RangeKey) => {
     const userId = getStoredUserId();
@@ -182,13 +421,13 @@ export function StrengthScoreScreen({ onBack }: StrengthScoreScreenProps) {
       const response = await api.getStrengthScore(userId, range);
       setData(response as StrengthScorePayload);
     } catch (loadError) {
-      const message = loadError instanceof Error ? loadError.message : 'Could not load strength score.';
+      const message = loadError instanceof Error ? loadError.message : copy.couldNotLoadScore;
       setError(message);
       setData(null);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [copy.couldNotLoadScore]);
 
   const loadSupportingContext = useCallback(async () => {
     const userId = getStoredUserId();
@@ -321,7 +560,7 @@ export function StrengthScoreScreen({ onBack }: StrengthScoreScreenProps) {
   const progressPercent = maxScale > minScale
     ? Math.max(0, Math.min(100, ((overallScore - minScale) / (maxScale - minScale)) * 100))
     : 0;
-  const activeRangeLabel = rangeOptions.find((option) => option.key === activeRange)?.label || '6 months';
+  const activeRangeLabel = copy.rangeLabel[activeRange] || copy.rangeLabel['6months'];
   const firstHistoryPoint = history[0] || null;
   const lastHistoryPoint = history.length ? history[history.length - 1] : null;
   const previousHistoryPoint = history.length > 1 ? history[history.length - 2] : null;
@@ -339,7 +578,9 @@ export function StrengthScoreScreen({ onBack }: StrengthScoreScreenProps) {
     : 0;
   const strongestMuscle = muscles[0] || null;
   const weakestMuscle = muscles.length ? muscles[muscles.length - 1] : null;
-  const displayLevel = hasStrengthData ? String(summary?.level || 'Beginner') : 'No score yet';
+  const displayLevel = hasStrengthData
+    ? toLocalizedTier(String(summary?.level || 'Beginner'))
+    : copy.noScoreLabel;
   const scoreRingPercent = hasStrengthData ? progressPercent : 0;
   const recoveryByName = useMemo(
     () => new Map(support.recovery.map((item) => [item.name.trim().toLowerCase(), item])),
@@ -348,34 +589,38 @@ export function StrengthScoreScreen({ onBack }: StrengthScoreScreenProps) {
   const strongestRecovery = strongestMuscle ? recoveryByName.get(strongestMuscle.name.trim().toLowerCase()) : null;
   const weakestRecovery = weakestMuscle ? recoveryByName.get(weakestMuscle.name.trim().toLowerCase()) : null;
   const momentumTitle = !hasStrengthData
-    ? 'Waiting for your first weighted sessions'
+    ? copy.waitingForSessions
     : rangeDelta > 6
-      ? 'Strength is climbing'
+      ? copy.strengthClimbing
       : rangeDelta > 0
-        ? 'Small upward trend'
+        ? copy.smallUpward
         : rangeDelta < -6
-          ? 'You are off your recent peak'
+          ? copy.offRecentPeak
           : rangeDelta < 0
-            ? 'Slight dip in output'
-            : 'Holding steady';
+            ? copy.slightDip
+            : copy.holdingSteady;
   const momentumDescription = !hasStrengthData
-    ? 'Complete weighted sets and this screen will turn into a real strength dashboard.'
+    ? copy.completeSetsForDashboard
     : history.length > 1
-      ? `${formatSigned(rangeDelta, ' pts')} across the current ${activeRangeLabel.toLowerCase()} window, with ${formatSigned(rangeDeltaPct, '%')} change from your baseline.`
-      : 'One tracked point so far. Add more sessions to unlock trend direction.';
+      ? copy.rangeTrendText(
+          formatSigned(rangeDelta, copy.pointsSuffix),
+          activeRangeLabel.toLowerCase(),
+          formatSigned(rangeDeltaPct, '%'),
+        )
+      : copy.firstPointMessage;
 
   return (
     <div className="min-h-screen bg-background pb-24">
       <div className="px-4 sm:px-6 pt-2">
         <Header
-          title="Strength Score"
+          title={copy.title}
           onBack={onBack}
           rightElement={(
             <button
               type="button"
               onClick={() => setShowInfo(true)}
               className="flex h-9 w-9 items-center justify-center rounded-full border border-white/10 bg-card/70 text-text-secondary transition-colors hover:border-accent/30 hover:text-text-primary"
-              aria-label="Strength score info"
+              aria-label={copy.infoAria}
             >
               <CircleHelp size={16} />
             </button>
@@ -392,10 +637,10 @@ export function StrengthScoreScreen({ onBack }: StrengthScoreScreenProps) {
                       {displayLevel}
                     </div>
                     <div className={`rounded-full border px-3 py-1 text-xs font-semibold ${getTrendToneClass(rangeDelta)}`}>
-                      {history.length > 1 ? `${formatSigned(rangeDelta, ' pts')} trend` : 'Trend pending'}
+                      {history.length > 1 ? `${formatSigned(rangeDelta, copy.pointsSuffix)} ${copy.recent}` : copy.trendPending}
                     </div>
                     <div className={`rounded-full border px-3 py-1 text-xs font-semibold ${getRecoveryToneClass(support.overallRecovery)}`}>
-                      Recovery {supportLoading ? '--' : `${Math.round(support.overallRecovery)}%`}
+                      {copy.recovery} {supportLoading ? '--' : `${Math.round(support.overallRecovery)}%`}
                     </div>
                   </div>
 
@@ -405,42 +650,42 @@ export function StrengthScoreScreen({ onBack }: StrengthScoreScreenProps) {
                     </div>
                     <div className="mt-3 max-w-xl text-sm text-text-secondary">
                       {hasStrengthData
-                        ? `Avg E1RM ${formatWeight(Number(summary?.overallAvgE1RM || 0))} from ${sampleCount} weighted exercise-day samples in the selected range.`
-                        : 'No strength score yet. Complete weighted sets and this page will start charting your score, muscle ranking, and trend.'}
+                        ? copy.avgSummary(formatWeight(Number(summary?.overallAvgE1RM || 0)), sampleCount, activeRangeLabel)
+                        : copy.noScoreYet}
                     </div>
                   </div>
 
                   <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
                     <div className="rounded-2xl border border-white/10 bg-black/20 p-3">
-                      <div className="text-[11px] uppercase tracking-[0.18em] text-text-tertiary">Rank</div>
-                      <div className="mt-2 text-lg font-semibold text-white">{supportLoading ? '--' : support.rank}</div>
-                      <div className="text-xs text-text-secondary">{supportLoading ? '--' : `${support.totalPoints.toLocaleString()} pts`}</div>
+                      <div className="text-[11px] uppercase tracking-[0.18em] text-text-tertiary">{copy.rank}</div>
+                      <div className="mt-2 text-lg font-semibold text-white">{supportLoading ? '--' : toLocalizedTier(support.rank)}</div>
+                      <div className="text-xs text-text-secondary">{supportLoading ? '--' : copy.totalPoints(support.totalPoints)}</div>
                     </div>
                     <div className="rounded-2xl border border-white/10 bg-black/20 p-3">
-                      <div className="text-[11px] uppercase tracking-[0.18em] text-text-tertiary">This Week</div>
+                      <div className="text-[11px] uppercase tracking-[0.18em] text-text-tertiary">{copy.thisWeek}</div>
                       <div className="mt-2 text-lg font-semibold text-white">
                         {supportLoading ? '--' : `${support.workoutsCompletedThisWeek}/${support.workoutsPlannedThisWeek || 0}`}
                       </div>
                       <div className="text-xs text-text-secondary">
-                        {supportLoading ? '--' : `${support.weeklyCompletionRate}% completion`}
+                        {supportLoading ? '--' : `${support.weeklyCompletionRate}% ${copy.completion}`}
                       </div>
                     </div>
                     <div className="rounded-2xl border border-white/10 bg-black/20 p-3">
-                      <div className="text-[11px] uppercase tracking-[0.18em] text-text-tertiary">30D Load</div>
+                      <div className="text-[11px] uppercase tracking-[0.18em] text-text-tertiary">{copy.load30D}</div>
                       <div className="mt-2 text-lg font-semibold text-white">
                         {supportLoading ? '--' : formatTons(support.volumeLoadLast30Days)}
                       </div>
                       <div className="text-xs text-text-secondary">
-                        {supportLoading ? '--' : `${support.setsLoggedLast30Days} sets logged`}
+                        {supportLoading ? '--' : copy.setsLogged(support.setsLoggedLast30Days)}
                       </div>
                     </div>
                     <div className="rounded-2xl border border-white/10 bg-black/20 p-3">
-                      <div className="text-[11px] uppercase tracking-[0.18em] text-text-tertiary">Streak</div>
+                      <div className="text-[11px] uppercase tracking-[0.18em] text-text-tertiary">{copy.streak}</div>
                       <div className="mt-2 text-lg font-semibold text-white">
                         {supportLoading ? '--' : support.workoutStreakDays}
                       </div>
                       <div className="text-xs text-text-secondary">
-                        {supportLoading ? '--' : support.workoutStreakDays === 1 ? 'workout day' : 'workout days'}
+                        {supportLoading ? '--' : support.workoutStreakDays === 1 ? copy.workoutDaySingular : copy.workoutDayPlural}
                       </div>
                     </div>
                   </div>
@@ -454,19 +699,19 @@ export function StrengthScoreScreen({ onBack }: StrengthScoreScreenProps) {
                     }}
                   >
                     <div className="flex h-[106px] w-[106px] flex-col items-center justify-center rounded-full border border-white/10 bg-background/95 px-3 text-center sm:h-[134px] sm:w-[134px]">
-                      <div className="text-[11px] uppercase tracking-[0.18em] text-text-tertiary">Score</div>
+                      <div className="text-[11px] uppercase tracking-[0.18em] text-text-tertiary">{copy.score}</div>
                       <div className="mt-1 font-electrolize text-3xl text-white sm:text-4xl">
                         {loading ? '--' : hasStrengthData ? overallScore : '--'}
                       </div>
                       <div className="mt-1 max-w-full break-words text-[11px] leading-4 text-text-secondary sm:text-xs">
-                        {history.length > 1 ? `${formatSigned(recentDelta, ' pts')} recent` : activeRangeLabel}
+                        {history.length > 1 ? `${formatSigned(recentDelta, copy.pointsSuffix)} ${copy.recent}` : activeRangeLabel}
                       </div>
                     </div>
                   </div>
 
                   <div className="mt-4 w-full max-w-[220px]">
                     <div className="mb-1 flex items-center justify-between text-xs text-text-tertiary">
-                      <span className="truncate">Score range</span>
+                      <span className="truncate">{copy.scoreRange}</span>
                       <span className="shrink-0">{minScale} - {maxScale}</span>
                     </div>
                     <div className="h-2 overflow-hidden rounded-full bg-white/10">
@@ -485,12 +730,12 @@ export function StrengthScoreScreen({ onBack }: StrengthScoreScreenProps) {
             <Card className="border border-white/10 p-4">
               <div className="flex items-start justify-between gap-3">
                 <div>
-                  <div className="text-xs uppercase tracking-[0.18em] text-text-tertiary">Momentum</div>
+                  <div className="text-xs uppercase tracking-[0.18em] text-text-tertiary">{copy.momentum}</div>
                   <div className="mt-2 text-2xl font-electrolize text-white">
                     {history.length > 1 ? formatSigned(rangeDelta) : '--'}
                   </div>
                   <div className="mt-1 text-xs text-text-secondary">
-                    {history.length > 1 ? `${activeRangeLabel} window` : 'Need more history'}
+                    {history.length > 1 ? copy.rangeWindow(activeRangeLabel) : copy.rangeStillBuilding}
                   </div>
                 </div>
                 <TrendingUp size={18} className="text-emerald-300" />
@@ -500,10 +745,10 @@ export function StrengthScoreScreen({ onBack }: StrengthScoreScreenProps) {
             <Card className="border border-white/10 p-4">
               <div className="flex items-start justify-between gap-3">
                 <div>
-                  <div className="text-xs uppercase tracking-[0.18em] text-text-tertiary">Weighted Samples</div>
+                  <div className="text-xs uppercase tracking-[0.18em] text-text-tertiary">{copy.weightedSamples}</div>
                   <div className="mt-2 text-2xl font-electrolize text-white">{loading ? '--' : sampleCount}</div>
                   <div className="mt-1 text-xs text-text-secondary">
-                    {loading || !history.length ? 'Range still building' : `${trainingDensity} samples per bucket`}
+                    {loading || !history.length ? copy.rangeStillBuilding : copy.samplesPerBucket(trainingDensity)}
                   </div>
                 </div>
                 <BarChart3 size={18} className="text-sky-300" />
@@ -513,10 +758,10 @@ export function StrengthScoreScreen({ onBack }: StrengthScoreScreenProps) {
             <Card className="border border-white/10 p-4">
               <div className="flex items-start justify-between gap-3">
                 <div>
-                  <div className="text-xs uppercase tracking-[0.18em] text-text-tertiary">Muscle Average</div>
+                  <div className="text-xs uppercase tracking-[0.18em] text-text-tertiary">{copy.muscleAverage}</div>
                   <div className="mt-2 text-2xl font-electrolize text-white">{loading ? '--' : averageMuscleScore || '--'}</div>
                   <div className="mt-1 text-xs text-text-secondary">
-                    {loading || !strongestMuscle ? 'Ranking pending' : `${muscles.length} muscles tracked`}
+                    {loading || !strongestMuscle ? copy.rankingPending : copy.musclesTracked(muscles.length)}
                   </div>
                 </div>
                 <Dumbbell size={18} className="text-violet-300" />
@@ -526,12 +771,12 @@ export function StrengthScoreScreen({ onBack }: StrengthScoreScreenProps) {
             <Card className="border border-white/10 p-4">
               <div className="flex items-start justify-between gap-3">
                 <div>
-                  <div className="text-xs uppercase tracking-[0.18em] text-text-tertiary">Readiness</div>
+                  <div className="text-xs uppercase tracking-[0.18em] text-text-tertiary">{copy.readiness}</div>
                   <div className="mt-2 text-2xl font-electrolize text-white">
                     {supportLoading ? '--' : `${Math.round(support.overallRecovery)}%`}
                   </div>
                   <div className="mt-1 text-xs text-text-secondary">
-                    {supportLoading ? '--' : `${support.readyMuscles} ready | ${support.damagedMuscles} need rest`}
+                    {supportLoading ? '--' : copy.readyNeedRest(support.readyMuscles, support.damagedMuscles)}
                   </div>
                 </div>
                 <Activity size={18} className="text-emerald-600" />
@@ -542,25 +787,25 @@ export function StrengthScoreScreen({ onBack }: StrengthScoreScreenProps) {
           <Card className="border border-white/10 p-5">
             <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
               <div className="min-w-0">
-                <div className="text-[11px] uppercase tracking-[0.18em] text-text-tertiary">Strength History</div>
+                <div className="text-[11px] uppercase tracking-[0.18em] text-text-tertiary">{copy.strengthHistory}</div>
                 <h3 className="mt-2 break-words text-2xl font-semibold text-white sm:text-3xl">{momentumTitle}</h3>
                 <p className="mt-2 max-w-2xl text-sm text-text-secondary">{momentumDescription}</p>
               </div>
               <div className="grid grid-cols-1 gap-2 text-center text-xs sm:grid-cols-3 lg:min-w-[260px]">
                 <div className="rounded-2xl border border-white/10 bg-white/5 px-3 py-3">
-                  <div className="text-text-tertiary">Start</div>
+                  <div className="text-text-tertiary">{copy.start}</div>
                   <div className="mt-1 font-electrolize text-lg text-white">
                     {firstHistoryPoint ? firstHistoryPoint.score : '--'}
                   </div>
                 </div>
                 <div className="rounded-2xl border border-white/10 bg-white/5 px-3 py-3">
-                  <div className="text-text-tertiary">Current</div>
+                  <div className="text-text-tertiary">{copy.current}</div>
                   <div className="mt-1 font-electrolize text-lg text-white">
                     {lastHistoryPoint ? lastHistoryPoint.score : '--'}
                   </div>
                 </div>
                 <div className={`rounded-2xl border px-3 py-3 ${getTrendToneClass(rangeDelta)}`}>
-                  <div className="text-current/70">Change</div>
+                  <div className="text-current/70">{copy.change}</div>
                   <div className="mt-1 font-electrolize text-lg">
                     {history.length > 1 ? formatSigned(rangeDelta) : '--'}
                   </div>
@@ -571,16 +816,16 @@ export function StrengthScoreScreen({ onBack }: StrengthScoreScreenProps) {
               <div className="mt-3 grid grid-cols-2 rounded-xl border border-white/10 bg-card/70 p-1 sm:grid-cols-4">
                 {rangeOptions.map((option) => (
                   <button
-                    key={option.key}
+                    key={option}
                     type="button"
-                    onClick={() => setActiveRange(option.key)}
+                    onClick={() => setActiveRange(option)}
                     className={`rounded-lg px-2 py-1.5 text-xs font-semibold transition-colors ${
-                      activeRange === option.key
+                      activeRange === option
                         ? 'bg-white/12 text-white'
                         : 'text-text-secondary hover:text-text-primary'
                     }`}
                   >
-                    {option.label}
+                    {copy.rangeLabel[option]}
                   </button>
                 ))}
               </div>
@@ -592,7 +837,7 @@ export function StrengthScoreScreen({ onBack }: StrengthScoreScreenProps) {
                   <div className="flex h-full items-center justify-center text-sm text-rose-300">{error}</div>
                 ) : !chart.points.length ? (
                   <div className="flex h-full items-center justify-center text-center text-sm text-text-secondary">
-                    Not enough weighted sets yet. Log completed weighted sets to start building your trend.
+                    {copy.notEnoughWeightedSets}
                   </div>
                 ) : (
                   <>
@@ -636,7 +881,7 @@ export function StrengthScoreScreen({ onBack }: StrengthScoreScreenProps) {
                 <div className="mt-3 flex flex-col gap-1 text-xs text-text-tertiary sm:flex-row sm:items-center sm:justify-between">
                   <span>{chart.points[0]?.label || '-'}</span>
                   <span className="text-center">
-                    {history.length > 1 ? `${formatSigned(recentDelta, ' pts')} vs previous bucket` : 'First tracked bucket'}
+                    {history.length > 1 ? copy.vsPreviousBucket(formatSigned(recentDelta, copy.pointsSuffix)) : copy.firstTrackedBucket}
                   </span>
                   <span className="text-right">{chart.points[chart.points.length - 1]?.label || '-'}</span>
                 </div>
@@ -647,20 +892,20 @@ export function StrengthScoreScreen({ onBack }: StrengthScoreScreenProps) {
             <Card className="border border-white/10 p-4">
               <div className="flex items-start justify-between gap-3">
                 <div>
-                  <div className="text-xs uppercase tracking-[0.18em] text-text-tertiary">Peak Muscle</div>
-                  <div className="mt-2 break-words text-2xl font-semibold text-white">{strongestMuscle?.name || '--'}</div>
+                  <div className="text-xs uppercase tracking-[0.18em] text-text-tertiary">{copy.peakMuscle}</div>
+                  <div className="mt-2 break-words text-2xl font-semibold text-white">{strongestMuscle ? toLocalizedMuscle(strongestMuscle.name) : '--'}</div>
                   <div className="mt-1 text-sm text-text-secondary">
-                    {strongestMuscle ? `${strongestMuscle.tier} at ${strongestMuscle.score}` : 'Need more strength data'}
+                    {strongestMuscle ? copy.tierAtScore(toLocalizedTier(strongestMuscle.tier), strongestMuscle.score) : copy.needMoreStrengthData}
                   </div>
                   <div className="mt-3 break-words text-xs text-text-tertiary">
-                    {strongestMuscle ? `Avg ${formatWeight(strongestMuscle.avgE1RM)} | Best ${formatWeight(strongestMuscle.bestE1RM)}` : 'Log more weighted sets to rank muscles.'}
+                    {strongestMuscle ? copy.avgBestSummary(formatWeight(strongestMuscle.avgE1RM), formatWeight(strongestMuscle.bestE1RM)) : copy.logMoreWeightedSets}
                   </div>
                 </div>
                 <Trophy size={18} className="text-amber-300" />
               </div>
               {strongestRecovery && (
                 <div className={`mt-4 inline-flex rounded-full border px-3 py-1 text-xs font-semibold ${getRecoveryToneClass(strongestRecovery.score)}`}>
-                  Recovery {Math.round(strongestRecovery.score)}%
+                  {copy.recovery} {Math.round(strongestRecovery.score)}%
                 </div>
               )}
             </Card>
@@ -668,20 +913,25 @@ export function StrengthScoreScreen({ onBack }: StrengthScoreScreenProps) {
             <Card className="border border-white/10 p-4">
               <div className="flex items-start justify-between gap-3">
                 <div>
-                  <div className="text-xs uppercase tracking-[0.18em] text-text-tertiary">Development Lane</div>
-                  <div className="mt-2 break-words text-2xl font-semibold text-white">{weakestMuscle?.name || '--'}</div>
+                  <div className="text-xs uppercase tracking-[0.18em] text-text-tertiary">{copy.developmentLane}</div>
+                  <div className="mt-2 break-words text-2xl font-semibold text-white">{weakestMuscle ? toLocalizedMuscle(weakestMuscle.name) : '--'}</div>
                   <div className="mt-1 text-sm text-text-secondary">
-                    {weakestMuscle ? `${weakestMuscle.tier} at ${weakestMuscle.score}` : 'Need more strength data'}
+                    {weakestMuscle ? copy.tierAtScore(toLocalizedTier(weakestMuscle.tier), weakestMuscle.score) : copy.needMoreStrengthData}
                   </div>
                   <div className="mt-3 break-words text-xs text-text-tertiary">
-                    {weakestMuscle ? `Best ${formatWeight(weakestMuscle.bestE1RM)} | Opportunity ${formatSigned(strongestMuscle ? strongestMuscle.score - weakestMuscle.score : 0, ' pts')}` : 'This card highlights the muscle furthest from your top score.'}
+                    {weakestMuscle
+                      ? copy.bestOpportunitySummary(
+                          formatWeight(weakestMuscle.bestE1RM),
+                          formatSigned(strongestMuscle ? strongestMuscle.score - weakestMuscle.score : 0, copy.pointsSuffix),
+                        )
+                      : copy.highlightsFurthest}
                   </div>
                 </div>
                 <Target size={18} className="text-sky-300" />
               </div>
               {weakestRecovery && (
                 <div className={`mt-4 inline-flex rounded-full border px-3 py-1 text-xs font-semibold ${getRecoveryToneClass(weakestRecovery.score)}`}>
-                  Recovery {Math.round(weakestRecovery.score)}%
+                  {copy.recovery} {Math.round(weakestRecovery.score)}%
                 </div>
               )}
             </Card>
@@ -689,17 +939,17 @@ export function StrengthScoreScreen({ onBack }: StrengthScoreScreenProps) {
             <Card className="border border-white/10 p-4">
               <div className="flex items-start justify-between gap-3">
                 <div>
-                  <div className="text-xs uppercase tracking-[0.18em] text-text-tertiary">Training Status</div>
+                  <div className="text-xs uppercase tracking-[0.18em] text-text-tertiary">{copy.trainingStatus}</div>
                   <div className="mt-2 text-2xl font-semibold text-white">
                     {supportLoading ? '--' : `${support.workoutsCompletedThisWeek}/${support.workoutsPlannedThisWeek || 0}`}
                   </div>
                   <div className="mt-1 text-sm text-text-secondary">
-                    {supportLoading ? '--' : `${support.weeklyCompletionRate}% plan completion this week`}
+                    {supportLoading ? '--' : copy.planCompletionWeek(support.weeklyCompletionRate)}
                   </div>
                   <div className="mt-3 break-words text-xs text-text-tertiary">
                     {supportLoading
                       ? '--'
-                      : `${support.readyMuscles} muscles ready, ${support.almostReadyMuscles} almost ready, ${support.damagedMuscles} need more recovery.`}
+                      : copy.musclesRecoverySummary(support.readyMuscles, support.almostReadyMuscles, support.damagedMuscles)}
                   </div>
                 </div>
                 <Flame size={18} className="text-rose-300" />
@@ -710,11 +960,11 @@ export function StrengthScoreScreen({ onBack }: StrengthScoreScreenProps) {
           <Card className="border border-white/10 p-5">
             <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
               <div>
-                <div className="text-[11px] uppercase tracking-[0.18em] text-text-tertiary">Strength per Muscle</div>
-                <h3 className="mt-2 text-2xl font-semibold text-white sm:text-3xl">Muscle leaderboard</h3>
+                <div className="text-[11px] uppercase tracking-[0.18em] text-text-tertiary">{copy.strengthPerMuscle}</div>
+                <h3 className="mt-2 text-2xl font-semibold text-white sm:text-3xl">{copy.muscleLeaderboard}</h3>
               </div>
               <div className="max-w-full text-sm text-text-secondary sm:max-w-[300px] sm:text-right">
-                {muscles.length ? `${muscles.length} ranked muscles from tracked exercise output` : 'Ranking will appear once enough weighted sets are logged.'}
+                {muscles.length ? copy.rankedMuscles(muscles.length) : copy.rankingAppears}
               </div>
             </div>
 
@@ -730,7 +980,7 @@ export function StrengthScoreScreen({ onBack }: StrengthScoreScreenProps) {
                   >
                     <div className="flex gap-3 sm:gap-4">
                       <div className="relative h-14 w-14 shrink-0 overflow-hidden rounded-2xl border border-white/10 bg-white/5">
-                        <img src={getMuscleImage(muscle.name)} alt={muscle.name} className="h-full w-full object-cover" />
+                        <img src={getMuscleImage(muscle.name)} alt={toLocalizedMuscle(muscle.name)} className="h-full w-full object-cover" />
                         <div className="absolute left-1 top-1 rounded-full bg-black/70 px-1.5 py-0.5 text-[10px] font-semibold text-white">
                           #{index + 1}
                         </div>
@@ -740,20 +990,20 @@ export function StrengthScoreScreen({ onBack }: StrengthScoreScreenProps) {
                         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                           <div className="min-w-0">
                             <div className="flex flex-wrap items-center gap-2">
-                              <div className="max-w-full break-words text-base font-semibold text-white">{muscle.name}</div>
+                              <div className="max-w-full break-words text-base font-semibold text-white">{toLocalizedMuscle(muscle.name)}</div>
                               <div className="rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-text-secondary">
-                                {muscle.tier}
+                                {toLocalizedTier(muscle.tier)}
                               </div>
                             </div>
                             <div className="mt-1 break-words text-xs text-text-secondary">
-                              Avg {formatWeight(muscle.avgE1RM)} | Best {formatWeight(muscle.bestE1RM)}
+                              {copy.avgBestSummary(formatWeight(muscle.avgE1RM), formatWeight(muscle.bestE1RM))}
                             </div>
                           </div>
 
                           <div className="flex flex-wrap items-center gap-2 sm:justify-end">
                             {recovery && (
                               <div className={`rounded-full border px-2.5 py-1 text-xs font-semibold ${getRecoveryToneClass(recovery.score)}`}>
-                                Rec {Math.round(recovery.score)}%
+                                {copy.recShort} {Math.round(recovery.score)}%
                               </div>
                             )}
                             <div className="rounded-full border border-rose-500/70 bg-rose-500/10 px-3 py-1 text-sm font-electrolize text-white">
@@ -771,19 +1021,19 @@ export function StrengthScoreScreen({ onBack }: StrengthScoreScreenProps) {
 
                         <div className="mt-3 grid grid-cols-1 gap-2 text-xs text-text-secondary sm:grid-cols-3">
                           <div className="rounded-2xl bg-white/5 px-3 py-2">
-                            <div className="text-text-tertiary">Score Band</div>
+                            <div className="text-text-tertiary">{copy.scoreBand}</div>
                             <div className="mt-1 font-semibold text-white">{Math.round(scoreFill)}%</div>
                           </div>
                           <div className="rounded-2xl bg-white/5 px-3 py-2">
-                            <div className="text-text-tertiary">Output Gap</div>
+                            <div className="text-text-tertiary">{copy.outputGap}</div>
                             <div className="mt-1 font-semibold text-white">
-                              {strongestMuscle ? formatSigned(strongestMuscle.score - muscle.score, ' pts') : '--'}
+                              {strongestMuscle ? formatSigned(strongestMuscle.score - muscle.score, copy.pointsSuffix) : '--'}
                             </div>
                           </div>
                           <div className="rounded-2xl bg-white/5 px-3 py-2">
-                            <div className="text-text-tertiary">Readiness</div>
+                            <div className="text-text-tertiary">{copy.readiness}</div>
                             <div className="mt-1 font-semibold text-white">
-                              {recovery ? `${Math.round(recovery.score)}%` : 'N/A'}
+                              {recovery ? `${Math.round(recovery.score)}%` : copy.na}
                             </div>
                           </div>
                         </div>
@@ -794,7 +1044,7 @@ export function StrengthScoreScreen({ onBack }: StrengthScoreScreenProps) {
               })}
               {!loading && !error && muscles.length === 0 && (
                 <div className="rounded-3xl border border-white/10 bg-card/80 p-5 text-sm text-text-secondary">
-                  Start logging weighted sets to unlock your muscle leaderboard, strength tiers, and recovery-linked breakdown.
+                  {copy.unlockLeaderboard}
                 </div>
               )}
             </div>
@@ -817,17 +1067,17 @@ export function StrengthScoreScreen({ onBack }: StrengthScoreScreenProps) {
             <div className="flex items-start justify-between gap-4">
               <div>
                 <h3 id="strength-score-info-title" className="text-xl font-semibold text-white">
-                  About Strength Score
+                  {copy.aboutTitle}
                 </h3>
                 <p className="mt-1 text-sm text-text-secondary">
-                  This page combines your logged lifting output with training adherence and recovery data for the current {activeRangeLabel.toLowerCase()} range.
+                  {copy.aboutSubtitle(activeRangeLabel.toLowerCase())}
                 </p>
               </div>
               <button
                 type="button"
                 onClick={() => setShowInfo(false)}
                 className="flex h-9 w-9 items-center justify-center rounded-full bg-white/5 text-text-secondary transition-colors hover:bg-white/10 hover:text-white"
-                aria-label="Close strength score info"
+                aria-label={copy.closeInfo}
               >
                 <X size={18} />
               </button>
@@ -836,32 +1086,32 @@ export function StrengthScoreScreen({ onBack }: StrengthScoreScreenProps) {
             <div className="mt-4 space-y-4 overflow-y-auto pr-1 text-sm leading-6 text-text-secondary">
               <div className="rounded-2xl border border-white/8 bg-background/60 p-4">
                 <p className="text-white">
-                  Your main score is a strength snapshot built from completed weighted sets.
+                  {copy.snapshotLine}
                 </p>
                 <p className="mt-2">
-                  For each exercise on each training day, the app takes your best estimated 1-rep max (E1RM), averages those values, and converts the result into a score from 80 to 320.
+                  {copy.scoreCalcLine}
                 </p>
               </div>
 
               <div>
-                <p className="font-semibold text-white">What each section means</p>
+                <p className="font-semibold text-white">{copy.sectionMeaning}</p>
                 <p className="mt-2">
-                  The hero card shows your current score, tier, score range, recent trend, weekly adherence, and 30-day load.
+                  {copy.heroMeaning}
                 </p>
                 <p>
-                  Strength History shows how that score changes over time. In `Month` view each point is a day, while `6 months`, `Year`, and `All time` group results by month.
+                  {copy.historyMeaning}
                 </p>
                 <p>
-                  Muscle leaderboard ranks the muscle groups you train most strongly and pairs them with recovery readiness when that data is available.
+                  {copy.leaderboardMeaning}
                 </p>
               </div>
 
               <div className="rounded-2xl border border-rose-500/20 bg-rose-500/10 p-4">
-                <p className="font-semibold text-white">Current range coverage</p>
+                <p className="font-semibold text-white">{copy.rangeCoverage}</p>
                 <p className="mt-1">
                   {sampleCount
-                    ? `This view is currently based on ${sampleCount} logged exercise-day samples. More completed weighted sets make the score and muscle rankings more stable.`
-                    : 'No weighted training samples were found in this range yet. Log completed weighted sets to generate your score, history, and muscle ranking.'}
+                    ? copy.rangeCoverageWithSamples(sampleCount)
+                    : copy.rangeCoverageNoSamples}
                 </p>
               </div>
             </div>

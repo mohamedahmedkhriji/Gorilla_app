@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { ArrowLeft, Check, Timer, TrendingUp } from 'lucide-react';
 import { api } from '../../services/api';
+import { stripExercisePrefix } from '../../services/exerciseName';
 
 interface ProgramWorkoutTrackerProps {
   day: any;
@@ -149,7 +150,7 @@ export const ProgramWorkoutTracker: React.FC<ProgramWorkoutTrackerProps> = ({ da
         <div className="space-y-6">
           {exercises.map((exercise, exIdx) => (
             <div key={exIdx} className="bg-[#242424] rounded-lg p-4">
-              <h3 className="font-semibold mb-2">{exercise.name}</h3>
+              <h3 className="font-semibold mb-2">{stripExercisePrefix(exercise.name)}</h3>
               <p className="text-sm text-gray-400 mb-3">
                 Target: {exercise.reps} reps • {exercise.rest} rest
                 {exercise.tempo && ` • Tempo: ${exercise.tempo}`}

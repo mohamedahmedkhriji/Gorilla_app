@@ -5,6 +5,7 @@ import { getStoredAppUser, getStoredUserId, persistStoredUser } from '../../shar
 import { FriendsCard } from '../home/FriendsCard';
 import { CoachCard } from '../home/CoachCard';
 import { emojiRightArrow } from '../../services/emojiTheme';
+import { AppLanguage, getActiveLanguage, getStoredLanguage } from '../../services/language';
 interface ProfileScreenProps {
   onNavigate: (screen: 'gym' | 'rank' | 'settings' | 'workout' | 'weeklyPlan' | 'posts' | 'friends' | 'coachList') => void;
   onLogout: () => void;
@@ -15,6 +16,87 @@ interface CoachOption {
   name: string;
   email?: string;
 }
+
+const PROFILE_I18N = {
+  en: {
+    memberSincePrefix: 'Member since',
+    memberSinceUnknown: 'Member since -',
+    exercises: 'Exercises',
+    classification: 'Classification',
+    of: 'of',
+    daysLeft: 'Days Left',
+    sessions: 'sessions',
+    myBlogPosts: 'My Blog Posts',
+    manageUploads: 'Manage Uploads',
+    open: 'Open',
+    createWorkoutPlan: 'Create My Workout Plan',
+    planBuilder: 'Plan Builder',
+    start: 'Start',
+    logOut: 'Log Out',
+    choosePlanTitle: 'Create My Workout Plan',
+    choosePlanSubtitle: 'Choose how you want to build your plan.',
+    createAlone: 'Create Alone',
+    withCoach: 'With Coach',
+    closeLogoutDialog: 'Close logout dialog',
+    logoutTitle: 'Logout',
+    logoutConfirm: 'Are you sure want to Logout?',
+    logoutThanks: 'Thank you and see you again!',
+    cancel: 'Cancel',
+    yesLogout: 'Yes, Logout',
+    chooseCoach: 'Choose Coach',
+    chooseCoachSubtitle: 'Select a coach to request a personalized plan.',
+    loadingCoaches: 'Loading coaches...',
+    noCoaches: 'No coaches available.',
+    sending: 'Sending...',
+    close: 'Close',
+    profileAlt: 'Profile',
+    profilePreviewAlt: 'Profile preview',
+    profileSaveFailed: 'Could not save profile picture to database.',
+    noSession: 'No active user session found. Please log in again.',
+    requestSentPrefix: 'Request sent to',
+    requestFailed: 'Failed to send request to coach.',
+    coachFallbackName: 'Coach',
+  },
+  ar: {
+    memberSincePrefix: '\u0639\u0636\u0648 \u0645\u0646\u0630',
+    memberSinceUnknown: '\u0639\u0636\u0648 \u0645\u0646\u0630 -',
+    exercises: '\u0627\u0644\u062a\u0645\u0627\u0631\u064a\u0646',
+    classification: '\u0627\u0644\u062a\u0635\u0646\u064a\u0641',
+    of: '\u0645\u0646',
+    daysLeft: '\u0627\u0644\u0623\u064a\u0627\u0645 \u0627\u0644\u0645\u062a\u0628\u0642\u064a\u0629',
+    sessions: '\u062d\u0635\u0635',
+    myBlogPosts: '\u0645\u0646\u0634\u0648\u0631\u0627\u062a\u064a',
+    manageUploads: '\u0625\u062f\u0627\u0631\u0629 \u0627\u0644\u0645\u0631\u0641\u0648\u0639\u0627\u062a',
+    open: '\u0641\u062a\u062d',
+    createWorkoutPlan: '\u0623\u0646\u0634\u0626 \u062e\u0637\u0629 \u062a\u0645\u0631\u064a\u0646\u064a',
+    planBuilder: '\u0628\u0646\u0627\u0621 \u0627\u0644\u062e\u0637\u0629',
+    start: '\u0627\u0628\u062f\u0623',
+    logOut: '\u062a\u0633\u062c\u064a\u0644 \u0627\u0644\u062e\u0631\u0648\u062c',
+    choosePlanTitle: '\u0623\u0646\u0634\u0626 \u062e\u0637\u0629 \u062a\u0645\u0631\u064a\u0646\u064a',
+    choosePlanSubtitle: '\u0627\u062e\u062a\u0631 \u0637\u0631\u064a\u0642\u0629 \u0628\u0646\u0627\u0621 \u062e\u0637\u062a\u0643.',
+    createAlone: '\u0625\u0646\u0634\u0627\u0621 \u0628\u0646\u0641\u0633\u064a',
+    withCoach: '\u0645\u0639 \u0645\u062f\u0631\u0628',
+    closeLogoutDialog: '\u0625\u063a\u0644\u0627\u0642 \u0646\u0627\u0641\u0630\u0629 \u062a\u0633\u062c\u064a\u0644 \u0627\u0644\u062e\u0631\u0648\u062c',
+    logoutTitle: '\u062a\u0633\u062c\u064a\u0644 \u0627\u0644\u062e\u0631\u0648\u062c',
+    logoutConfirm: '\u0647\u0644 \u0623\u0646\u062a \u0645\u062a\u0623\u0643\u062f \u0645\u0646 \u062a\u0633\u062c\u064a\u0644 \u0627\u0644\u062e\u0631\u0648\u062c\u061f',
+    logoutThanks: '\u0634\u0643\u0631\u0627\u064b \u0648\u0646\u0631\u0627\u0643 \u0645\u0631\u0629 \u0623\u062e\u0631\u0649!',
+    cancel: '\u0625\u0644\u063a\u0627\u0621',
+    yesLogout: '\u0646\u0639\u0645\u060c \u062a\u0633\u062c\u064a\u0644 \u0627\u0644\u062e\u0631\u0648\u062c',
+    chooseCoach: '\u0627\u062e\u062a\u0631 \u0645\u062f\u0631\u0628\u0627\u064b',
+    chooseCoachSubtitle: '\u0627\u062e\u062a\u0631 \u0645\u062f\u0631\u0628\u0627\u064b \u0644\u0637\u0644\u0628 \u062e\u0637\u0629 \u0645\u062e\u0635\u0635\u0629.',
+    loadingCoaches: '\u062c\u0627\u0631\u064a \u062a\u062d\u0645\u064a\u0644 \u0627\u0644\u0645\u062f\u0631\u0628\u064a\u0646...',
+    noCoaches: '\u0644\u0627 \u064a\u0648\u062c\u062f \u0645\u062f\u0631\u0628\u0648\u0646 \u0645\u062a\u0627\u062d\u0648\u0646.',
+    sending: '\u062c\u0627\u0631\u064a \u0627\u0644\u0625\u0631\u0633\u0627\u0644...',
+    close: '\u0625\u063a\u0644\u0627\u0642',
+    profileAlt: '\u0627\u0644\u0645\u0644\u0641 \u0627\u0644\u0634\u062e\u0635\u064a',
+    profilePreviewAlt: '\u0645\u0639\u0627\u064a\u0646\u0629 \u0627\u0644\u0645\u0644\u0641 \u0627\u0644\u0634\u062e\u0635\u064a',
+    profileSaveFailed: '\u062a\u0639\u0630\u0631 \u062d\u0641\u0638 \u0635\u0648\u0631\u0629 \u0627\u0644\u0645\u0644\u0641 \u0641\u064a \u0642\u0627\u0639\u062f\u0629 \u0627\u0644\u0628\u064a\u0627\u0646\u0627\u062a.',
+    noSession: '\u0644\u0627 \u062a\u0648\u062c\u062f \u062c\u0644\u0633\u0629 \u0645\u0633\u062a\u062e\u062f\u0645 \u0646\u0634\u0637\u0629. \u064a\u0631\u062c\u0649 \u062a\u0633\u062c\u064a\u0644 \u0627\u0644\u062f\u062e\u0648\u0644 \u0645\u0631\u0629 \u0623\u062e\u0631\u0649.',
+    requestSentPrefix: '\u062a\u0645 \u0625\u0631\u0633\u0627\u0644 \u0627\u0644\u0637\u0644\u0628 \u0625\u0644\u0649',
+    requestFailed: '\u0641\u0634\u0644 \u0625\u0631\u0633\u0627\u0644 \u0627\u0644\u0637\u0644\u0628 \u0625\u0644\u0649 \u0627\u0644\u0645\u062f\u0631\u0628.',
+    coachFallbackName: '\u0645\u062f\u0631\u0628',
+  },
+} as const;
 
 export function ProfileScreen({ onNavigate, onLogout }: ProfileScreenProps) {
   const user = getStoredAppUser() || { name: 'Moha' };
@@ -40,17 +122,34 @@ export function ProfileScreen({ onNavigate, onLogout }: ProfileScreenProps) {
   const [coaches, setCoaches] = useState<CoachOption[]>([]);
   const [coachesLoading, setCoachesLoading] = useState(false);
   const [coachRequestingId, setCoachRequestingId] = useState<number | null>(null);
+  const [language, setLanguage] = useState<AppLanguage>('en');
   const createdAt = user?.created_at || user?.createdAt;
+  const copy = PROFILE_I18N[language] || PROFILE_I18N.en;
 
   const isValidImageDataUrl = (value: string | null | undefined) =>
     typeof value === 'string' && value.startsWith('data:image/') && value.includes(';base64,');
 
   const memberSinceText = (() => {
-    if (!createdAt) return 'Member since -';
+    if (!createdAt) return copy.memberSinceUnknown;
     const date = new Date(createdAt);
-    if (Number.isNaN(date.getTime())) return 'Member since -';
-    return `Member since ${date.getFullYear()}`;
+    if (Number.isNaN(date.getTime())) return copy.memberSinceUnknown;
+    return `${copy.memberSincePrefix} ${date.getFullYear()}`;
   })();
+
+  useEffect(() => {
+    setLanguage(getActiveLanguage());
+
+    const handleLanguageChanged = () => {
+      setLanguage(getStoredLanguage());
+    };
+
+    window.addEventListener('app-language-changed', handleLanguageChanged);
+    window.addEventListener('storage', handleLanguageChanged);
+    return () => {
+      window.removeEventListener('app-language-changed', handleLanguageChanged);
+      window.removeEventListener('storage', handleLanguageChanged);
+    };
+  }, []);
   
   useEffect(() => {
     if (!userId) return;
@@ -205,12 +304,12 @@ export function ProfileScreen({ onNavigate, onLogout }: ProfileScreenProps) {
         } catch (error) {
           console.error('Failed to save profile picture:', error);
           setProfilePicture(previousPicture);
-          alert(error instanceof Error ? error.message : 'Could not save profile picture to database.');
+          alert(error instanceof Error ? error.message : copy.profileSaveFailed);
         }
       };
       reader.readAsDataURL(file);
     } else if (file && !userId) {
-      alert('No active user session found. Please log in again.');
+      alert(copy.noSession);
     }
   };
 
@@ -236,7 +335,7 @@ export function ProfileScreen({ onNavigate, onLogout }: ProfileScreenProps) {
           ? list
             .map((coach: any) => ({
               id: Number(coach?.id || 0),
-              name: String(coach?.name || '').trim() || 'Coach',
+              name: String(coach?.name || '').trim() || copy.coachFallbackName,
               email: coach?.email ? String(coach.email) : undefined,
             }))
             .filter((coach: CoachOption) => coach.id > 0)
@@ -254,7 +353,7 @@ export function ProfileScreen({ onNavigate, onLogout }: ProfileScreenProps) {
     return () => {
       cancelled = true;
     };
-  }, [isCoachPickerOpen]);
+  }, [isCoachPickerOpen, copy.coachFallbackName]);
 
   const handleSelectCoach = async (coach: CoachOption) => {
     if (!userId || coachRequestingId) return;
@@ -262,10 +361,10 @@ export function ProfileScreen({ onNavigate, onLogout }: ProfileScreenProps) {
       setCoachRequestingId(coach.id);
       await api.requestCoachPlanCreation(userId, coach.id);
       setIsCoachPickerOpen(false);
-      alert(`Request sent to ${coach.name}.`);
+      alert(`${copy.requestSentPrefix} ${coach.name}.`);
     } catch (error: any) {
       console.error('Failed to send coach plan request:', error);
-      alert(error?.message || 'Failed to send request to coach.');
+      alert(error?.message || copy.requestFailed);
     } finally {
       setCoachRequestingId(null);
     }
@@ -286,7 +385,7 @@ export function ProfileScreen({ onNavigate, onLogout }: ProfileScreenProps) {
               {profilePicture ? (
                 <img
                   src={profilePicture}
-                  alt="Profile"
+                  alt={copy.profileAlt}
                   className="w-full h-full object-cover"
                 />
               ) : (
@@ -315,7 +414,7 @@ export function ProfileScreen({ onNavigate, onLogout }: ProfileScreenProps) {
         <div className="bg-card rounded-xl p-3 text-center border border-white/5">
           <div className="text-xl font-bold text-white">{completedExercises ?? '-'}</div>
           <div className="text-[10px] text-text-secondary uppercase">
-            Exercises
+            {copy.exercises}
           </div>
         </div>
         <button
@@ -325,16 +424,16 @@ export function ProfileScreen({ onNavigate, onLogout }: ProfileScreenProps) {
         >
           <div className="text-xl font-bold text-white">{rankPosition > 0 ? `#${rankPosition}` : '0'}</div>
           <div className="text-[10px] text-text-secondary uppercase">
-            Classification
+            {copy.classification}
           </div>
-          <div className="text-[10px] text-text-tertiary mt-1">of {Math.max(0, rankTotalMembers)}</div>
+          <div className="text-[10px] text-text-tertiary mt-1">{copy.of} {Math.max(0, rankTotalMembers)}</div>
         </button>
         <div className="bg-card rounded-xl p-3 text-center border border-white/5">
           <div className="text-xl font-bold text-white">{Math.max(0, planDaysLeft)}</div>
           <div className="text-[10px] text-text-secondary uppercase">
-            Days Left
+            {copy.daysLeft}
           </div>
-          <div className="text-[10px] text-text-tertiary mt-1">{planSessionsLeft} sessions</div>
+          <div className="text-[10px] text-text-tertiary mt-1">{planSessionsLeft} {copy.sessions}</div>
         </div>
       </div>
 
@@ -357,10 +456,10 @@ export function ProfileScreen({ onNavigate, onLogout }: ProfileScreenProps) {
             <img src={emojiRightArrow} alt="" aria-hidden="true" className="h-4 w-4 object-contain opacity-70 group-hover:opacity-100 transition-opacity" />
           </div>
           <div className="relative z-10 mt-4 min-w-0">
-            <div className="text-lg leading-none text-white truncate">My Blog Posts</div>
-            <div className="text-[10px] text-text-secondary uppercase tracking-[0.12em] mt-1">Manage Uploads</div>
+            <div className="text-lg leading-none text-white truncate">{copy.myBlogPosts}</div>
+            <div className="text-[10px] text-text-secondary uppercase tracking-[0.12em] mt-1">{copy.manageUploads}</div>
           </div>
-          <div className="relative z-10 mt-3 text-[11px] text-emerald-300 font-semibold uppercase tracking-[0.1em]">Open</div>
+          <div className="relative z-10 mt-3 text-[11px] text-emerald-300 font-semibold uppercase tracking-[0.1em]">{copy.open}</div>
         </button>
 
         <button
@@ -376,10 +475,10 @@ export function ProfileScreen({ onNavigate, onLogout }: ProfileScreenProps) {
             <img src={emojiRightArrow} alt="" aria-hidden="true" className="h-4 w-4 object-contain opacity-70 group-hover:opacity-100 transition-opacity" />
           </div>
           <div className="relative z-10 mt-4 min-w-0">
-            <div className="text-lg leading-none text-white truncate">Create My Workout Plan</div>
-            <div className="text-[10px] text-text-secondary uppercase tracking-[0.12em] mt-1">Plan Builder</div>
+            <div className="text-lg leading-none text-white truncate">{copy.createWorkoutPlan}</div>
+            <div className="text-[10px] text-text-secondary uppercase tracking-[0.12em] mt-1">{copy.planBuilder}</div>
           </div>
-          <div className="relative z-10 mt-3 text-[11px] text-accent font-semibold uppercase tracking-[0.1em]">Start</div>
+          <div className="relative z-10 mt-3 text-[11px] text-accent font-semibold uppercase tracking-[0.1em]">{copy.start}</div>
         </button>
       </div>
 
@@ -389,7 +488,7 @@ export function ProfileScreen({ onNavigate, onLogout }: ProfileScreenProps) {
         className="w-full p-4 rounded-2xl bg-red-500/10 text-red-500 font-marker flex items-center justify-center gap-2 hover:bg-red-500/20 transition-colors"
       >
         <LogOut size={20} />
-        Log Out
+        {copy.logOut}
       </button>
 
       {isPlanChoiceOpen && (
@@ -401,21 +500,21 @@ export function ProfileScreen({ onNavigate, onLogout }: ProfileScreenProps) {
             className="w-full max-w-sm bg-card border border-white/10 rounded-2xl p-4 space-y-3"
             onClick={(e) => e.stopPropagation()}
           >
-            <h3 className="text-white font-semibold text-lg">Create My Workout Plan</h3>
-            <p className="text-sm text-text-secondary">Choose how you want to build your plan.</p>
+            <h3 className="text-white font-semibold text-lg">{copy.choosePlanTitle}</h3>
+            <p className="text-sm text-text-secondary">{copy.choosePlanSubtitle}</p>
             <button
               type="button"
               onClick={() => handlePlanChoice('alone')}
               className="w-full bg-white/5 hover:bg-white/10 transition-colors rounded-xl p-3 text-left text-white border border-white/10"
             >
-              Create Alone
+              {copy.createAlone}
             </button>
             <button
               type="button"
               onClick={() => handlePlanChoice('coach')}
               className="w-full bg-white/5 hover:bg-white/10 transition-colors rounded-xl p-3 text-left text-white border border-white/10"
             >
-              With Coach
+              {copy.withCoach}
             </button>
           </div>
         </div>
@@ -435,17 +534,17 @@ export function ProfileScreen({ onNavigate, onLogout }: ProfileScreenProps) {
                 type="button"
                 onClick={() => setIsLogoutOpen(false)}
                 className="w-9 h-9 rounded-full bg-white/10 text-text-secondary hover:bg-white/20 transition-colors flex items-center justify-center"
-                aria-label="Close logout dialog"
+                aria-label={copy.closeLogoutDialog}
               >
                 <X size={18} />
               </button>
-              <h3 className="text-base font-semibold text-error">Logout</h3>
+              <h3 className="text-base font-semibold text-error">{copy.logoutTitle}</h3>
               <div className="w-9 h-9" aria-hidden="true" />
             </div>
 
             <div className="mt-4 text-center">
-              <p className="text-sm font-semibold text-text-primary">Are you sure want to Logout?</p>
-              <p className="text-xs text-text-secondary mt-1">Thank you and see you again!</p>
+              <p className="text-sm font-semibold text-text-primary">{copy.logoutConfirm}</p>
+              <p className="text-xs text-text-secondary mt-1">{copy.logoutThanks}</p>
             </div>
 
             <div className="mt-6 grid grid-cols-2 gap-3">
@@ -454,7 +553,7 @@ export function ProfileScreen({ onNavigate, onLogout }: ProfileScreenProps) {
                 onClick={() => setIsLogoutOpen(false)}
                 className="w-full rounded-full border border-success/30 bg-success/10 py-2.5 text-sm font-semibold text-success hover:bg-success/20 transition-colors"
               >
-                Cancel
+                {copy.cancel}
               </button>
               <button
                 type="button"
@@ -464,7 +563,7 @@ export function ProfileScreen({ onNavigate, onLogout }: ProfileScreenProps) {
                 }}
                 className="w-full rounded-full bg-success py-2.5 text-sm font-semibold text-text-primary hover:bg-success/90 transition-colors"
               >
-                Yes, Logout
+                {copy.yesLogout}
               </button>
             </div>
           </div>
@@ -480,15 +579,15 @@ export function ProfileScreen({ onNavigate, onLogout }: ProfileScreenProps) {
             className="w-full max-w-sm bg-card border border-white/10 rounded-2xl p-4 space-y-3 max-h-[80vh] overflow-y-auto"
             onClick={(e) => e.stopPropagation()}
           >
-            <h3 className="text-white font-semibold text-lg">Choose Coach</h3>
-            <p className="text-sm text-text-secondary">Select a coach to request a personalized plan.</p>
+            <h3 className="text-white font-semibold text-lg">{copy.chooseCoach}</h3>
+            <p className="text-sm text-text-secondary">{copy.chooseCoachSubtitle}</p>
 
             {coachesLoading && (
-              <div className="text-sm text-text-secondary">Loading coaches...</div>
+              <div className="text-sm text-text-secondary">{copy.loadingCoaches}</div>
             )}
 
             {!coachesLoading && coaches.length === 0 && (
-              <div className="text-sm text-text-secondary">No coaches available.</div>
+              <div className="text-sm text-text-secondary">{copy.noCoaches}</div>
             )}
 
             {!coachesLoading && coaches.map((coach) => (
@@ -501,7 +600,7 @@ export function ProfileScreen({ onNavigate, onLogout }: ProfileScreenProps) {
               >
                 <div className="font-medium">
                   {coach.name}
-                  {coachRequestingId === coach.id ? ' (Sending...)' : ''}
+                  {coachRequestingId === coach.id ? ` (${copy.sending})` : ''}
                 </div>
                 {coach.email && (
                   <div className="text-xs text-text-secondary mt-0.5">{coach.email}</div>
@@ -522,11 +621,11 @@ export function ProfileScreen({ onNavigate, onLogout }: ProfileScreenProps) {
             className="absolute top-4 right-4 text-white text-sm px-3 py-1 rounded bg-white/10 hover:bg-white/20"
             onClick={() => setIsPreviewOpen(false)}
           >
-            Close
+            {copy.close}
           </button>
           <img
             src={profilePicture}
-            alt="Profile preview"
+            alt={copy.profilePreviewAlt}
             className="max-h-[90vh] max-w-[90vw] object-contain rounded-xl"
             onClick={(e) => e.stopPropagation()}
           />

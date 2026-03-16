@@ -22,6 +22,7 @@ import { RankingsRewardsScreen } from '../components/profile/RankingsRewardsScre
 import { api } from '../services/api';
 import { getRankBadgeImage } from '../services/rankTheme';
 import { emojiComingSoon, emojiMyNutrition, emojiProfile, emojiRightArrow, emojiShop } from '../services/emojiTheme';
+import { getActiveLanguage, getStoredLanguage } from '../services/language';
 import { useScrollToTopOnChange } from '../shared/scroll';
 interface HomeProps {
   onNavigate: (tab: string, day?: string) => void;
@@ -404,6 +405,27 @@ export function Home({ onNavigate, resetSignal = 0 }: HomeProps) {
   const isWorkoutCardRestDay = todayWorkout === 'Rest Day' && !hasAnyTodayExercises;
   const rankName = String(programProgress?.rank || 'Bronze');
   const rankBadgeImage = getRankBadgeImage(rankName);
+  const isArabic = getActiveLanguage(getStoredLanguage()) === 'ar';
+  const homeCopy = {
+    tagline: isArabic ? 'جاهز لتحقيق أهدافك اليوم؟' : 'Ready to crush your goals today?',
+    rank: isArabic ? 'الرتبة' : 'Rank',
+    myNutrition: isArabic ? 'تغذيتي' : 'My Nutrition',
+    shop: isArabic ? 'المتجر' : 'Shop',
+    comingSoon: isArabic ? 'قريبًا' : 'Coming soon',
+    ok: isArabic ? 'حسنًا' : 'OK',
+    books: isArabic ? 'الكتب' : 'Books',
+  };
+  const rankNameMap: Record<string, string> = {
+    bronze: 'برونزي',
+    silver: 'فضي',
+    gold: 'ذهبي',
+    platinum: 'بلاتيني',
+    diamond: 'ألماسي',
+    elite: 'نخبوي',
+  };
+  const rankNameDisplay = isArabic
+    ? (rankNameMap[String(rankName || '').trim().toLowerCase()] || rankName)
+    : rankName;
 
   const updateRecovery = (value: number) => {
     const next = clampPercent(value);
@@ -904,7 +926,7 @@ export function Home({ onNavigate, resetSignal = 0 }: HomeProps) {
             {greeting}
           </h1>
           <p className="text-text-secondary mt-2 text-sm max-w-[200px] leading-snug">
-            Ready to crush your goals today?
+            {homeCopy.tagline}
           </p>
         </div>
         
@@ -917,11 +939,11 @@ export function Home({ onNavigate, resetSignal = 0 }: HomeProps) {
           className="relative z-10 flex items-center gap-2 surface-glass px-3.5 py-2 rounded-2xl border border-white/15 shrink-0"
         >
           <div className="w-8 h-8 rounded-xl bg-accent/15 border border-accent/35 flex items-center justify-center">
-            <img src={rankBadgeImage} alt={rankName} className="h-5 w-5 object-contain" />
+            <img src={rankBadgeImage} alt={rankNameDisplay} className="h-5 w-5 object-contain" />
           </div>
           <div>
-            <div className="text-[10px] uppercase tracking-[0.1em] text-text-secondary">Rank</div>
-            <div className="text-sm font-semibold text-accent">{rankName}</div>
+            <div className="text-[10px] uppercase tracking-[0.1em] text-text-secondary">{homeCopy.rank}</div>
+            <div className="text-sm font-semibold text-accent">{rankNameDisplay}</div>
           </div>
         </button>
       </motion.header>
@@ -973,15 +995,15 @@ export function Home({ onNavigate, resetSignal = 0 }: HomeProps) {
 
           <GhostButton onClick={() => setView('nutrition')} className="justify-between">
             <span className="flex items-center gap-2">
-              <img src={emojiMyNutrition} alt="My nutrition" className="h-4 w-4 object-contain" />
-              <span>My Nutrition</span>
+              <img src={emojiMyNutrition} alt={homeCopy.myNutrition} className="h-4 w-4 object-contain" />
+              <span>{homeCopy.myNutrition}</span>
             </span>
             <img src={emojiRightArrow} alt="" aria-hidden="true" className="mb-1 h-[18px] w-[18px] shrink-0 object-contain opacity-70" />
           </GhostButton>
           <GhostButton onClick={() => setShowShopComingSoon(true)}>
             <span className="flex items-center gap-2">
-              <img src={emojiComingSoon} alt="Coming soon" className="h-4 w-4 object-contain" />
-              <span>Shop</span>
+              <img src={emojiComingSoon} alt={homeCopy.comingSoon} className="h-4 w-4 object-contain" />
+              <span>{homeCopy.shop}</span>
             </span>
           </GhostButton>
         </motion.div>
@@ -996,16 +1018,16 @@ export function Home({ onNavigate, resetSignal = 0 }: HomeProps) {
               onClick={(e) => e.stopPropagation()}
             >
               <h3 className="text-xl font-semibold text-white inline-flex items-center gap-2">
-                <img src={emojiShop} alt="Shop" className="h-6 w-6 object-contain" />
-                <span>Shop</span>
+                <img src={emojiShop} alt={homeCopy.shop} className="h-6 w-6 object-contain" />
+                <span>{homeCopy.shop}</span>
               </h3>
-              <p className="text-sm text-text-secondary mt-2">Coming soon</p>
+              <p className="text-sm text-text-secondary mt-2">{homeCopy.comingSoon}</p>
               <button
                 type="button"
                 onClick={() => setShowShopComingSoon(false)}
                 className="mt-4 w-full bg-accent text-black py-2.5 rounded-xl font-semibold hover:bg-accent/90 transition-colors"
               >
-                OK
+                {homeCopy.ok}
               </button>
             </div>
           </div>
@@ -1020,14 +1042,14 @@ export function Home({ onNavigate, resetSignal = 0 }: HomeProps) {
               className="w-full max-w-sm surface-glass border border-white/15 rounded-2xl p-5 text-center"
               onClick={(e) => e.stopPropagation()}
             >
-              <h3 className="text-xl font-semibold text-white">Books</h3>
-              <p className="text-sm text-text-secondary mt-2">Coming soon</p>
+              <h3 className="text-xl font-semibold text-white">{homeCopy.books}</h3>
+              <p className="text-sm text-text-secondary mt-2">{homeCopy.comingSoon}</p>
               <button
                 type="button"
                 onClick={() => setShowBooksComingSoon(false)}
                 className="mt-4 w-full bg-accent text-black py-2.5 rounded-xl font-semibold hover:bg-accent/90 transition-colors"
               >
-                OK
+                {homeCopy.ok}
               </button>
             </div>
           </div>

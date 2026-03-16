@@ -3,6 +3,8 @@ import { X, Bed, Check, CalendarX2 } from 'lucide-react';
 import { formatWorkoutDayLabel, formatWorkoutDayShortLabel, normalizeWorkoutDayKey } from '../../services/workoutDayLabel';
 import { emojiAgenda, emojiDoneDayBg, emojiMissedDayBg } from '../../services/emojiTheme';
 import doneDayIcon from '../../../assets/emoji/done day.png';
+import { getActiveLanguage, getStoredLanguage } from '../../services/language';
+import { stripExercisePrefix } from '../../services/exerciseName';
 
 export function AgendaSection({
   userProgram,
@@ -14,6 +16,27 @@ export function AgendaSection({
 }) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [selectedDay, setSelectedDay] = useState<any>(null);
+  const isArabic = getActiveLanguage(getStoredLanguage()) === 'ar';
+  const copy = {
+    weeklyAgenda: isArabic ? 'أجندة الأسبوع' : 'Weekly Agenda',
+    exercises: isArabic ? 'التمارين' : 'Exercises',
+    recoveryDay: isArabic ? 'يوم التعافي' : 'Recovery Day',
+    missedDay: isArabic ? 'يوم مفقود' : 'Missed Day',
+    missedBody: isArabic
+      ? 'تم اعتبار هذا التمرين مجدولًا كمفقود ولن يُحسب ضمن حصص هذا الأسبوع المتبقية.'
+      : 'This scheduled workout was marked as missed and no longer counts toward this week\'s remaining sessions.',
+    recoveryBody: isArabic ? 'استرح ودَع عضلاتك تتعافى' : 'Rest and let your muscles recover',
+  };
+  const AR_DAY_LABELS: Record<string, { long: string; short: string }> = {
+    monday: { long: 'الاثنين', short: 'اثن' },
+    tuesday: { long: 'الثلاثاء', short: 'ثلا' },
+    wednesday: { long: 'الأربعاء', short: 'أرب' },
+    thursday: { long: 'الخميس', short: 'خمي' },
+    friday: { long: 'الجمعة', short: 'جمع' },
+    saturday: { long: 'السبت', short: 'سبت' },
+    sunday: { long: 'الأحد', short: 'أحد' },
+  };
+  const REST_LABEL = 'Rest';
   const today = new Date();
   const formatDateKey = (value: Date) => {
     const year = value.getFullYear();
@@ -107,7 +130,7 @@ export function AgendaSection({
     date.setDate(startDate.getDate() + i);
 
     // Get workout by exact backend day_name mapping.
-    let label = 'Rest';
+    let label = REST_LABEL;
     let exercises: string[] = [];
 
     const weekdayKey = normalizeWorkoutDayKey(date.toLocaleDateString('en-US', { weekday: 'long' }));
@@ -123,8 +146,12 @@ export function AgendaSection({
     const isPast = dateKey < todayKey;
 
     return {
-      day: formatWorkoutDayShortLabel(weekdayKey, date.toLocaleDateString('en-US', { weekday: 'short' })),
-      dayLabel: formatWorkoutDayLabel(weekdayKey, date.toLocaleDateString('en-US', { weekday: 'long' })),
+      day: isArabic
+        ? (AR_DAY_LABELS[weekdayKey]?.short || date.toLocaleDateString('ar-EG', { weekday: 'short' }))
+        : formatWorkoutDayShortLabel(weekdayKey, date.toLocaleDateString('en-US', { weekday: 'short' })),
+      dayLabel: isArabic
+        ? (AR_DAY_LABELS[weekdayKey]?.long || date.toLocaleDateString('ar-EG', { weekday: 'long' }))
+        : formatWorkoutDayLabel(weekdayKey, date.toLocaleDateString('en-US', { weekday: 'long' })),
       date: date.getDate(),
       fullDate: date,
       label,
@@ -148,7 +175,7 @@ export function AgendaSection({
   return (
     <div className="space-y-3">
       <div className="flex items-end px-1">
-        <h3 className="text-[11px] font-semibold text-text-secondary uppercase tracking-[0.15em]">Weekly Agenda</h3>
+        <h3 className="text-[11px] font-semibold text-text-secondary uppercase tracking-[0.15em]">{copy.weeklyAgenda}</h3>
       </div>
 
       <div className="rounded-2xl surface-card border border-white/15 px-2 py-3 relative overflow-hidden">
@@ -242,10 +269,10 @@ export function AgendaSection({
             <div className="flex justify-between items-start mb-4">
               <div>
                 <h3 className="text-3xl leading-none text-white">
-                  {selectedDay.fullDate.toLocaleDateString('en-US', { month: 'long', day: 'numeric' })}
+                  {selectedDay.fullDate.toLocaleDateString(isArabic ? 'ar-EG' : 'en-US', { month: 'long', day: 'numeric' })}
                 </h3>
                 <p className="text-xs uppercase tracking-[0.1em] text-text-secondary mt-2">
-                  {(selectedDay.dayLabel || '').toUpperCase()}
+                  {isArabic ? selectedDay.dayLabel : (selectedDay.dayLabel || '').toUpperCase()}
                 </p>
               </div>
               <button onClick={() => setSelectedDay(null)} className="text-text-secondary hover:text-white">
@@ -254,7 +281,7 @@ export function AgendaSection({
             </div>
 
             <div className="mb-4 text-sm text-text-secondary">
-              {selectedDay.label === 'Rest' ? 'Recovery Day' : selectedDay.label}
+              {selectedDay.label === REST_LABEL ? copy.recoveryDay : selectedDay.label}
             </div>
 
             {selectedDay.status === 'missed' ? (
@@ -262,27 +289,27 @@ export function AgendaSection({
                 <div className="w-16 h-16 rounded-2xl bg-rose-500/12 border border-rose-500/30 flex items-center justify-center mb-4">
                   <CalendarX2 size={30} className="text-rose-300" />
                 </div>
-                <h4 className="text-3xl leading-none text-white mb-2">Missed Day</h4>
+                <h4 className="text-3xl leading-none text-white mb-2">{copy.missedDay}</h4>
                 <p className="text-sm text-text-secondary">
-                  This scheduled workout was marked as missed and no longer counts toward this week&apos;s remaining sessions.
+                  {copy.missedBody}
                 </p>
               </div>
-            ) : selectedDay.label === 'Rest' ? (
+            ) : selectedDay.label === REST_LABEL ? (
               <div className="flex flex-col items-center justify-center py-8 text-center">
                 <div className="w-16 h-16 rounded-2xl bg-accent/12 border border-accent/35 flex items-center justify-center mb-4">
                   <Bed size={30} className="text-accent" />
                 </div>
-                <h4 className="text-3xl leading-none text-white mb-2">Recovery Day</h4>
-                <p className="text-sm text-text-secondary">Rest and let your muscles recover</p>
+                <h4 className="text-3xl leading-none text-white mb-2">{copy.recoveryDay}</h4>
+                <p className="text-sm text-text-secondary">{copy.recoveryBody}</p>
               </div>
             ) : (
               <div className="space-y-2">
-                <h4 className="text-[11px] font-semibold text-text-secondary uppercase tracking-[0.12em] mb-3">Exercises</h4>
+                <h4 className="text-[11px] font-semibold text-text-secondary uppercase tracking-[0.12em] mb-3">{copy.exercises}</h4>
                 {selectedDay.exercises?.map((exercise: string, idx: number) => {
                   const isDone = selectedDay.status === 'done';
                   return (
                     <div key={idx} className="bg-background rounded-xl p-3 border border-white/10 flex items-center justify-between">
-                      <span className="text-white text-sm">{exercise}</span>
+                      <span className="text-white text-sm">{stripExercisePrefix(exercise)}</span>
                       {isDone && (
                         <div className="w-5 h-5 rounded-full bg-accent flex items-center justify-center">
                           <Check size={14} className="text-black" strokeWidth={3} />

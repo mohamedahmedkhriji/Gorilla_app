@@ -3,6 +3,7 @@ import { Header } from '../ui/Header';
 import { SlidersHorizontal, ChevronDown, X } from 'lucide-react';
 import { api } from '../../services/api';
 import { getBodyPartImage } from '../../services/bodyPartTheme';
+import { getActiveLanguage, getStoredLanguage } from '../../services/language';
 interface MuscleRecoveryScreenProps {
   onBack: () => void;
 }
@@ -39,6 +40,19 @@ const DEFAULT_MUSCLES: MuscleRecoveryItem[] = [
   { muscle: 'abs', name: 'Abs', score: 100, lastWorkout: null },
 ];
 
+const AR_MUSCLE_LABELS: Record<string, string> = {
+  chest: 'الصدر',
+  back: 'الظهر',
+  quadriceps: 'الرباعية',
+  hamstrings: 'الخلفية',
+  shoulders: 'الأكتاف',
+  biceps: 'البايسبس',
+  triceps: 'الترايسبس',
+  forearms: 'الساعد',
+  calves: 'السمانة',
+  abs: 'البطن',
+};
+
 const mergeRecoveryWithDefaults = (incoming: MuscleRecoveryItem[] = []): MuscleRecoveryItem[] => {
   const safeNumber = (value: unknown, fallback = 0) => {
     const n = Number(value);
@@ -73,6 +87,38 @@ const mergeRecoveryWithDefaults = (incoming: MuscleRecoveryItem[] = []): MuscleR
 };
 
 export function MuscleRecoveryScreen({ onBack }: MuscleRecoveryScreenProps) {
+  const isArabic = getActiveLanguage(getStoredLanguage()) === 'ar';
+  const copy = {
+    title: isArabic ? 'تعافي العضلات' : 'Muscle Recovery',
+    damaged: isArabic ? 'عضلات مرهقة' : 'Damaged muscles',
+    almost: isArabic ? 'على وشك التعافي' : 'Almost ready',
+    ready: isArabic ? 'جاهز للتدريب' : 'Ready to train',
+    lastTrained: isArabic ? 'آخر تدريب' : 'Last trained',
+    today: isArabic ? 'اليوم' : 'Today',
+    yesterday: isArabic ? 'أمس' : 'Yesterday',
+    daysAgo: (days: number) => (isArabic ? `قبل ${days} أيام` : `${days} days ago`),
+    notTrained: isArabic ? 'لم يتم التدريب مؤخرًا' : 'Not trained recently',
+    todayLabel: isArabic ? 'اليوم' : 'Today',
+    weekLabel: isArabic ? 'الأسبوع' : 'Week',
+    setsLabel: isArabic ? 'مجموعات' : 'sets',
+    remaining: isArabic ? 'المتبقي' : 'Remaining',
+    volume: isArabic ? 'الحجم' : 'Volume',
+    hourAbbr: isArabic ? 'س' : 'h',
+    factorsTitle: isArabic ? 'عوامل التعافي' : 'Recovery Factors',
+    sleepHours: isArabic ? 'ساعات النوم' : 'Sleep Hours',
+    protein: isArabic ? 'تناول البروتين' : 'Protein Intake',
+    supplements: isArabic ? 'المكملات' : 'Supplements',
+    cancel: isArabic ? 'إلغاء' : 'Cancel',
+    update: isArabic ? 'تحديث' : 'Update',
+    low: isArabic ? 'منخفض (أقل من 0.8غ/كغ)' : 'Low (<0.8g/kg)',
+    medium: isArabic ? 'متوسط (0.8-1.2غ/كغ)' : 'Medium (0.8-1.2g/kg)',
+    high: isArabic ? 'مرتفع (1.6-2.2غ/كغ)' : 'High (1.6-2.2g/kg)',
+    none: isArabic ? 'بدون' : 'None',
+    creatine: isArabic ? 'كرياتين' : 'Creatine',
+    full: isArabic ? 'مجموعة كاملة' : 'Full Stack',
+    loadError: isArabic ? 'تعذر تحميل حالة التعافي' : 'Failed to load recovery status',
+    updateError: isArabic ? 'تعذر تحديث عوامل التعافي' : 'Failed to update recovery factors',
+  };
   const [muscleRecoveries, setMuscleRecoveries] = useState<MuscleRecoveryItem[]>(DEFAULT_MUSCLES);
   const [showFactors, setShowFactors] = useState(false);
   const [factors, setFactors] = useState({ sleepHours: '7', proteinIntake: 'medium', supplements: 'none', soreness: 3, energy: 3 });
@@ -92,7 +138,7 @@ export function MuscleRecoveryScreen({ onBack }: MuscleRecoveryScreenProps) {
       setError('');
     } catch (loadError) {
       console.error('Failed to load recovery status:', loadError);
-      setError(loadError instanceof Error ? loadError.message : 'Failed to load recovery status');
+      setError(loadError instanceof Error ? loadError.message : copy.loadError);
     }
   };
 
@@ -130,17 +176,17 @@ export function MuscleRecoveryScreen({ onBack }: MuscleRecoveryScreenProps) {
       setShowFactors(false);
     } catch (updateError) {
       console.error('Failed to update recovery factors:', updateError);
-      setError(updateError instanceof Error ? updateError.message : 'Failed to update recovery factors');
+      setError(updateError instanceof Error ? updateError.message : copy.updateError);
     }
   };
 
   const getLastTrained = (date: string | null) => {
-    if (!date) return 'Not trained recently';
+    if (!date) return copy.notTrained;
     const hours = (Date.now() - new Date(date).getTime()) / (1000 * 60 * 60);
     const days = Math.floor(hours / 24);
-    if (days === 0) return 'Today';
-    if (days === 1) return 'Yesterday';
-    return `${days} days ago`;
+    if (days === 0) return copy.today;
+    if (days === 1) return copy.yesterday;
+    return copy.daysAgo(days);
   };
 
   const getStatusColor = (val: number) => {
@@ -154,6 +200,11 @@ export function MuscleRecoveryScreen({ onBack }: MuscleRecoveryScreenProps) {
   const formatVolume = (value: number | undefined) => Math.round(Number(value || 0));
 
   const getMuscleImage = (muscleGroup: string) => getBodyPartImage(muscleGroup);
+  const toLocalizedMuscle = (value: string) => {
+    if (!isArabic) return value;
+    const key = String(value || '').trim().toLowerCase();
+    return AR_MUSCLE_LABELS[key] || value;
+  };
 
   const readyMuscles = muscleRecoveries.filter((m) => m.score >= 90).sort((a, b) => a.score - b.score);
   const almostReadyMuscles = muscleRecoveries
@@ -164,7 +215,7 @@ export function MuscleRecoveryScreen({ onBack }: MuscleRecoveryScreenProps) {
     <div className="flex-1 flex flex-col h-full bg-background pb-24">
       <div className="px-4 sm:px-6 pt-2">
         <Header
-          title="Muscle Recovery"
+          title={copy.title}
           onBack={onBack}
           rightElement={(
             <button onClick={() => setShowFactors(!showFactors)} className="text-accent text-sm font-medium">
@@ -182,11 +233,11 @@ export function MuscleRecoveryScreen({ onBack }: MuscleRecoveryScreenProps) {
               className="absolute top-4 right-4 text-text-secondary hover:text-white transition-colors">
               <X size={24} />
             </button>
-            <h3 className="text-xl font-bold text-white mb-6">Recovery Factors</h3>
+            <h3 className="text-xl font-bold text-white mb-6">{copy.factorsTitle}</h3>
             
             <div className="space-y-5">
               <div>
-                <label className="text-sm text-text-secondary mb-2 block">Sleep Hours</label>
+                <label className="text-sm text-text-secondary mb-2 block">{copy.sleepHours}</label>
                 <input 
                   type="number" 
                   min="0" 
@@ -199,30 +250,30 @@ export function MuscleRecoveryScreen({ onBack }: MuscleRecoveryScreenProps) {
               </div>
               
               <div>
-                <label className="text-sm text-text-secondary mb-2 block">Protein Intake</label>
+                <label className="text-sm text-text-secondary mb-2 block">{copy.protein}</label>
                 <div className="relative">
                   <select 
                     value={factors.proteinIntake} 
                     onChange={e => setFactors({...factors, proteinIntake: e.target.value})} 
                     className="w-full bg-background rounded-xl px-4 py-3 text-white border border-white/10 focus:outline-none focus:border-accent/50 appearance-none cursor-pointer pr-10">
-                    <option value="low">Low (&lt;0.8g/kg)</option>
-                    <option value="medium">Medium (0.8-1.2g/kg)</option>
-                    <option value="high">High (1.6-2.2g/kg)</option>
+                    <option value="low">{copy.low}</option>
+                    <option value="medium">{copy.medium}</option>
+                    <option value="high">{copy.high}</option>
                   </select>
                   <ChevronDown size={20} className="absolute right-3 top-1/2 -translate-y-1/2 text-text-secondary pointer-events-none" />
                 </div>
               </div>
               
               <div>
-                <label className="text-sm text-text-secondary mb-2 block">Supplements</label>
+                <label className="text-sm text-text-secondary mb-2 block">{copy.supplements}</label>
                 <div className="relative">
                   <select 
                     value={factors.supplements} 
                     onChange={e => setFactors({...factors, supplements: e.target.value})} 
                     className="w-full bg-background rounded-xl px-4 py-3 text-white border border-white/10 focus:outline-none focus:border-accent/50 appearance-none cursor-pointer pr-10">
-                    <option value="none">None</option>
-                    <option value="creatine">Creatine</option>
-                    <option value="full">Full Stack</option>
+                    <option value="none">{copy.none}</option>
+                    <option value="creatine">{copy.creatine}</option>
+                    <option value="full">{copy.full}</option>
                   </select>
                   <ChevronDown size={20} className="absolute right-3 top-1/2 -translate-y-1/2 text-text-secondary pointer-events-none" />
                 </div>
@@ -232,12 +283,12 @@ export function MuscleRecoveryScreen({ onBack }: MuscleRecoveryScreenProps) {
                 <button 
                   onClick={() => setShowFactors(false)}
                   className="flex-1 bg-white/5 text-white font-bold py-3 rounded-xl hover:bg-white/10 transition-colors">
-                  Cancel
+                  {copy.cancel}
                 </button>
                 <button 
                   onClick={handleUpdateFactors} 
                   className="flex-1 bg-accent text-black font-bold py-3 rounded-xl hover:bg-accent/90 transition-colors">
-                  Update
+                  {copy.update}
                 </button>
               </div>
             </div>
@@ -256,7 +307,7 @@ export function MuscleRecoveryScreen({ onBack }: MuscleRecoveryScreenProps) {
         {damagedMuscles.length > 0 && (
           <div>
             <h3 className="text-xs font-bold text-text-secondary uppercase tracking-wider mb-3">
-              Damaged muscles
+              {copy.damaged}
             </h3>
             <div className="space-y-2">
               {damagedMuscles.map((m) => (
@@ -272,18 +323,18 @@ export function MuscleRecoveryScreen({ onBack }: MuscleRecoveryScreenProps) {
                       />
                     </div>
                     <div>
-                      <h4 className="font-semibold text-white">{m.name}</h4>
+                      <h4 className="font-semibold text-white">{toLocalizedMuscle(m.name)}</h4>
                       <p className="text-xs text-text-tertiary mt-0.5">
-                        Last trained {getLastTrained(m.lastWorkout)}
+                        {copy.lastTrained} {getLastTrained(m.lastWorkout)}
                       </p>
                       <p className="text-[11px] text-text-secondary mt-1 font-electrolize">
-                        Today: {formatSetUnits(m.completedTodaySetUnits)} / {formatSetUnits(m.plannedTodaySetUnits)} sets
+                        {copy.todayLabel}: {formatSetUnits(m.completedTodaySetUnits)} / {formatSetUnits(m.plannedTodaySetUnits)} {copy.setsLabel}
                       </p>
                       <p className="text-[11px] text-text-secondary font-electrolize">
-                        Week: {formatSetUnits(m.completedWeekSetUnits)} / {formatSetUnits(m.plannedWeekSetUnits)} sets
+                        {copy.weekLabel}: {formatSetUnits(m.completedWeekSetUnits)} / {formatSetUnits(m.plannedWeekSetUnits)} {copy.setsLabel}
                       </p>
                       <p className="text-[11px] text-text-tertiary font-electrolize">
-                        Remaining: {Math.max(0, Math.round(Number(m.hoursRemaining || 0)))}h | Volume: {formatVolume(m.completedWeekVolume)}
+                        {copy.remaining}: {Math.max(0, Math.round(Number(m.hoursRemaining || 0)))}{copy.hourAbbr} | {copy.volume}: {formatVolume(m.completedWeekVolume)}
                       </p>
                     </div>
                   </div>
@@ -299,7 +350,7 @@ export function MuscleRecoveryScreen({ onBack }: MuscleRecoveryScreenProps) {
         {almostReadyMuscles.length > 0 && (
           <div>
             <h3 className="text-xs font-bold text-text-secondary uppercase tracking-wider mb-3">
-              Almost ready
+              {copy.almost}
             </h3>
             <div className="space-y-2">
               {almostReadyMuscles.map((m) => (
@@ -315,18 +366,18 @@ export function MuscleRecoveryScreen({ onBack }: MuscleRecoveryScreenProps) {
                       />
                     </div>
                     <div>
-                      <h4 className="font-semibold text-white">{m.name}</h4>
+                      <h4 className="font-semibold text-white">{toLocalizedMuscle(m.name)}</h4>
                       <p className="text-xs text-text-tertiary mt-0.5">
-                        Last trained {getLastTrained(m.lastWorkout)}
+                        {copy.lastTrained} {getLastTrained(m.lastWorkout)}
                       </p>
                       <p className="text-[11px] text-text-secondary mt-1 font-electrolize">
-                        Today: {formatSetUnits(m.completedTodaySetUnits)} / {formatSetUnits(m.plannedTodaySetUnits)} sets
+                        {copy.todayLabel}: {formatSetUnits(m.completedTodaySetUnits)} / {formatSetUnits(m.plannedTodaySetUnits)} {copy.setsLabel}
                       </p>
                       <p className="text-[11px] text-text-secondary font-electrolize">
-                        Week: {formatSetUnits(m.completedWeekSetUnits)} / {formatSetUnits(m.plannedWeekSetUnits)} sets
+                        {copy.weekLabel}: {formatSetUnits(m.completedWeekSetUnits)} / {formatSetUnits(m.plannedWeekSetUnits)} {copy.setsLabel}
                       </p>
                       <p className="text-[11px] text-text-tertiary font-electrolize">
-                        Remaining: {Math.max(0, Math.round(Number(m.hoursRemaining || 0)))}h | Volume: {formatVolume(m.completedWeekVolume)}
+                        {copy.remaining}: {Math.max(0, Math.round(Number(m.hoursRemaining || 0)))}{copy.hourAbbr} | {copy.volume}: {formatVolume(m.completedWeekVolume)}
                       </p>
                     </div>
                   </div>
@@ -343,7 +394,7 @@ export function MuscleRecoveryScreen({ onBack }: MuscleRecoveryScreenProps) {
         {readyMuscles.length > 0 && (
           <div>
             <h3 className="text-xs font-bold text-text-secondary uppercase tracking-wider mb-3">
-              Ready to train
+              {copy.ready}
             </h3>
             <div className="space-y-2">
               {readyMuscles.map((m) => (
@@ -359,15 +410,15 @@ export function MuscleRecoveryScreen({ onBack }: MuscleRecoveryScreenProps) {
                       />
                     </div>
                     <div>
-                      <h4 className="font-semibold text-white">{m.name}</h4>
+                      <h4 className="font-semibold text-white">{toLocalizedMuscle(m.name)}</h4>
                       <p className="text-[11px] text-text-secondary mt-1 font-electrolize">
-                        Today: {formatSetUnits(m.completedTodaySetUnits)} / {formatSetUnits(m.plannedTodaySetUnits)} sets
+                        {copy.todayLabel}: {formatSetUnits(m.completedTodaySetUnits)} / {formatSetUnits(m.plannedTodaySetUnits)} {copy.setsLabel}
                       </p>
                       <p className="text-[11px] text-text-secondary font-electrolize">
-                        Week: {formatSetUnits(m.completedWeekSetUnits)} / {formatSetUnits(m.plannedWeekSetUnits)} sets
+                        {copy.weekLabel}: {formatSetUnits(m.completedWeekSetUnits)} / {formatSetUnits(m.plannedWeekSetUnits)} {copy.setsLabel}
                       </p>
                       <p className="text-[11px] text-text-tertiary font-electrolize">
-                        Remaining: {Math.max(0, Math.round(Number(m.hoursRemaining || 0)))}h | Volume: {formatVolume(m.completedWeekVolume)}
+                        {copy.remaining}: {Math.max(0, Math.round(Number(m.hoursRemaining || 0)))}{copy.hourAbbr} | {copy.volume}: {formatVolume(m.completedWeekVolume)}
                       </p>
                     </div>
                   </div>

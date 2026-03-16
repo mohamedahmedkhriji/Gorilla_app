@@ -6,6 +6,7 @@ import { Activity, CircleQuestionMark, TrendingUp, X } from 'lucide-react';
 import { api } from '../../services/api';
 import { emojiFire, emojiRightArrow } from '../../services/emojiTheme';
 import { getBodyPartImage } from '../../services/bodyPartTheme';
+import { AppLanguage, getActiveLanguage, getStoredLanguage } from '../../services/language';
 interface ProgressDashboardProps {
   onViewReport: () => void;
   onViewStrengthScore: () => void;
@@ -160,6 +161,61 @@ const getSegmentColor = (index: number, isActive: boolean) => {
   return 'rgb(39, 46, 52)';
 };
 
+const PROGRESS_DASHBOARD_I18N = {
+  en: {
+    title: 'Your Progress',
+    strengthScoreInfo: 'Strength score info',
+    totalVolume: 'Total Volume',
+    muscleDistribution: 'Muscle Distribution (Plan Target)',
+    noPlanDistribution: 'No plan distribution is available yet for this user.',
+    viewBiWeeklyReport: 'View Bi-Weekly Report',
+    progressDialogTitle: "What's on this page",
+    close: 'Close',
+    infoLine1: 'Your weekly strength trend (estimated 1RM).',
+    infoLine2: 'Your weekly consistency percentage and completed days.',
+    infoLine3: 'Your total lifted volume.',
+    infoLine4: 'Your top target muscles for the current plan.',
+    infoLine5: 'Next overload recommendations and quick report access.',
+    fireAlt: 'Fire',
+    progressDialogAria: 'Progress page info dialog',
+  },
+  ar: {
+    title: 'تقدمك',
+    strengthScoreInfo: 'معلومات درجة القوة',
+    totalVolume: 'الحجم الكلي',
+    muscleDistribution: 'توزيع العضلات (هدف الخطة)',
+    noPlanDistribution: 'لا يتوفر توزيع للخطة لهذا المستخدم حتى الآن.',
+    viewBiWeeklyReport: 'عرض التقرير نصف الأسبوعي',
+    progressDialogTitle: 'ما الذي ستجده في هذه الصفحة',
+    close: 'إغلاق',
+    infoLine1: 'اتجاه قوتك الأسبوعي (تقدير 1RM).',
+    infoLine2: 'نسبة التزامك أسبوعيًا وعدد الأيام المكتملة.',
+    infoLine3: 'إجمالي حجم الأوزان التي رفعتها.',
+    infoLine4: 'أكثر العضلات استهدافًا في خطتك الحالية.',
+    infoLine5: 'توصيات التحميل التدريجي القادمة مع وصول سريع للتقرير.',
+    fireAlt: 'نار',
+    progressDialogAria: 'نافذة معلومات صفحة التقدم',
+  },
+} as const;
+
+const ARABIC_MUSCLE_NAME_MAP: Record<string, string> = {
+  Abs: 'البطن',
+  Triceps: 'الترايسبس',
+  Biceps: 'البايسبس',
+  Chest: 'الصدر',
+  Back: 'الظهر',
+  Shoulders: 'الأكتاف',
+  Quadriceps: 'الرباعية',
+  Hamstrings: 'الخلفية',
+  Calves: 'السمانة',
+  Forearms: 'الساعد',
+};
+
+const getLocalizedMuscleName = (name: string, language: AppLanguage) => {
+  if (language !== 'ar') return name;
+  return ARABIC_MUSCLE_NAME_MAP[name] || name;
+};
+
 export function ProgressDashboard({ onViewReport, onViewStrengthScore }: ProgressDashboardProps) {
   const [stats, setStats] = useState({
     totalWorkouts: 0,
@@ -173,6 +229,23 @@ export function ProgressDashboard({ onViewReport, onViewStrengthScore }: Progres
   });
   const [muscleDistribution, setMuscleDistribution] = useState<MuscleDistributionItem[]>([]);
   const [showPageInfo, setShowPageInfo] = useState(false);
+  const [language, setLanguage] = useState<AppLanguage>('en');
+  const copy = PROGRESS_DASHBOARD_I18N[language] || PROGRESS_DASHBOARD_I18N.en;
+
+  useEffect(() => {
+    setLanguage(getActiveLanguage());
+
+    const handleLanguageChanged = () => {
+      setLanguage(getStoredLanguage());
+    };
+
+    window.addEventListener('app-language-changed', handleLanguageChanged);
+    window.addEventListener('storage', handleLanguageChanged);
+    return () => {
+      window.removeEventListener('app-language-changed', handleLanguageChanged);
+      window.removeEventListener('storage', handleLanguageChanged);
+    };
+  }, []);
 
   const getUserId = () => {
     const localUserId = Number(localStorage.getItem('appUserId') || localStorage.getItem('userId') || 0);
@@ -305,11 +378,11 @@ export function ProgressDashboard({ onViewReport, onViewStrengthScore }: Progres
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-light text-white">Your Progress</h1>
+        <h1 className="text-2xl font-light text-white">{copy.title}</h1>
         <button
           type="button"
           className="flex h-9 w-9 items-center justify-center rounded-full border border-white/10 bg-card/70 text-text-secondary transition-colors hover:border-accent/30 hover:text-text-primary"
-          aria-label="Strength score info"
+          aria-label={copy.strengthScoreInfo}
           onClick={() => setShowPageInfo(true)}
         >
           <CircleQuestionMark size={16} />
@@ -328,7 +401,7 @@ export function ProgressDashboard({ onViewReport, onViewStrengthScore }: Progres
             </div>
             <img
               src={emojiFire}
-              alt="Fire"
+              alt={copy.fireAlt}
               className="h-14 w-14 shrink-0 object-contain"
             />
           </div>
@@ -351,7 +424,7 @@ export function ProgressDashboard({ onViewReport, onViewStrengthScore }: Progres
               <div className="text-2xl font-bold text-white font-electrolize">
                 {Number.isInteger(stats.totalVolume) ? stats.totalVolume : stats.totalVolume.toFixed(1)}t
               </div>
-              <div className="text-xs text-text-secondary">Total Volume</div>
+              <div className="text-xs text-text-secondary">{copy.totalVolume}</div>
             </div>
             <img src={emojiRightArrow} alt="" aria-hidden="true" className="mb-1 h-[18px] w-[18px] shrink-0 object-contain opacity-70" />
           </div>
@@ -359,7 +432,7 @@ export function ProgressDashboard({ onViewReport, onViewStrengthScore }: Progres
       </div>
 
       <Card>
-        <h3 className="font-medium text-white mb-4">Muscle Distribution (Plan Target)</h3>
+        <h3 className="font-medium text-white mb-4">{copy.muscleDistribution}</h3>
         {muscleDistribution.length > 0 ? (
           <>
             <div className="mb-5 grid grid-cols-3 gap-3">
@@ -370,12 +443,12 @@ export function ProgressDashboard({ onViewReport, onViewStrengthScore }: Progres
                 >
                   <img
                     src={getBodyPartImage(m.name)}
-                    alt={m.name}
+                    alt={getLocalizedMuscleName(m.name, language)}
                     className="h-24 w-full object-cover object-center sm:h-28"
                     loading="lazy"
                   />
                   <div className="border-t border-white/10 px-3 py-2 text-center text-[11px] font-medium text-text-secondary">
-                    {m.name}
+                    {getLocalizedMuscleName(m.name, language)}
                   </div>
                 </div>
               ))}
@@ -385,7 +458,7 @@ export function ProgressDashboard({ onViewReport, onViewStrengthScore }: Progres
               {muscleDistribution.map((m) => (
                 <div key={m.name}>
                   <div className="mb-1 flex justify-between text-xs text-text-secondary">
-                    <span>{m.name}</span>
+                    <span>{getLocalizedMuscleName(m.name, language)}</span>
                     <span className="font-electrolize">{Math.round(m.val)}%</span>
                   </div>
                   <div className="mt-1 rounded-md border border-white/10 bg-white/[0.02] p-1">
@@ -408,14 +481,14 @@ export function ProgressDashboard({ onViewReport, onViewStrengthScore }: Progres
           </>
         ) : (
           <div className="rounded-2xl border border-white/8 bg-background/50 px-4 py-4 text-sm text-text-secondary">
-            No plan distribution is available yet for this user.
+            {copy.noPlanDistribution}
           </div>
         )}
       </Card>
 
       <div className="grid grid-cols-1 gap-3">
         <Button variant="secondary" onClick={onViewReport}>
-          View Bi-Weekly Report
+          {copy.viewBiWeeklyReport}
         </Button>
       </div>
 
@@ -430,25 +503,25 @@ export function ProgressDashboard({ onViewReport, onViewStrengthScore }: Progres
             onClick={(event) => event.stopPropagation()}
             role="dialog"
             aria-modal="true"
-            aria-label="Progress page info dialog"
+            aria-label={copy.progressDialogAria}
           >
             <div className="mb-4 flex items-center justify-between">
-              <h3 className="text-base font-semibold text-white">What&apos;s on this page</h3>
+              <h3 className="text-base font-semibold text-white">{copy.progressDialogTitle}</h3>
               <button
                 type="button"
                 className="flex h-8 w-8 items-center justify-center rounded-full border border-white/10 text-text-secondary transition-colors hover:border-accent/30 hover:text-text-primary"
                 onClick={() => setShowPageInfo(false)}
-                aria-label="Close"
+                aria-label={copy.close}
               >
                 <X size={14} />
               </button>
             </div>
             <div className="space-y-2 text-sm text-text-secondary">
-              <p>Your weekly strength trend (estimated 1RM).</p>
-              <p>Your weekly consistency percentage and completed days.</p>
-              <p>Your total lifted volume.</p>
-              <p>Your top target muscles for the current plan.</p>
-              <p>Next overload recommendations and quick report access.</p>
+              <p>{copy.infoLine1}</p>
+              <p>{copy.infoLine2}</p>
+              <p>{copy.infoLine3}</p>
+              <p>{copy.infoLine4}</p>
+              <p>{copy.infoLine5}</p>
             </div>
           </div>
         </div>

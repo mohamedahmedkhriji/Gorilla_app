@@ -3,6 +3,7 @@ import { Header } from '../ui/Header';
 import { Card } from '../ui/Card';
 import { Sparkles, ArrowUpRight, Target } from 'lucide-react';
 import { api } from '../../services/api';
+import { AppLanguage, getActiveLanguage, getStoredLanguage } from '../../services/language';
 interface BiWeeklyReportProps {
   onBack: () => void;
 }
@@ -26,9 +27,53 @@ interface BiWeeklyReportData {
   nextFocus: ReportItem[];
 }
 
+const BIWEEKLY_REPORT_I18N = {
+  en: {
+    title: 'Bi-Weekly Report',
+    summaryTitle: 'AI Coach Summary',
+    summaryLoading: 'Analyzing your recent training data...',
+    summaryEmpty: 'No report data yet. Start logging workouts to generate a personalized report.',
+    improvementsTitle: 'Improvements',
+    improvementsEmptyTitle: 'No major improvements yet',
+    improvementsEmptyDetail: 'Log more workouts this period to unlock detailed trends.',
+    nextFocusTitle: 'Next Focus',
+    nextFocusEmptyTitle: 'Keep training consistently',
+    nextFocusEmptyDetail: 'Complete your scheduled sessions this week.',
+  },
+  ar: {
+    title: 'تقرير نصف أسبوعي',
+    summaryTitle: 'ملخص المدرب الذكي',
+    summaryLoading: 'جارٍ تحليل بيانات تدريبك الأخيرة...',
+    summaryEmpty: 'لا توجد بيانات للتقرير بعد. ابدأ بتسجيل التدريبات لإنشاء تقرير مخصص.',
+    improvementsTitle: 'التحسينات',
+    improvementsEmptyTitle: 'لا توجد تحسينات كبيرة بعد',
+    improvementsEmptyDetail: 'سجّل المزيد من التدريبات خلال هذه الفترة لعرض اتجاهات مفصلة.',
+    nextFocusTitle: 'التركيز القادم',
+    nextFocusEmptyTitle: 'استمر على الانتظام في التدريب',
+    nextFocusEmptyDetail: 'أكمل جلساتك المجدولة هذا الأسبوع.',
+  },
+} as const;
+
 export function BiWeeklyReport({ onBack }: BiWeeklyReportProps) {
+  const [language, setLanguage] = useState<AppLanguage>('en');
   const [report, setReport] = useState<BiWeeklyReportData | null>(null);
   const [loading, setLoading] = useState(true);
+  const copy = BIWEEKLY_REPORT_I18N[language] || BIWEEKLY_REPORT_I18N.en;
+
+  useEffect(() => {
+    setLanguage(getActiveLanguage());
+
+    const handleLanguageChanged = () => {
+      setLanguage(getStoredLanguage());
+    };
+
+    window.addEventListener('app-language-changed', handleLanguageChanged);
+    window.addEventListener('storage', handleLanguageChanged);
+    return () => {
+      window.removeEventListener('app-language-changed', handleLanguageChanged);
+      window.removeEventListener('storage', handleLanguageChanged);
+    };
+  }, []);
 
   useEffect(() => {
     const user = JSON.parse(localStorage.getItem('appUser') || localStorage.getItem('user') || '{}');
@@ -57,31 +102,31 @@ export function BiWeeklyReport({ onBack }: BiWeeklyReportProps) {
 
   const improvements = report?.improvements?.length
     ? report.improvements
-    : [{ title: 'No major improvements yet', detail: 'Log more workouts this period to unlock detailed trends.' }];
+    : [{ title: copy.improvementsEmptyTitle, detail: copy.improvementsEmptyDetail }];
   const nextFocus = report?.nextFocus?.length
     ? report.nextFocus
-    : [{ title: 'Keep training consistently', detail: 'Complete your scheduled sessions this week.' }];
+    : [{ title: copy.nextFocusEmptyTitle, detail: copy.nextFocusEmptyDetail }];
 
   return (
     <div className="flex-1 flex flex-col pb-24">
-      <Header title="Bi-Weekly Report" onBack={onBack} />
+      <Header title={copy.title} onBack={onBack} />
 
       <div className="space-y-6">
         <Card className="bg-gradient-to-br from-accent/20 to-purple-500/20 border-accent/20">
           <div className="flex items-center gap-2 mb-4">
             <Sparkles className="text-accent" size={20} />
-            <h3 className="font-medium text-white">AI Coach Summary</h3>
+            <h3 className="font-medium text-white">{copy.summaryTitle}</h3>
           </div>
           <p className="text-sm text-white/90 leading-relaxed">
             {loading
-              ? 'Analyzing your recent training data...'
-              : report?.summary || 'No report data yet. Start logging workouts to generate a personalized report.'}
+              ? copy.summaryLoading
+              : report?.summary || copy.summaryEmpty}
           </p>
         </Card>
 
         <div className="space-y-4">
           <h3 className="text-sm font-medium text-text-secondary uppercase tracking-wider">
-            Improvements
+            {copy.improvementsTitle}
           </h3>
           {improvements.map((item) => (
             <div key={`${item.title}-${item.detail}`} className="bg-card rounded-xl p-4 border border-white/5 flex items-start gap-4">
@@ -100,7 +145,7 @@ export function BiWeeklyReport({ onBack }: BiWeeklyReportProps) {
 
         <div className="space-y-4">
           <h3 className="text-sm font-medium text-text-secondary uppercase tracking-wider">
-            Next Focus
+            {copy.nextFocusTitle}
           </h3>
           {nextFocus.map((item) => (
             <div key={`${item.title}-${item.detail}`} className="bg-card rounded-xl p-4 border border-white/5 flex items-start gap-4">

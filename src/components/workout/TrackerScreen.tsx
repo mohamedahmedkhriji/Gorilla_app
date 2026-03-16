@@ -2,6 +2,8 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Header } from '../ui/Header';
 import { Play, Square, BarChart3, Video, Trash2 } from 'lucide-react';
 import { api } from '../../services/api';
+import { AppLanguage, getActiveLanguage, getStoredLanguage } from '../../services/language';
+import { stripExercisePrefix } from '../../services/exerciseName';
 
 interface TrackerScreenProps {
   onBack: () => void;
@@ -41,6 +43,130 @@ const SEGMENT_MAP: Record<string, [boolean, boolean, boolean, boolean, boolean, 
   '7': [true, true, true, false, false, false, false],
   '8': [true, true, true, true, true, true, true],
   '9': [true, true, true, true, false, true, true],
+};
+
+const TRACKER_I18N: Record<AppLanguage, {
+  title: string;
+  removeExerciseAria: string;
+  timerAria: (timer: string) => string;
+  backToTracker: string;
+  workoutAnalytics: string;
+  totalWorkTime: string;
+  totalRestTime: string;
+  totalVolume: string;
+  setsCompleted: string;
+  setDetails: string;
+  setLabel: string;
+  repsLabel: string;
+  weightLabel: string;
+  unitLabel: string;
+  workLabel: string;
+  restLabel: string;
+  video: string;
+  analytics: string;
+  restTimerLabel: (time: string) => string;
+  restTarget: string;
+  restExceeded: string;
+  dismiss: string;
+  allSetsCompleted: string;
+  effectiveSets: string;
+  delete: string;
+  addSet: string;
+  setNumber: (value: number) => string;
+  repsTimesWeight: (reps: number, weight: number, unit: string) => string;
+  setWeightAria: (value: number) => string;
+  removeTitle: string;
+  removeBody: (name: string) => string;
+  removeFootnote: string;
+  cancel: string;
+  remove: string;
+  removing: string;
+  removeErrorFallback: string;
+  restNotificationTitle: string;
+  restExceededNotification: (name: string, nextSet: number) => string;
+}> = {
+  en: {
+    title: 'The Tracker',
+    removeExerciseAria: 'Remove exercise',
+    timerAria: (timer) => `Set timer ${timer}`,
+    backToTracker: 'Back to Tracker',
+    workoutAnalytics: 'Workout Analytics',
+    totalWorkTime: 'Total Work Time',
+    totalRestTime: 'Total Rest Time',
+    totalVolume: 'Total Volume',
+    setsCompleted: 'Sets Completed',
+    setDetails: 'Set Details',
+    setLabel: 'Set',
+    repsLabel: 'Reps',
+    weightLabel: 'Weight',
+    unitLabel: 'kg',
+    workLabel: 'Work',
+    restLabel: 'Rest',
+    video: 'Video',
+    analytics: 'Analytics',
+    restTimerLabel: (time) => `Rest Timer: ${time}`,
+    restTarget: 'Target 01:00 - 02:00',
+    restExceeded: 'Rest is over 2 minutes. Start your next set.',
+    dismiss: 'Dismiss',
+    allSetsCompleted: 'All sets are completed for this exercise.',
+    effectiveSets: 'Effective sets',
+    delete: 'Delete',
+    addSet: 'Add Set',
+    setNumber: (value) => `Set ${value}`,
+    repsTimesWeight: (reps, weight, unit) => `${reps} reps × ${weight} ${unit}`,
+    setWeightAria: (value) => `Set ${value} weight`,
+    removeTitle: 'Remove Exercise?',
+    removeBody: (name) => `${name} will be removed from today's workout.`,
+    removeFootnote: 'This updates your workout plan immediately.',
+    cancel: 'Cancel',
+    remove: 'Remove',
+    removing: 'Removing...',
+    removeErrorFallback: 'Failed to remove exercise.',
+    restNotificationTitle: 'RepSet Rest Timer',
+    restExceededNotification: (name, nextSet) =>
+      `Rest exceeded 2:00 on ${name}. Start set ${nextSet} now.`,
+  },
+  ar: {
+    title: 'المتتبع',
+    removeExerciseAria: 'إزالة التمرين',
+    timerAria: (timer) => `مؤقت المجموعة ${timer}`,
+    backToTracker: 'العودة إلى المتتبع',
+    workoutAnalytics: 'تحليلات التمرين',
+    totalWorkTime: 'إجمالي وقت العمل',
+    totalRestTime: 'إجمالي وقت الراحة',
+    totalVolume: 'إجمالي الحجم',
+    setsCompleted: 'المجموعات المكتملة',
+    setDetails: 'تفاصيل المجموعات',
+    setLabel: 'المجموعة',
+    repsLabel: 'التكرارات',
+    weightLabel: 'الوزن',
+    unitLabel: 'كجم',
+    workLabel: 'عمل',
+    restLabel: 'راحة',
+    video: 'فيديو',
+    analytics: 'تحليلات',
+    restTimerLabel: (time) => `مؤقت الراحة: ${time}`,
+    restTarget: 'الهدف 01:00 - 02:00',
+    restExceeded: 'تجاوزت الراحة دقيقتين. ابدأ مجموعتك التالية.',
+    dismiss: 'إخفاء',
+    allSetsCompleted: 'تم إكمال جميع المجموعات لهذا التمرين.',
+    effectiveSets: 'المجموعات الفعالة',
+    delete: 'حذف',
+    addSet: 'أضف مجموعة',
+    setNumber: (value) => `المجموعة ${value}`,
+    repsTimesWeight: (reps, weight, unit) => `${reps} تكرار × ${weight} ${unit}`,
+    setWeightAria: (value) => `وزن المجموعة ${value}`,
+    removeTitle: 'إزالة التمرين؟',
+    removeBody: (name) => `سيتم إزالة ${name} من تمرين اليوم.`,
+    removeFootnote: 'سيتم تحديث خطة التمرين فورًا.',
+    cancel: 'إلغاء',
+    remove: 'إزالة',
+    removing: 'جارٍ الإزالة...',
+    removeErrorFallback: 'تعذر إزالة التمرين.',
+    restNotificationTitle: 'مؤقت الراحة',
+    restExceededNotification: (name, nextSet) =>
+      `تجاوزت الراحة دقيقتين في ${name}. ابدأ المجموعة ${nextSet} الآن.`,
+  },
 };
 
 function SevenSegmentDigit({ digit }: { digit: string }) {
@@ -86,11 +212,16 @@ export function TrackerScreen({
   onRemoveExercise,
 }: TrackerScreenProps) {
   const user = JSON.parse(localStorage.getItem('appUser') || localStorage.getItem('user') || '{}');
+  const language = getActiveLanguage(getStoredLanguage());
+  const isArabic = language === 'ar';
+  const copy = TRACKER_I18N[isArabic ? 'ar' : 'en'];
+  const displayExerciseName = stripExercisePrefix(exerciseName);
   const [sets, setSets] = useState<SetData[]>(() => {
     if (savedSets && savedSets.length > 0) return savedSets;
     return createInitialSets(plannedSets);
   });
   const unit: 'kg' | 'lbs' = 'kg';
+  const unitLabel = copy.unitLabel || unit;
   const [isRunning, setIsRunning] = useState(false);
   const [setTimerSeconds, setSetTimerSeconds] = useState(0);
   const [swipedIndex, setSwipedIndex] = useState<number | null>(null);
@@ -200,7 +331,7 @@ export function TrackerScreen({
 
     const showBrowserNotification = () => {
       try {
-        new Notification('RepSet Rest Timer', {
+        new Notification(copy.restNotificationTitle, {
           body: message,
           tag: 'rest-timeout-reminder',
         });
@@ -233,9 +364,7 @@ export function TrackerScreen({
     if (!nextSet) return;
 
     restReminderLock.current = true;
-    sendRestReminder(
-      `Rest exceeded 2:00 on ${exerciseName}. Start set ${nextSet} now.`,
-    );
+    sendRestReminder(copy.restExceededNotification(displayExerciseName, nextSet));
   }, [exerciseName, isResting, notificationSettings.restTimer, restTime, sets]);
 
   const persistSets = (nextSets: SetData[]) => {
@@ -252,7 +381,7 @@ export function TrackerScreen({
       await onRemoveExercise();
       setShowRemoveConfirm(false);
     } catch (error) {
-      setRemoveError(error instanceof Error ? error.message : 'Failed to remove exercise.');
+      setRemoveError(error instanceof Error ? error.message : copy.removeErrorFallback);
     } finally {
       setIsRemovingExercise(false);
     }
@@ -397,8 +526,9 @@ export function TrackerScreen({
     <div className="flex-1 flex flex-col h-full bg-background pb-24">
       <div className="px-4 sm:px-6 pt-2">
         <Header
-          title="The Tracker"
+          title={copy.title}
           onBack={onBack}
+          titleClassName={isArabic ? 'text-right' : ''}
           rightElement={onRemoveExercise ? (
             <button
               type="button"
@@ -407,7 +537,7 @@ export function TrackerScreen({
               }}
               disabled={isRemovingExercise}
               className="flex h-10 w-10 items-center justify-center rounded-xl border border-red-500/25 bg-[rgb(var(--color-card))]/80 text-red-400 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] transition-colors hover:border-red-500/45 hover:bg-red-500/12 disabled:cursor-not-allowed disabled:opacity-60"
-              aria-label="Remove exercise"
+              aria-label={copy.removeExerciseAria}
             >
               <Trash2 size={17} />
             </button>
@@ -416,7 +546,7 @@ export function TrackerScreen({
       </div>
       <div className="px-4 sm:px-6 -mt-2 mb-2">
         <div className="w-full flex justify-center">
-          <div className="seven-seg-shell" role="timer" aria-label={`Set timer ${timerText}`}>
+          <div className="seven-seg-shell" role="timer" aria-label={copy.timerAria(timerText)}>
             <div className="seven-seg-group">
               <SevenSegmentDigit digit={m1} />
               <SevenSegmentDigit digit={m2} />
@@ -439,45 +569,45 @@ export function TrackerScreen({
             {removeError}
           </div>
         )}
-        <h2 className="text-2xl font-bold text-white mb-6 text-center">{exerciseName}</h2>
+        <h2 className="text-2xl font-bold text-white mb-6 text-center">{displayExerciseName}</h2>
 
         {showAnalytics ? (
           <div className="space-y-4 mb-8">
-            <button onClick={() => setShowAnalytics(false)} className="text-accent text-sm mb-4">
-              {"<- Back to Tracker"}
+            <button onClick={() => setShowAnalytics(false)} className={`text-accent text-sm mb-4 ${isArabic ? 'text-right' : ''}`}>
+              {copy.backToTracker}
             </button>
             <div className="rounded-xl p-6 border border-white/10 bg-transparent">
-              <h3 className="text-lg font-bold text-white mb-4">Workout Analytics</h3>
+              <h3 className="text-lg font-bold text-white mb-4">{copy.workoutAnalytics}</h3>
               <div className="space-y-3">
                 <div className="flex justify-between">
-                  <span className="text-text-secondary">Total Work Time</span>
+                  <span className="text-text-secondary">{copy.totalWorkTime}</span>
                   <span className="text-white font-semibold">{formatTime(getTotalWorkTime())}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-text-secondary">Total Rest Time</span>
+                  <span className="text-text-secondary">{copy.totalRestTime}</span>
                   <span className="text-white font-semibold">{formatTime(getTotalRestTime())}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-text-secondary">Total Volume</span>
-                  <span className="text-white font-semibold">{getTotalVolume()} kg</span>
+                  <span className="text-text-secondary">{copy.totalVolume}</span>
+                  <span className="text-white font-semibold">{getTotalVolume()} {unitLabel}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-text-secondary">Sets Completed</span>
+                  <span className="text-text-secondary">{copy.setsCompleted}</span>
                   <span className="text-white font-semibold">{getCompletedSets()} / {sets.length}</span>
                 </div>
               </div>
             </div>
             <div className="space-y-2">
-              <h4 className="text-sm font-bold text-text-secondary uppercase tracking-wider">Set Details</h4>
+              <h4 className="text-sm font-bold text-text-secondary uppercase tracking-wider">{copy.setDetails}</h4>
               {sets.filter(s => s.completed).map((set) => (
                 <div key={set.set} className="rounded-xl p-4 border border-white/10 bg-transparent">
                   <div className="flex justify-between items-center mb-2">
-                    <span className="text-white font-semibold">Set {set.set}</span>
-                    <span className="text-text-secondary text-sm">{set.reps} reps × {set.weight} {unit}</span>
+                    <span className="text-white font-semibold">{copy.setNumber(set.set)}</span>
+                    <span className="text-text-secondary text-sm">{copy.repsTimesWeight(set.reps, set.weight, unitLabel)}</span>
                   </div>
                   <div className="flex gap-4 text-xs text-text-secondary">
-                    <span>Work: {formatTime(set.duration || 0)}</span>
-                    {set.restTime && <span>Rest: {formatTime(set.restTime)}</span>}
+                    <span>{copy.workLabel}: {formatTime(set.duration || 0)}</span>
+                    {set.restTime && <span>{copy.restLabel}: {formatTime(set.restTime)}</span>}
                   </div>
                 </div>
               ))}
@@ -509,13 +639,13 @@ export function TrackerScreen({
                 <div className="w-12 h-12 rounded-full border-2 border-white/20 flex items-center justify-center">
                   <Video size={20} className="text-white" />
                 </div>
-                <span className="text-xs text-text-secondary">Video</span>
+                <span className="text-xs text-text-secondary">{copy.video}</span>
               </button>
               <button onClick={() => setShowAnalytics(true)} className="flex flex-col items-center gap-2">
                 <div className="w-12 h-12 rounded-full border-2 border-white/20 flex items-center justify-center">
                   <BarChart3 size={20} className="text-white" />
                 </div>
-                <span className="text-xs text-text-secondary">Analytics</span>
+                <span className="text-xs text-text-secondary">{copy.analytics}</span>
               </button>
 
             </div>
@@ -529,11 +659,11 @@ export function TrackerScreen({
                     : 'border-white/10 bg-transparent'
               }`}>
                 <div className="flex items-center justify-between text-sm">
-                  <span className="text-white font-semibold">Rest Timer: {formatTime(restTime)}</span>
-                  <span className="text-text-secondary">Target 01:00 - 02:00</span>
+                  <span className="text-white font-semibold">{copy.restTimerLabel(formatTime(restTime))}</span>
+                  <span className="text-text-secondary">{copy.restTarget}</span>
                 </div>
                 {restTime > REST_WINDOW_MAX_SECONDS && (
-                  <p className="text-xs text-red-300 mt-2">Rest is over 2 minutes. Start your next set.</p>
+                  <p className="text-xs text-red-300 mt-2">{copy.restExceeded}</p>
                 )}
               </div>
             )}
@@ -547,7 +677,7 @@ export function TrackerScreen({
                     className="text-xs text-accent hover:text-white transition-colors"
                     type="button"
                   >
-                    Dismiss
+                    {copy.dismiss}
                   </button>
                 </div>
               </div>
@@ -555,18 +685,18 @@ export function TrackerScreen({
 
             {areAllSetsCompleted && !isRunning && (
               <div className="mb-4 rounded-xl border border-green-500/35 bg-green-500/10 p-3 text-sm text-green-200">
-                All sets are completed for this exercise.
+                {copy.allSetsCompleted}
               </div>
             )}
 
             <h3 className="text-xs font-bold text-text-secondary uppercase tracking-wider mb-4">
-              Effective sets
+              {copy.effectiveSets}
             </h3>
 
             <div className="grid grid-cols-[60px_60px_80px_1fr] gap-3 mb-3 px-2">
-              <span className="text-xs text-text-secondary uppercase">Set</span>
-              <span className="text-xs text-text-secondary uppercase">Reps</span>
-              <span className="text-xs text-text-secondary uppercase">Weight</span>
+              <span className="text-xs text-text-secondary uppercase">{copy.setLabel}</span>
+              <span className="text-xs text-text-secondary uppercase">{copy.repsLabel}</span>
+              <span className="text-xs text-text-secondary uppercase">{copy.weightLabel}</span>
               <span></span>
             </div>
 
@@ -581,7 +711,7 @@ export function TrackerScreen({
                     <button
                       onClick={() => removeSet(index)}
                       className="absolute right-0 top-0 bottom-0 w-20 bg-red-500 flex items-center justify-center text-white font-bold rounded-r-lg z-10">
-                      Delete
+                      {copy.delete}
                     </button>
                   )}
                   <div className={`grid grid-cols-[60px_60px_80px_1fr] gap-4 items-center transition-transform ${
@@ -621,7 +751,7 @@ export function TrackerScreen({
                               onChange={(e) => updateSet(index, 'weight', parseInt(e.target.value))}
                               disabled={set.completed}
                               className="barbell-slider-hit absolute inset-y-0 left-6 right-0 z-20 h-full w-auto cursor-pointer opacity-0 disabled:cursor-not-allowed"
-                              aria-label={`Set ${set.set} weight`}
+                              aria-label={copy.setWeightAria(set.set)}
                             />
                             <div className="barbell-track-shell pointer-events-none absolute left-6 right-0 top-1/2 z-10 h-[10px] -translate-y-1/2">
                               <div className="barbell-track-fill" style={{ width: `${sliderPercent}%` }} />
@@ -643,7 +773,7 @@ export function TrackerScreen({
             <button
               onClick={() => persistSets([...sets, { set: sets.length + 1, reps: 8, weight: 80, completed: false }])}
               className="w-full mt-6 py-3 bg-accent text-black font-bold rounded-full hover:bg-accent/90 transition-colors">
-              Add Set
+              {copy.addSet}
             </button>
           </>
         )}
@@ -665,12 +795,12 @@ export function TrackerScreen({
                 <div className="flex h-14 w-14 items-center justify-center rounded-2xl border border-red-500/25 bg-red-500/12 text-red-400 shadow-[inset_0_1px_0_rgba(255,255,255,0.1)]">
                   <Trash2 size={22} />
                 </div>
-                <h3 className="mt-5 text-xl font-semibold text-text-primary">Remove Exercise?</h3>
+                <h3 className="mt-5 text-xl font-semibold text-text-primary">{copy.removeTitle}</h3>
                 <p className="mt-2 text-sm leading-relaxed text-text-secondary">
-                  <span className="font-semibold text-text-primary">{exerciseName}</span> will be removed from today&apos;s workout.
+                  {copy.removeBody(displayExerciseName)}
                 </p>
                 <p className="mt-1 text-xs uppercase tracking-[0.18em] text-text-tertiary">
-                  This updates your workout plan immediately.
+                  {copy.removeFootnote}
                 </p>
               </div>
             </div>
@@ -682,7 +812,7 @@ export function TrackerScreen({
                 disabled={isRemovingExercise}
                 className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-text-primary transition-colors hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-60"
               >
-                Cancel
+                {copy.cancel}
               </button>
               <button
                 type="button"
@@ -692,7 +822,7 @@ export function TrackerScreen({
                 disabled={isRemovingExercise}
                 className="rounded-2xl border border-red-500/25 bg-red-500/12 px-4 py-3 text-sm font-semibold text-red-400 transition-colors hover:bg-red-500/18 disabled:cursor-not-allowed disabled:opacity-60"
               >
-                {isRemovingExercise ? 'Removing...' : 'Remove'}
+                {isRemovingExercise ? copy.removing : copy.remove}
               </button>
             </div>
           </div>

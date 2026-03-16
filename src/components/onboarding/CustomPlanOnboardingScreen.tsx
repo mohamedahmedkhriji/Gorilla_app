@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Button } from '../ui/Button';
 import { api } from '../../services/api';
+import { stripExercisePrefix } from '../../services/exerciseName';
 
 interface CustomPlanOnboardingScreenProps {
   onNext: () => void;
@@ -104,10 +105,14 @@ function ExerciseAutocompleteField({
   const rootRef = useRef<HTMLDivElement | null>(null);
 
   const filteredOptions = useMemo(() => {
-    const query = value.trim().toLowerCase();
+    const query = stripExercisePrefix(value).trim().toLowerCase();
     if (!query) return options.slice(0, 10);
     return options
-      .filter((exercise) => exercise.name.toLowerCase().includes(query))
+      .filter((exercise) => {
+        const name = exercise.name || '';
+        const haystack = `${name} ${stripExercisePrefix(name)}`.toLowerCase();
+        return haystack.includes(query);
+      })
       .slice(0, 10);
   }, [options, value]);
 
@@ -162,7 +167,7 @@ function ExerciseAutocompleteField({
                 }}
                 className="w-full px-3 py-2 text-left text-sm text-white transition-colors hover:bg-white/10"
               >
-                <div>{exercise.name}</div>
+                <div>{stripExercisePrefix(exercise.name)}</div>
                 <div className="text-[11px] uppercase tracking-[0.08em] text-text-secondary">
                   {getCatalogExerciseMuscle(exercise) || 'General'}
                 </div>
@@ -207,7 +212,10 @@ export function CustomPlanOnboardingScreen({
   const catalogByName = useMemo(() => {
     const map = new Map<string, CatalogExercise>();
     catalog.forEach((exercise) => {
-      map.set(exercise.name.trim().toLowerCase(), exercise);
+      const raw = exercise.name.trim().toLowerCase();
+      const stripped = stripExercisePrefix(exercise.name).trim().toLowerCase();
+      if (raw) map.set(raw, exercise);
+      if (stripped) map.set(stripped, exercise);
     });
     return map;
   }, [catalog]);
@@ -229,7 +237,7 @@ export function CustomPlanOnboardingScreen({
       const rawExercises = Array.isArray(workout?.exercises) ? workout.exercises : [];
       const normalizedExercises = rawExercises
         .map((exercise: any) => ({
-          exerciseName: String(exercise?.exerciseName || exercise?.name || '').trim(),
+          exerciseName: stripExercisePrefix(String(exercise?.exerciseName || exercise?.name || '').trim()),
           exerciseCatalogId: Number(exercise?.exerciseCatalogId || 0) || null,
           sets: Math.max(1, Math.min(10, Number(exercise?.sets || 3))),
           reps: String(exercise?.reps || '8-12').trim().slice(0, 20) || '8-12',
@@ -343,17 +351,18 @@ export function CustomPlanOnboardingScreen({
   };
 
   const handleExerciseNameChange = (dayKey: string, index: number, inputName: string) => {
-    const normalized = inputName.trim().toLowerCase();
+    const cleanedName = stripExercisePrefix(inputName);
+    const normalized = cleanedName.trim().toLowerCase();
     const catalogMatch = catalogByName.get(normalized) || null;
     updateExercise(dayKey, index, {
-      exerciseName: inputName,
+      exerciseName: cleanedName,
       exerciseCatalogId: catalogMatch ? catalogMatch.id : null,
     });
   };
 
   const handleExerciseSelect = (dayKey: string, index: number, exercise: CatalogExercise) => {
     updateExercise(dayKey, index, {
-      exerciseName: exercise.name,
+      exerciseName: stripExercisePrefix(exercise.name),
       exerciseCatalogId: exercise.id,
     });
   };
@@ -365,7 +374,7 @@ export function CustomPlanOnboardingScreen({
       if (label) return label;
     }
 
-    const byName = catalogByName.get(String(exercise.exerciseName || '').trim().toLowerCase());
+    const byName = catalogByName.get(stripExercisePrefix(String(exercise.exerciseName || '').trim()).toLowerCase());
     if (byName) {
       const label = getCatalogExerciseMuscle(byName);
       if (label) return label;
@@ -382,7 +391,7 @@ export function CustomPlanOnboardingScreen({
         workoutName: String(plan.workoutName || `${dayName} workout`).trim() || `${dayName} workout`,
         workoutType: 'Custom',
         exercises: plan.exercises.map((exercise) => ({
-          exerciseName: String(exercise.exerciseName || '').trim(),
+          exerciseName: stripExercisePrefix(String(exercise.exerciseName || '').trim()),
           exerciseCatalogId: Number(exercise.exerciseCatalogId || 0) || null,
           sets: Math.max(1, Math.min(10, Math.round(Number(exercise.sets || 3)))),
           reps: String(exercise.reps || '8-12').trim().slice(0, 20) || '8-12',
@@ -413,7 +422,7 @@ export function CustomPlanOnboardingScreen({
         const plan = dayPlans[dayName];
         const cleanedExercises = plan.exercises
           .map((exercise) => ({
-            exerciseName: String(exercise.exerciseName || '').trim(),
+            exerciseName: stripExercisePrefix(String(exercise.exerciseName || '').trim()),
             exerciseCatalogId: Number(exercise.exerciseCatalogId || 0) || null,
             sets: Math.max(1, Math.min(10, Math.round(Number(exercise.sets || 3)))),
             reps: String(exercise.reps || '8-12').trim().slice(0, 20) || '8-12',

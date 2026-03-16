@@ -25,10 +25,12 @@ const SETTINGS_I18N = {
     theme: 'Theme',
     language: 'Language',
     english: 'English',
-    french: 'French',
+    arabic: 'العربية',
     dark: 'Dark',
     light: 'Light',
     logOut: 'Log Out',
+    gymAccess: 'Gym Access',
+    gymLocation: 'Iron Paradise Gym',
     failedLoadNotificationSettings: 'Failed to load notification settings',
     failedLoadPersonalDetails: 'Failed to load personal details',
     failedSavePersonalDetails: 'Failed to save personal details',
@@ -142,133 +144,135 @@ const SETTINGS_I18N = {
       },
     ],
   },
-  fr: {
-    settings: 'Parametres',
-    account: 'Compte',
-    personalDetails: 'Details personnels',
-    privacyAndSecurity: 'Confidentialite et securite',
-    preferences: 'Preferences',
-    notifications: 'Notifications',
-    notificationControls: 'Controle des notifications',
-    coachMessages: 'Messages du coach',
-    restBetweenSets: 'Repos entre les series',
-    missionChallengeComplete: 'Mission et challenge termines',
-    theme: 'Theme',
-    language: 'Langue',
-    english: 'Anglais',
-    french: 'Francais',
-    dark: 'Sombre',
-    light: 'Clair',
-    logOut: 'Se deconnecter',
-    failedLoadNotificationSettings: 'Impossible de charger les parametres de notification',
-    failedLoadPersonalDetails: 'Impossible de charger les details personnels',
-    failedSavePersonalDetails: 'Impossible de sauvegarder les details personnels',
-    failedUpdatePassword: 'Impossible de mettre a jour le mot de passe',
-    failedUpdateNotificationSettings: 'Impossible de mettre a jour les notifications',
-    savedSuccessfully: 'Sauvegarde reussie',
-    fullName: 'Nom complet',
-    email: 'Email',
-    age: 'Age',
-    gender: 'Genre',
-    select: 'Selectionner',
-    man: 'Homme',
-    woman: 'Femme',
-    heightCm: 'Taille (cm)',
-    weightKg: 'Poids (kg)',
-    sessionDuration: 'Duree de seance',
-    preferredTime: 'Heure preferee',
-    thirtyMinutes: '30 minutes',
-    fortyFiveMinutes: '45 minutes',
-    sixtyMinutes: '60 minutes',
-    ninetyMinutes: '90 minutes',
-    morningTime: 'Matin',
-    afternoonTime: 'Apres-midi',
-    eveningTime: 'Soir',
-    saving: 'Sauvegarde...',
-    saveChanges: 'Enregistrer les changements',
-    changePassword: 'Changer le mot de passe',
-    oldPassword: 'Ancien mot de passe',
-    newPassword: 'Nouveau mot de passe',
-    confirmNewPassword: 'Confirmer le nouveau mot de passe',
-    updatingPassword: 'Mise a jour du mot de passe...',
-    updatePassword: 'Mettre a jour le mot de passe',
-    pleaseFillPasswordFields: 'Remplissez ancien, nouveau et confirmation du mot de passe',
-    newPasswordMinLength: 'Le nouveau mot de passe doit contenir au moins 6 caracteres',
-    confirmPasswordMismatch: 'La confirmation du mot de passe ne correspond pas',
-    passwordUpdated: 'Mot de passe mis a jour avec succes',
-    toggleLabelPrefix: 'Activer',
-    privacyIntro: 'Resume clair des donnees collectees, de leur protection et des controles disponibles pour vous.',
+  ar: {
+    settings: 'الإعدادات',
+    account: 'الحساب',
+    personalDetails: 'البيانات الشخصية',
+    privacyAndSecurity: 'الخصوصية والأمان',
+    preferences: 'التفضيلات',
+    notifications: 'الإشعارات',
+    notificationControls: 'إعدادات الإشعارات',
+    coachMessages: 'رسائل المدرب',
+    restBetweenSets: 'الراحة بين الجولات',
+    missionChallengeComplete: 'إكمال المهام والتحديات',
+    theme: 'المظهر',
+    language: 'اللغة',
+    english: 'الإنجليزية',
+    arabic: 'العربية',
+    dark: 'داكن',
+    light: 'فاتح',
+    logOut: 'تسجيل الخروج',
+    gymAccess: 'دخول النادي',
+    gymLocation: 'آيرون بارادايس جيم',
+    failedLoadNotificationSettings: 'فشل تحميل إعدادات الإشعارات',
+    failedLoadPersonalDetails: 'فشل تحميل البيانات الشخصية',
+    failedSavePersonalDetails: 'فشل حفظ البيانات الشخصية',
+    failedUpdatePassword: 'فشل تحديث كلمة المرور',
+    failedUpdateNotificationSettings: 'فشل تحديث إعدادات الإشعارات',
+    savedSuccessfully: 'تم الحفظ بنجاح',
+    fullName: 'الاسم الكامل',
+    email: 'البريد الإلكتروني',
+    age: 'العمر',
+    gender: 'الجنس',
+    select: 'اختر',
+    man: 'ذكر',
+    woman: 'أنثى',
+    heightCm: 'الطول (سم)',
+    weightKg: 'الوزن (كجم)',
+    sessionDuration: 'مدة التمرين',
+    preferredTime: 'وقت التدريب المفضل',
+    thirtyMinutes: '30 دقيقة',
+    fortyFiveMinutes: '45 دقيقة',
+    sixtyMinutes: '60 دقيقة',
+    ninetyMinutes: '90 دقيقة',
+    morningTime: 'صباحًا',
+    afternoonTime: 'ظهرًا',
+    eveningTime: 'مساءً',
+    saving: 'جارٍ الحفظ...',
+    saveChanges: 'حفظ التغييرات',
+    changePassword: 'تغيير كلمة المرور',
+    oldPassword: 'كلمة المرور القديمة',
+    newPassword: 'كلمة المرور الجديدة',
+    confirmNewPassword: 'تأكيد كلمة المرور الجديدة',
+    updatingPassword: 'جارٍ تحديث كلمة المرور...',
+    updatePassword: 'تحديث كلمة المرور',
+    pleaseFillPasswordFields: 'يرجى إدخال كلمة المرور القديمة والجديدة وتأكيدها',
+    newPasswordMinLength: 'يجب أن تكون كلمة المرور الجديدة 6 أحرف على الأقل',
+    confirmPasswordMismatch: 'تأكيد كلمة المرور غير مطابق',
+    passwordUpdated: 'تم تحديث كلمة المرور بنجاح',
+    toggleLabelPrefix: 'تبديل',
+    privacyIntro: 'ملخص واضح للبيانات التي يتم جمعها، وكيف نحميها، وما هي أدوات التحكم المتاحة لك.',
     privacyCards: [
       {
-        title: '1. Donnees collectees',
+        title: '1. البيانات التي تجمعها',
         points: [
-          'Infos personnelles: nom, email, age, genre.',
-          'Donnees fitness: entrainements, objectifs, progression, mesures corporelles.',
-          'Donnees sante optionnelles: calories, elements lies au rythme cardiaque.',
-          'Donnees techniques: usage de l app et diagnostics de crash.',
-          'Donnees de paiement gerees par des fournisseurs securises.',
+          'بيانات شخصية: الاسم، البريد الإلكتروني، العمر، الجنس.',
+          'بيانات اللياقة: التمارين، الأهداف، التقدم، ومقاييس الجسم.',
+          'بيانات صحية اختيارية: السعرات وعناصر مرتبطة بمعدل نبض القلب.',
+          'بيانات تقنية: استخدام التطبيق وتشخيص الأعطال.',
+          'بيانات الدفع تتم معالجتها عبر مزودي دفع آمنين.',
         ],
       },
       {
-        title: '2. Protection des donnees',
+        title: '2. كيف نحمي البيانات',
         points: [
-          'Transport chiffre (HTTPS) pour les donnees en transit.',
-          'Controle d acces securise cloud/base de donnees.',
-          'Acces limite du personnel selon le role et le besoin.',
-          'Controles de securite et mises a jour regulieres.',
+          'تشفير النقل (HTTPS) للبيانات أثناء الإرسال.',
+          'ضوابط وصول آمنة للسحابة/قاعدة البيانات.',
+          'وصول محدود للموظفين حسب الدور والحاجة.',
+          'فحوصات أمنية وتحديثات حماية دورية.',
         ],
       },
       {
-        title: '3. Controles de confidentialite',
+        title: '3. أدوات الخصوصية للمستخدم',
         points: [
-          'Gerer les autorisations de notification a tout moment.',
-          'Demander un export des donnees du compte (prevu).',
-          'Demander la suppression permanente du compte.',
-          'Controler les preferences de profil et de partage de donnees.',
+          'إدارة أذونات الإشعارات في أي وقت.',
+          'طلب تصدير بيانات الحساب (مسار مخطط).',
+          'طلب حذف الحساب نهائيًا.',
+          'التحكم في إعدادات الملف الشخصي ومشاركة البيانات.',
         ],
       },
       {
-        title: '4. Politique de partage',
+        title: '4. سياسة مشاركة البيانات',
         points: [
-          'Aucune vente de donnees personnelles.',
-          'Partage uniquement si necessaire: paiement, analytics, obligations legales.',
+          'لا نقوم ببيع البيانات الشخصية.',
+          'تتم مشاركة البيانات فقط عند الحاجة: الدفع، التحليلات، الالتزامات القانونية.',
         ],
       },
       {
-        title: '5. Localisation et suivi',
+        title: '5. الموقع والتتبع',
         points: [
-          'La localisation est utilisee seulement pour les fonctions fitness geolocalisees (si activees).',
-          'Les utilisateurs peuvent desactiver la localisation dans l app/appareil.',
-          'La retention des donnees de localisation suit le minimum necessaire.',
+          'يُستخدم الموقع فقط لميزات اللياقة المعتمدة على الموقع (عند التفعيل).',
+          'يمكن للمستخدم تعطيل تتبع الموقع من إعدادات التطبيق/الجهاز.',
+          'الاحتفاظ ببيانات الموقع يتم وفق مبدأ الحد الأدنى اللازم.',
         ],
       },
       {
-        title: '6. Securite des paiements',
+        title: '6. أمان الدفع',
         points: [
-          'Les paiements passent par des processeurs tiers de confiance.',
-          'Les numeros de carte ne sont pas stockes directement sur nos serveurs.',
+          'تتم المدفوعات عبر مزودي دفع موثوقين من طرف ثالث.',
+          'أرقام البطاقات لا يتم تخزينها مباشرة على خوادمنا.',
         ],
       },
       {
-        title: '7. Securite du compte',
+        title: '7. ميزات أمان الحساب',
         points: [
-          'Exigences de mot de passe robustes.',
-          'Detection des connexions suspectes et protections du compte.',
-          'Le support 2FA peut etre ajoute dans de futures versions.',
+          'متطلبات قوية لكلمات المرور.',
+          'كشف عمليات تسجيل الدخول المشبوهة وإجراءات حماية الحساب.',
+          'يمكن إضافة دعم المصادقة الثنائية في إصدارات قادمة.',
         ],
       },
       {
-        title: '8. Conformite legale',
+        title: '8. الامتثال القانوني',
         points: [
-          'Concu avec des principes de confidentialite de type GDPR.',
-          'Respecte les exigences applicables de protection des donnees et d age.',
+          'مصمم وفق مبادئ خصوصية شبيهة بـ GDPR.',
+          'يلتزم بمتطلبات حماية البيانات والمتطلبات العمرية المعمول بها.',
         ],
       },
       {
-        title: '9. Contact et support',
+        title: '9. التواصل والدعم',
         points: [
-          'Pour la confidentialite: privacy@repset.app',
-          'Pour le support: utilisez le canal support/contact de l app.',
+          'لاستفسارات الخصوصية: privacy@repset.app',
+          'للدعم: استخدم قناة الدعم/التواصل داخل التطبيق.',
         ],
       },
     ],
@@ -316,6 +320,8 @@ export function SettingsScreen({ onBack, onOpenGym }: SettingsScreenProps) {
   const [loadingNotificationSettings, setLoadingNotificationSettings] = useState(false);
   const [notificationSettingsError, setNotificationSettingsError] = useState('');
   const copy = SETTINGS_I18N[language] || SETTINGS_I18N.en;
+  const languageActiveClass = 'bg-white/10 border-accent text-white';
+  const languageInactiveClass = 'bg-background border-white/10 text-text-secondary hover:bg-white/5';
 
   useEffect(() => {
     setTheme(getActiveTheme());
@@ -369,7 +375,7 @@ export function SettingsScreen({ onBack, onOpenGym }: SettingsScreenProps) {
         setNotificationSettings(next);
         localStorage.setItem('notificationSettings', JSON.stringify(next));
       } catch (error: any) {
-        const fallbackCopy = SETTINGS_I18N[getStoredLanguage()];
+        const fallbackCopy = SETTINGS_I18N[getStoredLanguage()] || SETTINGS_I18N.en;
         setNotificationSettingsError(error?.message || fallbackCopy.failedLoadNotificationSettings);
       } finally {
         setLoadingNotificationSettings(false);
@@ -405,7 +411,7 @@ export function SettingsScreen({ onBack, onOpenGym }: SettingsScreenProps) {
           experienceLevel: data?.experienceLevel || '',
         });
       } catch (error: any) {
-        const fallbackCopy = SETTINGS_I18N[getStoredLanguage()];
+        const fallbackCopy = SETTINGS_I18N[getStoredLanguage()] || SETTINGS_I18N.en;
         setDetailsError(error?.message || fallbackCopy.failedLoadPersonalDetails);
       }
     };
@@ -743,8 +749,8 @@ export function SettingsScreen({ onBack, onOpenGym }: SettingsScreenProps) {
               <MapPin size={20} />
             </div>
             <div className="text-left">
-              <div className="font-medium text-white">Gym Access</div>
-              <div className="text-xs text-text-secondary">Iron Paradise Gym</div>
+              <div className="font-medium text-white">{copy.gymAccess}</div>
+              <div className="text-xs text-text-secondary">{copy.gymLocation}</div>
             </div>
           </div>
           <ChevronRight size={20} className="text-text-tertiary" />
@@ -877,8 +883,8 @@ export function SettingsScreen({ onBack, onOpenGym }: SettingsScreenProps) {
               onClick={() => handleLanguageChange('en')}
               className={`rounded-xl p-3 border transition-colors flex items-center justify-center gap-2 ${
                 language === 'en'
-                  ? 'bg-white/10 border-accent text-white'
-                  : 'bg-background border-white/10 text-text-secondary hover:bg-white/5'
+                  ? languageActiveClass
+                  : languageInactiveClass
               }`}
             >
               <Languages size={16} />
@@ -886,15 +892,15 @@ export function SettingsScreen({ onBack, onOpenGym }: SettingsScreenProps) {
             </button>
             <button
               type="button"
-              onClick={() => handleLanguageChange('fr')}
+              onClick={() => handleLanguageChange('ar')}
               className={`rounded-xl p-3 border transition-colors flex items-center justify-center gap-2 ${
-                language === 'fr'
-                  ? 'bg-accent-soft border-accent-dark text-text-primary'
-                  : 'bg-background border-white/10 text-text-secondary hover:bg-white/5'
+                language === 'ar'
+                  ? languageActiveClass
+                  : languageInactiveClass
               }`}
             >
               <Languages size={16} />
-              <span className="text-sm font-medium">{copy.french}</span>
+              <span className="text-sm font-medium">{copy.arabic}</span>
             </button>
           </div>
         </div>

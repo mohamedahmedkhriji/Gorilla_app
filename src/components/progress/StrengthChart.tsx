@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState, useId, useCallback } from 'react';
 import { Card } from '../ui/Card';
 import { api } from '../../services/api';
+import { AppLanguage, getActiveLanguage, getStoredLanguage } from '../../services/language';
 
 interface StrengthWeekPoint {
   yearWeek: number;
@@ -45,11 +46,57 @@ const formatKg = (value: number | null | undefined) => {
   return `${Math.round(numericValue)} kg`;
 };
 
+const STRENGTH_CHART_I18N = {
+  en: {
+    heading: 'Strength Progress',
+    subtitle: 'Estimated 1RM weekly average',
+    trend: 'Trend',
+    baseline: 'Baseline',
+    current: 'Current',
+    noData: 'Log weighted sets to unlock your strength trend.',
+    min: 'Min',
+    max: 'Max',
+    start: 'Start',
+    mid: 'Mid',
+    now: 'Now',
+  },
+  ar: {
+    heading: 'تقدم القوة',
+    subtitle: 'متوسط 1RM الأسبوعي التقديري',
+    trend: 'الاتجاه',
+    baseline: 'الأساس',
+    current: 'الحالي',
+    noData: 'سجل مجموعات بأوزان لعرض منحنى تقدم قوتك.',
+    min: 'الحد الأدنى',
+    max: 'الحد الأقصى',
+    start: 'البداية',
+    mid: 'الوسط',
+    now: 'الآن',
+  },
+} as const;
+
 export function StrengthChart() {
   const [data, setData] = useState<StrengthProgressResponse | null>(null);
   const [loading, setLoading] = useState(true);
+  const [language, setLanguage] = useState<AppLanguage>('en');
   const gradientId = useId().replace(/:/g, '');
   const strokeGradientId = `${gradientId}-stroke`;
+  const copy = STRENGTH_CHART_I18N[language] || STRENGTH_CHART_I18N.en;
+
+  useEffect(() => {
+    setLanguage(getActiveLanguage());
+
+    const handleLanguageChanged = () => {
+      setLanguage(getStoredLanguage());
+    };
+
+    window.addEventListener('app-language-changed', handleLanguageChanged);
+    window.addEventListener('storage', handleLanguageChanged);
+    return () => {
+      window.removeEventListener('app-language-changed', handleLanguageChanged);
+      window.removeEventListener('storage', handleLanguageChanged);
+    };
+  }, []);
 
   const getUserId = () => {
     const localUserId = Number(localStorage.getItem('appUserId') || localStorage.getItem('userId') || 0);
@@ -106,9 +153,9 @@ export function StrengthChart() {
       return {
         linePath: '',
         areaPath: '',
-        firstLabel: 'Start',
-        midLabel: 'Mid',
-        lastLabel: 'Now',
+        firstLabel: copy.start,
+        midLabel: copy.mid,
+        lastLabel: copy.now,
         points: [] as ChartPoint[],
         minLabel: '0 kg',
         maxLabel: '0 kg',
@@ -137,7 +184,10 @@ export function StrengthChart() {
       if (!value) return '-';
       const date = new Date(value);
       if (Number.isNaN(date.getTime())) return '-';
-      return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+      return date.toLocaleDateString(
+        language === 'ar' ? 'ar-EG' : undefined,
+        { month: 'short', day: 'numeric' },
+      );
     };
 
     return {
@@ -150,7 +200,7 @@ export function StrengthChart() {
       minLabel: formatKg(minValue),
       maxLabel: formatKg(maxValue),
     };
-  }, [points, values]);
+  }, [copy.mid, copy.now, copy.start, language, points, values]);
 
   const hasStrengthData = points.length > 0;
   const pct = Number(data?.summary?.percentChange || 0);
@@ -171,22 +221,22 @@ export function StrengthChart() {
       <div className="relative">
         <div className="mb-5 flex items-start justify-between gap-4">
           <div>
-            <h3 className="text-lg font-semibold text-text-primary">Strength Progress</h3>
-            <p className="text-xs text-text-secondary">Estimated 1RM weekly average</p>
+            <h3 className="text-lg font-semibold text-text-primary">{copy.heading}</h3>
+            <p className="text-xs text-text-secondary">{copy.subtitle}</p>
           </div>
           <div className={`rounded-xl border px-3 py-2 text-right ${trendToneClass}`}>
-            <div className="text-[10px] uppercase tracking-[0.14em]">Trend</div>
+            <div className="text-[10px] uppercase tracking-[0.14em]">{copy.trend}</div>
             <div className="text-xl font-electrolize leading-none">{loading ? '0%' : pctText}</div>
           </div>
         </div>
 
         <div className="mb-4 grid grid-cols-2 gap-3 text-xs">
           <div className="rounded-xl border border-white/10 bg-background/45 px-3 py-2">
-            <div className="uppercase tracking-[0.12em] text-text-tertiary">Baseline</div>
+            <div className="uppercase tracking-[0.12em] text-text-tertiary">{copy.baseline}</div>
             <div className="mt-1 text-sm font-semibold text-text-primary">{loading ? '0 kg' : baselineText}</div>
           </div>
           <div className="rounded-xl border border-white/10 bg-background/45 px-3 py-2">
-            <div className="uppercase tracking-[0.12em] text-text-tertiary">Current</div>
+            <div className="uppercase tracking-[0.12em] text-text-tertiary">{copy.current}</div>
             <div className="mt-1 text-sm font-semibold text-text-primary">{loading ? '0 kg' : currentText}</div>
           </div>
         </div>
@@ -196,7 +246,7 @@ export function StrengthChart() {
             <div className="h-full w-full animate-pulse rounded-lg bg-white/5" />
           ) : !hasStrengthData ? (
             <div className="flex h-full items-center justify-center rounded-lg border border-dashed border-white/12 text-center text-xs text-text-secondary">
-              Log weighted sets to unlock your strength trend.
+              {copy.noData}
             </div>
           ) : (
             <svg
@@ -254,8 +304,8 @@ export function StrengthChart() {
         </div>
 
         <div className="mt-1 flex items-center justify-between text-[11px] text-text-tertiary">
-          <span>Min {chart.minLabel}</span>
-          <span>Max {chart.maxLabel}</span>
+          <span>{copy.min} {chart.minLabel}</span>
+          <span>{copy.max} {chart.maxLabel}</span>
         </div>
       </div>
     </Card>);

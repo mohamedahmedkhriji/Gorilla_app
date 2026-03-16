@@ -16,10 +16,31 @@ import { api } from '../services/api';
 import { ArrowLeft, Bell, Settings } from 'lucide-react';
 import { useScrollToTopOnChange } from '../shared/scroll';
 import { clearStoredUserSession, getStoredUserId } from '../shared/authStorage';
+import { AppLanguage, getActiveLanguage, getStoredLanguage } from '../services/language';
 interface ProfileProps {
   onNavigateTab?: (tab: string, day?: string) => void;
   resetSignal?: number;
 }
+
+const PROFILE_PAGE_I18N = {
+  en: {
+    back: 'Back',
+    challenge: 'Challenge',
+    challengePlaceholder: 'Challenge screen placeholder for',
+    challengeFallbackFriend: 'this friend',
+    openSettings: 'Open settings',
+    openNotifications: 'Open notifications',
+  },
+  ar: {
+    back: '\u0631\u062c\u0648\u0639',
+    challenge: '\u0627\u0644\u062a\u062d\u062f\u064a',
+    challengePlaceholder: '\u0634\u0627\u0634\u0629 \u0627\u0644\u062a\u062d\u062f\u064a \u0627\u0644\u062a\u062c\u0631\u064a\u0628\u064a\u0629 \u0644\u0640',
+    challengeFallbackFriend: '\u0647\u0630\u0627 \u0627\u0644\u0635\u062f\u064a\u0642',
+    openSettings: '\u0641\u062a\u062d \u0627\u0644\u0625\u0639\u062f\u0627\u062f\u0627\u062a',
+    openNotifications: '\u0641\u062a\u062d \u0627\u0644\u0625\u0634\u0639\u0627\u0631\u0627\u062a',
+  },
+} as const;
+
 export function Profile({ onNavigateTab, resetSignal = 0 }: ProfileProps) {
   const [view, setView] = useState<
     'main' | 'gym' | 'rank' | 'settings' | 'notifications' | 'weeklyPlan' | 'presetPlans' | 'customPlanBuilder' | 'posts' | 'friends' | 'friendProfile' | 'friendChallenge' | 'coachList' | 'chat'>(
@@ -27,8 +48,11 @@ export function Profile({ onNavigateTab, resetSignal = 0 }: ProfileProps) {
   const [selectedFriend, setSelectedFriend] = useState<FriendMember | null>(null);
   const [selectedCoach, setSelectedCoach] = useState<{id: number, name: string} | null>(null);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [language, setLanguage] = useState<AppLanguage>('en');
 
   useScrollToTopOnChange([view, resetSignal]);
+
+  const copy = PROFILE_PAGE_I18N[language] || PROFILE_PAGE_I18N.en;
 
   const userId = useMemo(() => {
     return Number(getStoredUserId() || 0);
@@ -70,6 +94,21 @@ export function Profile({ onNavigateTab, resetSignal = 0 }: ProfileProps) {
     setSelectedFriend(null);
     setSelectedCoach(null);
   }, [resetSignal]);
+
+  useEffect(() => {
+    setLanguage(getActiveLanguage());
+
+    const handleLanguageChanged = () => {
+      setLanguage(getStoredLanguage());
+    };
+
+    window.addEventListener('app-language-changed', handleLanguageChanged);
+    window.addEventListener('storage', handleLanguageChanged);
+    return () => {
+      window.removeEventListener('app-language-changed', handleLanguageChanged);
+      window.removeEventListener('storage', handleLanguageChanged);
+    };
+  }, []);
 
   const handleNavigate = (screen: 'gym' | 'rank' | 'settings' | 'workout' | 'weeklyPlan' | 'customPlanBuilder' | 'posts' | 'friends' | 'coachList') => {
     if (screen === 'workout') {
@@ -163,14 +202,14 @@ export function Profile({ onNavigateTab, resetSignal = 0 }: ProfileProps) {
             className="inline-flex items-center gap-2 rounded-xl surface-glass px-3 py-2 text-sm text-text-primary"
           >
             <ArrowLeft size={16} />
-            Back
+            {copy.back}
           </button>
         </div>
         <div className="px-4 sm:px-6 pt-8">
           <div className="surface-card rounded-2xl border border-white/10 p-5">
-            <h2 className="text-xl font-semibold text-white">Challenge</h2>
+            <h2 className="text-xl font-semibold text-white">{copy.challenge}</h2>
             <p className="mt-2 text-sm text-text-secondary">
-              Challenge screen placeholder for {selectedFriend?.name || 'this friend'}.
+              {copy.challengePlaceholder} {selectedFriend?.name || copy.challengeFallbackFriend}.
             </p>
           </div>
         </div>
@@ -202,7 +241,7 @@ export function Profile({ onNavigateTab, resetSignal = 0 }: ProfileProps) {
         <button
           onClick={() => setView('settings')}
           className="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center text-white hover:bg-white/20 transition-colors"
-          aria-label="Open settings"
+          aria-label={copy.openSettings}
         >
           <Settings size={20} />
         </button>
@@ -210,7 +249,7 @@ export function Profile({ onNavigateTab, resetSignal = 0 }: ProfileProps) {
         <button
           onClick={() => setView('notifications')}
           className="relative w-10 h-10 rounded-full bg-white/10 flex items-center justify-center text-white hover:bg-white/20 transition-colors"
-          aria-label="Open notifications"
+          aria-label={copy.openNotifications}
         >
           <Bell size={20} />
           {unreadCount > 0 && (

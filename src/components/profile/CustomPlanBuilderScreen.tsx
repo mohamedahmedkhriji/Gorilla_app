@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Header } from '../ui/Header';
 import { api } from '../../services/api';
+import { stripExercisePrefix } from '../../services/exerciseName';
 
 interface CustomPlanBuilderScreenProps {
   onBack: () => void;
@@ -98,10 +99,14 @@ function ExerciseAutocompleteField({
   const rootRef = useRef<HTMLDivElement | null>(null);
 
   const filteredOptions = useMemo(() => {
-    const query = value.trim().toLowerCase();
+    const query = stripExercisePrefix(value).trim().toLowerCase();
     if (!query) return options.slice(0, 10);
     return options
-      .filter((exercise) => exercise.name.toLowerCase().includes(query))
+      .filter((exercise) => {
+        const name = exercise.name || '';
+        const haystack = `${name} ${stripExercisePrefix(name)}`.toLowerCase();
+        return haystack.includes(query);
+      })
       .slice(0, 10);
   }, [options, value]);
 
@@ -156,7 +161,7 @@ function ExerciseAutocompleteField({
                 }}
                 className="w-full text-left px-3 py-2 text-sm text-white hover:bg-white/10 transition-colors"
               >
-                {exercise.name}
+                {stripExercisePrefix(exercise.name)}
               </button>
             ))
           ) : (
@@ -184,7 +189,10 @@ export function CustomPlanBuilderScreen({ onBack, onSaved }: CustomPlanBuilderSc
   const catalogByName = useMemo(() => {
     const map = new Map<string, CatalogExercise>();
     catalog.forEach((exercise) => {
-      map.set(exercise.name.trim().toLowerCase(), exercise);
+      const raw = exercise.name.trim().toLowerCase();
+      const stripped = stripExercisePrefix(exercise.name).trim().toLowerCase();
+      if (raw) map.set(raw, exercise);
+      if (stripped) map.set(stripped, exercise);
     });
     return map;
   }, [catalog]);
@@ -254,7 +262,7 @@ export function CustomPlanBuilderScreen({ onBack, onSaved }: CustomPlanBuilderSc
                 ? (exercise as Record<string, unknown>)
                 : {};
               return {
-                exerciseName: String(raw.exerciseName || raw.name || '').trim(),
+                exerciseName: stripExercisePrefix(String(raw.exerciseName || raw.name || '').trim()),
                 exerciseCatalogId: null,
                 sets: Math.max(1, Math.min(10, Math.round(Number(raw.sets || 3)))),
                 reps: String(raw.reps || '8-12').slice(0, 20),
@@ -348,17 +356,18 @@ export function CustomPlanBuilderScreen({ onBack, onSaved }: CustomPlanBuilderSc
   };
 
   const handleExerciseNameChange = (dayKey: string, index: number, inputName: string) => {
-    const normalized = inputName.trim().toLowerCase();
+    const cleanedName = stripExercisePrefix(inputName);
+    const normalized = cleanedName.trim().toLowerCase();
     const catalogMatch = catalogByName.get(normalized) || null;
     updateExercise(dayKey, index, {
-      exerciseName: inputName,
+      exerciseName: cleanedName,
       exerciseCatalogId: catalogMatch ? catalogMatch.id : null,
     });
   };
 
   const handleExerciseSelect = (dayKey: string, index: number, exercise: CatalogExercise) => {
     updateExercise(dayKey, index, {
-      exerciseName: exercise.name,
+      exerciseName: stripExercisePrefix(exercise.name),
       exerciseCatalogId: exercise.id,
     });
   };
@@ -384,7 +393,7 @@ export function CustomPlanBuilderScreen({ onBack, onSaved }: CustomPlanBuilderSc
       const exercises = plan.exercises
         .map((exercise) => ({
           exerciseCatalogId: exercise.exerciseCatalogId || null,
-          exerciseName: String(exercise.exerciseName || '').trim(),
+          exerciseName: stripExercisePrefix(String(exercise.exerciseName || '').trim()),
           sets: Math.max(1, Math.min(10, Math.round(Number(exercise.sets || 0)))),
           reps: String(exercise.reps || '8-12').slice(0, 20),
           restSeconds: Math.max(30, Math.min(600, Math.round(Number(exercise.restSeconds || 90)))),

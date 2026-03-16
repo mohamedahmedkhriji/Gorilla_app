@@ -3,6 +3,8 @@ import { Card } from '../ui/Card';
 import { ArrowLeft, Play } from 'lucide-react';
 import { getBodyPartImage } from '../../services/bodyPartTheme';
 import { resolveExerciseVideoUrl } from '../../services/exerciseVideos';
+import { AppLanguage, getActiveLanguage, getStoredLanguage } from '../../services/language';
+import { stripExercisePrefix } from '../../services/exerciseName';
 
 interface ExerciseVideoScreenProps {
   onBack: () => void;
@@ -21,10 +23,7 @@ const BACK_UPPER_IMAGE = '/assets/Workout/body%20part/back/upper%20back.png';
 const BACK_LOWER_IMAGE = '/assets/Workout/body%20part/back/lower%20back.png';
 
 const getDisplayExerciseName = (name?: string) =>
-  String(name || 'Barbell Bench Press')
-    .trim()
-    .replace(/^\d+(?:\.\d+)?\s+/, '')
-    .trim();
+  stripExercisePrefix(String(name || 'Barbell Bench Press'));
 
 const normalizeLookup = (value?: string) =>
   String(value || '')
@@ -81,6 +80,56 @@ const TRICEPS_MUSCLE_DISTRIBUTION = [
   { name: 'Lateral Head Triceps', colorClass: MUSCLE_BAR_COLORS[1] },
   { name: 'Medial Head Triceps', colorClass: MUSCLE_BAR_COLORS[2] },
 ];
+
+const EXERCISE_VIDEO_I18N: Record<AppLanguage, {
+  muscleDistributionTitle: string;
+  noVideo: string;
+  defaultMuscle: string;
+}> = {
+  en: {
+    muscleDistributionTitle: 'Muscle Distribution (Plan Target)',
+    noVideo: 'No linked video yet for this exercise',
+    defaultMuscle: 'Chest',
+  },
+  ar: {
+    muscleDistributionTitle: 'توزيع العضلات (هدف الخطة)',
+    noVideo: 'لا يوجد فيديو مرتبط بهذا التمرين بعد',
+    defaultMuscle: 'الصدر',
+  },
+};
+
+const AR_SUB_MUSCLE_LABELS: Record<string, string> = {
+  'upper chest': 'الصدر العلوي',
+  'mid chest': 'منتصف الصدر',
+  'lower chest': 'الصدر السفلي',
+  'upper back': 'أعلى الظهر',
+  'lower back': 'أسفل الظهر',
+  lats: 'اللاتس',
+  'long head biceps': 'الرأس الطويل للبايسبس',
+  'short head biceps': 'الرأس القصير للبايسبس',
+  brachialis: 'العضلة العضدية',
+  'upper abs': 'البطن العلوي',
+  obliques: 'العضلات الجانبية',
+  'lower abs': 'البطن السفلي',
+  'front delts': 'الدالية الأمامية',
+  'side delts': 'الدالية الجانبية',
+  'rear delts': 'الدالية الخلفية',
+  'long head triceps': 'الرأس الطويل للترايسبس',
+  'lateral head triceps': 'الرأس الجانبي للترايسبس',
+  'medial head triceps': 'الرأس الأوسط للترايسبس',
+};
+
+const AR_BASE_MUSCLE_LABELS: Record<string, string> = {
+  chest: 'الصدر',
+  back: 'الظهر',
+  shoulders: 'الأكتاف',
+  triceps: 'الترايسبس',
+  biceps: 'البايسبس',
+  abs: 'البطن',
+  core: 'الجذع',
+  legs: 'الأرجل',
+  general: 'عام',
+};
 
 const SEGMENT_COUNT = 10;
 
@@ -427,6 +476,9 @@ const detectExerciseGroup = (muscle?: string, videoUrl?: string) => {
 };
 
 export function ExerciseVideoScreen({ onBack, exercise }: ExerciseVideoScreenProps) {
+  const language = getActiveLanguage(getStoredLanguage());
+  const isArabic = language === 'ar';
+  const copy = EXERCISE_VIDEO_I18N[isArabic ? 'ar' : 'en'];
   const videoRef = useRef<HTMLVideoElement>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const displayExerciseName = getDisplayExerciseName(exercise?.name);
@@ -453,6 +505,18 @@ export function ExerciseVideoScreen({ onBack, exercise }: ExerciseVideoScreenPro
               : exerciseGroup === 'legs'
                 ? getLegsMuscleDistribution(exercise?.name, resolvedVideoUrl)
                 : getMuscleDistribution(targetMuscles);
+
+  const toLocalizedSubMuscle = (value: string) => {
+    if (!isArabic) return value;
+    const key = String(value || '').trim().toLowerCase();
+    return AR_SUB_MUSCLE_LABELS[key] || AR_BASE_MUSCLE_LABELS[key] || value;
+  };
+
+  const toLocalizedBaseMuscle = (value?: string) => {
+    if (!isArabic) return value || copy.defaultMuscle;
+    const key = String(value || '').trim().toLowerCase();
+    return AR_BASE_MUSCLE_LABELS[key] || value || copy.defaultMuscle;
+  };
 
   const togglePlay = () => {
     if (videoRef.current) {
@@ -489,7 +553,7 @@ export function ExerciseVideoScreen({ onBack, exercise }: ExerciseVideoScreenPro
           </>
         ) : (
           <div className="flex h-full w-full items-center justify-center bg-white/5 px-6 text-center text-sm font-semibold uppercase tracking-[0.12em] text-text-secondary">
-            No linked video yet for this exercise
+            {copy.noVideo}
           </div>
         )}
         <div className="absolute left-4 right-4 top-4 z-10 flex items-center gap-4">
@@ -506,7 +570,7 @@ export function ExerciseVideoScreen({ onBack, exercise }: ExerciseVideoScreenPro
         <div className="absolute bottom-4 left-4 right-4 pointer-events-none">
           <div className="flex gap-2 mt-2">
             <span className="px-2 py-1 bg-black/60 backdrop-blur-md rounded text-[10px] font-bold text-white uppercase border border-white/10">
-              {exercise?.muscle || 'Chest'}
+              {toLocalizedBaseMuscle(exercise?.muscle)}
             </span>
           </div>
         </div>
@@ -514,30 +578,33 @@ export function ExerciseVideoScreen({ onBack, exercise }: ExerciseVideoScreenPro
 
       <div className="pb-24 space-y-6">
           <Card translate="no">
-            <h3 className="mb-4 font-medium text-white">Muscle Distribution (Plan Target)</h3>
+            <h3 className="mb-4 font-medium text-white">{copy.muscleDistributionTitle}</h3>
             <div className="mb-5 grid grid-cols-3 gap-3">
-              {muscleDistribution.map((muscle) => (
-                <div
-                  key={`${muscle.name}-image`}
-                  className="overflow-hidden rounded-2xl border border-white/10 bg-white/[0.03]"
-                >
-                  <img
-                    src={resolveTargetMuscleImage(muscle.name, exercise?.muscle)}
-                    alt={muscle.name}
-                    className="h-24 w-full object-cover object-center sm:h-28"
-                    loading="lazy"
-                  />
-                  <div className="border-t border-white/10 px-3 py-2 text-center text-[11px] font-medium text-text-secondary">
-                    {muscle.name}
+              {muscleDistribution.map((muscle) => {
+                const displayName = toLocalizedSubMuscle(muscle.name);
+                return (
+                  <div
+                    key={`${muscle.name}-image`}
+                    className="overflow-hidden rounded-2xl border border-white/10 bg-white/[0.03]"
+                  >
+                    <img
+                      src={resolveTargetMuscleImage(muscle.name, exercise?.muscle)}
+                      alt={displayName}
+                      className="h-24 w-full object-cover object-center sm:h-28"
+                      loading="lazy"
+                    />
+                    <div className="border-t border-white/10 px-3 py-2 text-center text-[11px] font-medium text-text-secondary">
+                      {displayName}
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
             <div className="space-y-3">
               {muscleDistribution.map((muscle) => (
                 <div key={muscle.name}>
                   <div className="mb-1 flex justify-between text-xs text-text-secondary">
-                    <span>{muscle.name}</span>
+                    <span>{toLocalizedSubMuscle(muscle.name)}</span>
                     <span className="font-electrolize">{muscle.percent}%</span>
                   </div>
                   <div className="mt-1 rounded-md border border-white/10 bg-white/[0.02] p-1">

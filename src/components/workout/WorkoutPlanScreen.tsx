@@ -1,13 +1,17 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState, useCallback, useRef } from 'react';
 import { Header } from '../ui/Header';
 import { api } from '../../services/api';
 import { Bookmark, CalendarX2, Plus, Play, Search, TriangleAlert, X } from 'lucide-react';
 import { getBodyPartImage } from '../../services/bodyPartTheme';
 import { resolveExerciseVideo } from '../../services/exerciseVideos';
+import { AppLanguage, getActiveLanguage, getStoredLanguage } from '../../services/language';
+import { normalizeWorkoutDayKey } from '../../services/workoutDayLabel';
+import { stripExercisePrefix } from '../../services/exerciseName';
 
 interface WorkoutPlanScreenProps {
   onBack: () => void;
   onExerciseClick: (exercise: string) => void;
+  onPreviewExercise?: (exercise: string) => void;
   onAddExercise: (exercise: CatalogExercise) => Promise<{ added: boolean; reason?: string }> | { added: boolean; reason?: string };
   onMissDay?: () => Promise<{ missed: boolean; reason?: string }> | { missed: boolean; reason?: string };
   onOpenLatestSummary?: () => void;
@@ -87,11 +91,137 @@ const inferMusclesFromExerciseName = (exerciseName = '') => {
 
 const getMuscleImage = (muscle: string) => getBodyPartImage(muscle);
 
-const formatRestLabel = (rest: unknown) => {
-  const numeric = Number(rest || 0);
-  if (Number.isFinite(numeric) && numeric > 0) return `${numeric}s rest`;
-  return 'Rest as needed';
+const AR_MUSCLE_LABELS: Record<string, string> = {
+  chest: 'الصدر',
+  back: 'الظهر',
+  shoulders: 'الأكتاف',
+  'front shoulders': 'الأكتاف الأمامية',
+  'side shoulders': 'الأكتاف الجانبية',
+  'rear shoulders': 'الأكتاف الخلفية',
+  triceps: 'الترايسبس',
+  biceps: 'البايسبس',
+  abs: 'البطن',
+  quadriceps: 'الرباعية',
+  hamstrings: 'الخلفية',
+  calves: 'السمانة',
+  forearms: 'الساعد',
+  glutes: 'الألوية',
+  adductors: 'المقربات',
+  general: 'عام',
 };
+
+const AR_DAY_LABELS: Record<string, string> = {
+  monday: 'الاثنين',
+  tuesday: 'الثلاثاء',
+  wednesday: 'الأربعاء',
+  thursday: 'الخميس',
+  friday: 'الجمعة',
+  saturday: 'السبت',
+  sunday: 'الأحد',
+};
+
+const WORKOUT_PLAN_I18N = {
+  en: {
+    markMissedAria: 'Mark today as missed',
+    missDay: 'Miss Day',
+    openLatestSummaryAria: 'Open latest workout summary',
+    loadingWorkout: 'Loading workout...',
+    workout: 'Workout',
+    exerciseFallback: 'Exercise',
+    generalMuscle: 'General',
+    restDayLabel: 'Rest Day',
+    targetMuscles: 'Target Muscles',
+    targetMusclesEmpty: 'Target muscles will appear after exercises are loaded.',
+    exercisesCount: (count: number) => `${count} ${count === 1 ? 'exercise' : 'exercises'}`,
+    addExerciseAria: 'Add exercise',
+    restDayEmpty: 'Rest day. No workout scheduled for today.',
+    noExercises: 'No exercises added for today yet. Tap the plus button to add one.',
+    setsLabel: 'sets',
+    repsLabel: 'reps',
+    kgLabel: 'kg',
+    restSeconds: (value: number) => `${value}s rest`,
+    restAsNeeded: 'Rest as needed',
+    startWorkout: 'Start Workout',
+    videoMissing: 'Video missing',
+    addExerciseTitle: 'Add Exercise',
+    addExerciseSubtitle: 'Pick an exercise to add for today.',
+    closeAddExercise: 'Close add exercise dialog',
+    loadingExercises: 'Loading exercises...',
+    catalogError: 'Could not load exercise catalog.',
+    exercisesHeading: 'Exercises',
+    chooseExerciseHint: 'Choose an exercise card to add it to today.',
+    selectMuscleHint: 'Select a muscle group below to browse exercises.',
+    previewVideoAria: 'Preview exercise video',
+    clear: 'Clear',
+    searchExercise: 'Search exercise name...',
+    selectMuscleFirst: 'Select a muscle group first',
+    pickMuscleCard: 'Pick a muscle card below to load matching exercises.',
+    noMatchingExercise: (label: string) => `No matching exercise found for ${label}.`,
+    muscleGroups: 'Muscle Groups',
+    noExerciseGroups: 'No exercise groups available.',
+    add: 'Add',
+    addFail: 'Could not add exercise.',
+    missFail: 'Could not mark this workout as missed.',
+    missTitle: "Miss today's workout?",
+    missDescription: (workoutName: string) =>
+      `This will mark ${workoutName} as missed, remove it from today's active flow, and break your current workout streak for today.`,
+    closeMissDialog: 'Close miss day dialog',
+    missWarning: 'Use this only when you are intentionally skipping the scheduled session.',
+    keepWorkout: 'Keep Workout',
+    marking: 'Marking...',
+    confirmMiss: 'Yes, Miss This Day',
+  },
+  ar: {
+    markMissedAria: 'وضع اليوم كمفقود',
+    missDay: 'تفويت اليوم',
+    openLatestSummaryAria: 'فتح ملخص آخر تمرين',
+    loadingWorkout: 'جارٍ تحميل التمرين...',
+    workout: 'التمرين',
+    exerciseFallback: 'تمرين',
+    generalMuscle: 'عام',
+    restDayLabel: 'يوم راحة',
+    targetMuscles: 'العضلات المستهدفة',
+    targetMusclesEmpty: 'ستظهر العضلات المستهدفة بعد تحميل التمارين.',
+    exercisesCount: (count: number) => `${count} تمرين`,
+    addExerciseAria: 'إضافة تمرين',
+    restDayEmpty: 'يوم راحة. لا يوجد تمرين مجدول اليوم.',
+    noExercises: 'لا توجد تمارين مضافة اليوم بعد. اضغط زر الإضافة لإضافة تمرين.',
+    setsLabel: 'مجموعات',
+    repsLabel: 'تكرارات',
+    kgLabel: 'كجم',
+    restSeconds: (value: number) => `راحة ${value}ث`,
+    restAsNeeded: 'راحة حسب الحاجة',
+    startWorkout: 'ابدأ التمرين',
+    videoMissing: 'الفيديو غير متوفر',
+    addExerciseTitle: 'إضافة تمرين',
+    addExerciseSubtitle: 'اختر تمرينًا لإضافته لليوم.',
+    closeAddExercise: 'إغلاق نافذة إضافة تمرين',
+    loadingExercises: 'جارٍ تحميل التمارين...',
+    catalogError: 'تعذر تحميل كتالوج التمارين.',
+    exercisesHeading: 'التمارين',
+    chooseExerciseHint: 'اختر بطاقة تمرين لإضافتها لليوم.',
+    selectMuscleHint: 'اختر مجموعة عضلية أدناه لاستعراض التمارين.',
+    previewVideoAria: 'معاينة فيديو التمرين',
+    clear: 'مسح',
+    searchExercise: 'ابحث عن اسم التمرين...',
+    selectMuscleFirst: 'اختر مجموعة عضلية أولًا',
+    pickMuscleCard: 'اختر بطاقة عضلة أدناه لعرض التمارين المطابقة.',
+    noMatchingExercise: (label: string) => `لا توجد تمارين مطابقة لـ ${label}.`,
+    muscleGroups: 'مجموعات العضلات',
+    noExerciseGroups: 'لا توجد مجموعات تمارين متاحة.',
+    add: 'إضافة',
+    addFail: 'تعذر إضافة التمرين.',
+    missFail: 'تعذر وضع هذا التمرين كمفقود.',
+    missTitle: 'تفويت تمرين اليوم؟',
+    missDescription: (workoutName: string) =>
+      `سيتم اعتبار ${workoutName} مفقودًا وإزالته من مسار اليوم، وسيؤثر ذلك على سلسلة تمارينك لهذا اليوم.`,
+    closeMissDialog: 'إغلاق نافذة تفويت اليوم',
+    missWarning: 'استخدم هذا الخيار فقط عند تخطي الجلسة عن قصد.',
+    keepWorkout: 'الاحتفاظ بالتمرين',
+    marking: 'جارٍ التحديث...',
+    confirmMiss: 'نعم، تفويت هذا اليوم',
+  },
+} as const;
 
 const resolvePrimaryExerciseMuscle = (exercise: WorkoutExerciseCard) => {
   const inferredMuscles = inferMusclesFromExerciseName(exercise.name);
@@ -107,10 +237,12 @@ const resolvePrimaryExerciseMuscle = (exercise: WorkoutExerciseCard) => {
   return 'Chest';
 };
 
+
 export function WorkoutPlanScreen({
   onBack,
   onExerciseClick,
   onAddExercise,
+  onPreviewExercise,
   onMissDay,
   onOpenLatestSummary,
   hasLatestSummary = false,
@@ -120,18 +252,52 @@ export function WorkoutPlanScreen({
   todayExercises,
   loading,
 }: WorkoutPlanScreenProps) {
+  const [language, setLanguage] = useState<AppLanguage>('en');
   const [catalog, setCatalog] = useState<CatalogExercise[]>([]);
   const [catalogLoading, setCatalogLoading] = useState(false);
   const [catalogLoaded, setCatalogLoaded] = useState(false);
   const [catalogError, setCatalogError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCatalogMuscle, setSelectedCatalogMuscle] = useState('');
+  const addModalScrollRef = useRef<HTMLDivElement | null>(null);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isMissModalOpen, setIsMissModalOpen] = useState(false);
   const [addExerciseFeedback, setAddExerciseFeedback] = useState<string | null>(null);
   const [missDayFeedback, setMissDayFeedback] = useState<string | null>(null);
   const [isSubmittingExercise, setIsSubmittingExercise] = useState(false);
   const [isSubmittingMissDay, setIsSubmittingMissDay] = useState(false);
+  const copy = WORKOUT_PLAN_I18N[language] || WORKOUT_PLAN_I18N.en;
+  const isArabic = language === 'ar';
+
+  const toLocalizedMuscleLabel = useCallback(
+    (value: string) => (language === 'ar' ? (AR_MUSCLE_LABELS[value.trim().toLowerCase()] || value) : value),
+    [language],
+  );
+
+  const toLocalizedDayLabel = useCallback(
+    (value: string) => {
+      if (language !== 'ar') return value;
+      if (value.toLowerCase().includes('rest day')) return copy.restDayLabel;
+      const key = normalizeWorkoutDayKey(value);
+      return key ? (AR_DAY_LABELS[key] || value) : value;
+    },
+    [copy.restDayLabel, language],
+  );
+
+  useEffect(() => {
+    setLanguage(getActiveLanguage());
+
+    const handleLanguageChanged = () => {
+      setLanguage(getStoredLanguage());
+    };
+
+    window.addEventListener('app-language-changed', handleLanguageChanged);
+    window.addEventListener('storage', handleLanguageChanged);
+    return () => {
+      window.removeEventListener('app-language-changed', handleLanguageChanged);
+      window.removeEventListener('storage', handleLanguageChanged);
+    };
+  }, []);
 
   useEffect(() => {
     if (!isAddModalOpen || catalogLoaded || catalogLoading) return;
@@ -153,16 +319,16 @@ export function WorkoutPlanScreen({
           : [];
         setCatalog(nextCatalog);
         setCatalogLoaded(true);
-      } catch (error) {
-        console.error('Failed to load exercise catalog:', error);
-        setCatalogError('Could not load exercise catalog.');
-      } finally {
-        setCatalogLoading(false);
-      }
-    };
+    } catch (error) {
+      console.error('Failed to load exercise catalog:', error);
+      setCatalogError(copy.catalogError);
+    } finally {
+      setCatalogLoading(false);
+    }
+  };
 
     void loadCatalog();
-  }, [isAddModalOpen, catalogLoaded, catalogLoading]);
+  }, [copy.catalogError, isAddModalOpen, catalogLoaded, catalogLoading]);
 
   const exercises: WorkoutExerciseCard[] = todayExercises.map((ex) => {
     const targetMuscles = Array.isArray(ex?.targetMuscles) && ex.targetMuscles.length
@@ -172,7 +338,7 @@ export function WorkoutPlanScreen({
         : inferMusclesFromExerciseName(String(ex.exerciseName || ex.name || ''));
 
     return {
-      name: String(ex.exerciseName || ex.name || 'Exercise').trim(),
+      name: String(ex.exerciseName || ex.name || copy.exerciseFallback).trim(),
       sets: Number(ex.sets || 0),
       reps: String(ex.reps || ''),
       rest: ex.rest,
@@ -185,6 +351,12 @@ export function WorkoutPlanScreen({
   const completedLookup = new Set(completedExercises.map((name) => String(name || '').trim().toLowerCase()));
   const nextExercise = exercises.find((exercise) => !completedLookup.has(String(exercise.name || '').trim().toLowerCase()))
     || exercises[0];
+
+  const formatRestLabel = (rest: unknown) => {
+    const numeric = Number(rest || 0);
+    if (Number.isFinite(numeric) && numeric > 0) return copy.restSeconds(numeric);
+    return copy.restAsNeeded;
+  };
 
   const exerciseVisuals = useMemo(() => (
     exercises.map((exercise) => {
@@ -233,35 +405,37 @@ export function WorkoutPlanScreen({
     const counts = new Map<string, number>();
 
     catalog.forEach((exercise) => {
-      const label = toTitleCase(exercise.muscle || exercise.bodyPart || 'General');
+      const label = toTitleCase(exercise.muscle || exercise.bodyPart || copy.generalMuscle);
       counts.set(label, (counts.get(label) || 0) + 1);
     });
 
     return Array.from(counts.entries())
       .map(([name, count]) => ({ name, count }))
       .sort((left, right) => left.name.localeCompare(right.name));
-  }, [catalog]);
+  }, [catalog, copy.generalMuscle]);
 
   const filteredCatalog = useMemo(() => {
     if (!selectedCatalogMuscle) return [];
 
     const query = searchQuery.trim().toLowerCase();
     return catalog
-      .filter((exercise) => toTitleCase(exercise.muscle || exercise.bodyPart || 'General') === selectedCatalogMuscle)
+      .filter((exercise) => toTitleCase(exercise.muscle || exercise.bodyPart || copy.generalMuscle) === selectedCatalogMuscle)
       .filter((exercise) => {
         if (!query) return true;
-        const haystack = `${exercise.name} ${exercise.muscle} ${exercise.bodyPart || ''}`.toLowerCase();
+        const haystack = `${stripExercisePrefix(exercise.name)} ${exercise.muscle} ${exercise.bodyPart || ''}`.toLowerCase();
         return haystack.includes(query);
       })
       .slice(0, 40);
-  }, [catalog, searchQuery, selectedCatalogMuscle]);
+  }, [catalog, copy.generalMuscle, searchQuery, selectedCatalogMuscle]);
 
   const isRestDayView = useMemo(() => {
     const label = `${String(workoutDayLabel || '').trim().toLowerCase()} ${String(workoutDay || '').trim().toLowerCase()}`;
-    return label.includes('rest') || label.includes('recovery');
+    return label.includes('rest') || label.includes('recovery') || label.includes('راحة') || label.includes('استشفاء');
   }, [workoutDay, workoutDayLabel]);
 
-  const headerTitle = String(workoutDayLabel || workoutDay || 'Workout').trim() || 'Workout';
+  const headerTitleRaw = String(workoutDayLabel || workoutDay || copy.workout).trim() || copy.workout;
+  const headerTitle = toLocalizedDayLabel(headerTitleRaw);
+  const displayWorkoutName = toLocalizedDayLabel(String(workoutDay || copy.workout).trim() || copy.workout);
 
   const headerActions = (
     <div className="flex items-center gap-2">
@@ -273,10 +447,10 @@ export function WorkoutPlanScreen({
             setIsMissModalOpen(true);
           }}
           className="flex h-10 items-center gap-2 rounded-xl border border-rose-500/20 bg-rose-500/10 px-3 text-[11px] font-semibold uppercase tracking-[0.12em] text-rose-200 transition-colors hover:border-rose-400/30 hover:bg-rose-500/15"
-          aria-label="Mark today as missed"
+          aria-label={copy.markMissedAria}
         >
           <CalendarX2 size={15} />
-          <span className="hidden sm:inline">Miss Day</span>
+          <span className="hidden sm:inline">{copy.missDay}</span>
         </button>
       )}
 
@@ -288,12 +462,19 @@ export function WorkoutPlanScreen({
             ? 'border-accent/35 bg-accent/10 text-accent hover:bg-accent/20'
             : 'border-white/10 bg-card/60 text-text-tertiary hover:text-text-secondary'
         }`}
-        aria-label="Open latest workout summary"
+        aria-label={copy.openLatestSummaryAria}
       >
         <Bookmark size={17} />
       </button>
     </div>
   );
+
+  useEffect(() => {
+    if (!isAddModalOpen) return;
+    if (!selectedCatalogMuscle) return;
+    if (!addModalScrollRef.current) return;
+    addModalScrollRef.current.scrollTop = 0;
+  }, [isAddModalOpen, selectedCatalogMuscle]);
 
   if (loading) {
     return (
@@ -306,7 +487,7 @@ export function WorkoutPlanScreen({
           />
         </div>
         <div className="flex-1 flex items-center justify-center">
-          <div className="text-text-secondary">Loading workout...</div>
+          <div className="text-text-secondary">{copy.loadingWorkout}</div>
         </div>
       </div>
     );
@@ -325,7 +506,7 @@ export function WorkoutPlanScreen({
       setIsSubmittingExercise(true);
       const result = await onAddExercise(exercise);
       if (!result?.added) {
-        setAddExerciseFeedback(result?.reason || 'Could not add exercise.');
+        setAddExerciseFeedback(result?.reason || copy.addFail);
         return;
       }
 
@@ -345,7 +526,7 @@ export function WorkoutPlanScreen({
       setMissDayFeedback(null);
       const result = await onMissDay();
       if (!result?.missed) {
-        setMissDayFeedback(result?.reason || 'Could not mark this workout as missed.');
+        setMissDayFeedback(result?.reason || copy.missFail);
         return;
       }
       setIsMissModalOpen(false);
@@ -368,17 +549,17 @@ export function WorkoutPlanScreen({
         {!isRestDayView && (
           <div className="rounded-2xl border border-white/10 bg-card/60 px-4 py-3">
             <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-text-tertiary">
-              Workout
+              {copy.workout}
             </div>
             <div className="mt-1 text-lg font-semibold text-white">
-              {workoutDay}
+              {displayWorkoutName}
             </div>
           </div>
         )}
         {!isRestDayView && (
           <div className="space-y-3" data-no-translate="true">
             <div className="text-xs font-bold uppercase tracking-wider text-text-secondary">
-              Target Muscles
+              {copy.targetMuscles}
             </div>
             {displayTargetMuscles.length > 0 ? (
               <div className="flex gap-3 overflow-x-auto pb-1">
@@ -391,12 +572,12 @@ export function WorkoutPlanScreen({
                       <div className="h-12 w-12 overflow-hidden rounded-xl bg-white/5">
                         <img
                           src={getMuscleImage(muscle.name)}
-                          alt={muscle.name}
+                          alt={toLocalizedMuscleLabel(muscle.name)}
                           className="h-full w-full object-cover"
                         />
                       </div>
                       <div className="min-w-0">
-                        <div className="truncate text-sm font-semibold text-white">{muscle.name}</div>
+                        <div className="truncate text-sm font-semibold text-white">{toLocalizedMuscleLabel(muscle.name)}</div>
                         <div className="mt-1 inline-flex rounded-full bg-accent/15 px-2 py-0.5 text-xs font-semibold text-accent">
                           {muscle.score}%
                         </div>
@@ -407,7 +588,7 @@ export function WorkoutPlanScreen({
               </div>
             ) : (
               <div className="rounded-2xl border border-white/8 bg-card/60 px-4 py-4 text-sm text-text-secondary">
-                Target muscles will appear after exercises are loaded.
+                {copy.targetMusclesEmpty}
               </div>
             )}
           </div>
@@ -415,14 +596,14 @@ export function WorkoutPlanScreen({
 
         <div className="flex items-center justify-between pt-1">
           <h3 className="text-xl font-semibold text-white">
-            {exercises.length} {exercises.length === 1 ? 'exercise' : 'exercises'}
+            {copy.exercisesCount(exercises.length)}
           </h3>
           <button
             type="button"
             onClick={openAddExerciseModal}
             disabled={isRestDayView}
             className="flex h-9 w-9 items-center justify-center rounded-full bg-accent/10 text-accent transition-colors hover:bg-accent/20 disabled:cursor-not-allowed disabled:bg-white/10 disabled:text-text-tertiary disabled:hover:bg-white/10"
-            aria-label="Add exercise"
+            aria-label={copy.addExerciseAria}
           >
             <Plus size={18} />
           </button>
@@ -432,8 +613,8 @@ export function WorkoutPlanScreen({
           {exercises.length === 0 && (
             <div className="rounded-2xl border border-white/10 bg-card/70 px-4 py-5 text-sm text-text-secondary">
               {isRestDayView
-                ? 'Rest day. No workout scheduled for today.'
-                : 'No exercises added for today yet. Tap the plus button to add one.'}
+                ? copy.restDayEmpty
+                : copy.noExercises}
             </div>
           )}
 
@@ -482,7 +663,7 @@ export function WorkoutPlanScreen({
                           className="h-full w-full object-cover"
                         />
                         <div className="pointer-events-none absolute inset-x-0 bottom-0 bg-black/70 px-2 py-1 text-center text-[9px] font-semibold uppercase tracking-[0.12em] text-amber-200">
-                          Video missing
+                          {copy.videoMissing}
                         </div>
                       </>
                     )}
@@ -490,13 +671,13 @@ export function WorkoutPlanScreen({
 
                   <div className="min-w-0 flex-1">
                     <div className="min-w-0">
-                      <h4 className="truncate text-sm font-semibold text-white">{exercise.name}</h4>
+                      <h4 className="truncate text-sm font-semibold text-white">{stripExercisePrefix(exercise.name)}</h4>
                       <p className="mt-1 text-xs text-text-secondary">
-                        {exercise.sets} sets - {exercise.reps || '--'} reps - {exercise.targetWeight ? `${exercise.targetWeight} kg` : formatRestLabel(exercise.rest)}
+                        {exercise.sets} {copy.setsLabel} - {exercise.reps || '--'} {copy.repsLabel} - {exercise.targetWeight ? `${exercise.targetWeight} ${copy.kgLabel}` : formatRestLabel(exercise.rest)}
                       </p>
                       {!!exercise.targetMuscles.length && (
                         <p className="mt-2 truncate text-[11px] text-text-tertiary">
-                          {exercise.targetMuscles.join(' - ')}
+                          {exercise.targetMuscles.map((entry) => toLocalizedMuscleLabel(entry)).join(' - ')}
                         </p>
                       )}
                       {!!exercise.notes && (
@@ -510,19 +691,19 @@ export function WorkoutPlanScreen({
               </button>
             );
           })}
-        </div>
+      </div>
 
-        {exercises.length > 0 && (
-          <div className="sticky bottom-4 pt-2">
-            <button
-              type="button"
-              onClick={() => nextExercise && onExerciseClick(nextExercise.name)}
-              className="w-full rounded-2xl bg-accent px-5 py-4 text-sm font-bold uppercase tracking-[0.08em] text-black shadow-[0_10px_30px_rgba(191,255,0,0.22)] transition-colors hover:bg-[#aee600]"
-            >
-              Start Workout
-            </button>
-          </div>
-        )}
+      {exercises.length > 0 && (
+        <div className="sticky bottom-4 pt-2">
+          <button
+            type="button"
+            onClick={() => nextExercise && onExerciseClick(nextExercise.name)}
+            className="w-full rounded-2xl bg-accent px-5 py-4 text-sm font-bold uppercase tracking-[0.08em] text-black shadow-[0_10px_30px_rgba(191,255,0,0.22)] transition-colors hover:bg-[#aee600]"
+          >
+            {copy.startWorkout}
+          </button>
+        </div>
+      )}
       </div>
 
       {isAddModalOpen && (
@@ -531,19 +712,20 @@ export function WorkoutPlanScreen({
           onClick={() => setIsAddModalOpen(false)}
         >
           <div
-            className="w-full max-w-3xl rounded-3xl border border-white/10 bg-card p-4 shadow-2xl"
+            className={`w-full max-w-3xl rounded-3xl border border-white/10 bg-card p-4 shadow-2xl ${isArabic ? 'text-right' : 'text-left'}`}
+            dir={isArabic ? 'rtl' : 'ltr'}
             onClick={(event) => event.stopPropagation()}
           >
-            <div className="flex items-center justify-between">
+            <div className={`flex items-center justify-between ${isArabic ? 'flex-row-reverse' : ''}`}>
               <div>
-                <h3 className="text-lg font-semibold text-white">Add Exercise</h3>
-                <p className="mt-1 text-sm text-text-secondary">Pick an exercise to add for today.</p>
+                <h3 className="text-lg font-semibold text-white">{copy.addExerciseTitle}</h3>
+                <p className="mt-1 text-sm text-text-secondary">{copy.addExerciseSubtitle}</p>
               </div>
               <button
                 type="button"
                 onClick={() => setIsAddModalOpen(false)}
                 className="flex h-9 w-9 items-center justify-center rounded-full bg-white/5 text-text-secondary transition-colors hover:bg-white/10 hover:text-white"
-                aria-label="Close add exercise dialog"
+                aria-label={copy.closeAddExercise}
               >
                 <X size={18} />
               </button>
@@ -555,10 +737,10 @@ export function WorkoutPlanScreen({
               </div>
             )}
 
-            <div className="mt-4 max-h-[70vh] space-y-5 overflow-y-auto pr-1">
+            <div ref={addModalScrollRef} className="mt-4 max-h-[70vh] space-y-5 overflow-y-auto pr-1">
               {catalogLoading && (
                 <div className="rounded-2xl border border-white/8 bg-background/60 px-4 py-3 text-sm text-text-secondary">
-                  Loading exercises...
+                  {copy.loadingExercises}
                 </div>
               )}
 
@@ -574,12 +756,12 @@ export function WorkoutPlanScreen({
                     <div className="flex items-center justify-between gap-3">
                       <div>
                         <div className="text-xs font-bold uppercase tracking-wider text-text-secondary">
-                          {selectedCatalogMuscle || 'Exercises'}
+                          {selectedCatalogMuscle ? toLocalizedMuscleLabel(selectedCatalogMuscle) : copy.exercisesHeading}
                         </div>
                         <div className="mt-1 text-sm text-white">
                           {selectedCatalogMuscle
-                            ? 'Choose an exercise card to add it to today.'
-                            : 'Select a muscle group below to browse exercises.'}
+                            ? copy.chooseExerciseHint
+                            : copy.selectMuscleHint}
                         </div>
                       </div>
                       {selectedCatalogMuscle && (
@@ -591,32 +773,32 @@ export function WorkoutPlanScreen({
                           }}
                           className="rounded-full border border-white/10 px-3 py-1.5 text-xs font-semibold text-text-secondary transition-colors hover:border-accent/30 hover:text-white"
                         >
-                          Clear
+                          {copy.clear}
                         </button>
                       )}
                     </div>
 
                     <div className="relative mt-4">
-                      <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary" />
+                      <Search size={16} className={`absolute top-1/2 -translate-y-1/2 text-text-secondary ${isArabic ? 'right-3' : 'left-3'}`} />
                       <input
                         type="text"
                         value={searchQuery}
                         onChange={(event) => setSearchQuery(event.target.value)}
-                        placeholder={selectedCatalogMuscle ? 'Search exercise name...' : 'Select a muscle group first'}
+                        placeholder={selectedCatalogMuscle ? copy.searchExercise : copy.selectMuscleFirst}
                         disabled={!selectedCatalogMuscle}
-                        className="w-full rounded-2xl border border-white/10 bg-background py-3 pl-10 pr-4 text-sm text-white outline-none transition-colors focus:border-accent/50 disabled:cursor-not-allowed disabled:opacity-60"
+                        className={`w-full rounded-2xl border border-white/10 bg-background py-3 text-sm text-white outline-none transition-colors focus:border-accent/50 disabled:cursor-not-allowed disabled:opacity-60 ${isArabic ? 'pr-10 pl-4 text-right' : 'pl-10 pr-4 text-left'}`}
                       />
                     </div>
 
                     {!selectedCatalogMuscle && (
                       <div className="mt-4 rounded-2xl border border-white/8 bg-background/60 px-4 py-5 text-sm text-text-secondary">
-                        Pick a muscle card below to load matching exercises.
+                        {copy.pickMuscleCard}
                       </div>
                     )}
 
                     {selectedCatalogMuscle && filteredCatalog.length === 0 && (
                       <div className="mt-4 rounded-2xl border border-white/8 bg-background/60 px-4 py-5 text-sm text-text-secondary">
-                        No matching exercise found for {selectedCatalogMuscle}.
+                        {copy.noMatchingExercise(toLocalizedMuscleLabel(selectedCatalogMuscle))}
                       </div>
                     )}
 
@@ -629,34 +811,54 @@ export function WorkoutPlanScreen({
                               key={exercise.id}
                               type="button"
                               onClick={() => {
+                                if (onPreviewExercise) {
+                                  onPreviewExercise(exercise.name);
+                                  return;
+                                }
                                 void handleAddExercise(exercise);
                               }}
                               disabled={isSubmittingExercise}
-                              className="surface-card rounded-2xl p-3 text-left transition-colors group hover:border-accent/20"
+                              className={`surface-card rounded-2xl p-3 transition-colors group hover:border-accent/20 ${isArabic ? 'text-right' : 'text-left'}`}
                             >
-                              <div className="relative mb-3 aspect-video overflow-hidden rounded-lg border border-white/8 bg-white/5">
+                              <div className="relative -mx-3 -mt-3 mb-3 aspect-video overflow-hidden rounded-t-2xl border-b border-white/8 bg-white/5">
                                 <img
                                   src={getMuscleImage(muscleLabel)}
                                   alt={exercise.name}
                                   className="h-full w-full object-cover transition-transform duration-200 group-hover:scale-105"
                                 />
-                                <div className="absolute inset-0 flex items-center justify-center bg-black/35">
-                                  <div className="flex h-8 w-8 items-center justify-center rounded-full bg-black/50 text-white transition-colors group-hover:bg-accent group-hover:text-black">
-                                    <Play size={12} fill="currentColor" />
-                                  </div>
-                                </div>
-                                <div className="absolute left-2 top-2 rounded-full bg-black/60 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-white">
-                                  Add
+                              <div className="absolute inset-0 flex items-center justify-center bg-black/35">
+                                <button
+                                  type="button"
+                                  onClick={(event) => {
+                                    event.stopPropagation();
+                                    onPreviewExercise?.(exercise.name);
+                                  }}
+                                  disabled={!onPreviewExercise}
+                                  aria-label={copy.previewVideoAria}
+                                  className="flex h-8 w-8 items-center justify-center rounded-full bg-black/50 text-white transition-colors group-hover:bg-accent group-hover:text-black disabled:cursor-not-allowed disabled:opacity-60"
+                                >
+                                  <Play size={12} fill="currentColor" />
+                                </button>
+                              </div>
+                                <div className={`absolute top-2 rounded-full bg-black/60 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-white ${isArabic ? 'right-2' : 'left-2'}`}>
+                                  {copy.add}
                                 </div>
                               </div>
-                              <div className="truncate text-sm font-bold text-white">{exercise.name}</div>
+                              <div className="truncate text-sm font-bold text-white">{stripExercisePrefix(exercise.name)}</div>
                               <div className="mt-1 flex items-center justify-between gap-2">
                                 <div className="truncate text-[10px] uppercase tracking-wider text-text-secondary">
-                                  {muscleLabel}
+                                  {toLocalizedMuscleLabel(muscleLabel)}
                                 </div>
-                                <div className="rounded-full bg-accent/15 px-2 py-1 text-[10px] font-semibold text-accent">
-                                  Add
-                                </div>
+                                <button
+                                  type="button"
+                                  onClick={(event) => {
+                                    event.stopPropagation();
+                                    void handleAddExercise(exercise);
+                                  }}
+                                  className="rounded-full bg-accent/15 px-2 py-1 text-[10px] font-semibold text-accent"
+                                >
+                                  {copy.add}
+                                </button>
                               </div>
                             </button>
                           );
@@ -667,11 +869,11 @@ export function WorkoutPlanScreen({
 
                   <div>
                     <div className="mb-3 text-xs font-bold uppercase tracking-wider text-text-secondary">
-                      Muscle Groups
+                      {copy.muscleGroups}
                     </div>
                     {catalogMuscles.length === 0 ? (
                       <div className="rounded-2xl border border-white/8 bg-background/60 px-4 py-3 text-sm text-text-secondary">
-                        No exercise groups available.
+                        {copy.noExerciseGroups}
                       </div>
                     ) : (
                       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
@@ -685,23 +887,23 @@ export function WorkoutPlanScreen({
                                 setSelectedCatalogMuscle((current) => (current === muscle.name ? '' : muscle.name));
                                 setSearchQuery('');
                               }}
-                              className={`rounded-2xl border p-3 text-left transition-colors ${
+                              className={`rounded-2xl border p-3 transition-colors ${isArabic ? 'text-right' : 'text-left'} ${
                                 isSelected
                                   ? 'border-accent/45 bg-accent/10'
                                   : 'border-white/8 bg-background/60 hover:border-accent/25 hover:bg-accent/5'
                               }`}
                             >
-                              <div className="aspect-[4/3] overflow-hidden rounded-xl border border-white/8 bg-white/5">
+                              <div className="-mx-3 -mt-3 mb-3 aspect-[4/3] overflow-hidden rounded-t-2xl border-b border-white/8 bg-white/5">
                                 <img
                                   src={getMuscleImage(muscle.name)}
-                                  alt={muscle.name}
-                                  className="h-full w-full object-cover"
+                                  alt={toLocalizedMuscleLabel(muscle.name)}
+                                  className="h-full w-full object-contain p-3"
                                 />
                               </div>
                               <div className="mt-3">
-                                <div className="truncate text-sm font-semibold text-white">{muscle.name}</div>
+                                <div className="truncate text-sm font-semibold text-white">{toLocalizedMuscleLabel(muscle.name)}</div>
                                 <div className="mt-1 text-[11px] text-text-secondary">
-                                  {muscle.count} {muscle.count === 1 ? 'exercise' : 'exercises'}
+                                  {copy.exercisesCount(muscle.count)}
                                 </div>
                               </div>
                             </button>
@@ -723,21 +925,22 @@ export function WorkoutPlanScreen({
           onClick={() => setIsMissModalOpen(false)}
         >
           <div
-            className="relative w-full max-w-md overflow-hidden rounded-[1.75rem] border border-white/10 bg-[linear-gradient(180deg,rgba(27,31,43,0.98),rgba(15,18,28,0.98))] p-6 shadow-[0_24px_80px_rgba(0,0,0,0.45)]"
+            className={`relative w-full max-w-md overflow-hidden rounded-[1.75rem] border border-white/10 bg-[linear-gradient(180deg,rgba(27,31,43,0.98),rgba(15,18,28,0.98))] p-6 shadow-[0_24px_80px_rgba(0,0,0,0.45)] ${isArabic ? 'text-right' : 'text-left'}`}
+            dir={isArabic ? 'rtl' : 'ltr'}
             onClick={(event) => event.stopPropagation()}
           >
             <div className="pointer-events-none absolute inset-x-0 top-0 h-28 bg-[radial-gradient(circle_at_top,rgba(244,63,94,0.18),transparent_70%)]" />
 
             <div className="relative">
-              <div className="flex items-start justify-between gap-4">
+              <div className={`flex items-start justify-between gap-4 ${isArabic ? 'flex-row-reverse' : ''}`}>
                 <div className="space-y-3">
                   <div className="inline-flex h-12 w-12 items-center justify-center rounded-2xl border border-rose-500/25 bg-rose-500/12 text-rose-200">
                     <TriangleAlert size={22} />
                   </div>
                   <div>
-                    <h3 className="text-xl font-semibold text-white">Miss today&apos;s workout?</h3>
+                    <h3 className="text-xl font-semibold text-white">{copy.missTitle}</h3>
                     <p className="mt-2 text-sm leading-relaxed text-text-secondary">
-                      This will mark <span className="text-white">{workoutDay}</span> as missed, remove it from today&apos;s active flow, and break your current workout streak for today.
+                      {copy.missDescription(displayWorkoutName)}
                     </p>
                   </div>
                 </div>
@@ -746,14 +949,14 @@ export function WorkoutPlanScreen({
                   type="button"
                   onClick={() => setIsMissModalOpen(false)}
                   className="flex h-10 w-10 items-center justify-center rounded-full bg-white/5 text-text-secondary transition-colors hover:bg-white/10 hover:text-white"
-                  aria-label="Close miss day dialog"
+                  aria-label={copy.closeMissDialog}
                 >
                   <X size={18} />
                 </button>
               </div>
 
               <div className="mt-5 rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm text-text-secondary">
-                Use this only when you are intentionally skipping the scheduled session.
+                {copy.missWarning}
               </div>
 
               {missDayFeedback && (
@@ -768,7 +971,7 @@ export function WorkoutPlanScreen({
                   onClick={() => setIsMissModalOpen(false)}
                   className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-text-primary transition-colors hover:bg-white/10"
                 >
-                  Keep Workout
+                  {copy.keepWorkout}
                 </button>
                 <button
                   type="button"
@@ -778,7 +981,7 @@ export function WorkoutPlanScreen({
                   disabled={isSubmittingMissDay}
                   className="rounded-2xl bg-rose-500 px-4 py-3 text-sm font-semibold text-white transition-colors hover:bg-rose-400 disabled:cursor-not-allowed disabled:opacity-60"
                 >
-                  {isSubmittingMissDay ? 'Marking...' : 'Yes, Miss This Day'}
+                  {isSubmittingMissDay ? copy.marking : copy.confirmMiss}
                 </button>
               </div>
             </div>

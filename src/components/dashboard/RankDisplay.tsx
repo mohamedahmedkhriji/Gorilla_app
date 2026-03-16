@@ -3,14 +3,28 @@ import { motion } from 'framer-motion';
 import { getUserRankBadge } from '../../services/missions';
 import { getRankBadgeImage, rankCardIcon } from '../../services/rankTheme';
 import { emojiLevelUpBg } from '../../services/emojiTheme';
+import { getActiveLanguage, getStoredLanguage } from '../../services/language';
 
 interface RankDisplayProps {
   points?: number;
 }
 
 export function RankDisplay({ points = 420 }: RankDisplayProps) {
+  const isArabic = getActiveLanguage(getStoredLanguage()) === 'ar';
+  const rankNameMap: Record<string, string> = {
+    bronze: 'برونزي',
+    silver: 'فضي',
+    gold: 'ذهبي',
+    platinum: 'بلاتيني',
+    diamond: 'ألماسي',
+    elite: 'نخبوي',
+  };
   const rankBadge = getUserRankBadge(points);
   const rankBadgeImage = getRankBadgeImage(rankBadge.name);
+  const rankNameDisplay = isArabic
+    ? (rankNameMap[String(rankBadge.name || '').trim().toLowerCase()] || rankBadge.name)
+    : rankBadge.name;
+  const pointsLabel = isArabic ? `${points} نقطة` : `${points} points`;
 
   return (
     <motion.div
@@ -44,11 +58,11 @@ export function RankDisplay({ points = 420 }: RankDisplayProps) {
             <img src={rankBadgeImage} alt={rankBadge.name} className="h-10 w-10 object-contain" />
           </div>
           <div className="min-w-0">
-            <h4 className="text-2xl leading-none text-white truncate">{rankBadge.name}</h4>
-            <p className="text-text-secondary text-xs uppercase tracking-[0.1em] mt-2">{points} points</p>
+            <h4 className="text-2xl leading-none text-white truncate">{rankNameDisplay}</h4>
+            <p className="text-text-secondary text-xs uppercase tracking-[0.1em] mt-2">{pointsLabel}</p>
           </div>
         </div>
-        <img src={rankCardIcon} alt="Rank icon" className="h-8 w-8 shrink-0 object-contain" />
+        <img src={rankCardIcon} alt={isArabic ? 'أيقونة الرتبة' : 'Rank icon'} className="h-8 w-8 shrink-0 object-contain" />
       </div>
     </motion.div>
   );

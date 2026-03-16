@@ -3,6 +3,7 @@ import { Header } from '../ui/Header';
 import { Trophy, Medal, Award, UserRound } from 'lucide-react';
 import { api } from '../../services/api';
 import { rankTopScoreIcon } from '../../services/rankTheme';
+import { getActiveLanguage, getStoredLanguage } from '../../services/language';
 
 interface LeaderboardScreenProps {
   onBack: () => void;
@@ -38,6 +39,20 @@ const isValidImageDataUrl = (value: string | null | undefined) =>
   typeof value === 'string' && value.startsWith('data:image/') && value.includes(';base64,');
 
 export function LeaderboardScreen({ onBack }: LeaderboardScreenProps) {
+  const isArabic = getActiveLanguage(getStoredLanguage()) === 'ar';
+  const copy = {
+    title: isArabic ? 'لوحة الصدارة' : 'Leaderboard',
+    monthly: isArabic ? 'شهري' : 'Monthly',
+    allTime: isArabic ? 'كل الوقت' : 'All Time',
+    loading: isArabic ? 'جارٍ تحميل لوحة الصدارة...' : 'Loading leaderboard...',
+    loadError: isArabic ? 'تعذر تحميل لوحة الصدارة' : 'Failed to load leaderboard',
+    empty: isArabic ? 'لا توجد بيانات للصدارة.' : 'No leaderboard data found.',
+    level: isArabic ? 'المستوى' : 'Level',
+    pts: isArabic ? 'نقطة' : 'pts',
+    profileAlt: isArabic ? 'الملف الشخصي' : 'Profile',
+    topScoreAlt: isArabic ? 'أعلى نتيجة' : 'Top score',
+    fallbackUser: isArabic ? 'مستخدم' : 'User',
+  };
   const [tab, setTab] = useState<'monthly' | 'alltime'>('monthly');
   const [leaderboard, setLeaderboard] = useState<LeaderboardUser[]>([]);
   const [loading, setLoading] = useState(false);
@@ -62,7 +77,7 @@ export function LeaderboardScreen({ onBack }: LeaderboardScreenProps) {
               const points = Number(row?.points || 0);
               return {
                 id: String(row?.id || ''),
-                name: row?.name || 'User',
+                name: row?.name || copy.fallbackUser,
                 points,
                 rank: Number(row?.rank || 0),
                 level: getLevelFromPoints(points),
@@ -73,7 +88,7 @@ export function LeaderboardScreen({ onBack }: LeaderboardScreenProps) {
         setLeaderboard(normalized);
       } catch (err) {
         console.error('Failed to load leaderboard:', err);
-        setError('Failed to load leaderboard');
+        setError(copy.loadError);
         setLeaderboard([]);
       } finally {
         setLoading(false);
@@ -81,7 +96,7 @@ export function LeaderboardScreen({ onBack }: LeaderboardScreenProps) {
     };
 
     fetchLeaderboard();
-  }, [currentUser?.id, tab]);
+  }, [copy.fallbackUser, copy.loadError, currentUser?.id, tab]);
 
   const maxPoints = useMemo(
     () => (leaderboard.length ? Math.max(...leaderboard.map((u) => u.points)) : 0),
@@ -107,7 +122,7 @@ export function LeaderboardScreen({ onBack }: LeaderboardScreenProps) {
   return (
     <div className="flex-1 flex flex-col min-h-screen bg-background pb-24">
       <div className="px-4 sm:px-6 pt-2">
-        <Header title="Leaderboard" onBack={onBack} />
+        <Header title={copy.title} onBack={onBack} />
       </div>
 
       <div className="px-4 sm:px-6 pt-4">
@@ -118,7 +133,7 @@ export function LeaderboardScreen({ onBack }: LeaderboardScreenProps) {
               tab === 'monthly' ? 'bg-accent text-black' : 'text-text-secondary'
             }`}
           >
-            Monthly
+            {copy.monthly}
           </button>
           <button
             onClick={() => setTab('alltime')}
@@ -126,14 +141,14 @@ export function LeaderboardScreen({ onBack }: LeaderboardScreenProps) {
               tab === 'alltime' ? 'bg-accent text-black' : 'text-text-secondary'
             }`}
           >
-            All Time
+            {copy.allTime}
           </button>
         </div>
 
-        {loading && <p className="text-sm text-text-secondary">Loading leaderboard...</p>}
+        {loading && <p className="text-sm text-text-secondary">{copy.loading}</p>}
         {!loading && error && <p className="text-sm text-red-400">{error}</p>}
         {!loading && !error && leaderboard.length === 0 && (
-          <p className="text-sm text-text-secondary">No leaderboard data found.</p>
+          <p className="text-sm text-text-secondary">{copy.empty}</p>
         )}
 
         {!loading && !error && leaderboard.length > 0 && (
@@ -161,7 +176,7 @@ export function LeaderboardScreen({ onBack }: LeaderboardScreenProps) {
                     }`}
                   >
                     {user.profilePicture ? (
-                      <img src={user.profilePicture} alt="Profile" className="w-full h-full object-cover" />
+                      <img src={user.profilePicture} alt={copy.profileAlt} className="w-full h-full object-cover" />
                     ) : (
                       <UserRound
                         size={20}
@@ -172,7 +187,7 @@ export function LeaderboardScreen({ onBack }: LeaderboardScreenProps) {
                     {user.rank === 1 && (
                       <img
                         src={rankTopScoreIcon}
-                        alt="Top score"
+                        alt={copy.topScoreAlt}
                         className="absolute -top-1.5 -right-1.5 h-5 w-5 object-contain drop-shadow-[0_2px_4px_rgba(0,0,0,0.45)]"
                       />
                     )}
@@ -182,12 +197,14 @@ export function LeaderboardScreen({ onBack }: LeaderboardScreenProps) {
                     <h4 className={`font-bold text-sm ${user.id === currentUserId ? 'text-accent' : 'text-white'}`}>
                       {user.name}
                     </h4>
-                    <p className="text-xs text-text-secondary">Level {user.level}</p>
+                    <p className="text-xs text-text-secondary">
+                      {copy.level} {user.level}
+                    </p>
                   </div>
 
                   <div className="text-right">
                     <p className="text-lg font-bold text-white">{user.points}</p>
-                    <p className="text-xs text-text-secondary">pts</p>
+                    <p className="text-xs text-text-secondary">{copy.pts}</p>
                   </div>
                 </div>
 
