@@ -462,7 +462,9 @@ export function Blogs() {
   const [commentsByPost, setCommentsByPost] = useState<Record<number, BlogComment[]>>({});
   const [commentsLoading, setCommentsLoading] = useState(false);
   const [newCommentText, setNewCommentText] = useState('');
+  const [replyToComment, setReplyToComment] = useState<{ id: number; name: string } | null>(null);
   const [commentError, setCommentError] = useState('');
+  const commentInputRef = useRef<HTMLInputElement | null>(null);
   const [openPostMenuId, setOpenPostMenuId] = useState<number | null>(null);
   const [openReactionPostId, setOpenReactionPostId] = useState<number | null>(null);
   const [pendingDeletePostId, setPendingDeletePostId] = useState<number | null>(null);
@@ -799,6 +801,7 @@ export function Blogs() {
     setActiveCommentsPostId(postId);
     setNewCommentText('');
     setCommentError('');
+    setReplyToComment(null);
     void loadComments(postId);
   };
 
@@ -889,13 +892,18 @@ export function Blogs() {
   const addComment = async () => {
     if (!activeCommentsPostId || !userId) return;
     const text = newCommentText.trim();
-    if (!text) {
+    const replyPrefix = replyToComment ? `@${replyToComment.name}` : '';
+    const isReplyOnly = replyPrefix && text === replyPrefix;
+    if (!text || isReplyOnly) {
       setCommentError(copy.commentRequired);
       return;
     }
 
     try {
-      const response = await api.addBlogComment(activeCommentsPostId, { userId, text });
+      const finalText = replyPrefix && !text.startsWith(replyPrefix)
+        ? `${replyPrefix} ${text}`
+        : text;
+      const response = await api.addBlogComment(activeCommentsPostId, { userId, text: finalText });
       const comment = response?.comment ? mapComment(response.comment) : null;
       const commentsCount = toCount(response?.commentsCount);
 
@@ -910,6 +918,7 @@ export function Blogs() {
         prev.map((post) => (post.id === activeCommentsPostId ? { ...post, comments: commentsCount } : post)),
       );
       setNewCommentText('');
+      setReplyToComment(null);
       setCommentError('');
     } catch (err) {
       setCommentError(err instanceof Error ? err.message : copy.errorPostComment);
@@ -1732,6 +1741,7 @@ export function Blogs() {
           onClick={() => {
             setActiveCommentsPostId(null);
             setCommentError('');
+            setReplyToComment(null);
           }}
         >
           <div
@@ -1748,6 +1758,7 @@ export function Blogs() {
                   onClick={() => {
                     setActiveCommentsPostId(null);
                     setCommentError('');
+                    setReplyToComment(null);
                   }}
                   className="w-8 h-8 rounded-full bg-white/10 text-[#FFFFFF] flex items-center justify-center"
                 >
@@ -1779,19 +1790,45 @@ export function Blogs() {
                         <span className="text-[11px] text-white/50">{getPostedAgo(comment.createdAt, copy, true)}</span>
                       </div>
                       <div className="text-sm text-white/90 mt-1">{comment.text}</div>
-                      <button type="button" className="mt-1 text-[11px] text-white/50 hover:text-white/70">
+                      <button
+                        type="button"
+                        className="mt-1 text-[11px] text-white/50 hover:text-white/70"
+                        onClick={() => {
+                          const name = getAuthorName(comment.authorName);
+                          const prefix = `@${name}`;
+                          setReplyToComment({ id: comment.id, name });
+                          setNewCommentText((prev) => {
+                            const trimmedPrev = prev.trim();
+                            if (trimmedPrev.startsWith(prefix)) return prev;
+                            return `${prefix} `;
+                          });
+                          requestAnimationFrame(() => {
+                            commentInputRef.current?.focus();
+                          });
+                        }}
+                      >
                         Reply
                       </button>
                     </div>
-                    <button type="button" className="flex flex-col items-center text-white/40 hover:text-white/70">
-                      <Heart size={14} />
-                    </button>
                   </div>
                 ))
               )}
             </div>
 
             <div className="border-t border-white/10 px-4 py-3 space-y-2">
+              {replyToComment && (
+                <div className="flex items-center justify-between rounded-full bg-white/10 px-3 py-1 text-[11px] text-white/70">
+                  <span>Replying to {replyToComment.name}</span>
+                  <button
+                    type="button"
+                    onClick={() => setReplyToComment(null)}
+                    className="text-white/60 hover:text-white"
+                  >
+                    <X size={12} />
+                  </button>
+                </div>
+              )}
+
               <div className="flex items-center gap-2">
                 <img
                   src={userProfileImage || DEFAULT_AVATAR}
@@ -1800,6 +1837,7 @@ export function Blogs() {
                 />
                 <div className="flex-1 flex items-center gap-2 rounded-full bg-white/10 px-4 py-2">
                   <input
+                    ref={commentInputRef}
                     value={newCommentText}
                     onChange={(event) => setNewCommentText(event.target.value)}
                     placeholder={copy.addCommentPlaceholder}
@@ -1819,14 +1857,17 @@ export function Blogs() {
               {commentError && <div className="text-sm text-red-300">{commentError}</div>}
 
               <div className="flex items-center justify-between text-lg text-white/70">
-                <span>❤️</span>
-                <span>🙌</span>
-                <span>🔥</span>
-                <span>👏</span>
-                <span>🥺</span>
-                <span>😍</span>
-                <span>😮</span>
-                <span>😂</span>
+                {['❤️', '🙌', '🔥', '👏', '🥺', '😍', '😮', '😂'].map((emoji) => (
+                  <button
+                    key={emoji}
+                    type="button"
+                    className="transition-transform hover:scale-110"
+                    onClick={() => setNewCommentText((prev) => `${prev}${emoji}`)}
+                    aria-label={`Add ${emoji}`}
+                  >
+                    {emoji}
+                  </button>
+                ))}
               </div>
             </div>
           </div>
