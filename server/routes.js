@@ -9816,6 +9816,7 @@ router.get('/exercises/catalog', async (req, res) => {
 
 const BLOG_CATEGORIES = new Set(['Training', 'Nutrition', 'Recovery', 'Mindset']);
 const BLOG_MEDIA_TYPES = new Set(['image', 'video']);
+const BLOG_REACTIONS = new Set(['love', 'fire', 'power', 'wow']);
 
 const toPositiveInteger = (value) => {
   const n = Number(value);
@@ -9832,6 +9833,12 @@ const clampBlogLimit = (value, fallback = 20, max = 50) => {
 const isFemaleGender = (value) => {
   const normalized = String(value || '').trim().toLowerCase();
   return normalized === 'female' || normalized === 'woman' || normalized === 'femme';
+};
+
+const normalizeBlogReactionType = (value) => {
+  const normalized = String(value || '').trim().toLowerCase();
+  if (!BLOG_REACTIONS.has(normalized)) return null;
+  return normalized;
 };
 
 const toIsoTimestamp = (value) => {
@@ -9878,9 +9885,17 @@ const mapBlogPostRow = (row) => ({
   metrics: {
     views: Number(row.views_count || 0),
     likes: Number(row.likes_count || 0),
+    reactions: {
+      love: Number(row.love_count || 0),
+      fire: Number(row.fire_count || 0),
+      power: Number(row.power_count || 0),
+      wow: Number(row.wow_count || 0),
+    },
+    reactionsTotal: Number(row.reactions_total || row.likes_count || 0),
     comments: Number(row.comments_count || 0),
   },
   likedByMe: Number(row.liked_by_viewer || 0) === 1,
+  reactionByMe: normalizeBlogReactionType(row.reaction_by_viewer),
 });
 
 const mapBlogCommentRow = (row) => ({
@@ -9892,6 +9907,66 @@ const mapBlogCommentRow = (row) => ({
   text: row.comment_text || '',
   createdAt: toIsoTimestamp(row.created_at),
 });
+
+const getBlogReactionSummary = async (postId, userId = 0) => {
+  const [reactionRows] = await pool.execute(
+    `SELECT
+       SUM(reaction_type = 'love') AS love_count,
+       SUM(reaction_type = 'fire') AS fire_count,
+       SUM(reaction_type = 'power') AS power_count,
+       SUM(reaction_type = 'wow') AS wow_count,
+       COUNT(*) AS reaction_count
+     FROM blog_post_reactions
+     WHERE post_id = ?`,
+    [postId],
+  );
+
+  const [legacyLikeRows] = await pool.execute(
+    `SELECT COUNT(*) AS legacy_like_count
+     FROM blog_post_likes
+     WHERE post_id = ?`,
+    [postId],
+  );
+
+  const legacyLikeCount = Number(legacyLikeRows[0]?.legacy_like_count || 0);
+  const loveCount = Number(reactionRows[0]?.love_count || 0) + legacyLikeCount;
+  const fireCount = Number(reactionRows[0]?.fire_count || 0);
+  const powerCount = Number(reactionRows[0]?.power_count || 0);
+  const wowCount = Number(reactionRows[0]?.wow_count || 0);
+  const total = Number(reactionRows[0]?.reaction_count || 0) + legacyLikeCount;
+
+  let reactionByViewer = null;
+  if (userId) {
+    const [viewerReactionRows] = await pool.execute(
+      `SELECT reaction_type
+       FROM blog_post_reactions
+       WHERE post_id = ? AND user_id = ?
+       LIMIT 1`,
+      [postId, userId],
+    );
+    reactionByViewer = normalizeBlogReactionType(viewerReactionRows[0]?.reaction_type);
+
+    if (!reactionByViewer) {
+      const [viewerLikeRows] = await pool.execute(
+        `SELECT 1
+         FROM blog_post_likes
+         WHERE post_id = ? AND user_id = ?
+         LIMIT 1`,
+        [postId, userId],
+      );
+      if (viewerLikeRows.length) reactionByViewer = 'love';
+    }
+  }
+
+  return {
+    total,
+    loveCount,
+    fireCount,
+    powerCount,
+    wowCount,
+    reactionByViewer,
+  };
+};
 
 const fetchBlogPostById = async (postId, viewerUserId = 0) => {
   const safeViewerUserId = toPositiveInteger(viewerUserId) || 0;
@@ -9912,17 +9987,34 @@ const fetchBlogPostById = async (postId, viewerUserId = 0) => {
        u.name AS author_name,
        COALESCE(u.gender, '') AS author_gender,
        ${avatarSelect},
-       COALESCE(l.like_count, 0) AS likes_count,
+       COALESCE(r.love_count, 0) + COALESCE(l.legacy_like_count, 0) AS love_count,
+       COALESCE(r.fire_count, 0) AS fire_count,
+       COALESCE(r.power_count, 0) AS power_count,
+       COALESCE(r.wow_count, 0) AS wow_count,
+       COALESCE(r.reaction_count, 0) + COALESCE(l.legacy_like_count, 0) AS reactions_total,
+       COALESCE(r.reaction_count, 0) + COALESCE(l.legacy_like_count, 0) AS likes_count,
        COALESCE(v.view_count, 0) AS views_count,
        COALESCE(c.comment_count, 0) AS comments_count,
-       CASE WHEN ul.user_id IS NULL THEN 0 ELSE 1 END AS liked_by_viewer
+       COALESCE(ur.reaction_type, CASE WHEN ul.user_id IS NULL THEN NULL ELSE 'love' END) AS reaction_by_viewer,
+       CASE WHEN ur.user_id IS NULL AND ul.user_id IS NULL THEN 0 ELSE 1 END AS liked_by_viewer
      FROM blog_posts bp
      INNER JOIN users u ON u.id = bp.user_id
      LEFT JOIN (
-       SELECT post_id, COUNT(*) AS like_count
+       SELECT post_id, COUNT(*) AS legacy_like_count
        FROM blog_post_likes
        GROUP BY post_id
      ) l ON l.post_id = bp.id
+     LEFT JOIN (
+       SELECT
+         post_id,
+         SUM(reaction_type = 'love') AS love_count,
+         SUM(reaction_type = 'fire') AS fire_count,
+         SUM(reaction_type = 'power') AS power_count,
+         SUM(reaction_type = 'wow') AS wow_count,
+         COUNT(*) AS reaction_count
+       FROM blog_post_reactions
+       GROUP BY post_id
+     ) r ON r.post_id = bp.id
      LEFT JOIN (
        SELECT post_id, COUNT(*) AS view_count
        FROM blog_post_views
@@ -9936,6 +10028,9 @@ const fetchBlogPostById = async (postId, viewerUserId = 0) => {
          AND (cu.banned_until IS NULL OR cu.banned_until < NOW())
        GROUP BY c.post_id
      ) c ON c.post_id = bp.id
+     LEFT JOIN blog_post_reactions ur
+       ON ur.post_id = bp.id
+      AND ur.user_id = ?
      LEFT JOIN blog_post_likes ul
        ON ul.post_id = bp.id
       AND ul.user_id = ?
@@ -9943,7 +10038,7 @@ const fetchBlogPostById = async (postId, viewerUserId = 0) => {
        AND u.is_active = 1
        AND (u.banned_until IS NULL OR u.banned_until < NOW())
      LIMIT 1`,
-    [safeViewerUserId, postId],
+    [safeViewerUserId, safeViewerUserId, postId],
   );
 
   if (!rows.length) return null;
@@ -9981,7 +10076,7 @@ router.get('/blogs', async (req, res) => {
       viewerIsFemale = isFemaleGender(viewerRows[0]?.gender);
     }
 
-    const params = [viewerUserId];
+    const params = [viewerUserId, viewerUserId];
     const whereParts = [];
 
     whereParts.push('u.is_active = 1');
@@ -10021,17 +10116,34 @@ router.get('/blogs', async (req, res) => {
          u.name AS author_name,
          COALESCE(u.gender, '') AS author_gender,
          ${avatarSelect},
-         COALESCE(l.like_count, 0) AS likes_count,
+         COALESCE(r.love_count, 0) + COALESCE(l.legacy_like_count, 0) AS love_count,
+         COALESCE(r.fire_count, 0) AS fire_count,
+         COALESCE(r.power_count, 0) AS power_count,
+         COALESCE(r.wow_count, 0) AS wow_count,
+         COALESCE(r.reaction_count, 0) + COALESCE(l.legacy_like_count, 0) AS reactions_total,
+         COALESCE(r.reaction_count, 0) + COALESCE(l.legacy_like_count, 0) AS likes_count,
          COALESCE(v.view_count, 0) AS views_count,
          COALESCE(c.comment_count, 0) AS comments_count,
-         CASE WHEN ul.user_id IS NULL THEN 0 ELSE 1 END AS liked_by_viewer
+         COALESCE(ur.reaction_type, CASE WHEN ul.user_id IS NULL THEN NULL ELSE 'love' END) AS reaction_by_viewer,
+         CASE WHEN ur.user_id IS NULL AND ul.user_id IS NULL THEN 0 ELSE 1 END AS liked_by_viewer
        FROM blog_posts bp
      INNER JOIN users u ON u.id = bp.user_id
        LEFT JOIN (
-         SELECT post_id, COUNT(*) AS like_count
+         SELECT post_id, COUNT(*) AS legacy_like_count
          FROM blog_post_likes
          GROUP BY post_id
        ) l ON l.post_id = bp.id
+       LEFT JOIN (
+         SELECT
+           post_id,
+           SUM(reaction_type = 'love') AS love_count,
+           SUM(reaction_type = 'fire') AS fire_count,
+           SUM(reaction_type = 'power') AS power_count,
+           SUM(reaction_type = 'wow') AS wow_count,
+           COUNT(*) AS reaction_count
+         FROM blog_post_reactions
+         GROUP BY post_id
+       ) r ON r.post_id = bp.id
        LEFT JOIN (
          SELECT post_id, COUNT(*) AS view_count
          FROM blog_post_views
@@ -10045,6 +10157,9 @@ router.get('/blogs', async (req, res) => {
            AND (cu.banned_until IS NULL OR cu.banned_until < NOW())
          GROUP BY c.post_id
        ) c ON c.post_id = bp.id
+       LEFT JOIN blog_post_reactions ur
+         ON ur.post_id = bp.id
+        AND ur.user_id = ?
        LEFT JOIN blog_post_likes ul
          ON ul.post_id = bp.id
         AND ul.user_id = ?
@@ -10330,6 +10445,7 @@ router.delete('/blogs/:postId', async (req, res) => {
     }
 
     await conn.execute('DELETE FROM blog_post_comments WHERE post_id = ?', [postId]);
+    await conn.execute('DELETE FROM blog_post_reactions WHERE post_id = ?', [postId]);
     await conn.execute('DELETE FROM blog_post_likes WHERE post_id = ?', [postId]);
     await conn.execute('DELETE FROM blog_post_views WHERE post_id = ?', [postId]);
     await conn.execute('DELETE FROM blog_posts WHERE id = ?', [postId]);
@@ -10372,39 +10488,68 @@ router.post('/blogs/:postId/like/toggle', async (req, res) => {
     let liked = false;
     let createdLike = false;
 
-    if (likeOnly) {
-      const [insertResult] = await pool.execute(
-        `INSERT IGNORE INTO blog_post_likes (post_id, user_id)
-         VALUES (?, ?)`,
-        [postId, userId],
-      );
-      liked = true;
-      createdLike = Number(insertResult?.affectedRows || 0) > 0;
-    } else {
-      const [existingLikeRows] = await pool.execute(
-        `SELECT 1
-         FROM blog_post_likes
-         WHERE post_id = ? AND user_id = ?
-         LIMIT 1`,
-        [postId, userId],
-      );
+    const [existingReactionRows] = await pool.execute(
+      `SELECT reaction_type
+       FROM blog_post_reactions
+       WHERE post_id = ? AND user_id = ?
+       LIMIT 1`,
+      [postId, userId],
+    );
+    const existingReaction = normalizeBlogReactionType(existingReactionRows[0]?.reaction_type);
 
-      if (existingLikeRows.length) {
+    const [existingLikeRows] = await pool.execute(
+      `SELECT 1
+       FROM blog_post_likes
+       WHERE post_id = ? AND user_id = ?
+       LIMIT 1`,
+      [postId, userId],
+    );
+    const hasLegacyLike = existingLikeRows.length > 0;
+
+    if (likeOnly) {
+      if (existingReaction || hasLegacyLike) {
+        liked = true;
+      } else {
+        await pool.execute(
+          `INSERT INTO blog_post_reactions (post_id, user_id, reaction_type)
+           VALUES (?, ?, 'love')
+           ON DUPLICATE KEY UPDATE reaction_type = VALUES(reaction_type), updated_at = NOW()`,
+          [postId, userId],
+        );
         await pool.execute(
           `DELETE FROM blog_post_likes
            WHERE post_id = ? AND user_id = ?`,
           [postId, userId],
         );
-        liked = false;
-      } else {
-        await pool.execute(
-          `INSERT INTO blog_post_likes (post_id, user_id)
-           VALUES (?, ?)`,
-          [postId, userId],
-        );
         liked = true;
         createdLike = true;
       }
+    } else if (existingReaction || hasLegacyLike) {
+      await pool.execute(
+        `DELETE FROM blog_post_reactions
+         WHERE post_id = ? AND user_id = ?`,
+        [postId, userId],
+      );
+      await pool.execute(
+        `DELETE FROM blog_post_likes
+         WHERE post_id = ? AND user_id = ?`,
+        [postId, userId],
+      );
+      liked = false;
+    } else {
+      await pool.execute(
+        `INSERT INTO blog_post_reactions (post_id, user_id, reaction_type)
+         VALUES (?, ?, 'love')
+         ON DUPLICATE KEY UPDATE reaction_type = VALUES(reaction_type), updated_at = NOW()`,
+        [postId, userId],
+      );
+      await pool.execute(
+        `DELETE FROM blog_post_likes
+         WHERE post_id = ? AND user_id = ?`,
+        [postId, userId],
+      );
+      liked = true;
+      createdLike = true;
     }
 
     const postOwnerId = Number(postRows[0]?.user_id || 0);
@@ -10429,20 +10574,132 @@ router.post('/blogs/:postId/like/toggle', async (req, res) => {
       }
     }
 
-    const [likeCountRows] = await pool.execute(
-      `SELECT COUNT(*) AS likes_count
-       FROM blog_post_likes
-       WHERE post_id = ?`,
-      [postId],
-    );
+    const summary = await getBlogReactionSummary(postId, userId);
 
     return res.json({
       postId,
       liked,
-      likesCount: Number(likeCountRows[0]?.likes_count || 0),
+      likesCount: summary.total,
+      reactionsTotal: summary.total,
+      reactionType: summary.reactionByViewer,
+      reactions: {
+        love: summary.loveCount,
+        fire: summary.fireCount,
+        power: summary.powerCount,
+        wow: summary.wowCount,
+      },
     });
   } catch (error) {
     return res.status(500).json({ error: error.message || 'Failed to update post like' });
+  }
+});
+
+router.post('/blogs/:postId/reaction', async (req, res) => {
+  try {
+    const postId = toPositiveInteger(req.params?.postId);
+    const userId = toPositiveInteger(req.body?.userId);
+    const hasReactionType = Object.prototype.hasOwnProperty.call(req.body || {}, 'reactionType');
+    const rawReactionType = req.body?.reactionType;
+    const reactionType = normalizeBlogReactionType(rawReactionType);
+
+    if (!postId) {
+      return res.status(400).json({ error: 'postId must be a positive integer' });
+    }
+    if (!userId) {
+      return res.status(400).json({ error: 'userId must be a positive integer' });
+    }
+    if (hasReactionType && rawReactionType != null && String(rawReactionType).trim() && !reactionType) {
+      return res.status(400).json({ error: 'reactionType is invalid' });
+    }
+
+    const [postRows] = await pool.execute(
+      `SELECT id, user_id
+       FROM blog_posts
+       WHERE id = ?
+       LIMIT 1`,
+      [postId],
+    );
+    if (!postRows.length) {
+      return res.status(404).json({ error: 'Post not found' });
+    }
+
+    const [existingReactionRows] = await pool.execute(
+      `SELECT reaction_type
+       FROM blog_post_reactions
+       WHERE post_id = ? AND user_id = ?
+       LIMIT 1`,
+      [postId, userId],
+    );
+    const existingReaction = normalizeBlogReactionType(existingReactionRows[0]?.reaction_type);
+
+    let createdReaction = false;
+    let finalReaction = reactionType;
+
+    if (!reactionType || reactionType === existingReaction) {
+      await pool.execute(
+        `DELETE FROM blog_post_reactions
+         WHERE post_id = ? AND user_id = ?`,
+        [postId, userId],
+      );
+      await pool.execute(
+        `DELETE FROM blog_post_likes
+         WHERE post_id = ? AND user_id = ?`,
+        [postId, userId],
+      );
+      finalReaction = null;
+    } else {
+      const [result] = await pool.execute(
+        `INSERT INTO blog_post_reactions (post_id, user_id, reaction_type)
+         VALUES (?, ?, ?)
+         ON DUPLICATE KEY UPDATE reaction_type = VALUES(reaction_type), updated_at = NOW()`,
+        [postId, userId, reactionType],
+      );
+      await pool.execute(
+        `DELETE FROM blog_post_likes
+         WHERE post_id = ? AND user_id = ?`,
+        [postId, userId],
+      );
+      createdReaction = Number(result?.affectedRows || 0) > 0 && !existingReaction;
+      finalReaction = reactionType;
+    }
+
+    const postOwnerId = Number(postRows[0]?.user_id || 0);
+    if (createdReaction && postOwnerId && postOwnerId !== userId) {
+      try {
+        const [actorRows] = await pool.execute(
+          `SELECT name
+           FROM users
+           WHERE id = ?
+           LIMIT 1`,
+          [userId],
+        );
+        const actorName = String(actorRows[0]?.name || '').trim() || 'Someone';
+
+        await pool.execute(
+          `INSERT INTO notifications (user_id, type, title, message, data)
+           VALUES (?, 'blog_like', 'New reaction on your post', ?, JSON_OBJECT('postId', ?, 'actorUserId', ?, 'event', 'reaction', 'reaction', ?))`,
+          [postOwnerId, `${actorName} reacted to your post.`, postId, userId, finalReaction || 'love'],
+        );
+      } catch (notifyError) {
+        console.warn('Blog reaction notification insert skipped:', notifyError?.message || notifyError);
+      }
+    }
+
+    const summary = await getBlogReactionSummary(postId, userId);
+
+    return res.json({
+      postId,
+      reactionType: summary.reactionByViewer,
+      reactionsTotal: summary.total,
+      reactions: {
+        love: summary.loveCount,
+        fire: summary.fireCount,
+        power: summary.powerCount,
+        wow: summary.wowCount,
+      },
+    });
+  } catch (error) {
+    return res.status(500).json({ error: error.message || 'Failed to update post reaction' });
   }
 });
 

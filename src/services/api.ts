@@ -392,6 +392,21 @@ export const api = {
     return parseApiResponse(res, 'Failed to update blog like');
   },
 
+  setBlogReaction: async (
+    postId: number,
+    input: {
+      userId: number;
+      reactionType?: string | null;
+    },
+  ) => {
+    const res = await fetch(`${API_URL}/blogs/${postId}/reaction`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(input),
+    });
+    return parseApiResponse(res, 'Failed to update blog reaction');
+  },
+
   trackBlogView: async (postId: number, userId: number) => {
     const res = await fetch(`${API_URL}/blogs/${postId}/view`, {
       method: 'POST',

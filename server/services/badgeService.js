@@ -711,8 +711,14 @@ export const collectUserProgressMetrics = async (userId) => {
     ),
     safeScalar(
       `SELECT COUNT(*) AS value
-       FROM blog_post_likes bpl
-       JOIN blog_posts bp ON bp.id = bpl.post_id
+       FROM (
+         SELECT post_id, user_id
+         FROM blog_post_likes
+         UNION
+         SELECT post_id, user_id
+         FROM blog_post_reactions
+       ) br
+       JOIN blog_posts bp ON bp.id = br.post_id
        WHERE bp.user_id = ?`,
       [normalizedUserId],
     ),
@@ -808,7 +814,13 @@ export const collectUserProgressMetrics = async (userId) => {
        FROM blog_posts bp
        LEFT JOIN (
          SELECT post_id, COUNT(*) AS like_count
-         FROM blog_post_likes
+         FROM (
+           SELECT post_id, user_id
+           FROM blog_post_likes
+           UNION
+           SELECT post_id, user_id
+           FROM blog_post_reactions
+         ) br
          GROUP BY post_id
        ) post_likes ON post_likes.post_id = bp.id
        WHERE bp.user_id = ?`,
@@ -897,8 +909,13 @@ export const collectUserProgressMetrics = async (userId) => {
          FROM blog_post_likes bpl
          JOIN blog_posts bp ON bp.id = bpl.post_id
          WHERE bpl.user_id = ?
+         UNION ALL
+         SELECT DATE(bpr.created_at) AS activity_day
+         FROM blog_post_reactions bpr
+         JOIN blog_posts bp ON bp.id = bpr.post_id
+         WHERE bpr.user_id = ?
        ) x`,
-      [normalizedUserId, normalizedUserId, normalizedUserId],
+      [normalizedUserId, normalizedUserId, normalizedUserId, normalizedUserId],
     ),
     safeRows(
       `SELECT protein_intake

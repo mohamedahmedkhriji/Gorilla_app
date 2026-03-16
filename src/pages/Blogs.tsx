@@ -21,6 +21,8 @@ import { AppLanguage, getActiveLanguage, getStoredLanguage } from '../services/l
 
 type PostCategory = 'Training' | 'Nutrition' | 'Recovery' | 'Mindset';
 type FeedCategory = 'All' | 'Women' | PostCategory;
+type ReactionType = 'love' | 'fire' | 'power' | 'wow';
+type ReactionCounts = Record<ReactionType, number>;
 
 type FeedCursor = {
   cursorCreatedAt: string;
@@ -42,8 +44,10 @@ type Post = {
   mediaAlt: string;
   createdAt: string | null;
   likedByMe: boolean;
+  reactionByMe: ReactionType | null;
   views: number;
   likes: number;
+  reactions: ReactionCounts;
   comments: number;
 };
 
@@ -63,6 +67,13 @@ const CATEGORY_OPTIONS: PostCategory[] = ['Training', 'Nutrition', 'Recovery', '
 const FEED_PAGE_LIMIT = 20;
 const DESCRIPTION_MAX_LENGTH = 5000;
 const MEDIA_PAYLOAD_LIMIT = 8000000;
+
+const REACTION_ASSETS: Record<ReactionType, string> = {
+  love: new URL('../../assets/reaction/love it.png', import.meta.url).href,
+  fire: new URL('../../assets/reaction/fire.png', import.meta.url).href,
+  power: new URL('../../assets/reaction/power.png', import.meta.url).href,
+  wow: new URL('../../assets/reaction/wow.png', import.meta.url).href,
+};
 
 const BLOGS_I18N = {
   en: {
@@ -95,6 +106,13 @@ const BLOGS_I18N = {
     deleteCancel: 'Cancel',
     deleteConfirmButton: 'Delete',
     sharePostAria: 'Share post',
+    reactToPost: 'React to post',
+    reactions: {
+      love: 'Love it',
+      fire: 'Fire',
+      power: 'Power',
+      wow: 'Wow',
+    },
     shareTitle: 'Share Post',
     closeShare: 'Close share modal',
     shareEmpty: 'Choose where you want to share this post.',
@@ -135,7 +153,7 @@ const BLOGS_I18N = {
     errorMissingUser: 'Missing logged-in user id. Please login again.',
     errorLoadFeed: 'Failed to load blog feed',
     errorLoadMore: 'Failed to load more posts',
-    errorUpdateLike: 'Failed to update like',
+    errorUpdateLike: 'Failed to update reaction',
     errorLoadComments: 'Failed to load comments',
     errorPostComment: 'Failed to post comment',
     errorReadFile: 'Failed to read uploaded file.',
@@ -184,6 +202,13 @@ const BLOGS_I18N = {
     deleteCancel: 'إلغاء',
     deleteConfirmButton: 'حذف',
     sharePostAria: 'مشاركة المنشور',
+    reactToPost: 'التفاعل مع المنشور',
+    reactions: {
+      love: 'أعجبني',
+      fire: 'ناري',
+      power: 'قوة',
+      wow: 'واو',
+    },
     shareTitle: 'مشاركة المنشور',
     closeShare: 'إغلاق نافذة المشاركة',
     shareEmpty: 'اختر المكان الذي تريد مشاركة المنشور فيه.',
@@ -224,7 +249,7 @@ const BLOGS_I18N = {
     errorMissingUser: 'معرّف المستخدم غير موجود. يرجى تسجيل الدخول مرة أخرى.',
     errorLoadFeed: 'تعذر تحميل خلاصة المدونة',
     errorLoadMore: 'تعذر تحميل المزيد من المنشورات',
-    errorUpdateLike: 'تعذر تحديث الإعجاب',
+    errorUpdateLike: 'تعذر تحديث التفاعل',
     errorLoadComments: 'تعذر تحميل التعليقات',
     errorPostComment: 'تعذر نشر التعليق',
     errorReadFile: 'تعذر قراءة الملف المرفوع.',
@@ -283,6 +308,14 @@ const getPostedAgo = (createdAt: string | null, copy: BlogCopy, short = false) =
   return short ? copy.postedDaysShort(diffDays) : copy.postedDays(diffDays);
 };
 
+const normalizeReactionType = (value: unknown): ReactionType | null => {
+  const normalized = String(value || '').trim().toLowerCase();
+  if (normalized === 'love' || normalized === 'fire' || normalized === 'power' || normalized === 'wow') {
+    return normalized as ReactionType;
+  }
+  return null;
+};
+
 const mapPost = (raw: Record<string, unknown>): Post => ({
   id: Number(raw.id || 0),
   userId: Number(raw.userId || 0),
@@ -297,9 +330,20 @@ const mapPost = (raw: Record<string, unknown>): Post => ({
   mediaUrl: String(raw.mediaUrl || ''),
   mediaAlt: typeof raw.mediaAlt === 'string' && raw.mediaAlt.trim() ? String(raw.mediaAlt) : '',
   createdAt: typeof raw.createdAt === 'string' ? raw.createdAt : null,
-  likedByMe: Boolean(raw.likedByMe),
+  reactionByMe: normalizeReactionType(raw.reactionByMe),
+  likedByMe: Boolean(raw.likedByMe) || normalizeReactionType(raw.reactionByMe) !== null,
   views: toCount((raw.metrics as Record<string, unknown> | undefined)?.views),
-  likes: toCount((raw.metrics as Record<string, unknown> | undefined)?.likes),
+  likes: toCount((raw.metrics as Record<string, unknown> | undefined)?.reactionsTotal)
+    || toCount((raw.metrics as Record<string, unknown> | undefined)?.likes),
+  reactions: (() => {
+    const reactions = (raw.metrics as Record<string, unknown> | undefined)?.reactions as Record<string, unknown> | undefined;
+    return {
+      love: toCount(reactions?.love),
+      fire: toCount(reactions?.fire),
+      power: toCount(reactions?.power),
+      wow: toCount(reactions?.wow),
+    };
+  })(),
   comments: toCount((raw.metrics as Record<string, unknown> | undefined)?.comments),
 });
 
@@ -420,6 +464,7 @@ export function Blogs() {
   const [newCommentText, setNewCommentText] = useState('');
   const [commentError, setCommentError] = useState('');
   const [openPostMenuId, setOpenPostMenuId] = useState<number | null>(null);
+  const [openReactionPostId, setOpenReactionPostId] = useState<number | null>(null);
   const [pendingDeletePostId, setPendingDeletePostId] = useState<number | null>(null);
   const [activeSharePostId, setActiveSharePostId] = useState<number | null>(null);
   const [shareFeedback, setShareFeedback] = useState('');
@@ -431,6 +476,15 @@ export function Blogs() {
   const getAuthorName = useCallback(
     (name: string) => name || copy.fallbackUser,
     [copy],
+  );
+  const reactionOptions = useMemo(
+    () => ([
+      { type: 'love' as ReactionType, label: copy.reactions.love, image: REACTION_ASSETS.love },
+      { type: 'fire' as ReactionType, label: copy.reactions.fire, image: REACTION_ASSETS.fire },
+      { type: 'power' as ReactionType, label: copy.reactions.power, image: REACTION_ASSETS.power },
+      { type: 'wow' as ReactionType, label: copy.reactions.wow, image: REACTION_ASSETS.wow },
+    ]),
+    [copy.reactions.fire, copy.reactions.love, copy.reactions.power, copy.reactions.wow],
   );
   const primaryCategory = selectedCategories[0] || 'Recovery';
   const toggleCategorySelection = useCallback(
@@ -651,7 +705,9 @@ export function Blogs() {
     const onPointerDown = (event: PointerEvent) => {
       const target = event.target as HTMLElement | null;
       if (target?.closest('[data-post-menu-root="true"]')) return;
+      if (target?.closest('[data-reaction-menu-root="true"]')) return;
       setOpenPostMenuId(null);
+      setOpenReactionPostId(null);
     };
 
     document.addEventListener('pointerdown', onPointerDown);
@@ -687,14 +743,31 @@ export function Blogs() {
     if (post) void trackView(post.id);
   };
 
-  const toggleLike = async (postId: number, mode: 'toggle' | 'like' = 'toggle') => {
+  const setReaction = async (postId: number, reactionType: ReactionType | null) => {
     if (!userId) return;
 
     try {
-      const response = await api.toggleBlogLike(postId, { userId, mode });
-      const liked = Boolean(response?.liked);
-      const likesCount = toCount(response?.likesCount);
-      setPosts((prev) => prev.map((post) => (post.id === postId ? { ...post, likedByMe: liked, likes: likesCount } : post)));
+      const response = await api.setBlogReaction(postId, { userId, reactionType });
+      const nextReaction = normalizeReactionType(response?.reactionType);
+      const reactions = response?.reactions as Record<string, unknown> | undefined;
+      const reactionsTotal = toCount(response?.reactionsTotal ?? response?.likesCount);
+
+      setPosts((prev) => prev.map((post) => (
+        post.id === postId
+          ? {
+              ...post,
+              reactionByMe: nextReaction,
+              likedByMe: Boolean(nextReaction),
+              likes: reactionsTotal,
+              reactions: {
+                love: toCount(reactions?.love),
+                fire: toCount(reactions?.fire),
+                power: toCount(reactions?.power),
+                wow: toCount(reactions?.wow),
+              },
+            }
+          : post
+      )));
     } catch (err) {
       setError(err instanceof Error ? err.message : copy.errorUpdateLike);
     }
@@ -702,8 +775,9 @@ export function Blogs() {
 
   const handleDoubleLike = (postId: number) => {
     const post = posts.find((p) => p.id === postId);
-    if (!post || post.likedByMe) return;
-    void toggleLike(postId, 'like');
+    if (!post) return;
+    if (post.reactionByMe) return;
+    void setReaction(postId, 'love');
   };
 
   const loadComments = useCallback(async (postId: number) => {
@@ -986,6 +1060,11 @@ export function Blogs() {
     if (post.avatarUrl) return post.avatarUrl;
     return DEFAULT_AVATAR;
   };
+  const resolveCommentAvatar = (comment: BlogComment) => {
+    if (comment.userId === userId && userProfileImage) return userProfileImage;
+    if (comment.avatarUrl) return comment.avatarUrl;
+    return DEFAULT_AVATAR;
+  };
   const canPublish = Boolean(newDescription.trim()) && Boolean(newMediaUrl) && !isPublishing;
 
   return (
@@ -1088,7 +1167,7 @@ export function Blogs() {
           visiblePosts.map((post, index) => (
             <article
               key={post.id}
-              className="cursor-pointer rounded-[24px] border border-[#E1E5EE] bg-white p-3.5 shadow-[0_12px_26px_rgba(15,23,42,0.08)]"
+              className="cursor-pointer overflow-hidden rounded-2xl border border-[#E5E7EB] bg-white"
               onClick={(event) => {
                 const target = event.target as HTMLElement;
                 if (target.closest('[data-no-open="true"]')) return;
@@ -1096,15 +1175,15 @@ export function Blogs() {
               }}
               onDoubleClick={() => handleDoubleLike(post.id)}
             >
-              <header className="flex min-w-0 items-center gap-3 px-1 pt-1">
+              <header className="flex min-w-0 items-center gap-3 px-3 pb-2 pt-3">
                 <img
                   src={resolvePostAvatar(post)}
                   alt={copy.avatarAlt(getAuthorName(post.authorName))}
-                  className="h-11 w-11 rounded-full border border-[#D9DDE7] object-cover"
+                  className="h-10 w-10 rounded-full border border-[#D9DDE7] object-cover"
                 />
                 <div className="min-w-0 flex-1">
-                  <h3 className="truncate text-[17px] font-semibold leading-none text-[#111827]">{getAuthorName(post.authorName)}</h3>
-                  <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-[#6B7280]">
+                  <h3 className="truncate text-[15px] font-semibold leading-none text-[#111827]">{getAuthorName(post.authorName)}</h3>
+                  <div className="mt-1 flex flex-wrap items-center gap-2 text-[11px] text-[#6B7280]">
                     <span>{getPostedAgo(post.createdAt, copy, true)}</span>
                     {post.womenOnly && (
                       <span className="rounded-full bg-[#FCE7F3] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-[#BE185D]">
@@ -1158,13 +1237,13 @@ export function Blogs() {
                 type="button"
                 data-no-open="true"
                 onClick={() => openReelAt(index)}
-                className="group relative mt-3 w-full cursor-pointer overflow-hidden rounded-[18px] border border-[#D9DDE7] bg-[#DCE1EE]"
-                style={{ aspectRatio: '4 / 5' }}
+                className="group relative w-full cursor-pointer overflow-hidden bg-[#DCE1EE]"
+                style={{ aspectRatio: '1 / 1' }}
               >
                 {post.mediaType === 'video' ? (
                   <video
                     src={post.mediaUrl}
-                    className="h-full w-full object-cover transition-all duration-300 group-hover:scale-[1.02]"
+                    className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.01]"
                     muted
                     playsInline
                     preload="metadata"
@@ -1173,62 +1252,102 @@ export function Blogs() {
                   <img
                     src={post.mediaUrl}
                     alt={post.mediaAlt || copy.mediaAlt}
-                    className="h-full w-full object-cover transition-all duration-300 group-hover:scale-[1.02]"
+                    className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.01]"
                     loading="lazy"
                   />
                 )}
               </button>
 
-              {post.description.trim() && (
-                <div className="mt-3 px-1 text-sm leading-6 text-[#111827]">{renderDescription(post.description)}</div>
-              )}
+              <footer className="px-3 pb-3 pt-2 space-y-2">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-4 text-[#111827]">
+                    <div className="relative" data-no-open="true" data-reaction-menu-root="true">
+                      <div className="flex items-center gap-2 text-[15px]">
+                        <button
+                          type="button"
+                          data-no-open="true"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            setOpenReactionPostId((prev) => (prev === post.id ? null : post.id));
+                          }}
+                          className="flex h-8 w-8 items-center justify-center rounded-full hover:bg-[#F3F4F6]"
+                          aria-label={copy.reactToPost}
+                        >
+                          {post.reactionByMe ? (
+                            <img
+                              src={REACTION_ASSETS[post.reactionByMe]}
+                              alt={copy.reactions[post.reactionByMe]}
+                              className="h-[18px] w-[18px]"
+                            />
+                          ) : (
+                            <Heart size={18} />
+                          )}
+                        </button>
+                        <span className="font-semibold">{formatCount(post.likes)}</span>
+                      </div>
 
-              <footer className="mt-3 flex items-center justify-between px-1 pb-1">
-                <div className="flex items-center gap-4">
-                  <div className="inline-flex items-center gap-1.5 text-xs text-[#6B7280]">
-                    <Eye size={16} />
-                    <span>{formatCount(post.views)}</span>
+                      {openReactionPostId === post.id && (
+                        <div
+                          className="absolute -top-14 left-0 z-20 flex items-center gap-1 rounded-full border border-[#D9DDE7] bg-white px-2 py-1 shadow-lg"
+                          data-no-open="true"
+                        >
+                          {reactionOptions.map((reaction) => {
+                            const isActive = post.reactionByMe === reaction.type;
+                            return (
+                              <button
+                                key={reaction.type}
+                                type="button"
+                                data-no-open="true"
+                                onClick={(event) => {
+                                  event.stopPropagation();
+                                  const nextReaction = isActive ? null : reaction.type;
+                                  void setReaction(post.id, nextReaction);
+                                  setOpenReactionPostId(null);
+                                }}
+                                className={`flex h-9 w-9 items-center justify-center rounded-full ${isActive ? 'bg-[#EEF1F7]' : 'hover:bg-[#F3F4F6]'}`}
+                                aria-label={reaction.label}
+                              >
+                                <img src={reaction.image} alt={reaction.label} className="h-6 w-6" />
+                              </button>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+
+                    <button
+                      type="button"
+                      data-no-open="true"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        openComments(post.id);
+                      }}
+                      className="flex h-8 w-8 items-center justify-center rounded-full hover:bg-[#F3F4F6]"
+                    >
+                      <MessageCircle size={18} />
+                    </button>
+                    <button
+                      type="button"
+                      data-no-open="true"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        openShareModal(post.id);
+                      }}
+                      className="flex h-8 w-8 items-center justify-center rounded-full hover:bg-[#F3F4F6]"
+                      aria-label={copy.sharePostAria}
+                    >
+                      <Send size={18} />
+                    </button>
                   </div>
-                  <button
-                    type="button"
-                    data-no-open="true"
-                    onClick={() => {
-                      void toggleLike(post.id, 'toggle');
-                    }}
-                    className="inline-flex items-center gap-2 text-sm text-[#6B7280]"
-                  >
-                    <Heart size={17} className={post.likedByMe ? 'fill-rose-500 text-rose-500' : ''} />
-                    <span className="font-semibold text-[#111827]">{formatCount(post.likes)}</span>
-                  </button>
 
-                  <button
-                    type="button"
-                    data-no-open="true"
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      openComments(post.id);
-                    }}
-                    className="inline-flex items-center gap-2 text-sm text-[#6B7280]"
-                  >
-                    <MessageCircle size={17} />
-                    <span className="font-semibold text-[#111827]">{formatCount(post.comments)}</span>
-                  </button>
                 </div>
 
-                <div className="flex items-center gap-1 text-[#6B7280]">
-                  <button
-                    type="button"
-                    data-no-open="true"
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      openShareModal(post.id);
-                    }}
-                    className="flex h-8 w-8 items-center justify-center rounded-full hover:bg-[#EEF1F7]"
-                    aria-label={copy.sharePostAria}
-                  >
-                    <Send size={16} />
-                  </button>
-                </div>
+                {post.description.trim() && (
+                  <div className="text-sm leading-5 text-[#111827]">
+                    <span className="font-semibold">{getAuthorName(post.authorName)}</span>
+                    <span className="ml-2">{renderDescription(post.description)}</span>
+                  </div>
+                )}
               </footer>
             </article>
           ))
@@ -1368,10 +1487,59 @@ export function Blogs() {
                       <Eye size={16} />
                       <span>{formatCount(post.views)}</span>
                     </div>
-                    <button type="button" onClick={() => { void toggleLike(post.id, 'toggle'); }} className="inline-flex items-center gap-1.5 text-xs">
-                      <Heart size={16} className={post.likedByMe ? 'text-rose-400 fill-rose-400' : ''} />
-                      <span>{formatCount(post.likes)}</span>
-                    </button>
+                    <div className="relative" data-no-open="true" data-reaction-menu-root="true">
+                      <div className="flex items-center gap-1.5 text-xs">
+                        <button
+                          type="button"
+                          data-no-open="true"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            setOpenReactionPostId((prev) => (prev === post.id ? null : post.id));
+                          }}
+                          className="flex h-7 w-7 items-center justify-center rounded-full hover:bg-white/10"
+                          aria-label={copy.reactToPost}
+                        >
+                          {post.reactionByMe ? (
+                            <img
+                              src={REACTION_ASSETS[post.reactionByMe]}
+                              alt={copy.reactions[post.reactionByMe]}
+                              className="h-[16px] w-[16px]"
+                            />
+                          ) : (
+                            <Heart size={16} />
+                          )}
+                        </button>
+                        <span>{formatCount(post.likes)}</span>
+                      </div>
+
+                      {openReactionPostId === post.id && (
+                        <div
+                          className="absolute -top-14 left-0 z-20 flex items-center gap-1 rounded-full border border-white/20 bg-black/80 px-2 py-1 shadow-lg backdrop-blur"
+                          data-no-open="true"
+                        >
+                          {reactionOptions.map((reaction) => {
+                            const isActive = post.reactionByMe === reaction.type;
+                            return (
+                              <button
+                                key={reaction.type}
+                                type="button"
+                                data-no-open="true"
+                                onClick={(event) => {
+                                  event.stopPropagation();
+                                  const nextReaction = isActive ? null : reaction.type;
+                                  void setReaction(post.id, nextReaction);
+                                  setOpenReactionPostId(null);
+                                }}
+                                className={`flex h-8 w-8 items-center justify-center rounded-full ${isActive ? 'bg-white/20' : 'hover:bg-white/10'}`}
+                                aria-label={reaction.label}
+                              >
+                                <img src={reaction.image} alt={reaction.label} className="h-5 w-5" />
+                              </button>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
                     <button type="button" onClick={() => openComments(post.id)} className="inline-flex items-center gap-1.5 text-xs">
                       <MessageCircle size={16} />
                       <span>{formatCount(post.comments)}</span>
@@ -1560,65 +1728,106 @@ export function Blogs() {
 
       {activeCommentsPost && (
         <div
-          className="fixed inset-0 z-[80] bg-black/80 p-4 flex items-end sm:items-center justify-center"
+          className="fixed inset-0 z-[80] bg-black/70 flex items-end sm:items-center justify-center p-0 sm:p-4"
           onClick={() => {
             setActiveCommentsPostId(null);
             setCommentError('');
           }}
         >
-          <div className="w-full max-w-md bg-card rounded-2xl border border-white/10 p-4" onClick={(event) => event.stopPropagation()}>
-            <div className="flex items-center justify-between mb-3">
-              <h3 className="text-base font-semibold text-white">{copy.commentsTitle}</h3>
-              <button
-                type="button"
-                onClick={() => {
-                  setActiveCommentsPostId(null);
-                  setCommentError('');
-                }}
-                className="w-8 h-8 rounded-full bg-white/10 text-[#FFFFFF] flex items-center justify-center"
-              >
-                <X size={16} className="text-[#FFFFFF]" />
-              </button>
+          <div
+            className="w-full max-w-md sm:max-w-lg bg-[#111316] text-white rounded-t-3xl sm:rounded-2xl border border-white/10 shadow-2xl"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="flex flex-col items-center px-4 pt-3">
+              <div className="h-1 w-12 rounded-full bg-white/20" />
+              <div className="mt-3 flex w-full items-center justify-between">
+                <div className="w-8" />
+                <h3 className="text-base font-semibold">{copy.commentsTitle}</h3>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setActiveCommentsPostId(null);
+                    setCommentError('');
+                  }}
+                  className="w-8 h-8 rounded-full bg-white/10 text-[#FFFFFF] flex items-center justify-center"
+                >
+                  <X size={16} className="text-[#FFFFFF]" />
+                </button>
+              </div>
             </div>
 
-            <div className="text-xs text-text-secondary mb-2">{copy.existingComments(formatCount(activeCommentsPost.comments))}</div>
+            <div className="px-4 pt-3 text-xs text-white/50">
+              {copy.existingComments(formatCount(activeCommentsPost.comments))}
+            </div>
 
-            <div className="max-h-52 overflow-y-auto space-y-2 pr-1">
+            <div className="max-h-[45vh] overflow-y-auto px-4 pb-3 pt-3 space-y-4">
               {commentsLoading ? (
-                <div className="text-sm text-text-secondary bg-white/5 rounded-lg px-3 py-2">{copy.loadingComments}</div>
+                <div className="text-sm text-white/60 bg-white/5 rounded-lg px-3 py-2">{copy.loadingComments}</div>
               ) : localComments.length === 0 ? (
-                <div className="text-sm text-text-secondary bg-white/5 rounded-lg px-3 py-2">{copy.noComments}</div>
+                <div className="text-sm text-white/60 bg-white/5 rounded-lg px-3 py-2">{copy.noComments}</div>
               ) : (
                 localComments.map((comment) => (
-                  <div key={comment.id} className="bg-white/5 rounded-lg px-3 py-2">
-                    <div className="flex items-center justify-between gap-2">
-                      <div className="text-sm font-semibold text-white">{getAuthorName(comment.authorName)}</div>
-                      <div className="text-[11px] text-text-secondary">{getPostedAgo(comment.createdAt, copy, true)}</div>
+                  <div key={comment.id} className="flex items-start gap-3">
+                    <img
+                      src={resolveCommentAvatar(comment)}
+                      alt={copy.avatarAlt(getAuthorName(comment.authorName))}
+                      className="h-9 w-9 rounded-full object-cover border border-white/10"
+                    />
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 text-sm">
+                        <span className="font-semibold">{getAuthorName(comment.authorName)}</span>
+                        <span className="text-[11px] text-white/50">{getPostedAgo(comment.createdAt, copy, true)}</span>
+                      </div>
+                      <div className="text-sm text-white/90 mt-1">{comment.text}</div>
+                      <button type="button" className="mt-1 text-[11px] text-white/50 hover:text-white/70">
+                        Reply
+                      </button>
                     </div>
-                    <div className="text-sm text-text-primary mt-1">{comment.text}</div>
+                    <button type="button" className="flex flex-col items-center text-white/40 hover:text-white/70">
+                      <Heart size={14} />
+                    </button>
                   </div>
                 ))
               )}
             </div>
 
-            <div className="mt-3 space-y-2">
-              <textarea
-                value={newCommentText}
-                onChange={(event) => setNewCommentText(event.target.value)}
-                placeholder={copy.addCommentPlaceholder}
-                rows={3}
-                className="w-full bg-background border border-white/10 rounded-xl px-3 py-2 text-white placeholder:text-text-secondary focus:outline-none focus:border-accent/60"
-              />
+            <div className="border-t border-white/10 px-4 py-3 space-y-2">
+              <div className="flex items-center gap-2">
+                <img
+                  src={userProfileImage || DEFAULT_AVATAR}
+                  alt={copy.avatarAlt(copy.fallbackUser)}
+                  className="h-8 w-8 rounded-full object-cover border border-white/10"
+                />
+                <div className="flex-1 flex items-center gap-2 rounded-full bg-white/10 px-4 py-2">
+                  <input
+                    value={newCommentText}
+                    onChange={(event) => setNewCommentText(event.target.value)}
+                    placeholder={copy.addCommentPlaceholder}
+                    className="flex-1 bg-transparent text-sm text-white placeholder:text-white/50 focus:outline-none"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => { void addComment(); }}
+                    className="text-white/70 hover:text-white"
+                    aria-label={copy.postComment}
+                  >
+                    <Send size={16} />
+                  </button>
+                </div>
+              </div>
 
               {commentError && <div className="text-sm text-red-300">{commentError}</div>}
 
-              <button
-                type="button"
-                onClick={() => { void addComment(); }}
-                className="w-full py-2.5 rounded-xl bg-accent text-black font-semibold hover:opacity-90 transition-opacity"
-              >
-                {copy.postComment}
-              </button>
+              <div className="flex items-center justify-between text-lg text-white/70">
+                <span>❤️</span>
+                <span>🙌</span>
+                <span>🔥</span>
+                <span>👏</span>
+                <span>🥺</span>
+                <span>😍</span>
+                <span>😮</span>
+                <span>😂</span>
+              </div>
             </div>
           </div>
         </div>
