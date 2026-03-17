@@ -6,6 +6,7 @@ import { AppLanguage, getActiveLanguage, getStoredLanguage } from '../../service
 
 interface FriendsCardProps {
   onClick: () => void;
+  coachmarkTargetId?: string;
 }
 
 interface FriendProfile {
@@ -47,7 +48,7 @@ const getActiveUserId = () => {
   }
 };
 
-export function FriendsCard({ onClick }: FriendsCardProps) {
+export function FriendsCard({ onClick, coachmarkTargetId }: FriendsCardProps) {
   const [friends, setFriends] = useState<FriendProfile[]>([]);
   const [language, setLanguage] = useState<AppLanguage>('en');
   const copy = FRIENDS_CARD_I18N[language] || FRIENDS_CARD_I18N.en;
@@ -109,7 +110,11 @@ export function FriendsCard({ onClick }: FriendsCardProps) {
       .toUpperCase();
 
   return (
-    <Card onClick={onClick} className="relative overflow-hidden p-4 flex flex-col justify-between h-full cursor-pointer border border-white/15 hover:border-accent/35 transition-colors group">
+    <Card
+      onClick={onClick}
+      coachmarkTargetId={coachmarkTargetId}
+      className="relative overflow-hidden p-4 flex flex-col justify-between h-full cursor-pointer border border-white/15 hover:border-accent/35 transition-colors group"
+    >
       <div
         className="absolute inset-0 bg-cover bg-center opacity-45 transition-transform duration-300 group-hover:scale-105"
         style={{ backgroundImage: `url(${emojiGymFriendsBg})` }}

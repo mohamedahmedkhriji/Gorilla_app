@@ -5,6 +5,7 @@ interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: 'primary' | 'secondary' | 'ghost';
   fullWidth?: boolean;
   isLoading?: boolean;
+  coachmarkTargetId?: string;
 }
 
 export function Button({
@@ -14,6 +15,7 @@ export function Button({
   isLoading = false,
   className = '',
   disabled,
+  coachmarkTargetId,
   ...props
 }: ButtonProps) {
   const baseStyles =
@@ -32,6 +34,7 @@ export function Button({
 
   return (
     <motion.button
+      data-coachmark-target={coachmarkTargetId}
       whileTap={{
         scale: 0.98,
       }}

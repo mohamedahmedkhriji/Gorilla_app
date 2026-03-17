@@ -374,7 +374,10 @@ export function ProfileScreen({ onNavigate, onLogout }: ProfileScreenProps) {
     <div className="space-y-6 pb-24">
       <div className="flex items-center gap-4 pt-4">
         <div className="relative">
-          <div className="w-20 h-20 rounded-full bg-white/10 flex items-center justify-center text-text-tertiary overflow-hidden">
+          <div
+            data-coachmark-target="profile_avatar_button"
+            className="w-20 h-20 rounded-full bg-white/10 flex items-center justify-center text-text-tertiary overflow-hidden"
+          >
             <button
               type="button"
               className="w-full h-full"
@@ -393,7 +396,10 @@ export function ProfileScreen({ onNavigate, onLogout }: ProfileScreenProps) {
               )}
             </button>
           </div>
-          <label className="absolute bottom-0 right-0 w-6 h-6 bg-accent rounded-full flex items-center justify-center cursor-pointer hover:bg-accent/80 transition-colors">
+          <label
+            data-coachmark-target="profile_avatar_upload_button"
+            className="absolute bottom-0 right-0 w-6 h-6 bg-accent rounded-full flex items-center justify-center cursor-pointer hover:bg-accent/80 transition-colors"
+          >
             <Camera size={12} className="text-white" />
             <input
               type="file"
@@ -411,13 +417,17 @@ export function ProfileScreen({ onNavigate, onLogout }: ProfileScreenProps) {
       </div>
 
       <div className="grid grid-cols-3 gap-3">
-        <div className="bg-card rounded-xl p-3 text-center border border-white/5">
+        <div
+          data-coachmark-target="profile_exercises_card"
+          className="bg-card rounded-xl p-3 text-center border border-white/5"
+        >
           <div className="text-xl font-bold text-white">{completedExercises ?? '-'}</div>
           <div className="text-[10px] text-text-secondary uppercase">
             {copy.exercises}
           </div>
         </div>
         <button
+          data-coachmark-target="profile_rank_card"
           type="button"
           onClick={() => onNavigate('rank')}
           className="bg-card rounded-xl p-3 text-center border border-white/5 hover:bg-white/5 transition-colors"
@@ -428,7 +438,10 @@ export function ProfileScreen({ onNavigate, onLogout }: ProfileScreenProps) {
           </div>
           <div className="text-[10px] text-text-tertiary mt-1">{copy.of} {Math.max(0, rankTotalMembers)}</div>
         </button>
-        <div className="bg-card rounded-xl p-3 text-center border border-white/5">
+        <div
+          data-coachmark-target="profile_days_left_card"
+          className="bg-card rounded-xl p-3 text-center border border-white/5"
+        >
           <div className="text-xl font-bold text-white">{Math.max(0, planDaysLeft)}</div>
           <div className="text-[10px] text-text-secondary uppercase">
             {copy.daysLeft}
@@ -438,12 +451,19 @@ export function ProfileScreen({ onNavigate, onLogout }: ProfileScreenProps) {
       </div>
 
       <div className="grid grid-cols-2 gap-4">
-        <FriendsCard onClick={() => onNavigate('friends')} />
-        <CoachCard onClick={() => onNavigate('coachList')} />
+        <FriendsCard
+          onClick={() => onNavigate('friends')}
+          coachmarkTargetId="profile_friends_card"
+        />
+        <CoachCard
+          onClick={() => onNavigate('coachList')}
+          coachmarkTargetId="profile_coach_card"
+        />
       </div>
 
       <div className="grid grid-cols-2 gap-4">
         <button
+          data-coachmark-target="profile_posts_card"
           type="button"
           onClick={() => onNavigate('posts')}
           className="surface-card rounded-2xl p-5 relative overflow-hidden p-4 flex flex-col justify-between h-full cursor-pointer border border-white/15 hover:border-emerald-400/35 transition-colors group text-left"
@@ -463,6 +483,7 @@ export function ProfileScreen({ onNavigate, onLogout }: ProfileScreenProps) {
         </button>
 
         <button
+          data-coachmark-target="profile_plan_builder_card"
           type="button"
           onClick={() => setIsPlanChoiceOpen(true)}
           className="surface-card rounded-2xl p-5 relative overflow-hidden p-4 flex flex-col justify-between h-full cursor-pointer border border-white/15 hover:border-accent/35 transition-colors group text-left"
@@ -483,6 +504,7 @@ export function ProfileScreen({ onNavigate, onLogout }: ProfileScreenProps) {
       </div>
 
       <button
+        data-coachmark-target="profile_logout_button"
         type="button"
         onClick={() => setIsLogoutOpen(true)}
         className="w-full p-4 rounded-2xl bg-red-500/10 text-red-500 font-marker flex items-center justify-center gap-2 hover:bg-red-500/20 transition-colors"

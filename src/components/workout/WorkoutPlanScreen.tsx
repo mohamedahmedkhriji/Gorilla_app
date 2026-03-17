@@ -529,6 +529,7 @@ export function WorkoutPlanScreen({
     <div className="flex items-center gap-2">
       {!isRestDayView && onMissDay && (
         <button
+          data-coachmark-target="workout_plan_miss_button"
           type="button"
           onClick={() => {
             setMissDayFeedback(null);
@@ -543,6 +544,7 @@ export function WorkoutPlanScreen({
       )}
 
       <button
+        data-coachmark-target="workout_plan_latest_summary_button"
         type="button"
         onClick={onOpenLatestSummary}
         className={`flex h-10 w-10 items-center justify-center rounded-xl border transition-colors ${
@@ -629,13 +631,18 @@ export function WorkoutPlanScreen({
         <Header
           title={headerTitle}
           onBack={onBack}
+          backButtonCoachmarkTargetId="workout_plan_back_button"
+          titleCoachmarkTargetId="workout_plan_day_title"
           rightElement={headerActions}
         />
       </div>
 
       <div className="mt-2 space-y-4 px-4 sm:px-6">
         {!isRestDayView && (
-          <div className="rounded-2xl border border-white/10 bg-card/60 px-4 py-3">
+          <div
+            className="rounded-2xl border border-white/10 bg-card/60 px-4 py-3"
+            data-coachmark-target="workout_plan_info_card"
+          >
             <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-text-tertiary">
               {copy.workout}
             </div>
@@ -645,7 +652,11 @@ export function WorkoutPlanScreen({
           </div>
         )}
         {!isRestDayView && (
-          <div className="space-y-3" data-no-translate="true">
+          <div
+            className="space-y-3"
+            data-no-translate="true"
+            data-coachmark-target="workout_plan_target_muscles"
+          >
             <div className="text-xs font-bold uppercase tracking-wider text-text-secondary">
               {copy.targetMuscles}
             </div>
@@ -687,6 +698,7 @@ export function WorkoutPlanScreen({
             {copy.exercisesCount(exercises.length)}
           </h3>
           <button
+            data-coachmark-target="workout_plan_add_exercise_button"
             type="button"
             onClick={openAddExerciseModal}
             disabled={isRestDayView}
@@ -717,6 +729,7 @@ export function WorkoutPlanScreen({
             return (
               <button
                 key={exercise.name || index}
+                data-coachmark-target={isNext || (!nextExercise && index === 0) ? 'workout_plan_first_exercise_card' : undefined}
                 type="button"
                 onClick={() => onExerciseClick(exercise.name)}
                 className={`w-full rounded-2xl border p-3 text-left transition-colors ${
@@ -786,6 +799,7 @@ export function WorkoutPlanScreen({
       {exercises.length > 0 && (
         <div className="sticky bottom-4 pt-2">
           <button
+            data-coachmark-target="workout_plan_start_button"
             type="button"
             onClick={() => nextExercise && onExerciseClick(nextExercise.name)}
             className="w-full rounded-2xl bg-accent px-5 py-4 text-sm font-bold uppercase tracking-[0.08em] text-black shadow-[0_10px_30px_rgba(191,255,0,0.22)] transition-colors hover:bg-[#aee600]"

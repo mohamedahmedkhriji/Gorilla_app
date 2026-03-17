@@ -75,7 +75,11 @@ const STRENGTH_CHART_I18N = {
   },
 } as const;
 
-export function StrengthChart() {
+interface StrengthChartProps {
+  coachmarkTargetId?: string;
+}
+
+export function StrengthChart({ coachmarkTargetId }: StrengthChartProps) {
   const [data, setData] = useState<StrengthProgressResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [language, setLanguage] = useState<AppLanguage>('en');
@@ -216,7 +220,7 @@ export function StrengthChart() {
   const currentText = formatKg(data?.summary?.currentAvgE1RM);
 
   return (
-    <Card className="relative overflow-hidden p-6">
+    <Card coachmarkTargetId={coachmarkTargetId} className="relative overflow-hidden p-6">
       <div className="pointer-events-none absolute inset-x-0 top-0 h-20 bg-[radial-gradient(circle_at_top_left,rgba(var(--color-accent)/0.18),transparent_70%)]" />
       <div className="relative">
         <div className="mb-5 flex items-start justify-between gap-4">

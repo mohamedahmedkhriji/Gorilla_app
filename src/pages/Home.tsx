@@ -1,6 +1,7 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
 import { ArrowLeft, MoonStar } from 'lucide-react';
+import { CoachmarkOverlay, type CoachmarkStep } from '../components/coachmarks/CoachmarkOverlay';
 import { WorkoutCard } from '../components/dashboard/WorkoutCard';
 import { RecoveryIndicator } from '../components/dashboard/RecoveryIndicator';
 import { RankDisplay } from '../components/dashboard/RankDisplay';
@@ -20,6 +21,14 @@ import { ExerciseVideoScreen } from '../components/workout/ExerciseVideoScreen';
 import { MuscleRecoveryScreen } from '../components/progress/MuscleRecoveryScreen';
 import { RankingsRewardsScreen } from '../components/profile/RankingsRewardsScreen';
 import { api } from '../services/api';
+import {
+  getCoachmarkUserScope,
+  HOME_COACHMARK_TOUR_ID,
+  HOME_COACHMARK_VERSION,
+  incrementCoachmarkVisitCount,
+  patchCoachmarkProgress,
+  readCoachmarkProgress,
+} from '../services/coachmarks';
 import { getRankBadgeImage } from '../services/rankTheme';
 import { emojiComingSoon, emojiMyNutrition, emojiProfile, emojiRightArrow, emojiShop } from '../services/emojiTheme';
 import { getActiveLanguage, getStoredLanguage } from '../services/language';
@@ -327,6 +336,10 @@ const loadTodayExerciseSnapshot = (keys: { workoutDate: string; exerciseSnapshot
   }
 };
 
+const hasCoachmarkTargets = (steps: CoachmarkStep[]) =>
+  typeof document !== 'undefined'
+  && steps.every((step) => Boolean(document.querySelector(`[data-coachmark-target="${step.targetId}"]`)));
+
 type HomeView =
 'main' |
 'friends' |
@@ -379,6 +392,9 @@ export function Home({ onNavigate, resetSignal = 0 }: HomeProps) {
   const [storedTodayExerciseSnapshot, setStoredTodayExerciseSnapshot] = useState<any[]>(
     () => loadTodayExerciseSnapshot(workoutStorageKeys),
   );
+  const [coachmarkMode, setCoachmarkMode] = useState<'main' | 'nutrition' | 'education' | null>(null);
+  const [coachmarkStepIndex, setCoachmarkStepIndex] = useState(0);
+  const hasTrackedHomeVisitRef = useRef(false);
 
   useScrollToTopOnChange([view, resetSignal]);
   const todayWorkoutExercises = useMemo(() => {
@@ -406,6 +422,27 @@ export function Home({ onNavigate, resetSignal = 0 }: HomeProps) {
   const rankName = String(programProgress?.rank || 'Bronze');
   const rankBadgeImage = getRankBadgeImage(rankName);
   const isArabic = getActiveLanguage(getStoredLanguage()) === 'ar';
+  const coachmarkScope = getCoachmarkUserScope(currentUser);
+  const coachmarkDefaultSeenSteps = useMemo(
+    () => ({
+      today_plan: false,
+      recovery: false,
+      progress: false,
+      nutrition: false,
+      exercises: false,
+      books: false,
+    }),
+    [],
+  );
+  const coachmarkStorageOptions = useMemo(
+    () => ({
+      tourId: HOME_COACHMARK_TOUR_ID,
+      version: HOME_COACHMARK_VERSION,
+      userScope: coachmarkScope,
+      defaultSeenSteps: coachmarkDefaultSeenSteps,
+    }),
+    [coachmarkDefaultSeenSteps, coachmarkScope],
+  );
   const homeCopy = {
     tagline: isArabic ? 'جاهز لتحقيق أهدافك اليوم؟' : 'Ready to crush your goals today?',
     rank: isArabic ? 'الرتبة' : 'Rank',
@@ -415,6 +452,125 @@ export function Home({ onNavigate, resetSignal = 0 }: HomeProps) {
     ok: isArabic ? 'حسنًا' : 'OK',
     books: isArabic ? 'الكتب' : 'Books',
   };
+  const coachmarkCopy = useMemo(
+    () => ({
+      next: isArabic ? '??????' : 'Next',
+      skip: isArabic ? '????' : 'Skip',
+      finish: isArabic ? '?????' : 'Got it',
+      startHereTitle: isArabic ? '???? ?? ???' : 'Start here',
+      startHereBody: isArabic
+        ? '?????? ?????? ????? ????. ???? ??? ???? ?????.'
+        : 'Your personalized workout is ready. Tap here to begin today\'s session.',
+      recoveryTitle: isArabic ? '????? ?????' : 'Train smarter',
+      recoveryBody: isArabic
+        ? '???? ??????? ??? ?????? ???? ??? ?????? ???????.'
+        : 'Recovery shows how ready your body is before your next session.',
+      progressTitle: isArabic ? '???? ?????' : 'See your growth',
+      progressBody: isArabic
+        ? '???? ??????? ?????? ????? ???? ?? ???.'
+        : 'Track your consistency, performance and strength improvements here.',
+      nutritionTitle: isArabic ? '???? ??????' : 'Fuel your results',
+      nutritionBody: isArabic
+        ? '???? ??? ??????? ??????? ????????? ??? ????? ????.'
+        : 'Get guidance for calories and protein based on your goal.',
+      exercisesTitle: isArabic ? '????? ???????' : 'Learn each movement',
+      exercisesBody: isArabic
+        ? '?????? ??? ??????? ???????? ???????? ??????? ??????? ????? ??? ?? ????.'
+        : 'Use this card to browse exercises and watch how each movement should be performed.',
+      booksTitle: isArabic ? '????? ??????' : 'Build your knowledge',
+      booksBody: isArabic
+        ? '??? ??????? ?????? ??????? ???????? ?????? ???? ?????? ???? ??????? ???? ????.'
+        : 'This card is for educational guides and books that help you understand your training better.',
+    }),
+    [isArabic],
+  );
+  const homeCoachmarkSteps = useMemo<CoachmarkStep[]>(
+    () => [
+      {
+        id: 'today_plan',
+        targetId: 'home_today_plan_card',
+        title: coachmarkCopy.startHereTitle,
+        body: coachmarkCopy.startHereBody,
+        placement: 'bottom',
+        shape: 'rounded',
+        padding: 8,
+        cornerRadius: 24,
+        targetActionLabel: coachmarkCopy.startHereTitle,
+      },
+      {
+        id: 'recovery',
+        targetId: 'home_recovery_card',
+        title: coachmarkCopy.recoveryTitle,
+        body: coachmarkCopy.recoveryBody,
+        placement: 'top',
+        shape: 'rounded',
+        padding: 8,
+        cornerRadius: 24,
+      },
+      {
+        id: 'progress',
+        targetId: 'nav_progress',
+        title: coachmarkCopy.progressTitle,
+        body: coachmarkCopy.progressBody,
+        placement: 'top',
+        shape: 'pill',
+        padding: 10,
+        cornerRadius: 999,
+        targetActionLabel: coachmarkCopy.progressTitle,
+      },
+    ],
+    [coachmarkCopy],
+  );
+  const nutritionCoachmarkSteps = useMemo<CoachmarkStep[]>(
+    () => [
+      {
+        id: 'nutrition',
+        targetId: 'home_nutrition_card',
+        title: coachmarkCopy.nutritionTitle,
+        body: coachmarkCopy.nutritionBody,
+        placement: 'top',
+        shape: 'rounded',
+        padding: 8,
+        cornerRadius: 20,
+        targetActionLabel: coachmarkCopy.nutritionTitle,
+      },
+    ],
+    [coachmarkCopy],
+  );
+  const educationCoachmarkSteps = useMemo<CoachmarkStep[]>(
+    () => [
+      {
+        id: 'exercises',
+        targetId: 'home_learning_exercises_card',
+        title: coachmarkCopy.exercisesTitle,
+        body: coachmarkCopy.exercisesBody,
+        placement: 'top',
+        shape: 'rounded',
+        padding: 8,
+        cornerRadius: 20,
+        targetActionLabel: coachmarkCopy.exercisesTitle,
+      },
+      {
+        id: 'books',
+        targetId: 'home_learning_books_card',
+        title: coachmarkCopy.booksTitle,
+        body: coachmarkCopy.booksBody,
+        placement: 'top',
+        shape: 'rounded',
+        padding: 8,
+        cornerRadius: 20,
+        targetActionLabel: coachmarkCopy.booksTitle,
+      },
+    ],
+    [coachmarkCopy],
+  );
+  const activeCoachmarkSteps = coachmarkMode === 'nutrition'
+    ? nutritionCoachmarkSteps
+    : coachmarkMode === 'education'
+      ? educationCoachmarkSteps
+      : homeCoachmarkSteps;
+  const activeCoachmarkStep = activeCoachmarkSteps[coachmarkStepIndex] || null;
+  const isCoachmarkOpen = coachmarkMode !== null && !!activeCoachmarkStep;
   const rankNameMap: Record<string, string> = {
     bronze: 'برونزي',
     silver: 'فضي',
@@ -439,12 +595,221 @@ export function Home({ onNavigate, resetSignal = 0 }: HomeProps) {
     localStorage.setItem(homeMetricKeys.homeWorkoutProgress, String(next));
   };
 
+  const closeCoachmarks = () => {
+    setCoachmarkMode(null);
+    setCoachmarkStepIndex(0);
+  };
+
+  const handleCoachmarkNext = () => {
+    if (!activeCoachmarkStep) return;
+
+    const isLastStep = coachmarkStepIndex >= activeCoachmarkSteps.length - 1;
+    if (isLastStep) {
+      return;
+    }
+
+    patchCoachmarkProgress(coachmarkStorageOptions, (current) => ({
+      currentStep: coachmarkMode === 'main' ? coachmarkStepIndex + 1 : current.currentStep,
+      seenSteps: {
+        ...current.seenSteps,
+        [activeCoachmarkStep.id]: true,
+      },
+    }));
+
+    setCoachmarkStepIndex((current) => Math.min(current + 1, activeCoachmarkSteps.length - 1));
+  };
+
+  const handleCoachmarkFinish = () => {
+    if (!activeCoachmarkStep) return;
+
+    patchCoachmarkProgress(coachmarkStorageOptions, (current) => ({
+      completed: coachmarkMode === 'main' ? true : current.completed,
+      dismissed: false,
+      currentStep: coachmarkMode === 'main'
+        ? Math.max(homeCoachmarkSteps.length - 1, 0)
+        : current.currentStep,
+      seenSteps: {
+        ...current.seenSteps,
+        [activeCoachmarkStep.id]: true,
+      },
+    }));
+
+    closeCoachmarks();
+  };
+
+  const handleCoachmarkSkip = () => {
+    if (coachmarkMode === 'nutrition') {
+      patchCoachmarkProgress(coachmarkStorageOptions, (current) => ({
+        seenSteps: {
+          ...current.seenSteps,
+          nutrition: true,
+        },
+      }));
+    } else if (coachmarkMode === 'education') {
+      patchCoachmarkProgress(coachmarkStorageOptions, (current) => ({
+        seenSteps: {
+          ...current.seenSteps,
+          exercises: true,
+          books: true,
+        },
+      }));
+    } else {
+      patchCoachmarkProgress(coachmarkStorageOptions, {
+        dismissed: true,
+        currentStep: coachmarkStepIndex,
+      });
+    }
+
+    closeCoachmarks();
+  };
+
+  const handleCoachmarkTargetAction = () => {
+    if (!activeCoachmarkStep) return;
+
+    if (activeCoachmarkStep.id === 'today_plan') {
+      patchCoachmarkProgress(coachmarkStorageOptions, (current) => ({
+        completed: true,
+        dismissed: false,
+        currentStep: homeCoachmarkSteps.length - 1,
+        seenSteps: {
+          ...current.seenSteps,
+          today_plan: true,
+        },
+      }));
+      closeCoachmarks();
+      onNavigate('workout', workoutCardTitle);
+      return;
+    }
+
+    if (activeCoachmarkStep.id === 'progress') {
+      patchCoachmarkProgress(coachmarkStorageOptions, (current) => ({
+        completed: true,
+        dismissed: false,
+        currentStep: homeCoachmarkSteps.length - 1,
+        seenSteps: {
+          ...current.seenSteps,
+          progress: true,
+        },
+      }));
+      closeCoachmarks();
+      onNavigate('progress');
+      return;
+    }
+
+    if (activeCoachmarkStep.id === 'nutrition') {
+      patchCoachmarkProgress(coachmarkStorageOptions, (current) => ({
+        seenSteps: {
+          ...current.seenSteps,
+          nutrition: true,
+        },
+      }));
+      closeCoachmarks();
+      setView('nutrition');
+      return;
+    }
+
+    if (activeCoachmarkStep.id === 'exercises') {
+      patchCoachmarkProgress(coachmarkStorageOptions, (current) => ({
+        seenSteps: {
+          ...current.seenSteps,
+          exercises: true,
+        },
+      }));
+      closeCoachmarks();
+      setView('exercises');
+      return;
+    }
+
+    if (activeCoachmarkStep.id === 'books') {
+      patchCoachmarkProgress(coachmarkStorageOptions, (current) => ({
+        seenSteps: {
+          ...current.seenSteps,
+          books: true,
+        },
+      }));
+      closeCoachmarks();
+      setShowBooksComingSoon(true);
+    }
+  };
+
   useEffect(() => {
     setView('main');
     setSelectedExercise(null);
     setSelectedCoach(null);
     setSelectedFriend(null);
   }, [resetSignal]);
+
+  useEffect(() => {
+    if (view !== 'main' || isHomeLoading || showShopComingSoon || showBooksComingSoon) return;
+    if (hasTrackedHomeVisitRef.current) return;
+
+    hasTrackedHomeVisitRef.current = true;
+    incrementCoachmarkVisitCount(coachmarkStorageOptions);
+  }, [
+    coachmarkStorageOptions,
+    isHomeLoading,
+    showBooksComingSoon,
+    showShopComingSoon,
+    view,
+  ]);
+
+  useEffect(() => {
+    if (view !== 'main' || isHomeLoading || showShopComingSoon || showBooksComingSoon || isCoachmarkOpen) {
+      return;
+    }
+
+    const timer = window.setTimeout(() => {
+      const progress = readCoachmarkProgress(coachmarkStorageOptions);
+      const canShowMainOnboarding =
+        !progress.completed
+        && !progress.dismissed
+        && hasCoachmarkTargets(homeCoachmarkSteps);
+
+      if (canShowMainOnboarding) {
+        setCoachmarkStepIndex(Math.min(progress.currentStep, homeCoachmarkSteps.length - 1));
+        setCoachmarkMode('main');
+        return;
+      }
+
+      const canShowNutritionTip =
+        progress.completed
+        && !progress.dismissed
+        && !progress.seenSteps.nutrition
+        && progress.visitCount >= 2
+        && hasCoachmarkTargets(nutritionCoachmarkSteps);
+
+      if (canShowNutritionTip) {
+        setCoachmarkStepIndex(0);
+        setCoachmarkMode('nutrition');
+        return;
+      }
+
+      const canShowEducationTips =
+        progress.completed
+        && !progress.dismissed
+        && progress.seenSteps.nutrition
+        && progress.visitCount >= 3
+        && (!progress.seenSteps.exercises || !progress.seenSteps.books)
+        && hasCoachmarkTargets(educationCoachmarkSteps);
+
+      if (canShowEducationTips) {
+        setCoachmarkStepIndex(progress.seenSteps.exercises ? 1 : 0);
+        setCoachmarkMode('education');
+      }
+    }, 460);
+
+    return () => window.clearTimeout(timer);
+  }, [
+    coachmarkStorageOptions,
+    homeCoachmarkSteps,
+    isCoachmarkOpen,
+    isHomeLoading,
+    educationCoachmarkSteps,
+    nutritionCoachmarkSteps,
+    showBooksComingSoon,
+    showShopComingSoon,
+    view,
+  ]);
 
   useEffect(() => {
     let isMounted = true;
@@ -953,6 +1318,7 @@ export function Home({ onNavigate, resetSignal = 0 }: HomeProps) {
         {/* Today's Workout */}
         <div onClick={() => onNavigate('workout', workoutCardTitle)} className="cursor-pointer">
           <WorkoutCard
+            coachmarkTargetId="home_today_plan_card"
             title={workoutCardTitle}
             workoutType={todayWorkoutData?.workout_type || ''}
             estimatedDurationMinutes={todayWorkoutData?.estimated_duration_minutes ?? null}
@@ -972,9 +1338,9 @@ export function Home({ onNavigate, resetSignal = 0 }: HomeProps) {
         {/* Rank & Recovery */}
         <div className="grid grid-cols-1 gap-5">
           <div onClick={() => setView('rank')} className="cursor-pointer">
-            <RankDisplay points={programProgress?.totalPoints || 0} />
+            <RankDisplay coachmarkTargetId="home_rank_card" points={programProgress?.totalPoints || 0} />
           </div>
-          <RecoveryIndicator percentage={overallRecovery} onClick={() => setView('recovery')} />
+          <RecoveryIndicator coachmarkTargetId="home_recovery_card" percentage={overallRecovery} onClick={() => setView('recovery')} />
         </div>
 
         {/* Quick Actions */}
@@ -993,7 +1359,7 @@ export function Home({ onNavigate, resetSignal = 0 }: HomeProps) {
           }}
           className="grid grid-cols-2 gap-4">
 
-          <GhostButton onClick={() => setView('nutrition')} className="justify-between">
+          <GhostButton coachmarkTargetId="home_nutrition_card" onClick={() => setView('nutrition')} className="justify-between">
             <span className="flex items-center gap-2">
               <img src={emojiMyNutrition} alt={homeCopy.myNutrition} className="h-4 w-4 object-contain" />
               <span>{homeCopy.myNutrition}</span>
@@ -1058,12 +1424,37 @@ export function Home({ onNavigate, resetSignal = 0 }: HomeProps) {
         {/* Education */}
         <EducationSection
           onExercises={() => setView('exercises')}
-          onBooks={() => setShowBooksComingSoon(true)} />
+          onBooks={() => setShowBooksComingSoon(true)}
+          exercisesCoachmarkTargetId="home_learning_exercises_card"
+          booksCoachmarkTargetId="home_learning_books_card"
+        />
 
 
         {/* Calculators */}
         <CalculatorCard onClick={() => setView('calculator')} />
       </div>
+
+      <CoachmarkOverlay
+        isOpen={isCoachmarkOpen}
+        step={activeCoachmarkStep}
+        stepIndex={coachmarkStepIndex}
+        totalSteps={activeCoachmarkSteps.length}
+        nextLabel={coachmarkCopy.next}
+        finishLabel={coachmarkCopy.finish}
+        skipLabel={coachmarkCopy.skip}
+        onNext={handleCoachmarkNext}
+        onFinish={handleCoachmarkFinish}
+        onSkip={handleCoachmarkSkip}
+        onTargetAction={
+          activeCoachmarkStep?.id === 'today_plan'
+          || activeCoachmarkStep?.id === 'progress'
+          || activeCoachmarkStep?.id === 'nutrition'
+          || activeCoachmarkStep?.id === 'exercises'
+          || activeCoachmarkStep?.id === 'books'
+            ? handleCoachmarkTargetAction
+            : null
+        }
+      />
     </div>);
 
 }

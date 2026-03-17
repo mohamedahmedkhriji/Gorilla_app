@@ -30,6 +30,7 @@ interface WorkoutCardProps {
   estimatedDurationMinutes?: number | null;
   progress: number;
   isRestDay?: boolean;
+  coachmarkTargetId?: string;
 }
 
 const cleanWorkoutLabel = (value: string) =>
@@ -250,6 +251,7 @@ export function WorkoutCard({
   estimatedDurationMinutes = null,
   progress,
   isRestDay = false,
+  coachmarkTargetId,
 }: WorkoutCardProps) {
   const isArabic = getActiveLanguage(getStoredLanguage()) === 'ar';
   const copy = {
@@ -319,6 +321,7 @@ export function WorkoutCard({
 
   return (
     <motion.div
+      data-coachmark-target={coachmarkTargetId}
       initial={{
         opacity: 0,
         y: 20,

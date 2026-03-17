@@ -94,7 +94,7 @@ export function TabBar({ activeTab, onTabChange }: TabBarProps) {
   return (
     <div className="fixed inset-x-0 bottom-0 z-50 pointer-events-none">
       <div className="w-full pointer-events-auto">
-        <div className={shellClassName}>
+        <div data-coachmark-target="nav_bar" className={shellClassName}>
           <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/20 to-transparent" />
           <div className="grid grid-cols-5 gap-1">
             {tabs.map((tab) => {
@@ -106,6 +106,8 @@ export function TabBar({ activeTab, onTabChange }: TabBarProps) {
                   key={tab.id}
                   onClick={() => onTabChange(tab.id)}
                   whileTap={{ scale: 0.95 }}
+                  data-coachmark-target={`nav_${tab.id}`}
+                  aria-label={tab.label}
                   className="relative flex min-h-[4.2rem] flex-col items-center justify-center gap-1 rounded-2xl py-2"
                 >
                   {isActive && (

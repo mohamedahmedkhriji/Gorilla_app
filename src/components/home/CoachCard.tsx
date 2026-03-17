@@ -8,6 +8,7 @@ import { AppLanguage, getActiveLanguage, getStoredLanguage } from '../../service
 
 interface CoachCardProps {
   onClick: () => void;
+  coachmarkTargetId?: string;
 }
 
 const COACH_CARD_I18N = {
@@ -25,7 +26,7 @@ const COACH_CARD_I18N = {
   },
 } as const;
 
-export function CoachCard({ onClick }: CoachCardProps) {
+export function CoachCard({ onClick, coachmarkTargetId }: CoachCardProps) {
   const [unreadCount, setUnreadCount] = useState(0);
   const [language, setLanguage] = useState<AppLanguage>('en');
   const copy = COACH_CARD_I18N[language] || COACH_CARD_I18N.en;
@@ -59,7 +60,11 @@ export function CoachCard({ onClick }: CoachCardProps) {
   };
 
   return (
-    <Card onClick={onClick} className="relative overflow-hidden p-4 flex flex-col justify-between h-full cursor-pointer border border-white/15 hover:border-info/35 transition-colors group">
+    <Card
+      onClick={onClick}
+      coachmarkTargetId={coachmarkTargetId}
+      className="relative overflow-hidden p-4 flex flex-col justify-between h-full cursor-pointer border border-white/15 hover:border-info/35 transition-colors group"
+    >
       <div
         className="absolute inset-0 bg-cover bg-center opacity-45 transition-transform duration-300 group-hover:scale-105"
         style={{ backgroundImage: `url(${emojiCoachSupportBg})` }}

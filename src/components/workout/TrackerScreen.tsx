@@ -644,9 +644,12 @@ export function TrackerScreen({
         <Header
           title={copy.title}
           onBack={onBack}
+          backButtonCoachmarkTargetId="workout_tracker_back_button"
+          titleCoachmarkTargetId="workout_tracker_title"
           titleClassName={isArabic ? 'text-right' : ''}
           rightElement={onRemoveExercise ? (
             <button
+              data-coachmark-target="workout_tracker_remove_button"
               type="button"
               onClick={() => {
                 setShowRemoveConfirm(true);
@@ -662,7 +665,12 @@ export function TrackerScreen({
       </div>
       <div className="px-4 sm:px-6 -mt-2 mb-2">
         <div className="w-full flex justify-center">
-          <div className="seven-seg-shell" role="timer" aria-label={copy.timerAria(timerText)}>
+          <div
+            className="seven-seg-shell"
+            role="timer"
+            aria-label={copy.timerAria(timerText)}
+            data-coachmark-target="workout_tracker_timer"
+          >
             <div className="seven-seg-group">
               <SevenSegmentDigit digit={m1} />
               <SevenSegmentDigit digit={m2} />
@@ -733,6 +741,7 @@ export function TrackerScreen({
           <>
             <div className="flex justify-around mb-8">
               <button
+                data-coachmark-target="workout_tracker_play_button"
                 onClick={toggleTimer}
                 disabled={!isRunning && areAllSetsCompleted}
                 className="flex flex-col items-center gap-2 disabled:cursor-not-allowed disabled:opacity-50"
@@ -751,13 +760,21 @@ export function TrackerScreen({
                   )}
                 </div>
               </button>
-              <button onClick={() => onVideoClick?.(exerciseName)} className="flex flex-col items-center gap-2">
+              <button
+                data-coachmark-target="workout_tracker_video_button"
+                onClick={() => onVideoClick?.(exerciseName)}
+                className="flex flex-col items-center gap-2"
+              >
                 <div className="w-12 h-12 rounded-full border-2 border-white/20 flex items-center justify-center">
                   <Video size={20} className="text-white" />
                 </div>
                 <span className="text-xs text-text-secondary">{copy.video}</span>
               </button>
-              <button onClick={() => setShowAnalytics(true)} className="flex flex-col items-center gap-2">
+              <button
+                data-coachmark-target="workout_tracker_analytics_button"
+                onClick={() => setShowAnalytics(true)}
+                className="flex flex-col items-center gap-2"
+              >
                 <div className="w-12 h-12 rounded-full border-2 border-white/20 flex items-center justify-center">
                   <BarChart3 size={20} className="text-white" />
                 </div>
@@ -820,6 +837,7 @@ export function TrackerScreen({
               {sets.map((set, index) => (
                 <div
                   key={index}
+                  data-coachmark-target={index === 0 ? 'workout_tracker_first_set_row' : undefined}
                   className="relative overflow-hidden"
                   onTouchStart={(e) => handleTouchStart(index, e)}
                   onTouchMove={(e) => handleTouchMove(index, e)}>
@@ -887,6 +905,7 @@ export function TrackerScreen({
             </div>
 
             <button
+              data-coachmark-target="workout_tracker_add_set_button"
               onClick={() => persistSets([...sets, { set: sets.length + 1, reps: 8, weight: 80, completed: false }])}
               className="w-full mt-6 py-3 bg-accent text-black font-bold rounded-full hover:bg-accent/90 transition-colors">
               {copy.addSet}

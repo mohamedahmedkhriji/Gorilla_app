@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { CoachmarkOverlay, type CoachmarkStep } from '../components/coachmarks/CoachmarkOverlay';
 import { ProfileScreen } from '../components/profile/ProfileScreen';
 import { GymAccessScreen } from '../components/profile/GymAccessScreen';
 import { RankingsRewardsScreen } from '../components/profile/RankingsRewardsScreen';
@@ -17,10 +18,21 @@ import { ArrowLeft, Bell, Settings } from 'lucide-react';
 import { useScrollToTopOnChange } from '../shared/scroll';
 import { clearStoredUserSession, getStoredUserId } from '../shared/authStorage';
 import { AppLanguage, getActiveLanguage, getStoredLanguage } from '../services/language';
+import {
+  PROFILE_COACHMARK_TOUR_ID,
+  PROFILE_COACHMARK_VERSION,
+  getCoachmarkUserScope,
+  patchCoachmarkProgress,
+  readCoachmarkProgress,
+} from '../services/coachmarks';
 interface ProfileProps {
   onNavigateTab?: (tab: string, day?: string) => void;
   resetSignal?: number;
 }
+
+const hasCoachmarkTargets = (steps: CoachmarkStep[]) =>
+  typeof document !== 'undefined'
+  && steps.every((step) => Boolean(document.querySelector(`[data-coachmark-target="${step.targetId}"]`)));
 
 const PROFILE_PAGE_I18N = {
   en: {
@@ -49,6 +61,8 @@ export function Profile({ onNavigateTab, resetSignal = 0 }: ProfileProps) {
   const [selectedCoach, setSelectedCoach] = useState<{id: number, name: string} | null>(null);
   const [unreadCount, setUnreadCount] = useState(0);
   const [language, setLanguage] = useState<AppLanguage>('en');
+  const [coachmarkStepIndex, setCoachmarkStepIndex] = useState(0);
+  const [isCoachmarkOpen, setIsCoachmarkOpen] = useState(false);
 
   useScrollToTopOnChange([view, resetSignal]);
 
@@ -57,6 +71,208 @@ export function Profile({ onNavigateTab, resetSignal = 0 }: ProfileProps) {
   const userId = useMemo(() => {
     return Number(getStoredUserId() || 0);
   }, []);
+  const coachmarkScope = useMemo(() => getCoachmarkUserScope(), []);
+  const isArabic = language === 'ar';
+  const profileCoachmarkOptions = useMemo(
+    () => ({
+      tourId: PROFILE_COACHMARK_TOUR_ID,
+      version: PROFILE_COACHMARK_VERSION,
+      userScope: coachmarkScope,
+      defaultSeenSteps: {
+        settings: false,
+        notifications: false,
+        avatar: false,
+        photo_upload: false,
+        exercises: false,
+        rank: false,
+        days_left: false,
+        friends: false,
+        coach: false,
+        posts: false,
+        plan_builder: false,
+        logout: false,
+      },
+    }),
+    [coachmarkScope],
+  );
+  const profileCoachmarkCopy = useMemo(
+    () => ({
+      next: isArabic ? 'التالي' : 'Next',
+      skip: isArabic ? 'تخطي' : 'Skip',
+      finish: isArabic ? 'حسناً' : 'Got it',
+      settingsTitle: isArabic ? 'الإعدادات هنا' : 'Settings live here',
+      settingsBody: isArabic
+        ? 'من هنا تصل بسرعة إلى إعدادات الحساب والإشعارات والمساعدة.'
+        : 'Use this shortcut for account settings, notifications, and help.',
+      notificationsTitle: isArabic ? 'تابع التنبيهات' : 'Check notifications',
+      notificationsBody: isArabic
+        ? 'هذا الزر يفتح الإشعارات والطلبات الجديدة والتنبيهات المهمة.'
+        : 'This button opens your latest alerts, requests, and important updates.',
+      avatarTitle: isArabic ? 'هذه صورتك الشخصية' : 'This is your profile photo',
+      avatarBody: isArabic
+        ? 'اضغط هنا لمعاينة صورتك الحالية بالحجم الكامل.'
+        : 'Tap here to preview your current profile photo in full size.',
+      uploadTitle: isArabic ? 'غيّر الصورة' : 'Change your photo',
+      uploadBody: isArabic
+        ? 'استخدم زر الكاميرا لتحديث صورتك الشخصية من الهاتف.'
+        : 'Use the camera button to update your profile picture from your device.',
+      exercisesTitle: isArabic ? 'إجمالي تمارينك' : 'Your total exercises',
+      exercisesBody: isArabic
+        ? 'هذه البطاقة تعرض عدد التمارين التي أنجزتها حتى الآن.'
+        : 'This card shows how many exercises you have completed so far.',
+      rankTitle: isArabic ? 'ترتيبك الحالي' : 'Your current rank',
+      rankBody: isArabic
+        ? 'افتح هذه البطاقة لرؤية ترتيبك ومكافآتك وتقدمك داخل النادي.'
+        : 'Open this card to see your ranking, rewards, and progress in the gym.',
+      daysLeftTitle: isArabic ? 'ماذا تبقى من الخطة' : 'What is left in your plan',
+      daysLeftBody: isArabic
+        ? 'هنا ترى الأيام والحصص المتبقية في خطتك الحالية.'
+        : 'Here you can see the remaining days and sessions in your current plan.',
+      friendsTitle: isArabic ? 'قسم الأصدقاء' : 'Your friends area',
+      friendsBody: isArabic
+        ? 'من هذه البطاقة تتابع أصدقاءك ونشاطهم داخل التطبيق.'
+        : 'This card takes you to your friends area and activity inside the app.',
+      coachTitle: isArabic ? 'دعم المدرب' : 'Coach support',
+      coachBody: isArabic
+        ? 'استخدم هذه البطاقة للوصول إلى دعم المدرب وبدء المحادثة.'
+        : 'Use this card to reach coach support and start a conversation.',
+      postsTitle: isArabic ? 'منشوراتك' : 'Your posts',
+      postsBody: isArabic
+        ? 'هذه البطاقة تفتح منشوراتك وإدارة كل ما رفعته.'
+        : 'This card opens your posts and lets you manage what you uploaded.',
+      planBuilderTitle: isArabic ? 'أنشئ خطتك' : 'Build your plan',
+      planBuilderBody: isArabic
+        ? 'من هنا تبدأ إنشاء خطة تمرين جديدة بنفسك أو مع مدرب.'
+        : 'Start building a new workout plan here, on your own or with a coach.',
+      logoutTitle: isArabic ? 'تسجيل الخروج' : 'Log out here',
+      logoutBody: isArabic
+        ? 'هذا الزر يفتح تأكيد تسجيل الخروج من حسابك.'
+        : 'This button opens the confirmation to sign out of your account.',
+    }),
+    [isArabic],
+  );
+  const profileCoachmarkSteps = useMemo<CoachmarkStep[]>(
+    () => [
+      {
+        id: 'settings',
+        targetId: 'profile_settings_button',
+        title: profileCoachmarkCopy.settingsTitle,
+        body: profileCoachmarkCopy.settingsBody,
+        placement: 'bottom',
+        shape: 'circle',
+        padding: 8,
+      },
+      {
+        id: 'notifications',
+        targetId: 'profile_notifications_button',
+        title: profileCoachmarkCopy.notificationsTitle,
+        body: profileCoachmarkCopy.notificationsBody,
+        placement: 'bottom',
+        shape: 'circle',
+        padding: 8,
+      },
+      {
+        id: 'avatar',
+        targetId: 'profile_avatar_button',
+        title: profileCoachmarkCopy.avatarTitle,
+        body: profileCoachmarkCopy.avatarBody,
+        placement: 'bottom',
+        shape: 'circle',
+        padding: 8,
+      },
+      {
+        id: 'photo_upload',
+        targetId: 'profile_avatar_upload_button',
+        title: profileCoachmarkCopy.uploadTitle,
+        body: profileCoachmarkCopy.uploadBody,
+        placement: 'bottom',
+        shape: 'circle',
+        padding: 8,
+      },
+      {
+        id: 'exercises',
+        targetId: 'profile_exercises_card',
+        title: profileCoachmarkCopy.exercisesTitle,
+        body: profileCoachmarkCopy.exercisesBody,
+        placement: 'bottom',
+        shape: 'rounded',
+        padding: 8,
+        cornerRadius: 16,
+      },
+      {
+        id: 'rank',
+        targetId: 'profile_rank_card',
+        title: profileCoachmarkCopy.rankTitle,
+        body: profileCoachmarkCopy.rankBody,
+        placement: 'bottom',
+        shape: 'rounded',
+        padding: 8,
+        cornerRadius: 16,
+      },
+      {
+        id: 'days_left',
+        targetId: 'profile_days_left_card',
+        title: profileCoachmarkCopy.daysLeftTitle,
+        body: profileCoachmarkCopy.daysLeftBody,
+        placement: 'bottom',
+        shape: 'rounded',
+        padding: 8,
+        cornerRadius: 16,
+      },
+      {
+        id: 'friends',
+        targetId: 'profile_friends_card',
+        title: profileCoachmarkCopy.friendsTitle,
+        body: profileCoachmarkCopy.friendsBody,
+        placement: 'top',
+        shape: 'rounded',
+        padding: 8,
+        cornerRadius: 20,
+      },
+      {
+        id: 'coach',
+        targetId: 'profile_coach_card',
+        title: profileCoachmarkCopy.coachTitle,
+        body: profileCoachmarkCopy.coachBody,
+        placement: 'top',
+        shape: 'rounded',
+        padding: 8,
+        cornerRadius: 20,
+      },
+      {
+        id: 'posts',
+        targetId: 'profile_posts_card',
+        title: profileCoachmarkCopy.postsTitle,
+        body: profileCoachmarkCopy.postsBody,
+        placement: 'top',
+        shape: 'rounded',
+        padding: 8,
+        cornerRadius: 20,
+      },
+      {
+        id: 'plan_builder',
+        targetId: 'profile_plan_builder_card',
+        title: profileCoachmarkCopy.planBuilderTitle,
+        body: profileCoachmarkCopy.planBuilderBody,
+        placement: 'top',
+        shape: 'rounded',
+        padding: 8,
+        cornerRadius: 20,
+      },
+      {
+        id: 'logout',
+        targetId: 'profile_logout_button',
+        title: profileCoachmarkCopy.logoutTitle,
+        body: profileCoachmarkCopy.logoutBody,
+        placement: 'top',
+        shape: 'rounded',
+        padding: 8,
+        cornerRadius: 20,
+      },
+    ],
+    [profileCoachmarkCopy],
+  );
+  const activeCoachmarkStep = profileCoachmarkSteps[coachmarkStepIndex] || null;
 
   useEffect(() => {
     let cancelled = false;
@@ -93,6 +309,8 @@ export function Profile({ onNavigateTab, resetSignal = 0 }: ProfileProps) {
     setView('main');
     setSelectedFriend(null);
     setSelectedCoach(null);
+    setCoachmarkStepIndex(0);
+    setIsCoachmarkOpen(false);
   }, [resetSignal]);
 
   useEffect(() => {
@@ -109,6 +327,70 @@ export function Profile({ onNavigateTab, resetSignal = 0 }: ProfileProps) {
       window.removeEventListener('storage', handleLanguageChanged);
     };
   }, []);
+
+  useEffect(() => {
+    if (view !== 'main' || isCoachmarkOpen) return;
+
+    const timer = window.setTimeout(() => {
+      const progress = readCoachmarkProgress(profileCoachmarkOptions);
+      const canShowProfileTour =
+        !progress.completed
+        && !progress.dismissed
+        && hasCoachmarkTargets(profileCoachmarkSteps);
+
+      if (canShowProfileTour) {
+        setCoachmarkStepIndex(Math.min(progress.currentStep, profileCoachmarkSteps.length - 1));
+        setIsCoachmarkOpen(true);
+      }
+    }, 460);
+
+    return () => window.clearTimeout(timer);
+  }, [isCoachmarkOpen, profileCoachmarkOptions, profileCoachmarkSteps, view]);
+
+  const closeCoachmarks = () => {
+    setIsCoachmarkOpen(false);
+    setCoachmarkStepIndex(0);
+  };
+
+  const handleCoachmarkNext = () => {
+    if (!activeCoachmarkStep) return;
+    const isLastStep = coachmarkStepIndex >= profileCoachmarkSteps.length - 1;
+    if (isLastStep) return;
+
+    patchCoachmarkProgress(profileCoachmarkOptions, (current) => ({
+      currentStep: coachmarkStepIndex + 1,
+      seenSteps: {
+        ...current.seenSteps,
+        [activeCoachmarkStep.id]: true,
+      },
+    }));
+
+    setCoachmarkStepIndex((current) => Math.min(current + 1, profileCoachmarkSteps.length - 1));
+  };
+
+  const handleCoachmarkFinish = () => {
+    if (!activeCoachmarkStep) return;
+
+    patchCoachmarkProgress(profileCoachmarkOptions, (current) => ({
+      completed: true,
+      dismissed: false,
+      currentStep: Math.max(profileCoachmarkSteps.length - 1, 0),
+      seenSteps: {
+        ...current.seenSteps,
+        [activeCoachmarkStep.id]: true,
+      },
+    }));
+
+    closeCoachmarks();
+  };
+
+  const handleCoachmarkSkip = () => {
+    patchCoachmarkProgress(profileCoachmarkOptions, {
+      dismissed: true,
+      currentStep: coachmarkStepIndex,
+    });
+    closeCoachmarks();
+  };
 
   const handleNavigate = (screen: 'gym' | 'rank' | 'settings' | 'workout' | 'weeklyPlan' | 'customPlanBuilder' | 'posts' | 'friends' | 'coachList') => {
     if (screen === 'workout') {
@@ -146,7 +428,13 @@ export function Profile({ onNavigateTab, resetSignal = 0 }: ProfileProps) {
   if (view === 'rank')
   return <RankingsRewardsScreen onBack={() => setView('main')} />;
   if (view === 'settings')
-  return <SettingsScreen onBack={() => setView('main')} onOpenGym={() => setView('gym')} />;
+  return (
+    <SettingsScreen
+      onBack={() => setView('main')}
+      onOpenGym={() => setView('gym')}
+      onOpenHomeTour={() => onNavigateTab?.('home')}
+    />
+  );
   if (view === 'notifications')
   return <NotificationsScreen onBack={() => setView('main')} />;
   if (view === 'weeklyPlan')
@@ -239,6 +527,7 @@ export function Profile({ onNavigateTab, resetSignal = 0 }: ProfileProps) {
       {/* Header action icons */}
       <div className="absolute top-6 right-6 z-10 flex items-center gap-2">
         <button
+          data-coachmark-target="profile_settings_button"
           onClick={() => setView('settings')}
           className="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center text-white hover:bg-white/20 transition-colors"
           aria-label={copy.openSettings}
@@ -247,6 +536,7 @@ export function Profile({ onNavigateTab, resetSignal = 0 }: ProfileProps) {
         </button>
 
         <button
+          data-coachmark-target="profile_notifications_button"
           onClick={() => setView('notifications')}
           className="relative w-10 h-10 rounded-full bg-white/10 flex items-center justify-center text-white hover:bg-white/20 transition-colors"
           aria-label={copy.openNotifications}
@@ -263,6 +553,19 @@ export function Profile({ onNavigateTab, resetSignal = 0 }: ProfileProps) {
       <div className="space-y-6 pb-24 px-4 sm:px-6">
         <ProfileScreen onNavigate={handleNavigate} onLogout={handleLogout} />
       </div>
+
+      <CoachmarkOverlay
+        isOpen={isCoachmarkOpen}
+        step={activeCoachmarkStep}
+        stepIndex={coachmarkStepIndex}
+        totalSteps={profileCoachmarkSteps.length}
+        nextLabel={profileCoachmarkCopy.next}
+        finishLabel={profileCoachmarkCopy.finish}
+        skipLabel={profileCoachmarkCopy.skip}
+        onNext={handleCoachmarkNext}
+        onFinish={handleCoachmarkFinish}
+        onSkip={handleCoachmarkSkip}
+      />
     </div>);
 
 }

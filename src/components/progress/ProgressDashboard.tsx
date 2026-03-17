@@ -376,11 +376,12 @@ export function ProgressDashboard({ onViewReport, onViewStrengthScore }: Progres
   const weeklyDaysLabel = `${completedThisWeek} / ${plannedThisWeek} days`;
 
   return (
-    <div className="space-y-6">
+    <div data-coachmark-target="progress_dashboard" className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-light text-white">{copy.title}</h1>
         <button
           type="button"
+          data-coachmark-target="progress_info_button"
           className="flex h-9 w-9 items-center justify-center rounded-full border border-white/10 bg-card/70 text-text-secondary transition-colors hover:border-accent/30 hover:text-text-primary"
           aria-label={copy.strengthScoreInfo}
           onClick={() => setShowPageInfo(true)}
@@ -389,10 +390,10 @@ export function ProgressDashboard({ onViewReport, onViewStrengthScore }: Progres
         </button>
       </div>
 
-      <StrengthChart />
+      <StrengthChart coachmarkTargetId="progress_strength_chart" />
 
       <div className="grid grid-cols-2 gap-4">
-        <Card className="p-4">
+        <Card coachmarkTargetId="progress_consistency_card" className="p-4">
           <div className="flex items-center justify-between gap-3">
             <div className="min-w-0">
               <Activity className="text-green-500 mb-2" size={20} />
@@ -407,6 +408,7 @@ export function ProgressDashboard({ onViewReport, onViewStrengthScore }: Progres
           </div>
         </Card>
         <Card
+          coachmarkTargetId="progress_total_volume_card"
           className="cursor-pointer p-4"
           onClick={onViewStrengthScore}
           role="button"
@@ -431,7 +433,7 @@ export function ProgressDashboard({ onViewReport, onViewStrengthScore }: Progres
         </Card>
       </div>
 
-      <Card>
+      <Card coachmarkTargetId="progress_muscle_distribution_card">
         <h3 className="font-medium text-white mb-4">{copy.muscleDistribution}</h3>
         {muscleDistribution.length > 0 ? (
           <>
@@ -487,7 +489,7 @@ export function ProgressDashboard({ onViewReport, onViewStrengthScore }: Progres
       </Card>
 
       <div className="grid grid-cols-1 gap-3">
-        <Button variant="secondary" onClick={onViewReport}>
+        <Button coachmarkTargetId="progress_biweekly_report_button" variant="secondary" onClick={onViewReport}>
           {copy.viewBiWeeklyReport}
         </Button>
       </div>

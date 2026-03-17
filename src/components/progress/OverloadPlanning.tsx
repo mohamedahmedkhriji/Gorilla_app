@@ -31,7 +31,11 @@ const OVERLOAD_I18N = {
   },
 } as const;
 
-export function OverloadPlanning() {
+interface OverloadPlanningProps {
+  coachmarkTargetId?: string;
+}
+
+export function OverloadPlanning({ coachmarkTargetId }: OverloadPlanningProps) {
   const [language, setLanguage] = useState<AppLanguage>('en');
   const [recommendations, setRecommendations] = useState<OverloadRecommendation[]>([]);
   const [sourceMode, setSourceMode] = useState<'plan' | 'recent'>('recent');
@@ -115,7 +119,7 @@ export function OverloadPlanning() {
   }, [loadOverloadPlan]);
 
   return (
-    <Card className="bg-gradient-to-br from-card to-accent/5 border-accent/20">
+    <Card coachmarkTargetId={coachmarkTargetId} className="bg-gradient-to-br from-card to-accent/5 border-accent/20">
       <div className="flex items-center gap-2 mb-4">
         <TrendingUp className="text-accent" size={20} />
         <h3 className="font-bold text-white">{copy.title}</h3>

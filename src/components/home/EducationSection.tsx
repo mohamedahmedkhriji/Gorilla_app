@@ -12,9 +12,16 @@ import { getActiveLanguage, getStoredLanguage } from '../../services/language';
 interface EducationSectionProps {
   onExercises: () => void;
   onBooks: () => void;
+  exercisesCoachmarkTargetId?: string;
+  booksCoachmarkTargetId?: string;
 }
 
-export function EducationSection({ onExercises, onBooks }: EducationSectionProps) {
+export function EducationSection({
+  onExercises,
+  onBooks,
+  exercisesCoachmarkTargetId,
+  booksCoachmarkTargetId,
+}: EducationSectionProps) {
   const isArabic = getActiveLanguage(getStoredLanguage()) === 'ar';
   const copy = {
     learningHub: isArabic ? 'مركز التعلّم' : 'Learning Hub',
@@ -28,7 +35,11 @@ export function EducationSection({ onExercises, onBooks }: EducationSectionProps
       <h3 className="text-[11px] font-semibold text-text-secondary uppercase tracking-[0.15em] px-1">{copy.learningHub}</h3>
 
       <div className="grid grid-cols-2 gap-4">
-        <Card onClick={onExercises} className="p-4 relative overflow-hidden cursor-pointer border border-white/15 hover:border-info/35 transition-colors group">
+        <Card
+          onClick={onExercises}
+          coachmarkTargetId={exercisesCoachmarkTargetId}
+          className="p-4 relative overflow-hidden cursor-pointer border border-white/15 hover:border-info/35 transition-colors group"
+        >
           <div
             className="absolute inset-0 bg-cover bg-center opacity-60"
             style={{ backgroundImage: `url(${emojiExercisesBg})` }}
@@ -59,7 +70,11 @@ export function EducationSection({ onExercises, onBooks }: EducationSectionProps
           </div>
         </Card>
 
-        <Card onClick={onBooks} className="p-4 relative overflow-hidden cursor-pointer border border-white/15 hover:border-accent/35 transition-colors group">
+        <Card
+          onClick={onBooks}
+          coachmarkTargetId={booksCoachmarkTargetId}
+          className="p-4 relative overflow-hidden cursor-pointer border border-white/15 hover:border-accent/35 transition-colors group"
+        >
           <div
             className="absolute inset-0 bg-cover bg-center opacity-60"
             style={{ backgroundImage: `url(${emojiBooksBg})` }}

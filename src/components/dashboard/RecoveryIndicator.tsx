@@ -6,9 +6,10 @@ import { getActiveLanguage, getStoredLanguage } from '../../services/language';
 interface RecoveryIndicatorProps {
   percentage: number;
   onClick?: () => void;
+  coachmarkTargetId?: string;
 }
 
-export function RecoveryIndicator({ percentage, onClick }: RecoveryIndicatorProps) {
+export function RecoveryIndicator({ percentage, onClick, coachmarkTargetId }: RecoveryIndicatorProps) {
   const safePercentage = Math.max(0, Math.min(100, Math.round(percentage)));
   const isArabic = getActiveLanguage(getStoredLanguage()) === 'ar';
   const copy = {
@@ -38,6 +39,7 @@ export function RecoveryIndicator({ percentage, onClick }: RecoveryIndicatorProp
 
   return (
     <motion.div
+      data-coachmark-target={coachmarkTargetId}
       initial={{
         opacity: 0,
         y: 20,

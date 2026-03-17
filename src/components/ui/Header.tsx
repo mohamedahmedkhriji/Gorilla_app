@@ -8,14 +8,25 @@ interface HeaderProps {
   rightElement?: React.ReactNode;
   compact?: boolean;
   titleClassName?: string;
+  backButtonCoachmarkTargetId?: string;
+  titleCoachmarkTargetId?: string;
 }
 
-export function Header({ title, onBack, rightElement, compact = false, titleClassName = '' }: HeaderProps) {
+export function Header({
+  title,
+  onBack,
+  rightElement,
+  compact = false,
+  titleClassName = '',
+  backButtonCoachmarkTargetId,
+  titleCoachmarkTargetId,
+}: HeaderProps) {
   return (
     <div className={`flex items-center justify-between ${compact ? 'py-2 mb-2' : 'py-4 mb-6'}`}>
       <div className={`flex items-center min-w-0 ${compact ? 'gap-3' : 'gap-4'}`}>
         {onBack && (
           <motion.button
+            data-coachmark-target={backButtonCoachmarkTargetId}
             whileTap={{
               scale: 0.92,
             }}
@@ -25,7 +36,14 @@ export function Header({ title, onBack, rightElement, compact = false, titleClas
             <ArrowLeft size={18} />
           </motion.button>
         )}
-        {title && <h1 className={`flex-1 text-xl leading-tight text-text-primary ${titleClassName}`}>{title}</h1>}
+        {title && (
+          <h1
+            data-coachmark-target={titleCoachmarkTargetId}
+            className={`flex-1 text-xl leading-tight text-text-primary ${titleClassName}`}
+          >
+            {title}
+          </h1>
+        )}
       </div>
       {rightElement}
     </div>

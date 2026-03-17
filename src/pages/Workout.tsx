@@ -1,4 +1,5 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
+import { CoachmarkOverlay, type CoachmarkStep } from '../components/coachmarks/CoachmarkOverlay';
 import { WorkoutOverviewScreen } from '../components/workout/WorkoutOverviewScreen';
 import { LiveWorkoutScreen } from '../components/workout/LiveWorkoutScreen';
 import { PostWorkoutSummary, type WorkoutDaySummaryData } from '../components/workout/PostWorkoutSummary';
@@ -6,6 +7,15 @@ import { ExerciseVideoScreen } from '../components/workout/ExerciseVideoScreen';
 import { WorkoutPlanScreen } from '../components/workout/WorkoutPlanScreen';
 import { TrackerScreen } from '../components/workout/TrackerScreen';
 import { api } from '../services/api';
+import {
+  getCoachmarkUserScope,
+  patchCoachmarkProgress,
+  readCoachmarkProgress,
+  WORKOUT_PLAN_COACHMARK_TOUR_ID,
+  WORKOUT_PLAN_COACHMARK_VERSION,
+  WORKOUT_TRACKER_COACHMARK_TOUR_ID,
+  WORKOUT_TRACKER_COACHMARK_VERSION,
+} from '../services/coachmarks';
 import { resolveExerciseVideoUrl } from '../services/exerciseVideos';
 import { formatWorkoutDayLabel, normalizeWorkoutDayKey } from '../services/workoutDayLabel';
 import { getActiveLanguage, getStoredLanguage } from '../services/language';
@@ -220,6 +230,10 @@ const normalizeExerciseLookupName = (value = '') =>
   String(value || '')
     .trim()
     .toLowerCase();
+
+const hasCoachmarkTargets = (steps: CoachmarkStep[]) =>
+  typeof document !== 'undefined'
+  && steps.every((step) => Boolean(document.querySelector(`[data-coachmark-target="${step.targetId}"]`)));
 
 const normalizeMuscleName = (value = '') =>
   String(value || '')
@@ -582,6 +596,8 @@ export function Workout({ onBack, workoutDay = 'Push Day', resetSignal = 0 }: Wo
   const [hasLatestSummary, setHasLatestSummary] = useState(false);
   const [lastAutoSummaryKey, setLastAutoSummaryKey] = useState('');
   const [postedSummaryTokens, setPostedSummaryTokens] = useState<string[]>([]);
+  const [coachmarkMode, setCoachmarkMode] = useState<'plan' | 'tracker' | null>(null);
+  const [coachmarkStepIndex, setCoachmarkStepIndex] = useState(0);
 
   useScrollToTopOnChange([view, resetSignal]);
 
@@ -593,6 +609,236 @@ export function Workout({ onBack, workoutDay = 'Push Day', resetSignal = 0 }: Wo
       ?? setRow?.done
       ?? false
     );
+
+  const isArabic = getActiveLanguage(getStoredLanguage()) === 'ar';
+  const coachmarkScope = getCoachmarkUserScope(currentUser);
+  const planCoachmarkOptions = useMemo(
+    () => ({
+      tourId: WORKOUT_PLAN_COACHMARK_TOUR_ID,
+      version: WORKOUT_PLAN_COACHMARK_VERSION,
+      userScope: coachmarkScope,
+      defaultSeenSteps: {
+        back: false,
+        miss_day: false,
+        summary: false,
+        workout_card: false,
+        target_muscles: false,
+        add_exercise: false,
+        start_workout: false,
+        exercise_card: false,
+      },
+    }),
+    [coachmarkScope],
+  );
+  const trackerCoachmarkOptions = useMemo(
+    () => ({
+      tourId: WORKOUT_TRACKER_COACHMARK_TOUR_ID,
+      version: WORKOUT_TRACKER_COACHMARK_VERSION,
+      userScope: coachmarkScope,
+      defaultSeenSteps: {
+        back: false,
+        remove: false,
+        timer: false,
+        start_stop: false,
+        video: false,
+        analytics: false,
+        set_row: false,
+        add_set: false,
+      },
+    }),
+    [coachmarkScope],
+  );
+  const coachmarkCopy = useMemo(
+    () => ({
+      next: isArabic ? 'التالي' : 'Next',
+      skip: isArabic ? 'تخطي' : 'Skip',
+      finish: isArabic ? 'حسناً' : 'Got it',
+      tryIt: isArabic ? 'جرّبه الآن' : 'Try it now',
+      planBackTitle: isArabic ? 'ارجع وقت ما تحتاج' : 'Go back anytime',
+      planBackBody: isArabic
+        ? 'هذا الزر يعيدك للشاشة السابقة بدون أن تفقد تقدمك في التمرين.'
+        : 'Use this to return to the previous screen without losing your workout progress.',
+      planMissTitle: isArabic ? 'إذا احتجت تفويت اليوم' : 'If you need to skip today',
+      planMissBody: isArabic
+        ? 'هذا الزر مخصص لتفويت الجلسة المجدولة اليوم عندما تتعذر عليك التمرين.'
+        : 'This button marks the scheduled session as missed when you cannot train today.',
+      planSummaryTitle: isArabic ? 'راجع آخر جلسة' : 'Review your last session',
+      planSummaryBody: isArabic
+        ? 'افتح آخر ملخص تمرين بسرعة لتتذكر أداءك قبل أن تبدأ.'
+        : 'Open your latest workout summary to quickly remember how your last session went.',
+      planWorkoutTitle: isArabic ? 'هذه خطة اليوم' : 'This is today’s plan',
+      planWorkoutBody: isArabic
+        ? 'هنا ترى اسم الحصة الحالية حتى تعرف بالضبط ماذا ستتمرن اليوم.'
+        : 'This card shows the current session so you know exactly what you are training today.',
+      planMusclesTitle: isArabic ? 'لماذا هذا التمرين؟' : 'Why this workout matters',
+      planMusclesBody: isArabic
+        ? 'هذه البطاقات توضح العضلات المستهدفة ونسبة تركيز الحصة على كل عضلة.'
+        : 'These cards show the muscles this workout targets and how much focus each one gets.',
+      planAddTitle: isArabic ? 'أضف تمريناً عند الحاجة' : 'Add an exercise when needed',
+      planAddBody: isArabic
+        ? 'من هنا يمكنك إضافة تمرين إضافي لليوم إذا أردت تعديل الحصة.'
+        : 'Use this to add an extra exercise when you want to customize today’s session.',
+      planStartTitle: isArabic ? 'ابدأ بسرعة' : 'Start quickly',
+      planStartBody: isArabic
+        ? 'هذا الزر يرسلك مباشرة إلى أول تمرين غير مكتمل لتبدأ أسرع.'
+        : 'This button jumps straight into your next unfinished exercise.',
+      planExerciseTitle: isArabic ? 'اختر أي تمرين' : 'Pick any exercise',
+      planExerciseBody: isArabic
+        ? 'افتح بطاقة التمرين لرؤية المتتبع وتسجيل التكرارات والأوزان خطوة بخطوة.'
+        : 'Open an exercise card to see the tracker and log reps and weight step by step.',
+      trackerBackTitle: isArabic ? 'الرجوع للخطة' : 'Back to the plan',
+      trackerBackBody: isArabic
+        ? 'ارجع إلى قائمة تمارين اليوم في أي وقت من هنا.'
+        : 'Use this to return to your workout plan at any time.',
+      trackerRemoveTitle: isArabic ? 'احذف إذا لزم' : 'Remove if needed',
+      trackerRemoveBody: isArabic
+        ? 'هذا الزر يزيل التمرين من جلسة اليوم إذا لم تعد تريد أداءه.'
+        : 'This button removes the exercise from today’s session if you no longer want it.',
+      trackerTimerTitle: isArabic ? 'هذا مؤقتك' : 'This is your timer',
+      trackerTimerBody: isArabic
+        ? 'يعرض وقت المجموعة الحالية لمساعدتك على ضبط الإيقاع والراحة.'
+        : 'It shows the current set timer so you can control pace and rest.',
+      trackerPlayTitle: isArabic ? 'ابدأ وأوقف المجموعة' : 'Start and stop the set',
+      trackerPlayBody: isArabic
+        ? 'اضغط هنا عند بدء المجموعة، واضغط مرة أخرى عند الانتهاء لحفظها وبدء الراحة.'
+        : 'Tap here when a set begins, then tap again when you finish to save it and start rest.',
+      trackerVideoTitle: isArabic ? 'شاهد الأداء الصحيح' : 'Watch the right technique',
+      trackerVideoBody: isArabic
+        ? 'افتح الفيديو للتأكد من الشكل الصحيح قبل أو أثناء التمرين.'
+        : 'Open the video to confirm proper technique before or during the set.',
+      trackerAnalyticsTitle: isArabic ? 'راجع التحليلات' : 'Review analytics',
+      trackerAnalyticsBody: isArabic
+        ? 'هنا ترى الحجم والأزمنة والمجموعات المكتملة لهذا التمرين.'
+        : 'Here you can review volume, timing, and completed-set analytics for this exercise.',
+      trackerSetRowTitle: isArabic ? 'سجّل كل مجموعة' : 'Log each set',
+      trackerSetRowBody: isArabic
+        ? 'عدّل التكرارات والوزن لكل مجموعة، ثم استخدم الشريط لضبط الوزن بسرعة.'
+        : 'Edit reps and weight for each set, then use the slider for quick weight adjustments.',
+      trackerAddSetTitle: isArabic ? 'أضف مجموعة إضافية' : 'Add an extra set',
+      trackerAddSetBody: isArabic
+        ? 'إذا احتجت حجم تمرين أعلى، أضف مجموعة جديدة من هنا.'
+        : 'If you want more training volume, add another set from here.',
+    }),
+    [isArabic],
+  );
+  const nextPlannedExerciseName = useMemo(() => {
+    const completedLookup = new Set(completedExercises.map((name) => normalizeExerciseName(name)));
+    const nextExercise = todayExercises.find(
+      (exercise) => !completedLookup.has(normalizeExerciseName(exercise.exerciseName)),
+    ) || todayExercises[0];
+    return String(nextExercise?.exerciseName || '').trim();
+  }, [completedExercises, todayExercises]);
+  const planCoachmarkSteps = useMemo<CoachmarkStep[]>(
+    () => [
+      {
+        id: 'workout_card',
+        targetId: 'workout_plan_info_card',
+        title: coachmarkCopy.planWorkoutTitle,
+        body: coachmarkCopy.planWorkoutBody,
+        placement: 'bottom',
+        shape: 'rounded',
+        padding: 8,
+        cornerRadius: 20,
+      },
+      {
+        id: 'target_muscles',
+        targetId: 'workout_plan_target_muscles',
+        title: coachmarkCopy.planMusclesTitle,
+        body: coachmarkCopy.planMusclesBody,
+        placement: 'bottom',
+        shape: 'rounded',
+        padding: 8,
+        cornerRadius: 20,
+      },
+      {
+        id: 'add_exercise',
+        targetId: 'workout_plan_add_exercise_button',
+        title: coachmarkCopy.planAddTitle,
+        body: coachmarkCopy.planAddBody,
+        placement: 'bottom',
+        shape: 'circle',
+        padding: 8,
+      },
+      {
+        id: 'exercise_card',
+        targetId: 'workout_plan_first_exercise_card',
+        title: coachmarkCopy.planExerciseTitle,
+        body: coachmarkCopy.planExerciseBody,
+        placement: 'top',
+        shape: 'rounded',
+        padding: 8,
+        cornerRadius: 20,
+        targetActionLabel: coachmarkCopy.tryIt,
+      },
+    ],
+    [coachmarkCopy],
+  );
+  const trackerCoachmarkSteps = useMemo<CoachmarkStep[]>(
+    () => [
+      {
+        id: 'timer',
+        targetId: 'workout_tracker_timer',
+        title: coachmarkCopy.trackerTimerTitle,
+        body: coachmarkCopy.trackerTimerBody,
+        placement: 'bottom',
+        shape: 'rounded',
+        padding: 8,
+        cornerRadius: 14,
+      },
+      {
+        id: 'start_stop',
+        targetId: 'workout_tracker_play_button',
+        title: coachmarkCopy.trackerPlayTitle,
+        body: coachmarkCopy.trackerPlayBody,
+        placement: 'top',
+        shape: 'circle',
+        padding: 8,
+      },
+      {
+        id: 'video',
+        targetId: 'workout_tracker_video_button',
+        title: coachmarkCopy.trackerVideoTitle,
+        body: coachmarkCopy.trackerVideoBody,
+        placement: 'top',
+        shape: 'circle',
+        padding: 8,
+      },
+      {
+        id: 'analytics',
+        targetId: 'workout_tracker_analytics_button',
+        title: coachmarkCopy.trackerAnalyticsTitle,
+        body: coachmarkCopy.trackerAnalyticsBody,
+        placement: 'top',
+        shape: 'circle',
+        padding: 8,
+      },
+      {
+        id: 'set_row',
+        targetId: 'workout_tracker_first_set_row',
+        title: coachmarkCopy.trackerSetRowTitle,
+        body: coachmarkCopy.trackerSetRowBody,
+        placement: 'top',
+        shape: 'rounded',
+        padding: 8,
+        cornerRadius: 20,
+      },
+      {
+        id: 'add_set',
+        targetId: 'workout_tracker_add_set_button',
+        title: coachmarkCopy.trackerAddSetTitle,
+        body: coachmarkCopy.trackerAddSetBody,
+        placement: 'top',
+        shape: 'rounded',
+        padding: 8,
+        cornerRadius: 999,
+      },
+    ],
+    [coachmarkCopy],
+  );
+  const activeCoachmarkSteps = coachmarkMode === 'tracker' ? trackerCoachmarkSteps : planCoachmarkSteps;
+  const activeCoachmarkOptions = coachmarkMode === 'tracker' ? trackerCoachmarkOptions : planCoachmarkOptions;
+  const activeCoachmarkStep = activeCoachmarkSteps[coachmarkStepIndex] || null;
+  const isCoachmarkOpen = coachmarkMode !== null && !!activeCoachmarkStep;
 
   useEffect(() => {
     const state = loadLocalWorkoutState(workoutStorageScope);
@@ -607,6 +853,78 @@ export function Workout({ onBack, workoutDay = 'Push Day', resetSignal = 0 }: Wo
   useEffect(() => {
     setPostedSummaryTokens(readPostedWorkoutSummaryTokens(workoutStorageScope));
   }, [workoutStorageScope]);
+
+  const closeCoachmarks = () => {
+    setCoachmarkMode(null);
+    setCoachmarkStepIndex(0);
+  };
+
+  const handleCoachmarkNext = () => {
+    if (!coachmarkMode || !activeCoachmarkStep) return;
+
+    const isLastStep = coachmarkStepIndex >= activeCoachmarkSteps.length - 1;
+    if (isLastStep) return;
+
+    patchCoachmarkProgress(activeCoachmarkOptions, (current) => ({
+      currentStep: coachmarkStepIndex + 1,
+      seenSteps: {
+        ...current.seenSteps,
+        [activeCoachmarkStep.id]: true,
+      },
+    }));
+
+    setCoachmarkStepIndex((current) => Math.min(current + 1, activeCoachmarkSteps.length - 1));
+  };
+
+  const handleCoachmarkFinish = () => {
+    if (!coachmarkMode || !activeCoachmarkStep) return;
+
+    patchCoachmarkProgress(activeCoachmarkOptions, (current) => ({
+      completed: true,
+      dismissed: false,
+      currentStep: Math.max(activeCoachmarkSteps.length - 1, 0),
+      seenSteps: {
+        ...current.seenSteps,
+        [activeCoachmarkStep.id]: true,
+      },
+    }));
+
+    closeCoachmarks();
+  };
+
+  const handleCoachmarkSkip = () => {
+    if (!coachmarkMode) return;
+
+    patchCoachmarkProgress(activeCoachmarkOptions, {
+      dismissed: true,
+      currentStep: coachmarkStepIndex,
+    });
+
+    closeCoachmarks();
+  };
+
+  const handleCoachmarkTargetAction = () => {
+    if (!coachmarkMode || !activeCoachmarkStep) return;
+
+    patchCoachmarkProgress(activeCoachmarkOptions, (current) => ({
+      completed: true,
+      dismissed: false,
+      currentStep: Math.max(activeCoachmarkSteps.length - 1, 0),
+      seenSteps: {
+        ...current.seenSteps,
+        [activeCoachmarkStep.id]: true,
+      },
+    }));
+
+    if (coachmarkMode === 'plan' && activeCoachmarkStep.id === 'exercise_card' && nextPlannedExerciseName) {
+      closeCoachmarks();
+      setSelectedExercise(nextPlannedExerciseName);
+      setView('tracker');
+      return;
+    }
+
+    closeCoachmarks();
+  };
 
   useEffect(() => {
     const loadLatestSummaryAvailability = async () => {
@@ -625,6 +943,65 @@ export function Workout({ onBack, workoutDay = 'Push Day', resetSignal = 0 }: Wo
 
     void loadLatestSummaryAvailability();
   }, [userId]);
+
+  useEffect(() => {
+    closeCoachmarks();
+  }, [resetSignal]);
+
+  useEffect(() => {
+    if (coachmarkMode === 'plan' && view !== 'plan') {
+      closeCoachmarks();
+      return;
+    }
+
+    if (coachmarkMode === 'tracker' && view !== 'tracker') {
+      closeCoachmarks();
+    }
+  }, [coachmarkMode, view]);
+
+  useEffect(() => {
+    if (loading || isCoachmarkOpen) return;
+    if (view !== 'plan' && view !== 'tracker') return;
+
+    const timer = window.setTimeout(() => {
+      if (view === 'plan') {
+        const progress = readCoachmarkProgress(planCoachmarkOptions);
+        const canShowPlanTour =
+          !progress.completed
+          && !progress.dismissed
+          && todayExercises.length > 0
+          && hasCoachmarkTargets(planCoachmarkSteps);
+
+        if (canShowPlanTour) {
+          setCoachmarkStepIndex(Math.min(progress.currentStep, planCoachmarkSteps.length - 1));
+          setCoachmarkMode('plan');
+        }
+        return;
+      }
+
+      const progress = readCoachmarkProgress(trackerCoachmarkOptions);
+      const canShowTrackerTour =
+        !progress.completed
+        && !progress.dismissed
+        && hasCoachmarkTargets(trackerCoachmarkSteps);
+
+      if (canShowTrackerTour) {
+        setCoachmarkStepIndex(Math.min(progress.currentStep, trackerCoachmarkSteps.length - 1));
+        setCoachmarkMode('tracker');
+      }
+    }, 420);
+
+    return () => window.clearTimeout(timer);
+  }, [
+    isCoachmarkOpen,
+    loading,
+    planCoachmarkOptions,
+    planCoachmarkSteps,
+    todayExercises.length,
+    trackerCoachmarkOptions,
+    trackerCoachmarkSteps,
+    view,
+  ]);
 
   const persistExtraExercises = (exercises: any[]) => {
     const extras = exercises
@@ -1271,29 +1648,44 @@ export function Workout({ onBack, workoutDay = 'Push Day', resetSignal = 0 }: Wo
 
   if (view === 'plan') {
     return (
-      <WorkoutPlanScreen
-        onBack={onBack}
-        onExerciseClick={(exercise) => {
-          setSelectedExercise(exercise);
-          setView('tracker');
-        }}
-        onPreviewExercise={(exercise) => {
-          setSelectedExercise(exercise);
-          setVideoReturnView('plan');
-          setView('video');
-        }}
-        onAddExercise={addExerciseToToday}
-        onOpenLatestSummary={() => {
-          void openLatestSummary();
-        }}
-        onMissDay={markTodayWorkoutAsMissed}
-        hasLatestSummary={hasLatestSummary}
-        workoutDay={currentWorkoutName}
-        workoutDayLabel={currentWorkoutDayLabel}
-        completedExercises={completedExercises}
-        todayExercises={todayExercises}
-        loading={loading}
-      />
+      <>
+        <WorkoutPlanScreen
+          onBack={onBack}
+          onExerciseClick={(exercise) => {
+            setSelectedExercise(exercise);
+            setView('tracker');
+          }}
+          onPreviewExercise={(exercise) => {
+            setSelectedExercise(exercise);
+            setVideoReturnView('plan');
+            setView('video');
+          }}
+          onAddExercise={addExerciseToToday}
+          onOpenLatestSummary={() => {
+            void openLatestSummary();
+          }}
+          onMissDay={markTodayWorkoutAsMissed}
+          hasLatestSummary={hasLatestSummary}
+          workoutDay={currentWorkoutName}
+          workoutDayLabel={currentWorkoutDayLabel}
+          completedExercises={completedExercises}
+          todayExercises={todayExercises}
+          loading={loading}
+        />
+        <CoachmarkOverlay
+          isOpen={coachmarkMode === 'plan' && !!activeCoachmarkStep}
+          step={coachmarkMode === 'plan' ? activeCoachmarkStep : null}
+          stepIndex={coachmarkMode === 'plan' ? coachmarkStepIndex : 0}
+          totalSteps={planCoachmarkSteps.length}
+          nextLabel={coachmarkCopy.next}
+          finishLabel={coachmarkCopy.finish}
+          skipLabel={coachmarkCopy.skip}
+          onNext={handleCoachmarkNext}
+          onFinish={handleCoachmarkFinish}
+          onSkip={handleCoachmarkSkip}
+          onTargetAction={activeCoachmarkStep?.id === 'exercise_card' ? handleCoachmarkTargetAction : null}
+        />
+      </>
     );
   }
 
@@ -1302,19 +1694,33 @@ export function Workout({ onBack, workoutDay = 'Push Day', resetSignal = 0 }: Wo
       (exercise) => normalizeExerciseName(exercise.exerciseName) === normalizeExerciseName(selectedExercise),
     );
     return (
-      <TrackerScreen
-        onBack={() => setView('plan')}
-        exerciseName={selectedExercise}
-        plannedSets={getPlannedSetsForExercise(selectedExercise) || undefined}
-        onVideoClick={(exerciseName) => {
-          setSelectedExercise(exerciseName);
-          setVideoReturnView('tracker');
-          setView('video');
-        }}
-        savedSets={exerciseSets[selectedExercise]}
-        onSaveSets={(sets) => updateExerciseSets({ ...exerciseSets, [selectedExercise]: sets })}
-        onRemoveExercise={selectedWorkoutExercise ? async () => removeExerciseFromToday(selectedWorkoutExercise.exerciseName) : undefined}
-      />
+      <>
+        <TrackerScreen
+          onBack={() => setView('plan')}
+          exerciseName={selectedExercise}
+          plannedSets={getPlannedSetsForExercise(selectedExercise) || undefined}
+          onVideoClick={(exerciseName) => {
+            setSelectedExercise(exerciseName);
+            setVideoReturnView('tracker');
+            setView('video');
+          }}
+          savedSets={exerciseSets[selectedExercise]}
+          onSaveSets={(sets) => updateExerciseSets({ ...exerciseSets, [selectedExercise]: sets })}
+          onRemoveExercise={selectedWorkoutExercise ? async () => removeExerciseFromToday(selectedWorkoutExercise.exerciseName) : undefined}
+        />
+        <CoachmarkOverlay
+          isOpen={coachmarkMode === 'tracker' && !!activeCoachmarkStep}
+          step={coachmarkMode === 'tracker' ? activeCoachmarkStep : null}
+          stepIndex={coachmarkMode === 'tracker' ? coachmarkStepIndex : 0}
+          totalSteps={trackerCoachmarkSteps.length}
+          nextLabel={coachmarkCopy.next}
+          finishLabel={coachmarkCopy.finish}
+          skipLabel={coachmarkCopy.skip}
+          onNext={handleCoachmarkNext}
+          onFinish={handleCoachmarkFinish}
+          onSkip={handleCoachmarkSkip}
+        />
+      </>
     );
   }
 

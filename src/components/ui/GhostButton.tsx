@@ -5,11 +5,13 @@ interface GhostButtonProps {
   children: ReactNode;
   onClick?: () => void;
   className?: string;
+  coachmarkTargetId?: string;
 }
 
-export function GhostButton({ children, onClick, className = '' }: GhostButtonProps) {
+export function GhostButton({ children, onClick, className = '', coachmarkTargetId }: GhostButtonProps) {
   return (
     <motion.button
+      data-coachmark-target={coachmarkTargetId}
       whileTap={{
         scale: 0.98,
       }}

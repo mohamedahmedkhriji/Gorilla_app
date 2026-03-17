@@ -7,9 +7,10 @@ import { getActiveLanguage, getStoredLanguage } from '../../services/language';
 
 interface RankDisplayProps {
   points?: number;
+  coachmarkTargetId?: string;
 }
 
-export function RankDisplay({ points = 420 }: RankDisplayProps) {
+export function RankDisplay({ points = 420, coachmarkTargetId }: RankDisplayProps) {
   const isArabic = getActiveLanguage(getStoredLanguage()) === 'ar';
   const rankNameMap: Record<string, string> = {
     bronze: 'برونزي',
@@ -28,6 +29,7 @@ export function RankDisplay({ points = 420 }: RankDisplayProps) {
 
   return (
     <motion.div
+      data-coachmark-target={coachmarkTargetId}
       initial={{
         opacity: 0,
         y: 20,

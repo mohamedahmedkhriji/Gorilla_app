@@ -4,10 +4,24 @@ import { Bell, Shield, User, Moon, Sun, Database, Lock, SlidersHorizontal, Share
 import { applyTheme, getActiveTheme, getStoredTheme } from '../../services/theme';
 import { AppLanguage, applyLanguage, getActiveLanguage, getStoredLanguage } from '../../services/language';
 import { api } from '../../services/api';
+import {
+  HOME_COACHMARK_TOUR_ID,
+  HOME_COACHMARK_VERSION,
+  PROFILE_COACHMARK_TOUR_ID,
+  PROFILE_COACHMARK_VERSION,
+  PROGRESS_COACHMARK_TOUR_ID,
+  PROGRESS_COACHMARK_VERSION,
+  resetCoachmarkProgress,
+  WORKOUT_PLAN_COACHMARK_TOUR_ID,
+  WORKOUT_PLAN_COACHMARK_VERSION,
+  WORKOUT_TRACKER_COACHMARK_TOUR_ID,
+  WORKOUT_TRACKER_COACHMARK_VERSION,
+} from '../../services/coachmarks';
 import { persistStoredUser } from '../../shared/authStorage';
 interface SettingsScreenProps {
   onBack: () => void;
   onOpenGym?: () => void;
+  onOpenHomeTour?: () => void;
 }
 
 const SETTINGS_I18N = {
@@ -28,6 +42,9 @@ const SETTINGS_I18N = {
     arabic: 'العربية',
     dark: 'Dark',
     light: 'Light',
+    appTour: 'App Tour',
+    showAppTour: 'Show App Tour',
+    showAppTourDetail: 'Replay the home guidance any time you want a refresher.',
     logOut: 'Log Out',
     gymAccess: 'Gym Access',
     gymLocation: 'Iron Paradise Gym',
@@ -161,6 +178,9 @@ const SETTINGS_I18N = {
     arabic: 'العربية',
     dark: 'داكن',
     light: 'فاتح',
+    appTour: 'جولة التطبيق',
+    showAppTour: 'عرض جولة التطبيق',
+    showAppTourDetail: 'أعد تشغيل إرشادات الصفحة الرئيسية في أي وقت.',
     logOut: 'تسجيل الخروج',
     gymAccess: 'دخول النادي',
     gymLocation: 'آيرون بارادايس جيم',
@@ -279,7 +299,7 @@ const SETTINGS_I18N = {
   },
 } as const;
 
-export function SettingsScreen({ onBack, onOpenGym }: SettingsScreenProps) {
+export function SettingsScreen({ onBack, onOpenGym, onOpenHomeTour }: SettingsScreenProps) {
   const [theme, setTheme] = useState<'dark' | 'light'>('dark');
   const [language, setLanguage] = useState<AppLanguage>('en');
   const [activePage, setActivePage] = useState<'settings' | 'privacy' | 'personal'>('settings');
@@ -732,6 +752,80 @@ export function SettingsScreen({ onBack, onOpenGym }: SettingsScreenProps) {
     }
   };
 
+  const handleOpenHomeTour = () => {
+    resetCoachmarkProgress({
+      tourId: HOME_COACHMARK_TOUR_ID,
+      version: HOME_COACHMARK_VERSION,
+      defaultSeenSteps: {
+        today_plan: false,
+        recovery: false,
+        progress: false,
+        nutrition: false,
+        exercises: false,
+        books: false,
+      },
+    });
+    resetCoachmarkProgress({
+      tourId: PROGRESS_COACHMARK_TOUR_ID,
+      version: PROGRESS_COACHMARK_VERSION,
+      defaultSeenSteps: {
+        strength_chart: false,
+        consistency: false,
+        total_volume: false,
+        muscle_distribution: false,
+        report: false,
+        overload: false,
+      },
+    });
+    resetCoachmarkProgress({
+      tourId: PROFILE_COACHMARK_TOUR_ID,
+      version: PROFILE_COACHMARK_VERSION,
+      defaultSeenSteps: {
+        settings: false,
+        notifications: false,
+        avatar: false,
+        photo_upload: false,
+        exercises: false,
+        rank: false,
+        days_left: false,
+        friends: false,
+        coach: false,
+        posts: false,
+        plan_builder: false,
+        logout: false,
+      },
+    });
+    resetCoachmarkProgress({
+      tourId: WORKOUT_PLAN_COACHMARK_TOUR_ID,
+      version: WORKOUT_PLAN_COACHMARK_VERSION,
+      defaultSeenSteps: {
+        back: false,
+        miss_day: false,
+        summary: false,
+        workout_card: false,
+        target_muscles: false,
+        add_exercise: false,
+        start_workout: false,
+        exercise_card: false,
+      },
+    });
+    resetCoachmarkProgress({
+      tourId: WORKOUT_TRACKER_COACHMARK_TOUR_ID,
+      version: WORKOUT_TRACKER_COACHMARK_VERSION,
+      defaultSeenSteps: {
+        back: false,
+        remove: false,
+        timer: false,
+        start_stop: false,
+        video: false,
+        analytics: false,
+        set_row: false,
+        add_set: false,
+      },
+    });
+    onOpenHomeTour?.();
+  };
+
   return (
     <div className="flex-1 flex flex-col bg-background min-h-screen pb-24">
       <div className="px-4 sm:px-6 pt-2">
@@ -903,6 +997,28 @@ export function SettingsScreen({ onBack, onOpenGym }: SettingsScreenProps) {
               <span className="text-sm font-medium">{copy.arabic}</span>
             </button>
           </div>
+        </div>
+
+        <div className="space-y-3">
+          <h3 className="text-sm font-medium text-text-secondary uppercase tracking-wider px-2">
+            {copy.appTour}
+          </h3>
+          <button
+            type="button"
+            onClick={handleOpenHomeTour}
+            className="w-full bg-card rounded-2xl p-4 border border-white/5 flex items-center justify-between hover:bg-white/5 transition-colors"
+          >
+            <div className="flex items-center gap-3 text-left">
+              <div className="p-2 rounded-xl bg-accent/10 text-accent border border-accent/20">
+                <Eye size={18} />
+              </div>
+              <div>
+                <div className="font-medium text-white">{copy.showAppTour}</div>
+                <div className="text-xs text-text-secondary mt-1">{copy.showAppTourDetail}</div>
+              </div>
+            </div>
+            <ChevronRight size={20} className="text-text-tertiary" />
+          </button>
         </div>
 
       </div>
