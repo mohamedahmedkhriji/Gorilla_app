@@ -6,6 +6,7 @@ import logoB from '../../assets/gym_logo/841cc033449a0efdbfc315de6a29a52a.jpg';
 import logoC from '../../assets/gym_logo/9d631105-f60d-4f63-8ec8-a353b8f6b7e9.png';
 import logoD from '../../assets/gym_logo/a17097fedf53f8b861c7a5457c8a1f17.jpg';
 import logoE from '../../assets/gym_logo/Screenshot 2026-03-01 000834.png';
+import logoF from '../../assets/gym_logo/gymlogo.png';
 
 interface PublicLandingPageProps {
   onGetStarted: () => void;
@@ -32,7 +33,7 @@ const forcedDarkThemeVars: React.CSSProperties = {
   '--color-text-tertiary': '131 149 171',
 } as React.CSSProperties;
 
-const logos = [logoA, logoB, logoC, logoD, logoE];
+const logos = [logoA, logoB, logoC, logoD, logoE, logoF];
 const loopedLogos = [...logos, ...logos, ...logos];
 
 export const PublicLandingPage: React.FC<PublicLandingPageProps> = ({ onGetStarted }) => {

@@ -40,6 +40,40 @@ type WorkoutExerciseCard = {
   targetMuscles: string[];
 };
 
+const normalizeExerciseKey = (value: string) =>
+  String(value || '')
+    .trim()
+    .toLowerCase();
+
+const getLatestHistoryWeight = (rows: any[]): number | null => {
+  if (!Array.isArray(rows) || rows.length === 0) return null;
+
+  const normalized = rows
+    .map((row: any) => {
+      const completedFlag = Number(row?.completed ?? 1);
+      if (completedFlag === 0) return null;
+      const createdAt = row?.created_at || row?.createdAt || row?.date || null;
+      const parsedDate = createdAt ? new Date(createdAt) : null;
+      const timestamp = parsedDate && !Number.isNaN(parsedDate.getTime()) ? parsedDate.getTime() : 0;
+      const dateKey = parsedDate && !Number.isNaN(parsedDate.getTime()) ? parsedDate.toISOString().slice(0, 10) : '';
+      const weight = Number(row?.weight ?? 0);
+      if (!Number.isFinite(weight) || weight <= 0) return null;
+      return { weight, timestamp, dateKey };
+    })
+    .filter(Boolean) as Array<{ weight: number; timestamp: number; dateKey: string }>;
+
+  if (normalized.length === 0) return null;
+
+  normalized.sort((a, b) => b.timestamp - a.timestamp);
+  const latestDateKey = normalized[0].dateKey;
+  const sameDay = latestDateKey
+    ? normalized.filter((row) => row.dateKey === latestDateKey)
+    : normalized;
+
+  const topWeight = sameDay.reduce((max, row) => Math.max(max, row.weight), 0);
+  return topWeight > 0 ? Number(topWeight.toFixed(2)) : null;
+};
+
 const toTitleCase = (value: string) =>
   String(value || '')
     .trim()
@@ -141,6 +175,7 @@ const WORKOUT_PLAN_I18N = {
     kgLabel: 'kg',
     restSeconds: (value: number) => `${value}s rest`,
     restAsNeeded: 'Rest as needed',
+    lastWeightLabel: 'Last weight',
     startWorkout: 'Start Workout',
     videoMissing: 'Video missing',
     addExerciseTitle: 'Add Exercise',
@@ -191,6 +226,7 @@ const WORKOUT_PLAN_I18N = {
     kgLabel: 'كجم',
     restSeconds: (value: number) => `راحة ${value}ث`,
     restAsNeeded: 'راحة حسب الحاجة',
+    lastWeightLabel: 'آخر وزن',
     startWorkout: 'ابدأ التمرين',
     videoMissing: 'الفيديو غير متوفر',
     addExerciseTitle: 'إضافة تمرين',
@@ -266,6 +302,7 @@ export function WorkoutPlanScreen({
   const [missDayFeedback, setMissDayFeedback] = useState<string | null>(null);
   const [isSubmittingExercise, setIsSubmittingExercise] = useState(false);
   const [isSubmittingMissDay, setIsSubmittingMissDay] = useState(false);
+  const [lastWeights, setLastWeights] = useState<Record<string, number>>({});
   const copy = WORKOUT_PLAN_I18N[language] || WORKOUT_PLAN_I18N.en;
   const isArabic = language === 'ar';
 
@@ -329,6 +366,57 @@ export function WorkoutPlanScreen({
 
     void loadCatalog();
   }, [copy.catalogError, isAddModalOpen, catalogLoaded, catalogLoading]);
+
+  useEffect(() => {
+    const user = JSON.parse(localStorage.getItem('appUser') || localStorage.getItem('user') || '{}');
+    const userId = Number(user?.id || 0);
+    if (!userId) {
+      setLastWeights({});
+      return;
+    }
+
+    const exerciseNames = Array.from(
+      new Set(
+        todayExercises
+          .map((ex) => String(ex?.exerciseName || ex?.name || '').trim())
+          .filter(Boolean),
+      ),
+    );
+
+    if (exerciseNames.length === 0) {
+      setLastWeights({});
+      return;
+    }
+
+    let cancelled = false;
+
+    const loadLastWeights = async () => {
+      const next: Record<string, number> = {};
+      await Promise.all(
+        exerciseNames.map(async (exerciseName) => {
+          try {
+            const rows = await api.getWorkoutHistory(userId, exerciseName);
+            const lastWeight = getLatestHistoryWeight(rows);
+            if (lastWeight && lastWeight > 0) {
+              next[normalizeExerciseKey(exerciseName)] = lastWeight;
+            }
+          } catch {
+            // Ignore failures per exercise.
+          }
+        }),
+      );
+
+      if (!cancelled) {
+        setLastWeights(next);
+      }
+    };
+
+    void loadLastWeights();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [todayExercises]);
 
   const exercises: WorkoutExerciseCard[] = todayExercises.map((ex) => {
     const targetMuscles = Array.isArray(ex?.targetMuscles) && ex.targetMuscles.length
@@ -624,6 +712,7 @@ export function WorkoutPlanScreen({
             const visual = exerciseVisuals[index];
             const primaryMuscle = visual?.primaryMuscle || resolvePrimaryExerciseMuscle(exercise);
             const videoUrl = visual?.videoMatch?.url || null;
+            const lastWeight = lastWeights[normalizeExerciseKey(exercise.name)];
 
             return (
               <button
@@ -674,6 +763,7 @@ export function WorkoutPlanScreen({
                       <h4 className="truncate text-sm font-semibold text-white">{stripExercisePrefix(exercise.name)}</h4>
                       <p className="mt-1 text-xs text-text-secondary">
                         {exercise.sets} {copy.setsLabel} - {exercise.reps || '--'} {copy.repsLabel} - {exercise.targetWeight ? `${exercise.targetWeight} ${copy.kgLabel}` : formatRestLabel(exercise.rest)}
+                        {lastWeight ? ` - ${copy.lastWeightLabel} ${lastWeight} ${copy.kgLabel}` : ''}
                       </p>
                       {!!exercise.targetMuscles.length && (
                         <p className="mt-2 truncate text-[11px] text-text-tertiary">

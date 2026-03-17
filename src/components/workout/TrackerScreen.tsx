@@ -45,6 +45,89 @@ const SEGMENT_MAP: Record<string, [boolean, boolean, boolean, boolean, boolean, 
   '9': [true, true, true, true, false, true, true],
 };
 
+type HistorySetRow = {
+  setNumber: number;
+  reps: number;
+  weight: number;
+  dateKey: string;
+  timestamp: number;
+};
+
+const toDateKey = (value: unknown) => {
+  if (!value) return '';
+  const parsed = new Date(value as string);
+  if (Number.isNaN(parsed.getTime())) return '';
+  return parsed.toISOString().slice(0, 10);
+};
+
+const normalizeHistoryRows = (rows: any[]): HistorySetRow[] => {
+  if (!Array.isArray(rows)) return [];
+
+  return rows
+    .map((row: any, index: number) => {
+      const completedFlag = Number(row?.completed ?? 1);
+      if (completedFlag === 0) return null;
+
+      const createdAt = row?.created_at || row?.createdAt || row?.date || row?.createdAtUtc || null;
+      const timestamp = createdAt ? new Date(createdAt).getTime() : 0;
+      const dateKey = toDateKey(createdAt);
+      const setNumber = Number(row?.setNumber ?? row?.set_number ?? row?.set ?? index + 1);
+      const reps = Number(row?.reps ?? 0);
+      const weight = Number(row?.weight ?? 0);
+
+      if (!Number.isFinite(reps) && !Number.isFinite(weight)) return null;
+
+      return {
+        setNumber: Number.isFinite(setNumber) && setNumber > 0 ? setNumber : index + 1,
+        reps: Number.isFinite(reps) ? reps : 0,
+        weight: Number.isFinite(weight) ? weight : 0,
+        dateKey,
+        timestamp: Number.isFinite(timestamp) ? timestamp : 0,
+      };
+    })
+    .filter(Boolean) as HistorySetRow[];
+};
+
+const getLatestHistorySets = (rows: any[]): HistorySetRow[] => {
+  const normalized = normalizeHistoryRows(rows);
+  if (normalized.length === 0) return [];
+
+  const sortedByTime = [...normalized].sort((a, b) => {
+    if (b.timestamp !== a.timestamp) return b.timestamp - a.timestamp;
+    return a.setNumber - b.setNumber;
+  });
+
+  const latestDateKey = sortedByTime[0]?.dateKey;
+  const latestGroup = latestDateKey
+    ? sortedByTime.filter((row) => row.dateKey === latestDateKey)
+    : sortedByTime;
+
+  return latestGroup.sort((a, b) => a.setNumber - b.setNumber || a.timestamp - b.timestamp);
+};
+
+const buildPrefilledSets = (plannedSets: number | undefined, historySets: HistorySetRow[]) => {
+  const requested = Number(plannedSets);
+  const setCount = Number.isFinite(requested) && requested > 0
+    ? Math.max(1, Math.round(requested))
+    : (historySets.length || DEFAULT_SET_TEMPLATE.length);
+
+  const fallbackHistory = historySets.length > 0 ? historySets[historySets.length - 1] : null;
+
+  return Array.from({ length: setCount }, (_, index) => {
+    const template = DEFAULT_SET_TEMPLATE[index] || DEFAULT_SET_TEMPLATE[DEFAULT_SET_TEMPLATE.length - 1];
+    const history = historySets[index] || fallbackHistory;
+    const reps = Number(history?.reps ?? template.reps);
+    const weight = Number(history?.weight ?? template.weight);
+
+    return {
+      set: index + 1,
+      reps: Number.isFinite(reps) ? Math.max(0, Math.round(reps)) : template.reps,
+      weight: Number.isFinite(weight) ? Math.max(0, weight) : template.weight,
+      completed: false,
+    };
+  });
+};
+
 const TRACKER_I18N: Record<AppLanguage, {
   title: string;
   removeExerciseAria: string;
@@ -212,6 +295,7 @@ export function TrackerScreen({
   onRemoveExercise,
 }: TrackerScreenProps) {
   const user = JSON.parse(localStorage.getItem('appUser') || localStorage.getItem('user') || '{}');
+  const userId = Number(user?.id || 0);
   const language = getActiveLanguage(getStoredLanguage());
   const isArabic = language === 'ar';
   const copy = TRACKER_I18N[isArabic ? 'ar' : 'en'];
@@ -235,6 +319,8 @@ export function TrackerScreen({
   const restReminderLock = useRef(false);
   const setTimerIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const restTimerIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const historyLoadIdRef = useRef(0);
+  const hasLocalEditsRef = useRef(false);
   const [notificationSettings, setNotificationSettings] = useState({
     coachMessages: true,
     restTimer: true,
@@ -242,12 +328,41 @@ export function TrackerScreen({
   });
 
   useEffect(() => {
+    hasLocalEditsRef.current = false;
     if (savedSets && savedSets.length > 0) {
       setSets(savedSets);
       return;
     }
     setSets(createInitialSets(plannedSets));
   }, [exerciseName, plannedSets, savedSets]);
+
+  useEffect(() => {
+    if (!userId) return;
+    if (savedSets && savedSets.length > 0) return;
+    if (!exerciseName) return;
+
+    const currentLoadId = historyLoadIdRef.current + 1;
+    historyLoadIdRef.current = currentLoadId;
+
+    const loadHistory = async () => {
+      try {
+        const historyRows = await api.getWorkoutHistory(userId, exerciseName);
+        if (historyLoadIdRef.current !== currentLoadId) return;
+        if (hasLocalEditsRef.current) return;
+
+        const latestSets = getLatestHistorySets(Array.isArray(historyRows) ? historyRows : []);
+        if (latestSets.length === 0) return;
+
+        const prefilled = buildPrefilledSets(plannedSets, latestSets);
+        setSets(prefilled);
+        onSaveSets?.(prefilled);
+      } catch (error) {
+        // Ignore history load failures, fallback to defaults.
+      }
+    };
+
+    void loadHistory();
+  }, [exerciseName, plannedSets, savedSets, userId, onSaveSets]);
 
   useEffect(() => {
     if (setTimerIntervalRef.current) {
@@ -291,7 +406,6 @@ export function TrackerScreen({
 
   useEffect(() => {
     const loadNotificationSettings = async () => {
-      const userId = Number(user?.id || 0);
       const cached = localStorage.getItem('notificationSettings');
       if (cached) {
         try {
@@ -317,7 +431,7 @@ export function TrackerScreen({
     };
 
     void loadNotificationSettings();
-  }, [user?.id]);
+  }, [userId]);
 
   const sendRestReminder = (message: string) => {
     if (!notificationSettings.restTimer) return;
@@ -368,6 +482,7 @@ export function TrackerScreen({
   }, [exerciseName, isResting, notificationSettings.restTimer, restTime, sets]);
 
   const persistSets = (nextSets: SetData[]) => {
+    hasLocalEditsRef.current = true;
     setSets(nextSets);
     onSaveSets?.(nextSets);
   };
@@ -388,6 +503,7 @@ export function TrackerScreen({
   };
 
   const toggleTimer = () => {
+    hasLocalEditsRef.current = true;
     if (isRunning) {
       const firstIncomplete = sets.findIndex(s => !s.completed);
       const setDuration = Math.max(0, setTimerSeconds);

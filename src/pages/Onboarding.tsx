@@ -22,6 +22,7 @@ import { CustomPlanOnboardingScreen } from '../components/onboarding/CustomPlanO
 import { CustomPlanAdviceScreen } from '../components/onboarding/CustomPlanAdviceScreen';
 import { api } from '../services/api';
 import { getOnboardingLanguage, resolveOnboardingTitle } from '../components/onboarding/onboardingI18n';
+import { applyLanguage, getStoredLanguage } from '../services/language';
 import {
   DEFAULT_ONBOARDING_CONFIG,
   mergeOnboardingConfig,
@@ -40,6 +41,11 @@ const hasOwn = (obj: unknown, key: string) => Object.prototype.hasOwnProperty.ca
 const toSafeNumber = (value: unknown) => {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : null;
+};
+
+const resolveOnboardingLanguage = (value: unknown) => {
+  const normalized = String(value || '').trim().toLowerCase();
+  return normalized === 'ar' || normalized === 'en' ? normalized : '';
 };
 
 const mergeOnboardingIntoUser = (user: Record<string, any>, patch: Record<string, any>) => {
@@ -244,6 +250,13 @@ export function Onboarding({ onComplete }: OnboardingProps) {
         user && typeof user === 'object' ? user : {},
         onboardingData || {},
       );
+
+      const selectedLanguage = resolveOnboardingLanguage(onboardingData?.language)
+        || resolveOnboardingLanguage(mergedUser?.language)
+        || getStoredLanguage();
+      if (selectedLanguage === 'ar' || selectedLanguage === 'en') {
+        applyLanguage(selectedLanguage, true);
+      }
 
       mergedUser.onboarding_completed = true;
       mergedUser.first_login = false;
