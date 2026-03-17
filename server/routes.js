@@ -2956,6 +2956,30 @@ const persistCustomProgramDraft = async (
   };
 };
 
+const normalizeProgramChangeReasonForStorage = (reason) => {
+  const normalized = String(reason || '').trim().toLowerCase();
+  if (normalized === 'injury_adjustment') {
+    return normalized;
+  }
+  return 'user_request';
+};
+
+const buildProgramChangeLogNote = (note, reason) => {
+  const originalReason = String(reason || '').trim().toLowerCase();
+  const storedReason = normalizeProgramChangeReasonForStorage(originalReason);
+  const baseNote = note == null ? null : String(note);
+
+  if (!originalReason || originalReason === storedReason) {
+    return baseNote;
+  }
+
+  if (!baseNote) {
+    return `source_reason=${originalReason}`;
+  }
+
+  return `${baseNote} [source_reason=${originalReason}]`;
+};
+
 const assignProgramToUser = async (
   conn,
   {
@@ -2967,6 +2991,8 @@ const assignProgramToUser = async (
   },
 ) => {
   const rotationWeeks = 8;
+  const storedReason = normalizeProgramChangeReasonForStorage(reason);
+  const changeLogNote = buildProgramChangeLogNote(note, reason);
   const startDate = new Date();
   const nextRotationDate = new Date(startDate);
   nextRotationDate.setDate(nextRotationDate.getDate() + rotationWeeks * 7);
@@ -3016,7 +3042,7 @@ const assignProgramToUser = async (
       `INSERT INTO program_change_log
         (assignment_id, user_id, old_program_id, new_program_id, changed_by_user_id, change_reason, notes)
        VALUES (?, ?, ?, ?, NULL, ?, ?)`,
-      [insertResult.insertId, userId, active.program_id, programId, reason, note],
+      [insertResult.insertId, userId, active.program_id, programId, storedReason, changeLogNote],
     );
   }
 
