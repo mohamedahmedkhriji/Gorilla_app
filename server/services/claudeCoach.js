@@ -582,6 +582,11 @@ const buildUserPrompt = (profile, imageCount) => {
   const daysPerWeek = clampInt(profile?.daysPerWeek, 2, 6, 4);
   const sessionDuration = clampInt(profile?.sessionDuration, 30, 120, 60);
   const preferredSplit = normalizeSplitPreference(profile?.preferredSplit);
+  const preferredLanguage = String(
+    profile?.language
+    || profile?.onboardingFields?.language
+    || 'en',
+  ).trim().toLowerCase() === 'ar' ? 'Arabic' : 'English';
   const exerciseAnchors = normalizeExerciseAnchors(profile?.exerciseAnchors);
   const onboardingFields = profile?.onboardingFields && typeof profile.onboardingFields === 'object'
     ? profile.onboardingFields
@@ -603,6 +608,7 @@ const buildUserPrompt = (profile, imageCount) => {
     `- Body type: ${profile?.bodyType || 'unknown'}`,
     `- Main reason for using the app: ${profile?.motivation || 'unspecified'}`,
     `- Preferred split style: ${profile?.preferredSplitLabel || preferredSplit || 'auto'}`,
+    `- Preferred output language: ${preferredLanguage}`,
     `- AI focus preference: ${profile?.trainingFocus || 'balanced'}`,
     `- Injury/limitation notes: ${profile?.limitations || 'none'}`,
     `- Recovery preference: ${profile?.recoveryPriority || 'balanced'}`,
@@ -620,6 +626,12 @@ const buildUserPrompt = (profile, imageCount) => {
     onboardingFieldsJson,
   '',
   ];
+
+  if (preferredLanguage === 'Arabic') {
+    lines.push('Write all user-facing narrative fields in Arabic.');
+  } else {
+    lines.push('Write all user-facing narrative fields in English.');
+  }
 
   if (exerciseAnchors.length > 0) {
     lines.push(

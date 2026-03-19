@@ -15,17 +15,30 @@ interface AIAnalysisScreenProps {
 export function AIAnalysisScreen({ onComplete, onboardingData, userId }: AIAnalysisScreenProps) {
   const language = getOnboardingLanguage();
   const isArabic = language === 'ar';
-  const checkpoints = isArabic
-    ? [
-        'جاري تحليل ملفك ومستوى نشاطك',
-        'جاري بناء جدول تدريبك المخصص',
-        'جاري إنهاء الخطة وأهداف التعافي',
-      ]
-    : [
-        'Analyzing your profile and activity level',
-        'Building your personalized training schedule',
-        'Finalizing plan and recovery targets',
-      ];
+  const copy = isArabic
+    ? {
+        title: 'جاري إنشاء جدولك اليومي...',
+        subtitle: 'قد يستغرق هذا بعض الوقت لأننا نبني خطة مخصصة لك.',
+        checkpoints: [
+          'جاري تحليل ملفك ومستوى نشاطك',
+          'جاري بناء جدول تدريبك المخصص',
+          'جاري إنهاء الخطة وأهداف التعافي',
+        ],
+        finalizing: 'جاري إنهاء خطتك...',
+        preparing: 'قد يستغرق هذا بعض الوقت. نجهّز كل شيء لك...',
+      }
+    : {
+        title: 'Generating your daily schedule...',
+        subtitle: 'This can take a little time while we build your personalized plan.',
+        checkpoints: [
+          'Analyzing your profile and activity level',
+          'Building your personalized training schedule',
+          'Finalizing plan and recovery targets',
+        ],
+        finalizing: 'Finalizing your plan...',
+        preparing: 'This can take a little time. We are preparing everything for you...',
+      };
+  const checkpoints = copy.checkpoints;
   const [isGenerationDone, setIsGenerationDone] = useState(false);
   const [progress, setProgress] = useState(0);
   const [completedSteps, setCompletedSteps] = useState<boolean[]>(
@@ -51,6 +64,7 @@ export function AIAnalysisScreen({ onComplete, onboardingData, userId }: AIAnaly
 
         const data = await api.saveOnboarding(Number(userId || 0), {
           ...(onboardingData || {}),
+          language,
           useClaude: true,
           disableClaude: false,
         });
@@ -107,7 +121,7 @@ export function AIAnalysisScreen({ onComplete, onboardingData, userId }: AIAnaly
     return () => {
       cancelled = true;
     };
-  }, [onboardingData, userId]);
+  }, [language, onboardingData, userId]);
 
   useEffect(() => {
     const interval = window.setInterval(() => {
@@ -171,8 +185,12 @@ export function AIAnalysisScreen({ onComplete, onboardingData, userId }: AIAnaly
         className="mx-auto w-full max-w-sm rounded-3xl surface-card border border-white/10 px-6 py-8 sm:py-10"
       >
         <h2 className="text-center text-2xl sm:text-[2rem] leading-[1.05] text-white font-bold">
-          {isArabic ? 'جاري إنشاء جدولك اليومي...' : 'Generating your daily schedule...'}
+          {copy.title}
         </h2>
+
+        <p className="mt-3 text-center text-sm text-text-secondary">
+          {copy.subtitle}
+        </p>
 
         <div className="mt-10 flex justify-center">
           <div className="relative w-48 h-48 flex items-center justify-center">
@@ -232,9 +250,7 @@ export function AIAnalysisScreen({ onComplete, onboardingData, userId }: AIAnaly
         </div>
 
         <p className="mt-6 text-center text-xs text-text-tertiary">
-          {isGenerationDone
-            ? isArabic ? 'جاري إنهاء خطتك...' : 'Finalizing your plan...'
-            : isArabic ? 'نجهّز كل شيء لك...' : 'Preparing everything for you...'}
+          {isGenerationDone ? copy.finalizing : copy.preparing}
         </p>
       </motion.div>
     </div>

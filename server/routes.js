@@ -3887,7 +3887,9 @@ const buildCustomPlanAdvice = ({
   normalizedExperience,
   normalizedDays,
   normalizedSessionDuration,
+  language = 'en',
 }) => {
+  const isArabic = String(language || '').trim().toLowerCase() === 'ar';
   const selectedDays = Array.isArray(draft?.selectedDays) ? draft.selectedDays : [];
   const templatesByDay = draft?.templatesByDay instanceof Map ? draft.templatesByDay : new Map();
 
@@ -3904,37 +3906,79 @@ const buildCustomPlanAdvice = ({
   const strengths = [];
 
   if (selectedDays.length >= normalizedDays) {
-    strengths.push('Your weekly frequency matches or exceeds your availability target.');
+    strengths.push(
+      isArabic
+        ? 'عدد أيام تدريبك الأسبوعية يطابق الوقت المتاح لك أو يتجاوزه.'
+        : 'Your weekly frequency matches or exceeds your availability target.',
+    );
   } else {
-    recommendations.push('Consider adding one more training day to match your stated availability.');
+    recommendations.push(
+      isArabic
+        ? 'فكّر في إضافة يوم تدريب إضافي ليتوافق البرنامج مع الوقت المتاح الذي حددته.'
+        : 'Consider adding one more training day to match your stated availability.',
+    );
   }
 
   if (avgExercisesPerDay < 4) {
-    recommendations.push('Add 1-2 key movements per session to improve total weekly stimulus.');
+    recommendations.push(
+      isArabic
+        ? 'أضف تمرينًا أو تمرينين أساسيين في كل جلسة لتحسين حجم التدريب الأسبوعي.'
+        : 'Add 1-2 key movements per session to improve total weekly stimulus.',
+    );
   } else if (avgExercisesPerDay > 8) {
-    recommendations.push('Your sessions are dense; reduce overlap to keep recovery and effort quality high.');
+    recommendations.push(
+      isArabic
+        ? 'جلساتك مزدحمة نسبيًا؛ قلّل التداخل بين التمارين للحفاظ على جودة الأداء والتعافي.'
+        : 'Your sessions are dense; reduce overlap to keep recovery and effort quality high.',
+    );
   } else {
-    strengths.push('Session volume per day looks balanced for steady progression.');
+    strengths.push(
+      isArabic
+        ? 'حجم التمارين في كل يوم يبدو متوازنًا ويدعم التقدم بشكل ثابت.'
+        : 'Session volume per day looks balanced for steady progression.',
+    );
   }
 
   if (normalizedSessionDuration < 50 && avgExercisesPerDay > 6) {
-    recommendations.push('Your session length target is tight; trim exercise count or use supersets.');
+    recommendations.push(
+      isArabic
+        ? 'مدة الجلسة التي اخترتها قصيرة نسبيًا؛ قلّل عدد التمارين أو استخدم السوبر سِت.'
+        : 'Your session length target is tight; trim exercise count or use supersets.',
+    );
   }
 
   if (normalizedGoal === 'hypertrophy') {
-    recommendations.push('Keep 8-15 rep work on core lifts and track weekly load increases.');
+    recommendations.push(
+      isArabic
+        ? 'حافظ على نطاق 8-15 تكرارًا في التمارين الأساسية وتابع زيادة الأوزان أسبوعيًا.'
+        : 'Keep 8-15 rep work on core lifts and track weekly load increases.',
+    );
   } else if (normalizedGoal === 'strength') {
-    recommendations.push('Anchor each day with one primary lift in lower rep ranges (3-6 reps).');
+    recommendations.push(
+      isArabic
+        ? 'ابدأ كل يوم بتمرين أساسي رئيسي ضمن تكرارات أقل بين 3 و6.'
+        : 'Anchor each day with one primary lift in lower rep ranges (3-6 reps).',
+    );
   } else if (normalizedGoal === 'fat_loss') {
-    recommendations.push('Maintain progressive resistance and keep rest periods controlled for density.');
+    recommendations.push(
+      isArabic
+        ? 'حافظ على المقاومة التصاعدية واجعل فترات الراحة منضبطة لرفع كثافة الجلسة.'
+        : 'Maintain progressive resistance and keep rest periods controlled for density.',
+    );
   }
 
   if ((normalizedExperience || 'intermediate') !== 'advanced') {
-    recommendations.push('Prioritize exercise technique quality before adding more volume or complexity.');
+    recommendations.push(
+      isArabic
+        ? 'اجعل جودة الأداء الفني أولوية قبل إضافة حجم أو تعقيد أكبر للخطة.'
+        : 'Prioritize exercise technique quality before adding more volume or complexity.',
+    );
   }
 
   return {
-    summary: 'Your custom plan is active. AI reviewed your profile and selected schedule, then generated advice only.',
+    summary: isArabic
+      ? 'تم تفعيل خطتك المخصصة. راجع الذكاء الاصطناعي ملفك والجدول الذي اخترته، ثم أنشأ لك هذه النصائح.'
+      : 'Your custom plan is active. AI reviewed your profile and selected schedule, then generated advice only.',
     strengths: strengths.slice(0, 3),
     recommendations: [...new Set(recommendations)].slice(0, 5),
     metrics: {
@@ -4627,6 +4671,7 @@ router.post('/user/onboarding', authMutationRateLimit, requireAuth('user'), asyn
     const normalizedAiLimitations = String(aiLimitations || '').trim().slice(0, 300) || null;
     const normalizedAiRecoveryPriority = String(aiRecoveryPriority || '').trim().toLowerCase().slice(0, 40) || null;
     const normalizedAiEquipmentNotes = String(aiEquipmentNotes || '').trim().slice(0, 240) || null;
+    const normalizedLanguage = String(req.body?.language || '').trim().toLowerCase() === 'ar' ? 'ar' : 'en';
     const normalizedAthleteIdentity = normalizeAthleteIdentity(athleteIdentity || req.body.athlete_identity);
     const normalizedAthleteIdentityLabel = normalizeShortText(
       athleteIdentityLabel || req.body.athlete_identity_label,
@@ -4688,6 +4733,7 @@ router.post('/user/onboarding', authMutationRateLimit, requireAuth('user'), asyn
       sessionDuration: normalizedSessionDuration,
       preferredTime: normalizedPreferredTime,
       bodyType: normalizedBodyType,
+      language: normalizedLanguage,
       motivation: normalizedOnboardingReason,
       preferredSplit: normalizedSplitPreference,
       preferredSplitLabel: normalizedSplitLabel,
@@ -4745,6 +4791,7 @@ router.post('/user/onboarding', authMutationRateLimit, requireAuth('user'), asyn
           sessionDuration: normalizedSessionDuration,
           preferredTime: normalizedPreferredTime,
           bodyType: normalizedBodyType,
+          language: normalizedLanguage,
           motivation: normalizedOnboardingReason,
           preferredSplit: normalizedSplitPreference,
           preferredSplitLabel: normalizedSplitLabel,
@@ -4773,6 +4820,7 @@ router.post('/user/onboarding', authMutationRateLimit, requireAuth('user'), asyn
           sessionDuration: normalizedSessionDuration,
           preferredTime: normalizedPreferredTime,
           bodyType: normalizedBodyType,
+          language: normalizedLanguage,
           motivation: normalizedOnboardingReason,
           preferredSplit: normalizedSplitPreference,
           preferredSplitLabel: normalizedSplitLabel,
@@ -4912,6 +4960,7 @@ router.post('/user/onboarding', authMutationRateLimit, requireAuth('user'), asyn
         planSource = 'custom_user';
         customAdvice = buildCustomPlanAdvice({
           draft: customDraft,
+          language: normalizedLanguage,
           normalizedGoal,
           normalizedExperience: normalizedExperience || 'intermediate',
           normalizedDays,
