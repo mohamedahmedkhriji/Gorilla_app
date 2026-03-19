@@ -75,6 +75,17 @@ const getBiWeeklyReportOpenAIModel = () => String(
   || 'gpt-4o',
 ).trim() || 'gpt-4o';
 
+const ALLOWED_ASSIGNMENT_SOURCES = new Set(['ai', 'coach', 'admin', 'manual']);
+
+const normalizeAssignmentSource = (value, fallback = 'manual') => {
+  const normalized = String(value || '').trim().toLowerCase();
+  if (ALLOWED_ASSIGNMENT_SOURCES.has(normalized)) return normalized;
+  if (normalized === 'template' || normalized === 'onboarding' || normalized === 'user') return 'manual';
+  return ALLOWED_ASSIGNMENT_SOURCES.has(String(fallback || '').trim().toLowerCase())
+    ? String(fallback).trim().toLowerCase()
+    : 'manual';
+};
+
 const getBiWeeklyReportOpenAIKey = () => String(process.env.OPENAI_BIWEEKLY_REPORT_API_KEY || '').trim();
 
 const extractJsonObjectFromText = (value) => {
@@ -3448,7 +3459,15 @@ const assignProgramToUser = async (
     `INSERT INTO program_assignments
       (user_id, program_id, assigned_by_user_id, assignment_source, rotation_weeks, auto_rotate_enabled, coach_override_allowed, start_date, next_rotation_date, status, notes)
      VALUES (?, ?, NULL, ?, ?, 1, 1, ?, ?, 'active', ?)`,
-    [userId, programId, assignmentSource, rotationWeeks, startDateStr, nextRotationDateStr, note],
+    [
+      userId,
+      programId,
+      normalizeAssignmentSource(assignmentSource),
+      rotationWeeks,
+      startDateStr,
+      nextRotationDateStr,
+      note,
+    ],
   );
 
   if (active) {

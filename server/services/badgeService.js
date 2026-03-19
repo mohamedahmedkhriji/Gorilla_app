@@ -1462,11 +1462,15 @@ export const evaluateAndAwardBadges = async ({ userId } = {}) => {
       continue;
     }
 
-    await pool.execute(
-      `INSERT INTO user_badges (user_id, badge_id, progress_value, is_seen)
+    const [unlockResult] = await pool.execute(
+      `INSERT IGNORE INTO user_badges (user_id, badge_id, progress_value, is_seen)
        VALUES (?, ?, ?, FALSE)`,
       [normalizedUserId, badge.id, currentValue],
     );
+
+    if (Number(unlockResult?.affectedRows || 0) === 0) {
+      continue;
+    }
 
     const xpResult = await awardXpOnce({
       userId: normalizedUserId,
