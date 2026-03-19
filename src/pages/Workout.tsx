@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { CoachmarkOverlay, type CoachmarkStep } from '../components/coachmarks/CoachmarkOverlay';
 import { WorkoutOverviewScreen } from '../components/workout/WorkoutOverviewScreen';
 import { LiveWorkoutScreen } from '../components/workout/LiveWorkoutScreen';
@@ -18,13 +18,26 @@ import {
 } from '../services/coachmarks';
 import { resolveExerciseVideoUrl } from '../services/exerciseVideos';
 import { formatWorkoutDayLabel, normalizeWorkoutDayKey } from '../services/workoutDayLabel';
-import { getActiveLanguage, getStoredLanguage } from '../services/language';
+import { AppLanguage, getActiveLanguage, getStoredLanguage } from '../services/language';
+import {
+  clearTodayWorkoutSelection,
+  markTodayWorkoutSelectionCompleted,
+  readTodayWorkoutSelection,
+  saveTodayWorkoutSelection,
+  TODAY_WORKOUT_SELECTION_UPDATED_EVENT,
+  type TodayWorkoutSelection,
+} from '../services/todayWorkoutSelection';
+import { OPEN_PICKED_WORKOUT_PLAN } from '../services/workoutNavigation';
 import { useScrollToTopOnChange } from '../shared/scroll';
 
 interface WorkoutProps {
   onBack: () => void;
   workoutDay?: string;
+  openPickedPlan?: boolean;
   resetSignal?: number;
+  guidedTourActive?: boolean;
+  onGuidedTourComplete?: () => void;
+  onGuidedTourDismiss?: () => void;
 }
 
 type AddedCatalogExercise = {
@@ -48,6 +61,17 @@ type TodayWorkoutExercise = {
   rpeTarget: number | null;
   notes: string | null;
   isExtra: boolean;
+};
+
+type WeekPlanWorkout = {
+  key: string;
+  id: number | null;
+  dayKey: string;
+  dayLabel: string;
+  workoutName: string;
+  exercises: TodayWorkoutExercise[];
+  isToday: boolean;
+  dayOrder: number;
 };
 
 type ViewState = 'overview' | 'plan' | 'tracker' | 'video' | 'live' | 'summary';
@@ -230,6 +254,25 @@ const normalizeExerciseLookupName = (value = '') =>
   String(value || '')
     .trim()
     .toLowerCase();
+
+const parseWorkoutExercisesPayload = (raw: unknown, isExtra: boolean) => {
+  if (Array.isArray(raw)) {
+    return raw.map((entry: any) => normalizeWorkoutExerciseEntry(entry, isExtra));
+  }
+
+  if (typeof raw !== 'string') return [] as TodayWorkoutExercise[];
+
+  try {
+    const parsed = JSON.parse(raw);
+    if (Array.isArray(parsed)) {
+      return parsed.map((entry: any) => normalizeWorkoutExerciseEntry(entry, isExtra));
+    }
+  } catch {
+    // Ignore malformed serialized exercise payloads.
+  }
+
+  return [] as TodayWorkoutExercise[];
+};
 
 const hasCoachmarkTargets = (steps: CoachmarkStep[]) =>
   typeof document !== 'undefined'
@@ -573,21 +616,97 @@ const resolveTodayWorkoutPayload = (program: any) => {
   };
 };
 
-export function Workout({ onBack, workoutDay = 'Push Day', resetSignal = 0 }: WorkoutProps) {
+const buildWeekPlanWorkouts = (program: any): WeekPlanWorkout[] => {
+  const weeklyWorkouts = Array.isArray(program?.currentWeekWorkouts)
+    ? program.currentWeekWorkouts
+    : Array.isArray(program?.workouts)
+      ? program.workouts
+      : [];
+  const todayPayload = resolveTodayWorkoutPayload(program);
+  const clientWeekdayKey = normalizeWorkoutDayKey(new Date().toLocaleDateString('en-US', { weekday: 'long' }));
+  const todayNameKey = normalizeExerciseLookupName(todayPayload?.name || program?.todayWorkout?.name || '');
+
+  const normalized = weeklyWorkouts
+    .map((workout: any, index: number) => {
+      const exercises = parseWorkoutExercisesPayload(workout?.exercises, false);
+      const dayKey = normalizeWorkoutDayKey(workout?.day_name);
+      const workoutName = resolveWorkoutDisplayName(workout?.workout_name || '', exercises);
+      const isToday = !!(
+        (dayKey && dayKey === clientWeekdayKey)
+        || (!dayKey && normalizeExerciseLookupName(workoutName) === todayNameKey)
+      );
+
+      return {
+        key: String(workout?.id || `${dayKey || 'day'}-${index}`),
+        id: Number(workout?.id || 0) || null,
+        dayKey,
+        dayLabel: formatWorkoutDayLabel(dayKey, `Day ${Number(workout?.day_order || index + 1)}`),
+        workoutName,
+        exercises,
+        isToday,
+        dayOrder: Number(workout?.day_order || index + 1) || (index + 1),
+      };
+    })
+    .sort((left, right) => left.dayOrder - right.dayOrder);
+
+  if (todayPayload && !normalized.some((workout) => workout.isToday)) {
+    normalized.unshift({
+      key: 'today',
+      id: null,
+      dayKey: clientWeekdayKey,
+      dayLabel: todayPayload.dayLabel,
+      workoutName: todayPayload.name,
+      exercises: Array.isArray(todayPayload.exercises) ? todayPayload.exercises : [],
+      isToday: true,
+      dayOrder: 0,
+    });
+  }
+
+  return normalized;
+};
+
+const findNextWeekPlanWorkout = (workouts: WeekPlanWorkout[], currentWorkoutKey?: string | null) => {
+  if (!Array.isArray(workouts) || workouts.length === 0) return null;
+  if (!currentWorkoutKey) return workouts[0] || null;
+
+  const currentIndex = workouts.findIndex((workout) => workout.key === currentWorkoutKey);
+  if (currentIndex < 0) return workouts[0] || null;
+  return workouts[currentIndex + 1] || null;
+};
+
+export function Workout({
+  onBack,
+  workoutDay = 'Push Day',
+  openPickedPlan = false,
+  resetSignal = 0,
+  guidedTourActive = false,
+  onGuidedTourComplete,
+  onGuidedTourDismiss,
+}: WorkoutProps) {
   const currentUser = readStoredUser();
   const userId = Number(currentUser?.id || 0);
   const workoutStorageScope = getUserStorageScope(currentUser);
   const workoutStorageKeys = getWorkoutStorageKeys(workoutStorageScope);
   const homeMetricStorageKeys = getHomeMetricStorageKeys(workoutStorageScope);
   const workoutSummaryStorageKeys = getWorkoutSummaryStorageKeys(workoutStorageScope);
+  const initialWorkoutDay = workoutDay === OPEN_PICKED_WORKOUT_PLAN ? 'Workout' : workoutDay;
 
-  const [view, setView] = useState<ViewState>('plan');
+  const [view, setView] = useState<ViewState>('overview');
   const [videoReturnView, setVideoReturnView] = useState<ViewState>('tracker');
   const [selectedExercise, setSelectedExercise] = useState('Bench Press');
-  const [currentWorkoutName, setCurrentWorkoutName] = useState(workoutDay);
-  const [currentWorkoutDayLabel, setCurrentWorkoutDayLabel] = useState(formatWorkoutDayLabel(new Date().toLocaleDateString('en-US', { weekday: 'long' }), workoutDay));
+  const [currentWorkoutName, setCurrentWorkoutName] = useState(initialWorkoutDay);
+  const [currentWorkoutDayLabel, setCurrentWorkoutDayLabel] = useState(
+    formatWorkoutDayLabel(new Date().toLocaleDateString('en-US', { weekday: 'long' }), initialWorkoutDay),
+  );
   const [todayExercises, setTodayExercises] = useState<TodayWorkoutExercise[]>([]);
+  const [weekPlanWorkouts, setWeekPlanWorkouts] = useState<WeekPlanWorkout[]>([]);
+  const [selectedWorkoutKey, setSelectedWorkoutKey] = useState('');
+  const [todayWorkoutSelection, setTodayWorkoutSelection] = useState<TodayWorkoutSelection | null>(
+    () => readTodayWorkoutSelection(workoutStorageScope),
+  );
+  const [userProgram, setUserProgram] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [completedExercises, setCompletedExercises] = useState<string[]>([]);
   const [exerciseSets, setExerciseSets] = useState<Record<string, any[]>>({});
   const [summary, setSummary] = useState<WorkoutDaySummaryData | null>(null);
@@ -596,10 +715,27 @@ export function Workout({ onBack, workoutDay = 'Push Day', resetSignal = 0 }: Wo
   const [hasLatestSummary, setHasLatestSummary] = useState(false);
   const [lastAutoSummaryKey, setLastAutoSummaryKey] = useState('');
   const [postedSummaryTokens, setPostedSummaryTokens] = useState<string[]>([]);
+  const [language, setLanguage] = useState<AppLanguage>(() => getActiveLanguage());
   const [coachmarkMode, setCoachmarkMode] = useState<'plan' | 'tracker' | null>(null);
   const [coachmarkStepIndex, setCoachmarkStepIndex] = useState(0);
 
   useScrollToTopOnChange([view, resetSignal]);
+
+  useEffect(() => {
+    const handleLanguageChanged = () => {
+      setLanguage(getActiveLanguage());
+    };
+
+    handleLanguageChanged();
+    window.addEventListener('app-language-changed', handleLanguageChanged);
+    return () => window.removeEventListener('app-language-changed', handleLanguageChanged);
+  }, []);
+
+  useEffect(() => {
+    if (!openPickedPlan || loading) return;
+
+    setView(todayWorkoutSelection?.workoutKey ? 'plan' : 'overview');
+  }, [loading, openPickedPlan, todayWorkoutSelection?.workoutKey]);
 
   const normalizeExerciseName = (name: string) => String(name || '').trim().toLowerCase();
   const isSetCompleted = (setRow: any) =>
@@ -610,7 +746,7 @@ export function Workout({ onBack, workoutDay = 'Push Day', resetSignal = 0 }: Wo
       ?? false
     );
 
-  const isArabic = getActiveLanguage(getStoredLanguage()) === 'ar';
+  const isArabic = language === 'ar';
   const coachmarkScope = getCoachmarkUserScope(currentUser);
   const planCoachmarkOptions = useMemo(
     () => ({
@@ -619,13 +755,11 @@ export function Workout({ onBack, workoutDay = 'Push Day', resetSignal = 0 }: Wo
       userScope: coachmarkScope,
       defaultSeenSteps: {
         back: false,
-        miss_day: false,
-        summary: false,
-        workout_card: false,
-        target_muscles: false,
-        add_exercise: false,
-        start_workout: false,
-        exercise_card: false,
+        current_day_gradient: false,
+        current_day: false,
+        agenda: false,
+        week_card: false,
+        action_button: false,
       },
     }),
     [coachmarkScope],
@@ -728,50 +862,123 @@ export function Workout({ onBack, workoutDay = 'Push Day', resetSignal = 0 }: Wo
     ) || todayExercises[0];
     return String(nextExercise?.exerciseName || '').trim();
   }, [completedExercises, todayExercises]);
+  const scheduledTodayWorkout = useMemo(
+    () => weekPlanWorkouts.find((workout) => workout.isToday) || null,
+    [weekPlanWorkouts],
+  );
+  const activeTodayWorkout = useMemo(
+    () => weekPlanWorkouts.find((workout) => workout.key === todayWorkoutSelection?.workoutKey) || null,
+    [todayWorkoutSelection?.workoutKey, weekPlanWorkouts],
+  );
+  const selectedWeekWorkout = useMemo(
+    () => weekPlanWorkouts.find((workout) => workout.key === selectedWorkoutKey)
+      || activeTodayWorkout
+      || scheduledTodayWorkout
+      || weekPlanWorkouts[0]
+      || null,
+    [activeTodayWorkout, scheduledTodayWorkout, selectedWorkoutKey, weekPlanWorkouts],
+  );
+  const isSelectedWorkoutPickedForToday = !!(
+    selectedWeekWorkout
+    && activeTodayWorkout
+    && selectedWeekWorkout.key === activeTodayWorkout.key
+  );
+  const canSyncSelectedWorkoutWithServer = !!(
+    selectedWeekWorkout
+    && activeTodayWorkout
+    && scheduledTodayWorkout
+    && selectedWeekWorkout.key === activeTodayWorkout.key
+    && selectedWeekWorkout.key === scheduledTodayWorkout.key
+  );
+  const recommendedNextWorkout = useMemo(
+    () => findNextWeekPlanWorkout(weekPlanWorkouts, todayWorkoutSelection?.workoutKey),
+    [todayWorkoutSelection?.workoutKey, weekPlanWorkouts],
+  );
+  const detailWorkoutName = isSelectedWorkoutPickedForToday
+    ? currentWorkoutName
+    : String(selectedWeekWorkout?.workoutName || currentWorkoutName || workoutDay).trim() || 'Workout';
+  const detailWorkoutDayLabel = isSelectedWorkoutPickedForToday
+    ? currentWorkoutDayLabel
+    : String(selectedWeekWorkout?.dayLabel || currentWorkoutDayLabel || workoutDay).trim() || 'Workout';
+  const detailExercises = isSelectedWorkoutPickedForToday
+    ? todayExercises
+    : (selectedWeekWorkout?.exercises || []);
+  const detailCompletedExercises = isSelectedWorkoutPickedForToday ? completedExercises : [];
   const planCoachmarkSteps = useMemo<CoachmarkStep[]>(
     () => [
       {
-        id: 'workout_card',
-        targetId: 'workout_plan_info_card',
-        title: coachmarkCopy.planWorkoutTitle,
-        body: coachmarkCopy.planWorkoutBody,
+        id: 'back',
+        targetId: 'my_plan_back_button',
+        title: isArabic ? 'الرجوع من هنا' : 'Go back from here',
+        body: isArabic
+          ? 'استخدم هذا الزر للخروج من صفحة خطتي والعودة للصفحة السابقة.'
+          : 'Use this button to leave My Plan and return to the previous page.',
+        placement: 'bottom',
+        shape: 'rounded',
+        padding: 8,
+        cornerRadius: 16,
+      },
+      {
+        id: 'current_day_gradient',
+        targetId: 'my_plan_current_day_gradient',
+        title: isArabic ? 'هذه الواجهة الرئيسية' : 'This is the main hero area',
+        body: isArabic
+          ? 'هنا ترى بطاقة اليوم الرئيسية قبل النزول إلى خطة الأسبوع.'
+          : 'This highlighted hero area shows your main My Plan focus before you move down into the week plan.',
         placement: 'bottom',
         shape: 'rounded',
         padding: 8,
         cornerRadius: 20,
       },
       {
-        id: 'target_muscles',
-        targetId: 'workout_plan_target_muscles',
-        title: coachmarkCopy.planMusclesTitle,
-        body: coachmarkCopy.planMusclesBody,
+        id: 'current_day',
+        targetId: 'my_plan_current_day_card',
+        title: isArabic ? 'هذه بطاقة اليوم' : 'This is your day card',
+        body: isArabic
+          ? 'هنا سترى ما تم حفظه لليوم، أو تذكيرًا باختيار حصة تدريب أولاً.'
+          : 'This card tells you what is currently saved for today, or reminds you to choose a session first.',
         placement: 'bottom',
         shape: 'rounded',
         padding: 8,
         cornerRadius: 20,
       },
       {
-        id: 'add_exercise',
-        targetId: 'workout_plan_add_exercise_button',
-        title: coachmarkCopy.planAddTitle,
-        body: coachmarkCopy.planAddBody,
+        id: 'agenda',
+        targetId: 'my_plan_agenda_card',
+        title: isArabic ? 'هذه أجندة الأسبوع' : 'This is your week agenda',
+        body: isArabic
+          ? 'هنا يمكنك رؤية أيام التمرين والراحة ولمس أي يوم لمعاينته بسرعة.'
+          : 'Here you can quickly spot training and rest days, and tap any day for a quick preview.',
         placement: 'bottom',
-        shape: 'circle',
+        shape: 'rounded',
         padding: 8,
+        cornerRadius: 20,
       },
       {
-        id: 'exercise_card',
-        targetId: 'workout_plan_first_exercise_card',
-        title: coachmarkCopy.planExerciseTitle,
-        body: coachmarkCopy.planExerciseBody,
+        id: 'week_card',
+        targetId: 'my_plan_first_week_card',
+        title: isArabic ? 'كل بطاقة هي حصة' : 'Each card is one session',
+        body: isArabic
+          ? 'كل بطاقة في خطة الأسبوع تمثل حصة مختلفة. المسها لفتح تفاصيل التمرين.'
+          : 'Each week-plan card is a different session. Tap one to open the full workout details.',
         placement: 'top',
         shape: 'rounded',
         padding: 8,
-        cornerRadius: 20,
-        targetActionLabel: coachmarkCopy.tryIt,
+        cornerRadius: 24,
+      },
+      {
+        id: 'action_button',
+        targetId: 'my_plan_first_action_button',
+        title: isArabic ? 'هذا زر الإجراء' : 'This is your action button',
+        body: isArabic
+          ? 'إذا لم تختر حصة بعد فسيحفظها هذا الزر لليوم. وبعد الاختيار سيتحول إلى زر بدء التمرين.'
+          : 'If no session is chosen yet, this button saves it for today. Once it is chosen, the same button becomes your workout start button.',
+        placement: 'top',
+        shape: 'circle',
+        padding: 8,
       },
     ],
-    [coachmarkCopy],
+    [isArabic],
   );
   const trackerCoachmarkSteps = useMemo<CoachmarkStep[]>(
     () => [
@@ -847,7 +1054,22 @@ export function Workout({ onBack, workoutDay = 'Push Day', resetSignal = 0 }: Wo
   }, [workoutStorageScope]);
 
   useEffect(() => {
-    setView('plan');
+    setTodayWorkoutSelection(readTodayWorkoutSelection(workoutStorageScope));
+  }, [workoutStorageScope]);
+
+  useEffect(() => {
+    const handleTodayWorkoutSelectionUpdated = () => {
+      setTodayWorkoutSelection(readTodayWorkoutSelection(workoutStorageScope));
+    };
+
+    window.addEventListener(TODAY_WORKOUT_SELECTION_UPDATED_EVENT, handleTodayWorkoutSelectionUpdated);
+    return () => {
+      window.removeEventListener(TODAY_WORKOUT_SELECTION_UPDATED_EVENT, handleTodayWorkoutSelectionUpdated);
+    };
+  }, [workoutStorageScope]);
+
+  useEffect(() => {
+    setView('overview');
   }, [resetSignal]);
 
   useEffect(() => {
@@ -890,6 +1112,7 @@ export function Workout({ onBack, workoutDay = 'Push Day', resetSignal = 0 }: Wo
     }));
 
     closeCoachmarks();
+    if (coachmarkMode === 'plan' && guidedTourActive) onGuidedTourComplete?.();
   };
 
   const handleCoachmarkSkip = () => {
@@ -901,6 +1124,7 @@ export function Workout({ onBack, workoutDay = 'Push Day', resetSignal = 0 }: Wo
     });
 
     closeCoachmarks();
+    if (coachmarkMode === 'plan' && guidedTourActive) onGuidedTourDismiss?.();
   };
 
   const handleCoachmarkTargetAction = () => {
@@ -949,7 +1173,7 @@ export function Workout({ onBack, workoutDay = 'Push Day', resetSignal = 0 }: Wo
   }, [resetSignal]);
 
   useEffect(() => {
-    if (coachmarkMode === 'plan' && view !== 'plan') {
+    if (coachmarkMode === 'plan' && view !== 'overview') {
       closeCoachmarks();
       return;
     }
@@ -961,15 +1185,16 @@ export function Workout({ onBack, workoutDay = 'Push Day', resetSignal = 0 }: Wo
 
   useEffect(() => {
     if (loading || isCoachmarkOpen) return;
-    if (view !== 'plan' && view !== 'tracker') return;
+    if (view !== 'overview' && view !== 'tracker') return;
 
     const timer = window.setTimeout(() => {
-      if (view === 'plan') {
+      if (view === 'overview') {
         const progress = readCoachmarkProgress(planCoachmarkOptions);
         const canShowPlanTour =
-          !progress.completed
+          guidedTourActive
+          && !progress.completed
           && !progress.dismissed
-          && todayExercises.length > 0
+          && weekPlanWorkouts.length > 0
           && hasCoachmarkTargets(planCoachmarkSteps);
 
         if (canShowPlanTour) {
@@ -981,7 +1206,8 @@ export function Workout({ onBack, workoutDay = 'Push Day', resetSignal = 0 }: Wo
 
       const progress = readCoachmarkProgress(trackerCoachmarkOptions);
       const canShowTrackerTour =
-        !progress.completed
+        guidedTourActive
+        && !progress.completed
         && !progress.dismissed
         && hasCoachmarkTargets(trackerCoachmarkSteps);
 
@@ -995,9 +1221,10 @@ export function Workout({ onBack, workoutDay = 'Push Day', resetSignal = 0 }: Wo
   }, [
     isCoachmarkOpen,
     loading,
+    guidedTourActive,
     planCoachmarkOptions,
     planCoachmarkSteps,
-    todayExercises.length,
+    weekPlanWorkouts.length,
     trackerCoachmarkOptions,
     trackerCoachmarkSteps,
     view,
@@ -1043,65 +1270,140 @@ export function Workout({ onBack, workoutDay = 'Push Day', resetSignal = 0 }: Wo
     return Number.isFinite(sets) && sets > 0 ? Math.round(sets) : null;
   };
 
-  useEffect(() => {
-    const fetchTodayWorkout = async () => {
-      try {
-        if (!userId) {
-          setTodayExercises([]);
-          setCurrentWorkoutName('Rest Day');
-          setCurrentWorkoutDayLabel('Rest Day');
-          localStorage.setItem(workoutStorageKeys.exerciseCount, '0');
-          localStorage.removeItem(workoutStorageKeys.exerciseSnapshot);
-          setLoading(false);
-          return;
-        }
+  const loadWorkoutData = useCallback(async () => {
+    setLoading(true);
+    setLoadError(null);
 
-        const program = await api.getUserProgram(userId);
-        const resolvedWorkout = resolveTodayWorkoutPayload(program);
-        const todayWorkout = program?.todayWorkout || null;
-
-        if (!todayWorkout && !resolvedWorkout) {
-          setTodayExercises([]);
-          setCurrentWorkoutName('Rest Day');
-          setCurrentWorkoutDayLabel('Rest Day');
-          localStorage.setItem(workoutStorageKeys.exerciseCount, '0');
-          localStorage.removeItem(workoutStorageKeys.exerciseSnapshot);
-          setLoading(false);
-          return;
-        }
-
-        const normalizedExercises = Array.isArray(resolvedWorkout?.exercises)
-          ? resolvedWorkout.exercises
-          : Array.isArray(todayWorkout?.exercises)
-            ? todayWorkout.exercises.map((ex: any) => normalizeWorkoutExerciseEntry(ex, false))
-            : [];
-
-        const storedState = loadLocalWorkoutState(workoutStorageScope);
-        const normalizedExtras = Array.isArray(storedState.extraExercises)
-          ? storedState.extraExercises.map((ex: any) => normalizeWorkoutExerciseEntry(ex, true))
-          : [];
-
-        syncTodayExercises([...normalizedExercises, ...normalizedExtras]);
-        setCurrentWorkoutDayLabel(String(resolvedWorkout?.dayLabel || formatWorkoutDayLabel(todayWorkout?.dayName, '') || workoutDay).trim() || 'Rest Day');
-        setCurrentWorkoutName(
-          resolveWorkoutDisplayName(
-            resolvedWorkout?.name || todayWorkout?.name || workoutDay,
-            normalizedExercises,
-          ),
-        );
-      } catch (error) {
-        console.error('Failed to fetch today workout:', error);
+    try {
+      if (!userId) {
         setTodayExercises([]);
+        setWeekPlanWorkouts([]);
+        setSelectedWorkoutKey('');
+        setTodayWorkoutSelection(null);
         setCurrentWorkoutName('Rest Day');
         setCurrentWorkoutDayLabel('Rest Day');
         localStorage.setItem(workoutStorageKeys.exerciseCount, '0');
         localStorage.removeItem(workoutStorageKeys.exerciseSnapshot);
-      } finally {
-        setLoading(false);
+        return;
       }
-    };
-    void fetchTodayWorkout();
-  }, [workoutDay, userId, workoutStorageScope]);
+
+      const program = await api.getUserProgram(userId);
+      const nextWeekPlanWorkouts = buildWeekPlanWorkouts(program);
+      const storedSelection = readTodayWorkoutSelection(workoutStorageScope);
+      const nextSelectedWorkout = storedSelection
+        ? nextWeekPlanWorkouts.find((workout) => workout.key === storedSelection.workoutKey) || null
+        : null;
+      const normalizedSelection = nextSelectedWorkout ? storedSelection : null;
+      setUserProgram({
+        ...(program || {}),
+        workouts: Array.isArray(program?.currentWeekWorkouts)
+          ? program.currentWeekWorkouts
+          : Array.isArray(program?.workouts)
+            ? program.workouts
+            : [],
+      });
+
+      setWeekPlanWorkouts(nextWeekPlanWorkouts);
+      if (storedSelection && !nextSelectedWorkout) {
+        clearTodayWorkoutSelection(workoutStorageScope);
+      }
+      setTodayWorkoutSelection(normalizedSelection);
+      setSelectedWorkoutKey((currentKey) => {
+        if (currentKey && nextWeekPlanWorkouts.some((workout) => workout.key === currentKey)) {
+          return currentKey;
+        }
+        return normalizedSelection?.workoutKey
+          || nextWeekPlanWorkouts.find((workout) => workout.isToday)?.key
+          || nextWeekPlanWorkouts[0]?.key
+          || '';
+      });
+
+      if (!normalizedSelection || !nextSelectedWorkout) {
+        clearLocalWorkoutState(workoutStorageScope);
+        setTodayExercises([]);
+        setCompletedExercises([]);
+        setExerciseSets({});
+        setCurrentWorkoutName('Rest Day');
+        setCurrentWorkoutDayLabel(
+          formatWorkoutDayLabel(new Date().toLocaleDateString('en-US', { weekday: 'long' }), 'Today'),
+        );
+        localStorage.setItem(homeMetricStorageKeys.homeWorkoutProgress, '0');
+        localStorage.setItem(workoutStorageKeys.exerciseCount, '0');
+        localStorage.removeItem(workoutStorageKeys.exerciseSnapshot);
+        return;
+      }
+
+      const storedState = loadLocalWorkoutState(workoutStorageScope);
+      setCompletedExercises(storedState.completedExercises);
+      setExerciseSets(storedState.exerciseSets);
+      const normalizedExtras = Array.isArray(storedState.extraExercises)
+        ? storedState.extraExercises.map((ex: any) => normalizeWorkoutExerciseEntry(ex, true))
+        : [];
+
+      syncTodayExercises([...(nextSelectedWorkout.exercises || []), ...normalizedExtras]);
+      setCurrentWorkoutDayLabel(String(nextSelectedWorkout.dayLabel || workoutDay).trim() || 'Workout');
+      setCurrentWorkoutName(
+        String(nextSelectedWorkout.workoutName || workoutDay).trim() || 'Workout',
+      );
+    } catch (error) {
+      console.error('Failed to fetch today workout:', error);
+      setLoadError(error instanceof Error ? error.message : 'Failed to load workout plan.');
+      setTodayExercises([]);
+      setWeekPlanWorkouts([]);
+      setSelectedWorkoutKey('');
+      setTodayWorkoutSelection(null);
+      setUserProgram(null);
+      setCurrentWorkoutName('Rest Day');
+      setCurrentWorkoutDayLabel('Rest Day');
+      localStorage.setItem(workoutStorageKeys.exerciseCount, '0');
+      localStorage.removeItem(workoutStorageKeys.exerciseSnapshot);
+    } finally {
+      setLoading(false);
+    }
+  }, [userId, workoutDay, workoutStorageKeys.exerciseCount, workoutStorageKeys.exerciseSnapshot, workoutStorageScope]);
+
+  useEffect(() => {
+    void loadWorkoutData();
+  }, [loadWorkoutData]);
+
+  useEffect(() => {
+    setView('overview');
+  }, [resetSignal]);
+
+  const pickWorkoutForToday = (workoutKey: string) => {
+    const nextWorkout = weekPlanWorkouts.find((workout) => workout.key === workoutKey);
+    if (!nextWorkout) return;
+
+    setSelectedWorkoutKey(workoutKey);
+
+    if (todayWorkoutSelection?.workoutKey === workoutKey) {
+      setView('plan');
+      return;
+    }
+
+    clearLocalWorkoutState(workoutStorageScope);
+    const nextSelection = saveTodayWorkoutSelection(workoutStorageScope, {
+      workoutKey: nextWorkout.key,
+      workoutName: nextWorkout.workoutName,
+      dayLabel: nextWorkout.dayLabel,
+      completed: false,
+      completedAt: null,
+    });
+
+    setTodayWorkoutSelection(nextSelection);
+    setCompletedExercises([]);
+    setExerciseSets({});
+    setSummary(null);
+    setSummaryError(null);
+    setLastAutoSummaryKey('');
+    setCurrentWorkoutName(nextWorkout.workoutName);
+    setCurrentWorkoutDayLabel(nextWorkout.dayLabel);
+    syncTodayExercises(nextWorkout.exercises);
+    localStorage.setItem(homeMetricStorageKeys.homeWorkoutProgress, '0');
+    window.dispatchEvent(new CustomEvent('workout-progress-updated'));
+    window.dispatchEvent(new CustomEvent('workout-extra-exercises-updated'));
+    setView('plan');
+  };
 
   const addExerciseToToday = async (exercise: AddedCatalogExercise) => {
     const isArabic = getActiveLanguage(getStoredLanguage()) === 'ar';
@@ -1136,7 +1438,7 @@ export function Workout({ onBack, workoutDay = 'Push Day', resetSignal = 0 }: Wo
       isExtra: true,
     };
 
-    if (userId) {
+    if (userId && canSyncSelectedWorkoutWithServer) {
       try {
         const response = await api.addExerciseToTodayWorkout(userId, nextExercise);
         const insertedExercise = response?.exercise
@@ -1168,7 +1470,7 @@ export function Workout({ onBack, workoutDay = 'Push Day', resetSignal = 0 }: Wo
       throw new Error('Exercise not found in today\'s workout.');
     }
 
-    if (userId && targetExercise.id) {
+    if (userId && targetExercise.id && canSyncSelectedWorkoutWithServer) {
       await api.removeExerciseFromTodayWorkout(userId, targetExercise.id);
     }
 
@@ -1578,6 +1880,11 @@ export function Workout({ onBack, workoutDay = 'Push Day', resetSignal = 0 }: Wo
       plannedExerciseNames.length > 0 &&
       plannedExerciseNames.every((exerciseName: string) => completedNormalized.has(exerciseName));
 
+    if (todayWorkoutSelection?.workoutKey) {
+      const nextSelection = markTodayWorkoutSelectionCompleted(workoutStorageScope, allPlannedDone);
+      setTodayWorkoutSelection(nextSelection);
+    }
+
     if (allPlannedDone) {
       const user = JSON.parse(localStorage.getItem('appUser') || localStorage.getItem('user') || '{}');
       const currentUserId = Number(user?.id || 0);
@@ -1616,14 +1923,16 @@ export function Workout({ onBack, workoutDay = 'Push Day', resetSignal = 0 }: Wo
       return { missed: false, reason: 'User is not authenticated.' };
     }
 
-    try {
-      const response = await api.markTodayWorkoutMissed(userId);
+      try {
+        const response = await api.markTodayWorkoutMissed(userId);
       try {
         await api.recalculateTodayRecovery(userId);
       } catch (recoveryError) {
         console.error('Failed to recalculate recovery after missed day:', recoveryError);
       }
       clearLocalWorkoutState(workoutStorageScope);
+      clearTodayWorkoutSelection(workoutStorageScope);
+      setTodayWorkoutSelection(null);
       setTodayExercises([]);
       setCompletedExercises([]);
       setExerciseSets({});
@@ -1633,7 +1942,8 @@ export function Workout({ onBack, workoutDay = 'Push Day', resetSignal = 0 }: Wo
       window.dispatchEvent(new CustomEvent('program-updated'));
       window.dispatchEvent(new CustomEvent('workout-progress-updated'));
       window.dispatchEvent(new CustomEvent('recovery-updated'));
-      onBack();
+      setView('overview');
+      await loadWorkoutData();
       return {
         missed: true,
         workoutName: String(response?.workoutName || currentWorkoutName || '').trim() || 'Workout',
@@ -1646,31 +1956,56 @@ export function Workout({ onBack, workoutDay = 'Push Day', resetSignal = 0 }: Wo
     }
   };
 
-  if (view === 'plan') {
+  if (view === 'overview') {
     return (
       <>
-        <WorkoutPlanScreen
+        <WorkoutOverviewScreen
           onBack={onBack}
-          onExerciseClick={(exercise) => {
-            setSelectedExercise(exercise);
-            setView('tracker');
+          onSelectWorkout={(workoutKey) => {
+            setSelectedWorkoutKey(workoutKey);
+            setView('plan');
           }}
-          onPreviewExercise={(exercise) => {
-            setSelectedExercise(exercise);
-            setVideoReturnView('plan');
-            setView('video');
-          }}
-          onAddExercise={addExerciseToToday}
-          onOpenLatestSummary={() => {
-            void openLatestSummary();
-          }}
-          onMissDay={markTodayWorkoutAsMissed}
-          hasLatestSummary={hasLatestSummary}
-          workoutDay={currentWorkoutName}
-          workoutDayLabel={currentWorkoutDayLabel}
-          completedExercises={completedExercises}
-          todayExercises={todayExercises}
+          onPickWorkoutForToday={pickWorkoutForToday}
+          currentDayLabel={currentWorkoutDayLabel}
+          workouts={weekPlanWorkouts.map((workout) => ({
+            key: workout.key,
+            dayLabel: workout.dayLabel,
+            workoutName: workout.workoutName,
+            exerciseCount: workout.exercises.length,
+            targetMuscles: Array.from(
+              new Set(
+                workout.exercises
+                  .flatMap((exercise) => (
+                    Array.isArray(exercise.targetMuscles) && exercise.targetMuscles.length
+                      ? exercise.targetMuscles
+                      : exercise.muscleGroup
+                        ? [exercise.muscleGroup]
+                        : inferMusclesFromExerciseName(exercise.exerciseName)
+                  ))
+                  .map((entry) => normalizeMuscleName(String(entry || '')))
+                  .filter(Boolean),
+              ),
+            ).slice(0, 3),
+            isToday: workout.isToday,
+            isPickedForToday: workout.key === todayWorkoutSelection?.workoutKey,
+            isCompletedToday: workout.key === todayWorkoutSelection?.workoutKey && !!todayWorkoutSelection?.completed,
+          }))}
+          selectedTodayWorkoutName={todayWorkoutSelection?.workoutName || currentWorkoutName}
+          selectedTodayWorkoutDayLabel={todayWorkoutSelection?.dayLabel || currentWorkoutDayLabel}
+          hasTodaySelection={!!todayWorkoutSelection?.workoutKey}
+          isTodaySelectionCompleted={!!todayWorkoutSelection?.completed}
+          recommendedWorkout={
+            todayWorkoutSelection?.completed && recommendedNextWorkout
+              ? {
+                  workoutName: recommendedNextWorkout.workoutName,
+                  dayLabel: recommendedNextWorkout.dayLabel,
+                }
+              : null
+          }
+          userProgram={userProgram}
+          accountCreatedAt={currentUser?.created_at || currentUser?.createdAt || null}
           loading={loading}
+          error={loadError}
         />
         <CoachmarkOverlay
           isOpen={coachmarkMode === 'plan' && !!activeCoachmarkStep}
@@ -1683,7 +2018,42 @@ export function Workout({ onBack, workoutDay = 'Push Day', resetSignal = 0 }: Wo
           onNext={handleCoachmarkNext}
           onFinish={handleCoachmarkFinish}
           onSkip={handleCoachmarkSkip}
-          onTargetAction={activeCoachmarkStep?.id === 'exercise_card' ? handleCoachmarkTargetAction : null}
+        />
+      </>
+    );
+  }
+
+  if (view === 'plan') {
+    return (
+      <>
+        <WorkoutPlanScreen
+          onBack={() => setView('overview')}
+          onExerciseClick={(exercise) => {
+            setSelectedExercise(exercise);
+            if (isSelectedWorkoutPickedForToday) {
+              setView('tracker');
+              return;
+            }
+            setVideoReturnView('plan');
+            setView('video');
+          }}
+          onPreviewExercise={(exercise) => {
+            setSelectedExercise(exercise);
+            setVideoReturnView('plan');
+            setView('video');
+          }}
+          onAddExercise={addExerciseToToday}
+          onOpenLatestSummary={isSelectedWorkoutPickedForToday ? () => {
+            void openLatestSummary();
+          } : undefined}
+          onMissDay={canSyncSelectedWorkoutWithServer ? markTodayWorkoutAsMissed : undefined}
+          hasLatestSummary={isSelectedWorkoutPickedForToday && hasLatestSummary}
+          workoutDay={detailWorkoutName}
+          workoutDayLabel={detailWorkoutDayLabel}
+          completedExercises={detailCompletedExercises}
+          todayExercises={detailExercises}
+          loading={isSelectedWorkoutPickedForToday ? loading : false}
+          allowEditing={isSelectedWorkoutPickedForToday}
         />
       </>
     );
@@ -1781,5 +2151,5 @@ export function Workout({ onBack, workoutDay = 'Push Day', resetSignal = 0 }: Wo
     );
   }
 
-  return <WorkoutOverviewScreen onStart={() => setView('live')} onBack={onBack} />;
+  return null;
 }

@@ -46,14 +46,14 @@ export function TabBar({ activeTab, onTabChange }: TabBarProps) {
   const labels = language === 'ar'
     ? {
       home: 'الرئيسية',
-      workout: 'التمرين',
+      workout: 'خطتي',
       blogs: 'المدونات',
       progress: 'التقدم',
       profile: 'الملف',
     }
     : {
       home: 'Home',
-      workout: 'Workout',
+      workout: 'My Plan',
       blogs: 'Blogs',
       progress: 'Progress',
       profile: 'Profile',

@@ -28,6 +28,10 @@ import {
 interface ProfileProps {
   onNavigateTab?: (tab: string, day?: string) => void;
   resetSignal?: number;
+  guidedTourActive?: boolean;
+  onGuidedTourComplete?: () => void;
+  onGuidedTourDismiss?: () => void;
+  onRestartGuidedTour?: () => void;
 }
 
 const hasCoachmarkTargets = (steps: CoachmarkStep[]) =>
@@ -53,7 +57,14 @@ const PROFILE_PAGE_I18N = {
   },
 } as const;
 
-export function Profile({ onNavigateTab, resetSignal = 0 }: ProfileProps) {
+export function Profile({
+  onNavigateTab,
+  resetSignal = 0,
+  guidedTourActive = false,
+  onGuidedTourComplete,
+  onGuidedTourDismiss,
+  onRestartGuidedTour,
+}: ProfileProps) {
   const [view, setView] = useState<
     'main' | 'gym' | 'rank' | 'settings' | 'notifications' | 'weeklyPlan' | 'presetPlans' | 'customPlanBuilder' | 'posts' | 'friends' | 'friendProfile' | 'friendChallenge' | 'coachList' | 'chat'>(
     'main');
@@ -334,7 +345,8 @@ export function Profile({ onNavigateTab, resetSignal = 0 }: ProfileProps) {
     const timer = window.setTimeout(() => {
       const progress = readCoachmarkProgress(profileCoachmarkOptions);
       const canShowProfileTour =
-        !progress.completed
+        guidedTourActive
+        && !progress.completed
         && !progress.dismissed
         && hasCoachmarkTargets(profileCoachmarkSteps);
 
@@ -345,7 +357,7 @@ export function Profile({ onNavigateTab, resetSignal = 0 }: ProfileProps) {
     }, 460);
 
     return () => window.clearTimeout(timer);
-  }, [isCoachmarkOpen, profileCoachmarkOptions, profileCoachmarkSteps, view]);
+  }, [guidedTourActive, isCoachmarkOpen, profileCoachmarkOptions, profileCoachmarkSteps, view]);
 
   const closeCoachmarks = () => {
     setIsCoachmarkOpen(false);
@@ -382,6 +394,7 @@ export function Profile({ onNavigateTab, resetSignal = 0 }: ProfileProps) {
     }));
 
     closeCoachmarks();
+    if (guidedTourActive) onGuidedTourComplete?.();
   };
 
   const handleCoachmarkSkip = () => {
@@ -390,6 +403,7 @@ export function Profile({ onNavigateTab, resetSignal = 0 }: ProfileProps) {
       currentStep: coachmarkStepIndex,
     });
     closeCoachmarks();
+    if (guidedTourActive) onGuidedTourDismiss?.();
   };
 
   const handleNavigate = (screen: 'gym' | 'rank' | 'settings' | 'workout' | 'weeklyPlan' | 'customPlanBuilder' | 'posts' | 'friends' | 'coachList') => {
@@ -432,7 +446,10 @@ export function Profile({ onNavigateTab, resetSignal = 0 }: ProfileProps) {
     <SettingsScreen
       onBack={() => setView('main')}
       onOpenGym={() => setView('gym')}
-      onOpenHomeTour={() => onNavigateTab?.('home')}
+      onOpenHomeTour={() => {
+        onRestartGuidedTour?.();
+        onNavigateTab?.('home');
+      }}
     />
   );
   if (view === 'notifications')

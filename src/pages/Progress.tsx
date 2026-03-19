@@ -18,27 +18,37 @@ import {
   PROGRESS_COACHMARK_VERSION,
   readCoachmarkProgress,
 } from '../services/coachmarks';
-import { getActiveLanguage, getStoredLanguage } from '../services/language';
+import { AppLanguage, getActiveLanguage } from '../services/language';
 import { useScrollToTopOnChange } from '../shared/scroll';
 interface ProgressProps {
   resetSignal?: number;
+  guidedTourActive?: boolean;
+  onGuidedTourComplete?: () => void;
+  onGuidedTourDismiss?: () => void;
 }
 
 const hasCoachmarkTargets = (steps: CoachmarkStep[]) =>
   typeof document !== 'undefined'
   && steps.every((step) => Boolean(document.querySelector(`[data-coachmark-target="${step.targetId}"]`)));
 
-export function Progress({ resetSignal = 0 }: ProgressProps) {
+export function Progress({
+  resetSignal = 0,
+  guidedTourActive = false,
+  onGuidedTourComplete,
+  onGuidedTourDismiss,
+}: ProgressProps) {
   const [view, setView] = useState<'dashboard' | 'report' | 'recovery' | 'measurements' | 'photos' | 'exercise' | 'insights' | 'weeklyCheckin' | 'strengthScore'>(
     'dashboard'
   );
+  const [language, setLanguage] = useState<AppLanguage>(() => getActiveLanguage());
   const [coachmarkStepIndex, setCoachmarkStepIndex] = useState(0);
   const [isCoachmarkOpen, setIsCoachmarkOpen] = useState(false);
   const hasTrackedVisitRef = useRef(false);
-  const isArabic = getActiveLanguage(getStoredLanguage()) === 'ar';
+  const isArabic = language === 'ar';
   const coachmarkScope = getCoachmarkUserScope();
   const coachmarkDefaultSeenSteps = useMemo(
     () => ({
+      page_intro: false,
       strength_chart: false,
       consistency: false,
       total_volume: false,
@@ -63,6 +73,15 @@ export function Progress({ resetSignal = 0 }: ProgressProps) {
       skip: isArabic ? 'تخطي' : 'Skip',
       finish: isArabic ? 'حسناً' : 'Got it',
       steps: [
+        {
+          id: 'page_intro',
+          targetId: 'progress_dashboard',
+          title: isArabic ? 'هذه صفحة التقدم' : 'This is your progress page',
+          body: isArabic
+            ? 'هنا تتابع تقدمك كله من الأعلى إلى الأسفل.'
+            : 'This page shows your full progress flow from top to bottom.',
+          placement: 'bottom' as const,
+        },
         {
           id: 'strength_chart',
           targetId: 'progress_strength_chart',
@@ -127,6 +146,16 @@ export function Progress({ resetSignal = 0 }: ProgressProps) {
   useScrollToTopOnChange([view, resetSignal]);
 
   useEffect(() => {
+    const handleLanguageChanged = () => {
+      setLanguage(getActiveLanguage());
+    };
+
+    handleLanguageChanged();
+    window.addEventListener('app-language-changed', handleLanguageChanged);
+    return () => window.removeEventListener('app-language-changed', handleLanguageChanged);
+  }, []);
+
+  useEffect(() => {
     setView('dashboard');
   }, [resetSignal]);
 
@@ -143,7 +172,8 @@ export function Progress({ resetSignal = 0 }: ProgressProps) {
     const timer = window.setTimeout(() => {
       const progress = readCoachmarkProgress(coachmarkStorageOptions);
       const canShowTour =
-        !progress.completed
+        guidedTourActive
+        && !progress.completed
         && !progress.dismissed
         && hasCoachmarkTargets(coachmarkSteps);
 
@@ -154,7 +184,7 @@ export function Progress({ resetSignal = 0 }: ProgressProps) {
     }, 460);
 
     return () => window.clearTimeout(timer);
-  }, [coachmarkSteps, coachmarkStorageOptions, isCoachmarkOpen, view]);
+  }, [coachmarkSteps, coachmarkStorageOptions, guidedTourActive, isCoachmarkOpen, view]);
 
   const closeCoachmarks = () => {
     setIsCoachmarkOpen(false);
@@ -190,6 +220,7 @@ export function Progress({ resetSignal = 0 }: ProgressProps) {
     }));
 
     closeCoachmarks();
+    if (guidedTourActive) onGuidedTourComplete?.();
   };
 
   const handleCoachmarkSkip = () => {
@@ -198,33 +229,7 @@ export function Progress({ resetSignal = 0 }: ProgressProps) {
       currentStep: coachmarkStepIndex,
     });
     closeCoachmarks();
-  };
-
-  const handleCoachmarkTargetAction = () => {
-    if (!activeCoachmarkStep) return;
-
-    if (activeCoachmarkStep.id === 'total_volume') {
-      patchCoachmarkProgress(coachmarkStorageOptions, (current) => ({
-        seenSteps: {
-          ...current.seenSteps,
-          total_volume: true,
-        },
-      }));
-      closeCoachmarks();
-      setView('strengthScore');
-      return;
-    }
-
-    if (activeCoachmarkStep.id === 'report') {
-      patchCoachmarkProgress(coachmarkStorageOptions, (current) => ({
-        seenSteps: {
-          ...current.seenSteps,
-          report: true,
-        },
-      }));
-      closeCoachmarks();
-      setView('report');
-    }
+    if (guidedTourActive) onGuidedTourDismiss?.();
   };
 
   if (view === 'report') {
@@ -275,11 +280,7 @@ export function Progress({ resetSignal = 0 }: ProgressProps) {
         onNext={handleCoachmarkNext}
         onFinish={handleCoachmarkFinish}
         onSkip={handleCoachmarkSkip}
-        onTargetAction={
-          activeCoachmarkStep?.id === 'total_volume' || activeCoachmarkStep?.id === 'report'
-            ? handleCoachmarkTargetAction
-            : null
-        }
+        onTargetAction={null}
       />
     </div>);
 

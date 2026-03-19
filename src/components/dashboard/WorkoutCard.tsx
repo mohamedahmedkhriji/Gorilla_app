@@ -31,6 +31,12 @@ interface WorkoutCardProps {
   progress: number;
   isRestDay?: boolean;
   coachmarkTargetId?: string;
+  coachmarkGradientTargetId?: string;
+  eyebrowLabel?: string;
+  subtitleOverride?: string | null;
+  detailLines?: string[];
+  actionLabel?: string | null;
+  progressCaption?: string;
 }
 
 const cleanWorkoutLabel = (value: string) =>
@@ -252,6 +258,12 @@ export function WorkoutCard({
   progress,
   isRestDay = false,
   coachmarkTargetId,
+  coachmarkGradientTargetId,
+  eyebrowLabel,
+  subtitleOverride,
+  detailLines,
+  actionLabel,
+  progressCaption,
 }: WorkoutCardProps) {
   const isArabic = getActiveLanguage(getStoredLanguage()) === 'ar';
   const copy = {
@@ -318,6 +330,17 @@ export function WorkoutCard({
         : copy.fullBodyFocus;
   const displayTitleText = localizeWorkoutTitle(displayTitle, isArabic);
   const cardBackgroundImage = isResolvedRestDay ? emojiRestDayBg : emojiGymWallpaper;
+  const resolvedEyebrowLabel = eyebrowLabel || (isResolvedRestDay ? copy.restDay : copy.todayPlan);
+  const resolvedSubtitle = subtitleOverride === null
+    ? null
+    : (subtitleOverride || targetMusclesLabel);
+  const resolvedDetailLines = Array.isArray(detailLines) && detailLines.length
+    ? detailLines.filter((line) => String(line || '').trim())
+    : null;
+  const resolvedActionLabel = typeof actionLabel === 'string'
+    ? actionLabel
+    : (isResolvedRestDay ? '' : copy.startWorkout);
+  const resolvedProgressCaption = progressCaption || (isResolvedRestDay ? copy.recovery : copy.complete);
 
   return (
     <motion.div
@@ -343,6 +366,7 @@ export function WorkoutCard({
       />
       <div
         className="absolute inset-0 bg-gradient-to-r from-background/65 via-background/45 to-background/25"
+        data-coachmark-target={coachmarkGradientTargetId}
         aria-hidden="true"
       />
 
@@ -350,19 +374,25 @@ export function WorkoutCard({
         <div className="flex min-w-0 flex-col justify-between self-stretch text-left">
           <div>
             <div className="text-sm font-medium text-text-secondary">
-              {isResolvedRestDay ? copy.restDay : copy.todayPlan}
+              {resolvedEyebrowLabel}
             </div>
 
             <h3 className="mt-2 text-[1.9rem] font-electrolize font-bold leading-tight text-text-primary">
               {displayTitleText}
             </h3>
 
-            <p className="mt-1 text-sm text-text-secondary">
-              {targetMusclesLabel}
-            </p>
+            {resolvedSubtitle && (
+              <p className="mt-1 text-sm text-text-secondary">
+                {resolvedSubtitle}
+              </p>
+            )}
 
             <div className="mt-4 space-y-1.5 text-sm font-medium text-text-secondary">
-              {isResolvedRestDay ? (
+              {resolvedDetailLines ? (
+                resolvedDetailLines.map((line) => (
+                  <div key={line}>{line}</div>
+                ))
+              ) : isResolvedRestDay ? (
                 <div>{copy.restDay}</div>
               ) : (
                 <>
@@ -378,12 +408,12 @@ export function WorkoutCard({
             </div>
           </div>
 
-          {!isResolvedRestDay && (
+          {!isResolvedRestDay && resolvedActionLabel && (
             <button
               type="button"
               className="mt-5 inline-flex w-fit items-center justify-center whitespace-nowrap rounded-full border border-accent/30 bg-accent/20 px-7 py-2.5 text-sm font-marker text-text-primary shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_8px_18px_rgba(0,0,0,0.18)]"
             >
-              {copy.startWorkout}
+              {resolvedActionLabel}
             </button>
           )}
         </div>
@@ -427,7 +457,7 @@ export function WorkoutCard({
           </div>
 
           <span className="mt-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-text-tertiary">
-            {isResolvedRestDay ? copy.recovery : copy.complete}
+            {resolvedProgressCaption}
           </span>
         </div>
       </div>

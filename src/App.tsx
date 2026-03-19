@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Onboarding } from './pages/Onboarding';
 import { Home } from './pages/Home';
 import { Workout } from './pages/Workout';
@@ -11,8 +11,20 @@ import { TabBar } from './components/ui/TabBar';
 import { SplashScreen } from './components/ui/SplashScreen';
 import { AnimatePresence, motion } from 'framer-motion';
 import { api } from './services/api';
+import { OPEN_PICKED_WORKOUT_PLAN } from './services/workoutNavigation';
 import { useScrollToTopOnChange } from './shared/scroll';
 import { clearStoredUserSession, getStoredAppUser, getStoredUserId } from './shared/authStorage';
+import {
+  APP_COACHMARK_TOUR_ID,
+  APP_COACHMARK_VERSION,
+  getCoachmarkUserScope,
+  patchCoachmarkProgress,
+  readCoachmarkProgress,
+} from './services/coachmarks';
+
+type GuidedTourStage = 'home' | 'my_plan' | 'blogs' | 'progress' | 'profile' | 'done';
+
+const GUIDED_TOUR_ORDER: GuidedTourStage[] = ['home', 'my_plan', 'blogs', 'progress', 'profile'];
 
 export function App() {
   const [isLoading, setIsLoading] = useState(true);
@@ -23,6 +35,25 @@ export function App() {
   const [activeTab, setActiveTab] = useState('home');
   const [tabResetSignal, setTabResetSignal] = useState(0);
   const [workoutDay, setWorkoutDay] = useState('Push Day');
+  const [workoutLaunchMode, setWorkoutLaunchMode] = useState<'default' | 'picked-plan'>('default');
+  const [guidedTourStage, setGuidedTourStage] = useState<GuidedTourStage>('done');
+
+  const coachmarkScope = useMemo(() => getCoachmarkUserScope(getStoredAppUser()), [isLoggedIn, hasOnboarded]);
+  const guidedTourOptions = useMemo(
+    () => ({
+      tourId: APP_COACHMARK_TOUR_ID,
+      version: APP_COACHMARK_VERSION,
+      userScope: coachmarkScope,
+      defaultSeenSteps: {
+        home: false,
+        my_plan: false,
+        blogs: false,
+        progress: false,
+        profile: false,
+      },
+    }),
+    [coachmarkScope],
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -85,13 +116,91 @@ export function App() {
     tabResetSignal,
   ]);
 
+  useEffect(() => {
+    if (!isSessionReady || !isLoggedIn || !hasOnboarded) {
+      setGuidedTourStage('done');
+      return;
+    }
+
+    const progress = readCoachmarkProgress(guidedTourOptions);
+    if (progress.completed || progress.dismissed) {
+      setGuidedTourStage('done');
+      return;
+    }
+
+    const nextStage = GUIDED_TOUR_ORDER.find((stage) => !progress.seenSteps[stage])
+      || GUIDED_TOUR_ORDER[Math.max(0, Math.min(GUIDED_TOUR_ORDER.length - 1, progress.currentStep))]
+      || 'home';
+    setGuidedTourStage(nextStage);
+  }, [guidedTourOptions, hasOnboarded, isLoggedIn, isSessionReady]);
+
+  useEffect(() => {
+    if (guidedTourStage === 'done') return;
+
+    if (guidedTourStage === 'home') {
+      setWorkoutLaunchMode('default');
+      setActiveTab('home');
+      return;
+    }
+
+    if (guidedTourStage === 'my_plan') {
+      setWorkoutLaunchMode('default');
+      setActiveTab('workout');
+      return;
+    }
+
+    setActiveTab(guidedTourStage);
+  }, [guidedTourStage]);
+
+  const completeGuidedTourStage = useCallback((stage: Exclude<GuidedTourStage, 'done'>) => {
+    const currentIndex = GUIDED_TOUR_ORDER.indexOf(stage);
+    const nextStage = GUIDED_TOUR_ORDER[currentIndex + 1] || 'done';
+
+    patchCoachmarkProgress(guidedTourOptions, (current) => ({
+      completed: nextStage === 'done',
+      dismissed: false,
+      currentStep: Math.min(currentIndex + 1, GUIDED_TOUR_ORDER.length - 1),
+      seenSteps: {
+        ...current.seenSteps,
+        [stage]: true,
+      },
+    }));
+
+    setGuidedTourStage(nextStage);
+  }, [guidedTourOptions]);
+
+  const dismissGuidedTour = useCallback((stage: Exclude<GuidedTourStage, 'done'>) => {
+    patchCoachmarkProgress(guidedTourOptions, (current) => ({
+      completed: true,
+      dismissed: true,
+      currentStep: Math.max(0, GUIDED_TOUR_ORDER.indexOf(stage)),
+      seenSteps: {
+        ...current.seenSteps,
+        [stage]: true,
+      },
+    }));
+    setGuidedTourStage('done');
+  }, [guidedTourOptions]);
+
   const handleNavigate = (tab: string, day?: string) => {
     setActiveTab(tab);
+    if (tab === 'workout' && day === OPEN_PICKED_WORKOUT_PLAN) {
+      setWorkoutLaunchMode('picked-plan');
+      return;
+    }
+
+    if (tab === 'workout') {
+      setWorkoutLaunchMode('default');
+    }
+
     if (day) setWorkoutDay(day);
   };
 
   const handleTabChange = (tab: string) => {
     setActiveTab(tab);
+    if (tab === 'workout') {
+      setWorkoutLaunchMode('default');
+    }
     setTabResetSignal((prev) => prev + 1);
   };
 
@@ -126,17 +235,65 @@ export function App() {
   const renderTab = () => {
     switch (activeTab) {
       case 'home':
-        return <Home onNavigate={handleNavigate} resetSignal={tabResetSignal} />;
+        return (
+          <Home
+            onNavigate={handleNavigate}
+            resetSignal={tabResetSignal}
+            guidedTourActive={guidedTourStage === 'home'}
+            onGuidedTourComplete={() => completeGuidedTourStage('home')}
+            onGuidedTourDismiss={() => dismissGuidedTour('home')}
+          />
+        );
       case 'workout':
-        return <Workout onBack={() => setActiveTab('home')} workoutDay={workoutDay} resetSignal={tabResetSignal} />;
+        return (
+          <Workout
+            onBack={() => setActiveTab('home')}
+            workoutDay={workoutDay}
+            openPickedPlan={workoutLaunchMode === 'picked-plan'}
+            resetSignal={tabResetSignal}
+            guidedTourActive={guidedTourStage === 'my_plan'}
+            onGuidedTourComplete={() => completeGuidedTourStage('my_plan')}
+            onGuidedTourDismiss={() => dismissGuidedTour('my_plan')}
+          />
+        );
       case 'progress':
-        return <Progress resetSignal={tabResetSignal} />;
+        return (
+          <Progress
+            resetSignal={tabResetSignal}
+            guidedTourActive={guidedTourStage === 'progress'}
+            onGuidedTourComplete={() => completeGuidedTourStage('progress')}
+            onGuidedTourDismiss={() => dismissGuidedTour('progress')}
+          />
+        );
       case 'profile':
-        return <Profile onNavigateTab={handleNavigate} resetSignal={tabResetSignal} />;
+        return (
+          <Profile
+            onNavigateTab={handleNavigate}
+            resetSignal={tabResetSignal}
+            guidedTourActive={guidedTourStage === 'profile'}
+            onGuidedTourComplete={() => completeGuidedTourStage('profile')}
+            onGuidedTourDismiss={() => dismissGuidedTour('profile')}
+            onRestartGuidedTour={() => setGuidedTourStage('home')}
+          />
+        );
       case 'blogs':
-        return <Blogs />;
+        return (
+          <Blogs
+            guidedTourActive={guidedTourStage === 'blogs'}
+            onGuidedTourComplete={() => completeGuidedTourStage('blogs')}
+            onGuidedTourDismiss={() => dismissGuidedTour('blogs')}
+          />
+        );
       default:
-        return <Home onNavigate={handleNavigate} resetSignal={tabResetSignal} />;
+        return (
+          <Home
+            onNavigate={handleNavigate}
+            resetSignal={tabResetSignal}
+            guidedTourActive={guidedTourStage === 'home'}
+            onGuidedTourComplete={() => completeGuidedTourStage('home')}
+            onGuidedTourDismiss={() => dismissGuidedTour('home')}
+          />
+        );
     }
   };
 

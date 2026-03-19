@@ -5,6 +5,10 @@ import { applyTheme, getActiveTheme, getStoredTheme } from '../../services/theme
 import { AppLanguage, applyLanguage, getActiveLanguage, getStoredLanguage } from '../../services/language';
 import { api } from '../../services/api';
 import {
+  APP_COACHMARK_TOUR_ID,
+  APP_COACHMARK_VERSION,
+  BLOGS_COACHMARK_TOUR_ID,
+  BLOGS_COACHMARK_VERSION,
   HOME_COACHMARK_TOUR_ID,
   HOME_COACHMARK_VERSION,
   PROFILE_COACHMARK_TOUR_ID,
@@ -754,21 +758,45 @@ export function SettingsScreen({ onBack, onOpenGym, onOpenHomeTour }: SettingsSc
 
   const handleOpenHomeTour = () => {
     resetCoachmarkProgress({
+      tourId: APP_COACHMARK_TOUR_ID,
+      version: APP_COACHMARK_VERSION,
+      defaultSeenSteps: {
+        home: false,
+        my_plan: false,
+        blogs: false,
+        progress: false,
+        profile: false,
+      },
+    });
+    resetCoachmarkProgress({
       tourId: HOME_COACHMARK_TOUR_ID,
       version: HOME_COACHMARK_VERSION,
       defaultSeenSteps: {
+        header: false,
+        today_gradient: false,
         today_plan: false,
+        rank: false,
         recovery: false,
-        progress: false,
         nutrition: false,
         exercises: false,
         books: false,
       },
     });
     resetCoachmarkProgress({
+      tourId: BLOGS_COACHMARK_TOUR_ID,
+      version: BLOGS_COACHMARK_VERSION,
+      defaultSeenSteps: {
+        create: false,
+        intro: false,
+        filters: false,
+        first_post: false,
+      },
+    });
+    resetCoachmarkProgress({
       tourId: PROGRESS_COACHMARK_TOUR_ID,
       version: PROGRESS_COACHMARK_VERSION,
       defaultSeenSteps: {
+        page_intro: false,
         strength_chart: false,
         consistency: false,
         total_volume: false,
@@ -800,13 +828,11 @@ export function SettingsScreen({ onBack, onOpenGym, onOpenHomeTour }: SettingsSc
       version: WORKOUT_PLAN_COACHMARK_VERSION,
       defaultSeenSteps: {
         back: false,
-        miss_day: false,
-        summary: false,
-        workout_card: false,
-        target_muscles: false,
-        add_exercise: false,
-        start_workout: false,
-        exercise_card: false,
+        current_day_gradient: false,
+        current_day: false,
+        agenda: false,
+        week_card: false,
+        action_button: false,
       },
     });
     resetCoachmarkProgress({

@@ -1,15 +1,19 @@
 import { getStoredAppUser } from '../shared/authStorage';
 
 export const HOME_COACHMARK_TOUR_ID = 'home_onboarding';
-export const HOME_COACHMARK_VERSION = 1;
+export const HOME_COACHMARK_VERSION = 3;
+export const BLOGS_COACHMARK_TOUR_ID = 'blogs_onboarding';
+export const BLOGS_COACHMARK_VERSION = 1;
 export const PROGRESS_COACHMARK_TOUR_ID = 'progress_onboarding';
 export const PROGRESS_COACHMARK_VERSION = 1;
 export const PROFILE_COACHMARK_TOUR_ID = 'profile_onboarding';
 export const PROFILE_COACHMARK_VERSION = 1;
 export const WORKOUT_PLAN_COACHMARK_TOUR_ID = 'workout_plan_onboarding';
-export const WORKOUT_PLAN_COACHMARK_VERSION = 2;
+export const WORKOUT_PLAN_COACHMARK_VERSION = 3;
 export const WORKOUT_TRACKER_COACHMARK_TOUR_ID = 'workout_tracker_onboarding';
 export const WORKOUT_TRACKER_COACHMARK_VERSION = 2;
+export const APP_COACHMARK_TOUR_ID = 'app_guided_onboarding';
+export const APP_COACHMARK_VERSION = 1;
 
 type CoachmarkUser = Record<string, unknown> & {
   id?: number | string;

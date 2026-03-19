@@ -7,7 +7,6 @@ import { RecoveryIndicator } from '../components/dashboard/RecoveryIndicator';
 import { RankDisplay } from '../components/dashboard/RankDisplay';
 import { GhostButton } from '../components/ui/GhostButton';
 import { CalculatorCard } from '../components/home/CalculatorCard';
-import { AgendaSection } from '../components/home/AgendaSection';
 import { EducationSection } from '../components/home/EducationSection';
 import { FriendsList, FriendMember } from './FriendsList';
 import { FriendProfile } from './FriendProfile';
@@ -31,11 +30,22 @@ import {
 } from '../services/coachmarks';
 import { getRankBadgeImage } from '../services/rankTheme';
 import { emojiComingSoon, emojiMyNutrition, emojiProfile, emojiRightArrow, emojiShop } from '../services/emojiTheme';
-import { getActiveLanguage, getStoredLanguage } from '../services/language';
+import { AppLanguage, getActiveLanguage } from '../services/language';
+import { formatWorkoutDayLabel, normalizeWorkoutDayKey } from '../services/workoutDayLabel';
+import {
+  clearTodayWorkoutSelection,
+  readTodayWorkoutSelection,
+  TODAY_WORKOUT_SELECTION_UPDATED_EVENT,
+  type TodayWorkoutSelection,
+} from '../services/todayWorkoutSelection';
+import { OPEN_PICKED_WORKOUT_PLAN } from '../services/workoutNavigation';
 import { useScrollToTopOnChange } from '../shared/scroll';
 interface HomeProps {
   onNavigate: (tab: string, day?: string) => void;
   resetSignal?: number;
+  guidedTourActive?: boolean;
+  onGuidedTourComplete?: () => void;
+  onGuidedTourDismiss?: () => void;
 }
 
 const readStoredUser = () => {
@@ -295,6 +305,63 @@ const resolveTodayWorkoutPayload = (programData: any, weeklyWorkouts: any[]) => 
   };
 };
 
+type WeekPlanWorkoutChoice = {
+  key: string;
+  workoutName: string;
+  workoutType: string;
+  estimatedDurationMinutes: number | null;
+  exercises: any[];
+  dayLabel: string;
+  dayOrder: number;
+};
+
+const resolveWeekPlanWorkoutName = (raw: unknown, exercises: any[]) => {
+  const trimmed = String(raw || '').trim();
+  if (trimmed) return trimmed;
+
+  const muscles = exercises
+    .flatMap((exercise: any) => parseTargetMuscles(exercise?.targetMuscles ?? exercise?.muscles ?? exercise?.muscleGroup))
+    .map((entry) => String(entry || '').trim().toLowerCase());
+
+  if (muscles.some((muscle) => ['chest', 'triceps', 'shoulders'].includes(muscle))) return 'Push Day';
+  if (muscles.some((muscle) => ['back', 'biceps', 'forearms'].includes(muscle))) return 'Pull Day';
+  if (muscles.some((muscle) => ['quadriceps', 'hamstrings', 'glutes', 'calves'].includes(muscle))) return 'Leg Day';
+  return 'Workout';
+};
+
+const buildWeekPlanWorkoutChoices = (weeklyWorkouts: any[]): WeekPlanWorkoutChoice[] =>
+  (Array.isArray(weeklyWorkouts) ? weeklyWorkouts : [])
+    .map((workout: any, index: number) => {
+      const exercises = normalizeTodayWorkoutExercises(workout?.exercises);
+      const dayKey = normalizeWorkoutDayKey(workout?.day_name);
+      const workoutName = resolveWeekPlanWorkoutName(workout?.workout_name, exercises);
+      const estimatedDurationMinutes =
+        Number(workout?.estimated_duration_minutes ?? workout?.estimatedDurationMinutes ?? 0) || null;
+
+      return {
+        key: String(workout?.id || `${dayKey || 'day'}-${index}`),
+        workoutName,
+        workoutType: String(workout?.workout_type || '').trim(),
+        estimatedDurationMinutes,
+        exercises,
+        dayLabel: formatWorkoutDayLabel(dayKey, `Day ${Number(workout?.day_order || index + 1)}`),
+        dayOrder: Number(workout?.day_order || index + 1) || (index + 1),
+      };
+    })
+    .sort((left, right) => left.dayOrder - right.dayOrder);
+
+const findNextWeekPlanWorkoutChoice = (
+  workouts: WeekPlanWorkoutChoice[],
+  currentWorkoutKey?: string | null,
+) => {
+  if (!Array.isArray(workouts) || workouts.length === 0) return null;
+  if (!currentWorkoutKey) return workouts[0] || null;
+
+  const currentIndex = workouts.findIndex((workout) => workout.key === currentWorkoutKey);
+  if (currentIndex < 0) return workouts[0] || null;
+  return workouts[currentIndex + 1] || null;
+};
+
 const loadTodayExtraExercises = (keys: { workoutDate: string; extraExercises: string }) => {
   const today = new Date().toDateString();
   const savedDate = localStorage.getItem(keys.workoutDate);
@@ -355,9 +422,16 @@ type HomeView =
 'rank' |
 'workoutDetail' |
 'nutrition';
-export function Home({ onNavigate, resetSignal = 0 }: HomeProps) {
+export function Home({
+  onNavigate,
+  resetSignal = 0,
+  guidedTourActive = false,
+  onGuidedTourComplete,
+  onGuidedTourDismiss,
+}: HomeProps) {
   const currentUser = readStoredUser();
   const currentUserId = Number(currentUser?.id || 0);
+  const workoutStorageScope = getUserStorageScope(currentUser);
   const workoutStorageKeys = getWorkoutStorageKeys(currentUser);
   const homeMetricKeys = getHomeMetricStorageKeys(currentUser);
   const todayKey = new Date().toDateString();
@@ -374,6 +448,10 @@ export function Home({ onNavigate, resetSignal = 0 }: HomeProps) {
   const [todayWorkout, setTodayWorkout] = useState('Push Day');
   const [userProgram, setUserProgram] = useState<any>(null);
   const [todayWorkoutData, setTodayWorkoutData] = useState<any>(null);
+  const [weekPlanWorkouts, setWeekPlanWorkouts] = useState<WeekPlanWorkoutChoice[]>([]);
+  const [todayWorkoutSelection, setTodayWorkoutSelection] = useState<TodayWorkoutSelection | null>(
+    () => readTodayWorkoutSelection(workoutStorageScope),
+  );
   const [workoutProgress, setWorkoutProgress] = useState(() => {
     const savedDate = localStorage.getItem(workoutStorageKeys.workoutDate);
     if (savedDate && savedDate !== todayKey) return 0;
@@ -392,11 +470,54 @@ export function Home({ onNavigate, resetSignal = 0 }: HomeProps) {
   const [storedTodayExerciseSnapshot, setStoredTodayExerciseSnapshot] = useState<any[]>(
     () => loadTodayExerciseSnapshot(workoutStorageKeys),
   );
-  const [coachmarkMode, setCoachmarkMode] = useState<'main' | 'nutrition' | 'education' | null>(null);
+  const [language, setLanguage] = useState<AppLanguage>(() => getActiveLanguage());
+  const [coachmarkMode, setCoachmarkMode] = useState<'main' | null>(null);
   const [coachmarkStepIndex, setCoachmarkStepIndex] = useState(0);
   const hasTrackedHomeVisitRef = useRef(false);
 
   useScrollToTopOnChange([view, resetSignal]);
+  const isArabic = language === 'ar';
+
+  useEffect(() => {
+    const handleLanguageChanged = () => {
+      setLanguage(getActiveLanguage());
+    };
+
+    handleLanguageChanged();
+    window.addEventListener('app-language-changed', handleLanguageChanged);
+    return () => window.removeEventListener('app-language-changed', handleLanguageChanged);
+  }, []);
+  const selectedTodayWorkout = useMemo(
+    () => weekPlanWorkouts.find((workout) => workout.key === todayWorkoutSelection?.workoutKey) || null,
+    [todayWorkoutSelection?.workoutKey, weekPlanWorkouts],
+  );
+  const nextRecommendedWorkout = useMemo(
+    () => findNextWeekPlanWorkoutChoice(weekPlanWorkouts, todayWorkoutSelection?.workoutKey),
+    [todayWorkoutSelection?.workoutKey, weekPlanWorkouts],
+  );
+  const shouldChooseWorkoutToday = !!(weekPlanWorkouts.length && !todayWorkoutSelection?.workoutKey);
+  const shouldSuggestRecoveryFirst = !!(
+    todayWorkoutSelection?.completed
+    && Number(overallRecovery || 0) < 60
+  );
+  const workoutRecommendation = useMemo(() => {
+    if (!todayWorkoutSelection?.completed) return null;
+    if (shouldSuggestRecoveryFirst) {
+      return {
+        title: isArabic ? 'التعافي أولًا' : 'Recovery first',
+        detail: isArabic
+          ? `تعافيك الآن ${Math.round(overallRecovery)}٪. خذ راحة أو حصة خفيفة قبل التمرين التالي.`
+          : `Recovery is ${Math.round(overallRecovery)}%. A rest or lighter day is the better next move.`,
+      };
+    }
+    if (!nextRecommendedWorkout) return null;
+    return {
+      title: isArabic ? 'الاقتراح التالي' : 'Recommended next',
+      detail: isArabic
+        ? `${nextRecommendedWorkout.workoutName} - ${nextRecommendedWorkout.dayLabel}`
+        : `${nextRecommendedWorkout.workoutName} - ${nextRecommendedWorkout.dayLabel}`,
+    };
+  }, [isArabic, nextRecommendedWorkout, overallRecovery, shouldSuggestRecoveryFirst, todayWorkoutSelection?.completed]);
   const todayWorkoutExercises = useMemo(() => {
     const baseExercises = normalizeTodayWorkoutExercises(todayWorkoutData?.exercises);
     const extraExercises = normalizeTodayWorkoutExercises(extraTodayExercises);
@@ -417,17 +538,72 @@ export function Home({ onNavigate, resetSignal = 0 }: HomeProps) {
   }, [todayWorkoutData, extraTodayExercises, storedTodayExerciseSnapshot]);
   const todayWorkoutExerciseCount = Math.max(todayWorkoutExercises.length, storedTodayExerciseCount);
   const hasAnyTodayExercises = todayWorkoutExerciseCount > 0;
-  const workoutCardTitle = todayWorkout === 'Rest Day' && hasAnyTodayExercises ? 'Custom Workout' : todayWorkout;
-  const isWorkoutCardRestDay = todayWorkout === 'Rest Day' && !hasAnyTodayExercises;
+  const workoutCardTitle = shouldChooseWorkoutToday
+    ? (isArabic ? 'اختر تدريب اليوم' : 'Choose today\'s training')
+    : (todayWorkout === 'Rest Day' && hasAnyTodayExercises ? 'Custom Workout' : todayWorkout);
+  const isWorkoutCardRestDay = !shouldChooseWorkoutToday && todayWorkout === 'Rest Day' && !hasAnyTodayExercises;
+  const workoutCardSubtitle = shouldChooseWorkoutToday
+    ? (
+      isArabic
+        ? 'Ø§Ø®ØªØ± Ù…Ù† Ø®Ø·Ø© Ø§Ù„Ø£Ø³Ø¨ÙˆØ¹ Ø§Ù„Ø­ØµØ© Ø§Ù„ØªÙŠ ØªÙ†Ø§Ø³Ø¨Ùƒ Ø§Ù„ÙŠÙˆÙ….'
+        : 'Pick the session from your week plan that fits today.'
+    )
+    : (workoutRecommendation?.detail ?? null);
+  const workoutCardDetailLines = shouldChooseWorkoutToday
+    ? [
+        isArabic
+          ? 'Ø§Ø¶ØºØ· Ù„ÙØªØ­ Ø®Ø·ØªÙƒ Ø§Ù„Ø£Ø³Ø¨ÙˆØ¹ÙŠØ©'
+          : 'Tap to open your week plan',
+      ]
+    : undefined;
+  const workoutCardActionLabel = shouldChooseWorkoutToday
+    ? (isArabic ? 'Ø§Ø®ØªØ± Ù…Ù† Ø®Ø·ØªÙŠ' : 'Choose from My Plan')
+    : todayWorkoutSelection?.completed
+      ? (isArabic ? 'Ø§Ø·Ù„Ø¹ Ø¹Ù„Ù‰ Ø®Ø·ØªÙŠ' : 'View My Plan')
+      : undefined;
+  const workoutCardProgressCaption = shouldChooseWorkoutToday
+    ? (isArabic ? 'Ø¬Ø§Ù‡Ø²' : 'Ready')
+    : todayWorkoutSelection?.completed
+      ? (isArabic ? 'ØªÙ…' : 'Done')
+      : undefined;
+  const workoutCardTitleDisplay = shouldChooseWorkoutToday
+    ? (isArabic ? 'اختر تدريب اليوم' : 'Choose today\'s training')
+    : workoutCardTitle;
+  const workoutCardSubtitleDisplay = shouldChooseWorkoutToday
+    ? (isArabic ? 'اختر من خطة الأسبوع الحصة التي تناسبك اليوم.' : 'Pick the session from your week plan that fits today.')
+    : workoutCardSubtitle;
+  const workoutCardDetailLinesDisplay = shouldChooseWorkoutToday
+    ? [isArabic ? 'اضغط لفتح خطتك الأسبوعية' : 'Tap to open your week plan']
+    : workoutCardDetailLines;
+  const workoutCardActionLabelDisplay = shouldChooseWorkoutToday
+    ? (isArabic ? 'اختر من خطتي' : 'Choose from My Plan')
+    : todayWorkoutSelection?.completed
+      ? (isArabic ? 'اطلع على خطتي' : 'View My Plan')
+      : workoutCardActionLabel;
+  const workoutCardProgressCaptionDisplay = shouldChooseWorkoutToday
+    ? (isArabic ? 'جاهز' : 'Ready')
+    : todayWorkoutSelection?.completed
+      ? (isArabic ? 'تم' : 'Done')
+      : workoutCardProgressCaption;
+
+  const handleOpenWorkoutCard = () => {
+    if (todayWorkoutSelection?.workoutKey) {
+      onNavigate('workout', OPEN_PICKED_WORKOUT_PLAN);
+      return;
+    }
+
+    onNavigate('workout', workoutCardTitleDisplay);
+  };
   const rankName = String(programProgress?.rank || 'Bronze');
   const rankBadgeImage = getRankBadgeImage(rankName);
-  const isArabic = getActiveLanguage(getStoredLanguage()) === 'ar';
   const coachmarkScope = getCoachmarkUserScope(currentUser);
   const coachmarkDefaultSeenSteps = useMemo(
     () => ({
+      header: false,
+      today_gradient: false,
       today_plan: false,
+      rank: false,
       recovery: false,
-      progress: false,
       nutrition: false,
       exercises: false,
       books: false,
@@ -457,10 +633,23 @@ export function Home({ onNavigate, resetSignal = 0 }: HomeProps) {
       next: isArabic ? 'التالي' : 'Next',
       skip: isArabic ? 'تخطي' : 'Skip',
       finish: isArabic ? 'حسناً' : 'Got it',
-      startHereTitle: isArabic ? 'ابدأ من هنا' : 'Start here',
-      startHereBody: isArabic
-        ? 'تمرينك المخصص لليوم جاهز. اضغط هنا لبدء جلستك.'
-        : 'Your personalized workout is ready. Tap here to begin today\'s session.',
+      startHereTitle: shouldChooseWorkoutToday
+        ? (isArabic ? 'اختر من خطتك' : 'Choose from My Plan')
+        : (isArabic ? 'افتح تمرينك' : 'Open your workout'),
+      startHereBody: shouldChooseWorkoutToday
+        ? (
+          isArabic
+            ? 'إذا لم تختر حصة بعد، اضغط هنا للذهاب إلى خطتك واختيار تمرين اليوم.'
+            : 'If you have not picked a session yet, tap here to go to My Plan and choose today\'s workout.'
+        )
+        : (
+          isArabic
+            ? 'بعد حفظ حصة اليوم، اضغط هنا لفتح خطة التمرين الكاملة والبدء.'
+            : 'Once today\'s session is saved, tap here to open the full workout plan and start training.'
+        ),
+      startHereAction: shouldChooseWorkoutToday
+        ? (isArabic ? 'افتح خطتي' : 'Open My Plan')
+        : (isArabic ? 'افتح التمرين' : 'Open Workout'),
       recoveryTitle: isArabic ? 'تدرّب بذكاء' : 'Train smarter',
       recoveryBody: isArabic
         ? 'يعرض التعافي مدى جاهزية جسمك قبل الجلسة التالية.'
@@ -482,10 +671,34 @@ export function Home({ onNavigate, resetSignal = 0 }: HomeProps) {
         ? 'هذه البطاقة مخصّصة للمحتوى التعليمي والكتب التي تساعدك تفهم التدريب بشكل أفضل.'
         : 'This card is for educational guides and books that help you understand your training better.',
     }),
-    [isArabic],
+    [isArabic, shouldChooseWorkoutToday],
   );
   const homeCoachmarkSteps = useMemo<CoachmarkStep[]>(
     () => [
+      {
+        id: 'header',
+        targetId: 'home_header_card',
+        title: isArabic ? 'هذه بطاقة البداية' : 'This is your home header',
+        body: isArabic
+          ? 'من هنا ترى صفحتك الرئيسية بسرعة ويمكنك فتح ملفك الشخصي من الأعلى.'
+          : 'This top card is the start of your Home page and also opens your profile area.',
+        placement: 'bottom',
+        shape: 'rounded',
+        padding: 8,
+        cornerRadius: 24,
+      },
+      {
+        id: 'today_gradient',
+        targetId: 'home_today_plan_gradient',
+        title: isArabic ? 'هذه واجهة تمرين اليوم' : 'This is your workout hero',
+        body: isArabic
+          ? 'هذه الواجهة السريعة تقودك إلى اختيار تمرين اليوم أو فتح خطة التمرين المحفوظة.'
+          : 'This quick hero area leads you to choose today’s workout or open the workout plan you already saved.',
+        placement: 'bottom',
+        shape: 'rounded',
+        padding: 8,
+        cornerRadius: 24,
+      },
       {
         id: 'today_plan',
         targetId: 'home_today_plan_card',
@@ -495,7 +708,18 @@ export function Home({ onNavigate, resetSignal = 0 }: HomeProps) {
         shape: 'rounded',
         padding: 8,
         cornerRadius: 24,
-        targetActionLabel: coachmarkCopy.startHereTitle,
+      },
+      {
+        id: 'rank',
+        targetId: 'home_rank_card',
+        title: isArabic ? 'هذه رتبتك' : 'This is your rank card',
+        body: isArabic
+          ? 'من هنا تتابع رتبتك ونقاطك ومكافآت التقدم.'
+          : 'Use this card to check your rank, points, and reward progress.',
+        placement: 'top',
+        shape: 'rounded',
+        padding: 8,
+        cornerRadius: 24,
       },
       {
         id: 'recovery',
@@ -508,22 +732,6 @@ export function Home({ onNavigate, resetSignal = 0 }: HomeProps) {
         cornerRadius: 24,
       },
       {
-        id: 'progress',
-        targetId: 'nav_progress',
-        title: coachmarkCopy.progressTitle,
-        body: coachmarkCopy.progressBody,
-        placement: 'top',
-        shape: 'pill',
-        padding: 10,
-        cornerRadius: 999,
-        targetActionLabel: coachmarkCopy.progressTitle,
-      },
-    ],
-    [coachmarkCopy],
-  );
-  const nutritionCoachmarkSteps = useMemo<CoachmarkStep[]>(
-    () => [
-      {
         id: 'nutrition',
         targetId: 'home_nutrition_card',
         title: coachmarkCopy.nutritionTitle,
@@ -532,13 +740,7 @@ export function Home({ onNavigate, resetSignal = 0 }: HomeProps) {
         shape: 'rounded',
         padding: 8,
         cornerRadius: 20,
-        targetActionLabel: coachmarkCopy.nutritionTitle,
       },
-    ],
-    [coachmarkCopy],
-  );
-  const educationCoachmarkSteps = useMemo<CoachmarkStep[]>(
-    () => [
       {
         id: 'exercises',
         targetId: 'home_learning_exercises_card',
@@ -548,7 +750,6 @@ export function Home({ onNavigate, resetSignal = 0 }: HomeProps) {
         shape: 'rounded',
         padding: 8,
         cornerRadius: 20,
-        targetActionLabel: coachmarkCopy.exercisesTitle,
       },
       {
         id: 'books',
@@ -559,16 +760,11 @@ export function Home({ onNavigate, resetSignal = 0 }: HomeProps) {
         shape: 'rounded',
         padding: 8,
         cornerRadius: 20,
-        targetActionLabel: coachmarkCopy.booksTitle,
       },
     ],
     [coachmarkCopy],
   );
-  const activeCoachmarkSteps = coachmarkMode === 'nutrition'
-    ? nutritionCoachmarkSteps
-    : coachmarkMode === 'education'
-      ? educationCoachmarkSteps
-      : homeCoachmarkSteps;
+  const activeCoachmarkSteps = homeCoachmarkSteps;
   const activeCoachmarkStep = activeCoachmarkSteps[coachmarkStepIndex] || null;
   const isCoachmarkOpen = coachmarkMode !== null && !!activeCoachmarkStep;
   const rankNameMap: Record<string, string> = {
@@ -623,11 +819,9 @@ export function Home({ onNavigate, resetSignal = 0 }: HomeProps) {
     if (!activeCoachmarkStep) return;
 
     patchCoachmarkProgress(coachmarkStorageOptions, (current) => ({
-      completed: coachmarkMode === 'main' ? true : current.completed,
+      completed: true,
       dismissed: false,
-      currentStep: coachmarkMode === 'main'
-        ? Math.max(homeCoachmarkSteps.length - 1, 0)
-        : current.currentStep,
+      currentStep: Math.max(homeCoachmarkSteps.length - 1, 0),
       seenSteps: {
         ...current.seenSteps,
         [activeCoachmarkStep.id]: true,
@@ -635,101 +829,17 @@ export function Home({ onNavigate, resetSignal = 0 }: HomeProps) {
     }));
 
     closeCoachmarks();
+    if (guidedTourActive) onGuidedTourComplete?.();
   };
 
   const handleCoachmarkSkip = () => {
-    if (coachmarkMode === 'nutrition') {
-      patchCoachmarkProgress(coachmarkStorageOptions, (current) => ({
-        seenSteps: {
-          ...current.seenSteps,
-          nutrition: true,
-        },
-      }));
-    } else if (coachmarkMode === 'education') {
-      patchCoachmarkProgress(coachmarkStorageOptions, (current) => ({
-        seenSteps: {
-          ...current.seenSteps,
-          exercises: true,
-          books: true,
-        },
-      }));
-    } else {
-      patchCoachmarkProgress(coachmarkStorageOptions, {
-        dismissed: true,
-        currentStep: coachmarkStepIndex,
-      });
-    }
+    patchCoachmarkProgress(coachmarkStorageOptions, {
+      dismissed: true,
+      currentStep: coachmarkStepIndex,
+    });
 
     closeCoachmarks();
-  };
-
-  const handleCoachmarkTargetAction = () => {
-    if (!activeCoachmarkStep) return;
-
-    if (activeCoachmarkStep.id === 'today_plan') {
-      patchCoachmarkProgress(coachmarkStorageOptions, (current) => ({
-        completed: true,
-        dismissed: false,
-        currentStep: homeCoachmarkSteps.length - 1,
-        seenSteps: {
-          ...current.seenSteps,
-          today_plan: true,
-        },
-      }));
-      closeCoachmarks();
-      onNavigate('workout', workoutCardTitle);
-      return;
-    }
-
-    if (activeCoachmarkStep.id === 'progress') {
-      patchCoachmarkProgress(coachmarkStorageOptions, (current) => ({
-        completed: true,
-        dismissed: false,
-        currentStep: homeCoachmarkSteps.length - 1,
-        seenSteps: {
-          ...current.seenSteps,
-          progress: true,
-        },
-      }));
-      closeCoachmarks();
-      onNavigate('progress');
-      return;
-    }
-
-    if (activeCoachmarkStep.id === 'nutrition') {
-      patchCoachmarkProgress(coachmarkStorageOptions, (current) => ({
-        seenSteps: {
-          ...current.seenSteps,
-          nutrition: true,
-        },
-      }));
-      closeCoachmarks();
-      setView('nutrition');
-      return;
-    }
-
-    if (activeCoachmarkStep.id === 'exercises') {
-      patchCoachmarkProgress(coachmarkStorageOptions, (current) => ({
-        seenSteps: {
-          ...current.seenSteps,
-          exercises: true,
-        },
-      }));
-      closeCoachmarks();
-      setView('exercises');
-      return;
-    }
-
-    if (activeCoachmarkStep.id === 'books') {
-      patchCoachmarkProgress(coachmarkStorageOptions, (current) => ({
-        seenSteps: {
-          ...current.seenSteps,
-          books: true,
-        },
-      }));
-      closeCoachmarks();
-      setShowBooksComingSoon(true);
-    }
+    if (guidedTourActive) onGuidedTourDismiss?.();
   };
 
   useEffect(() => {
@@ -761,51 +871,24 @@ export function Home({ onNavigate, resetSignal = 0 }: HomeProps) {
     const timer = window.setTimeout(() => {
       const progress = readCoachmarkProgress(coachmarkStorageOptions);
       const canShowMainOnboarding =
-        !progress.completed
+        guidedTourActive
+        && !progress.completed
         && !progress.dismissed
         && hasCoachmarkTargets(homeCoachmarkSteps);
 
       if (canShowMainOnboarding) {
         setCoachmarkStepIndex(Math.min(progress.currentStep, homeCoachmarkSteps.length - 1));
         setCoachmarkMode('main');
-        return;
-      }
-
-      const canShowNutritionTip =
-        progress.completed
-        && !progress.dismissed
-        && !progress.seenSteps.nutrition
-        && progress.visitCount >= 2
-        && hasCoachmarkTargets(nutritionCoachmarkSteps);
-
-      if (canShowNutritionTip) {
-        setCoachmarkStepIndex(0);
-        setCoachmarkMode('nutrition');
-        return;
-      }
-
-      const canShowEducationTips =
-        progress.completed
-        && !progress.dismissed
-        && progress.seenSteps.nutrition
-        && progress.visitCount >= 3
-        && (!progress.seenSteps.exercises || !progress.seenSteps.books)
-        && hasCoachmarkTargets(educationCoachmarkSteps);
-
-      if (canShowEducationTips) {
-        setCoachmarkStepIndex(progress.seenSteps.exercises ? 1 : 0);
-        setCoachmarkMode('education');
       }
     }, 460);
 
     return () => window.clearTimeout(timer);
   }, [
     coachmarkStorageOptions,
+    guidedTourActive,
     homeCoachmarkSteps,
     isCoachmarkOpen,
     isHomeLoading,
-    educationCoachmarkSteps,
-    nutritionCoachmarkSteps,
     showBooksComingSoon,
     showShopComingSoon,
     view,
@@ -824,6 +907,8 @@ export function Home({ onNavigate, resetSignal = 0 }: HomeProps) {
       setStoredTodayExerciseSnapshot(loadTodayExerciseSnapshot(workoutStorageKeys));
       if (!currentUserId) {
         setUserProgram({ workouts: [] });
+        setWeekPlanWorkouts([]);
+        setTodayWorkoutSelection(null);
         setTodayWorkout('Rest Day');
         setTodayWorkoutData(null);
         setStoredTodayExerciseSnapshot([]);
@@ -837,20 +922,22 @@ export function Home({ onNavigate, resetSignal = 0 }: HomeProps) {
           : Array.isArray(programData?.workouts)
             ? programData.workouts
             : [];
+        const normalizedWeekPlan = buildWeekPlanWorkoutChoices(weeklyWorkouts);
+        const storedSelection = readTodayWorkoutSelection(workoutStorageScope);
+        const matchedSelection = storedSelection
+          ? normalizedWeekPlan.find((workout) => workout.key === storedSelection.workoutKey) || null
+          : null;
 
         setUserProgram({ ...(programData || {}), workouts: weeklyWorkouts });
-
-        const normalizedToday = resolveTodayWorkoutPayload(programData, weeklyWorkouts);
-        if (normalizedToday?.workout_name) {
-          setTodayWorkout(normalizedToday.workout_name);
-          setTodayWorkoutData(normalizedToday);
-        } else {
-          setTodayWorkout('Rest Day');
-          setTodayWorkoutData(null);
+        setWeekPlanWorkouts(normalizedWeekPlan);
+        if (storedSelection && !matchedSelection) {
+          clearTodayWorkoutSelection(workoutStorageScope);
         }
+        setTodayWorkoutSelection(matchedSelection ? storedSelection : null);
       } catch (error) {
         console.error('Failed to fetch user program:', error);
         setUserProgram({ workouts: [] });
+        setWeekPlanWorkouts([]);
         setTodayWorkout('Rest Day');
         setTodayWorkoutData(null);
       }
@@ -933,6 +1020,11 @@ export function Home({ onNavigate, resetSignal = 0 }: HomeProps) {
     };
     window.addEventListener('program-updated', handleProgramUpdated);
 
+    const handleTodayWorkoutSelectionUpdated = () => {
+      setTodayWorkoutSelection(readTodayWorkoutSelection(workoutStorageScope));
+    };
+    window.addEventListener(TODAY_WORKOUT_SELECTION_UPDATED_EVENT, handleTodayWorkoutSelectionUpdated);
+
     // Check for recovery updates every 2 seconds
     const recoveryInterval = setInterval(() => {
       if (localStorage.getItem('recoveryNeedsUpdate') === 'true') {
@@ -956,11 +1048,36 @@ export function Home({ onNavigate, resetSignal = 0 }: HomeProps) {
       window.removeEventListener('workout-progress-updated', handleWorkoutProgressUpdated);
       window.removeEventListener('workout-extra-exercises-updated', handleExtraExercisesUpdated);
       window.removeEventListener('program-updated', handleProgramUpdated);
+      window.removeEventListener(TODAY_WORKOUT_SELECTION_UPDATED_EVENT, handleTodayWorkoutSelectionUpdated);
       clearInterval(recoveryInterval);
       clearInterval(periodicRecoveryRefresh);
       clearInterval(progressRefresh);
     };
-  }, [currentUser.name, currentUserId]);
+  }, [currentUser.name, currentUserId, workoutStorageScope]);
+
+  useEffect(() => {
+    if (selectedTodayWorkout) {
+      setTodayWorkout(selectedTodayWorkout.workoutName);
+      setTodayWorkoutData({
+        workout_name: selectedTodayWorkout.workoutName,
+        workout_type: selectedTodayWorkout.workoutType,
+        estimated_duration_minutes: selectedTodayWorkout.estimatedDurationMinutes,
+        exercises: selectedTodayWorkout.exercises,
+        dayLabel: selectedTodayWorkout.dayLabel,
+      });
+      return;
+    }
+
+    if (weekPlanWorkouts.length > 0) {
+      setTodayWorkout('');
+      setTodayWorkoutData(null);
+      updateWorkoutProgress(0);
+      return;
+    }
+
+    setTodayWorkout('Rest Day');
+    setTodayWorkoutData(null);
+  }, [selectedTodayWorkout, weekPlanWorkouts]);
 
   useEffect(() => {
     if (!todayWorkoutData || todayWorkout === 'Rest Day') {
@@ -1262,6 +1379,7 @@ export function Home({ onNavigate, resetSignal = 0 }: HomeProps) {
     <div className="pb-24 pt-4">
       {/* Header Section */}
       <motion.header
+        data-coachmark-target="home_header_card"
         initial={{
           opacity: 0,
           y: -20
@@ -1281,11 +1399,6 @@ export function Home({ onNavigate, resetSignal = 0 }: HomeProps) {
           style={{ backgroundImage: `url(${emojiProfile})` }}
           aria-hidden="true"
         />
-        <div
-          className="absolute inset-0 bg-gradient-to-r from-background/65 via-background/45 to-background/25"
-          aria-hidden="true"
-        />
-
         <div className="relative z-10">
           <h1 className="mt-1 text-3xl font-electrolize font-bold text-text-primary">
             {greeting}
@@ -1316,24 +1429,23 @@ export function Home({ onNavigate, resetSignal = 0 }: HomeProps) {
       {/* Main Content Grid */}
       <div className="space-y-8">
         {/* Today's Workout */}
-        <div onClick={() => onNavigate('workout', workoutCardTitle)} className="cursor-pointer">
+        <div onClick={handleOpenWorkoutCard} className="cursor-pointer">
           <WorkoutCard
             coachmarkTargetId="home_today_plan_card"
-            title={workoutCardTitle}
+            coachmarkGradientTargetId="home_today_plan_gradient"
+            title={workoutCardTitleDisplay}
             workoutType={todayWorkoutData?.workout_type || ''}
             estimatedDurationMinutes={todayWorkoutData?.estimated_duration_minutes ?? null}
             exercises={todayWorkoutExercises}
             exerciseCount={todayWorkoutExerciseCount}
-            progress={workoutProgress}
-            isRestDay={isWorkoutCardRestDay} />
+            progress={shouldChooseWorkoutToday ? 0 : workoutProgress}
+            isRestDay={isWorkoutCardRestDay}
+            subtitleOverride={workoutCardSubtitleDisplay}
+            detailLines={workoutCardDetailLinesDisplay}
+            actionLabel={workoutCardActionLabelDisplay}
+            progressCaption={workoutCardProgressCaptionDisplay}
+          />
         </div>
-
-        {/* Agenda */}
-        <AgendaSection
-          userProgram={userProgram}
-          programProgress={programProgress}
-          accountCreatedAt={currentUser?.created_at || currentUser?.createdAt || null}
-        />
 
         {/* Rank & Recovery */}
         <div className="grid grid-cols-1 gap-5">
@@ -1440,21 +1552,13 @@ export function Home({ onNavigate, resetSignal = 0 }: HomeProps) {
         stepIndex={coachmarkStepIndex}
         totalSteps={activeCoachmarkSteps.length}
         nextLabel={coachmarkCopy.next}
-        finishLabel={coachmarkCopy.finish}
-        skipLabel={coachmarkCopy.skip}
-        onNext={handleCoachmarkNext}
-        onFinish={handleCoachmarkFinish}
-        onSkip={handleCoachmarkSkip}
-        onTargetAction={
-          activeCoachmarkStep?.id === 'today_plan'
-          || activeCoachmarkStep?.id === 'progress'
-          || activeCoachmarkStep?.id === 'nutrition'
-          || activeCoachmarkStep?.id === 'exercises'
-          || activeCoachmarkStep?.id === 'books'
-            ? handleCoachmarkTargetAction
-            : null
-        }
-      />
+      finishLabel={coachmarkCopy.finish}
+      skipLabel={coachmarkCopy.skip}
+      onNext={handleCoachmarkNext}
+      onFinish={handleCoachmarkFinish}
+      onSkip={handleCoachmarkSkip}
+      onTargetAction={null}
+    />
     </div>);
 
 }

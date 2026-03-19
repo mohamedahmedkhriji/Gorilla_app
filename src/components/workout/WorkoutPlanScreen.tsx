@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState, useCallback, useRef } from 'react';
 import { Header } from '../ui/Header';
 import { api } from '../../services/api';
-import { Bookmark, CalendarX2, Plus, Play, Search, TriangleAlert, X } from 'lucide-react';
+import { Bookmark, CalendarX2, Plus, Play, Search, Square, TriangleAlert, X } from 'lucide-react';
 import { getBodyPartImage } from '../../services/bodyPartTheme';
 import { resolveExerciseVideo } from '../../services/exerciseVideos';
 import { AppLanguage, getActiveLanguage, getStoredLanguage } from '../../services/language';
@@ -21,6 +21,7 @@ interface WorkoutPlanScreenProps {
   completedExercises: string[];
   todayExercises: any[];
   loading: boolean;
+  allowEditing?: boolean;
 }
 
 type CatalogExercise = {
@@ -39,6 +40,8 @@ type WorkoutExerciseCard = {
   notes: string;
   targetMuscles: string[];
 };
+
+type CardioPresetId = 'incline_walk' | 'bike' | 'jog' | 'row';
 
 const normalizeExerciseKey = (value: string) =>
   String(value || '')
@@ -154,6 +157,26 @@ const AR_DAY_LABELS: Record<string, string> = {
   sunday: 'الأحد',
 };
 
+const SEGMENT_MAP: Record<string, [boolean, boolean, boolean, boolean, boolean, boolean, boolean]> = {
+  '0': [true, true, true, true, true, true, false],
+  '1': [false, true, true, false, false, false, false],
+  '2': [true, true, false, true, true, false, true],
+  '3': [true, true, true, true, false, false, true],
+  '4': [false, true, true, false, false, true, true],
+  '5': [true, false, true, true, false, true, true],
+  '6': [true, false, true, true, true, true, true],
+  '7': [true, true, true, false, false, false, false],
+  '8': [true, true, true, true, true, true, true],
+  '9': [true, true, true, true, false, true, true],
+};
+
+const CARDIO_PRESETS: Array<{ id: CardioPresetId; durationMinutes: number; kcalPerMinute: number; accentClass: string }> = [
+  { id: 'incline_walk', durationMinutes: 15, kcalPerMinute: 6, accentClass: 'from-emerald-300/30 via-lime-300/20 to-transparent' },
+  { id: 'bike', durationMinutes: 18, kcalPerMinute: 8, accentClass: 'from-sky-300/30 via-cyan-300/20 to-transparent' },
+  { id: 'jog', durationMinutes: 12, kcalPerMinute: 10, accentClass: 'from-orange-300/30 via-amber-300/20 to-transparent' },
+  { id: 'row', durationMinutes: 14, kcalPerMinute: 9, accentClass: 'from-fuchsia-300/25 via-violet-300/15 to-transparent' },
+];
+
 const WORKOUT_PLAN_I18N = {
   en: {
     markMissedAria: 'Mark today as missed',
@@ -176,7 +199,6 @@ const WORKOUT_PLAN_I18N = {
     restSeconds: (value: number) => `${value}s rest`,
     restAsNeeded: 'Rest as needed',
     lastWeightLabel: 'Last weight',
-    startWorkout: 'Start Workout',
     videoMissing: 'Video missing',
     addExerciseTitle: 'Add Exercise',
     addExerciseSubtitle: 'Pick an exercise to add for today.',
@@ -227,7 +249,6 @@ const WORKOUT_PLAN_I18N = {
     restSeconds: (value: number) => `راحة ${value}ث`,
     restAsNeeded: 'راحة حسب الحاجة',
     lastWeightLabel: 'آخر وزن',
-    startWorkout: 'ابدأ التمرين',
     videoMissing: 'الفيديو غير متوفر',
     addExerciseTitle: 'إضافة تمرين',
     addExerciseSubtitle: 'اختر تمرينًا لإضافته لليوم.',
@@ -259,6 +280,94 @@ const WORKOUT_PLAN_I18N = {
   },
 } as const;
 
+const CARDIO_PLAN_I18N = {
+  en: {
+    title: 'Optional Cardio Finish',
+    badge: 'Optional',
+    body: 'Add a short cardio block after lifting if you want extra conditioning and calorie burn.',
+    open: 'Open Cardio',
+    resume: 'Resume Cardio',
+    close: 'Close cardio dialog',
+    modalEyebrow: 'Cardio Add-On',
+    modalTitle: 'Finish strong with a cardio block',
+    modalBody: 'Pick the style that feels right today, then start the timer whenever you are ready.',
+    modeLabel: 'Cardio style',
+    suggestedLabel: 'Suggested',
+    caloriesLabel: 'Calories',
+    liveBurnLabel: 'Live burn',
+    timerLabel: 'Timer',
+    timerAria: (value: string) => `Cardio timer ${value}`,
+    reset: 'Reset',
+    start: 'Start',
+    stop: 'Stop',
+    readyHint: 'You can skip this anytime. It is an extra finisher, not part of the required workout.',
+    progressLabel: 'Target progress',
+    completedHint: 'Nice finish. You can keep going or reset for another round.',
+    minuteShort: 'min',
+    kcalShort: 'kcal',
+    presets: {
+      incline_walk: { name: 'Incline Walk', hint: 'Easy recovery pace' },
+      bike: { name: 'Bike Ride', hint: 'Smooth low-impact burn' },
+      jog: { name: 'Light Jog', hint: 'Fastest calorie push' },
+      row: { name: 'Row Machine', hint: 'Full-body cardio' },
+    } as Record<CardioPresetId, { name: string; hint: string }>,
+  },
+  ar: {
+    title: 'كارديو إضافي اختياري',
+    badge: 'اختياري',
+    body: 'أضف جزء كارديو قصير بعد الحديد إذا أردت لياقة أكثر وحرق سعرات إضافي.',
+    open: 'فتح الكارديو',
+    resume: 'متابعة الكارديو',
+    close: 'إغلاق نافذة الكارديو',
+    modalEyebrow: 'إضافة كارديو',
+    modalTitle: 'اختم التمرين بجلسة كارديو',
+    modalBody: 'اختر النوع المناسب لك اليوم ثم ابدأ المؤقت عندما تكون جاهزًا.',
+    modeLabel: 'نوع الكارديو',
+    suggestedLabel: 'المقترح',
+    caloriesLabel: 'السعرات',
+    liveBurnLabel: 'الحرق المباشر',
+    timerLabel: 'المؤقت',
+    timerAria: (value: string) => `مؤقت الكارديو ${value}`,
+    reset: 'إعادة',
+    start: 'ابدأ',
+    stop: 'إيقاف',
+    readyHint: 'يمكنك تخطي هذا في أي وقت. هو إضافة اختيارية وليس جزءًا إلزاميًا من التمرين.',
+    progressLabel: 'تقدم الهدف',
+    completedHint: 'أداء جميل. يمكنك الاستمرار أو إعادة المؤقت لجولة جديدة.',
+    minuteShort: 'د',
+    kcalShort: 'سعرة',
+    presets: {
+      incline_walk: { name: 'مشي مائل', hint: 'وتيرة سهلة للاستشفاء' },
+      bike: { name: 'دراجة', hint: 'حرق سلس وخفيف على المفاصل' },
+      jog: { name: 'جري خفيف', hint: 'أسرع دفعة للسعرات' },
+      row: { name: 'جهاز التجديف', hint: 'كارديو للجسم بالكامل' },
+    } as Record<CardioPresetId, { name: string; hint: string }>,
+  },
+} as const;
+
+const formatCardioClock = (seconds: number) => {
+  const safeSeconds = Math.max(0, Math.floor(seconds));
+  const mins = Math.floor(safeSeconds / 60);
+  const secs = safeSeconds % 60;
+  return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+};
+
+function SevenSegmentDigit({ digit }: { digit: string }) {
+  const segments = SEGMENT_MAP[digit] || SEGMENT_MAP['0'];
+
+  return (
+    <div className="seven-seg-digit" aria-hidden="true">
+      <span className={`seg seg-a ${segments[0] ? 'on' : ''}`} />
+      <span className={`seg seg-b ${segments[1] ? 'on' : ''}`} />
+      <span className={`seg seg-c ${segments[2] ? 'on' : ''}`} />
+      <span className={`seg seg-d ${segments[3] ? 'on' : ''}`} />
+      <span className={`seg seg-e ${segments[4] ? 'on' : ''}`} />
+      <span className={`seg seg-f ${segments[5] ? 'on' : ''}`} />
+      <span className={`seg seg-g ${segments[6] ? 'on' : ''}`} />
+    </div>
+  );
+}
+
 const resolvePrimaryExerciseMuscle = (exercise: WorkoutExerciseCard) => {
   const inferredMuscles = inferMusclesFromExerciseName(exercise.name);
   const normalizedTargets = exercise.targetMuscles.map((entry) => canonicalizeMuscleLabel(entry)).filter(Boolean);
@@ -287,6 +396,7 @@ export function WorkoutPlanScreen({
   completedExercises,
   todayExercises,
   loading,
+  allowEditing = true,
 }: WorkoutPlanScreenProps) {
   const [language, setLanguage] = useState<AppLanguage>('en');
   const [catalog, setCatalog] = useState<CatalogExercise[]>([]);
@@ -298,12 +408,18 @@ export function WorkoutPlanScreen({
   const addModalScrollRef = useRef<HTMLDivElement | null>(null);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isMissModalOpen, setIsMissModalOpen] = useState(false);
+  const [isCardioModalOpen, setIsCardioModalOpen] = useState(false);
   const [addExerciseFeedback, setAddExerciseFeedback] = useState<string | null>(null);
   const [missDayFeedback, setMissDayFeedback] = useState<string | null>(null);
   const [isSubmittingExercise, setIsSubmittingExercise] = useState(false);
   const [isSubmittingMissDay, setIsSubmittingMissDay] = useState(false);
   const [lastWeights, setLastWeights] = useState<Record<string, number>>({});
+  const [selectedCardioPresetId, setSelectedCardioPresetId] = useState<CardioPresetId>('incline_walk');
+  const [cardioSeconds, setCardioSeconds] = useState(0);
+  const [isCardioRunning, setIsCardioRunning] = useState(false);
+  const cardioIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const copy = WORKOUT_PLAN_I18N[language] || WORKOUT_PLAN_I18N.en;
+  const cardioCopy = CARDIO_PLAN_I18N[language] || CARDIO_PLAN_I18N.en;
   const isArabic = language === 'ar';
 
   const toLocalizedMuscleLabel = useCallback(
@@ -418,6 +534,26 @@ export function WorkoutPlanScreen({
     };
   }, [todayExercises]);
 
+  useEffect(() => {
+    if (cardioIntervalRef.current) {
+      clearInterval(cardioIntervalRef.current);
+      cardioIntervalRef.current = null;
+    }
+
+    if (isCardioRunning) {
+      cardioIntervalRef.current = setInterval(() => {
+        setCardioSeconds((prev) => prev + 1);
+      }, 1000);
+    }
+
+    return () => {
+      if (cardioIntervalRef.current) {
+        clearInterval(cardioIntervalRef.current);
+        cardioIntervalRef.current = null;
+      }
+    };
+  }, [isCardioRunning]);
+
   const exercises: WorkoutExerciseCard[] = todayExercises.map((ex) => {
     const targetMuscles = Array.isArray(ex?.targetMuscles) && ex.targetMuscles.length
       ? ex.targetMuscles.map((entry: unknown) => canonicalizeMuscleLabel(entry)).filter(Boolean)
@@ -524,6 +660,17 @@ export function WorkoutPlanScreen({
   const headerTitleRaw = String(workoutDayLabel || workoutDay || copy.workout).trim() || copy.workout;
   const headerTitle = toLocalizedDayLabel(headerTitleRaw);
   const displayWorkoutName = toLocalizedDayLabel(String(workoutDay || copy.workout).trim() || copy.workout);
+  const selectedCardioPreset = CARDIO_PRESETS.find((preset) => preset.id === selectedCardioPresetId) || CARDIO_PRESETS[0];
+  const cardioTimerText = formatCardioClock(cardioSeconds);
+  const [cardioMins, cardioSecs] = cardioTimerText.split(':');
+  const [cardioM1 = '0', cardioM2 = '0'] = cardioMins.split('');
+  const [cardioS1 = '0', cardioS2 = '0'] = cardioSecs.split('');
+  const cardioEstimatedCalories = Math.max(0, Math.round((cardioSeconds / 60) * selectedCardioPreset.kcalPerMinute));
+  const cardioSuggestedSeconds = selectedCardioPreset.durationMinutes * 60;
+  const cardioProgress = cardioSuggestedSeconds > 0
+    ? Math.min(100, Math.round((cardioSeconds / cardioSuggestedSeconds) * 100))
+    : 0;
+  const cardioPresetCopy = cardioCopy.presets[selectedCardioPreset.id];
 
   const headerActions = (
     <div className="flex items-center gap-2">
@@ -543,19 +690,21 @@ export function WorkoutPlanScreen({
         </button>
       )}
 
-      <button
-        data-coachmark-target="workout_plan_latest_summary_button"
-        type="button"
-        onClick={onOpenLatestSummary}
-        className={`flex h-10 w-10 items-center justify-center rounded-xl border transition-colors ${
-          hasLatestSummary
-            ? 'border-accent/35 bg-accent/10 text-accent hover:bg-accent/20'
-            : 'border-white/10 bg-card/60 text-text-tertiary hover:text-text-secondary'
-        }`}
-        aria-label={copy.openLatestSummaryAria}
-      >
-        <Bookmark size={17} />
-      </button>
+      {onOpenLatestSummary && (
+        <button
+          data-coachmark-target="workout_plan_latest_summary_button"
+          type="button"
+          onClick={onOpenLatestSummary}
+          className={`flex h-10 w-10 items-center justify-center rounded-xl border transition-colors ${
+            hasLatestSummary
+              ? 'border-accent/35 bg-accent/10 text-accent hover:bg-accent/20'
+              : 'border-white/10 bg-card/60 text-text-tertiary hover:text-text-secondary'
+          }`}
+          aria-label={copy.openLatestSummaryAria}
+        >
+          <Bookmark size={17} />
+        </button>
+      )}
     </div>
   );
 
@@ -623,6 +772,15 @@ export function WorkoutPlanScreen({
     } finally {
       setIsSubmittingMissDay(false);
     }
+  };
+
+  const toggleCardioTimer = () => {
+    setIsCardioRunning((current) => !current);
+  };
+
+  const resetCardioTimer = () => {
+    setIsCardioRunning(false);
+    setCardioSeconds(0);
   };
 
   return (
@@ -701,7 +859,7 @@ export function WorkoutPlanScreen({
             data-coachmark-target="workout_plan_add_exercise_button"
             type="button"
             onClick={openAddExerciseModal}
-            disabled={isRestDayView}
+            disabled={isRestDayView || !allowEditing}
             className="flex h-9 w-9 items-center justify-center rounded-full bg-accent/10 text-accent transition-colors hover:bg-accent/20 disabled:cursor-not-allowed disabled:bg-white/10 disabled:text-text-tertiary disabled:hover:bg-white/10"
             aria-label={copy.addExerciseAria}
           >
@@ -794,21 +952,227 @@ export function WorkoutPlanScreen({
               </button>
             );
           })}
+        </div>
+
+        {!isRestDayView && (
+          <div
+            className={`relative overflow-hidden rounded-[1.75rem] border border-white/10 bg-[linear-gradient(160deg,rgba(22,26,35,0.96),rgba(12,16,26,0.98))] p-5 shadow-[0_16px_50px_rgba(0,0,0,0.22)] ${isArabic ? 'text-right' : 'text-left'}`}
+            dir={isArabic ? 'rtl' : 'ltr'}
+          >
+            <div className={`pointer-events-none absolute inset-0 bg-gradient-to-br ${selectedCardioPreset.accentClass}`} />
+            <div className="pointer-events-none absolute -right-8 top-0 h-28 w-28 rounded-full bg-white/10 blur-3xl" />
+
+            <div className="relative">
+              <div className={`flex items-start justify-between gap-4 ${isArabic ? 'flex-row-reverse' : ''}`}>
+                <div className="min-w-0">
+                  <div className="inline-flex rounded-full border border-white/10 bg-white/6 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-accent">
+                    {cardioCopy.badge}
+                  </div>
+                  <h3 className="mt-3 text-xl font-semibold text-white">{cardioCopy.title}</h3>
+                  <p className="mt-2 max-w-xl text-sm leading-relaxed text-text-secondary">
+                    {cardioCopy.body}
+                  </p>
+                </div>
+
+                <div className="flex h-14 min-w-[4.75rem] flex-col items-center justify-center rounded-2xl border border-white/10 bg-black/20 px-3 text-center">
+                  <span className="text-lg font-electrolize text-white">{selectedCardioPreset.durationMinutes}</span>
+                  <span className="text-[10px] uppercase tracking-[0.14em] text-text-tertiary">{cardioCopy.minuteShort}</span>
+                </div>
+              </div>
+
+              <div className="mt-5 grid grid-cols-3 gap-3">
+                <div className="rounded-2xl border border-white/8 bg-white/[0.04] px-3 py-3">
+                  <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-text-tertiary">
+                    {cardioCopy.modeLabel}
+                  </div>
+                  <div className="mt-2 text-sm font-semibold text-white">{cardioPresetCopy.name}</div>
+                  <div className="mt-1 text-[11px] text-text-secondary">{cardioPresetCopy.hint}</div>
+                </div>
+                <div className="rounded-2xl border border-white/8 bg-white/[0.04] px-3 py-3">
+                  <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-text-tertiary">
+                    {cardioCopy.suggestedLabel}
+                  </div>
+                  <div className="mt-2 text-sm font-semibold text-white">{selectedCardioPreset.durationMinutes} {cardioCopy.minuteShort}</div>
+                  <div className="mt-1 text-[11px] text-text-secondary">{cardioCopy.progressLabel}</div>
+                </div>
+                <div className="rounded-2xl border border-white/8 bg-white/[0.04] px-3 py-3">
+                  <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-text-tertiary">
+                    {cardioCopy.liveBurnLabel}
+                  </div>
+                  <div className="mt-2 text-sm font-semibold text-white">{cardioEstimatedCalories} {cardioCopy.kcalShort}</div>
+                  <div className="mt-1 text-[11px] text-text-secondary">{cardioTimerText}</div>
+                </div>
+              </div>
+
+              <div className={`mt-5 flex items-center justify-between gap-3 ${isArabic ? 'flex-row-reverse' : ''}`}>
+                <p className="text-xs leading-relaxed text-text-secondary">
+                  {cardioCopy.readyHint}
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setIsCardioModalOpen(true)}
+                  className="inline-flex shrink-0 items-center justify-center rounded-full border border-accent/30 bg-accent/15 px-5 py-2.5 text-xs font-semibold uppercase tracking-[0.12em] text-text-primary transition-colors hover:bg-accent/22"
+                >
+                  {cardioSeconds > 0 ? cardioCopy.resume : cardioCopy.open}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
       </div>
 
-      {exercises.length > 0 && (
-        <div className="sticky bottom-4 pt-2">
-          <button
-            data-coachmark-target="workout_plan_start_button"
-            type="button"
-            onClick={() => nextExercise && onExerciseClick(nextExercise.name)}
-            className="w-full rounded-2xl bg-accent px-5 py-4 text-sm font-bold uppercase tracking-[0.08em] text-black shadow-[0_10px_30px_rgba(191,255,0,0.22)] transition-colors hover:bg-[#aee600]"
+      {isCardioModalOpen && !isRestDayView && (
+        <div
+          className="fixed inset-0 z-50 flex items-start justify-center bg-black/80 p-3 sm:p-4"
+          onClick={() => {
+            setIsCardioRunning(false);
+            setIsCardioModalOpen(false);
+          }}
+        >
+          <div
+            className={`relative w-full max-w-lg overflow-y-auto rounded-[1.6rem] border border-white/10 bg-[linear-gradient(180deg,rgba(18,23,34,0.98),rgba(9,12,20,0.98))] p-4 shadow-[0_24px_64px_rgba(0,0,0,0.45)] max-h-[88vh] ${isArabic ? 'text-right' : 'text-left'}`}
+            dir={isArabic ? 'rtl' : 'ltr'}
+            onClick={(event) => event.stopPropagation()}
           >
-            {copy.startWorkout}
-          </button>
+            <div className={`pointer-events-none absolute inset-0 bg-gradient-to-br ${selectedCardioPreset.accentClass}`} />
+            <div className="pointer-events-none absolute right-0 top-0 h-36 w-36 rounded-full bg-white/10 blur-3xl" />
+
+            <div className="relative">
+              <div className={`flex items-start justify-between gap-3 ${isArabic ? 'flex-row-reverse' : ''}`}>
+                <div>
+                  <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-accent">
+                    {cardioCopy.modalEyebrow}
+                  </div>
+                  <h3 className="mt-1.5 text-xl font-semibold text-white">{cardioCopy.modalTitle}</h3>
+                  <p className="mt-1.5 max-w-lg text-xs leading-relaxed text-text-secondary sm:text-sm">
+                    {cardioCopy.modalBody}
+                  </p>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsCardioRunning(false);
+                    setIsCardioModalOpen(false);
+                  }}
+                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white/6 text-text-secondary transition-colors hover:bg-white/12 hover:text-white"
+                  aria-label={cardioCopy.close}
+                >
+                  <X size={18} />
+                </button>
+              </div>
+
+              <div className="mt-4">
+                <div className="mb-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-text-tertiary sm:text-[11px] sm:tracking-[0.16em]">
+                  {cardioCopy.modeLabel}
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  {CARDIO_PRESETS.map((preset) => {
+                    const presetCopy = cardioCopy.presets[preset.id];
+                    const isSelected = preset.id === selectedCardioPreset.id;
+                    return (
+                      <button
+                        key={preset.id}
+                        type="button"
+                        onClick={() => setSelectedCardioPresetId(preset.id)}
+                        className={`rounded-xl border px-3 py-2.5 transition-colors ${isSelected ? 'border-accent/45 bg-accent/12' : 'border-white/8 bg-white/[0.03] hover:border-accent/25'}`}
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <div className={`min-w-0 ${isArabic ? 'text-right' : 'text-left'}`}>
+                            <div className="truncate text-xs font-semibold text-white sm:text-sm">{presetCopy.name}</div>
+                            <div className="mt-0.5 text-[10px] text-text-secondary sm:text-[11px]">{presetCopy.hint}</div>
+                          </div>
+                          <div className="rounded-full border border-white/10 bg-black/15 px-2 py-0.5 text-[9px] font-semibold uppercase tracking-[0.1em] text-text-secondary sm:px-2.5 sm:py-1 sm:text-[10px] sm:tracking-[0.12em]">
+                            {preset.durationMinutes} {cardioCopy.minuteShort}
+                          </div>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div className="mt-4 grid gap-3 sm:grid-cols-[minmax(0,1fr)_9.5rem]">
+                <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-text-tertiary sm:text-[11px] sm:tracking-[0.16em]">
+                      {cardioCopy.timerLabel}
+                    </div>
+                    <div className="rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.1em] text-accent sm:px-3 sm:py-1 sm:text-[11px] sm:tracking-[0.12em]">
+                      {cardioProgress}% {cardioCopy.progressLabel}
+                    </div>
+                  </div>
+
+                  <div className="mt-3 flex justify-center">
+                    <div
+                      className="seven-seg-shell"
+                      role="timer"
+                      aria-label={cardioCopy.timerAria(cardioTimerText)}
+                    >
+                      <div className="seven-seg-group">
+                        <SevenSegmentDigit digit={cardioM1} />
+                        <SevenSegmentDigit digit={cardioM2} />
+                      </div>
+                      <div className="seven-seg-colon" aria-hidden="true">
+                        <span className="dot" />
+                        <span className="dot" />
+                      </div>
+                      <div className="seven-seg-group">
+                        <SevenSegmentDigit digit={cardioS1} />
+                        <SevenSegmentDigit digit={cardioS2} />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="mt-3 grid grid-cols-2 gap-2">
+                    <div className="rounded-xl border border-white/8 bg-white/[0.03] px-3 py-2.5">
+                      <div className="text-[9px] font-semibold uppercase tracking-[0.1em] text-text-tertiary sm:text-[10px] sm:tracking-[0.14em]">
+                        {cardioCopy.suggestedLabel}
+                      </div>
+                      <div className="mt-1.5 text-base font-semibold text-white sm:text-lg">{selectedCardioPreset.durationMinutes} {cardioCopy.minuteShort}</div>
+                    </div>
+                    <div className="rounded-xl border border-white/8 bg-white/[0.03] px-3 py-2.5">
+                      <div className="text-[9px] font-semibold uppercase tracking-[0.1em] text-text-tertiary sm:text-[10px] sm:tracking-[0.14em]">
+                        {cardioCopy.caloriesLabel}
+                      </div>
+                      <div className="mt-1.5 text-base font-semibold text-white sm:text-lg">{cardioEstimatedCalories} {cardioCopy.kcalShort}</div>
+                    </div>
+                  </div>
+
+                  {cardioProgress >= 100 && (
+                    <div className="mt-3 rounded-xl border border-emerald-400/25 bg-emerald-400/10 px-3 py-2.5 text-xs text-emerald-100 sm:text-sm">
+                      {cardioCopy.completedHint}
+                    </div>
+                  )}
+                </div>
+
+                <div className="flex flex-col gap-2">
+                  <button
+                    type="button"
+                    onClick={toggleCardioTimer}
+                    className={`flex min-h-[3rem] items-center justify-center gap-2 rounded-xl px-3 text-xs font-semibold uppercase tracking-[0.1em] transition-colors sm:text-sm sm:tracking-[0.12em] ${
+                      isCardioRunning
+                        ? 'bg-rose-500 text-white hover:bg-rose-400'
+                        : 'bg-accent text-black hover:bg-[#aee600]'
+                    }`}
+                  >
+                    {isCardioRunning ? <Square size={16} /> : <Play size={16} fill="currentColor" />}
+                    {isCardioRunning ? cardioCopy.stop : cardioCopy.start}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={resetCardioTimer}
+                    className="flex min-h-[3rem] items-center justify-center rounded-xl border border-white/10 bg-white/[0.04] px-3 text-xs font-semibold uppercase tracking-[0.1em] text-text-primary transition-colors hover:bg-white/[0.08] sm:text-sm sm:tracking-[0.12em]"
+                  >
+                    {cardioCopy.reset}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       )}
-      </div>
 
       {isAddModalOpen && (
         <div
@@ -1092,6 +1456,103 @@ export function WorkoutPlanScreen({
           </div>
         </div>
       )}
+
+      <style>{`
+        .seven-seg-shell {
+          --seg-on: #ff2136;
+          --seg-off: #3b2a2a;
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          padding: 10px 12px;
+          border-radius: 12px;
+          border: 1px solid rgba(255, 255, 255, 0.1);
+          background: linear-gradient(180deg, #2a1717 0%, #120b0b 100%);
+          box-shadow: inset 0 0 24px rgba(0, 0, 0, 0.65), 0 8px 18px rgba(0, 0, 0, 0.35);
+        }
+
+        .seven-seg-group {
+          display: flex;
+          align-items: center;
+          gap: 6px;
+        }
+
+        .seven-seg-digit {
+          position: relative;
+          width: 28px;
+          height: 48px;
+        }
+
+        .seg {
+          position: absolute;
+          background: var(--seg-off);
+          border-radius: 999px;
+          opacity: 0.32;
+          transition: background 120ms ease, opacity 120ms ease, box-shadow 120ms ease;
+        }
+
+        .seg.on {
+          background: var(--seg-on);
+          opacity: 1;
+          box-shadow: 0 0 6px var(--seg-on), 0 0 12px color-mix(in srgb, var(--seg-on) 85%, transparent), 0 0 20px color-mix(in srgb, var(--seg-on) 45%, transparent);
+        }
+
+        .seg-a,
+        .seg-d,
+        .seg-g {
+          width: 18px;
+          height: 5px;
+          left: 5px;
+        }
+
+        .seg-a { top: 0; }
+        .seg-g { top: 22px; }
+        .seg-d { bottom: 0; }
+
+        .seg-b,
+        .seg-c,
+        .seg-e,
+        .seg-f {
+          width: 5px;
+          height: 18px;
+        }
+
+        .seg-b { right: 0; top: 2px; }
+        .seg-c { right: 0; bottom: 2px; }
+        .seg-f { left: 0; top: 2px; }
+        .seg-e { left: 0; bottom: 2px; }
+
+        .seven-seg-colon {
+          display: flex;
+          flex-direction: column;
+          justify-content: center;
+          gap: 8px;
+          margin: 0 2px;
+        }
+
+        .seven-seg-colon .dot {
+          width: 6px;
+          height: 6px;
+          border-radius: 999px;
+          background: var(--seg-on);
+          box-shadow: 0 0 6px var(--seg-on), 0 0 12px color-mix(in srgb, var(--seg-on) 70%, transparent);
+        }
+
+        [data-theme='light'] .seven-seg-shell {
+          --seg-on: #9FCC2A;
+          --seg-off: #2f3f1f;
+          border-color: rgba(191, 255, 0, 0.35);
+          background: linear-gradient(180deg, #1f2a16 0%, #12190d 100%);
+        }
+
+        [data-theme='light'] .seven-seg-shell .seg.on {
+          box-shadow: 0 0 4px color-mix(in srgb, var(--seg-on) 70%, transparent), 0 0 8px color-mix(in srgb, var(--seg-on) 35%, transparent);
+        }
+
+        [data-theme='light'] .seven-seg-shell .seven-seg-colon .dot {
+          box-shadow: 0 0 4px color-mix(in srgb, var(--seg-on) 65%, transparent), 0 0 7px color-mix(in srgb, var(--seg-on) 30%, transparent);
+        }
+      `}</style>
     </div>
   );
 }

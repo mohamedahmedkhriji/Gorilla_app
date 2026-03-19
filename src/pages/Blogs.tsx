@@ -15,9 +15,17 @@ import {
   X,
 } from 'lucide-react';
 import { api } from '../services/api';
+import { CoachmarkOverlay, type CoachmarkStep } from '../components/coachmarks/CoachmarkOverlay';
 import { Header } from '../components/ui/Header';
 import { clearStoredUserSession, getStoredAppUser, getStoredUserId } from '../shared/authStorage';
 import { AppLanguage, getActiveLanguage, getStoredLanguage } from '../services/language';
+import {
+  BLOGS_COACHMARK_TOUR_ID,
+  BLOGS_COACHMARK_VERSION,
+  getCoachmarkUserScope,
+  patchCoachmarkProgress,
+  readCoachmarkProgress,
+} from '../services/coachmarks';
 
 type PostCategory = 'Training' | 'Nutrition' | 'Recovery' | 'Mindset';
 type FeedCategory = 'All' | 'Women' | PostCategory;
@@ -67,6 +75,12 @@ const CATEGORY_OPTIONS: PostCategory[] = ['Training', 'Nutrition', 'Recovery', '
 const FEED_PAGE_LIMIT = 20;
 const DESCRIPTION_MAX_LENGTH = 5000;
 const MEDIA_PAYLOAD_LIMIT = 8000000;
+
+interface BlogsProps {
+  guidedTourActive?: boolean;
+  onGuidedTourComplete?: () => void;
+  onGuidedTourDismiss?: () => void;
+}
 
 const REACTION_ASSETS: Record<ReactionType, string> = {
   love: new URL('../../assets/reaction/love it.png', import.meta.url).href,
@@ -308,6 +322,10 @@ const getPostedAgo = (createdAt: string | null, copy: BlogCopy, short = false) =
   return short ? copy.postedDaysShort(diffDays) : copy.postedDays(diffDays);
 };
 
+const hasCoachmarkTargets = (steps: CoachmarkStep[]) =>
+  typeof document !== 'undefined'
+  && steps.every((step) => Boolean(document.querySelector(`[data-coachmark-target="${step.targetId}"]`)));
+
 const normalizeReactionType = (value: unknown): ReactionType | null => {
   const normalized = String(value || '').trim().toLowerCase();
   if (normalized === 'love' || normalized === 'fire' || normalized === 'power' || normalized === 'wow') {
@@ -426,7 +444,11 @@ const renderDescription = (description: string, overlay = false) =>
     );
   });
 
-export function Blogs() {
+export function Blogs({
+  guidedTourActive = false,
+  onGuidedTourComplete,
+  onGuidedTourDismiss,
+}: BlogsProps) {
   const userId = useMemo(() => getUserId(), []);
   const userProfileImage = useMemo(() => getUserProfileImage(), []);
   const [userGender, setUserGender] = useState(() => getUserGender());
@@ -443,6 +465,8 @@ export function Blogs() {
   const [activeCategory, setActiveCategory] = useState<FeedCategory>('All');
   const [nextCursor, setNextCursor] = useState<FeedCursor | null>(null);
   const [hasMore, setHasMore] = useState(false);
+  const [coachmarkStepIndex, setCoachmarkStepIndex] = useState(0);
+  const [isCoachmarkOpen, setIsCoachmarkOpen] = useState(false);
 
   const [activeReelIndex, setActiveReelIndex] = useState<number | null>(null);
   const reelsContainerRef = useRef<HTMLDivElement | null>(null);
@@ -470,6 +494,21 @@ export function Blogs() {
   const [pendingDeletePostId, setPendingDeletePostId] = useState<number | null>(null);
   const [activeSharePostId, setActiveSharePostId] = useState<number | null>(null);
   const [shareFeedback, setShareFeedback] = useState('');
+  const coachmarkScope = useMemo(() => getCoachmarkUserScope(getStoredAppUser()), []);
+  const coachmarkOptions = useMemo(
+    () => ({
+      tourId: BLOGS_COACHMARK_TOUR_ID,
+      version: BLOGS_COACHMARK_VERSION,
+      userScope: coachmarkScope,
+      defaultSeenSteps: {
+        create: false,
+        intro: false,
+        filters: false,
+        first_post: false,
+      },
+    }),
+    [coachmarkScope],
+  );
 
   const getCategoryLabel = useCallback(
     (category: FeedCategory) => copy.categories[category] || String(category),
@@ -542,6 +581,65 @@ export function Blogs() {
     }
     return posts.filter((post) => post.category === activeCategory);
   }, [activeCategory, posts]);
+  const coachmarkCopy = useMemo(
+    () => ({
+      next: isArabic ? 'التالي' : 'Next',
+      skip: isArabic ? 'تخطي' : 'Skip',
+      finish: isArabic ? 'حسنًا' : 'Got it',
+      steps: [
+        {
+          id: 'create',
+          targetId: 'blogs_create_button',
+          title: isArabic ? 'أنشئ منشورًا جديدًا' : 'Create a new post',
+          body: isArabic
+            ? 'هذا الزر في أعلى الصفحة لرفع منشور جديد في المدونات.'
+            : 'Use this top button to create a new blog post.',
+          placement: 'bottom' as const,
+          shape: 'circle' as const,
+          padding: 8,
+        },
+        {
+          id: 'intro',
+          targetId: 'blogs_page_intro',
+          title: isArabic ? 'هذه صفحة المدونات' : 'This is the blogs page',
+          body: isArabic
+            ? 'هنا ترى تحديثات المجتمع عن التدريب والتغذية والاستشفاء.'
+            : 'This page shows community updates about training, nutrition, and recovery.',
+          placement: 'bottom' as const,
+          shape: 'rounded' as const,
+          padding: 8,
+          cornerRadius: 16,
+        },
+        {
+          id: 'filters',
+          targetId: 'blogs_category_filters',
+          title: isArabic ? 'غيّر الفئة من هنا' : 'Filter the feed here',
+          body: isArabic
+            ? 'يمكنك تغيير الفئة من هنا لرؤية نوع المنشورات الذي تريده.'
+            : 'Use these filters to switch between different post categories.',
+          placement: 'bottom' as const,
+          shape: 'rounded' as const,
+          padding: 8,
+          cornerRadius: 16,
+        },
+        {
+          id: 'first_post',
+          targetId: 'blogs_first_post_card',
+          title: isArabic ? 'هذا مثال على المنشورات' : 'This is a feed post',
+          body: isArabic
+            ? 'هنا يمكنك فتح المنشور والتفاعل معه وقراءة التعليقات.'
+            : 'Open a post here to view it, react to it, and read comments.',
+          placement: 'top' as const,
+          shape: 'rounded' as const,
+          padding: 8,
+          cornerRadius: 20,
+        },
+      ] satisfies CoachmarkStep[],
+    }),
+    [isArabic],
+  );
+  const coachmarkSteps = coachmarkCopy.steps;
+  const activeCoachmarkStep = coachmarkSteps[coachmarkStepIndex] || null;
 
   const categoryCounts = useMemo(() => {
     const counts: Record<FeedCategory, number> = {
@@ -978,6 +1076,78 @@ export function Blogs() {
     });
   }, [activeReelIndex, visiblePosts]);
 
+  useEffect(() => {
+    if (isCreateOpen || activeReelIndex != null || isCoachmarkOpen) return;
+
+    const timer = window.setTimeout(() => {
+      const progress = readCoachmarkProgress(coachmarkOptions);
+      const canShowTour =
+        guidedTourActive
+        && !progress.completed
+        && !progress.dismissed
+        && hasCoachmarkTargets(coachmarkSteps);
+
+      if (canShowTour) {
+        setCoachmarkStepIndex(Math.min(progress.currentStep, coachmarkSteps.length - 1));
+        setIsCoachmarkOpen(true);
+      }
+    }, 420);
+
+    return () => window.clearTimeout(timer);
+  }, [
+    activeReelIndex,
+    coachmarkOptions,
+    coachmarkSteps,
+    guidedTourActive,
+    isCoachmarkOpen,
+    isCreateOpen,
+  ]);
+
+  const closeCoachmarks = () => {
+    setIsCoachmarkOpen(false);
+    setCoachmarkStepIndex(0);
+  };
+
+  const handleCoachmarkNext = () => {
+    if (!activeCoachmarkStep || coachmarkStepIndex >= coachmarkSteps.length - 1) return;
+
+    patchCoachmarkProgress(coachmarkOptions, (current) => ({
+      currentStep: coachmarkStepIndex + 1,
+      seenSteps: {
+        ...current.seenSteps,
+        [activeCoachmarkStep.id]: true,
+      },
+    }));
+
+    setCoachmarkStepIndex((current) => Math.min(current + 1, coachmarkSteps.length - 1));
+  };
+
+  const handleCoachmarkFinish = () => {
+    if (!activeCoachmarkStep) return;
+
+    patchCoachmarkProgress(coachmarkOptions, (current) => ({
+      completed: true,
+      dismissed: false,
+      currentStep: Math.max(coachmarkSteps.length - 1, 0),
+      seenSteps: {
+        ...current.seenSteps,
+        [activeCoachmarkStep.id]: true,
+      },
+    }));
+
+    closeCoachmarks();
+    if (guidedTourActive) onGuidedTourComplete?.();
+  };
+
+  const handleCoachmarkSkip = () => {
+    patchCoachmarkProgress(coachmarkOptions, {
+      dismissed: true,
+      currentStep: coachmarkStepIndex,
+    });
+    closeCoachmarks();
+    if (guidedTourActive) onGuidedTourDismiss?.();
+  };
+
   const handleFilePicked = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     event.target.value = '';
@@ -1093,6 +1263,7 @@ export function Blogs() {
                 <RefreshCcw size={17} className={refreshing ? 'animate-spin' : ''} />
               </button>
               <button
+                data-coachmark-target="blogs_create_button"
                 type="button"
                 onClick={() => {
                   setIsCreateOpen(true);
@@ -1106,11 +1277,11 @@ export function Blogs() {
             </div>
           )}
         />
-        <p className="text-xs text-[#6B7280]">
+        <p data-coachmark-target="blogs_page_intro" className="text-xs text-[#6B7280]">
           {copy.subtitle}
         </p>
 
-        <div className="flex gap-2 overflow-x-auto pb-1">
+        <div data-coachmark-target="blogs_category_filters" className="flex gap-2 overflow-x-auto pb-1">
           {categoryFilters.map((category) => {
             const isActive = activeCategory === category;
             return (
@@ -1146,11 +1317,11 @@ export function Blogs() {
             ))}
           </div>
         ) : posts.length === 0 ? (
-          <div className="bg-white border border-[#D9DDE7] rounded-2xl p-4 text-sm text-[#6B7280]">
+          <div data-coachmark-target="blogs_first_post_card" className="bg-white border border-[#D9DDE7] rounded-2xl p-4 text-sm text-[#6B7280]">
             <div>{copy.noPosts}</div>
           </div>
         ) : visiblePosts.length === 0 ? (
-          <div className="bg-white border border-[#D9DDE7] rounded-2xl p-4 text-sm text-[#6B7280] space-y-3">
+          <div data-coachmark-target="blogs_first_post_card" className="bg-white border border-[#D9DDE7] rounded-2xl p-4 text-sm text-[#6B7280] space-y-3">
             <div>{copy.noCategoryPosts(getCategoryLabel(activeCategory))}</div>
             <div className="flex items-center gap-2">
               <button
@@ -1176,6 +1347,7 @@ export function Blogs() {
           visiblePosts.map((post, index) => (
             <article
               key={post.id}
+              data-coachmark-target={index === 0 ? 'blogs_first_post_card' : undefined}
               className="cursor-pointer overflow-hidden rounded-2xl border border-[#E5E7EB] bg-white"
               onClick={(event) => {
                 const target = event.target as HTMLElement;
@@ -1873,6 +2045,19 @@ export function Blogs() {
           </div>
         </div>
       )}
+      <CoachmarkOverlay
+        isOpen={isCoachmarkOpen}
+        step={activeCoachmarkStep}
+        stepIndex={coachmarkStepIndex}
+        totalSteps={coachmarkSteps.length}
+        nextLabel={coachmarkCopy.next}
+        finishLabel={coachmarkCopy.finish}
+        skipLabel={coachmarkCopy.skip}
+        onNext={handleCoachmarkNext}
+        onFinish={handleCoachmarkFinish}
+        onSkip={handleCoachmarkSkip}
+        onTargetAction={null}
+      />
     </div>
   );
 }
