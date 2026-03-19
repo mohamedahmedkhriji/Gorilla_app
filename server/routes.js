@@ -69,11 +69,18 @@ const aiRouteRateLimit = createSimpleRateLimit({
   max: 8,
   keySelector: (req) => String(req.authUser?.id || req.ip || 'unknown'),
 });
+const BI_WEEKLY_CLAUDE_API_URL = 'https://api.anthropic.com/v1/messages';
+const BI_WEEKLY_CLAUDE_TIMEOUT_MS = 45_000;
 const getBiWeeklyReportOpenAIModel = () => String(
   process.env.OPENAI_BIWEEKLY_REPORT_MODEL
   || process.env.OPENAI_MODEL
   || 'gpt-4o',
 ).trim() || 'gpt-4o';
+const getBiWeeklyReportClaudeModel = () => String(
+  process.env.ANTHROPIC_BIWEEKLY_REPORT_MODEL
+  || process.env.ANTHROPIC_MODEL
+  || 'claude-sonnet-4-6',
+).trim() || 'claude-sonnet-4-6';
 
 const ALLOWED_ASSIGNMENT_SOURCES = new Set(['ai', 'coach', 'admin', 'manual']);
 
@@ -150,12 +157,16 @@ const getBiWeeklyReportLanguage = (req) => {
   return 'en';
 };
 
-const getBiWeeklyReportOpenAINotice = (req) => {
+const getBiWeeklyReportAiUnavailableLegacyNotice = (req) => {
   const language = getBiWeeklyReportLanguage(req);
   if (language === 'ar') {
     return 'OpenAI غير متاح حالياً. يتم عرض التقرير القياسي بدلاً من ذلك.';
   }
-  return 'OpenAI unavailable right now. Showing the standard report instead.';
+  return 'AI unavailable right now. Showing the standard report instead.';
+};
+
+const getBiWeeklyReportAiUnavailableNotice = (req) => {
+  return getBiWeeklyReportAiUnavailableLegacyNotice(req);
 };
 
 const maybeGenerateOpenAIBiWeeklyReport = async ({
@@ -225,6 +236,142 @@ const maybeGenerateOpenAIBiWeeklyReport = async ({
     nextFocus: normalizeBiWeeklyReportItems(parsed.nextFocus, nextFocusCandidates),
     aiModel: response.model,
     aiProvider: 'openai',
+  };
+};
+
+const extractClaudeTextFromResponse = (responsePayload) => {
+  const contentBlocks = Array.isArray(responsePayload?.content) ? responsePayload.content : [];
+  const text = contentBlocks
+    .filter((block) => block?.type === 'text')
+    .map((block) => String(block?.text || '').trim())
+    .filter(Boolean)
+    .join('\n')
+    .trim();
+
+  if (!text) {
+    throw new Error('Claude bi-weekly report returned no text content');
+  }
+
+  return text;
+};
+
+const buildClaudeBiWeeklyErrorDetails = ({ rawBody, parsedBody }) => {
+  const parsedMessage = String(parsedBody?.error?.message || parsedBody?.message || '').trim();
+  if (parsedMessage) return parsedMessage.slice(0, 300);
+  return String(rawBody || 'Unknown Claude API error')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 300);
+};
+
+const maybeGenerateClaudeBiWeeklyReport = async ({
+  req,
+  periodDays,
+  metrics,
+  fallbackSummary,
+  improvementCandidates,
+  nextFocusCandidates,
+}) => {
+  if (!hasAnthropicConfig()) return null;
+
+  const apiKey = String(process.env.ANTHROPIC_API_KEY || '').trim();
+  if (!apiKey) return null;
+
+  const model = getBiWeeklyReportClaudeModel();
+  const language = getBiWeeklyReportLanguage(req);
+  const userPromptPayload = {
+    language,
+    periodDays,
+    metrics: {
+      consistency: metrics.consistency,
+      completedSessions: metrics.completedSessions,
+      plannedSessions: metrics.plannedSessions,
+      totalVolumeTons: Number((Number(metrics.totalVolume14d || 0) / 1000).toFixed(1)),
+      avgRecovery: metrics.avgRecovery,
+    },
+    improvementCandidates: normalizeBiWeeklyReportItems(improvementCandidates),
+    nextFocusCandidates: normalizeBiWeeklyReportItems(nextFocusCandidates),
+    fallbackSummary,
+  };
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), BI_WEEKLY_CLAUDE_TIMEOUT_MS);
+
+  let response;
+  let rawBody = '';
+  let parsedResponse = null;
+
+  try {
+    response = await fetch(BI_WEEKLY_CLAUDE_API_URL, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01',
+      },
+      body: JSON.stringify({
+        model,
+        max_tokens: 500,
+        temperature: 0.3,
+        system: [
+          'You are a fitness coach writing a concise bi-weekly progress report for a mobile app.',
+          'Return valid JSON only with this exact shape:',
+          '{"summary":"string","improvements":[{"title":"string","detail":"string"}],"nextFocus":[{"title":"string","detail":"string"}]}',
+          'Use only the data provided.',
+          'Do not invent metrics or training events.',
+          'Keep the summary to 2-3 short sentences.',
+          'Keep titles short and actionable.',
+          'Return up to 3 items for improvements and up to 3 items for nextFocus.',
+          language === 'ar'
+            ? 'Write all user-facing text in Arabic.'
+            : 'Write all user-facing text in English.',
+        ].join(' '),
+        messages: [
+          {
+            role: 'user',
+            content: JSON.stringify(userPromptPayload),
+          },
+        ],
+      }),
+      signal: controller.signal,
+    });
+
+    rawBody = await response.text();
+    try {
+      parsedResponse = rawBody ? JSON.parse(rawBody) : null;
+    } catch {
+      parsedResponse = null;
+    }
+  } catch (error) {
+    if (error?.name === 'AbortError') {
+      throw new Error('Claude bi-weekly report request timed out');
+    }
+    throw new Error(error?.message || 'Claude bi-weekly report request failed');
+  } finally {
+    clearTimeout(timeout);
+  }
+
+  if (!response.ok) {
+    throw new Error(
+      `Claude bi-weekly report failed (${response.status}): ${buildClaudeBiWeeklyErrorDetails({
+        rawBody,
+        parsedBody: parsedResponse,
+      })}`,
+    );
+  }
+
+  const rawText = extractClaudeTextFromResponse(parsedResponse);
+  const parsed = extractJsonObjectFromText(rawText);
+  if (!parsed || typeof parsed !== 'object') {
+    throw new Error('Claude bi-weekly report returned invalid JSON');
+  }
+
+  return {
+    summary: normalizeBiWeeklyReportText(parsed.summary, fallbackSummary, 320),
+    improvements: normalizeBiWeeklyReportItems(parsed.improvements, improvementCandidates),
+    nextFocus: normalizeBiWeeklyReportItems(parsed.nextFocus, nextFocusCandidates),
+    aiModel: String(parsedResponse?.model || model).trim() || model,
+    aiProvider: 'claude',
   };
 };
 
@@ -9288,11 +9435,11 @@ router.get('/progress/bi-weekly-report/:userId', requireAuth('user'), requireUse
       improvements: fallbackImprovements,
       nextFocus: fallbackNextFocus,
       aiStatus: 'fallback',
-      aiNotice: getBiWeeklyReportOpenAINotice(req),
+      aiNotice: getBiWeeklyReportAiUnavailableNotice(req),
     };
 
     try {
-      const openAiReport = await maybeGenerateOpenAIBiWeeklyReport({
+      const claudeReport = await maybeGenerateClaudeBiWeeklyReport({
         req,
         periodDays: days,
         metrics: {
@@ -9307,15 +9454,44 @@ router.get('/progress/bi-weekly-report/:userId', requireAuth('user'), requireUse
         nextFocusCandidates: fallbackNextFocus,
       });
 
-      if (openAiReport) {
+      if (claudeReport) {
         reportCopy = {
-          ...openAiReport,
+          ...claudeReport,
           aiStatus: 'generated',
           aiNotice: null,
         };
       }
-    } catch (openAiError) {
-      console.warn('[bi-weekly-report] OpenAI generation failed, using fallback:', openAiError?.message || openAiError);
+    } catch (claudeError) {
+      console.warn('[bi-weekly-report] Claude generation failed, trying fallback provider:', claudeError?.message || claudeError);
+    }
+
+    if (reportCopy.aiStatus !== 'generated') {
+      try {
+        const openAiReport = await maybeGenerateOpenAIBiWeeklyReport({
+          req,
+          periodDays: days,
+          metrics: {
+            consistency,
+            completedSessions,
+            plannedSessions,
+            totalVolume14d,
+            avgRecovery,
+          },
+          fallbackSummary,
+          improvementCandidates: fallbackImprovements,
+          nextFocusCandidates: fallbackNextFocus,
+        });
+
+        if (openAiReport) {
+          reportCopy = {
+            ...openAiReport,
+            aiStatus: 'generated',
+            aiNotice: null,
+          };
+        }
+      } catch (openAiError) {
+        console.warn('[bi-weekly-report] OpenAI generation failed, using fallback:', openAiError?.message || openAiError);
+      }
     }
 
     return res.json({
