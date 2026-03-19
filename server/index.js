@@ -1,3 +1,4 @@
+import process from 'node:process';
 import express from 'express';
 import cors from 'cors';
 import routes from './routes.js';
@@ -5,26 +6,35 @@ import dotenv from 'dotenv';
 import http from 'http';
 import { Server as SocketIOServer } from 'socket.io';
 import pool from './database.js';
+import {
+  createSecurityHeadersMiddleware,
+  getBearerToken,
+  getRoleSocketType,
+  verifyAuthToken,
+} from './auth.js';
 
 dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 5001;
+const IS_PRODUCTION = String(process.env.NODE_ENV || '').trim().toLowerCase() === 'production';
 const ALLOWED_ORIGINS = String(process.env.CLIENT_URL || '')
   .split(',')
   .map((origin) => origin.trim())
   .filter(Boolean);
 
+const isLocalOrigin = (origin) => /^https?:\/\/localhost:\d+$/i.test(origin) || /^https?:\/\/127\.0\.0\.1:\d+$/i.test(origin);
+
 if (!ALLOWED_ORIGINS.length) {
-  console.warn('CLIENT_URL is not set. CORS will allow all origins until CLIENT_URL is configured.');
+  console.warn('CLIENT_URL is not set. Browser CORS is restricted to localhost origins until CLIENT_URL is configured.');
 }
 
 const isAllowedOrigin = (origin) => {
   // Allow non-browser clients/tools with no Origin header.
   if (!origin) return true;
-  if (!ALLOWED_ORIGINS.length) return true;
+  if (!ALLOWED_ORIGINS.length) return !IS_PRODUCTION && isLocalOrigin(origin);
   if (ALLOWED_ORIGINS.includes(origin)) return true;
-  return /^https?:\/\/localhost:\d+$/i.test(origin) || /^https?:\/\/127\.0\.0\.1:\d+$/i.test(origin);
+  return !IS_PRODUCTION && isLocalOrigin(origin);
 };
 
 const server = http.createServer(app);
@@ -77,6 +87,7 @@ const io = new SocketIOServer(server, {
 });
 
 // Middleware
+app.use(createSecurityHeadersMiddleware());
 app.use(cors(corsOptions));
 app.options('*', cors(corsOptions));
 app.use(express.json({ limit: '10mb' }));
@@ -89,57 +100,163 @@ const emitToParticipant = (id, type, eventName, payload) => {
   io.to(`user-${id}`).to(`${type}-${id}`).emit(eventName, payload);
 };
 
+const loadSocketAuthUser = async (token) => {
+  const decoded = verifyAuthToken(token);
+  if (!decoded?.userId) return null;
+
+  const [rows] = await pool.execute(
+    `SELECT id, name, role, gym_id, coach_id, is_active
+     FROM users
+     WHERE id = ?
+     LIMIT 1`,
+    [decoded.userId],
+  );
+
+  if (!rows.length) return null;
+  const user = rows[0];
+  if (Number(user.is_active || 0) !== 1) return null;
+
+  return {
+    id: Number(user.id),
+    name: String(user.name || '').trim() || 'User',
+    role: String(user.role || '').trim(),
+    gym_id: user.gym_id == null ? null : Number(user.gym_id),
+    coach_id: user.coach_id == null ? null : Number(user.coach_id),
+  };
+};
+
+const isAllowedMessageRecipient = async (authUser, receiverId, receiverType) => {
+  const normalizedReceiverId = Number(receiverId || 0);
+  const normalizedReceiverType = String(receiverType || '').trim().toLowerCase();
+  if (!normalizedReceiverId || !normalizedReceiverType) return false;
+
+  if (authUser.role === 'user') {
+    if (normalizedReceiverType !== 'coach') return false;
+    return Number(authUser.coach_id || 0) === normalizedReceiverId;
+  }
+
+  if (authUser.role === 'coach') {
+    if (normalizedReceiverType !== 'user') return false;
+
+    const [rows] = await pool.execute(
+      `SELECT coach_id, is_active
+       FROM users
+       WHERE id = ? AND role = 'user'
+       LIMIT 1`,
+      [normalizedReceiverId],
+    );
+
+    if (!rows.length) return false;
+    return Number(rows[0].is_active || 0) === 1 && Number(rows[0].coach_id || 0) === Number(authUser.id || 0);
+  }
+
+  return false;
+};
+
+io.use(async (socket, next) => {
+  try {
+    const token = String(socket.handshake?.auth?.token || '').trim()
+      || getBearerToken(socket.handshake?.headers || {});
+    if (!token) {
+      return next(new Error('Authentication required'));
+    }
+
+    const authUser = await loadSocketAuthUser(token);
+    if (!authUser || !['user', 'coach'].includes(authUser.role)) {
+      return next(new Error('Invalid session'));
+    }
+
+    socket.data.authUser = authUser;
+    return next();
+  } catch (error) {
+    return next(new Error(error?.message || 'Socket authentication failed'));
+  }
+});
+
 io.on('connection', (socket) => {
-  socket.on('join', ({ id, type }) => {
-    if (!id || !type) return;
-    socket.join(`user-${id}`);
-    socket.join(`${type}-${id}`);
+  socket.on('join', () => {
+    const authUser = socket.data.authUser;
+    if (!authUser?.id) return;
+    const participantType = getRoleSocketType(authUser.role);
+    socket.join(`user-${authUser.id}`);
+    socket.join(`${participantType}-${authUser.id}`);
   });
 
-  socket.on('typing', ({ senderId, senderType, receiverId, receiverType }) => {
-    if (!senderId || !senderType || !receiverId || !receiverType) return;
-    io.to(`user-${receiverId}`).to(`${receiverType}-${receiverId}`).emit('typing', {
-      sender_id: senderId,
-      sender_type: senderType,
-      receiver_id: receiverId,
-      receiver_type: receiverType,
-      is_typing: true,
-    });
+  socket.on('typing', async ({ receiverId, receiverType }) => {
+    const authUser = socket.data.authUser;
+    if (!authUser?.id) return;
+
+    try {
+      const allowed = await isAllowedMessageRecipient(authUser, receiverId, receiverType);
+      if (!allowed) return;
+
+      const senderType = getRoleSocketType(authUser.role);
+      io.to(`user-${receiverId}`).to(`${receiverType}-${receiverId}`).emit('typing', {
+        sender_id: authUser.id,
+        sender_type: senderType,
+        receiver_id: Number(receiverId),
+        receiver_type: receiverType,
+        is_typing: true,
+      });
+    } catch {
+      // Ignore typing errors so reconnects stay smooth.
+    }
   });
 
-  socket.on('stopTyping', ({ senderId, senderType, receiverId, receiverType }) => {
-    if (!senderId || !senderType || !receiverId || !receiverType) return;
-    io.to(`user-${receiverId}`).to(`${receiverType}-${receiverId}`).emit('typing', {
-      sender_id: senderId,
-      sender_type: senderType,
-      receiver_id: receiverId,
-      receiver_type: receiverType,
-      is_typing: false,
-    });
+  socket.on('stopTyping', async ({ receiverId, receiverType }) => {
+    const authUser = socket.data.authUser;
+    if (!authUser?.id) return;
+
+    try {
+      const allowed = await isAllowedMessageRecipient(authUser, receiverId, receiverType);
+      if (!allowed) return;
+
+      const senderType = getRoleSocketType(authUser.role);
+      io.to(`user-${receiverId}`).to(`${receiverType}-${receiverId}`).emit('typing', {
+        sender_id: authUser.id,
+        sender_type: senderType,
+        receiver_id: Number(receiverId),
+        receiver_type: receiverType,
+        is_typing: false,
+      });
+    } catch {
+      // Ignore typing errors so reconnects stay smooth.
+    }
   });
 
   socket.on('sendMessage', async (payload) => {
     try {
+      const authUser = socket.data.authUser;
+      if (!authUser?.id) {
+        socket.emit('messageError', { error: 'Authentication required' });
+        return;
+      }
+
       const {
-        senderId,
-        senderType,
         receiverId,
         receiverType,
         message,
       } = payload || {};
 
-      if (!senderId || !receiverId || !senderType || !receiverType || !message?.trim()) {
+      if (!receiverId || !receiverType || !message?.trim()) {
         socket.emit('messageError', { error: 'Invalid message payload' });
         return;
       }
 
+      const allowed = await isAllowedMessageRecipient(authUser, receiverId, receiverType);
+      if (!allowed) {
+        socket.emit('messageError', { error: 'You are not allowed to message this participant' });
+        return;
+      }
+
       const cleanMessage = String(message).trim();
+      const senderType = getRoleSocketType(authUser.role);
 
       const [insertResult] = await pool.execute(
         `INSERT INTO messages
            (sender_id, receiver_id, sender_type, receiver_type, message, message_type, is_read)
          VALUES (?, ?, ?, ?, ?, 'text', 0)`,
-        [senderId, receiverId, senderType, receiverType, cleanMessage]
+        [authUser.id, receiverId, senderType, receiverType, cleanMessage]
       );
 
       const [rows] = await pool.execute(
@@ -170,7 +287,7 @@ io.on('connection', (socket) => {
         read: !!rows[0].is_read,
       };
 
-      emitToParticipant(senderId, senderType, 'newMessage', outgoing);
+      emitToParticipant(authUser.id, senderType, 'newMessage', outgoing);
       emitToParticipant(receiverId, receiverType, 'newMessage', outgoing);
 
       const coachMessageNotificationsEnabled = await isNotificationEnabled(receiverId, 'coach_messages');
@@ -178,7 +295,7 @@ io.on('connection', (socket) => {
         await pool.execute(
           `INSERT INTO notifications (user_id, type, title, message, data, is_read)
            VALUES (?, 'message', 'New message', ?, JSON_OBJECT('senderId', ?, 'senderType', ?), 0)`,
-          [receiverId, cleanMessage, senderId, senderType]
+          [receiverId, cleanMessage, authUser.id, senderType]
         );
       }
     } catch (error) {

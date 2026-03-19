@@ -11,6 +11,7 @@ import { getWorkspacePage } from '../../config/workspacePages';
 import { api } from '../../services/api';
 import { socketService } from '../../services/socket';
 import { useScrollToTopOnChange } from '../../shared/scroll';
+import { clearStoredAdminSession } from '../../shared/adminAuthStorage';
 
 interface Client extends CoachPanelClient {
   lastMessage: string;
@@ -1203,10 +1204,7 @@ export const CoachDashboard: React.FC<CoachDashboardProps> = ({ onLogout }) => {
                     onLogout();
                     return;
                   }
-                  localStorage.removeItem('adminUser');
-                  localStorage.removeItem('adminUserId');
-                  localStorage.removeItem('coach');
-                  localStorage.removeItem('coachId');
+                  clearStoredAdminSession();
                   window.location.href = '/admin.html';
                 }}
                 className={`inline-flex h-11 w-11 items-center justify-center rounded-2xl border transition-colors ${

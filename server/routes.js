@@ -1,8 +1,18 @@
 import express from 'express';
 import fs from 'fs/promises';
+import process from 'node:process';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import pool from './database.js';
+import {
+  createAuthToken,
+  createSimpleRateLimit,
+  getBearerToken,
+  getRoleSocketType,
+  hashPassword,
+  verifyAuthToken,
+  verifyPasswordWithUpgrade,
+} from './auth.js';
 import {
   adaptProgramBiWeekly,
   adaptProgramWeeklyByInsights,
@@ -25,6 +35,7 @@ import {
   hasAnthropicConfig,
 } from './services/claudeCoach.js';
 import { processGamificationProgression } from './services/progressionService.js';
+import { hasOpenAIConfig, requestOpenAIChatCompletion } from './services/openaiProxy.js';
 
 const router = express.Router();
 
@@ -47,6 +58,164 @@ router.get('/onboarding/config', async (_req, res) => {
 
 let profileImageColumnCache;
 let workoutSessionColumnsCache;
+const authLoginRateLimit = createSimpleRateLimit({
+  windowMs: 5 * 60 * 1000,
+  max: 10,
+  keySelector: (req) => `${req.ip || 'unknown'}:${String(req.body?.email || '').trim().toLowerCase() || 'anonymous'}`,
+});
+const authMutationRateLimit = createSimpleRateLimit({ windowMs: 60 * 1000, max: 40 });
+const aiRouteRateLimit = createSimpleRateLimit({
+  windowMs: 60 * 1000,
+  max: 8,
+  keySelector: (req) => String(req.authUser?.id || req.ip || 'unknown'),
+});
+const getBiWeeklyReportOpenAIModel = () => String(
+  process.env.OPENAI_BIWEEKLY_REPORT_MODEL
+  || process.env.OPENAI_MODEL
+  || 'gpt-4o',
+).trim() || 'gpt-4o';
+
+const getBiWeeklyReportOpenAIKey = () => String(process.env.OPENAI_BIWEEKLY_REPORT_API_KEY || '').trim();
+
+const extractJsonObjectFromText = (value) => {
+  const raw = String(value || '').trim();
+  if (!raw) return null;
+
+  const candidates = [];
+  const fencedMatch = raw.match(/```(?:json)?\s*([\s\S]*?)```/i);
+  if (fencedMatch?.[1]) {
+    candidates.push(fencedMatch[1].trim());
+  }
+  candidates.push(raw);
+
+  const firstBrace = raw.indexOf('{');
+  const lastBrace = raw.lastIndexOf('}');
+  if (firstBrace >= 0 && lastBrace > firstBrace) {
+    candidates.push(raw.slice(firstBrace, lastBrace + 1));
+  }
+
+  for (const candidate of candidates) {
+    try {
+      return JSON.parse(candidate);
+    } catch {
+      // Try the next candidate.
+    }
+  }
+
+  return null;
+};
+
+const normalizeBiWeeklyReportText = (value, fallback, maxLength) => {
+  const normalized = String(value || '')
+    .replace(/\s+/g, ' ')
+    .trim();
+  if (!normalized) return String(fallback || '').trim();
+  return normalized.slice(0, maxLength);
+};
+
+const normalizeBiWeeklyReportItems = (items, fallbackItems = []) => {
+  const normalized = (Array.isArray(items) ? items : [])
+    .map((item) => ({
+      title: normalizeBiWeeklyReportText(item?.title, '', 48),
+      detail: normalizeBiWeeklyReportText(item?.detail, '', 180),
+    }))
+    .filter((item) => item.title && item.detail)
+    .slice(0, 3);
+
+  if (normalized.length) return normalized;
+
+  return (Array.isArray(fallbackItems) ? fallbackItems : [])
+    .map((item) => ({
+      title: normalizeBiWeeklyReportText(item?.title, '', 48),
+      detail: normalizeBiWeeklyReportText(item?.detail, '', 180),
+    }))
+    .filter((item) => item.title && item.detail)
+    .slice(0, 3);
+};
+
+const getBiWeeklyReportLanguage = (req) => {
+  const raw = String(req.headers['accept-language'] || '').trim().toLowerCase();
+  if (/(^|,|\s)ar\b/.test(raw)) return 'ar';
+  return 'en';
+};
+
+const getBiWeeklyReportOpenAINotice = (req) => {
+  const language = getBiWeeklyReportLanguage(req);
+  if (language === 'ar') {
+    return 'OpenAI غير متاح حالياً. يتم عرض التقرير القياسي بدلاً من ذلك.';
+  }
+  return 'OpenAI unavailable right now. Showing the standard report instead.';
+};
+
+const maybeGenerateOpenAIBiWeeklyReport = async ({
+  req,
+  periodDays,
+  metrics,
+  fallbackSummary,
+  improvementCandidates,
+  nextFocusCandidates,
+}) => {
+  const biWeeklyOpenAiKey = getBiWeeklyReportOpenAIKey();
+  if (!biWeeklyOpenAiKey) return null;
+
+  const language = getBiWeeklyReportLanguage(req);
+  const userPromptPayload = {
+    language,
+    periodDays,
+    metrics: {
+      consistency: metrics.consistency,
+      completedSessions: metrics.completedSessions,
+      plannedSessions: metrics.plannedSessions,
+      totalVolumeTons: Number((Number(metrics.totalVolume14d || 0) / 1000).toFixed(1)),
+      avgRecovery: metrics.avgRecovery,
+    },
+    improvementCandidates: normalizeBiWeeklyReportItems(improvementCandidates),
+    nextFocusCandidates: normalizeBiWeeklyReportItems(nextFocusCandidates),
+    fallbackSummary,
+  };
+
+  const response = await requestOpenAIChatCompletion({
+    apiKey: biWeeklyOpenAiKey,
+    model: getBiWeeklyReportOpenAIModel(),
+    temperature: 0.3,
+    maxTokens: 500,
+    messages: [
+      {
+        role: 'system',
+        content: [
+          'You are a fitness coach writing a concise bi-weekly progress report for a mobile app.',
+          'Return valid JSON only with this exact shape:',
+          '{"summary":"string","improvements":[{"title":"string","detail":"string"}],"nextFocus":[{"title":"string","detail":"string"}]}',
+          'Use only the data provided.',
+          'Do not invent metrics or training events.',
+          'Keep the summary to 2-3 short sentences.',
+          'Keep titles short and actionable.',
+          'Return up to 3 items for improvements and up to 3 items for nextFocus.',
+          language === 'ar'
+            ? 'Write all user-facing text in Arabic.'
+            : 'Write all user-facing text in English.',
+        ].join(' '),
+      },
+      {
+        role: 'user',
+        content: JSON.stringify(userPromptPayload),
+      },
+    ],
+  });
+
+  const parsed = extractJsonObjectFromText(response.content);
+  if (!parsed || typeof parsed !== 'object') {
+    throw new Error('OpenAI bi-weekly report returned invalid JSON');
+  }
+
+  return {
+    summary: normalizeBiWeeklyReportText(parsed.summary, fallbackSummary, 320),
+    improvements: normalizeBiWeeklyReportItems(parsed.improvements, improvementCandidates),
+    nextFocus: normalizeBiWeeklyReportItems(parsed.nextFocus, nextFocusCandidates),
+    aiModel: response.model,
+    aiProvider: 'openai',
+  };
+};
 
 const getProfileImageColumn = async () => {
   if (profileImageColumnCache !== undefined) return profileImageColumnCache;
@@ -92,6 +261,251 @@ const normalizeUser = (user) => {
   const safeUser = { ...user };
   delete safeUser.password;
   return safeUser;
+};
+
+const buildCoachLoginPayload = (user) => ({
+  id: Number(user?.id || 0),
+  name: String(user?.name || '').trim() || 'Coach',
+  gym: user?.gym_id ? [Number(user.gym_id)] : [],
+});
+
+const loadAuthenticatedUser = async (req) => {
+  if (req.authUser !== undefined) return req.authUser;
+
+  const token = getBearerToken(req.headers || {});
+  const decoded = verifyAuthToken(token);
+  if (!decoded?.userId) {
+    req.authUser = null;
+    return req.authUser;
+  }
+
+  const [rows] = await pool.execute(
+    `SELECT *
+     FROM users
+     WHERE id = ?
+     LIMIT 1`,
+    [decoded.userId],
+  );
+
+  if (!rows.length) {
+    req.authUser = null;
+    return req.authUser;
+  }
+
+  const user = normalizeUser(rows[0]);
+  const normalizedRole = String(user?.role || '').trim();
+  if (decoded.role && normalizedRole !== decoded.role) {
+    req.authUser = null;
+    return req.authUser;
+  }
+
+  if (Number(user?.is_active || 0) !== 1) {
+    req.authUser = null;
+    return req.authUser;
+  }
+
+  req.authUser = user;
+  return req.authUser;
+};
+
+const requireAuth = (...roles) => async (req, res, next) => {
+  try {
+    const authUser = await loadAuthenticatedUser(req);
+    if (!authUser) {
+      return res.status(401).json({ error: 'Authentication required' });
+    }
+
+    if (roles.length && !roles.includes(String(authUser.role || ''))) {
+      return res.status(403).json({ error: 'You do not have permission to perform this action' });
+    }
+
+    return next();
+  } catch (error) {
+    return res.status(401).json({ error: error?.message || 'Authentication failed' });
+  }
+};
+
+const getUserAccessContext = async (authUser, targetUserId) => {
+  const normalizedTargetUserId = Number(targetUserId || 0);
+  if (!authUser || !normalizedTargetUserId) {
+    return { allowed: false, targetUser: null };
+  }
+
+  const [rows] = await pool.execute(
+    `SELECT id, role, coach_id, gym_id, is_active
+     FROM users
+     WHERE id = ?
+     LIMIT 1`,
+    [normalizedTargetUserId],
+  );
+
+  const targetUser = rows[0] || null;
+  if (!targetUser) {
+    return { allowed: false, targetUser: null };
+  }
+
+  const authUserId = Number(authUser.id || 0);
+  const authRole = String(authUser.role || '').trim();
+  const sameGym = Number(authUser.gym_id || 0) > 0 && Number(authUser.gym_id || 0) === Number(targetUser.gym_id || 0);
+  const assignedCoach = authRole === 'coach' && Number(targetUser.coach_id || 0) === authUserId;
+
+  return {
+    allowed: false,
+    targetUser,
+    self: authUserId === normalizedTargetUserId,
+    sameGymOwner: authRole === 'gym_owner' && sameGym,
+    assignedCoach,
+  };
+};
+
+const requireUserAccess = (
+  getTargetUserId,
+  {
+    allowSelf = true,
+    allowAssignedCoach = false,
+    allowGymOwner = false,
+  } = {},
+) => async (req, res, next) => {
+  try {
+    const authUser = await loadAuthenticatedUser(req);
+    if (!authUser) {
+      return res.status(401).json({ error: 'Authentication required' });
+    }
+
+    const rawTargetUserId = typeof getTargetUserId === 'function'
+      ? getTargetUserId(req)
+      : req.params?.[getTargetUserId];
+    const targetUserId = Number(rawTargetUserId || 0);
+    if (!targetUserId) {
+      return res.status(400).json({ error: 'Invalid user id' });
+    }
+
+    const access = await getUserAccessContext(authUser, targetUserId);
+    if (!access.targetUser) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    const allowed =
+      (allowSelf && access.self)
+      || (allowAssignedCoach && access.assignedCoach)
+      || (allowGymOwner && access.sameGymOwner);
+
+    if (!allowed) {
+      return res.status(403).json({ error: 'You do not have permission to access this user' });
+    }
+
+    req.targetUser = access.targetUser;
+    return next();
+  } catch (error) {
+    return res.status(500).json({ error: error?.message || 'Authorization failed' });
+  }
+};
+
+const requireCoachScope = (getCoachId) => async (req, res, next) => {
+  try {
+    const authUser = await loadAuthenticatedUser(req);
+    if (!authUser) {
+      return res.status(401).json({ error: 'Authentication required' });
+    }
+
+    const requestedCoachId = Number(
+      (typeof getCoachId === 'function' ? getCoachId(req) : req.params?.[getCoachId]) || 0,
+    );
+    if (!requestedCoachId) {
+      return res.status(400).json({ error: 'Invalid coach id' });
+    }
+
+    const authRole = String(authUser.role || '').trim();
+    if (authRole === 'coach' && Number(authUser.id || 0) !== requestedCoachId) {
+      return res.status(403).json({ error: 'You do not have permission to access this coach scope' });
+    }
+    if (!['coach', 'gym_owner'].includes(authRole)) {
+      return res.status(403).json({ error: 'You do not have permission to access this coach scope' });
+    }
+
+    req.authorizedCoachId = requestedCoachId;
+    return next();
+  } catch (error) {
+    return res.status(500).json({ error: error?.message || 'Authorization failed' });
+  }
+};
+
+const requireConversationAccess = async (req, res, next) => {
+  try {
+    const authUser = await loadAuthenticatedUser(req);
+    if (!authUser) {
+      return res.status(401).json({ error: 'Authentication required' });
+    }
+
+    const userId = Number(req.params?.userId || 0);
+    const coachId = Number(req.params?.coachId || 0);
+    if (!userId || !coachId) {
+      return res.status(400).json({ error: 'Invalid conversation participant ids' });
+    }
+
+    if (String(authUser.role || '') === 'user') {
+      if (Number(authUser.id || 0) !== userId || Number(authUser.coach_id || 0) !== coachId) {
+        return res.status(403).json({ error: 'You do not have permission to access this conversation' });
+      }
+      return next();
+    }
+
+    if (String(authUser.role || '') === 'coach') {
+      if (Number(authUser.id || 0) !== coachId) {
+        return res.status(403).json({ error: 'You do not have permission to access this conversation' });
+      }
+
+      const [rows] = await pool.execute(
+        `SELECT coach_id
+         FROM users
+         WHERE id = ? AND role = 'user'
+         LIMIT 1`,
+        [userId],
+      );
+      if (!rows.length || Number(rows[0].coach_id || 0) !== coachId) {
+        return res.status(403).json({ error: 'You do not have permission to access this conversation' });
+      }
+      return next();
+    }
+
+    return res.status(403).json({ error: 'You do not have permission to access this conversation' });
+  } catch (error) {
+    return res.status(500).json({ error: error?.message || 'Authorization failed' });
+  }
+};
+
+const requireNotificationOwner = async (req, res, next) => {
+  try {
+    const authUser = await loadAuthenticatedUser(req);
+    if (!authUser) {
+      return res.status(401).json({ error: 'Authentication required' });
+    }
+
+    const notificationId = Number(req.params?.notificationId || 0);
+    if (!notificationId) {
+      return res.status(400).json({ error: 'Invalid notification id' });
+    }
+
+    const [rows] = await pool.execute(
+      `SELECT user_id
+       FROM notifications
+       WHERE id = ?
+       LIMIT 1`,
+      [notificationId],
+    );
+
+    if (!rows.length) {
+      return res.status(404).json({ error: 'Notification not found' });
+    }
+
+    if (Number(rows[0].user_id || 0) !== Number(authUser.id || 0)) {
+      return res.status(403).json({ error: 'You do not have permission to update this notification' });
+    }
+
+    return next();
+  } catch (error) {
+    return res.status(500).json({ error: error?.message || 'Authorization failed' });
+  }
 };
 
 const toNumber = (v, fallback = null) => {
@@ -3486,7 +3900,7 @@ const normalizeCatalogMuscleGroup = (raw) => {
 // AUTH
 // =========================
 
-router.post('/auth/login', async (req, res) => {
+router.post('/auth/login', authLoginRateLimit, async (req, res) => {
   try {
     const { email, password, role } = req.body;
 
@@ -3494,15 +3908,15 @@ router.post('/auth/login', async (req, res) => {
       return res.status(400).json({ error: 'Email and password are required' });
     }
 
-    let query = 'SELECT * FROM users WHERE email = ? AND password = ? LIMIT 1';
-    const params = [email, password];
+    let query = 'SELECT * FROM users WHERE email = ? LIMIT 1';
+    const params = [String(email).trim().toLowerCase()];
 
     // Admin login accepts only coach / gym_owner.
     if (role === 'admin') {
-      query = "SELECT * FROM users WHERE email = ? AND password = ? AND role IN ('coach','gym_owner') LIMIT 1";
+      query = "SELECT * FROM users WHERE email = ? AND role IN ('coach','gym_owner') LIMIT 1";
     } else if (role === 'user') {
       // User login must never allow coach or gym_owner accounts.
-      query = "SELECT * FROM users WHERE email = ? AND password = ? AND role = 'user' LIMIT 1";
+      query = "SELECT * FROM users WHERE email = ? AND role = 'user' LIMIT 1";
     }
 
     const [rows] = await pool.execute(query, params);
@@ -3510,41 +3924,97 @@ router.post('/auth/login', async (req, res) => {
       return res.status(401).json({ error: 'Invalid credentials' });
     }
 
-    const user = normalizeUser(rows[0]);
+    const matchedUser = rows[0];
+    const passwordCheck = await verifyPasswordWithUpgrade(password, matchedUser.password);
+    if (!passwordCheck.valid) {
+      return res.status(401).json({ error: 'Invalid credentials' });
+    }
+
+    if (Number(matchedUser.is_active || 0) !== 1) {
+      return res.status(403).json({ error: 'Account is inactive' });
+    }
+
+    if (passwordCheck.needsUpgrade) {
+      const upgradedHash = await hashPassword(password);
+      await pool.execute('UPDATE users SET password = ? WHERE id = ? LIMIT 1', [upgradedHash, matchedUser.id]);
+      matchedUser.password = upgradedHash;
+    }
+
+    const user = normalizeUser(matchedUser);
+    const token = createAuthToken(user);
 
     // Coach dashboard reads these keys from localStorage.
     if (user.role === 'coach') {
       return res.json({
         success: true,
         user,
-        coach: {
-          id: user.id,
-          name: user.name,
-          gym: user.gym_id ? [user.gym_id] : [],
-        },
+        token,
+        coach: buildCoachLoginPayload(user),
       });
     }
 
-    return res.json({ success: true, user });
+    return res.json({ success: true, user, token });
   } catch (error) {
     return res.status(500).json({ error: error.message });
   }
 });
 
-router.post('/auth/register', async (req, res) => {
+router.get('/auth/session', requireAuth(), async (req, res) => {
   try {
+    const user = await loadAuthenticatedUser(req);
+    if (!user) {
+      return res.status(401).json({ error: 'Authentication required' });
+    }
+
+    return res.json({
+      success: true,
+      user,
+      actorType: getRoleSocketType(user.role),
+      coach: user.role === 'coach' ? buildCoachLoginPayload(user) : undefined,
+    });
+  } catch (error) {
+    return res.status(500).json({ error: error.message || 'Failed to restore session' });
+  }
+});
+
+router.post('/auth/register', authMutationRateLimit, requireAuth('coach', 'gym_owner'), async (req, res) => {
+  try {
+    const actor = req.authUser;
     const { email, password, name, role = 'user', coach_id = null, gym_id = null } = req.body;
 
     if (!email || !password) {
       return res.status(400).json({ error: 'Email and password are required' });
     }
 
-    const derivedName = name || email.split('@')[0] || 'User';
+    const normalizedRole = String(role || 'user').trim().toLowerCase();
+    if (!['user', 'coach'].includes(normalizedRole)) {
+      return res.status(400).json({ error: 'Invalid role' });
+    }
+    if (normalizedRole === 'coach' && String(actor?.role || '') !== 'gym_owner') {
+      return res.status(403).json({ error: 'Only gym owners can create coach accounts' });
+    }
+
+    const derivedName = name || String(email).split('@')[0] || 'User';
+    const hashedPassword = await hashPassword(password);
+    const actorRole = String(actor?.role || '');
+    const actorId = Number(actor?.id || 0) || null;
+    const actorGymId = Number(actor?.gym_id || 0) || null;
+    const normalizedCoachId = normalizedRole === 'user'
+      ? (actorRole === 'coach' ? actorId : (Number(coach_id || 0) || null))
+      : null;
+    const normalizedGymId = Number(gym_id || actorGymId || 0) || null;
+
+    if (actorRole === 'coach' && normalizedCoachId !== actorId) {
+      return res.status(403).json({ error: 'Coaches can only create users assigned to themselves' });
+    }
+    if (actorRole === 'gym_owner' && actorGymId && normalizedGymId && normalizedGymId !== actorGymId) {
+      return res.status(403).json({ error: 'Gym owners can only create accounts inside their own gym' });
+    }
 
     const [result] = await pool.execute(
       `INSERT INTO users (email, password, name, role, coach_id, gym_id, onboarding_completed, first_login)
        VALUES (?, ?, ?, ?, ?, ?, 0, 1)`,
-      [email, password, derivedName, role, coach_id || null, gym_id || null]
+      [String(email).trim().toLowerCase(), hashedPassword, derivedName, normalizedRole, normalizedCoachId, normalizedGymId]
     );
 
     const [rows] = await pool.execute('SELECT * FROM users WHERE id = ?', [result.insertId]);
@@ -3561,7 +4031,7 @@ router.post('/auth/register', async (req, res) => {
 // GYMS / COACHES / USERS
 // =========================
 
-router.get('/gyms', async (_req, res) => {
+router.get('/gyms', requireAuth('gym_owner'), async (_req, res) => {
   try {
     const [rows] = await pool.query(
       'SELECT id, name, email, address, phone, subscription_plan, status, is_active, created_at FROM gyms ORDER BY name'
@@ -3572,17 +4042,19 @@ router.get('/gyms', async (_req, res) => {
   }
 });
 
-router.post('/gyms', async (req, res) => {
+router.post('/gyms', authMutationRateLimit, requireAuth('gym_owner'), async (req, res) => {
   try {
     const { name, email, password, address = null, phone = null, subscription_plan = 'basic' } = req.body;
     if (!name || !email || !password) {
       return res.status(400).json({ error: 'name, email and password are required' });
     }
 
+    const hashedPassword = await hashPassword(password);
+
     const [result] = await pool.execute(
       `INSERT INTO gyms (name, email, password, address, phone, subscription_plan)
        VALUES (?, ?, ?, ?, ?, ?)`,
-      [name, email, password, address, phone, subscription_plan]
+      [name, String(email).trim().toLowerCase(), hashedPassword, address, phone, subscription_plan]
     );
 
     const [rows] = await pool.execute('SELECT * FROM gyms WHERE id = ?', [result.insertId]);
@@ -3595,7 +4067,7 @@ router.post('/gyms', async (req, res) => {
   }
 });
 
-router.get('/coaches', async (_req, res) => {
+router.get('/coaches', requireAuth('user', 'coach', 'gym_owner'), async (_req, res) => {
   try {
     const profileImageColumn = await getProfileImageColumn();
     if (!profileImageColumn) {
@@ -3614,18 +4086,27 @@ router.get('/coaches', async (_req, res) => {
   }
 });
 
-router.post('/coaches', async (req, res) => {
+router.post('/coaches', authMutationRateLimit, requireAuth('gym_owner'), async (req, res) => {
   try {
+    const actor = req.authUser;
     const { name, email, password, gym_id = null } = req.body;
 
     if (!name || !email || !password) {
       return res.status(400).json({ error: 'name, email and password are required' });
     }
 
+    const actorGymId = Number(actor?.gym_id || 0) || null;
+    const normalizedGymId = Number(gym_id || actorGymId || 0) || null;
+    if (actorGymId && normalizedGymId && actorGymId !== normalizedGymId) {
+      return res.status(403).json({ error: 'Gym owners can only create coaches in their own gym' });
+    }
+
+    const hashedPassword = await hashPassword(password);
+
     const [result] = await pool.execute(
       `INSERT INTO users (name, email, password, role, gym_id, onboarding_completed, first_login)
        VALUES (?, ?, ?, 'coach', ?, 1, 0)`,
-      [name, email, password, gym_id || null]
+      [name, String(email).trim().toLowerCase(), hashedPassword, normalizedGymId]
     );
 
     const [rows] = await pool.execute('SELECT * FROM users WHERE id = ?', [result.insertId]);
@@ -3638,8 +4119,9 @@ router.post('/coaches', async (req, res) => {
   }
 });
 
-router.get('/users', async (_req, res) => {
+router.get('/users', requireAuth('coach', 'gym_owner'), async (req, res) => {
   try {
+    const authUser = req.authUser;
     await pool.execute(
       'UPDATE users SET is_active = 0 WHERE is_active = 1 AND ban_delete_at IS NOT NULL AND ban_delete_at <= NOW()'
     );
@@ -3649,11 +4131,23 @@ router.get('/users', async (_req, res) => {
       return res.status(500).json({ error: 'No profile image column found on users table' });
     }
 
+    const filters = ["role = 'user'", 'is_active = 1'];
+    const params = [];
+
+    if (String(authUser?.role || '') === 'coach') {
+      filters.push('coach_id = ?');
+      params.push(Number(authUser.id || 0));
+    } else if (String(authUser?.role || '') === 'gym_owner' && Number(authUser?.gym_id || 0) > 0) {
+      filters.push('gym_id = ?');
+      params.push(Number(authUser.gym_id));
+    }
+
     const [rows] = await pool.execute(
       `SELECT id, name, email, role, gym_id, coach_id, age, ${profileImageColumn} AS profile_picture, total_points, total_workouts, \`rank\`, onboarding_completed
        FROM users
-       WHERE role = 'user' AND is_active = 1
-       ORDER BY created_at DESC`
+       WHERE ${filters.join(' AND ')}
+       ORDER BY created_at DESC`,
+      params,
     );
     return res.json(rows);
   } catch (error) {
@@ -3661,7 +4155,7 @@ router.get('/users', async (_req, res) => {
   }
 });
 
-router.get('/users/:userId/exists', async (req, res) => {
+router.get('/users/:userId/exists', requireAuth(), requireUserAccess('userId', { allowSelf: true, allowAssignedCoach: true, allowGymOwner: true }), async (req, res) => {
   try {
     const userId = toPositiveInteger(req.params.userId);
     if (!userId) {
@@ -3702,7 +4196,7 @@ router.get('/users/:userId/exists', async (req, res) => {
   }
 });
 
-router.delete('/users/:userId', async (req, res) => {
+router.delete('/users/:userId', requireAuth('coach', 'gym_owner'), requireUserAccess('userId', { allowAssignedCoach: true, allowGymOwner: true, allowSelf: false }), async (req, res) => {
   try {
     const userId = Number(req.params.userId);
     if (!Number.isFinite(userId) || userId <= 0) {
@@ -3724,8 +4218,9 @@ router.delete('/users/:userId', async (req, res) => {
   }
 });
 
-router.post('/users/:userId/ban', async (req, res) => {
+router.post('/users/:userId/ban', authMutationRateLimit, requireAuth('coach', 'gym_owner'), requireUserAccess('userId', { allowAssignedCoach: true, allowGymOwner: true, allowSelf: false }), async (req, res) => {
   try {
+    const authUser = req.authUser;
     const userId = Number(req.params.userId);
     if (!Number.isFinite(userId) || userId <= 0) {
       return res.status(400).json({ error: 'Invalid user id' });
@@ -3737,7 +4232,7 @@ router.post('/users/:userId/ban', async (req, res) => {
     }
 
     const reason = String(req.body?.reason || '').trim() || 'Inappropriate content or comments';
-    const coachId = Number(req.body?.coachId || 0);
+    const actorCoachId = String(authUser?.role || '') === 'coach' ? Number(authUser.id || 0) : null;
     const now = new Date();
     const banUntil = new Date(now.getTime() + days * 24 * 60 * 60 * 1000);
     const banWarningUntil = new Date(now.getTime() + 24 * 60 * 60 * 1000);
@@ -3759,7 +4254,7 @@ router.post('/users/:userId/ban', async (req, res) => {
     await pool.execute(
       `INSERT INTO notifications (user_id, type, title, message, data)
        VALUES (?, 'account_ban', 'Account restricted', ?, JSON_OBJECT('banUntil', ?, 'banWarningUntil', ?, 'banDeleteAt', ?, 'reason', ?, 'days', ?, 'actorCoachId', ?))`,
-      [userId, message, banUntilSql, banWarningUntilSql, banDeleteAtSql, reason, days, coachId || null]
+      [userId, message, banUntilSql, banWarningUntilSql, banDeleteAtSql, reason, days, actorCoachId]
     );
 
     return res.json({
@@ -3773,7 +4268,7 @@ router.post('/users/:userId/ban', async (req, res) => {
   }
 });
 
-router.get('/coaches/:coachId/schedule', async (req, res) => {
+router.get('/coaches/:coachId/schedule', requireAuth('coach', 'gym_owner'), requireCoachScope('coachId'), async (req, res) => {
   try {
     const coachId = toPositiveInteger(req.params.coachId);
     if (!coachId) {
@@ -3875,9 +4370,10 @@ router.get('/coaches/:coachId/schedule', async (req, res) => {
 // USER ONBOARDING / PROFILE
 // =========================
 
-router.post('/user/onboarding', async (req, res) => {
+router.post('/user/onboarding', authMutationRateLimit, requireAuth('user'), async (req, res) => {
   let conn;
   try {
+    const authUser = req.authUser;
     const {
       userId,
       age,
@@ -3926,6 +4422,9 @@ router.post('/user/onboarding', async (req, res) => {
     const normalizedUserId = toNumber(userId);
     if (!normalizedUserId) {
       return res.status(400).json({ error: 'Valid userId is required' });
+    }
+    if (Number(authUser?.id || 0) !== normalizedUserId) {
+      return res.status(403).json({ error: 'You do not have permission to complete onboarding for this user' });
     }
 
     const [userRows] = await pool.execute(
@@ -4007,6 +4506,9 @@ router.post('/user/onboarding', async (req, res) => {
     const normalizedBodyImages = Array.isArray(bodyImages)
       ? bodyImages.filter((image) => typeof image === 'string').slice(0, 3)
       : [];
+    const athleteNeedsPerformanceWork =
+      normalizedAthleteIdentityCategory === 'athlete_sports'
+      && normalizedAthleteIdentity !== 'bodybuilding';
     const equipmentProfile = equipment || availableEquipment || equipmentList || null;
     const onboardingProfilePayload = buildClaudeOnboardingFields(req.body, {
       userId: normalizedUserId,
@@ -4305,7 +4807,13 @@ router.post('/user/onboarding', async (req, res) => {
         }
       }
 
-      if (!assignedProgram && !assignmentInfo && hasExplicitSplitPreference && templateEligibleSplit) {
+      if (
+        !assignedProgram
+        && !assignmentInfo
+        && hasExplicitSplitPreference
+        && templateEligibleSplit
+        && !athleteNeedsPerformanceWork
+      ) {
         const templateResult = await assignTemplateProgramFromLibrary(conn, {
           userId: normalizedUserId,
           splitPreference: normalizedSplitPreference,
@@ -4327,6 +4835,8 @@ router.post('/user/onboarding', async (req, res) => {
           daysPerWeek: normalizedDays,
           cycleWeeks: 12,
           splitPreference: normalizedSplitPreference,
+          athleteIdentity: normalizedAthleteIdentity,
+          athleteIdentityCategory: normalizedAthleteIdentityCategory,
           equipment: equipmentProfile,
           notes: `Generated from onboarding: goal=${normalizedGoal}, days=${normalizedDays}, level=${normalizedExperience || 'unknown'}${normalizedOnboardingReason ? `, reason=${normalizedOnboardingReason}` : ''}${hasExplicitSplitPreference ? `, split=${normalizedSplitPreference}` : ''}${normalizedAiTrainingFocus ? `, focus=${normalizedAiTrainingFocus}` : ''}${normalizedAiRecoveryPriority ? `, recovery=${normalizedAiRecoveryPriority}` : ''}`,
         });
@@ -4386,7 +4896,9 @@ router.post('/user/onboarding', async (req, res) => {
   }
 });
 
-router.post('/user/:userId/program/generate-personalized', async (req, res) => {
+router.use('/user/:userId', requireAuth('user'), requireUserAccess('userId', { allowSelf: true }));
+
+router.post('/user/:userId/program/generate-personalized', authMutationRateLimit, async (req, res) => {
   let conn;
   try {
     conn = await pool.getConnection();
@@ -4398,7 +4910,7 @@ router.post('/user/:userId/program/generate-personalized', async (req, res) => {
     }
 
     const [userRows] = await conn.execute(
-      `SELECT id, gym_id, fitness_goal, experience_level
+      `SELECT id, gym_id, fitness_goal, experience_level, athlete_identity, athlete_identity_category
        FROM users
        WHERE id = ?
        LIMIT 1`,
@@ -4422,6 +4934,8 @@ router.post('/user/:userId/program/generate-personalized', async (req, res) => {
       experienceLevel: level,
       daysPerWeek,
       cycleWeeks,
+      athleteIdentity: normalizeAthleteIdentity(req.body.athleteIdentity || user.athlete_identity),
+      athleteIdentityCategory: normalizeAthleteIdentityCategory(req.body.athleteIdentityCategory || user.athlete_identity_category),
       equipment: req.body.equipment || req.body.availableEquipment || req.body.equipmentList || null,
       notes: `Manual generation request (goal=${goal}, days=${daysPerWeek}, level=${level})`,
     });
@@ -4454,7 +4968,7 @@ router.post('/user/:userId/program/generate-personalized', async (req, res) => {
   }
 });
 
-router.post('/user/:userId/program/custom', async (req, res) => {
+router.post('/user/:userId/program/custom', authMutationRateLimit, async (req, res) => {
   let conn;
   try {
     conn = await pool.getConnection();
@@ -4499,7 +5013,7 @@ router.post('/user/:userId/program/custom', async (req, res) => {
   }
 });
 
-router.post('/user/:userId/program/custom/request', async (req, res) => {
+router.post('/user/:userId/program/custom/request', authMutationRateLimit, async (req, res) => {
   let conn;
   try {
     conn = await pool.getConnection();
@@ -4578,7 +5092,7 @@ router.post('/user/:userId/program/custom/request', async (req, res) => {
   }
 });
 
-router.post('/user/:userId/coach/:coachId/plan-request', async (req, res) => {
+router.post('/user/:userId/coach/:coachId/plan-request', authMutationRateLimit, async (req, res) => {
   let conn;
   try {
     conn = await pool.getConnection();
@@ -4662,7 +5176,7 @@ router.post('/user/:userId/coach/:coachId/plan-request', async (req, res) => {
   }
 });
 
-router.post('/coach/:coachId/user/:userId/program/custom', async (req, res) => {
+router.post('/coach/:coachId/user/:userId/program/custom', authMutationRateLimit, requireAuth('coach', 'gym_owner'), requireCoachScope('coachId'), requireUserAccess('userId', { allowAssignedCoach: true, allowGymOwner: true }), async (req, res) => {
   let conn;
   try {
     conn = await pool.getConnection();
@@ -4741,7 +5255,7 @@ router.post('/coach/:coachId/user/:userId/program/custom', async (req, res) => {
   }
 });
 
-router.get('/coach/:coachId/program-requests', async (req, res) => {
+router.get('/coach/:coachId/program-requests', requireAuth('coach', 'gym_owner'), requireCoachScope('coachId'), async (req, res) => {
   try {
     const coachId = Number(req.params.coachId);
     if (!Number.isFinite(coachId) || coachId <= 0) {
@@ -4813,7 +5327,7 @@ router.get('/coach/:coachId/program-requests', async (req, res) => {
   }
 });
 
-router.post('/coach/:coachId/program-requests/:requestId/approve', async (req, res) => {
+router.post('/coach/:coachId/program-requests/:requestId/approve', authMutationRateLimit, requireAuth('coach', 'gym_owner'), requireCoachScope('coachId'), async (req, res) => {
   let conn;
   try {
     conn = await pool.getConnection();
@@ -4913,7 +5427,7 @@ router.post('/coach/:coachId/program-requests/:requestId/approve', async (req, r
   }
 });
 
-router.post('/coach/:coachId/program-requests/:requestId/reject', async (req, res) => {
+router.post('/coach/:coachId/program-requests/:requestId/reject', authMutationRateLimit, requireAuth('coach', 'gym_owner'), requireCoachScope('coachId'), async (req, res) => {
   let conn;
   try {
     conn = await pool.getConnection();
@@ -4981,7 +5495,7 @@ router.post('/coach/:coachId/program-requests/:requestId/reject', async (req, re
   }
 });
 
-router.post('/user/:userId/program/adapt-biweekly', async (req, res) => {
+router.post('/user/:userId/program/adapt-biweekly', authMutationRateLimit, async (req, res) => {
   let conn;
   try {
     conn = await pool.getConnection();
@@ -5003,7 +5517,7 @@ router.post('/user/:userId/program/adapt-biweekly', async (req, res) => {
   }
 });
 
-router.post('/user/:userId/program/adapt-weekly', async (req, res) => {
+router.post('/user/:userId/program/adapt-weekly', authMutationRateLimit, async (req, res) => {
   let conn;
   try {
     conn = await pool.getConnection();
@@ -5027,7 +5541,7 @@ router.post('/user/:userId/program/adapt-weekly', async (req, res) => {
   }
 });
 
-router.post('/user/:userId/plan/validation/snapshot', async (req, res) => {
+router.post('/user/:userId/plan/validation/snapshot', authMutationRateLimit, async (req, res) => {
   let conn;
   try {
     conn = await pool.getConnection();
@@ -5086,7 +5600,7 @@ router.get('/user/:userId/plan/validation/history', async (req, res) => {
   }
 });
 
-router.get('/insights/validation/monthly', async (req, res) => {
+router.get('/insights/validation/monthly', requireAuth('coach', 'gym_owner'), async (req, res) => {
   let conn;
   try {
     conn = await pool.getConnection();
@@ -5100,7 +5614,7 @@ router.get('/insights/validation/monthly', async (req, res) => {
   }
 });
 
-router.get('/profile/:userId/picture', async (req, res) => {
+router.get('/profile/:userId/picture', requireAuth('user', 'coach', 'gym_owner'), async (req, res) => {
   try {
     const { userId } = req.params;
     const profileImageColumn = await getProfileImageColumn();
@@ -5116,7 +5630,7 @@ router.get('/profile/:userId/picture', async (req, res) => {
   }
 });
 
-router.get('/profile/:userId/details', async (req, res) => {
+router.get('/profile/:userId/details', requireAuth(), requireUserAccess('userId', { allowSelf: true, allowAssignedCoach: true, allowGymOwner: true }), async (req, res) => {
   try {
     const userId = toNumber(req.params.userId);
     if (!userId || userId <= 0) {
@@ -5201,7 +5715,7 @@ router.get('/profile/:userId/details', async (req, res) => {
   }
 });
 
-router.put('/profile/:userId/details', async (req, res) => {
+router.put('/profile/:userId/details', authMutationRateLimit, requireAuth(), requireUserAccess('userId', { allowSelf: true }), async (req, res) => {
   try {
     const userId = toNumber(req.params.userId);
     if (!userId || userId <= 0) {
@@ -5289,7 +5803,7 @@ router.put('/profile/:userId/details', async (req, res) => {
   }
 });
 
-router.put('/profile/:userId/password', async (req, res) => {
+router.put('/profile/:userId/password', authMutationRateLimit, requireAuth(), requireUserAccess('userId', { allowSelf: true }), async (req, res) => {
   try {
     const userId = toNumber(req.params.userId);
     if (!userId || userId <= 0) {
@@ -5323,15 +5837,18 @@ router.put('/profile/:userId/password', async (req, res) => {
     }
 
     const currentPassword = String(rows[0].password || '');
-    if (currentPassword !== oldPassword) {
+    const verification = await verifyPasswordWithUpgrade(oldPassword, currentPassword);
+    if (!verification.valid) {
       return res.status(400).json({ error: 'Old password is incorrect' });
     }
+
+    const nextPasswordHash = await hashPassword(newPassword);
 
     await pool.execute(
       `UPDATE users
        SET password = ?
        WHERE id = ?`,
-      [newPassword, userId],
+      [nextPasswordHash, userId],
     );
 
     return res.json({ success: true });
@@ -5340,7 +5857,7 @@ router.put('/profile/:userId/password', async (req, res) => {
   }
 });
 
-router.put('/profile/:userId/picture', async (req, res) => {
+router.put('/profile/:userId/picture', authMutationRateLimit, requireAuth(), requireUserAccess('userId', { allowSelf: true }), async (req, res) => {
   try {
     const { userId } = req.params;
     const { profilePicture } = req.body;
@@ -5390,7 +5907,7 @@ router.put('/profile/:userId/picture', async (req, res) => {
   }
 });
 
-router.get('/profile/:userId/stats', async (req, res) => {
+router.get('/profile/:userId/stats', requireAuth(), requireUserAccess('userId', { allowSelf: true, allowAssignedCoach: true, allowGymOwner: true }), async (req, res) => {
   try {
     const { userId } = req.params;
 
@@ -5527,7 +6044,7 @@ router.get('/profile/:userId/stats', async (req, res) => {
   }
 });
 
-router.get('/leaderboard/:userId', async (req, res) => {
+router.get('/leaderboard/:userId', requireAuth('user'), requireUserAccess('userId', { allowSelf: true }), async (req, res) => {
   try {
     const userId = toNumber(req.params.userId);
     if (!userId || userId <= 0) {
@@ -5767,7 +6284,7 @@ router.get('/user/:userId/recent-activity', async (req, res) => {
   }
 });
 
-router.post('/friends/request', async (req, res) => {
+router.post('/friends/request', authMutationRateLimit, requireAuth('user'), requireUserAccess((req) => req.body?.fromUserId, { allowSelf: true }), async (req, res) => {
   let conn;
   try {
     await ensureFriendshipInfrastructureOnce();
@@ -5906,7 +6423,7 @@ router.post('/friends/request', async (req, res) => {
   }
 });
 
-router.post('/friends/respond', async (req, res) => {
+router.post('/friends/respond', authMutationRateLimit, requireAuth('user'), requireUserAccess((req) => req.body?.userId, { allowSelf: true }), async (req, res) => {
   let conn;
   try {
     await ensureFriendshipInfrastructureOnce();
@@ -6028,7 +6545,7 @@ router.post('/friends/respond', async (req, res) => {
   }
 });
 
-router.post('/invitations/send', async (req, res) => {
+router.post('/invitations/send', authMutationRateLimit, requireAuth('user'), requireUserAccess((req) => req.body?.fromUserId, { allowSelf: true }), async (req, res) => {
   try {
     await ensureFriendshipInfrastructureOnce();
 
@@ -7699,7 +8216,7 @@ router.post('/workouts/:workoutId/recovery', async (req, res) => {
 // MESSAGES
 // =========================
 
-router.get('/messages/:userId/:coachId', async (req, res) => {
+router.get('/messages/:userId/:coachId', requireAuth('user', 'coach'), requireConversationAccess, async (req, res) => {
   try {
     const userId = toNumber(req.params.userId);
     const coachId = toNumber(req.params.coachId);
@@ -7723,7 +8240,7 @@ router.get('/messages/:userId/:coachId', async (req, res) => {
   }
 });
 
-router.put('/messages/read/:coachId/:userId', async (req, res) => {
+router.put('/messages/read/:coachId/:userId', authMutationRateLimit, requireAuth('coach'), requireConversationAccess, async (req, res) => {
   try {
     const coachId = toNumber(req.params.coachId);
     const userId = toNumber(req.params.userId);
@@ -7741,7 +8258,7 @@ router.put('/messages/read/:coachId/:userId', async (req, res) => {
   }
 });
 
-router.put('/messages/read-user/:userId/:coachId', async (req, res) => {
+router.put('/messages/read-user/:userId/:coachId', authMutationRateLimit, requireAuth('user'), requireConversationAccess, async (req, res) => {
   try {
     const userId = toNumber(req.params.userId);
     const coachId = toNumber(req.params.coachId);
@@ -7763,7 +8280,7 @@ router.put('/messages/read-user/:userId/:coachId', async (req, res) => {
 // NOTIFICATIONS
 // =========================
 
-router.get('/notifications/:userId', async (req, res) => {
+router.get('/notifications/:userId', requireAuth(), requireUserAccess('userId', { allowSelf: true }), async (req, res) => {
   try {
     const { userId } = req.params;
     const [rows] = await pool.execute(
@@ -7786,7 +8303,7 @@ router.get('/notifications/:userId', async (req, res) => {
   }
 });
 
-router.put('/notifications/:notificationId/read', async (req, res) => {
+router.put('/notifications/:notificationId/read', authMutationRateLimit, requireAuth(), requireNotificationOwner, async (req, res) => {
   try {
     const { notificationId } = req.params;
     await pool.execute('UPDATE notifications SET is_read = 1, read_at = NOW() WHERE id = ?', [notificationId]);
@@ -7796,7 +8313,7 @@ router.put('/notifications/:notificationId/read', async (req, res) => {
   }
 });
 
-router.delete('/notifications/:userId', async (req, res) => {
+router.delete('/notifications/:userId', authMutationRateLimit, requireAuth(), requireUserAccess('userId', { allowSelf: true }), async (req, res) => {
   try {
     const userId = toNumber(req.params.userId);
     if (!userId || userId <= 0) {
@@ -7813,7 +8330,7 @@ router.delete('/notifications/:userId', async (req, res) => {
   }
 });
 
-router.get('/notification-settings/:userId', async (req, res) => {
+router.get('/notification-settings/:userId', requireAuth(), requireUserAccess('userId', { allowSelf: true }), async (req, res) => {
   try {
     const userId = toNumber(req.params.userId);
     if (!userId || userId <= 0) {
@@ -7848,7 +8365,7 @@ router.get('/notification-settings/:userId', async (req, res) => {
   }
 });
 
-router.put('/notification-settings/:userId', async (req, res) => {
+router.put('/notification-settings/:userId', authMutationRateLimit, requireAuth(), requireUserAccess('userId', { allowSelf: true }), async (req, res) => {
   try {
     const userId = toNumber(req.params.userId);
     if (!userId || userId <= 0) {
@@ -7881,7 +8398,7 @@ router.put('/notification-settings/:userId', async (req, res) => {
 // MISSIONS
 // =========================
 
-router.get('/missions/:userId', async (req, res) => {
+router.get('/missions/:userId', requireAuth('user'), requireUserAccess('userId', { allowSelf: true }), async (req, res) => {
   try {
     const userId = toNumber(req.params.userId);
     if (!userId || userId <= 0) {
@@ -7896,7 +8413,7 @@ router.get('/missions/:userId', async (req, res) => {
   }
 });
 
-router.get('/missions/:userId/history', async (req, res) => {
+router.get('/missions/:userId/history', requireAuth('user'), requireUserAccess('userId', { allowSelf: true }), async (req, res) => {
   try {
     const userId = toNumber(req.params.userId);
     if (!userId || userId <= 0) {
@@ -7925,7 +8442,7 @@ router.get('/missions/:userId/history', async (req, res) => {
 // CHALLENGES
 // =========================
 
-router.get('/challenges/:userId', async (req, res) => {
+router.get('/challenges/:userId', requireAuth('user'), requireUserAccess('userId', { allowSelf: true }), async (req, res) => {
   try {
     const userId = toNumber(req.params.userId);
     if (!userId || userId <= 0) {
@@ -7949,7 +8466,7 @@ router.get('/challenges/:userId', async (req, res) => {
   }
 });
 
-router.get('/challenges/:userId/history', async (req, res) => {
+router.get('/challenges/:userId/history', requireAuth('user'), requireUserAccess('userId', { allowSelf: true }), async (req, res) => {
   try {
     const userId = toNumber(req.params.userId);
     if (!userId || userId <= 0) {
@@ -7979,7 +8496,7 @@ router.get('/challenges/:userId/history', async (req, res) => {
   }
 });
 
-router.get('/gamification/:userId/summary', async (req, res) => {
+router.get('/gamification/:userId/summary', requireAuth('user'), requireUserAccess('userId', { allowSelf: true }), async (req, res) => {
   try {
     const userId = toNumber(req.params.userId);
     if (!userId || userId <= 0) {
@@ -8021,7 +8538,7 @@ router.get('/gamification/:userId/summary', async (req, res) => {
   }
 });
 
-router.get('/gamification/:userId/progression', async (req, res) => {
+router.get('/gamification/:userId/progression', requireAuth('user'), requireUserAccess('userId', { allowSelf: true }), async (req, res) => {
   try {
     const userId = toNumber(req.params.userId);
     if (!userId || userId <= 0) {
@@ -8082,7 +8599,7 @@ router.get('/gamification/:userId/progression', async (req, res) => {
   }
 });
 
-router.get('/gamification/:userId/debug-metrics', async (req, res) => {
+router.get('/gamification/:userId/debug-metrics', requireAuth('user'), requireUserAccess('userId', { allowSelf: true }), async (req, res) => {
   try {
     const userId = toNumber(req.params.userId);
     if (!userId || userId <= 0) {
@@ -8100,7 +8617,7 @@ router.get('/gamification/:userId/debug-metrics', async (req, res) => {
 // WORKOUT SETS / HISTORY
 // =========================
 
-router.get('/progress/strength/:userId', async (req, res) => {
+router.get('/progress/strength/:userId', requireAuth('user'), requireUserAccess('userId', { allowSelf: true }), async (req, res) => {
   try {
     const userId = Number(req.params.userId);
     if (!Number.isFinite(userId) || userId <= 0) {
@@ -8216,7 +8733,7 @@ const formatStrengthHistoryLabel = (bucketKey, rangeKey) => {
   return parsed.toLocaleDateString('en-US', { month: 'short' });
 };
 
-router.get('/progress/strength-score/:userId', async (req, res) => {
+router.get('/progress/strength-score/:userId', requireAuth('user'), requireUserAccess('userId', { allowSelf: true }), async (req, res) => {
   try {
     const userId = Number(req.params.userId);
     if (!Number.isFinite(userId) || userId <= 0) {
@@ -8350,7 +8867,7 @@ router.get('/progress/strength-score/:userId', async (req, res) => {
   }
 });
 
-router.get('/progress/plan-muscle-distribution/:userId', async (req, res) => {
+router.get('/progress/plan-muscle-distribution/:userId', requireAuth('user'), requireUserAccess('userId', { allowSelf: true }), async (req, res) => {
   try {
     const userId = Number(req.params.userId);
     if (!Number.isFinite(userId) || userId <= 0) {
@@ -8485,7 +9002,7 @@ router.get('/progress/plan-muscle-distribution/:userId', async (req, res) => {
   }
 });
 
-router.get('/progress/muscle-distribution/:userId', async (req, res) => {
+router.get('/progress/muscle-distribution/:userId', requireAuth('user'), requireUserAccess('userId', { allowSelf: true }), async (req, res) => {
   try {
     const userId = Number(req.params.userId);
     if (!Number.isFinite(userId) || userId <= 0) {
@@ -8553,7 +9070,7 @@ router.get('/progress/muscle-distribution/:userId', async (req, res) => {
   }
 });
 
-router.get('/progress/bi-weekly-report/:userId', async (req, res) => {
+router.get('/progress/bi-weekly-report/:userId', requireAuth('user'), requireUserAccess('userId', { allowSelf: true }), async (req, res) => {
   try {
     const userId = Number(req.params.userId);
     if (!Number.isFinite(userId) || userId <= 0) {
@@ -8718,7 +9235,7 @@ router.get('/progress/bi-weekly-report/:userId', async (req, res) => {
       avgRecovery = Math.round(scores.reduce((a, b) => a + b, 0) / scores.length);
     }
 
-    const summary = `Consistency ${consistency}% over the last ${days} days. ${
+    const fallbackSummary = `Consistency ${consistency}% over the last ${days} days. ${
       improvements.length
         ? `Biggest lift gain: ${improvements[0].title} (${improvements[0].detail}).`
         : 'You maintained baseline strength with no major regressions.'
@@ -8744,9 +9261,47 @@ router.get('/progress/bi-weekly-report/:userId', async (req, res) => {
       });
     }
 
+    const fallbackImprovements = improvements.slice(0, 3).map(({ title, detail }) => ({ title, detail }));
+    const fallbackNextFocus = nextFocus.slice(0, 3);
+
+    let reportCopy = {
+      summary: fallbackSummary,
+      improvements: fallbackImprovements,
+      nextFocus: fallbackNextFocus,
+      aiStatus: 'fallback',
+      aiNotice: getBiWeeklyReportOpenAINotice(req),
+    };
+
+    try {
+      const openAiReport = await maybeGenerateOpenAIBiWeeklyReport({
+        req,
+        periodDays: days,
+        metrics: {
+          consistency,
+          completedSessions,
+          plannedSessions,
+          totalVolume14d,
+          avgRecovery,
+        },
+        fallbackSummary,
+        improvementCandidates: fallbackImprovements,
+        nextFocusCandidates: fallbackNextFocus,
+      });
+
+      if (openAiReport) {
+        reportCopy = {
+          ...openAiReport,
+          aiStatus: 'generated',
+          aiNotice: null,
+        };
+      }
+    } catch (openAiError) {
+      console.warn('[bi-weekly-report] OpenAI generation failed, using fallback:', openAiError?.message || openAiError);
+    }
+
     return res.json({
       periodDays: days,
-      summary,
+      summary: reportCopy.summary,
       metrics: {
         consistency,
         completedSessions,
@@ -8754,15 +9309,19 @@ router.get('/progress/bi-weekly-report/:userId', async (req, res) => {
         totalVolume14d,
         avgRecovery,
       },
-      improvements: improvements.slice(0, 3).map(({ title, detail }) => ({ title, detail })),
-      nextFocus: nextFocus.slice(0, 3),
+      improvements: reportCopy.improvements,
+      nextFocus: reportCopy.nextFocus,
+      aiStatus: reportCopy.aiStatus || 'fallback',
+      aiNotice: reportCopy.aiNotice || null,
+      aiProvider: reportCopy.aiProvider || null,
+      aiModel: reportCopy.aiModel || null,
     });
   } catch (error) {
     return res.status(500).json({ error: error.message });
   }
 });
 
-router.get('/progress/overload/:userId', async (req, res) => {
+router.get('/progress/overload/:userId', requireAuth('user'), requireUserAccess('userId', { allowSelf: true }), async (req, res) => {
   try {
     const userId = Number(req.params.userId);
     if (!Number.isFinite(userId) || userId <= 0) {
@@ -9132,7 +9691,7 @@ router.get('/progress/overload/:userId', async (req, res) => {
   }
 });
 
-router.post('/workout-sets', async (req, res) => {
+router.post('/workout-sets', authMutationRateLimit, requireAuth('user'), requireUserAccess((req) => req.body?.userId, { allowSelf: true }), async (req, res) => {
   try {
     const {
       userId,
@@ -9277,7 +9836,7 @@ router.post('/workout-sets', async (req, res) => {
   }
 });
 
-router.get('/workout-sets/:userId/:exerciseName', async (req, res) => {
+router.get('/workout-sets/:userId/:exerciseName', requireAuth('user'), requireUserAccess('userId', { allowSelf: true }), async (req, res) => {
   try {
     const { userId, exerciseName } = req.params;
 
@@ -9296,7 +9855,7 @@ router.get('/workout-sets/:userId/:exerciseName', async (req, res) => {
   }
 });
 
-router.get('/workout-sets/today/:userId', async (req, res) => {
+router.get('/workout-sets/today/:userId', requireAuth('user'), requireUserAccess('userId', { allowSelf: true }), async (req, res) => {
   try {
     const { userId } = req.params;
 
@@ -9502,7 +10061,7 @@ const upsertCompletedWorkoutSessionForDay = async (input = {}) => {
   };
 };
 
-router.post('/workout-sessions/complete-day', async (req, res) => {
+router.post('/workout-sessions/complete-day', authMutationRateLimit, requireAuth('user'), requireUserAccess((req) => req.body?.userId, { allowSelf: true }), async (req, res) => {
   try {
     const userId = toNumber(req.body?.userId, null);
     if (!Number.isInteger(userId) || userId <= 0) {
@@ -9548,7 +10107,7 @@ router.post('/workout-sessions/complete-day', async (req, res) => {
   }
 });
 
-router.post('/workout-summaries', async (req, res) => {
+router.post('/workout-summaries', authMutationRateLimit, requireAuth('user'), requireUserAccess((req) => req.body?.userId, { allowSelf: true }), async (req, res) => {
   try {
     const userId = toPositiveInteger(req.body?.userId);
     if (!userId) {
@@ -9675,7 +10234,7 @@ router.post('/workout-summaries', async (req, res) => {
   }
 });
 
-router.get('/workout-summaries/latest/:userId', async (req, res) => {
+router.get('/workout-summaries/latest/:userId', requireAuth('user'), requireUserAccess('userId', { allowSelf: true }), async (req, res) => {
   try {
     const userId = toPositiveInteger(req.params?.userId);
     if (!userId) {
@@ -9712,7 +10271,7 @@ router.get('/workout-summaries/latest/:userId', async (req, res) => {
   }
 });
 
-router.get('/workout-summaries/:userId', async (req, res) => {
+router.get('/workout-summaries/:userId', requireAuth('user'), requireUserAccess('userId', { allowSelf: true }), async (req, res) => {
   try {
     const userId = toPositiveInteger(req.params?.userId);
     if (!userId) {
@@ -10071,13 +10630,14 @@ const fetchBlogPostById = async (postId, viewerUserId = 0) => {
   return mapBlogPostRow(rows[0]);
 };
 
-router.get('/blogs', async (req, res) => {
+router.get('/blogs', requireAuth('user', 'coach', 'gym_owner'), async (req, res) => {
   try {
+    const authUser = req.authUser;
     await pool.execute(
       'UPDATE users SET is_active = 0 WHERE is_active = 1 AND ban_delete_at IS NOT NULL AND ban_delete_at <= NOW()'
     );
 
-    const viewerUserId = toPositiveInteger(req.query.userId) || 0;
+    const viewerUserId = Number(authUser?.id || 0) || 0;
     const authorId = toPositiveInteger(req.query.authorId);
     const limit = clampBlogLimit(req.query.limit, 20, 60);
     const cursorId = toPositiveInteger(req.query.cursorId);
@@ -10214,7 +10774,7 @@ router.get('/blogs', async (req, res) => {
   }
 });
 
-router.post('/blogs', async (req, res) => {
+router.post('/blogs', authMutationRateLimit, requireAuth('user'), requireUserAccess((req) => req.body?.userId, { allowSelf: true }), async (req, res) => {
   try {
     const userId = toPositiveInteger(req.body?.userId);
     if (!userId) {
@@ -10324,7 +10884,7 @@ router.post('/blogs', async (req, res) => {
   }
 });
 
-router.put('/blogs/:postId', async (req, res) => {
+router.put('/blogs/:postId', authMutationRateLimit, requireAuth('user'), requireUserAccess((req) => req.body?.userId, { allowSelf: true }), async (req, res) => {
   let conn;
   try {
     const postId = toPositiveInteger(req.params?.postId);
@@ -10434,7 +10994,7 @@ router.put('/blogs/:postId', async (req, res) => {
   }
 });
 
-router.delete('/blogs/:postId', async (req, res) => {
+router.delete('/blogs/:postId', authMutationRateLimit, requireAuth('user'), requireUserAccess((req) => req.body?.userId || req.query?.userId, { allowSelf: true }), async (req, res) => {
   let conn;
   try {
     const postId = toPositiveInteger(req.params?.postId);
@@ -10486,7 +11046,7 @@ router.delete('/blogs/:postId', async (req, res) => {
   }
 });
 
-router.post('/blogs/:postId/like/toggle', async (req, res) => {
+router.post('/blogs/:postId/like/toggle', authMutationRateLimit, requireAuth('user'), requireUserAccess((req) => req.body?.userId, { allowSelf: true }), async (req, res) => {
   try {
     const postId = toPositiveInteger(req.params?.postId);
     const userId = toPositiveInteger(req.body?.userId);
@@ -10620,7 +11180,7 @@ router.post('/blogs/:postId/like/toggle', async (req, res) => {
   }
 });
 
-router.post('/blogs/:postId/reaction', async (req, res) => {
+router.post('/blogs/:postId/reaction', authMutationRateLimit, requireAuth('user'), requireUserAccess((req) => req.body?.userId, { allowSelf: true }), async (req, res) => {
   try {
     const postId = toPositiveInteger(req.params?.postId);
     const userId = toPositiveInteger(req.body?.userId);
@@ -10729,7 +11289,7 @@ router.post('/blogs/:postId/reaction', async (req, res) => {
   }
 });
 
-router.post('/blogs/:postId/view', async (req, res) => {
+router.post('/blogs/:postId/view', authMutationRateLimit, requireAuth('user'), requireUserAccess((req) => req.body?.userId, { allowSelf: true }), async (req, res) => {
   try {
     const postId = toPositiveInteger(req.params?.postId);
     const userId = toPositiveInteger(req.body?.userId);
@@ -10769,7 +11329,7 @@ router.post('/blogs/:postId/view', async (req, res) => {
   }
 });
 
-router.get('/blogs/:postId/comments', async (req, res) => {
+router.get('/blogs/:postId/comments', requireAuth('user', 'coach', 'gym_owner'), async (req, res) => {
   try {
     const postId = toPositiveInteger(req.params?.postId);
     if (!postId) {
@@ -10808,7 +11368,7 @@ router.get('/blogs/:postId/comments', async (req, res) => {
   }
 });
 
-router.post('/blogs/:postId/comments', async (req, res) => {
+router.post('/blogs/:postId/comments', authMutationRateLimit, requireAuth('user'), requireUserAccess((req) => req.body?.userId, { allowSelf: true }), async (req, res) => {
   try {
     const postId = toPositiveInteger(req.params?.postId);
     const userId = toPositiveInteger(req.body?.userId);
@@ -10915,6 +11475,37 @@ router.post('/blogs/:postId/comments', async (req, res) => {
   }
 });
 
+router.post('/ai/chat-completions', authMutationRateLimit, requireAuth('user', 'coach', 'gym_owner'), aiRouteRateLimit, async (req, res) => {
+  try {
+    if (!hasOpenAIConfig()) {
+      return res.status(503).json({ error: 'AI service is not configured' });
+    }
+
+    const messages = Array.isArray(req.body?.messages) ? req.body.messages.slice(0, 24) : [];
+    if (!messages.length) {
+      return res.status(400).json({ error: 'messages are required' });
+    }
+
+    const model = String(req.body?.model || 'gpt-4o').trim().slice(0, 80) || 'gpt-4o';
+    const temperature = Math.max(0, Math.min(1, Number(req.body?.temperature ?? 0.7)));
+    const maxTokens = Math.max(100, Math.min(4000, Math.round(Number(req.body?.maxTokens ?? 2000))));
+
+    const result = await requestOpenAIChatCompletion({
+      messages,
+      model,
+      temperature,
+      maxTokens,
+    });
+
+    return res.json({
+      content: result.content,
+      model: result.model,
+    });
+  } catch (error) {
+    return res.status(500).json({ error: error.message || 'Failed to call AI service' });
+  }
+});
+
 router.post('/nutrition/daily-plan', async (req, res) => {
   try {
     const payload = req.body && typeof req.body === 'object' ? req.body : {};
@@ -10925,7 +11516,7 @@ router.post('/nutrition/daily-plan', async (req, res) => {
   }
 });
 
-router.get('/insights/datasets/overview', async (req, res) => {
+router.get('/insights/datasets/overview', requireAuth('coach', 'gym_owner'), async (req, res) => {
   try {
     const refreshRaw = String(req.query.refresh || '').trim().toLowerCase();
     const forceRefresh = refreshRaw === '1' || refreshRaw === 'true';
@@ -10936,7 +11527,7 @@ router.get('/insights/datasets/overview', async (req, res) => {
   }
 });
 
-router.post('/insights/onboarding', async (req, res) => {
+router.post('/insights/onboarding', authMutationRateLimit, requireAuth('user'), async (req, res) => {
   try {
     const result = await buildOnboardingInsights(req.body || {});
     return res.json(result);
@@ -10945,7 +11536,7 @@ router.post('/insights/onboarding', async (req, res) => {
   }
 });
 
-router.post('/insights/user-analysis', async (req, res) => {
+router.post('/insights/user-analysis', authMutationRateLimit, requireAuth('user'), async (req, res) => {
   try {
     const result = await buildUserAnalysisInsights(req.body || {});
     return res.json(result);
@@ -10954,7 +11545,7 @@ router.post('/insights/user-analysis', async (req, res) => {
   }
 });
 
-router.post('/insights/onboarding/save', async (req, res) => {
+router.post('/insights/onboarding/save', authMutationRateLimit, requireAuth('user'), requireUserAccess((req) => req.body?.userId, { allowSelf: true }), async (req, res) => {
   try {
     const userId = Number(req.body?.userId);
     if (!Number.isInteger(userId) || userId <= 0) {
@@ -10989,7 +11580,7 @@ router.post('/insights/onboarding/save', async (req, res) => {
   }
 });
 
-router.post('/insights/user-analysis/save', async (req, res) => {
+router.post('/insights/user-analysis/save', authMutationRateLimit, requireAuth('user'), requireUserAccess((req) => req.body?.userId, { allowSelf: true }), async (req, res) => {
   try {
     const userId = Number(req.body?.userId);
     if (!Number.isInteger(userId) || userId <= 0) {
@@ -11049,7 +11640,7 @@ router.post('/insights/user-analysis/save', async (req, res) => {
   }
 });
 
-router.get('/insights/user/:userId/history', async (req, res) => {
+router.get('/insights/user/:userId/history', requireAuth('user'), requireUserAccess('userId', { allowSelf: true }), async (req, res) => {
   try {
     const userId = Number(req.params?.userId);
     if (!Number.isInteger(userId) || userId <= 0) {

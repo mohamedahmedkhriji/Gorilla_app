@@ -10,10 +10,10 @@ import { PublicLandingPage } from './pages/PublicLandingPage';
 import { TabBar } from './components/ui/TabBar';
 import { SplashScreen } from './components/ui/SplashScreen';
 import { AnimatePresence, motion } from 'framer-motion';
-import { api } from './services/api';
 import { OPEN_PICKED_WORKOUT_PLAN } from './services/workoutNavigation';
 import { useScrollToTopOnChange } from './shared/scroll';
-import { clearStoredUserSession, getStoredAppUser, getStoredUserId } from './shared/authStorage';
+import { clearStoredUserSession, getStoredAppUser, getStoredUserId, getStoredUserAuthToken, persistStoredUserSession } from './shared/authStorage';
+import { api } from './services/api';
 import {
   APP_COACHMARK_TOUR_ID,
   APP_COACHMARK_VERSION,
@@ -61,9 +61,10 @@ export function App() {
     const restoreSession = async () => {
       const user = getStoredAppUser();
       const userId = getStoredUserId();
+      const token = getStoredUserAuthToken();
 
       try {
-        if (!user || !userId || user.role !== 'user') {
+        if (!user || !userId || !token || user.role !== 'user') {
           clearStoredUserSession();
           if (!cancelled) {
             setIsLoggedIn(false);
@@ -73,25 +74,24 @@ export function App() {
           return;
         }
 
-        try {
-          const session = await api.getUserSessionStatus(userId);
-          if (!session?.exists || session?.active === false) {
-            clearStoredUserSession();
-            if (!cancelled) {
-              setIsLoggedIn(false);
-              setHasOnboarded(false);
-              setShowLogin(false);
-              setActiveTab('home');
-            }
-            return;
-          }
-        } catch {
-          // Keep the local session if the validation check is temporarily unavailable.
+        const session = await api.getCurrentSession('user');
+        const sessionUser = session?.user;
+        if (!sessionUser || sessionUser.role !== 'user') {
+          throw new Error('Invalid session');
         }
+
+        persistStoredUserSession({ user: sessionUser, token });
 
         if (!cancelled) {
           setIsLoggedIn(true);
-          setHasOnboarded(Boolean(user.onboarding_completed));
+          setHasOnboarded(Boolean(sessionUser.onboarding_completed));
+        }
+      } catch {
+        clearStoredUserSession();
+        if (!cancelled) {
+          setIsLoggedIn(false);
+          setHasOnboarded(false);
+          setShowLogin(false);
         }
       } finally {
         if (!cancelled) {

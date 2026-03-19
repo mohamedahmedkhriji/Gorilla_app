@@ -16,6 +16,10 @@ interface ReportItem {
 interface BiWeeklyReportData {
   periodDays: number;
   summary: string;
+  aiStatus?: 'generated' | 'fallback' | null;
+  aiNotice?: string | null;
+  aiProvider?: string | null;
+  aiModel?: string | null;
   metrics: {
     consistency: number;
     completedSessions: number;
@@ -122,6 +126,11 @@ export function BiWeeklyReport({ onBack }: BiWeeklyReportProps) {
               ? copy.summaryLoading
               : report?.summary || copy.summaryEmpty}
           </p>
+          {!loading && report?.aiStatus === 'fallback' && report?.aiNotice ? (
+            <div className="mt-4 rounded-xl border border-yellow-400/20 bg-yellow-500/10 px-3 py-2 text-xs text-yellow-100">
+              {report.aiNotice}
+            </div>
+          ) : null}
         </Card>
 
         <div className="space-y-4">

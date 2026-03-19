@@ -1,30 +1,16 @@
-const OPENAI_API_KEY = import.meta.env.VITE_OPENAI_API_KEY || '';
-const OPENAI_API_URL = 'https://api.openai.com/v1/chat/completions';
-
+import { api } from './api';
 import { HYPERTROPHY_PROGRAM_BOOK } from './hypertrophyProgramGenerator';
 
 class OpenAICoachService {
-  private async callOpenAI(messages: any[]) {
-    const response = await fetch(OPENAI_API_URL, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${OPENAI_API_KEY}`
-      },
-      body: JSON.stringify({
-        model: 'gpt-4o', // Using gpt-4o for vision capabilities
-        messages,
-        temperature: 0.7,
-        max_tokens: 2000
-      })
+  private async callModel(messages: any[]) {
+    const response = await api.chatCompletions({
+      messages,
+      model: 'gpt-4o',
+      temperature: 0.7,
+      maxTokens: 2000,
     });
 
-    if (!response.ok) {
-      throw new Error('OpenAI API request failed');
-    }
-
-    const data = await response.json();
-    return data.choices[0].message.content;
+    return response.content;
   }
 
   async generatePersonalizedPlan(userProfile: {
@@ -36,7 +22,7 @@ class OpenAICoachService {
     availability: number;
     injuries?: string[];
     experience?: string;
-    bodyImages?: string[]; // Base64 images from onboarding
+    bodyImages?: string[];
   }) {
     const bookContext = `
 Jeff Nippard's Fundamentals Hypertrophy Program Principles:
@@ -57,7 +43,7 @@ Training Guidelines:
 You create personalized workout programs based on evidence-based principles from hypertrophy research.
 You can analyze body composition from images to provide more accurate recommendations.
 Use the provided book principles to create detailed, actionable training plans.
-Format your response as a structured workout program with exercises, sets, reps, and coaching notes.`
+Format your response as a structured workout program with exercises, sets, reps, and coaching notes.`,
       },
       {
         role: 'user',
@@ -81,24 +67,24 @@ Provide:
 ${userProfile.bodyImages?.length ? '3' : '2'}. Specific exercises for each day with sets/reps/rest
 ${userProfile.bodyImages?.length ? '4' : '3'}. Progression strategy
 ${userProfile.bodyImages?.length ? '5' : '4'}. Key coaching tips
-${userProfile.bodyImages?.length ? '6' : '5'}. Nutrition recommendations based on ${userProfile.bodyImages?.length ? 'visual assessment and ' : ''}body type`
+${userProfile.bodyImages?.length ? '6' : '5'}. Nutrition recommendations based on ${userProfile.bodyImages?.length ? 'visual assessment and ' : ''}body type`,
           },
-          ...(userProfile.bodyImages?.map(img => ({
+          ...(userProfile.bodyImages?.map((img) => ({
             type: 'image_url',
-            image_url: { url: img }
-          })) || [])
-        ]
-      }
+            image_url: { url: img },
+          })) || []),
+        ],
+      },
     ];
 
-    return await this.callOpenAI(messages);
+    return this.callModel(messages);
   }
 
   async analyzeExerciseForm(exerciseName: string, userDescription: string) {
     const messages = [
       {
         role: 'system',
-        content: 'You are a professional strength coach specializing in exercise technique and form correction.'
+        content: 'You are a professional strength coach specializing in exercise technique and form correction.',
       },
       {
         role: 'user',
@@ -110,11 +96,11 @@ Provide:
 1. Common form mistakes for this exercise
 2. Specific corrections based on the description
 3. Cues to improve technique
-4. Safety considerations`
-      }
+4. Safety considerations`,
+      },
     ];
 
-    return await this.callOpenAI(messages);
+    return this.callModel(messages);
   }
 
   async answerTrainingQuestion(question: string, userContext?: any) {
@@ -128,25 +114,25 @@ ${HYPERTROPHY_PROGRAM_BOOK.principles.join('\n')}
         role: 'system',
         content: `You are a professional gym coach with expertise in science-based training. 
 Answer questions using evidence-based principles and practical coaching experience.
-Reference Jeff Nippard's methodology when relevant.`
+Reference Jeff Nippard's methodology when relevant.`,
       },
       {
         role: 'user',
         content: `${bookContext}
 
 Question: ${question}
-${userContext ? `\nUser Context: ${JSON.stringify(userContext)}` : ''}`
-      }
+${userContext ? `\nUser Context: ${JSON.stringify(userContext)}` : ''}`,
+      },
     ];
 
-    return await this.callOpenAI(messages);
+    return this.callModel(messages);
   }
 
   async generateWorkoutVariation(baseWorkout: any, reason: string) {
     const messages = [
       {
         role: 'system',
-        content: 'You are a professional gym coach creating workout variations while maintaining training principles.'
+        content: 'You are a professional gym coach creating workout variations while maintaining training principles.',
       },
       {
         role: 'user',
@@ -155,11 +141,11 @@ ${JSON.stringify(baseWorkout, null, 2)}
 
 Reason for variation: ${reason}
 
-Provide alternative exercises that target the same muscles with similar volume and intensity.`
-      }
+Provide alternative exercises that target the same muscles with similar volume and intensity.`,
+      },
     ];
 
-    return await this.callOpenAI(messages);
+    return this.callModel(messages);
   }
 
   async chatWithCoach(conversationHistory: { role: string; content: string }[]) {
@@ -168,11 +154,11 @@ Provide alternative exercises that target the same muscles with similar volume a
       content: `You are a professional gym coach and personal trainer. 
 You provide expert advice on training, nutrition, recovery, and motivation.
 Be supportive, knowledgeable, and practical in your responses.
-Use Jeff Nippard's science-based principles when relevant.`
+Use Jeff Nippard's science-based principles when relevant.`,
     };
 
     const messages = [systemMessage, ...conversationHistory];
-    return await this.callOpenAI(messages);
+    return this.callModel(messages);
   }
 }
 

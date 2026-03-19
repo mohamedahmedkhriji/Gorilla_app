@@ -1,14 +1,52 @@
+import { getStoredUserAuthToken } from '../shared/authStorage';
+import { getStoredAdminAuthToken } from '../shared/adminAuthStorage';
+
 const DEFAULT_API_ORIGIN =
   typeof window !== 'undefined'
     ? `${window.location.protocol}//${window.location.hostname}:5001`
     : 'http://localhost:5001';
 
 const API_URL = import.meta.env.VITE_API_URL || `${DEFAULT_API_ORIGIN}/api`;
+const nativeFetch = globalThis.fetch.bind(globalThis);
 
 type ApiError = Error & {
   status?: number;
   data?: unknown;
 };
+
+type ApiAuthContext = 'auto' | 'user' | 'admin' | 'none';
+
+const resolveDefaultAuthContext = (): ApiAuthContext => {
+  if (typeof window === 'undefined') return 'user';
+  return /admin/i.test(window.location.pathname) ? 'admin' : 'user';
+};
+
+const resolveAuthToken = (context: ApiAuthContext = 'auto') => {
+  if (context === 'none') return null;
+
+  const normalizedContext = context === 'auto' ? resolveDefaultAuthContext() : context;
+  if (normalizedContext === 'admin') {
+    return getStoredAdminAuthToken();
+  }
+  return getStoredUserAuthToken();
+};
+
+const withAuthHeaders = (init: RequestInit = {}, context: ApiAuthContext = 'auto') => {
+  const headers = new Headers(init.headers || {});
+  const token = resolveAuthToken(context);
+  if (token) {
+    headers.set('Authorization', `Bearer ${token}`);
+  }
+
+  return {
+    ...init,
+    headers,
+  };
+};
+
+const fetch = (input: RequestInfo | URL, init?: RequestInit) => nativeFetch(input, withAuthHeaders(init));
+const fetchWithContext = (input: RequestInfo | URL, init: RequestInit | undefined, context: ApiAuthContext) =>
+  nativeFetch(input, withAuthHeaders(init, context));
 
 const isOnboardingGatewayTimeout = (error: unknown) => {
   const status = Number((error as ApiError)?.status || 0);
@@ -51,12 +89,17 @@ const parseApiResponse = async (res: Response, fallbackError = 'Request failed')
 
 export const api = {
   login: async (email: string, password: string, role: string) => {
-    const res = await fetch(`${API_URL}/auth/login`, {
+    const res = await fetchWithContext(`${API_URL}/auth/login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email, password, role })
-    });
+    }, 'none');
     return res.json();
+  },
+
+  getCurrentSession: async (context: ApiAuthContext = 'auto') => {
+    const res = await fetchWithContext(`${API_URL}/auth/session`, undefined, context);
+    return parseApiResponse(res, 'Failed to restore session');
   },
 
   createUser: async (data: any) => {
@@ -973,5 +1016,19 @@ export const api = {
       throw new Error(data?.error || 'Failed to fetch profile stats');
     }
     return data;
+  },
+
+  chatCompletions: async (payload: {
+    messages: any[];
+    model?: string;
+    temperature?: number;
+    maxTokens?: number;
+  }) => {
+    const res = await fetch(`${API_URL}/ai/chat-completions`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    return parseApiResponse(res, 'Failed to call AI service');
   },
 };

@@ -1,4 +1,6 @@
 import { io } from 'socket.io-client';
+import { getStoredUserAuthToken } from '../shared/authStorage';
+import { getStoredAdminAuthToken } from '../shared/adminAuthStorage';
 
 const DEFAULT_SOCKET_ORIGIN =
   typeof window !== 'undefined'
@@ -24,6 +26,13 @@ const socket = io(SOCKET_URL, {
 let hasLoggedConnectError = false;
 let pendingJoin: { id: number; type: 'user' | 'coach' } | null = null;
 let pendingDisconnectTimer: ReturnType<typeof setTimeout> | null = null;
+
+const getSocketAuthToken = () => {
+  if (typeof window !== 'undefined' && /admin/i.test(window.location.pathname)) {
+    return getStoredAdminAuthToken() || '';
+  }
+  return getStoredUserAuthToken() || '';
+};
 
 const clearPendingDisconnect = () => {
   if (!pendingDisconnectTimer) return;
@@ -54,6 +63,7 @@ export const socketService = {
     if (!id || !type) return;
     clearPendingDisconnect();
     pendingJoin = { id, type };
+    socket.auth = { token: getSocketAuthToken() };
     if (!socket.connected && !socket.active) {
       socket.connect();
     }

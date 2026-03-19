@@ -11,6 +11,7 @@ import { WorkspaceGrid } from '../../components/workspace/WorkspaceGrid';
 import { WorkspacePlaceholderScreen } from '../../components/workspace/WorkspacePlaceholderScreen';
 import { getWorkspacePage, getWorkspacePages } from '../../config/workspacePages';
 import { useScrollToTopOnChange } from '../../shared/scroll';
+import { clearStoredAdminSession } from '../../shared/adminAuthStorage';
 
 type Gym = {
   id: string;
@@ -236,10 +237,7 @@ export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({ onLogo
               onLogout();
               return;
             }
-            localStorage.removeItem('adminUser');
-            localStorage.removeItem('adminUserId');
-            localStorage.removeItem('coach');
-            localStorage.removeItem('coachId');
+            clearStoredAdminSession();
             window.location.href = '/admin.html';
           }}
           className="flex items-center gap-2 bg-red-500 hover:bg-red-600 px-3 md:px-4 py-2 rounded-lg transition-colors text-sm w-fit"

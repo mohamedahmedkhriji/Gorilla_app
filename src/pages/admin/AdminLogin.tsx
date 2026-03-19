@@ -1,9 +1,10 @@
-import React, { useEffect, useState } from 'react';
+ï»¿import React, { useEffect, useState } from 'react';
 import { Eye, EyeOff } from 'lucide-react';
 import { CoachDashboard } from './CoachDashboard';
 import { SuperAdminDashboard } from './SuperAdminDashboard';
 import { api } from '../../services/api';
 import { BrandLogo } from '../../components/ui/BrandLogo';
+import { clearStoredAdminSession, getStoredAdminAuthToken, persistStoredAdminSession } from '../../shared/adminAuthStorage';
 
 type UserRole = 'coach' | 'gym_owner' | null;
 
@@ -14,23 +15,65 @@ export const AdminLogin: React.FC = () => {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [restoringSession, setRestoringSession] = useState(true);
 
   useEffect(() => {
-    const savedAdminUser = JSON.parse(localStorage.getItem('adminUser') || '{}');
-    if (savedAdminUser?.role === 'coach') {
-      setRole('coach');
-      return;
-    }
-    if (savedAdminUser?.role === 'gym_owner') {
-      setRole('gym_owner');
-    }
+    let cancelled = false;
+
+    const restoreSession = async () => {
+      const token = getStoredAdminAuthToken();
+      if (!token) {
+        if (!cancelled) setRestoringSession(false);
+        return;
+      }
+
+      try {
+        const session = await api.getCurrentSession('admin');
+        const sessionUser = session?.user;
+        if (!sessionUser || (sessionUser.role !== 'coach' && sessionUser.role !== 'gym_owner')) {
+          throw new Error('Invalid admin session');
+        }
+
+        persistStoredAdminSession({ user: sessionUser, token });
+        localStorage.setItem('adminUserId', String(sessionUser.id));
+
+        if (sessionUser.role === 'coach') {
+          const coachPayload = session?.coach || {
+            id: sessionUser.id,
+            name: sessionUser.name,
+            gym: sessionUser.gym_id ? [sessionUser.gym_id] : [],
+          };
+          localStorage.setItem('coach', JSON.stringify(coachPayload));
+          localStorage.setItem('coachId', String(sessionUser.id));
+        } else {
+          localStorage.removeItem('coach');
+          localStorage.removeItem('coachId');
+        }
+
+        if (!cancelled) {
+          setRole(sessionUser.role as UserRole);
+        }
+      } catch {
+        clearStoredAdminSession();
+        if (!cancelled) {
+          setRole(null);
+        }
+      } finally {
+        if (!cancelled) {
+          setRestoringSession(false);
+        }
+      }
+    };
+
+    void restoreSession();
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const handleLogout = () => {
-    localStorage.removeItem('adminUser');
-    localStorage.removeItem('adminUserId');
-    localStorage.removeItem('coach');
-    localStorage.removeItem('coachId');
+    clearStoredAdminSession();
     setRole(null);
     setEmail('');
     setPassword('');
@@ -55,7 +98,7 @@ export const AdminLogin: React.FC = () => {
       }
 
       // Keep admin auth state separate from end-user app state.
-      localStorage.setItem('adminUser', JSON.stringify(result.user));
+      persistStoredAdminSession({ user: result.user, token: result.token });
       localStorage.setItem('adminUserId', String(result.user.id));
       if (result.user.role === 'coach') {
         const coachPayload = result.coach || {
@@ -90,6 +133,14 @@ export const AdminLogin: React.FC = () => {
 
   if (role === 'gym_owner') {
     return <SuperAdminDashboard onLogout={handleLogout} />;
+  }
+
+  if (restoringSession) {
+    return (
+      <div className="min-h-screen bg-[#1A1A1A] text-white flex items-center justify-center p-4">
+        <div className="text-sm text-gray-400">Restoring secure session...</div>
+      </div>
+    );
   }
 
   return (
@@ -130,7 +181,7 @@ export const AdminLogin: React.FC = () => {
                 type={showPassword ? 'text' : 'password'}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                placeholder="••••••••"
+                placeholder="â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢"
                 className="w-full bg-[#1A1A1A] rounded-lg px-4 py-3 pr-12 focus:outline-none focus:ring-2 focus:ring-[#10b981]"
                 required
               />
@@ -166,4 +217,5 @@ export const AdminLogin: React.FC = () => {
     </div>
   );
 };
+
 

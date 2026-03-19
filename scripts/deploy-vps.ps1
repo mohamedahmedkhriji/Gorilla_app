@@ -28,19 +28,47 @@ RUN_NPM_CI="__RUN_NPM_CI__"
 
 cd "$APP_DIR"
 
+git fetch origin main
+git pull --ff-only origin main
+
+if [ ! -f .env ]; then
+  echo "Remote .env file is missing. Create /root/Gorilla_app/.env before deploying."
+  exit 1
+fi
+
 stamp=$(date +%Y%m%d-%H%M%S)
 cp .env "/root/.env.backup.deploy-$stamp"
 
-sed -i "s#^CLIENT_URL=.*#CLIENT_URL=${CLIENT_URL_VALUE}#" .env
-sed -i 's#^VITE_API_URL=.*#VITE_API_URL=/api#' .env
-if grep -q '^VITE_SOCKET_URL=' .env; then
-  sed -i 's#^VITE_SOCKET_URL=.*#VITE_SOCKET_URL=/#' .env
-else
-  printf '\nVITE_SOCKET_URL=/\n' >> .env
+upsert_env() {
+  key="$1"
+  value="$2"
+  if grep -q "^${key}=" .env; then
+    sed -i "s#^${key}=.*#${key}=${value}#" .env
+  else
+    printf '\n%s=%s\n' "$key" "$value" >> .env
+  fi
+}
+
+read_env_value() {
+  key="$1"
+  grep "^${key}=" .env | tail -n 1 | cut -d '=' -f 2-
+}
+
+upsert_env "CLIENT_URL" "$CLIENT_URL_VALUE"
+upsert_env "VITE_API_URL" "/api"
+upsert_env "VITE_SOCKET_URL" "/"
+
+if [ -z "$(read_env_value AUTH_SECRET)" ]; then
+  upsert_env "AUTH_SECRET" "$(openssl rand -hex 48)"
 fi
 
-git fetch origin main
-git pull --ff-only origin main
+if [ -z "$(read_env_value ANTHROPIC_MODEL)" ]; then
+  upsert_env "ANTHROPIC_MODEL" "claude-sonnet-4-6"
+fi
+
+if [ -z "$(read_env_value OPENAI_BIWEEKLY_REPORT_MODEL)" ]; then
+  upsert_env "OPENAI_BIWEEKLY_REPORT_MODEL" "gpt-4o"
+fi
 
 eval "$RUN_NPM_CI"
 npm run migrate:pending
@@ -150,7 +178,7 @@ nginx -t
 systemctl restart nginx
 
 for attempt in $(seq 1 20); do
-  if curl -fsS -H 'Host: www.repset.org' http://127.0.0.1/health >/dev/null; then
+  if curl -fsS http://127.0.0.1:5001/health >/dev/null; then
     break
   fi
   if [ "$attempt" -eq 20 ]; then
@@ -160,7 +188,7 @@ for attempt in $(seq 1 20); do
   sleep 2
 done
 
-curl -fsS -H 'Host: www.repset.org' http://127.0.0.1/health
+curl -fsS http://127.0.0.1:5001/health
 curl -I -H 'Host: www.repset.org' http://127.0.0.1/
 curl -I -H 'Host: www.repset.org' http://127.0.0.1/admin.html
 '@

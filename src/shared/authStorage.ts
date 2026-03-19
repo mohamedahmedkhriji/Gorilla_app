@@ -5,6 +5,7 @@ type StoredUser = Record<string, unknown> & {
 
 const USER_STORAGE_KEYS = ['appUser', 'user'] as const;
 const USER_ID_STORAGE_KEYS = ['appUserId', 'userId'] as const;
+const USER_TOKEN_STORAGE_KEYS = ['appAuthToken', 'authToken'] as const;
 
 const hasWindow = () => typeof window !== 'undefined' && typeof window.localStorage !== 'undefined';
 
@@ -68,6 +69,32 @@ const syncStoredUser = (user: StoredUser, userId: number | null) => {
   });
 };
 
+const readStoredUserToken = () => {
+  if (!hasWindow()) return null;
+
+  for (const key of USER_TOKEN_STORAGE_KEYS) {
+    const token = String(window.localStorage.getItem(key) || '').trim();
+    if (token) return token;
+  }
+
+  return null;
+};
+
+const syncStoredToken = (token: string | null) => {
+  if (!hasWindow()) return;
+
+  if (token) {
+    USER_TOKEN_STORAGE_KEYS.forEach((key) => {
+      window.localStorage.setItem(key, token);
+    });
+    return;
+  }
+
+  USER_TOKEN_STORAGE_KEYS.forEach((key) => {
+    window.localStorage.removeItem(key);
+  });
+};
+
 export const getStoredAppUser = (): StoredUser | null => {
   const storedUser = readStoredUser();
   if (!storedUser) return null;
@@ -108,10 +135,29 @@ export const persistStoredUser = (user: StoredUser | null) => {
   syncStoredUser(user, resolvedUserId);
 };
 
+export const persistStoredUserSession = ({
+  user,
+  token,
+}: {
+  user: StoredUser | null;
+  token?: string | null;
+}) => {
+  if (!hasWindow()) return;
+  if (!user || typeof user !== 'object') {
+    clearStoredUserSession();
+    return;
+  }
+
+  persistStoredUser(user);
+  syncStoredToken(String(token || '').trim() || null);
+};
+
+export const getStoredUserAuthToken = () => readStoredUserToken();
+
 export const clearStoredUserSession = () => {
   if (!hasWindow()) return;
 
-  [...USER_STORAGE_KEYS, ...USER_ID_STORAGE_KEYS].forEach((key) => {
+  [...USER_STORAGE_KEYS, ...USER_ID_STORAGE_KEYS, ...USER_TOKEN_STORAGE_KEYS].forEach((key) => {
     window.localStorage.removeItem(key);
   });
 };
