@@ -10705,6 +10705,7 @@ const mapBlogPostRow = (row) => ({
   authorGender: row.author_gender || '',
   womenOnly: Number(row.women_only || 0) === 1,
   avatarUrl: row.avatar_url || '',
+  latestCommentAvatarUrl: row.latest_comment_avatar_url || '',
   category: row.category || 'Recovery',
   description: row.description || '',
   mediaType: row.media_type || 'image',
@@ -10801,6 +10802,16 @@ const fetchBlogPostById = async (postId, viewerUserId = 0) => {
   const safeViewerUserId = toPositiveInteger(viewerUserId) || 0;
   const profileImageColumn = await getProfileImageColumn();
   const avatarSelect = profileImageColumn ? `COALESCE(u.${profileImageColumn}, '') AS avatar_url` : `'' AS avatar_url`;
+  const latestCommentAvatarSelect = profileImageColumn
+    ? `(SELECT COALESCE(cu.${profileImageColumn}, '')
+        FROM blog_post_comments c2
+        INNER JOIN users cu ON cu.id = c2.user_id
+        WHERE c2.post_id = bp.id
+          AND cu.is_active = 1
+          AND (cu.banned_until IS NULL OR cu.banned_until < NOW())
+        ORDER BY c2.created_at DESC, c2.id DESC
+        LIMIT 1) AS latest_comment_avatar_url`
+    : `'' AS latest_comment_avatar_url`;
 
   const [rows] = await pool.execute(
     `SELECT
@@ -10816,6 +10827,7 @@ const fetchBlogPostById = async (postId, viewerUserId = 0) => {
        u.name AS author_name,
        COALESCE(u.gender, '') AS author_gender,
        ${avatarSelect},
+       ${latestCommentAvatarSelect},
        COALESCE(r.love_count, 0) + COALESCE(l.legacy_like_count, 0) AS love_count,
        COALESCE(r.fire_count, 0) AS fire_count,
        COALESCE(r.power_count, 0) AS power_count,
@@ -10893,6 +10905,16 @@ router.get('/blogs', requireAuth('user', 'coach', 'gym_owner'), async (req, res)
 
     const profileImageColumn = await getProfileImageColumn();
     const avatarSelect = profileImageColumn ? `COALESCE(u.${profileImageColumn}, '') AS avatar_url` : `'' AS avatar_url`;
+    const latestCommentAvatarSelect = profileImageColumn
+      ? `(SELECT COALESCE(cu.${profileImageColumn}, '')
+          FROM blog_post_comments c2
+          INNER JOIN users cu ON cu.id = c2.user_id
+          WHERE c2.post_id = bp.id
+            AND cu.is_active = 1
+            AND (cu.banned_until IS NULL OR cu.banned_until < NOW())
+          ORDER BY c2.created_at DESC, c2.id DESC
+          LIMIT 1) AS latest_comment_avatar_url`
+      : `'' AS latest_comment_avatar_url`;
     let viewerIsFemale = false;
 
     if (viewerUserId > 0) {
@@ -10946,6 +10968,7 @@ router.get('/blogs', requireAuth('user', 'coach', 'gym_owner'), async (req, res)
          u.name AS author_name,
          COALESCE(u.gender, '') AS author_gender,
          ${avatarSelect},
+         ${latestCommentAvatarSelect},
          COALESCE(r.love_count, 0) + COALESCE(l.legacy_like_count, 0) AS love_count,
          COALESCE(r.fire_count, 0) AS fire_count,
          COALESCE(r.power_count, 0) AS power_count,

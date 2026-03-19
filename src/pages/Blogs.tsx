@@ -44,6 +44,7 @@ type Post = {
   authorGender: string;
   womenOnly: boolean;
   avatarUrl: string;
+  latestCommentAvatarUrl: string;
   verified: boolean;
   description: string;
   category: PostCategory;
@@ -341,6 +342,7 @@ const mapPost = (raw: Record<string, unknown>): Post => ({
   authorGender: String(raw.authorGender || ''),
   womenOnly: Boolean(raw.womenOnly),
   avatarUrl: String(raw.avatarUrl || ''),
+  latestCommentAvatarUrl: String(raw.latestCommentAvatarUrl || ''),
   verified: true,
   description: String(raw.description || ''),
   category: CATEGORY_OPTIONS.includes(raw.category as PostCategory) ? (raw.category as PostCategory) : 'Recovery',
@@ -883,7 +885,12 @@ export function Blogs({
       const response = await api.getBlogComments(postId, 200);
       const comments = Array.isArray(response?.comments) ? response.comments.map(mapComment) : [];
       setCommentsByPost((prev) => ({ ...prev, [postId]: comments }));
-      setPosts((prev) => prev.map((post) => (post.id === postId ? { ...post, comments: comments.length } : post)));
+      const latestCommentAvatarUrl = getLatestCommentAvatarUrl(comments);
+      setPosts((prev) => prev.map((post) => (
+        post.id === postId
+          ? { ...post, comments: comments.length, latestCommentAvatarUrl }
+          : post
+      )));
     } catch (err) {
       setCommentError(err instanceof Error ? err.message : copy.errorLoadComments);
     } finally {
@@ -1000,16 +1007,24 @@ export function Blogs({
       const response = await api.addBlogComment(activeCommentsPostId, { userId, text: finalText });
       const comment = response?.comment ? mapComment(response.comment) : null;
       const commentsCount = toCount(response?.commentsCount);
+      const nextComments = comment
+        ? [...(commentsByPost[activeCommentsPostId] || []), comment]
+        : commentsByPost[activeCommentsPostId] || [];
+      const latestCommentAvatarUrl = getLatestCommentAvatarUrl(nextComments);
 
       if (comment) {
         setCommentsByPost((prev) => ({
           ...prev,
-          [activeCommentsPostId]: [...(prev[activeCommentsPostId] || []), comment],
+          [activeCommentsPostId]: nextComments,
         }));
       }
 
       setPosts((prev) =>
-        prev.map((post) => (post.id === activeCommentsPostId ? { ...post, comments: commentsCount } : post)),
+        prev.map((post) => (
+          post.id === activeCommentsPostId
+            ? { ...post, comments: commentsCount, latestCommentAvatarUrl }
+            : post
+        )),
       );
       setNewCommentText('');
       setReplyToComment(null);
@@ -1239,6 +1254,15 @@ export function Blogs({
     if (comment.userId === userId && userProfileImage) return userProfileImage;
     if (comment.avatarUrl) return comment.avatarUrl;
     return DEFAULT_AVATAR;
+  };
+  const getLatestCommentAvatarUrl = (comments: BlogComment[]) => {
+    for (let index = comments.length - 1; index >= 0; index -= 1) {
+      const avatar = String(resolveCommentAvatar(comments[index]) || '').trim();
+      if (avatar && avatar !== DEFAULT_AVATAR) {
+        return avatar;
+      }
+    }
+    return '';
   };
   const canPublish = Boolean(newDescription.trim()) && Boolean(newMediaUrl) && !isPublishing;
 
@@ -1499,22 +1523,22 @@ export function Blogs({
                         event.stopPropagation();
                         openComments(post.id);
                       }}
-                      className="flex h-8 w-8 items-center justify-center rounded-full hover:bg-[#F3F4F6]"
+                      className="flex items-center gap-2 rounded-full px-1 py-0.5 hover:bg-[#F3F4F6]"
                     >
                       <MessageCircle size={18} />
+                      <span className="font-semibold">{formatCount(post.comments)}</span>
+                      {post.latestCommentAvatarUrl && (
+                        <img
+                          src={post.latestCommentAvatarUrl}
+                          alt={copy.avatarAlt(copy.fallbackUser)}
+                          className="h-7 w-7 rounded-full border border-white/10 object-cover"
+                        />
+                      )}
                     </button>
-                    <button
-                      type="button"
-                      data-no-open="true"
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        openShareModal(post.id);
-                      }}
-                      className="flex h-8 w-8 items-center justify-center rounded-full hover:bg-[#F3F4F6]"
-                      aria-label={copy.sharePostAria}
-                    >
-                      <Send size={18} />
-                    </button>
+                    <div className="flex items-center gap-2 text-[15px]">
+                      <Eye size={18} />
+                      <span className="font-semibold">{formatCount(post.views)}</span>
+                    </div>
                   </div>
 
                 </div>
