@@ -105,6 +105,60 @@ const normalizeName = (value) =>
     .replace(/[^a-z0-9]+/g, ' ')
     .trim();
 
+const normalizeAthleteIdentity = (value) =>
+  String(value || '')
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, '_');
+
+const normalizeAthleteIdentityCategory = (value) =>
+  String(value || '')
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, '_');
+
+const isExplosiveExercise = ({ exerciseType = '', name = '', description = '' }) => {
+  const merged = `${exerciseType} ${name} ${description}`.toLowerCase();
+  return /(plyometric|plyometrics|explosive|jump|bound|throw|sprint|agility|sprawl|snatch|clean and jerk|power clean|push press|medicine ball)/.test(merged);
+};
+
+const isIsometricExercise = ({ exerciseType = '', name = '', description = '' }) => {
+  const merged = `${exerciseType} ${name} ${description}`.toLowerCase();
+  return /(isometric|isometrics|hold|plank|wall sit|pallof|anti-rotation|hollow[-\s]?body)/.test(merged);
+};
+
+const resolveAthleteMovementBias = ({ goal, athleteIdentity, athleteIdentityCategory }) => {
+  const normalizedGoal = String(goal || '').trim().toLowerCase();
+  const normalizedIdentity = normalizeAthleteIdentity(athleteIdentity);
+  const normalizedCategory = normalizeAthleteIdentityCategory(athleteIdentityCategory);
+
+  const isSportAthlete =
+    normalizedCategory === 'athlete_sports'
+    || ['football', 'basketball', 'handball', 'swimming', 'combat_sports'].includes(normalizedIdentity);
+
+  if (!isSportAthlete || normalizedIdentity === 'bodybuilding') {
+    return {
+      enabled: false,
+      explosivePerDay: 0,
+      isometricPerDay: 0,
+    };
+  }
+
+  if (normalizedGoal === 'endurance') {
+    return {
+      enabled: true,
+      explosivePerDay: 1,
+      isometricPerDay: 1,
+    };
+  }
+
+  return {
+    enabled: true,
+    explosivePerDay: 2,
+    isometricPerDay: 1,
+  };
+};
+
 const levelRank = (level) => {
   if (level === 'beginner') return 1;
   if (level === 'intermediate') return 2;
@@ -345,9 +399,60 @@ const pickUniqueExercises = ({
   return selected;
 };
 
+const pickAthleteAnchorExercises = ({
+  dayPool,
+  daySecondaryPool,
+  fallbackPool,
+  usedNames,
+  lastDayPrimaryMuscles,
+  dayPrimaryMuscles,
+  explosiveTarget = 0,
+  isometricTarget = 0,
+  preferVideoLinkedBackExercises = false,
+}) => {
+  const selected = [];
+  const selectedNames = new Set(usedNames);
+
+  const appendUniqueSelection = (entries) => {
+    entries.forEach((entry) => {
+      if (!entry || selectedNames.has(entry.normalizedName)) return;
+      selected.push(entry);
+      selectedNames.add(entry.normalizedName);
+    });
+  };
+
+  if (explosiveTarget > 0) {
+    const explosiveSelection = pickUniqueExercises({
+      pool: [...dayPool, ...daySecondaryPool].filter((ex) => ex.isExplosive),
+      fallbackPool: fallbackPool.filter((ex) => ex.isExplosive),
+      count: explosiveTarget,
+      usedNames: selectedNames,
+      lastDayPrimaryMuscles,
+      dayPrimaryMuscles,
+      preferVideoLinkedBackExercises,
+    });
+    appendUniqueSelection(explosiveSelection);
+  }
+
+  if (isometricTarget > 0) {
+    const isometricSelection = pickUniqueExercises({
+      pool: [...dayPool, ...daySecondaryPool].filter((ex) => ex.isIsometric),
+      fallbackPool: fallbackPool.filter((ex) => ex.isIsometric),
+      count: isometricTarget,
+      usedNames: selectedNames,
+      lastDayPrimaryMuscles,
+      dayPrimaryMuscles,
+      preferVideoLinkedBackExercises,
+    });
+    appendUniqueSelection(isometricSelection);
+  }
+
+  return selected;
+};
+
 const loadCatalogPool = async (conn, { userLevel, equipmentPrefs }) => {
   const [rows] = await conn.execute(
-    `SELECT id, canonical_name, normalized_name, body_part, equipment, level, exercise_type, is_stretch
+    `SELECT id, canonical_name, normalized_name, body_part, equipment, level, exercise_type, description, is_stretch
      FROM exercise_catalog
      WHERE is_active = 1`,
   );
@@ -364,15 +469,20 @@ const loadCatalogPool = async (conn, { userLevel, equipmentPrefs }) => {
       });
 
       const exactBackVideoLink = videoLink.bodyPart === 'back' && videoLink.matchType === 'alias';
+      const exerciseType = String(row.exercise_type || '');
+      const description = String(row.description || '');
+      const canonicalName = String(row.canonical_name || '');
 
       return {
         id: Number(row.id),
-        name: row.canonical_name,
-        normalizedName: normalizeName(row.normalized_name || row.canonical_name),
+        name: canonicalName,
+        normalizedName: normalizeName(row.normalized_name || canonicalName),
         primaryMuscle: normalizeMuscleGroup(row.body_part),
         equipment: normalizeEquipment(row.equipment),
         level: String(row.level || '').toLowerCase(),
-        isStretch: Number(row.is_stretch || 0) === 1 || /stretch/i.test(String(row.exercise_type || '')),
+        isStretch: Number(row.is_stretch || 0) === 1 || /stretch/i.test(exerciseType),
+        isExplosive: isExplosiveExercise({ exerciseType, name: canonicalName, description }),
+        isIsometric: isIsometricExercise({ exerciseType, name: canonicalName, description }),
         linkedVideoAsset: videoLink.fileName || null,
         linkedVideoMatchType: videoLink.matchType,
         selectionPriority: exactBackVideoLink ? 100 + Number(videoLink.priority || 0) : 0,
@@ -430,6 +540,8 @@ export const generatePersonalizedProgram = async (
     daysPerWeek = 4,
     cycleWeeks = 12,
     splitPreference = 'auto',
+    athleteIdentity = null,
+    athleteIdentityCategory = null,
     equipment = null,
     notes = null,
   },
@@ -439,6 +551,11 @@ export const generatePersonalizedProgram = async (
   const normalizedGoal = String(goal || 'general_fitness');
   const normalizedLevel = String(experienceLevel || 'intermediate');
   const equipmentPrefs = parseEquipmentPreferences(equipment);
+  const athleteMovementBias = resolveAthleteMovementBias({
+    goal: normalizedGoal,
+    athleteIdentity,
+    athleteIdentityCategory,
+  });
 
   const pool = await loadCatalogPool(conn, { userLevel: normalizedLevel, equipmentPrefs });
   if (pool.length < 30) {
@@ -489,15 +606,54 @@ export const generatePersonalizedProgram = async (
       const dayPool = pool.filter((ex) => dayPrimaryMuscles.has(ex.primaryMuscle));
       const daySecondaryPool = pool.filter((ex) => day.secondary.includes(ex.primaryMuscle));
 
-      const selection = pickUniqueExercises({
-        pool: [...dayPool, ...daySecondaryPool],
-        fallbackPool: pool,
-        count: cfg.exercisesPerDay,
-        usedNames: usedPerWeek,
-        lastDayPrimaryMuscles,
-        dayPrimaryMuscles,
-        preferVideoLinkedBackExercises,
-      });
+      const athleteAnchors = athleteMovementBias.enabled
+        ? pickAthleteAnchorExercises({
+            dayPool,
+            daySecondaryPool,
+            fallbackPool: pool,
+            usedNames: usedPerWeek,
+            lastDayPrimaryMuscles,
+            dayPrimaryMuscles,
+            explosiveTarget: Math.max(0, Math.min(2, athleteMovementBias.explosivePerDay)),
+            isometricTarget: Math.max(0, Math.min(2, athleteMovementBias.isometricPerDay)),
+            preferVideoLinkedBackExercises,
+          })
+        : [];
+
+      const selection = [
+        ...athleteAnchors,
+        ...pickUniqueExercises({
+          pool: [...dayPool, ...daySecondaryPool],
+          fallbackPool: pool,
+          count: Math.max(0, cfg.exercisesPerDay - athleteAnchors.length),
+          usedNames: new Set([...usedPerWeek, ...athleteAnchors.map((exercise) => exercise.normalizedName)]),
+          lastDayPrimaryMuscles,
+          dayPrimaryMuscles,
+          preferVideoLinkedBackExercises,
+        }),
+      ];
+
+      if (athleteMovementBias.enabled && selection.length > cfg.exercisesPerDay) {
+        selection.length = cfg.exercisesPerDay;
+      }
+
+      if (selection.length === 0) {
+        throw new Error(`Could not build a valid exercise selection for week ${week}, day ${day.name}.`);
+      }
+
+      if (selection.length < Math.max(4, cfg.exercisesPerDay - 1)) {
+        const fallbackSelection = pickUniqueExercises({
+          pool: [...dayPool, ...daySecondaryPool],
+          fallbackPool: pool,
+          count: cfg.exercisesPerDay,
+          usedNames: usedPerWeek,
+          lastDayPrimaryMuscles,
+          dayPrimaryMuscles,
+          preferVideoLinkedBackExercises,
+        });
+        selection.length = 0;
+        selection.push(...fallbackSelection);
+      }
 
       if (selection.length < Math.max(4, cfg.exercisesPerDay - 1)) {
         throw new Error(`Could not satisfy exercise selection constraints for week ${week}, day ${day.name}.`);
@@ -514,7 +670,9 @@ export const generatePersonalizedProgram = async (
           dayOrder,
           dayName,
           cfg.exercisesPerDay * 10 + 20,
-          `Focus: ${day.primary.join(', ')}`,
+          athleteMovementBias.enabled
+            ? `Focus: ${day.primary.join(', ')} | Athletic blend: explosive + isometric`
+            : `Focus: ${day.primary.join(', ')}`,
         ],
       );
       const workoutId = Number(workoutIns.insertId);

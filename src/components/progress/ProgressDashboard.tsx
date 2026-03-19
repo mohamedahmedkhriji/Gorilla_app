@@ -373,7 +373,9 @@ export function ProgressDashboard({ onViewReport, onViewStrengthScore }: Progres
     ? Math.round((completedThisWeek / plannedThisWeek) * 100)
     : Math.round(Number(stats.consistency || 0));
   const consistencyLabel = `${completionPercent}%`;
-  const weeklyDaysLabel = `${completedThisWeek} / ${plannedThisWeek} days`;
+  const weeklyDaysLabel = language === 'ar'
+    ? `${completedThisWeek} / ${plannedThisWeek} أيام`
+    : `${completedThisWeek} / ${plannedThisWeek} days`;
 
   return (
     <div data-coachmark-target="progress_dashboard" className="space-y-6">

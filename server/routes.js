@@ -10080,6 +10080,24 @@ router.post('/workout-sets', authMutationRateLimit, requireAuth('user'), require
   }
 });
 
+router.get('/workout-sets/today/:userId', requireAuth('user'), requireUserAccess('userId', { allowSelf: true }), async (req, res) => {
+  try {
+    const { userId } = req.params;
+
+    const [rows] = await pool.execute(
+      `SELECT exercise_name, MAX(created_at) AS last_logged_at
+       FROM workout_sets
+       WHERE user_id = ? AND DATE(created_at) = CURDATE() AND completed = 1
+       GROUP BY exercise_name`,
+      [userId]
+    );
+
+    return res.json(rows);
+  } catch (error) {
+    return res.status(500).json({ error: error.message });
+  }
+});
+
 router.get('/workout-sets/:userId/:exerciseName', requireAuth('user'), requireUserAccess('userId', { allowSelf: true }), async (req, res) => {
   try {
     const { userId, exerciseName } = req.params;
@@ -10091,24 +10109,6 @@ router.get('/workout-sets/:userId/:exerciseName', requireAuth('user'), requireUs
        ORDER BY created_at DESC
        LIMIT 200`,
       [userId, decodeURIComponent(exerciseName)]
-    );
-
-    return res.json(rows);
-  } catch (error) {
-    return res.status(500).json({ error: error.message });
-  }
-});
-
-router.get('/workout-sets/today/:userId', requireAuth('user'), requireUserAccess('userId', { allowSelf: true }), async (req, res) => {
-  try {
-    const { userId } = req.params;
-
-    const [rows] = await pool.execute(
-      `SELECT exercise_name, MAX(created_at) AS last_logged_at
-       FROM workout_sets
-       WHERE user_id = ? AND DATE(created_at) = CURDATE() AND completed = 1
-       GROUP BY exercise_name`,
-      [userId]
     );
 
     return res.json(rows);

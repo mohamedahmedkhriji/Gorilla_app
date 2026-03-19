@@ -168,8 +168,13 @@ export function WorkoutOverviewScreen({
     return AR_MUSCLE_LABELS[String(value || '').trim().toLowerCase()] || value;
   };
 
+  const selectableWorkouts = useMemo(
+    () => workouts.filter((workout) => Number(workout.exerciseCount || 0) > 0),
+    [workouts],
+  );
+
   const cards = useMemo(
-    () => workouts.map((workout) => ({
+    () => selectableWorkouts.map((workout) => ({
       ...workout,
       localizedDayLabel: localizeDay(workout.dayLabel),
       localizedMuscles: workout.targetMuscles.slice(0, 3).map((entry) => {
@@ -180,7 +185,7 @@ export function WorkoutOverviewScreen({
         };
       }),
     })),
-    [workouts, isArabic],
+    [selectableWorkouts, isArabic],
   );
 
   const heroEyebrow = hasTodaySelection ? copy.heroSelectedEyebrow : copy.heroEyebrow;
@@ -248,7 +253,7 @@ export function WorkoutOverviewScreen({
           <AgendaSection
             userProgram={userProgram}
             accountCreatedAt={accountCreatedAt}
-            selectedWorkoutKey={workouts.find((workout) => workout.isPickedForToday)?.key || ''}
+            selectedWorkoutKey={selectableWorkouts.find((workout) => workout.isPickedForToday)?.key || ''}
             isSelectedWorkoutCompleted={isTodaySelectionCompleted}
             onPickWorkoutForToday={onPickWorkoutForToday}
           />

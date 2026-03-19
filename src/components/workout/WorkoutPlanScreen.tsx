@@ -1024,14 +1024,14 @@ export function WorkoutPlanScreen({
 
       {isCardioModalOpen && !isRestDayView && (
         <div
-          className="fixed inset-0 z-50 flex items-start justify-center bg-black/80 p-3 sm:p-4"
+          className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/80 px-3 pb-3 pt-2 sm:px-4 sm:pb-4 sm:pt-3"
           onClick={() => {
             setIsCardioRunning(false);
             setIsCardioModalOpen(false);
           }}
         >
           <div
-            className={`relative w-full max-w-lg overflow-y-auto rounded-[1.6rem] border border-white/10 bg-[linear-gradient(180deg,rgba(18,23,34,0.98),rgba(9,12,20,0.98))] p-4 shadow-[0_24px_64px_rgba(0,0,0,0.45)] max-h-[88vh] ${isArabic ? 'text-right' : 'text-left'}`}
+            className={`relative my-0 w-full max-w-lg self-start overflow-y-auto rounded-[1.6rem] border border-white/10 bg-[linear-gradient(180deg,rgba(18,23,34,0.98),rgba(9,12,20,0.98))] p-4 shadow-[0_24px_64px_rgba(0,0,0,0.45)] max-h-[90vh] ${isArabic ? 'text-right' : 'text-left'}`}
             dir={isArabic ? 'rtl' : 'ltr'}
             onClick={(event) => event.stopPropagation()}
           >
@@ -1045,9 +1045,6 @@ export function WorkoutPlanScreen({
                     {cardioCopy.modalEyebrow}
                   </div>
                   <h3 className="mt-1.5 text-xl font-semibold text-white">{cardioCopy.modalTitle}</h3>
-                  <p className="mt-1.5 max-w-lg text-xs leading-relaxed text-text-secondary sm:text-sm">
-                    {cardioCopy.modalBody}
-                  </p>
                 </div>
 
                 <button

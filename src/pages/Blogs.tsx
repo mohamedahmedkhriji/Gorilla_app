@@ -17,7 +17,7 @@ import {
 import { api } from '../services/api';
 import { CoachmarkOverlay, type CoachmarkStep } from '../components/coachmarks/CoachmarkOverlay';
 import { Header } from '../components/ui/Header';
-import { clearStoredUserSession, getStoredAppUser, getStoredUserId } from '../shared/authStorage';
+import { getStoredAppUser, getStoredUserId } from '../shared/authStorage';
 import { AppLanguage, getActiveLanguage, getStoredLanguage } from '../services/language';
 import {
   BLOGS_COACHMARK_TOUR_ID,
@@ -670,12 +670,8 @@ export function Blogs({
       try {
         const profile = await api.getProfileDetails(userId);
         setUserGender(String(profile?.gender || '').trim().toLowerCase());
-      } catch (error) {
-        const status = Number((error as { status?: number })?.status || 0);
-        if (status === 404) {
-          clearStoredUserSession();
-          window.location.replace('/');
-        }
+      } catch {
+        // Keep current session active even if viewer profile fetch fails.
       }
     };
 

@@ -674,6 +674,9 @@ const findNextWeekPlanWorkout = (workouts: WeekPlanWorkout[], currentWorkoutKey?
   return workouts[currentIndex + 1] || null;
 };
 
+const hasWorkoutExercises = (workout: WeekPlanWorkout | null | undefined) =>
+  !!(workout && Array.isArray(workout.exercises) && workout.exercises.length > 0);
+
 export function Workout({
   onBack,
   workoutDay = 'Push Day',
@@ -862,21 +865,25 @@ export function Workout({
     ) || todayExercises[0];
     return String(nextExercise?.exerciseName || '').trim();
   }, [completedExercises, todayExercises]);
-  const scheduledTodayWorkout = useMemo(
-    () => weekPlanWorkouts.find((workout) => workout.isToday) || null,
+  const selectableWeekPlanWorkouts = useMemo(
+    () => weekPlanWorkouts.filter(hasWorkoutExercises),
     [weekPlanWorkouts],
   );
+  const scheduledTodayWorkout = useMemo(
+    () => selectableWeekPlanWorkouts.find((workout) => workout.isToday) || null,
+    [selectableWeekPlanWorkouts],
+  );
   const activeTodayWorkout = useMemo(
-    () => weekPlanWorkouts.find((workout) => workout.key === todayWorkoutSelection?.workoutKey) || null,
-    [todayWorkoutSelection?.workoutKey, weekPlanWorkouts],
+    () => selectableWeekPlanWorkouts.find((workout) => workout.key === todayWorkoutSelection?.workoutKey) || null,
+    [todayWorkoutSelection?.workoutKey, selectableWeekPlanWorkouts],
   );
   const selectedWeekWorkout = useMemo(
-    () => weekPlanWorkouts.find((workout) => workout.key === selectedWorkoutKey)
+    () => selectableWeekPlanWorkouts.find((workout) => workout.key === selectedWorkoutKey)
       || activeTodayWorkout
       || scheduledTodayWorkout
-      || weekPlanWorkouts[0]
+      || selectableWeekPlanWorkouts[0]
       || null,
-    [activeTodayWorkout, scheduledTodayWorkout, selectedWorkoutKey, weekPlanWorkouts],
+    [activeTodayWorkout, scheduledTodayWorkout, selectedWorkoutKey, selectableWeekPlanWorkouts],
   );
   const isSelectedWorkoutPickedForToday = !!(
     selectedWeekWorkout
@@ -891,8 +898,8 @@ export function Workout({
     && selectedWeekWorkout.key === scheduledTodayWorkout.key
   );
   const recommendedNextWorkout = useMemo(
-    () => findNextWeekPlanWorkout(weekPlanWorkouts, todayWorkoutSelection?.workoutKey),
-    [todayWorkoutSelection?.workoutKey, weekPlanWorkouts],
+    () => findNextWeekPlanWorkout(selectableWeekPlanWorkouts, todayWorkoutSelection?.workoutKey),
+    [todayWorkoutSelection?.workoutKey, selectableWeekPlanWorkouts],
   );
   const detailWorkoutName = isSelectedWorkoutPickedForToday
     ? currentWorkoutName
@@ -1289,11 +1296,12 @@ export function Workout({
 
       const program = await api.getUserProgram(userId);
       const nextWeekPlanWorkouts = buildWeekPlanWorkouts(program);
+      const nextSelectableWorkouts = nextWeekPlanWorkouts.filter(hasWorkoutExercises);
       const storedSelection = readTodayWorkoutSelection(workoutStorageScope);
       const nextSelectedWorkout = storedSelection
         ? nextWeekPlanWorkouts.find((workout) => workout.key === storedSelection.workoutKey) || null
         : null;
-      const normalizedSelection = nextSelectedWorkout ? storedSelection : null;
+      const normalizedSelection = hasWorkoutExercises(nextSelectedWorkout) ? storedSelection : null;
       setUserProgram({
         ...(program || {}),
         workouts: Array.isArray(program?.currentWeekWorkouts)
@@ -1304,21 +1312,21 @@ export function Workout({
       });
 
       setWeekPlanWorkouts(nextWeekPlanWorkouts);
-      if (storedSelection && !nextSelectedWorkout) {
+      if (storedSelection && !hasWorkoutExercises(nextSelectedWorkout)) {
         clearTodayWorkoutSelection(workoutStorageScope);
       }
       setTodayWorkoutSelection(normalizedSelection);
       setSelectedWorkoutKey((currentKey) => {
-        if (currentKey && nextWeekPlanWorkouts.some((workout) => workout.key === currentKey)) {
+        if (currentKey && nextSelectableWorkouts.some((workout) => workout.key === currentKey)) {
           return currentKey;
         }
         return normalizedSelection?.workoutKey
-          || nextWeekPlanWorkouts.find((workout) => workout.isToday)?.key
-          || nextWeekPlanWorkouts[0]?.key
+          || nextSelectableWorkouts.find((workout) => workout.isToday)?.key
+          || nextSelectableWorkouts[0]?.key
           || '';
       });
 
-      if (!normalizedSelection || !nextSelectedWorkout) {
+      if (!normalizedSelection || !hasWorkoutExercises(nextSelectedWorkout)) {
         clearLocalWorkoutState(workoutStorageScope);
         setTodayExercises([]);
         setCompletedExercises([]);
@@ -1371,8 +1379,8 @@ export function Workout({
   }, [resetSignal]);
 
   const pickWorkoutForToday = (workoutKey: string) => {
-    const nextWorkout = weekPlanWorkouts.find((workout) => workout.key === workoutKey);
-    if (!nextWorkout) return;
+    const nextWorkout = selectableWeekPlanWorkouts.find((workout) => workout.key === workoutKey);
+    if (!hasWorkoutExercises(nextWorkout)) return;
 
     setSelectedWorkoutKey(workoutKey);
 
@@ -1967,7 +1975,7 @@ export function Workout({
           }}
           onPickWorkoutForToday={pickWorkoutForToday}
           currentDayLabel={currentWorkoutDayLabel}
-          workouts={weekPlanWorkouts.map((workout) => ({
+          workouts={selectableWeekPlanWorkouts.map((workout) => ({
             key: workout.key,
             dayLabel: workout.dayLabel,
             workoutName: workout.workoutName,
