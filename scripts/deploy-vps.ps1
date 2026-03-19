@@ -98,12 +98,97 @@ Environment=NODE_ENV=production
 WantedBy=multi-user.target
 UNIT
 
-cat > "/etc/nginx/sites-available/${NGINX_SITE}" <<'NGINX'
+TLS_CERT_DIR="/etc/letsencrypt/live/repset.org"
+HAS_TLS="0"
+if [ -f "${TLS_CERT_DIR}/fullchain.pem" ] && [ -f "${TLS_CERT_DIR}/privkey.pem" ]; then
+  HAS_TLS="1"
+fi
+
+if [ "$HAS_TLS" = "1" ]; then
+  cat > "/etc/nginx/sites-available/${NGINX_SITE}" <<'NGINX'
 server {
     listen 80 default_server;
     listen [::]:80 default_server;
     server_name 159.89.21.234 repset.org _;
     return 301 https://www.repset.org$request_uri;
+}
+
+server {
+    listen 80;
+    listen [::]:80;
+    server_name www.repset.org;
+    return 301 https://www.repset.org$request_uri;
+}
+
+server {
+    listen 443 ssl http2;
+    listen [::]:443 ssl http2;
+    server_name www.repset.org;
+
+    ssl_certificate /etc/letsencrypt/live/repset.org/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/repset.org/privkey.pem;
+
+    root __STATIC_DIR__;
+    index index.html;
+    client_max_body_size 20m;
+
+    location /api/ {
+        proxy_pass http://127.0.0.1:5001;
+        proxy_http_version 1.1;
+        proxy_connect_timeout 30s;
+        proxy_send_timeout 300s;
+        proxy_read_timeout 300s;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    location /socket.io/ {
+        proxy_pass http://127.0.0.1:5001/socket.io/;
+        proxy_http_version 1.1;
+        proxy_connect_timeout 30s;
+        proxy_send_timeout 300s;
+        proxy_read_timeout 300s;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    location = /health {
+        proxy_pass http://127.0.0.1:5001/health;
+        proxy_set_header Host $host;
+    }
+
+    location = /admin.html {
+        try_files /admin/index.html =404;
+    }
+
+    location /assets/ {
+        try_files $uri =404;
+        access_log off;
+        expires 1y;
+        add_header Cache-Control "public, immutable";
+    }
+
+    location /admin/ {
+        try_files $uri $uri/ /admin/index.html;
+    }
+
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+}
+NGINX
+else
+  cat > "/etc/nginx/sites-available/${NGINX_SITE}" <<'NGINX'
+server {
+    listen 80 default_server;
+    listen [::]:80 default_server;
+    server_name 159.89.21.234 repset.org _;
 }
 
 server {
@@ -166,6 +251,7 @@ server {
     }
 }
 NGINX
+fi
 
 ln -sfn "/etc/nginx/sites-available/${NGINX_SITE}" "/etc/nginx/sites-enabled/${NGINX_SITE}"
 
@@ -189,8 +275,13 @@ for attempt in $(seq 1 20); do
 done
 
 curl -fsS http://127.0.0.1:5001/health
-curl -I -H 'Host: www.repset.org' http://127.0.0.1/
-curl -I -H 'Host: www.repset.org' http://127.0.0.1/admin.html
+if [ "$HAS_TLS" = "1" ]; then
+  curl -kI -H 'Host: www.repset.org' https://127.0.0.1/
+  curl -kI -H 'Host: www.repset.org' https://127.0.0.1/admin.html
+else
+  curl -I -H 'Host: www.repset.org' http://127.0.0.1/
+  curl -I -H 'Host: www.repset.org' http://127.0.0.1/admin.html
+fi
 '@
 
 $remoteScript = $remoteScript.
