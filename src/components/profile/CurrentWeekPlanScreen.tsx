@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Header } from '../ui/Header';
 import { api } from '../../services/api';
 import { formatWorkoutDayLabel } from '../../services/workoutDayLabel';
-import { AppLanguage, getActiveLanguage, getStoredLanguage } from '../../services/language';
+import { AppLanguage, getActiveLanguage, getStoredLanguage, pickLanguage } from '../../services/language';
 import { translateExerciseName, translateProgramText, translateWorkoutType } from '../../services/programI18n';
 
 interface CurrentWeekPlanScreenProps {
@@ -57,26 +57,8 @@ export function CurrentWeekPlanScreen({ onBack, onOpenWorkout, onCreateCustom }:
   const [currentWeek, setCurrentWeek] = useState(1);
   const [totalWeeks, setTotalWeeks] = useState(0);
   const [workouts, setWorkouts] = useState<WeekWorkout[]>([]);
-  const isArabic = language === 'ar';
-  const copy = isArabic
-    ? {
-      title: 'خطة الأسبوع الحالي',
-      defaultProgram: 'البرنامج الحالي',
-      program: 'البرنامج',
-      loading: 'جارٍ تحميل تمارين هذا الأسبوع...',
-      noSession: 'لم يتم العثور على جلسة مستخدم نشطة.',
-      loadFailed: 'تعذر تحميل خطة الأسبوع الحالي.',
-      empty: 'لا توجد تمارين لهذا الأسبوع.',
-      exerciseFallback: 'تمرين',
-      sets: (value: number) => `${value} مجموعات`,
-      rest: (value: number) => `${value}ث راحة`,
-      moreExercises: (value: number) => `+${value} تمارين إضافية`,
-      dayFallback: (value: number) => `اليوم ${value}`,
-      weekLabel: (week: number, total: number) => `الأسبوع ${week}${total > 0 ? ` / ${total}` : ''}`,
-      customizePlan: 'تخصيص الخطة',
-      openWorkout: 'افتح التمرين',
-    }
-    : {
+  const copy = pickLanguage(language, {
+    en: {
       title: 'Current Week Plan',
       defaultProgram: 'Current Program',
       program: 'Program',
@@ -92,7 +74,59 @@ export function CurrentWeekPlanScreen({ onBack, onOpenWorkout, onCreateCustom }:
       weekLabel: (week: number, total: number) => `Week ${week}${total > 0 ? ` / ${total}` : ''}`,
       customizePlan: 'Customize Plan',
       openWorkout: 'Open Workout',
-    };
+    },
+    ar: {
+      title: 'Ø®Ø·Ø© Ø§Ù„Ø£Ø³Ø¨ÙˆØ¹ Ø§Ù„Ø­Ø§Ù„ÙŠ',
+      defaultProgram: 'Ø§Ù„Ø¨Ø±Ù†Ø§Ù…Ø¬ Ø§Ù„Ø­Ø§Ù„ÙŠ',
+      program: 'Ø§Ù„Ø¨Ø±Ù†Ø§Ù…Ø¬',
+      loading: 'Ø¬Ø§Ø±Ù ØªØ­Ù…ÙŠÙ„ ØªÙ…Ø§Ø±ÙŠÙ† Ù‡Ø°Ø§ Ø§Ù„Ø£Ø³Ø¨ÙˆØ¹...',
+      noSession: 'Ù„Ù… ÙŠØªÙ… Ø§Ù„Ø¹Ø«ÙˆØ± Ø¹Ù„Ù‰ Ø¬Ù„Ø³Ø© Ù…Ø³ØªØ®Ø¯Ù… Ù†Ø´Ø·Ø©.',
+      loadFailed: 'ØªØ¹Ø°Ø± ØªØ­Ù…ÙŠÙ„ Ø®Ø·Ø© Ø§Ù„Ø£Ø³Ø¨ÙˆØ¹ Ø§Ù„Ø­Ø§Ù„ÙŠ.',
+      empty: 'Ù„Ø§ ØªÙˆØ¬Ø¯ ØªÙ…Ø§Ø±ÙŠÙ† Ù„Ù‡Ø°Ø§ Ø§Ù„Ø£Ø³Ø¨ÙˆØ¹.',
+      exerciseFallback: 'ØªÙ…Ø±ÙŠÙ†',
+      sets: (value: number) => `${value} Ù…Ø¬Ù…ÙˆØ¹Ø§Øª`,
+      rest: (value: number) => `${value}Ø« Ø±Ø§Ø­Ø©`,
+      moreExercises: (value: number) => `+${value} ØªÙ…Ø§Ø±ÙŠÙ† Ø¥Ø¶Ø§ÙÙŠØ©`,
+      dayFallback: (value: number) => `Ø§Ù„ÙŠÙˆÙ… ${value}`,
+      weekLabel: (week: number, total: number) => `Ø§Ù„Ø£Ø³Ø¨ÙˆØ¹ ${week}${total > 0 ? ` / ${total}` : ''}`,
+      customizePlan: 'ØªØ®ØµÙŠØµ Ø§Ù„Ø®Ø·Ø©',
+      openWorkout: 'Ø§ÙØªØ­ Ø§Ù„ØªÙ…Ø±ÙŠÙ†',
+    },
+    it: {
+      title: 'Piano della settimana attuale',
+      defaultProgram: 'Programma attuale',
+      program: 'Programma',
+      loading: 'Caricamento allenamenti della settimana in corso...',
+      noSession: 'Nessuna sessione utente attiva trovata.',
+      loadFailed: 'Impossibile caricare il piano della settimana attuale.',
+      empty: 'Nessun allenamento trovato per questa settimana.',
+      exerciseFallback: 'Esercizio',
+      sets: (value: number) => `${value} serie`,
+      rest: (value: number) => `${value}s recupero`,
+      moreExercises: (value: number) => `+${value} altri esercizi`,
+      dayFallback: (value: number) => `Giorno ${value}`,
+      weekLabel: (week: number, total: number) => `Settimana ${week}${total > 0 ? ` / ${total}` : ''}`,
+      customizePlan: 'Personalizza piano',
+      openWorkout: 'Apri allenamento',
+    },
+    de: {
+      title: 'Aktueller Wochenplan',
+      defaultProgram: 'Aktuelles Programm',
+      program: 'Programm',
+      loading: 'Workouts der aktuellen Woche werden geladen...',
+      noSession: 'Keine aktive Benutzersitzung gefunden.',
+      loadFailed: 'Der aktuelle Wochenplan konnte nicht geladen werden.',
+      empty: 'Keine Workouts fur diese Woche gefunden.',
+      exerciseFallback: 'Ubung',
+      sets: (value: number) => `${value} Satze`,
+      rest: (value: number) => `${value}s Pause`,
+      moreExercises: (value: number) => `+${value} weitere Ubungen`,
+      dayFallback: (value: number) => `Tag ${value}`,
+      weekLabel: (week: number, total: number) => `Woche ${week}${total > 0 ? ` / ${total}` : ''}`,
+      customizePlan: 'Plan anpassen',
+      openWorkout: 'Workout offnen',
+    },
+  });
 
   useEffect(() => {
     setLanguage(getActiveLanguage());
@@ -257,5 +291,3 @@ export function CurrentWeekPlanScreen({ onBack, onOpenWorkout, onCreateCustom }:
     </div>
   );
 }
-
-

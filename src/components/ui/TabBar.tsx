@@ -9,6 +9,37 @@ interface TabBarProps {
   onTabChange: (tab: string) => void;
 }
 
+const TAB_LABELS: Record<AppLanguage, Record<string, string>> = {
+  en: {
+    home: 'Home',
+    workout: 'My Plan',
+    blogs: 'Blogs',
+    progress: 'Progress',
+    profile: 'Profile',
+  },
+  ar: {
+    home: '\u0627\u0644\u0631\u0626\u064a\u0633\u064a\u0629',
+    workout: '\u062e\u0637\u062a\u064a',
+    blogs: '\u0627\u0644\u0645\u062f\u0648\u0646\u0627\u062a',
+    progress: '\u0627\u0644\u062a\u0642\u062f\u0645',
+    profile: '\u0627\u0644\u0645\u0644\u0641',
+  },
+  it: {
+    home: 'Home',
+    workout: 'Il Mio Piano',
+    blogs: 'Blog',
+    progress: 'Progressi',
+    profile: 'Profilo',
+  },
+  de: {
+    home: 'Home',
+    workout: 'Mein Plan',
+    blogs: 'Blogs',
+    progress: 'Fortschritt',
+    profile: 'Profil',
+  },
+};
+
 export function TabBar({ activeTab, onTabChange }: TabBarProps) {
   const [language, setLanguage] = useState<AppLanguage>('en');
   const [theme, setTheme] = useState<AppTheme>('dark');
@@ -43,21 +74,7 @@ export function TabBar({ activeTab, onTabChange }: TabBarProps) {
     };
   }, []);
 
-  const labels = language === 'ar'
-    ? {
-      home: 'الرئيسية',
-      workout: 'خطتي',
-      blogs: 'المدونات',
-      progress: 'التقدم',
-      profile: 'الملف',
-    }
-    : {
-      home: 'Home',
-      workout: 'My Plan',
-      blogs: 'Blogs',
-      progress: 'Progress',
-      profile: 'Profile',
-    };
+  const labels = TAB_LABELS[language] || TAB_LABELS.en;
 
   const tabs = [
     {

@@ -12,6 +12,30 @@ interface SportPlanChoiceScreenProps {
   };
   options?: PlanOption[];
 }
+
+const COPY = {
+  en: {
+    title: 'Plan Generation',
+    subtitle: 'Choose how you want to create your workout plan.',
+    cta: 'Next Step',
+  },
+  ar: {
+    title: '\u0625\u0646\u0634\u0627\u0621 \u0627\u0644\u062e\u0637\u0629',
+    subtitle: '\u0627\u062e\u062a\u0631 \u0627\u0644\u0637\u0631\u064a\u0642\u0629 \u0627\u0644\u062a\u064a \u062a\u0631\u064a\u062f \u0628\u0647\u0627 \u0625\u0646\u0634\u0627\u0621 \u062e\u0637\u0629 \u062a\u062f\u0631\u064a\u0628\u0643.',
+    cta: '\u0627\u0644\u062e\u0637\u0648\u0629 \u0627\u0644\u062a\u0627\u0644\u064a\u0629',
+  },
+  it: {
+    title: 'Creazione del piano',
+    subtitle: 'Scegli come vuoi creare il tuo piano di allenamento.',
+    cta: 'Prossimo passo',
+  },
+  de: {
+    title: 'Planerstellung',
+    subtitle: 'Waehle, wie du deinen Trainingsplan erstellen moechtest.',
+    cta: 'Naechster Schritt',
+  },
+} as const;
+
 export function SportPlanChoiceScreen({
   onNext,
   onDataChange,
@@ -19,7 +43,7 @@ export function SportPlanChoiceScreen({
   options,
 }: SportPlanChoiceScreenProps) {
   const language = getOnboardingLanguage();
-  const isArabic = language === 'ar';
+  const copy = COPY[language] ?? COPY.en;
   const planOptions = options?.length
     ? options
     : DEFAULT_ONBOARDING_CONFIG.options.sportPlan;
@@ -30,13 +54,6 @@ export function SportPlanChoiceScreen({
   }, [onboardingData?.workoutSplitPreference]);
 
   const [selectedId, setSelectedId] = useState<string>(initialSelection);
-  const advanceToNextStep = () => {
-    if (typeof window !== 'undefined') {
-      window.setTimeout(() => onNext(), 0);
-      return;
-    }
-    onNext();
-  };
 
   const persistSelection = (nextId: string) => {
     const selectedOption = localizedOptions.find((option) => option.id === nextId);
@@ -55,10 +72,9 @@ export function SportPlanChoiceScreen({
     });
   };
 
-  const handleNext = () => {
-    persistSelection(selectedId);
-    if (selectedId === 'custom') {
-      advanceToNextStep();
+  const advanceToNextStep = () => {
+    if (typeof window !== 'undefined') {
+      window.setTimeout(() => onNext(), 0);
       return;
     }
     onNext();
@@ -67,12 +83,8 @@ export function SportPlanChoiceScreen({
   return (
     <div className="flex-1 flex flex-col space-y-6">
       <div className="space-y-2">
-        <h2 className="text-2xl font-light text-white">
-          {isArabic ? 'إنشاء الخطة' : 'Plan Generation'}
-        </h2>
-        <p className="text-text-secondary">
-          {isArabic ? 'اختر الطريقة التي تريد بها إنشاء خطة تدريبك.' : 'Choose how you want to create your workout plan.'}
-        </p>
+        <h2 className="text-2xl font-light text-white">{copy.title}</h2>
+        <p className="text-text-secondary">{copy.subtitle}</p>
       </div>
 
       <div className="space-y-3">
@@ -106,7 +118,18 @@ export function SportPlanChoiceScreen({
 
       <div className="flex-1" />
 
-      <Button onClick={handleNext}>{isArabic ? 'الخطوة التالية' : 'Next Step'}</Button>
+      <Button
+        onClick={() => {
+          persistSelection(selectedId);
+          if (selectedId === 'custom') {
+            advanceToNextStep();
+            return;
+          }
+          onNext();
+        }}
+      >
+        {copy.cta}
+      </Button>
     </div>
   );
 }

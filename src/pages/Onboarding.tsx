@@ -45,7 +45,7 @@ const toSafeNumber = (value: unknown) => {
 
 const resolveOnboardingLanguage = (value: unknown) => {
   const normalized = String(value || '').trim().toLowerCase();
-  return normalized === 'ar' || normalized === 'en' ? normalized : '';
+  return normalized === 'ar' || normalized === 'en' || normalized === 'it' || normalized === 'de' ? normalized : '';
 };
 
 const mergeOnboardingIntoUser = (user: Record<string, any>, patch: Record<string, any>) => {
@@ -264,7 +264,7 @@ export function Onboarding({ onComplete }: OnboardingProps) {
       const selectedLanguage = resolveOnboardingLanguage(onboardingData?.language)
         || resolveOnboardingLanguage(mergedUser?.language)
         || getStoredLanguage();
-      if (selectedLanguage === 'ar' || selectedLanguage === 'en') {
+      if (selectedLanguage === 'ar' || selectedLanguage === 'en' || selectedLanguage === 'it' || selectedLanguage === 'de') {
         applyLanguage(selectedLanguage, true);
       }
 
@@ -367,6 +367,27 @@ export function Onboarding({ onComplete }: OnboardingProps) {
       if (index <= 0) return currentSteps[0].id;
       return currentSteps[index - 1].id;
     });
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    try {
+      const raw = localStorage.getItem('onboardingData');
+      if (!raw) return;
+
+      const parsed = JSON.parse(raw);
+      if (!parsed || typeof parsed !== 'object') return;
+
+      setOnboardingData((prev: any) => ({ ...parsed, ...prev }));
+
+      const savedLanguage = resolveOnboardingLanguage((parsed as { language?: unknown }).language);
+      if (savedLanguage === 'ar' || savedLanguage === 'en' || savedLanguage === 'it' || savedLanguage === 'de') {
+        applyLanguage(savedLanguage, true);
+      }
+    } catch (storageError) {
+      console.warn('Failed to restore onboarding draft:', storageError);
+    }
   }, []);
 
   const currentStep = steps[stepIndex];

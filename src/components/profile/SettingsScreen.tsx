@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Header } from '../ui/Header';
 import { Bell, Shield, User, Moon, Sun, Database, Lock, SlidersHorizontal, Share2, MapPin, CreditCard, KeyRound, Scale, Mail, ChevronDown, ChevronRight, Eye, EyeOff, Languages } from 'lucide-react';
 import { applyTheme, getActiveTheme, getStoredTheme } from '../../services/theme';
-import { AppLanguage, applyLanguage, getActiveLanguage, getStoredLanguage } from '../../services/language';
+import { AppLanguage, applyLanguage, getActiveLanguage, getStoredLanguage, normalizeLocalizedValue } from '../../services/language';
 import { api } from '../../services/api';
 import {
   APP_COACHMARK_TOUR_ID,
@@ -43,6 +43,7 @@ const SETTINGS_I18N = {
     theme: 'Theme',
     language: 'Language',
     english: 'English',
+    italian: 'Italian',
     arabic: 'العربية',
     dark: 'Dark',
     light: 'Light',
@@ -165,6 +166,143 @@ const SETTINGS_I18N = {
       },
     ],
   },
+  it: {
+    settings: 'Impostazioni',
+    account: 'Account',
+    personalDetails: 'Dati personali',
+    privacyAndSecurity: 'Privacy e sicurezza',
+    preferences: 'Preferenze',
+    notifications: 'Notifiche',
+    notificationControls: 'Controlli notifiche',
+    coachMessages: 'Messaggi del coach',
+    restBetweenSets: 'Recupero tra le serie',
+    missionChallengeComplete: 'Missioni e sfide completate',
+    theme: 'Tema',
+    language: 'Lingua',
+    english: 'Inglese',
+    italian: 'Italiano',
+    arabic: 'Arabo',
+    dark: 'Scuro',
+    light: 'Chiaro',
+    appTour: 'Tour app',
+    showAppTour: 'Mostra tour app',
+    showAppTourDetail: 'Rivedi la guida della home quando vuoi un ripasso rapido.',
+    logOut: 'Esci',
+    gymAccess: 'Accesso palestra',
+    gymLocation: 'Iron Paradise Gym',
+    failedLoadNotificationSettings: 'Impossibile caricare le impostazioni notifiche',
+    failedLoadPersonalDetails: 'Impossibile caricare i dati personali',
+    failedSavePersonalDetails: 'Impossibile salvare i dati personali',
+    failedUpdatePassword: 'Impossibile aggiornare la password',
+    failedUpdateNotificationSettings: 'Impossibile aggiornare le impostazioni notifiche',
+    savedSuccessfully: 'Salvataggio completato',
+    fullName: 'Nome completo',
+    email: 'Email',
+    age: 'Eta',
+    gender: 'Genere',
+    select: 'Seleziona',
+    man: 'Uomo',
+    woman: 'Donna',
+    heightCm: 'Altezza (cm)',
+    weightKg: 'Peso (kg)',
+    sessionDuration: 'Durata sessione in palestra',
+    preferredTime: 'Orario di allenamento preferito',
+    thirtyMinutes: '30 minuti',
+    fortyFiveMinutes: '45 minuti',
+    sixtyMinutes: '60 minuti',
+    ninetyMinutes: '90 minuti',
+    morningTime: 'Mattina',
+    afternoonTime: 'Pomeriggio',
+    eveningTime: 'Sera',
+    saving: 'Salvataggio in corso...',
+    saveChanges: 'Salva modifiche',
+    changePassword: 'Cambia password',
+    oldPassword: 'Password attuale',
+    newPassword: 'Nuova password',
+    confirmNewPassword: 'Conferma nuova password',
+    updatingPassword: 'Aggiornamento password...',
+    updatePassword: 'Aggiorna password',
+    pleaseFillPasswordFields: 'Compila password attuale, nuova password e conferma',
+    newPasswordMinLength: 'La nuova password deve contenere almeno 6 caratteri',
+    confirmPasswordMismatch: 'La conferma password non corrisponde',
+    passwordUpdated: 'Password aggiornata con successo',
+    toggleLabelPrefix: 'Attiva o disattiva',
+    privacyIntro: 'Riepilogo chiaro dei dati raccolti, di come vengono protetti e dei controlli disponibili per te.',
+    privacyCards: [
+      {
+        title: '1. Dati raccolti',
+        points: [
+          'Dati personali: nome, email, eta e genere.',
+          'Dati fitness: allenamenti, obiettivi, progressi e misure corporee.',
+          'Dati salute facoltativi: calorie e input collegati alla frequenza cardiaca.',
+          'Dati tecnici: utilizzo dell\'app e diagnostica crash.',
+          'I dati di pagamento sono gestiti da fornitori di pagamento sicuri.',
+        ],
+      },
+      {
+        title: '2. Come proteggiamo i dati',
+        points: [
+          'Trasporto cifrato (HTTPS) per i dati in transito.',
+          'Controlli di accesso sicuri per cloud e database.',
+          'Accesso limitato al personale in base a ruolo e necessita.',
+          'Controlli di sicurezza e aggiornamenti periodici di hardening.',
+        ],
+      },
+      {
+        title: '3. Controlli privacy per l\'utente',
+        points: [
+          'Gestisci i permessi delle notifiche in qualsiasi momento.',
+          'Richiedi l\'esportazione dei dati dell\'account (flusso pianificato).',
+          'Richiedi l\'eliminazione permanente dell\'account.',
+          'Controlla profilo e preferenze di condivisione dati.',
+        ],
+      },
+      {
+        title: '4. Politica di condivisione dati',
+        points: [
+          'Nessuna vendita di dati personali.',
+          'I dati vengono condivisi solo quando necessario: pagamenti, analisi e obblighi legali.',
+        ],
+      },
+      {
+        title: '5. Posizione e tracciamento',
+        points: [
+          'La posizione viene usata solo per funzioni fitness basate sulla posizione, se abilitate.',
+          'Puoi disattivare il tracciamento posizione dalle impostazioni app o dispositivo.',
+          'La conservazione dei dati di posizione segue il principio del minimo necessario.',
+        ],
+      },
+      {
+        title: '6. Sicurezza dei pagamenti',
+        points: [
+          'I pagamenti passano tramite processori di terze parti affidabili.',
+          'I numeri di carta non vengono memorizzati direttamente sui nostri server.',
+        ],
+      },
+      {
+        title: '7. Funzioni di sicurezza account',
+        points: [
+          'Requisiti password robusti.',
+          'Rilevamento accessi sospetti e controlli di protezione account.',
+          'Il supporto 2FA puo essere aggiunto in versioni future.',
+        ],
+      },
+      {
+        title: '8. Conformita legale',
+        points: [
+          'Progettato seguendo principi privacy in stile GDPR.',
+          'Rispetta i requisiti applicabili su protezione dati ed eta.',
+        ],
+      },
+      {
+        title: '9. Contatti e supporto',
+        points: [
+          'Per richieste privacy: privacy@repset.app',
+          'Per supporto: usa il canale supporto/contatti dentro l\'app.',
+        ],
+      },
+    ],
+  },
   ar: {
     settings: 'الإعدادات',
     account: 'الحساب',
@@ -179,6 +317,7 @@ const SETTINGS_I18N = {
     theme: 'المظهر',
     language: 'اللغة',
     english: 'الإنجليزية',
+    italian: 'الإيطالية',
     arabic: 'العربية',
     dark: 'داكن',
     light: 'فاتح',
@@ -303,6 +442,146 @@ const SETTINGS_I18N = {
   },
 } as const;
 
+const SETTINGS_I18N_WITH_DE = {
+  ...SETTINGS_I18N,
+  de: {
+    ...SETTINGS_I18N.en,
+    settings: 'Einstellungen',
+    account: 'Konto',
+    personalDetails: 'Personliche Daten',
+    privacyAndSecurity: 'Datenschutz & Sicherheit',
+    preferences: 'Einstellungen',
+    notifications: 'Benachrichtigungen',
+    notificationControls: 'Benachrichtigungssteuerung',
+    coachMessages: 'Coach-Nachrichten',
+    restBetweenSets: 'Pause zwischen den Satzen',
+    missionChallengeComplete: 'Missionen & Challenges abgeschlossen',
+    theme: 'Design',
+    language: 'Sprache',
+    english: 'Englisch',
+    italian: 'Italienisch',
+    arabic: 'Arabisch',
+    dark: 'Dunkel',
+    light: 'Hell',
+    appTour: 'App-Tour',
+    showAppTour: 'App-Tour anzeigen',
+    showAppTourDetail: 'Spiele die Home-Einfuhrung jederzeit erneut ab.',
+    logOut: 'Abmelden',
+    gymAccess: 'Studiozugang',
+    failedLoadNotificationSettings: 'Benachrichtigungseinstellungen konnten nicht geladen werden',
+    failedLoadPersonalDetails: 'Personliche Daten konnten nicht geladen werden',
+    failedSavePersonalDetails: 'Personliche Daten konnten nicht gespeichert werden',
+    failedUpdatePassword: 'Passwort konnte nicht aktualisiert werden',
+    failedUpdateNotificationSettings: 'Benachrichtigungseinstellungen konnten nicht aktualisiert werden',
+    savedSuccessfully: 'Erfolgreich gespeichert',
+    fullName: 'Vollstandiger Name',
+    age: 'Alter',
+    gender: 'Geschlecht',
+    select: 'Auswahlen',
+    man: 'Mann',
+    woman: 'Frau',
+    heightCm: 'Grosse (cm)',
+    weightKg: 'Gewicht (kg)',
+    sessionDuration: 'Trainingsdauer im Studio',
+    preferredTime: 'Bevorzugte Trainingszeit',
+    thirtyMinutes: '30 Minuten',
+    fortyFiveMinutes: '45 Minuten',
+    sixtyMinutes: '60 Minuten',
+    ninetyMinutes: '90 Minuten',
+    morningTime: 'Morgen',
+    afternoonTime: 'Nachmittag',
+    eveningTime: 'Abend',
+    saving: 'Speichern...',
+    saveChanges: 'Anderungen speichern',
+    changePassword: 'Passwort andern',
+    oldPassword: 'Altes Passwort',
+    newPassword: 'Neues Passwort',
+    confirmNewPassword: 'Neues Passwort bestatigen',
+    updatingPassword: 'Passwort wird aktualisiert...',
+    updatePassword: 'Passwort aktualisieren',
+    pleaseFillPasswordFields: 'Bitte altes, neues und bestatigtes Passwort ausfullen',
+    newPasswordMinLength: 'Das neue Passwort muss mindestens 6 Zeichen lang sein',
+    confirmPasswordMismatch: 'Die Passwortbestatigung stimmt nicht uberein',
+    passwordUpdated: 'Passwort erfolgreich aktualisiert',
+    toggleLabelPrefix: 'Umschalten',
+    privacyIntro: 'Klare Ubersicht daruber, welche Daten gesammelt werden, wie sie geschutzt werden und welche Einstellungen dir zur Verfugung stehen.',
+    privacyCards: [
+      {
+        title: '1. Daten, die du bereitstellst',
+        points: [
+          'Personliche Daten: Name, E-Mail, Alter und Geschlecht.',
+          'Fitnessdaten: Workouts, Ziele, Fortschritt und Korperwerte.',
+          'Optionale Gesundheitsdaten: Kalorien und herzfrequenzbezogene Eingaben.',
+          'Technische Daten: App-Nutzung und Absturzdiagnosen.',
+          'Zahlungsdaten werden von sicheren Zahlungsanbietern verarbeitet.',
+        ],
+      },
+      {
+        title: '2. Wie wir Daten schutzen',
+        points: [
+          'Verschlusselte Ubertragung (HTTPS) fur Daten wahrend der Ubermittlung.',
+          'Sichere Zugriffssteuerung fur Cloud und Datenbank.',
+          'Begrenzter Mitarbeiterzugriff nach Rolle und Bedarf.',
+          'Sicherheitsprufungen und regelmassige Hardening-Updates.',
+        ],
+      },
+      {
+        title: '3. Datenschutzkontrollen fur Nutzer',
+        points: [
+          'Benachrichtigungsrechte konnen jederzeit verwaltet werden.',
+          'Export deiner Kontodaten anfordern (geplanter Ablauf).',
+          'Dauerhafte Loschung des Kontos anfordern.',
+          'Profil- und Freigabeeinstellungen selbst steuern.',
+        ],
+      },
+      {
+        title: '4. Richtlinie zur Datenweitergabe',
+        points: [
+          'Keine Weiterverauferung personlicher Daten.',
+          'Daten werden nur bei Bedarf geteilt: Zahlungsanbieter, Analysen oder gesetzliche Pflichten.',
+        ],
+      },
+      {
+        title: '5. Standort & Tracking',
+        points: [
+          'Standort wird nur fur standortbasierte Fitnessfunktionen genutzt, wenn aktiviert.',
+          'Nutzer konnen Standorttracking in den App- oder Gerateeinstellungen deaktivieren.',
+          'Standortdaten werden nur so lange wie notig gespeichert.',
+        ],
+      },
+      {
+        title: '6. Zahlungssicherheit',
+        points: [
+          'Zahlungen laufen uber vertrauenswurdige Drittanbieter.',
+          'Kartennummern werden nicht direkt auf unseren Servern gespeichert.',
+        ],
+      },
+      {
+        title: '7. Kontosicherheitsfunktionen',
+        points: [
+          'Starke Passwortanforderungen.',
+          'Erkennung verdachtiger Anmeldungen und Schutzmechanismen fur Konten.',
+          '2FA-Unterstutzung kann in zukunftigen Versionen hinzugefugt werden.',
+        ],
+      },
+      {
+        title: '8. Rechtliche Konformitat',
+        points: [
+          'Entwickelt nach Datenschutzprinzipien im Stil der DSGVO.',
+          'Beachtet geltende Datenschutz- und altersbezogene Anforderungen.',
+        ],
+      },
+      {
+        title: '9. Kontakt & Support',
+        points: [
+          'Bei Datenschutzfragen: privacy@repset.app',
+          'Fur Support: Nutze den Support-/Kontaktbereich in der App.',
+        ],
+      },
+    ],
+  },
+} as const;
+
 export function SettingsScreen({ onBack, onOpenGym, onOpenHomeTour }: SettingsScreenProps) {
   const [theme, setTheme] = useState<'dark' | 'light'>('dark');
   const [language, setLanguage] = useState<AppLanguage>('en');
@@ -343,7 +622,7 @@ export function SettingsScreen({ onBack, onOpenGym, onOpenHomeTour }: SettingsSc
   });
   const [loadingNotificationSettings, setLoadingNotificationSettings] = useState(false);
   const [notificationSettingsError, setNotificationSettingsError] = useState('');
-  const copy = SETTINGS_I18N[language] || SETTINGS_I18N.en;
+  const copy = normalizeLocalizedValue(SETTINGS_I18N_WITH_DE[language] || SETTINGS_I18N_WITH_DE.en);
   const languageActiveClass = 'bg-white/10 border-accent text-white';
   const languageInactiveClass = 'bg-background border-white/10 text-text-secondary hover:bg-white/5';
 
@@ -399,7 +678,7 @@ export function SettingsScreen({ onBack, onOpenGym, onOpenHomeTour }: SettingsSc
         setNotificationSettings(next);
         localStorage.setItem('notificationSettings', JSON.stringify(next));
       } catch (error: any) {
-        const fallbackCopy = SETTINGS_I18N[getStoredLanguage()] || SETTINGS_I18N.en;
+        const fallbackCopy = SETTINGS_I18N_WITH_DE[getStoredLanguage()] || SETTINGS_I18N_WITH_DE.en;
         setNotificationSettingsError(error?.message || fallbackCopy.failedLoadNotificationSettings);
       } finally {
         setLoadingNotificationSettings(false);
@@ -435,7 +714,7 @@ export function SettingsScreen({ onBack, onOpenGym, onOpenHomeTour }: SettingsSc
           experienceLevel: data?.experienceLevel || '',
         });
       } catch (error: any) {
-        const fallbackCopy = SETTINGS_I18N[getStoredLanguage()] || SETTINGS_I18N.en;
+        const fallbackCopy = SETTINGS_I18N_WITH_DE[getStoredLanguage()] || SETTINGS_I18N_WITH_DE.en;
         setDetailsError(error?.message || fallbackCopy.failedLoadPersonalDetails);
       }
     };
@@ -965,7 +1244,7 @@ export function SettingsScreen({ onBack, onOpenGym, onOpenHomeTour }: SettingsSc
           <h3 className="text-sm font-medium text-text-secondary uppercase tracking-wider px-2">
             {copy.theme}
           </h3>
-          <div className="bg-card rounded-2xl border border-white/5 p-3 grid grid-cols-2 gap-3">
+          <div className="bg-card rounded-2xl border border-white/5 p-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
             <button
               type="button"
               onClick={() => handleThemeChange('dark')}
@@ -997,7 +1276,7 @@ export function SettingsScreen({ onBack, onOpenGym, onOpenHomeTour }: SettingsSc
           <h3 className="text-sm font-medium text-text-secondary uppercase tracking-wider px-2">
             {copy.language}
           </h3>
-          <div className="bg-card rounded-2xl border border-white/5 p-3 grid grid-cols-2 gap-3">
+          <div className="bg-card rounded-2xl border border-white/5 p-3 grid grid-cols-3 gap-3">
             <button
               type="button"
               onClick={() => handleLanguageChange('en')}
@@ -1021,6 +1300,30 @@ export function SettingsScreen({ onBack, onOpenGym, onOpenHomeTour }: SettingsSc
             >
               <Languages size={16} />
               <span className="text-sm font-medium">{copy.arabic}</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => handleLanguageChange('it')}
+              className={`rounded-xl p-3 border transition-colors flex items-center justify-center gap-2 ${
+                language === 'it'
+                  ? languageActiveClass
+                  : languageInactiveClass
+              }`}
+            >
+              <Languages size={16} />
+              <span className="text-sm font-medium">{copy.italian}</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => handleLanguageChange('de')}
+              className={`rounded-xl p-3 border transition-colors flex items-center justify-center gap-2 ${
+                language === 'de'
+                  ? languageActiveClass
+                  : languageInactiveClass
+              }`}
+            >
+              <Languages size={16} />
+              <span className="text-sm font-medium">Deutsch</span>
             </button>
           </div>
         </div>

@@ -12,38 +12,60 @@ interface AIAnalysisScreenProps {
   userId?: number;
 }
 
+const COPY = {
+  en: {
+    title: 'Generating your daily schedule...',
+    subtitle: 'This can take a little time while we build your personalized plan.',
+    checkpoints: [
+      'Analyzing your profile and activity level',
+      'Building your personalized training schedule',
+      'Finalizing plan and recovery targets',
+    ],
+    finalizing: 'Finalizing your plan...',
+    preparing: 'This can take a little time. We are preparing everything for you...',
+  },
+  ar: {
+    title: '\u062c\u0627\u0631\u064a \u0625\u0646\u0634\u0627\u0621 \u062c\u062f\u0648\u0644\u0643 \u0627\u0644\u064a\u0648\u0645\u064a...',
+    subtitle: '\u0642\u062f \u064a\u0633\u062a\u063a\u0631\u0642 \u0647\u0630\u0627 \u0628\u0639\u0636 \u0627\u0644\u0648\u0642\u062a \u0644\u0623\u0646\u0646\u0627 \u0646\u0628\u0646\u064a \u062e\u0637\u0629 \u0645\u062e\u0635\u0635\u0629 \u0644\u0643.',
+    checkpoints: [
+      '\u062c\u0627\u0631\u064a \u062a\u062d\u0644\u064a\u0644 \u0645\u0644\u0641\u0643 \u0648\u0645\u0633\u062a\u0648\u0649 \u0646\u0634\u0627\u0637\u0643',
+      '\u062c\u0627\u0631\u064a \u0628\u0646\u0627\u0621 \u062c\u062f\u0648\u0644 \u062a\u062f\u0631\u064a\u0628\u0643 \u0627\u0644\u0645\u062e\u0635\u0635',
+      '\u062c\u0627\u0631\u064a \u0625\u0646\u0647\u0627\u0621 \u0627\u0644\u062e\u0637\u0629 \u0648\u0623\u0647\u062f\u0627\u0641 \u0627\u0644\u062a\u0639\u0627\u0641\u064a',
+    ],
+    finalizing: '\u062c\u0627\u0631\u064a \u0625\u0646\u0647\u0627\u0621 \u062e\u0637\u062a\u0643...',
+    preparing: '\u0642\u062f \u064a\u0633\u062a\u063a\u0631\u0642 \u0647\u0630\u0627 \u0628\u0639\u0636 \u0627\u0644\u0648\u0642\u062a. \u0646\u062c\u0647\u0632 \u0643\u0644 \u0634\u064a\u0621 \u0644\u0643...',
+  },
+  it: {
+    title: 'Stiamo creando il tuo programma quotidiano...',
+    subtitle: 'Potrebbe richiedere un po di tempo mentre costruiamo il tuo piano personalizzato.',
+    checkpoints: [
+      'Analisi del tuo profilo e livello di attivita',
+      'Creazione del tuo programma di allenamento personalizzato',
+      'Definizione finale del piano e del recupero',
+    ],
+    finalizing: 'Stiamo finalizzando il tuo piano...',
+    preparing: 'Potrebbe volerci un momento. Stiamo preparando tutto per te...',
+  },
+  de: {
+    title: 'Dein Tagesplan wird erstellt...',
+    subtitle: 'Das kann einen Moment dauern, waehrend wir deinen persoenlichen Plan aufbauen.',
+    checkpoints: [
+      'Dein Profil und Aktivitaetslevel werden analysiert',
+      'Dein persoenlicher Trainingsplan wird aufgebaut',
+      'Plan und Erholungsziele werden finalisiert',
+    ],
+    finalizing: 'Dein Plan wird finalisiert...',
+    preparing: 'Das kann kurz dauern. Wir bereiten gerade alles fuer dich vor...',
+  },
+} as const;
+
 export function AIAnalysisScreen({ onComplete, onboardingData, userId }: AIAnalysisScreenProps) {
   const language = getOnboardingLanguage();
-  const isArabic = language === 'ar';
-  const copy = isArabic
-    ? {
-        title: 'جاري إنشاء جدولك اليومي...',
-        subtitle: 'قد يستغرق هذا بعض الوقت لأننا نبني خطة مخصصة لك.',
-        checkpoints: [
-          'جاري تحليل ملفك ومستوى نشاطك',
-          'جاري بناء جدول تدريبك المخصص',
-          'جاري إنهاء الخطة وأهداف التعافي',
-        ],
-        finalizing: 'جاري إنهاء خطتك...',
-        preparing: 'قد يستغرق هذا بعض الوقت. نجهّز كل شيء لك...',
-      }
-    : {
-        title: 'Generating your daily schedule...',
-        subtitle: 'This can take a little time while we build your personalized plan.',
-        checkpoints: [
-          'Analyzing your profile and activity level',
-          'Building your personalized training schedule',
-          'Finalizing plan and recovery targets',
-        ],
-        finalizing: 'Finalizing your plan...',
-        preparing: 'This can take a little time. We are preparing everything for you...',
-      };
+  const copy = COPY[language] ?? COPY.en;
   const checkpoints = copy.checkpoints;
   const [isGenerationDone, setIsGenerationDone] = useState(false);
   const [progress, setProgress] = useState(0);
-  const [completedSteps, setCompletedSteps] = useState<boolean[]>(
-    () => checkpoints.map(() => false),
-  );
+  const [completedSteps, setCompletedSteps] = useState<boolean[]>(() => checkpoints.map(() => false));
   const completedRef = useRef(false);
 
   const checkpointThresholds = useMemo(() => {
@@ -188,9 +210,7 @@ export function AIAnalysisScreen({ onComplete, onboardingData, userId }: AIAnaly
           {copy.title}
         </h2>
 
-        <p className="mt-3 text-center text-sm text-text-secondary">
-          {copy.subtitle}
-        </p>
+        <p className="mt-3 text-center text-sm text-text-secondary">{copy.subtitle}</p>
 
         <div className="mt-10 flex justify-center">
           <div className="relative w-48 h-48 flex items-center justify-center">
@@ -241,9 +261,7 @@ export function AIAnalysisScreen({ onComplete, onboardingData, userId }: AIAnaly
                 ) : (
                   <Circle size={18} className="text-text-tertiary shrink-0" />
                 )}
-                <p className={`text-sm ${done ? 'text-text-primary' : 'text-text-secondary'}`}>
-                  {item}
-                </p>
+                <p className={`text-sm ${done ? 'text-text-primary' : 'text-text-secondary'}`}>{item}</p>
               </div>
             );
           })}

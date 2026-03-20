@@ -11,6 +11,29 @@ interface AppMotivationScreenProps {
   options?: MotivationOption[];
 }
 
+const COPY = {
+  en: {
+    title: 'What brings you to RepSet?',
+    subtitle: 'Pick the main reason so we can tailor your onboarding and first plan.',
+    cta: 'Continue',
+  },
+  ar: {
+    title: '\u0645\u0627 \u0627\u0644\u0630\u064a \u062c\u0627\u0621 \u0628\u0643 \u0625\u0644\u0649 RepSet\u061f',
+    subtitle: '\u0627\u062e\u062a\u0631 \u0627\u0644\u0633\u0628\u0628 \u0627\u0644\u0631\u0626\u064a\u0633\u064a \u0644\u0646\u062e\u0635\u0635 \u0644\u0643 \u062e\u0637\u0648\u0627\u062a \u0627\u0644\u0628\u062f\u0627\u064a\u0629 \u0648\u0627\u0644\u062e\u0637\u0629 \u0627\u0644\u0623\u0648\u0644\u0649.',
+    cta: '\u0645\u062a\u0627\u0628\u0639\u0629',
+  },
+  it: {
+    title: 'Cosa ti porta su RepSet?',
+    subtitle: 'Scegli il motivo principale cosi possiamo personalizzare onboarding e primo piano.',
+    cta: 'Continua',
+  },
+  de: {
+    title: 'Warum bist du bei RepSet?',
+    subtitle: 'Waehle den Hauptgrund, damit wir dein Onboarding und deinen ersten Plan anpassen koennen.',
+    cta: 'Weiter',
+  },
+} as const;
+
 export function AppMotivationScreen({
   onNext,
   onDataChange,
@@ -18,7 +41,7 @@ export function AppMotivationScreen({
   options,
 }: AppMotivationScreenProps) {
   const language = getOnboardingLanguage();
-  const isArabic = language === 'ar';
+  const copy = COPY[language] ?? COPY.en;
   const motivationOptions = options?.length
     ? options
     : DEFAULT_ONBOARDING_CONFIG.options.appMotivation;
@@ -41,24 +64,11 @@ export function AppMotivationScreen({
     });
   };
 
-  const handleNext = () => {
-    const selectedOption = localizedOptions.find((option) => option.id === selectedId);
-    if (!selectedOption) return;
-
-    onNext();
-  };
-
   return (
     <div className="flex-1 flex flex-col space-y-6">
       <div className="space-y-2">
-        <h2 className="text-2xl font-light text-white">
-          {isArabic ? 'ما الذي جاء بك إلى RepSet؟' : 'What brings you to RepSet?'}
-        </h2>
-        <p className="text-text-secondary">
-          {isArabic
-            ? 'اختر السبب الرئيسي لنخصص لك خطوات البداية والخطة الأولى.'
-            : 'Pick the main reason so we can tailor your onboarding and first plan.'}
-        </p>
+        <h2 className="text-2xl font-light text-white">{copy.title}</h2>
+        <p className="text-text-secondary">{copy.subtitle}</p>
       </div>
 
       <div className="space-y-4">
@@ -92,8 +102,8 @@ export function AppMotivationScreen({
 
       <div className="flex-1" />
 
-      <Button onClick={handleNext} disabled={!selectedId}>
-        {isArabic ? 'متابعة' : 'Continue'}
+      <Button onClick={onNext} disabled={!selectedId}>
+        {copy.cta}
       </Button>
     </div>
   );

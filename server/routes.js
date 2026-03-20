@@ -154,6 +154,8 @@ const normalizeBiWeeklyReportItems = (items, fallbackItems = []) => {
 const getBiWeeklyReportLanguage = (req) => {
   const raw = String(req.headers['accept-language'] || '').trim().toLowerCase();
   if (/(^|,|\s)ar\b/.test(raw)) return 'ar';
+  if (/(^|,|\s)it\b/.test(raw)) return 'it';
+  if (/(^|,|\s)de\b/.test(raw)) return 'de';
   return 'en';
 };
 
@@ -161,6 +163,12 @@ const getBiWeeklyReportAiUnavailableLegacyNotice = (req) => {
   const language = getBiWeeklyReportLanguage(req);
   if (language === 'ar') {
     return 'OpenAI غير متاح حالياً. يتم عرض التقرير القياسي بدلاً من ذلك.';
+  }
+  if (language === 'it') {
+    return 'L\'AI non e disponibile al momento. Mostriamo invece il report standard.';
+  }
+  if (language === 'de') {
+    return 'KI ist im Moment nicht verfugbar. Stattdessen wird der Standardbericht angezeigt.';
   }
   return 'AI unavailable right now. Showing the standard report instead.';
 };
@@ -215,7 +223,11 @@ const maybeGenerateOpenAIBiWeeklyReport = async ({
           'Return up to 3 items for improvements and up to 3 items for nextFocus.',
           language === 'ar'
             ? 'Write all user-facing text in Arabic.'
-            : 'Write all user-facing text in English.',
+            : language === 'it'
+              ? 'Write all user-facing text in Italian.'
+              : language === 'de'
+                ? 'Write all user-facing text in German.'
+                : 'Write all user-facing text in English.',
         ].join(' '),
       },
       {
@@ -324,7 +336,11 @@ const maybeGenerateClaudeBiWeeklyReport = async ({
           'Return up to 3 items for improvements and up to 3 items for nextFocus.',
           language === 'ar'
             ? 'Write all user-facing text in Arabic.'
-            : 'Write all user-facing text in English.',
+            : language === 'it'
+              ? 'Write all user-facing text in Italian.'
+              : language === 'de'
+                ? 'Write all user-facing text in German.'
+                : 'Write all user-facing text in English.',
         ].join(' '),
         messages: [
           {
@@ -4945,7 +4961,15 @@ router.post('/user/onboarding', authMutationRateLimit, requireAuth('user'), asyn
     const normalizedAiLimitations = String(aiLimitations || '').trim().slice(0, 300) || null;
     const normalizedAiRecoveryPriority = String(aiRecoveryPriority || '').trim().toLowerCase().slice(0, 40) || null;
     const normalizedAiEquipmentNotes = String(aiEquipmentNotes || '').trim().slice(0, 240) || null;
-    const normalizedLanguage = String(req.body?.language || '').trim().toLowerCase() === 'ar' ? 'ar' : 'en';
+    const requestedLanguage = String(req.body?.language || '').trim().toLowerCase();
+    const normalizedLanguage =
+      requestedLanguage === 'ar'
+        ? 'ar'
+        : requestedLanguage === 'it'
+          ? 'it'
+          : requestedLanguage === 'de'
+            ? 'de'
+          : 'en';
     const normalizedAthleteIdentity = normalizeAthleteIdentity(athleteIdentity || req.body.athlete_identity);
     const normalizedAthleteIdentityLabel = normalizeShortText(
       athleteIdentityLabel || req.body.athlete_identity_label,

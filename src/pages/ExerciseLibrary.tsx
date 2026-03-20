@@ -1,19 +1,20 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Header } from '../components/ui/Header';
-import { Card } from '../components/ui/Card';
 import { Heart, Play } from 'lucide-react';
+import { Card } from '../components/ui/Card';
+import { Header } from '../components/ui/Header';
 import { api } from '../services/api';
 import { getBodyPartImage } from '../services/bodyPartTheme';
-import { inferExerciseVideoBodyPart, normalizeExerciseVideoLookup } from '../shared/exerciseVideoManifest.js';
 import { listExerciseVideoAssets, resolveExerciseVideo } from '../services/exerciseVideos';
-import { getActiveLanguage, getStoredLanguage } from '../services/language';
+import { AppLanguage, getActiveLanguage, getStoredLanguage, pickLanguage } from '../services/language';
+import { inferExerciseVideoBodyPart, normalizeExerciseVideoLookup } from '../shared/exerciseVideoManifest.js';
 
 interface ExerciseLibraryProps {
   onBack: () => void;
-  onExerciseClick: (exercise: {name: string, muscle: string, video?: string | null}) => void;
+  onExerciseClick: (exercise: { name: string; muscle: string; video?: string | null }) => void;
   initialFilter?: string;
   onFilterChange?: (filter: string) => void;
 }
+
 interface CatalogExercise {
   id: number;
   name: string;
@@ -94,19 +95,39 @@ export function ExerciseLibrary({
   initialFilter = 'All',
   onFilterChange,
 }: ExerciseLibraryProps) {
-  const isArabic = getActiveLanguage(getStoredLanguage()) === 'ar';
-  const copy = {
-    title: isArabic ? 'مكتبة التمارين' : 'Exercise Library',
-    buildStronger: (label: string) => (isArabic ? `قوِّ عضلات ${label}` : `Build Stronger ${label}`),
-    loadError: isArabic ? 'تعذر تحميل التمارين' : 'Failed to load exercises',
-    empty: isArabic ? 'لا توجد فيديوهات لهذه العضلة بعد.' : 'No videos added for this muscle yet.',
-  };
+  const [language, setLanguage] = useState<AppLanguage>(() => getActiveLanguage(getStoredLanguage()));
+  const copy = pickLanguage(language, {
+    en: {
+      title: 'Exercise Library',
+      buildStronger: (label: string) => `Build Stronger ${label}`,
+      loadError: 'Failed to load exercises',
+      empty: 'No videos added for this muscle yet.',
+    },
+    ar: {
+      title: 'مكتبة التمارين',
+      buildStronger: (label: string) => `قوِّ عضلات ${label}`,
+      loadError: 'تعذر تحميل التمارين',
+      empty: 'لا توجد فيديوهات لهذه العضلة بعد.',
+    },
+    it: {
+      title: 'Libreria Esercizi',
+      buildStronger: (label: string) => `Allena meglio ${label}`,
+      loadError: 'Impossibile caricare gli esercizi',
+      empty: 'Non ci sono ancora video per questo gruppo muscolare.',
+    },
+    de: {
+      title: 'Ubungsbibliothek',
+      buildStronger: (label: string) => `Starkere ${label}`,
+      loadError: 'Ubungen konnten nicht geladen werden',
+      empty: 'Fur diese Muskelgruppe gibt es noch keine Videos.',
+    },
+  });
   const [selectedFilter, setSelectedFilter] = useState(initialFilter || 'All');
   const [filters, setFilters] = useState<string[]>(['All', 'Chest', 'Back', 'Legs', 'Shoulders', 'Arms', 'Abs']);
   const [exercises, setExercises] = useState<CatalogExercise[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [likes, setLikes] = useState<{[key: string]: {count: number, liked: boolean}}>({});
+  const [likes, setLikes] = useState<{ [key: string]: { count: number; liked: boolean } }>({});
   const bodyPartSkeletons = Array.from({ length: 6 }, (_, index) => `body-part-skeleton-${index}`);
   const exerciseSkeletons = Array.from({ length: 6 }, (_, index) => `exercise-skeleton-${index}`);
 
@@ -115,29 +136,88 @@ export function ExerciseLibrary({
   }, [initialFilter]);
 
   useEffect(() => {
+    const handleLanguageChanged = () => {
+      setLanguage(getActiveLanguage(getStoredLanguage()));
+    };
+
+    handleLanguageChanged();
+    window.addEventListener('app-language-changed', handleLanguageChanged);
+    return () => window.removeEventListener('app-language-changed', handleLanguageChanged);
+  }, []);
+
+  useEffect(() => {
     onFilterChange?.(selectedFilter);
   }, [onFilterChange, selectedFilter]);
 
   const getMuscleLabel = (value: string) => {
-    if (!isArabic) return value;
     const key = String(value || '').trim().toLowerCase();
-    const map: Record<string, string> = {
-      abs: 'البطن',
-      arms: 'الذراعين',
-      arm: 'الذراعين',
-      back: 'الظهر',
-      biceps: 'العضلة ذات الرأسين',
-      bicep: 'العضلة ذات الرأسين',
-      chest: 'الصدر',
-      legs: 'الأرجل',
-      leg: 'الأرجل',
-      shoulders: 'الأكتاف',
-      shoulder: 'الأكتاف',
-      triceps: 'العضلة ثلاثية الرؤوس',
-      tricep: 'العضلة ثلاثية الرؤوس',
-      general: 'عام',
-    };
-    return map[key] ?? value;
+    const labels = pickLanguage(language, {
+      en: {
+        abs: 'Abs',
+        arms: 'Arms',
+        arm: 'Arms',
+        back: 'Back',
+        biceps: 'Biceps',
+        bicep: 'Biceps',
+        chest: 'Chest',
+        legs: 'Legs',
+        leg: 'Legs',
+        shoulders: 'Shoulders',
+        shoulder: 'Shoulders',
+        triceps: 'Triceps',
+        tricep: 'Triceps',
+        general: 'General',
+      },
+      ar: {
+        abs: 'البطن',
+        arms: 'الذراعين',
+        arm: 'الذراعين',
+        back: 'الظهر',
+        biceps: 'العضلة ذات الرأسين',
+        bicep: 'العضلة ذات الرأسين',
+        chest: 'الصدر',
+        legs: 'الأرجل',
+        leg: 'الأرجل',
+        shoulders: 'الأكتاف',
+        shoulder: 'الأكتاف',
+        triceps: 'العضلة ثلاثية الرؤوس',
+        tricep: 'العضلة ثلاثية الرؤوس',
+        general: 'عام',
+      },
+      it: {
+        abs: 'Addome',
+        arms: 'Braccia',
+        arm: 'Braccia',
+        back: 'Schiena',
+        biceps: 'Bicipiti',
+        bicep: 'Bicipiti',
+        chest: 'Petto',
+        legs: 'Gambe',
+        leg: 'Gambe',
+        shoulders: 'Spalle',
+        shoulder: 'Spalle',
+        triceps: 'Tricipiti',
+        tricep: 'Tricipiti',
+        general: 'Generale',
+      },
+      de: {
+        abs: 'Bauch',
+        arms: 'Arme',
+        arm: 'Arme',
+        back: 'Rucken',
+        biceps: 'Bizeps',
+        bicep: 'Bizeps',
+        chest: 'Brust',
+        legs: 'Beine',
+        leg: 'Beine',
+        shoulders: 'Schultern',
+        shoulder: 'Schultern',
+        triceps: 'Trizeps',
+        tricep: 'Trizeps',
+        general: 'Allgemein',
+      },
+    });
+    return labels[key as keyof typeof labels] ?? value;
   };
 
   useEffect(() => {
@@ -329,15 +409,9 @@ export function ExerciseLibrary({
     });
   }, [exercisesWithVideo, selectedFilter]);
 
-  const getCount = (filter: string) => {
-    if (filter === 'All') return exercisesWithVideo.length;
-    const count = exercisesWithVideo.filter(ex => ex.muscle === filter).length;
-    return count > 99 ? '99+' : count;
-  };
-
   return (
-    <div className="flex-1 flex flex-col bg-background min-h-screen pb-24">
-      <div className="px-4 sm:px-6 pt-2">
+    <div className="flex min-h-screen flex-1 flex-col bg-background pb-24">
+      <div className="px-4 pt-2 sm:px-6">
         <Header
           title={selectedFilter === 'All' ? copy.title : copy.buildStronger(getMuscleLabel(selectedFilter))}
           titleClassName="font-black uppercase tracking-[0.06em]"
@@ -346,15 +420,15 @@ export function ExerciseLibrary({
       </div>
 
       {selectedFilter === 'All' && !loading && (
-        <div className="px-4 sm:px-6 mb-6 space-y-3">
-        <div className="grid grid-cols-3 gap-3 sm:grid-cols-6">
+        <div className="mb-6 space-y-3 px-4 sm:px-6">
+          <div className="grid grid-cols-3 gap-3 sm:grid-cols-6">
             {visibleMuscleFilters.map((filter) => {
               const label = getMuscleLabel(filter);
               return (
                 <button
                   key={filter}
                   onClick={() => setSelectedFilter(filter)}
-                  className="rounded-2xl border border-white/10 bg-card p-3 text-center transition-all hover:border-accent/30 hover:bg-white/[0.03] overflow-hidden"
+                  className="overflow-hidden rounded-2xl border border-white/10 bg-card p-3 text-center transition-all hover:border-accent/30 hover:bg-white/[0.03]"
                 >
                   <div className="-mx-3 -mt-1 overflow-hidden">
                     <img
@@ -375,12 +449,12 @@ export function ExerciseLibrary({
       )}
 
       {loading && selectedFilter === 'All' && (
-        <div className="px-4 sm:px-6 mb-6">
+        <div className="mb-6 px-4 sm:px-6">
           <div className="grid grid-cols-3 gap-3 sm:grid-cols-6">
             {bodyPartSkeletons.map((key) => (
               <div
                 key={key}
-                className="rounded-2xl border border-white/10 bg-card p-3 animate-pulse overflow-hidden"
+                className="overflow-hidden rounded-2xl border border-white/10 bg-card p-3 animate-pulse"
               >
                 <div className="-mx-3 -mt-1 h-28 w-[calc(100%+1.5rem)] bg-white/5 sm:h-32" />
                 <div className="-mx-3 mt-1 border-t border-white/10" />
@@ -393,11 +467,11 @@ export function ExerciseLibrary({
       )}
 
       {loading && selectedFilter !== 'All' && (
-        <div className="px-4 sm:px-6 grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-2 gap-4 px-4 sm:px-6">
           {exerciseSkeletons.map((key) => (
             <div
               key={key}
-              className="surface-card rounded-2xl border border-white/10 overflow-hidden animate-pulse"
+              className="surface-card overflow-hidden rounded-2xl border border-white/10 animate-pulse"
             >
               <div className="aspect-[4/3] w-full bg-white/5" />
               <div className="px-3 pb-3 pt-3">
@@ -412,12 +486,12 @@ export function ExerciseLibrary({
       )}
 
       {!loading && error && (
-        <div className="px-4 sm:px-6 text-red-400 text-sm">{error}</div>
+        <div className="px-4 text-sm text-red-400 sm:px-6">{error}</div>
       )}
 
       {!loading && !error && selectedFilter !== 'All' && (
         <>
-          <div className="px-4 sm:px-6 grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-2 gap-4 px-4 sm:px-6">
             {filteredExercises.map((exercise) => {
               const likeKey = `${exercise.muscle}:${exercise.videoAssetName}`;
               const likeData = likes[likeKey] || { count: 0, liked: false };
@@ -427,7 +501,7 @@ export function ExerciseLibrary({
                 <Card
                   key={`${exercise.id}-${exercise.videoAssetName}`}
                   onClick={() => onExerciseClick({ name: exercise.name, muscle: exercise.muscle, video: videoUrl })}
-                  className="cursor-pointer overflow-hidden !p-0 transition-colors group hover:border-accent/20"
+                  className="group cursor-pointer overflow-hidden !p-0 transition-colors hover:border-accent/20"
                 >
                   <div className="relative flex aspect-[4/3] items-center justify-center overflow-hidden bg-white/5">
                     <video
@@ -465,7 +539,7 @@ export function ExerciseLibrary({
             })}
           </div>
           {filteredExercises.length === 0 && (
-            <div className="px-4 sm:px-6 mt-6">
+            <div className="mt-6 px-4 sm:px-6">
               <div className="surface-card rounded-2xl border border-white/10 p-5 text-center text-sm text-text-secondary">
                 {copy.empty}
               </div>
@@ -473,7 +547,6 @@ export function ExerciseLibrary({
           )}
         </>
       )}
-    </div>);
-
+    </div>
+  );
 }
-

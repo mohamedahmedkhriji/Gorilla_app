@@ -3,7 +3,7 @@ import { Header } from '../ui/Header';
 import { Trophy, Medal, Award, UserRound } from 'lucide-react';
 import { api } from '../../services/api';
 import { rankTopScoreIcon } from '../../services/rankTheme';
-import { getActiveLanguage, getStoredLanguage } from '../../services/language';
+import { getActiveLanguage, getStoredLanguage, pickLanguage } from '../../services/language';
 
 interface LeaderboardScreenProps {
   onBack: () => void;
@@ -39,20 +39,61 @@ const isValidImageDataUrl = (value: string | null | undefined) =>
   typeof value === 'string' && value.startsWith('data:image/') && value.includes(';base64,');
 
 export function LeaderboardScreen({ onBack }: LeaderboardScreenProps) {
-  const isArabic = getActiveLanguage(getStoredLanguage()) === 'ar';
-  const copy = {
-    title: isArabic ? 'لوحة الصدارة' : 'Leaderboard',
-    monthly: isArabic ? 'شهري' : 'Monthly',
-    allTime: isArabic ? 'كل الوقت' : 'All Time',
-    loading: isArabic ? 'جارٍ تحميل لوحة الصدارة...' : 'Loading leaderboard...',
-    loadError: isArabic ? 'تعذر تحميل لوحة الصدارة' : 'Failed to load leaderboard',
-    empty: isArabic ? 'لا توجد بيانات للصدارة.' : 'No leaderboard data found.',
-    level: isArabic ? 'المستوى' : 'Level',
-    pts: isArabic ? 'نقطة' : 'pts',
-    profileAlt: isArabic ? 'الملف الشخصي' : 'Profile',
-    topScoreAlt: isArabic ? 'أعلى نتيجة' : 'Top score',
-    fallbackUser: isArabic ? 'مستخدم' : 'User',
-  };
+  const language = getActiveLanguage(getStoredLanguage());
+  const copy = pickLanguage(language, {
+    en: {
+      title: 'Leaderboard',
+      monthly: 'Monthly',
+      allTime: 'All Time',
+      loading: 'Loading leaderboard...',
+      loadError: 'Failed to load leaderboard',
+      empty: 'No leaderboard data found.',
+      level: 'Level',
+      pts: 'pts',
+      profileAlt: 'Profile',
+      topScoreAlt: 'Top score',
+      fallbackUser: 'User',
+    },
+    ar: {
+      title: 'Ù„ÙˆØ­Ø© Ø§Ù„ØµØ¯Ø§Ø±Ø©',
+      monthly: 'Ø´Ù‡Ø±ÙŠ',
+      allTime: 'ÙƒÙ„ Ø§Ù„ÙˆÙ‚Øª',
+      loading: 'Ø¬Ø§Ø±Ù ØªØ­Ù…ÙŠÙ„ Ù„ÙˆØ­Ø© Ø§Ù„ØµØ¯Ø§Ø±Ø©...',
+      loadError: 'ØªØ¹Ø°Ø± ØªØ­Ù…ÙŠÙ„ Ù„ÙˆØ­Ø© Ø§Ù„ØµØ¯Ø§Ø±Ø©',
+      empty: 'Ù„Ø§ ØªÙˆØ¬Ø¯ Ø¨ÙŠØ§Ù†Ø§Øª Ù„Ù„ØµØ¯Ø§Ø±Ø©.',
+      level: 'Ø§Ù„Ù…Ø³ØªÙˆÙ‰',
+      pts: 'Ù†Ù‚Ø·Ø©',
+      profileAlt: 'Ø§Ù„Ù…Ù„Ù Ø§Ù„Ø´Ø®ØµÙŠ',
+      topScoreAlt: 'Ø£Ø¹Ù„Ù‰ Ù†ØªÙŠØ¬Ø©',
+      fallbackUser: 'Ù…Ø³ØªØ®Ø¯Ù…',
+    },
+    it: {
+      title: 'Classifica',
+      monthly: 'Mensile',
+      allTime: 'Storico',
+      loading: 'Caricamento classifica...',
+      loadError: 'Impossibile caricare la classifica',
+      empty: 'Nessun dato classifica trovato.',
+      level: 'Livello',
+      pts: 'pt',
+      profileAlt: 'Profilo',
+      topScoreAlt: 'Punteggio massimo',
+      fallbackUser: 'Utente',
+    },
+    de: {
+      title: 'Bestenliste',
+      monthly: 'Monatlich',
+      allTime: 'Gesamt',
+      loading: 'Bestenliste wird geladen...',
+      loadError: 'Bestenliste konnte nicht geladen werden',
+      empty: 'Keine Bestenlisten-Daten gefunden.',
+      level: 'Level',
+      pts: 'Pkt',
+      profileAlt: 'Profil',
+      topScoreAlt: 'Top-Wert',
+      fallbackUser: 'Nutzer',
+    },
+  });
   const [tab, setTab] = useState<'monthly' | 'alltime'>('monthly');
   const [leaderboard, setLeaderboard] = useState<LeaderboardUser[]>([]);
   const [loading, setLoading] = useState(false);
@@ -222,4 +263,3 @@ export function LeaderboardScreen({ onBack }: LeaderboardScreenProps) {
     </div>
   );
 }
-

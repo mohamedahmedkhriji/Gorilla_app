@@ -5,7 +5,6 @@ import { DEFAULT_ONBOARDING_CONFIG, type SplitOption } from '../../config/onboar
 import {
   getOnboardingLanguage,
   localizeExperienceLevel,
-  localizeGenderButtonLabel,
   localizeWorkoutSplitOptions,
 } from './onboardingI18n';
 
@@ -16,6 +15,41 @@ interface WorkoutSplitScreenProps {
   options?: SplitOption[];
   recommendedByDays?: Record<string, string>;
 }
+
+const COPY = {
+  en: {
+    title: 'Choose your plan type',
+    customBadge: 'Create + AI Feedback',
+    recommendedBadge: 'Recommended for you',
+    cta: 'Next Step',
+    summary: (days: number, level: string, profile: string) =>
+      `Based on ${days} training day${days > 1 ? 's' : ''}, ${level} level, and ${profile} profile, these are your best-fit options.`,
+  },
+  ar: {
+    title: '\u0627\u062e\u062a\u0631 \u0646\u0648\u0639 \u062e\u0637\u062a\u0643',
+    customBadge: '\u0625\u0646\u0634\u0627\u0621 + \u0645\u0644\u0627\u062d\u0638\u0627\u062a \u0627\u0644\u0630\u0643\u0627\u0621 \u0627\u0644\u0627\u0635\u0637\u0646\u0627\u0639\u064a',
+    recommendedBadge: '\u0645\u0648\u0635\u0649 \u0628\u0647 \u0644\u0643',
+    cta: '\u0627\u0644\u062e\u0637\u0648\u0629 \u0627\u0644\u062a\u0627\u0644\u064a\u0629',
+    summary: (days: number, level: string, profile: string) =>
+      `\u0628\u0646\u0627\u0621\u064b \u0639\u0644\u0649 ${days} \u064a\u0648\u0645 \u062a\u062f\u0631\u064a\u0628\u060c \u0648\u0645\u0633\u062a\u0648\u0649 ${level}\u060c \u0648\u0645\u0644\u0641 ${profile}\u060c \u0647\u0630\u0647 \u0623\u0641\u0636\u0644 \u0627\u0644\u062e\u064a\u0627\u0631\u0627\u062a \u0644\u0643.`,
+  },
+  it: {
+    title: 'Scegli il tipo di piano',
+    customBadge: 'Crea + feedback AI',
+    recommendedBadge: 'Consigliato per te',
+    cta: 'Prossimo passo',
+    summary: (days: number, level: string, profile: string) =>
+      `In base a ${days} giorn${days > 1 ? 'i' : 'o'} di allenamento, livello ${level} e profilo ${profile}, queste sono le opzioni migliori per te.`,
+  },
+  de: {
+    title: 'Waehle deinen Plantyp',
+    customBadge: 'Erstellen + KI-Feedback',
+    recommendedBadge: 'Empfohlen fuer dich',
+    cta: 'Naechster Schritt',
+    summary: (days: number, level: string, profile: string) =>
+      `Basierend auf ${days} Trainingstag${days > 1 ? 'en' : ''}, Level ${level} und Profil ${profile} sind das deine besten Optionen.`,
+  },
+} as const;
 
 const toTrainingDays = (value: unknown) => {
   const parsed = Number(value);
@@ -31,6 +65,13 @@ const recommendedSplitForDays = (days: number, recommendations?: Record<string, 
   return 'push_pull_legs';
 };
 
+const PROFILE_COPY = {
+  en: { male: 'male', female: 'female', unspecified: 'general' },
+  ar: { male: '\u0630\u0643\u0631', female: '\u0623\u0646\u062b\u0649', unspecified: '\u0639\u0627\u0645' },
+  it: { male: 'uomo', female: 'donna', unspecified: 'generale' },
+  de: { male: 'Mann', female: 'Frau', unspecified: 'allgemein' },
+} as const;
+
 export function WorkoutSplitScreen({
   onNext,
   onDataChange,
@@ -39,28 +80,30 @@ export function WorkoutSplitScreen({
   recommendedByDays,
 }: WorkoutSplitScreenProps) {
   const language = getOnboardingLanguage();
-  const isArabic = language === 'ar';
+  const copy = COPY[language] ?? COPY.en;
+  const profileCopy = PROFILE_COPY[language] ?? PROFILE_COPY.en;
   const splitOptions = options?.length
     ? options
     : DEFAULT_ONBOARDING_CONFIG.options.workoutSplit;
   const localizedOptions = localizeWorkoutSplitOptions(splitOptions, language);
-  const splitRecommendations = recommendedByDays
-    || DEFAULT_ONBOARDING_CONFIG.splitRecommendations;
+  const splitRecommendations = recommendedByDays || DEFAULT_ONBOARDING_CONFIG.splitRecommendations;
   const trainingDays = toTrainingDays(onboardingData?.workoutDays);
-  const levelLabel = String(onboardingData?.experienceLevel || 'intermediate').trim().toLowerCase();
+  const levelLabel = localizeExperienceLevel(
+    String(onboardingData?.experienceLevel || 'intermediate').trim(),
+    language,
+  ).toLowerCase();
   const genderLabel = String(onboardingData?.gender || 'unspecified').trim().toLowerCase();
+  const profileLabel = genderLabel === 'male'
+    ? profileCopy.male
+    : genderLabel === 'female'
+      ? profileCopy.female
+      : profileCopy.unspecified;
+
   const availableOptions = useMemo(
     () => localizedOptions.filter((option) => option.days.includes(trainingDays)),
     [localizedOptions, trainingDays],
   );
   const recommendedId = recommendedSplitForDays(trainingDays, splitRecommendations);
-  const advanceToNextStep = () => {
-    if (typeof window !== 'undefined') {
-      window.setTimeout(() => onNext(), 0);
-      return;
-    }
-    onNext();
-  };
 
   const initialSelection = useMemo(() => {
     const saved = String(onboardingData?.workoutSplitPreference || '').trim().toLowerCase();
@@ -71,6 +114,7 @@ export function WorkoutSplitScreen({
   }, [availableOptions, onboardingData?.workoutSplitPreference, recommendedId]);
 
   const [selectedId, setSelectedId] = useState(initialSelection);
+
   const persistSelection = (optionId: string) => {
     const selectedOption = availableOptions.find((option) => option.id === optionId);
     if (!selectedOption) return;
@@ -89,11 +133,9 @@ export function WorkoutSplitScreen({
     return selectedOption;
   };
 
-  const handleNext = () => {
-    const selectedOption = persistSelection(selectedId);
-    if (!selectedOption) return;
-    if (selectedOption.id === 'custom') {
-      advanceToNextStep();
+  const advanceToNextStep = () => {
+    if (typeof window !== 'undefined') {
+      window.setTimeout(() => onNext(), 0);
       return;
     }
     onNext();
@@ -102,14 +144,8 @@ export function WorkoutSplitScreen({
   return (
     <div className="flex-1 flex flex-col space-y-6">
       <div className="space-y-2">
-        <h2 className="text-2xl font-light text-white">
-          {isArabic ? 'اختر نوع خطتك' : 'Choose your plan type'}
-        </h2>
-        <p className="text-text-secondary">
-          {isArabic
-            ? `بناءً على ${trainingDays} يوم تدريب، ومستوى ${localizeExperienceLevel(levelLabel, language)}، وملف ${localizeGenderButtonLabel(genderLabel, language)}، هذه أفضل الخيارات لك.`
-            : `Based on ${trainingDays} training day${trainingDays > 1 ? 's' : ''}, ${levelLabel} level, and ${genderLabel} profile, these are your best-fit options.`}
-        </p>
+        <h2 className="text-2xl font-light text-white">{copy.title}</h2>
+        <p className="text-text-secondary">{copy.summary(trainingDays, levelLabel, profileLabel)}</p>
       </div>
 
       <div className="space-y-3">
@@ -123,8 +159,8 @@ export function WorkoutSplitScreen({
               onClick={() => {
                 setSelectedId(option.id);
                 const selectedOption = persistSelection(option.id);
-                if (option.id === 'custom') {
-                  if (selectedOption) advanceToNextStep();
+                if (option.id === 'custom' && selectedOption) {
+                  advanceToNextStep();
                 }
               }}
               className={`w-full rounded-xl border p-4 text-left transition-colors ${
@@ -137,12 +173,12 @@ export function WorkoutSplitScreen({
                 <div className="space-y-1">
                   {option.id === 'custom' && (
                     <span className="inline-flex items-center rounded-full bg-accent/20 text-accent px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide">
-                      {isArabic ? 'إنشاء + ملاحظات الذكاء الاصطناعي' : 'Create + AI Feedback'}
+                      {copy.customBadge}
                     </span>
                   )}
                   {isRecommended && (
                     <span className="inline-flex items-center rounded-full bg-accent px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-black">
-                      {isArabic ? 'موصى به لك' : 'Recommended for you'}
+                      {copy.recommendedBadge}
                     </span>
                   )}
                   <p className="text-sm font-semibold text-white">{option.title}</p>
@@ -158,8 +194,19 @@ export function WorkoutSplitScreen({
 
       <div className="flex-1" />
 
-      <Button onClick={handleNext} disabled={!selectedId}>
-        {isArabic ? 'الخطوة التالية' : 'Next Step'}
+      <Button
+        onClick={() => {
+          const selectedOption = persistSelection(selectedId);
+          if (!selectedOption) return;
+          if (selectedOption.id === 'custom') {
+            advanceToNextStep();
+            return;
+          }
+          onNext();
+        }}
+        disabled={!selectedId}
+      >
+        {copy.cta}
       </Button>
     </div>
   );

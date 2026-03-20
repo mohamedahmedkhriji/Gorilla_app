@@ -1,18 +1,33 @@
 import React from 'react';
 import { Card } from '../ui/Card';
 import { emojiMyNutrition, emojiNutritionBg, emojiRightArrow } from '../../services/emojiTheme';
-import { getActiveLanguage, getStoredLanguage } from '../../services/language';
+import { getActiveLanguage, getStoredLanguage, pickLanguage } from '../../services/language';
 
 interface CalculatorCardProps {
   onClick: () => void;
 }
 
 export function CalculatorCard({ onClick }: CalculatorCardProps) {
-  const isArabic = getActiveLanguage(getStoredLanguage()) === 'ar';
-  const copy = {
-    title: isArabic ? 'التغذية الذكية' : 'Auto Nutrition',
-    subtitle: isArabic ? 'أهداف السعرات والبروتين' : 'Calories and protein targets',
-  };
+  const language = getActiveLanguage(getStoredLanguage());
+  const copy = pickLanguage(language, {
+    en: {
+      title: 'Auto Nutrition',
+      subtitle: 'Calories and protein targets',
+    },
+    ar: {
+      title: 'التغذية الذكية',
+      subtitle: 'أهداف السعرات والبروتين',
+    },
+    it: {
+      title: 'Nutrizione Smart',
+      subtitle: 'Obiettivi di calorie e proteine',
+    },
+    de: {
+      title: 'Smarte Ernahrung',
+      subtitle: 'Kalorien- und Proteinziele',
+    },
+  });
+
   return (
     <Card onClick={onClick} className="p-4 relative overflow-hidden flex items-center justify-between cursor-pointer border border-white/15 hover:border-accent/35 transition-colors group">
       <div

@@ -2,7 +2,7 @@ import React from 'react';
 import { motion } from 'framer-motion';
 import { Clock3 } from 'lucide-react';
 import { emojiGymWallpaper, emojiRestDayBg } from '../../services/emojiTheme';
-import { getActiveLanguage, getStoredLanguage } from '../../services/language';
+import { AppLanguage, getActiveLanguage, getStoredLanguage, pickLanguage, repairMojibakeText } from '../../services/language';
 
 type WorkoutExercise = {
   exerciseName?: unknown;
@@ -219,8 +219,60 @@ const AR_MUSCLE_LABELS: Record<string, string> = {
   'full body': 'كامل الجسم',
 };
 
-const localizeWorkoutTitle = (value: string, isArabic: boolean) => {
-  if (!isArabic) return value;
+const IT_MUSCLE_LABELS: Record<string, string> = {
+  chest: 'Petto',
+  back: 'Schiena',
+  shoulders: 'Spalle',
+  triceps: 'Tricipiti',
+  biceps: 'Bicipiti',
+  forearms: 'Avambracci',
+  quadriceps: 'Quadricipiti',
+  hamstrings: 'Femorali',
+  calves: 'Polpacci',
+  glutes: 'Glutei',
+  legs: 'Gambe',
+  abs: 'Addome',
+  core: 'Core',
+  'rear delts': 'Deltoidi posteriori',
+  'side delts': 'Deltoidi laterali',
+  'front delts': 'Deltoidi anteriori',
+  'upper back': 'Schiena alta',
+  'lower back': 'Schiena bassa',
+  lats: 'Dorsali',
+  mobility: 'Mobilita',
+  walking: 'Camminata',
+  sleep: 'Sonno',
+  'full body': 'Corpo completo',
+};
+
+const DE_MUSCLE_LABELS: Record<string, string> = {
+  chest: 'Brust',
+  back: 'Rucken',
+  shoulders: 'Schultern',
+  triceps: 'Trizeps',
+  biceps: 'Bizeps',
+  forearms: 'Unterarme',
+  quadriceps: 'Quadrizeps',
+  hamstrings: 'Beinbeuger',
+  calves: 'Waden',
+  glutes: 'Gesass',
+  legs: 'Beine',
+  abs: 'Bauch',
+  core: 'Rumpf',
+  'rear delts': 'Hintere Schultern',
+  'side delts': 'Seitliche Schultern',
+  'front delts': 'Vordere Schultern',
+  'upper back': 'Oberer Rucken',
+  'lower back': 'Unterer Rucken',
+  lats: 'Latissimus',
+  mobility: 'Mobilitat',
+  walking: 'Gehen',
+  sleep: 'Schlaf',
+  'full body': 'Ganzkorper',
+};
+
+const localizeWorkoutTitle = (value: string, language: AppLanguage) => {
+  if (language === 'en') return value;
   let next = String(value || '').trim();
   if (!next) return next;
 
@@ -229,24 +281,58 @@ const localizeWorkoutTitle = (value: string, isArabic: boolean) => {
     return single || match;
   });
 
-  next = next.replace(/week\s*(\d+)/gi, 'الأسبوع $1');
-  next = next.replace(/\brest day\b/gi, 'يوم راحة');
-  next = next.replace(/\bcustom workout\b/gi, 'تمرين مخصص');
-  next = next.replace(/\bworkout\b/gi, 'تمرين');
-  next = next.replace(/\bpush day\b/gi, 'يوم الدفع');
-  next = next.replace(/\bpull day\b/gi, 'يوم السحب');
-  next = next.replace(/\bleg day\b/gi, 'يوم الأرجل');
-  next = next.replace(/\bupper body\b/gi, 'الجزء العلوي');
-  next = next.replace(/\blower body\b/gi, 'الجزء السفلي');
-  next = next.replace(/\bfull body\b/gi, 'كامل الجسم');
-  next = next.replace(/\bpush\b/gi, 'دفع');
-  next = next.replace(/\bpull\b/gi, 'سحب');
-  next = next.replace(/\blegs?\b/gi, 'أرجل');
-  next = next.replace(/^(?:الأسبوع\s*\d+\s*-\s*){2,}/, (match) => {
-    const single = match.match(/الأسبوع\s*\d+\s*-\s*/)?.[0];
-    return single || match;
-  });
-  return next;
+  if (language === 'ar') {
+    next = next.replace(/week\s*(\d+)/gi, 'الأسبوع $1');
+    next = next.replace(/\brest day\b/gi, 'يوم راحة');
+    next = next.replace(/\bcustom workout\b/gi, 'تمرين مخصص');
+    next = next.replace(/\bworkout\b/gi, 'تمرين');
+    next = next.replace(/\bpush day\b/gi, 'يوم الدفع');
+    next = next.replace(/\bpull day\b/gi, 'يوم السحب');
+    next = next.replace(/\bleg day\b/gi, 'يوم الأرجل');
+    next = next.replace(/\bupper body\b/gi, 'الجزء العلوي');
+    next = next.replace(/\blower body\b/gi, 'الجزء السفلي');
+    next = next.replace(/\bfull body\b/gi, 'كامل الجسم');
+    next = next.replace(/\bpush\b/gi, 'دفع');
+    next = next.replace(/\bpull\b/gi, 'سحب');
+    next = next.replace(/\blegs?\b/gi, 'أرجل');
+    next = next.replace(/^(?:الأسبوع\s*\d+\s*-\s*){2,}/, (match) => {
+      const single = match.match(/الأسبوع\s*\d+\s*-\s*/)?.[0];
+      return single || match;
+    });
+    return repairMojibakeText(next);
+  }
+
+  if (language === 'de') {
+    next = next.replace(/week\s*(\d+)/gi, 'Woche $1');
+    next = next.replace(/\brest day\b/gi, 'Ruhetag');
+    next = next.replace(/\bcustom workout\b/gi, 'Benutzerdefiniertes Workout');
+    next = next.replace(/\bworkout\b/gi, 'Workout');
+    next = next.replace(/\bpush day\b/gi, 'Push-Tag');
+    next = next.replace(/\bpull day\b/gi, 'Pull-Tag');
+    next = next.replace(/\bleg day\b/gi, 'Beintag');
+    next = next.replace(/\bupper body\b/gi, 'Oberkorper');
+    next = next.replace(/\blower body\b/gi, 'Unterkorper');
+    next = next.replace(/\bfull body\b/gi, 'Ganzkorper');
+    next = next.replace(/\bpush\b/gi, 'Push');
+    next = next.replace(/\bpull\b/gi, 'Pull');
+    next = next.replace(/\blegs?\b/gi, 'Beine');
+    return repairMojibakeText(next);
+  }
+
+  next = next.replace(/week\s*(\d+)/gi, 'Settimana $1');
+  next = next.replace(/\brest day\b/gi, 'Giorno di riposo');
+  next = next.replace(/\bcustom workout\b/gi, 'Allenamento personalizzato');
+  next = next.replace(/\bworkout\b/gi, 'Allenamento');
+  next = next.replace(/\bpush day\b/gi, 'Giorno push');
+  next = next.replace(/\bpull day\b/gi, 'Giorno pull');
+  next = next.replace(/\bleg day\b/gi, 'Giorno gambe');
+  next = next.replace(/\bupper body\b/gi, 'Parte superiore');
+  next = next.replace(/\blower body\b/gi, 'Parte inferiore');
+  next = next.replace(/\bfull body\b/gi, 'Corpo completo');
+  next = next.replace(/\bpush\b/gi, 'Push');
+  next = next.replace(/\bpull\b/gi, 'Pull');
+  next = next.replace(/\blegs?\b/gi, 'Gambe');
+  return repairMojibakeText(next);
 };
 
 export function WorkoutCard({
@@ -265,22 +351,53 @@ export function WorkoutCard({
   actionLabel,
   progressCaption,
 }: WorkoutCardProps) {
-  const isArabic = getActiveLanguage(getStoredLanguage()) === 'ar';
-  const copy = {
-    todayPlan: isArabic ? 'خطة اليوم' : 'Today\'s Plan',
-    restDay: isArabic ? 'يوم راحة' : 'Rest Day',
-    restAndRecover: isArabic ? 'راحة وتعافٍ' : 'Rest and recover',
-    fullBodyFocus: isArabic ? 'تركيز كامل للجسم' : 'Full body focus',
-    exercisesLabel: (count: number) => {
-      if (!isArabic) return `${count} ${count === 1 ? 'exercise' : 'exercises'}`;
-      return `${count} ${count === 1 ? 'تمرين' : 'تمارين'}`;
+  const language = getActiveLanguage(getStoredLanguage());
+  const copy = pickLanguage(language, {
+    en: {
+      todayPlan: 'Today\'s Plan',
+      restDay: 'Rest Day',
+      restAndRecover: 'Rest and recover',
+      fullBodyFocus: 'Full body focus',
+      exercisesLabel: (count: number) => `${count} ${count === 1 ? 'exercise' : 'exercises'}`,
+      estimated: (minutes: number) => `Estimated ${minutes} min`,
+      startWorkout: 'Start Workout',
+      complete: 'Complete',
+      recovery: 'Recovery',
     },
-    estimated: (minutes: number) =>
-      isArabic ? `المدة المتوقعة ${minutes} دقيقة` : `Estimated ${minutes} min`,
-    startWorkout: isArabic ? 'ابدأ التمرين' : 'Start Workout',
-    complete: isArabic ? 'مكتمل' : 'Complete',
-    recovery: isArabic ? 'تعافٍ' : 'Recovery',
-  };
+    ar: {
+      todayPlan: 'خطة اليوم',
+      restDay: 'يوم راحة',
+      restAndRecover: 'راحة وتعافٍ',
+      fullBodyFocus: 'تركيز كامل للجسم',
+      exercisesLabel: (count: number) => `${count} ${count === 1 ? 'تمرين' : 'تمارين'}`,
+      estimated: (minutes: number) => `المدة المتوقعة ${minutes} دقيقة`,
+      startWorkout: 'ابدأ التمرين',
+      complete: 'مكتمل',
+      recovery: 'التعافي',
+    },
+    it: {
+      todayPlan: 'Piano di oggi',
+      restDay: 'Giorno di riposo',
+      restAndRecover: 'Riposa e recupera',
+      fullBodyFocus: 'Focus corpo completo',
+      exercisesLabel: (count: number) => `${count} ${count === 1 ? 'esercizio' : 'esercizi'}`,
+      estimated: (minutes: number) => `Durata stimata ${minutes} min`,
+      startWorkout: 'Avvia allenamento',
+      complete: 'Completato',
+      recovery: 'Recupero',
+    },
+    de: {
+      todayPlan: 'Plan fur heute',
+      restDay: 'Ruhetag',
+      restAndRecover: 'Ruhe dich aus und erhole dich',
+      fullBodyFocus: 'Ganzkorper-Fokus',
+      exercisesLabel: (count: number) => `${count} ${count === 1 ? 'Ubung' : 'Ubungen'}`,
+      estimated: (minutes: number) => `Geschatzte Dauer ${minutes} Min`,
+      startWorkout: 'Workout starten',
+      complete: 'Abgeschlossen',
+      recovery: 'Erholung',
+    },
+  });
   const normalizedTitle = String(title || '').trim().toLowerCase();
   const normalizedType = String(workoutType || '').trim().toLowerCase();
   const looksLikeRestDay =
@@ -309,7 +426,7 @@ export function WorkoutCard({
   const inferredWorkoutLabel = inferWorkoutLabelFromTargetMuscles(targetMuscles);
   const durationMinutes = isResolvedRestDay ? null : estimateDurationMinutes(exercises, estimatedDurationMinutes);
   const displayTitle = isResolvedRestDay
-    ? 'Rest Day'
+    ? copy.restDay
     : !isGenericWorkoutLabel(title)
       ? String(title).trim()
       : !isGenericWorkoutLabel(workoutType)
@@ -320,15 +437,17 @@ export function WorkoutCard({
     : targetMuscles.length
       ? targetMuscles
         .map((entry) => {
-          if (!isArabic) return entry;
           const key = String(entry || '').trim().toLowerCase();
-          return AR_MUSCLE_LABELS[key] || entry;
+          if (language === 'ar') return repairMojibakeText(AR_MUSCLE_LABELS[key] || entry);
+          if (language === 'it') return IT_MUSCLE_LABELS[key] || entry;
+          if (language === 'de') return DE_MUSCLE_LABELS[key] || entry;
+          return entry;
         })
         .join(' - ')
       : !isGenericWorkoutLabel(workoutLabel)
-        ? (isArabic ? localizeWorkoutTitle(toTitleCase(workoutLabel), true) : toTitleCase(workoutLabel))
+        ? localizeWorkoutTitle(toTitleCase(workoutLabel), language)
         : copy.fullBodyFocus;
-  const displayTitleText = localizeWorkoutTitle(displayTitle, isArabic);
+  const displayTitleText = localizeWorkoutTitle(displayTitle, language);
   const cardBackgroundImage = isResolvedRestDay ? emojiRestDayBg : emojiGymWallpaper;
   const resolvedEyebrowLabel = eyebrowLabel || (isResolvedRestDay ? copy.restDay : copy.todayPlan);
   const resolvedSubtitle = subtitleOverride === null

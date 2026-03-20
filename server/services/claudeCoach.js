@@ -582,11 +582,19 @@ const buildUserPrompt = (profile, imageCount) => {
   const daysPerWeek = clampInt(profile?.daysPerWeek, 2, 6, 4);
   const sessionDuration = clampInt(profile?.sessionDuration, 30, 120, 60);
   const preferredSplit = normalizeSplitPreference(profile?.preferredSplit);
-  const preferredLanguage = String(
+  const preferredLanguageCode = String(
     profile?.language
     || profile?.onboardingFields?.language
     || 'en',
-  ).trim().toLowerCase() === 'ar' ? 'Arabic' : 'English';
+  ).trim().toLowerCase();
+  const preferredLanguage =
+    preferredLanguageCode === 'ar'
+      ? 'Arabic'
+      : preferredLanguageCode === 'it'
+        ? 'Italian'
+        : preferredLanguageCode === 'de'
+          ? 'German'
+        : 'English';
   const exerciseAnchors = normalizeExerciseAnchors(profile?.exerciseAnchors);
   const onboardingFields = profile?.onboardingFields && typeof profile.onboardingFields === 'object'
     ? profile.onboardingFields
@@ -629,6 +637,10 @@ const buildUserPrompt = (profile, imageCount) => {
 
   if (preferredLanguage === 'Arabic') {
     lines.push('Write all user-facing narrative fields in Arabic.');
+  } else if (preferredLanguage === 'Italian') {
+    lines.push('Write all user-facing narrative fields in Italian.');
+  } else if (preferredLanguage === 'German') {
+    lines.push('Write all user-facing narrative fields in German.');
   } else {
     lines.push('Write all user-facing narrative fields in English.');
   }

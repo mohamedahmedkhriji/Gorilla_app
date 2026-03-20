@@ -11,6 +11,21 @@ import type {
 } from '../../config/onboardingConfig';
 
 export const getOnboardingLanguage = (): AppLanguage => {
+  if (typeof window !== 'undefined') {
+    try {
+      const raw = window.localStorage.getItem('onboardingData');
+      if (raw) {
+        const parsed = JSON.parse(raw) as { language?: unknown };
+        const saved = String(parsed?.language || '').trim().toLowerCase();
+        if (saved === 'en' || saved === 'ar' || saved === 'it' || saved === 'de') {
+          return saved;
+        }
+      }
+    } catch {
+      // Ignore malformed onboarding drafts and keep the current app language.
+    }
+  }
+
   const active = getActiveLanguage();
   return active || getStoredLanguage();
 };
@@ -41,13 +56,63 @@ const STEP_TITLES_AR: Partial<Record<OnboardingStepId, string>> = {
   sport_plan_choice: 'اختيار الخطة',
 };
 
+const STEP_TITLES_IT: Partial<Record<OnboardingStepId, string>> = {
+  language: 'Lingua',
+  first_name: 'Nome',
+  app_motivation: 'Motivazione',
+  athlete_identity: 'Profilo',
+  personal_info: 'Dati personali',
+  fitness_background: 'Livello fitness',
+  fitness_goals: 'Obiettivi fitness',
+  body_type: 'Tipo di corpo',
+  goals_availability: 'Disponibilita',
+  workout_split: 'Scelta del piano',
+  ai_plan_tuning: 'Preferenze AI',
+  body_image_upload: 'Foto del corpo',
+  ai_analysis: 'Analisi',
+  body_results: 'Risultati',
+  custom_plan: 'Piano personalizzato',
+  custom_plan_builder: 'Struttura piano',
+  custom_plan_advice: 'Consigli AI',
+  custom_plan_templates: 'Modelli piano',
+  sport_age_gender: 'Eta e genere',
+  sport_experience: 'Esperienza sportiva',
+  sport_plan_choice: 'Scelta del piano',
+};
+
+const STEP_TITLES_DE: Partial<Record<OnboardingStepId, string>> = {
+  language: 'Sprache',
+  first_name: 'Vorname',
+  app_motivation: 'Motivation',
+  athlete_identity: 'Profil',
+  personal_info: 'Persoenliche Daten',
+  fitness_background: 'Fitness-Level',
+  fitness_goals: 'Fitnessziele',
+  body_type: 'Koerpertyp',
+  goals_availability: 'Verfuegbarkeit',
+  workout_split: 'Planwahl',
+  ai_plan_tuning: 'KI-Einstellungen',
+  body_image_upload: 'Koerperfotos',
+  ai_analysis: 'Analyse',
+  body_results: 'Ergebnisse',
+  custom_plan: 'Individueller Plan',
+  custom_plan_builder: 'Planaufbau',
+  custom_plan_advice: 'KI-Tipps',
+  custom_plan_templates: 'Planvorlagen',
+  sport_age_gender: 'Alter und Geschlecht',
+  sport_experience: 'Sporterfahrung',
+  sport_plan_choice: 'Planwahl',
+};
+
 export const resolveOnboardingTitle = (
   stepId: OnboardingStepId,
   fallback: string,
   language: AppLanguage,
 ) => {
-  if (language !== 'ar') return fallback;
-  return STEP_TITLES_AR[stepId] ?? fallback;
+  if (language === 'ar') return STEP_TITLES_AR[stepId] ?? fallback;
+  if (language === 'it') return STEP_TITLES_IT[stepId] ?? fallback;
+  if (language === 'de') return STEP_TITLES_DE[stepId] ?? fallback;
+  return fallback;
 };
 
 const APP_MOTIVATION_AR: Record<string, { title: string; description: string }> = {
@@ -73,10 +138,70 @@ const APP_MOTIVATION_AR: Record<string, { title: string; description: string }> 
   },
 };
 
+const APP_MOTIVATION_IT: Record<string, { title: string; description: string }> = {
+  guided_start: {
+    title: 'Voglio una guida chiara fin dal primo giorno',
+    description: 'Dammi un piano semplice e chiaro per sapere cosa fare in ogni sessione.',
+  },
+  consistency: {
+    title: 'Ho bisogno di aiuto per essere costante',
+    description: 'Costruiamo una routine realistica che riesca a seguire ogni settimana.',
+  },
+  progress_plateau: {
+    title: 'Mi sento bloccato e voglio progredire',
+    description: 'Aiutami a superare lo stallo con una programmazione piu intelligente.',
+  },
+  time_efficiency: {
+    title: 'Voglio allenamenti efficaci per il mio tempo',
+    description: 'Rendi le mie sessioni piu mirate e adatte ai miei orari.',
+  },
+  accountability: {
+    title: 'Voglio piu responsabilita e continuita',
+    description: 'Tieni traccia dei miei allenamenti e aiutami a restare sulla strada giusta.',
+  },
+};
+
+const APP_MOTIVATION_DE: Record<string, { title: string; description: string }> = {
+  guided_start: {
+    title: 'Ich moechte von Anfang an klare Anleitung',
+    description: 'Gib mir einen klaren Plan, damit ich in jeder Einheit weiss, was ich tun soll.',
+  },
+  consistency: {
+    title: 'Ich brauche Hilfe, um konstant zu bleiben',
+    description: 'Erstelle eine realistische Routine, die ich jede Woche einhalten kann.',
+  },
+  progress_plateau: {
+    title: 'Ich stecke fest und will wieder Fortschritt',
+    description: 'Hilf mir, mein Plateau mit kluegerer Planung zu durchbrechen.',
+  },
+  time_efficiency: {
+    title: 'Ich will effiziente Workouts fuer meinen Alltag',
+    description: 'Mach meine Einheiten fokussierter und passend zu meinem Zeitplan.',
+  },
+  accountability: {
+    title: 'Ich will mehr Verbindlichkeit und Begleitung',
+    description: 'Verfolge mein Training und hilf mir, langfristig dranzubleiben.',
+  },
+};
+
 export const localizeMotivationOptions = (
   options: MotivationOption[],
   language: AppLanguage,
 ) => {
+  if (language === 'it') {
+    return options.map((option) => {
+      const it = APP_MOTIVATION_IT[option.id];
+      if (!it) return option;
+      return { ...option, title: it.title, description: it.description };
+    });
+  }
+  if (language === 'de') {
+    return options.map((option) => {
+      const de = APP_MOTIVATION_DE[option.id];
+      if (!de) return option;
+      return { ...option, title: de.title, description: de.description };
+    });
+  }
   if (language !== 'ar') return options;
   return options.map((option) => {
     const ar = APP_MOTIVATION_AR[option.id];
@@ -337,7 +462,73 @@ const FITNESS_GOALS_AR: Record<string, { title: string; description: string; tag
   },
 };
 
+const FITNESS_GOALS_IT: Record<string, { title: string; description: string; tag?: string }> = {
+  build_muscle_toned: {
+    title: 'Costruire muscoli e definizione',
+    description: 'Concentrati su crescita muscolare e tono con progressioni chiare e costanti.',
+    tag: 'Popolare',
+  },
+  general_fitness: {
+    title: 'Migliorare la forma generale',
+    description: 'Aumenta la forma fisica generale con allenamenti equilibrati e nuove abilita.',
+  },
+  conditioning: {
+    title: 'Migliorare la resistenza',
+    description: 'Punta su piu volume, ritmo e recuperi piu brevi per aumentare la resistenza.',
+  },
+  get_stronger: {
+    title: 'Diventare piu forte',
+    description: 'Dai priorita ai multiarticolari e a carichi piu alti con meno ripetizioni.',
+    tag: 'Forza',
+  },
+};
+
+const FITNESS_GOALS_DE: Record<string, { title: string; description: string; tag?: string }> = {
+  build_muscle_toned: {
+    title: 'Muskeln aufbauen und definieren',
+    description: 'Konzentriere dich auf Muskelaufbau und Definition mit klarer Progression.',
+    tag: 'Beliebt',
+  },
+  general_fitness: {
+    title: 'Allgemeine Fitness verbessern',
+    description: 'Verbessere deine Gesamtfitness mit ausgewogenem Training und neuen Uebungen.',
+  },
+  conditioning: {
+    title: 'Ausdauer steigern',
+    description: 'Mehr Volumen, Tempo und kuerzere Pausen fuer bessere Kondition.',
+  },
+  get_stronger: {
+    title: 'Staerker werden',
+    description: 'Fokussiere dich auf Grunduebungen und hoehere Lasten mit weniger Wiederholungen.',
+    tag: 'Kraft',
+  },
+};
+
 export const localizeFitnessGoals = (options: GoalOption[], language: AppLanguage) => {
+  if (language === 'it') {
+    return options.map((option) => {
+      const it = FITNESS_GOALS_IT[option.id];
+      if (!it) return option;
+      return {
+        ...option,
+        title: it.title || option.title,
+        description: it.description || option.description,
+        tag: it.tag ?? option.tag,
+      };
+    });
+  }
+  if (language === 'de') {
+    return options.map((option) => {
+      const de = FITNESS_GOALS_DE[option.id];
+      if (!de) return option;
+      return {
+        ...option,
+        title: de.title || option.title,
+        description: de.description || option.description,
+        tag: de.tag ?? option.tag,
+      };
+    });
+  }
   if (language !== 'ar') return options;
   return options.map((option) => {
     const ar = FITNESS_GOALS_AR[option.id];
@@ -384,7 +575,87 @@ const WORKOUT_SPLIT_AR: Record<string, { title: string; summary: string; detail:
   },
 };
 
+const WORKOUT_SPLIT_IT: Record<string, { title: string; summary: string; detail: string }> = {
+  auto: {
+    title: 'Piano del coach con AI',
+    summary: 'Crea un piano personale completo con Claude AI',
+    detail: 'Usa il tuo profilo e le tue preferenze per costruire un piano strutturato di 8 settimane.',
+  },
+  full_body: {
+    title: 'Total body',
+    summary: 'Allena tutti i principali gruppi muscolari in ogni sessione',
+    detail: 'Ottimo se ti alleni pochi giorni e vuoi progressi costanti.',
+  },
+  upper_lower: {
+    title: 'Parte alta / parte bassa',
+    summary: 'Alterna giorni upper e lower per un buon equilibrio',
+    detail: 'Struttura bilanciata con recupero solido tra le sessioni.',
+  },
+  push_pull_legs: {
+    title: 'Spinta / Trazione / Gambe',
+    summary: 'Divisione per movimenti con giorni piu mirati',
+    detail: 'Ideale per settimane di allenamento intermedie o avanzate.',
+  },
+  hybrid: {
+    title: 'PPL + Upper / Lower',
+    summary: 'Combina PPL e upper/lower per piu volume',
+    detail: 'Ideale se vuoi piu varieta e un carico settimanale equilibrato.',
+  },
+  custom: {
+    title: 'Piano personalizzato',
+    summary: 'Costruisci una divisione in base alle tue priorita',
+    detail: 'Pensato per chi vuole controllo completo su struttura e volume.',
+  },
+};
+
+const WORKOUT_SPLIT_DE: Record<string, { title: string; summary: string; detail: string }> = {
+  auto: {
+    title: 'KI-Coach-Plan',
+    summary: 'Erstelle mit Claude AI einen voll personalisierten Plan',
+    detail: 'Nutzt dein Profil und deine Vorlieben fuer einen strukturierten 8-Wochen-Plan.',
+  },
+  full_body: {
+    title: 'Ganzkoerper',
+    summary: 'Trainiere in jeder Einheit alle wichtigen Muskelgruppen',
+    detail: 'Ideal bei wenigen Trainingstagen und fuer stetigen Fortschritt.',
+  },
+  upper_lower: {
+    title: 'Oberkoerper / Unterkoerper',
+    summary: 'Wechsle zwischen Ober- und Unterkoerper-Tagen',
+    detail: 'Ausgewogene Struktur mit guter Erholung zwischen den Einheiten.',
+  },
+  push_pull_legs: {
+    title: 'Push / Pull / Beine',
+    summary: 'Bewegungsbasierter Split mit fokussierten Tagen',
+    detail: 'Am besten fuer mittlere bis hohe Trainingsfrequenz.',
+  },
+  hybrid: {
+    title: 'Push/Pull/Beine + Ober/Unter',
+    summary: 'Kombiniert PPL und Ober/Unter fuer mehr Volumen',
+    detail: 'Ideal fuer mehr Abwechslung und ausgewogene Wochenbelastung.',
+  },
+  custom: {
+    title: 'Individueller Plan',
+    summary: 'Baue einen Split nach deinen Prioritaeten',
+    detail: 'Fuer Fortgeschrittene, die volle Kontrolle ueber Struktur und Volumen wollen.',
+  },
+};
+
 export const localizeWorkoutSplitOptions = (options: SplitOption[], language: AppLanguage) => {
+  if (language === 'it') {
+    return options.map((option) => {
+      const it = WORKOUT_SPLIT_IT[option.id];
+      if (!it) return option;
+      return { ...option, title: it.title, summary: it.summary, detail: it.detail };
+    });
+  }
+  if (language === 'de') {
+    return options.map((option) => {
+      const de = WORKOUT_SPLIT_DE[option.id];
+      if (!de) return option;
+      return { ...option, title: de.title, summary: de.summary, detail: de.detail };
+    });
+  }
   if (language !== 'ar') return options;
   return options.map((option) => {
     const ar = WORKOUT_SPLIT_AR[option.id];
@@ -409,7 +680,43 @@ const SPORT_PLAN_AR: Record<string, { title: string; description: string }> = {
   },
 };
 
+const SPORT_PLAN_IT: Record<string, { title: string; description: string }> = {
+  auto: {
+    title: 'Crea piano con AI',
+    description: 'L AI costruisce il tuo piano in base al profilo e agli obiettivi sportivi.',
+  },
+  custom: {
+    title: 'Piano manuale personalizzato',
+    description: 'Definisci tu la struttura del piano e poi migliorala nel tempo.',
+  },
+};
+
+const SPORT_PLAN_DE: Record<string, { title: string; description: string }> = {
+  auto: {
+    title: 'Plan mit KI erstellen',
+    description: 'Die KI erstellt deinen Plan nach Profil und sportlichen Zielen.',
+  },
+  custom: {
+    title: 'Manueller individueller Plan',
+    description: 'Lege deine Struktur selbst fest und verfeinere sie spaeter weiter.',
+  },
+};
+
 export const localizeSportPlanOptions = (options: PlanOption[], language: AppLanguage) => {
+  if (language === 'it') {
+    return options.map((option) => {
+      const it = SPORT_PLAN_IT[option.id];
+      if (!it) return option;
+      return { ...option, title: it.title, description: it.description };
+    });
+  }
+  if (language === 'de') {
+    return options.map((option) => {
+      const de = SPORT_PLAN_DE[option.id];
+      if (!de) return option;
+      return { ...option, title: de.title, description: de.description };
+    });
+  }
   if (language !== 'ar') return options;
   return options.map((option) => {
     const ar = SPORT_PLAN_AR[option.id];
@@ -425,13 +732,51 @@ const TRAINING_FOCUS_AR: Record<string, string> = {
   fat_loss: 'دعم خسارة الدهون',
 };
 
+const TRAINING_FOCUS_IT: Record<string, string> = {
+  balanced: 'Bilanciato',
+  hypertrophy: 'Focus ipertrofia',
+  strength: 'Focus forza',
+  fat_loss: 'Supporto perdita di grasso',
+};
+
+const TRAINING_FOCUS_DE: Record<string, string> = {
+  balanced: 'Ausgewogen',
+  hypertrophy: 'Muskelaufbau-Fokus',
+  strength: 'Kraft-Fokus',
+  fat_loss: 'Fettverlust-Unterstuetzung',
+};
+
 const RECOVERY_PRIORITY_AR: Record<string, string> = {
   balanced: 'متوازن',
   performance: 'دفع التقدم',
   recovery: 'تعافٍ محافظ',
 };
 
+const RECOVERY_PRIORITY_IT: Record<string, string> = {
+  balanced: 'Bilanciato',
+  performance: 'Spingi i progressi',
+  recovery: 'Recupero prudente',
+};
+
+const RECOVERY_PRIORITY_DE: Record<string, string> = {
+  balanced: 'Ausgewogen',
+  performance: 'Fortschritt pushen',
+  recovery: 'Erholung priorisieren',
+};
+
 export const localizeTrainingFocusOptions = (options: SimpleOption[], language: AppLanguage) => {
+  if (language === 'it') {
+    return options.map((option) => ({
+      ...option,
+      label: TRAINING_FOCUS_IT[option.value] || option.label,
+    }));
+  }
+  if (language === 'de') {
+    return options.map((option) => ({
+      ...option,
+      label: TRAINING_FOCUS_DE[option.value] || option.label,
+    }));
+  }
   if (language !== 'ar') return options;
   return options.map((option) => ({
     ...option,
@@ -440,6 +785,18 @@ export const localizeTrainingFocusOptions = (options: SimpleOption[], language: 
 };
 
 export const localizeRecoveryOptions = (options: SimpleOption[], language: AppLanguage) => {
+  if (language === 'it') {
+    return options.map((option) => ({
+      ...option,
+      label: RECOVERY_PRIORITY_IT[option.value] || option.label,
+    }));
+  }
+  if (language === 'de') {
+    return options.map((option) => ({
+      ...option,
+      label: RECOVERY_PRIORITY_DE[option.value] || option.label,
+    }));
+  }
   if (language !== 'ar') return options;
   return options.map((option) => ({
     ...option,
@@ -452,11 +809,35 @@ const GENDER_LABEL_AR: Record<string, string> = {
   female: 'أنثى',
 };
 
+const GENDER_LABEL_IT: Record<string, string> = {
+  male: 'Uomo',
+  female: 'Donna',
+};
+
+const GENDER_LABEL_DE: Record<string, string> = {
+  male: 'Mann',
+  female: 'Frau',
+};
+
 const SESSION_DURATION_AR: Record<string, string> = {
   '30': '30 دقيقة',
   '45': '45 دقيقة',
   '60': '60 دقيقة',
   '90': '90 دقيقة',
+};
+
+const SESSION_DURATION_IT: Record<string, string> = {
+  '30': '30 minuti',
+  '45': '45 minuti',
+  '60': '60 minuti',
+  '90': '90 minuti',
+};
+
+const SESSION_DURATION_DE: Record<string, string> = {
+  '30': '30 Minuten',
+  '45': '45 Minuten',
+  '60': '60 Minuten',
+  '90': '90 Minuten',
 };
 
 const PREFERRED_TIME_AR: Record<string, string> = {
@@ -465,8 +846,26 @@ const PREFERRED_TIME_AR: Record<string, string> = {
   evening: 'مساءً',
 };
 
+const PREFERRED_TIME_IT: Record<string, string> = {
+  morning: 'Mattina',
+  afternoon: 'Pomeriggio',
+  evening: 'Sera',
+};
+
+const PREFERRED_TIME_DE: Record<string, string> = {
+  morning: 'Morgens',
+  afternoon: 'Nachmittags',
+  evening: 'Abends',
+};
+
 export const localizeGenderButtonLabel = (value: string, language: AppLanguage) => {
   const normalized = String(value || '').trim().toLowerCase();
+  if (language === 'it') {
+    return GENDER_LABEL_IT[normalized] || (normalized ? 'Non specificato' : value);
+  }
+  if (language === 'de') {
+    return GENDER_LABEL_DE[normalized] || (normalized ? 'Nicht angegeben' : value);
+  }
   if (language !== 'ar') {
     if (normalized === 'male') return 'Man';
     if (normalized === 'female') return 'Woman';
@@ -480,6 +879,36 @@ export const localizeSelectOptions = (
   language: AppLanguage,
   map: Record<string, string>,
 ) => {
+  if (language === 'it') {
+    const localizedMap = map === SESSION_DURATION_AR
+      ? SESSION_DURATION_IT
+      : map === PREFERRED_TIME_AR
+        ? PREFERRED_TIME_IT
+        : map === GENDER_LABEL_AR
+          ? GENDER_LABEL_IT
+          : null;
+    if (localizedMap) {
+      return options.map((option) => ({
+        ...option,
+        label: localizedMap[String(option.value || '').trim().toLowerCase()] || option.label,
+      }));
+    }
+  }
+  if (language === 'de') {
+    const localizedMap = map === SESSION_DURATION_AR
+      ? SESSION_DURATION_DE
+      : map === PREFERRED_TIME_AR
+        ? PREFERRED_TIME_DE
+        : map === GENDER_LABEL_AR
+          ? GENDER_LABEL_DE
+          : null;
+    if (localizedMap) {
+      return options.map((option) => ({
+        ...option,
+        label: localizedMap[String(option.value || '').trim().toLowerCase()] || option.label,
+      }));
+    }
+  }
   if (language !== 'ar') return options;
   return options.map((option) => ({
     ...option,
@@ -503,6 +932,18 @@ export const localizeGenderOptions = (
 ) => localizeSelectOptions(options, language, GENDER_LABEL_AR);
 
 export const localizeExperienceLevel = (value: string, language: AppLanguage) => {
+  if (language === 'it') {
+    if (value.toLowerCase() === 'beginner') return 'Principiante';
+    if (value.toLowerCase() === 'intermediate') return 'Intermedio';
+    if (value.toLowerCase() === 'advanced') return 'Avanzato';
+    return value;
+  }
+  if (language === 'de') {
+    if (value.toLowerCase() === 'beginner') return 'Anfaenger';
+    if (value.toLowerCase() === 'intermediate') return 'Fortgeschritten';
+    if (value.toLowerCase() === 'advanced') return 'Profi';
+    return value;
+  }
   if (language !== 'ar') return value;
   if (value.toLowerCase() === 'beginner') return 'مبتدئ';
   if (value.toLowerCase() === 'intermediate') return 'متوسط';

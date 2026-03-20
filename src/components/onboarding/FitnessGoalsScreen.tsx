@@ -11,6 +11,29 @@ interface FitnessGoalsScreenProps {
   options?: GoalOption[];
 }
 
+const COPY = {
+  en: {
+    title: 'What are your top fitness goals?',
+    subtitle: 'This helps us tailor the right exercises and set targets for your plan.',
+    cta: 'Continue',
+  },
+  ar: {
+    title: '\u0645\u0627 \u0623\u0647\u0645 \u0623\u0647\u062f\u0627\u0641\u0643 \u0641\u064a \u0627\u0644\u0644\u064a\u0627\u0642\u0629\u061f',
+    subtitle: '\u064a\u0633\u0627\u0639\u062f\u0646\u0627 \u0630\u0644\u0643 \u0639\u0644\u0649 \u0627\u062e\u062a\u064a\u0627\u0631 \u0627\u0644\u062a\u0645\u0627\u0631\u064a\u0646 \u0627\u0644\u0645\u0646\u0627\u0633\u0628\u0629 \u0648\u062a\u062d\u062f\u064a\u062f \u0623\u0647\u062f\u0627\u0641 \u062e\u0637\u062a\u0643.',
+    cta: '\u0645\u062a\u0627\u0628\u0639\u0629',
+  },
+  it: {
+    title: 'Quali sono i tuoi obiettivi fitness principali?',
+    subtitle: 'Questo ci aiuta a scegliere gli esercizi giusti e gli obiettivi del tuo piano.',
+    cta: 'Continua',
+  },
+  de: {
+    title: 'Was sind deine wichtigsten Fitnessziele?',
+    subtitle: 'So koennen wir die richtigen Uebungen und Ziele fuer deinen Plan festlegen.',
+    cta: 'Weiter',
+  },
+} as const;
+
 const toSelectedGoalIds = (onboardingData: any, goalOptions: GoalOption[]) => {
   const fromList = Array.isArray(onboardingData?.fitnessGoalIds)
     ? onboardingData.fitnessGoalIds.map((entry: unknown) => String(entry || '').trim())
@@ -33,7 +56,7 @@ export function FitnessGoalsScreen({
   options,
 }: FitnessGoalsScreenProps) {
   const language = getOnboardingLanguage();
-  const isArabic = language === 'ar';
+  const copy = COPY[language] ?? COPY.en;
   const goalOptions = options?.length
     ? options
     : DEFAULT_ONBOARDING_CONFIG.options.fitnessGoals;
@@ -65,21 +88,11 @@ export function FitnessGoalsScreen({
     persistGoals(nextIds);
   };
 
-  const handleContinue = () => {
-    onNext();
-  };
-
   return (
     <div className="flex-1 flex flex-col space-y-5">
       <div className="space-y-2">
-        <h2 className="text-2xl font-light text-white">
-          {isArabic ? 'ما أهم أهدافك في اللياقة؟' : 'What are your top fitness goals?'}
-        </h2>
-        <p className="text-text-secondary">
-          {isArabic
-            ? 'يساعدنا ذلك على اختيار التمارين المناسبة وتحديد أهداف خطتك.'
-            : 'This helps us tailor the right exercises and set targets for your plan.'}
-        </p>
+        <h2 className="text-2xl font-light text-white">{copy.title}</h2>
+        <p className="text-text-secondary">{copy.subtitle}</p>
       </div>
 
       <div className="rounded-2xl border border-white/10 bg-card/70 overflow-hidden">
@@ -97,13 +110,7 @@ export function FitnessGoalsScreen({
               <div className="flex items-start gap-4">
                 <div className="flex-1 min-w-0">
                   {option.tag ? (
-                    <span
-                      className={`inline-flex rounded px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.08em] ${
-                        option.tag === 'Popular' || option.tag === 'شائع'
-                          ? 'bg-[#10b981] text-black'
-                          : 'bg-white text-black'
-                      }`}
-                    >
+                    <span className="inline-flex rounded px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.08em] bg-white text-black">
                       {option.tag}
                     </span>
                   ) : null}
@@ -122,10 +129,9 @@ export function FitnessGoalsScreen({
 
       <div className="flex-1" />
 
-      <Button onClick={handleContinue} disabled={!selectedIds.length}>
-        {isArabic ? 'متابعة' : 'Continue'}
+      <Button onClick={onNext} disabled={!selectedIds.length}>
+        {copy.cta}
       </Button>
     </div>
   );
 }
-

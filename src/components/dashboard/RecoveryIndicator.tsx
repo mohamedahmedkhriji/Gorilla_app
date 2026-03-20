@@ -1,7 +1,7 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 import { emojiMuscleRecovery, emojiRecoveryBg } from '../../services/emojiTheme';
-import { getActiveLanguage, getStoredLanguage } from '../../services/language';
+import { getActiveLanguage, getStoredLanguage, pickLanguage } from '../../services/language';
 
 interface RecoveryIndicatorProps {
   percentage: number;
@@ -11,17 +11,49 @@ interface RecoveryIndicatorProps {
 
 export function RecoveryIndicator({ percentage, onClick, coachmarkTargetId }: RecoveryIndicatorProps) {
   const safePercentage = Math.max(0, Math.min(100, Math.round(percentage)));
-  const isArabic = getActiveLanguage(getStoredLanguage()) === 'ar';
-  const copy = {
-    title: isArabic ? 'التعافي' : 'Recovery',
-    statuses: {
-      high: isArabic ? 'جاهز للتدريب بقوة' : 'Ready to train hard',
-      solid: isArabic ? 'تعافٍ جيد' : 'Solid recovery',
-      moderate: isArabic ? 'إرهاق متوسط' : 'Moderate fatigue',
-      low: isArabic ? 'تحتاج لتعافٍ' : 'Recovery needed',
+  const language = getActiveLanguage(getStoredLanguage());
+  const copy = pickLanguage(language, {
+    en: {
+      title: 'Recovery',
+      statuses: {
+        high: 'Ready to train hard',
+        solid: 'Solid recovery',
+        moderate: 'Moderate fatigue',
+        low: 'Recovery needed',
+      },
+      alt: 'Muscle Recovery',
     },
-    alt: isArabic ? 'تعافي العضلات' : 'Muscle Recovery',
-  };
+    ar: {
+      title: 'التعافي',
+      statuses: {
+        high: 'جاهز للتدريب بقوة',
+        solid: 'تعافٍ جيد',
+        moderate: 'إرهاق متوسط',
+        low: 'تحتاج لتعافٍ',
+      },
+      alt: 'تعافي العضلات',
+    },
+    it: {
+      title: 'Recupero',
+      statuses: {
+        high: 'Pronto a spingere forte',
+        solid: 'Recupero solido',
+        moderate: 'Fatica moderata',
+        low: 'Serve recupero',
+      },
+      alt: 'Recupero muscolare',
+    },
+    de: {
+      title: 'Erholung',
+      statuses: {
+        high: 'Bereit fur hartes Training',
+        solid: 'Solide Erholung',
+        moderate: 'Mittlere Ermudung',
+        low: 'Mehr Erholung notig',
+      },
+      alt: 'Muskel-Erholung',
+    },
+  });
 
   const getRecoveryStatus = (value: number) => {
     if (value >= 90) return copy.statuses.high;

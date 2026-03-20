@@ -7,6 +7,7 @@ import logoC from '../../assets/gym_logo/9d631105-f60d-4f63-8ec8-a353b8f6b7e9.pn
 import logoD from '../../assets/gym_logo/a17097fedf53f8b861c7a5457c8a1f17.jpg';
 import logoE from '../../assets/gym_logo/Screenshot 2026-03-01 000834.png';
 import logoF from '../../assets/gym_logo/gymlogo.png';
+import { AppLanguage, getActiveLanguage, getStoredLanguage, pickLanguage } from '../services/language';
 
 interface PublicLandingPageProps {
   onGetStarted: () => void;
@@ -40,6 +41,73 @@ export const PublicLandingPage: React.FC<PublicLandingPageProps> = ({ onGetStart
   const [deferredPrompt, setDeferredPrompt] = useState<InstallPromptEvent | null>(null);
   const [isStandalone, setIsStandalone] = useState(false);
   const [showIosInstallHint, setShowIosInstallHint] = useState(false);
+  const [language, setLanguage] = useState<AppLanguage>('en');
+
+  const copy = pickLanguage(language, {
+    en: {
+      titleAccent: 'Smart',
+      titleLine1: 'Training,',
+      titleLine2: 'Built Around',
+      titleYou: 'You',
+      body: 'RepSet builds each workout from your goals, recovery, and schedule so you always know your next best session.',
+      logoAlt: 'Gym partner logo',
+      install: 'Install on your phone',
+      iosHint: 'On iPhone, tap the Share button in Safari, then choose Add to Home Screen.',
+      start: 'Start Now',
+      footer: 'Join RepSet to get adaptive workouts that fit your goals.',
+    },
+    ar: {
+      titleAccent: '\u0630\u0643\u064a',
+      titleLine1: '\u062a\u062f\u0631\u064a\u0628',
+      titleLine2: '\u0645\u0628\u0646\u064a \u062d\u0648\u0644',
+      titleYou: '\u0623\u0646\u062a',
+      body: '\u064a\u0628\u0646\u064a RepSet \u0643\u0644 \u062d\u0635\u0629 \u0628\u0646\u0627\u0621\u064b \u0639\u0644\u0649 \u0623\u0647\u062f\u0627\u0641\u0643 \u0648\u062a\u0639\u0627\u0641\u064a\u0643 \u0648\u062c\u062f\u0648\u0644\u0643 \u062d\u062a\u0649 \u062a\u0639\u0631\u0641 \u062f\u0627\u0626\u0645\u064b\u0627 \u0645\u0627 \u0647\u064a \u0623\u0641\u0636\u0644 \u062d\u0635\u0629 \u062a\u0627\u0644\u064a\u0629 \u0644\u0643.',
+      logoAlt: '\u0634\u0639\u0627\u0631 \u0635\u0627\u0644\u0629 \u0634\u0631\u064a\u0643\u0629',
+      install: '\u062b\u0628\u062a \u0627\u0644\u062a\u0637\u0628\u064a\u0642 \u0639\u0644\u0649 \u0647\u0627\u062a\u0641\u0643',
+      iosHint: '\u0639\u0644\u0649 iPhone\u060c \u0627\u0636\u063a\u0637 \u0632\u0631 Share \u0641\u064a Safari \u062b\u0645 \u0627\u062e\u062a\u0631 Add to Home Screen.',
+      start: '\u0627\u0628\u062f\u0623 \u0627\u0644\u0622\u0646',
+      footer: '\u0627\u0646\u0636\u0645 \u0625\u0644\u0649 RepSet \u0644\u062a\u062d\u0635\u0644 \u0639\u0644\u0649 \u062a\u0645\u0627\u0631\u064a\u0646 \u0645\u062a\u0643\u064a\u0641\u0629 \u062a\u0646\u0627\u0633\u0628 \u0623\u0647\u062f\u0627\u0641\u0643.',
+    },
+    it: {
+      titleAccent: 'Smart',
+      titleLine1: 'Training,',
+      titleLine2: 'Costruito Intorno a',
+      titleYou: 'Te',
+      body: 'RepSet costruisce ogni allenamento in base ai tuoi obiettivi, al recupero e al tuo programma, cosi sai sempre quale sessione fare dopo.',
+      logoAlt: 'Logo palestra partner',
+      install: 'Installa sul tuo telefono',
+      iosHint: 'Su iPhone, tocca il pulsante Condividi in Safari e poi scegli Aggiungi alla schermata Home.',
+      start: 'Inizia Ora',
+      footer: 'Unisciti a RepSet per ricevere allenamenti adattivi che seguono i tuoi obiettivi.',
+    },
+    de: {
+      titleAccent: 'Smart',
+      titleLine1: 'Training,',
+      titleLine2: 'Gebaut fur',
+      titleYou: 'Dich',
+      body: 'RepSet baut jedes Training aus deinen Zielen, deiner Erholung und deinem Zeitplan auf, damit du immer deine beste nachste Einheit kennst.',
+      logoAlt: 'Logo des Partnerstudios',
+      install: 'Auf deinem Handy installieren',
+      iosHint: 'Tippe auf dem iPhone in Safari auf Teilen und dann auf Zum Home-Bildschirm.',
+      start: 'Jetzt starten',
+      footer: 'Komm zu RepSet und erhalte adaptive Workouts, die zu deinen Zielen passen.',
+    },
+  });
+
+  useEffect(() => {
+    setLanguage(getActiveLanguage());
+
+    const handleLanguageChanged = () => {
+      setLanguage(getStoredLanguage());
+    };
+
+    window.addEventListener('app-language-changed', handleLanguageChanged);
+    window.addEventListener('storage', handleLanguageChanged);
+    return () => {
+      window.removeEventListener('app-language-changed', handleLanguageChanged);
+      window.removeEventListener('storage', handleLanguageChanged);
+    };
+  }, []);
 
   useEffect(() => {
     const nav = navigator as NavigatorWithStandalone;
@@ -103,11 +171,11 @@ export const PublicLandingPage: React.FC<PublicLandingPageProps> = ({ onGetStart
 
         <section className="mt-10 sm:mt-12 mb-9">
           <h2 className="font-display text-[2.7rem] sm:text-[3rem] leading-[0.92] tracking-[0.01em] max-w-[22rem]">
-            <span className="text-accent">Smart</span> Training,
-            <span className="block">Built Around <span className="text-accent">You</span></span>
+            <span className="text-accent">{copy.titleAccent}</span> {copy.titleLine1}
+            <span className="block">{copy.titleLine2} <span className="text-accent">{copy.titleYou}</span></span>
           </h2>
           <p className="mt-5 max-w-[24rem] text-base leading-relaxed text-text-secondary">
-            RepSet builds each workout from your goals, recovery, and schedule so you always know your next best session.
+            {copy.body}
           </p>
         </section>
 
@@ -120,7 +188,7 @@ export const PublicLandingPage: React.FC<PublicLandingPageProps> = ({ onGetStart
             >
               {loopedLogos.map((logo, index) => (
                 <div key={`forward-${index}`} className="h-[72px] w-[72px] shrink-0 overflow-hidden rounded-2xl border border-white/10 bg-black/35">
-                  <img src={logo} alt="Gym partner logo" className="h-full w-full object-cover" loading="lazy" />
+                  <img src={logo} alt={copy.logoAlt} className="h-full w-full object-cover" loading="lazy" />
                 </div>
               ))}
             </motion.div>
@@ -134,7 +202,7 @@ export const PublicLandingPage: React.FC<PublicLandingPageProps> = ({ onGetStart
             >
               {loopedLogos.map((logo, index) => (
                 <div key={`backward-${index}`} className="h-[72px] w-[72px] shrink-0 overflow-hidden rounded-2xl border border-white/10 bg-black/35">
-                  <img src={logo} alt="Gym partner logo" className="h-full w-full object-cover" loading="lazy" />
+                  <img src={logo} alt={copy.logoAlt} className="h-full w-full object-cover" loading="lazy" />
                 </div>
               ))}
             </motion.div>
@@ -148,7 +216,7 @@ export const PublicLandingPage: React.FC<PublicLandingPageProps> = ({ onGetStart
             >
               {loopedLogos.map((logo, index) => (
                 <div key={`forward-bottom-${index}`} className="h-[72px] w-[72px] shrink-0 overflow-hidden rounded-2xl border border-white/10 bg-black/35">
-                  <img src={logo} alt="Gym partner logo" className="h-full w-full object-cover" loading="lazy" />
+                  <img src={logo} alt={copy.logoAlt} className="h-full w-full object-cover" loading="lazy" />
                 </div>
               ))}
             </motion.div>
@@ -162,13 +230,13 @@ export const PublicLandingPage: React.FC<PublicLandingPageProps> = ({ onGetStart
               onClick={handleInstall}
               className="mb-3 w-full rounded-xl border border-white/10 bg-white/10 py-3 text-sm font-semibold text-white transition-colors hover:bg-white/20"
             >
-              Install on your phone
+              {copy.install}
             </button>
           ) : null}
 
           {!isStandalone && showIosInstallHint ? (
             <p className="mb-3 rounded-xl border border-white/10 bg-black/20 px-4 py-3 text-center text-xs leading-relaxed text-text-secondary">
-              On iPhone, tap the Share button in Safari, then choose Add to Home Screen.
+              {copy.iosHint}
             </p>
           ) : null}
 
@@ -177,10 +245,10 @@ export const PublicLandingPage: React.FC<PublicLandingPageProps> = ({ onGetStart
             onClick={onGetStarted}
             className="w-full rounded-xl bg-accent text-black py-3.5 text-xl font-marker hover:bg-accent/90 transition-colors"
           >
-            Start Now
+            {copy.start}
           </button>
           <p className="mt-3 text-center text-xs text-text-secondary">
-            Join RepSet to get adaptive workouts that fit your goals.
+            {copy.footer}
           </p>
         </footer>
       </div>

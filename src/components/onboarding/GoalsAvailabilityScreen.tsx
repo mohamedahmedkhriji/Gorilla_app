@@ -6,6 +6,7 @@ import {
   localizePreferredTimeOptions,
   localizeSessionDurationOptions,
 } from './onboardingI18n';
+
 interface GoalsAvailabilityScreenProps {
   onNext: () => void;
   onDataChange?: (data: any) => void;
@@ -14,6 +15,42 @@ interface GoalsAvailabilityScreenProps {
   preferredTimeOptions?: SelectOption[];
   workoutDaysRange?: WorkoutDaysRange;
 }
+
+const COPY = {
+  en: {
+    title: 'Availability',
+    subtitle: 'How often can you train?',
+    days: 'Days Per Week',
+    duration: 'Session Duration',
+    time: 'Preferred Time',
+    cta: 'Next Step',
+  },
+  ar: {
+    title: '\u0627\u0644\u0648\u0642\u062a \u0627\u0644\u0645\u062a\u0627\u062d',
+    subtitle: '\u0643\u0645 \u0645\u0631\u0629 \u064a\u0645\u0643\u0646\u0643 \u0627\u0644\u062a\u062f\u0631\u064a\u0628\u061f',
+    days: '\u0627\u0644\u0623\u064a\u0627\u0645 \u0641\u064a \u0627\u0644\u0623\u0633\u0628\u0648\u0639',
+    duration: '\u0645\u062f\u0629 \u0627\u0644\u062c\u0644\u0633\u0629',
+    time: '\u0627\u0644\u0648\u0642\u062a \u0627\u0644\u0645\u0641\u0636\u0644',
+    cta: '\u0627\u0644\u062e\u0637\u0648\u0629 \u0627\u0644\u062a\u0627\u0644\u064a\u0629',
+  },
+  it: {
+    title: 'Disponibilita',
+    subtitle: 'Quante volte puoi allenarti?',
+    days: 'Giorni a settimana',
+    duration: 'Durata sessione',
+    time: 'Orario preferito',
+    cta: 'Prossimo passo',
+  },
+  de: {
+    title: 'Verfuegbarkeit',
+    subtitle: 'Wie oft kannst du trainieren?',
+    days: 'Tage pro Woche',
+    duration: 'Dauer pro Einheit',
+    time: 'Bevorzugte Zeit',
+    cta: 'Naechster Schritt',
+  },
+} as const;
+
 export function GoalsAvailabilityScreen({
   onNext,
   onDataChange,
@@ -23,7 +60,7 @@ export function GoalsAvailabilityScreen({
   workoutDaysRange,
 }: GoalsAvailabilityScreenProps) {
   const language = getOnboardingLanguage();
-  const isArabic = language === 'ar';
+  const copy = COPY[language] ?? COPY.en;
   const durationOptions = sessionDurationOptions?.length
     ? sessionDurationOptions
     : DEFAULT_ONBOARDING_CONFIG.options.sessionDurations;
@@ -83,29 +120,16 @@ export function GoalsAvailabilityScreen({
     });
   }, [days, duration, onDataChange, time]);
 
-  const handleNext = () => {
-    onDataChange?.({
-      workoutDays: days,
-      sessionDuration: duration,
-      preferredTime: time,
-    });
-    onNext();
-  };
-
   return (
     <div className="flex-1 flex flex-col space-y-8">
       <div className="space-y-2">
-        <h2 className="text-2xl font-light text-white">{isArabic ? 'الوقت المتاح' : 'Availability'}</h2>
-        <p className="text-text-secondary">
-          {isArabic ? 'كم مرة يمكنك التدريب؟' : 'How often can you train?'}
-        </p>
+        <h2 className="text-2xl font-light text-white">{copy.title}</h2>
+        <p className="text-text-secondary">{copy.subtitle}</p>
       </div>
 
       <div className="space-y-8">
         <div className="space-y-2">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.1em] text-text-secondary ml-1">
-            {isArabic ? 'الأيام في الأسبوع' : 'Days Per Week'}
-          </p>
+          <p className="text-[11px] font-semibold uppercase tracking-[0.1em] text-text-secondary ml-1">{copy.days}</p>
           <div className="grid grid-cols-5 gap-2">
             {dayOptions.map((value) => {
               const selected = days === value;
@@ -127,10 +151,9 @@ export function GoalsAvailabilityScreen({
             })}
           </div>
         </div>
+
         <div className="space-y-2">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.1em] text-text-secondary ml-1">
-            {isArabic ? 'مدة الجلسة' : 'Session Duration'}
-          </p>
+          <p className="text-[11px] font-semibold uppercase tracking-[0.1em] text-text-secondary ml-1">{copy.duration}</p>
           <div className="grid grid-cols-2 gap-2">
             {localizedDurations.map((option) => {
               const optionValue = String(option.value || '');
@@ -155,9 +178,7 @@ export function GoalsAvailabilityScreen({
         </div>
 
         <div className="space-y-2">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.1em] text-text-secondary ml-1">
-            {isArabic ? 'الوقت المفضل' : 'Preferred Time'}
-          </p>
+          <p className="text-[11px] font-semibold uppercase tracking-[0.1em] text-text-secondary ml-1">{copy.time}</p>
           <div className="grid grid-cols-3 gap-2">
             {localizedTimes.map((option) => {
               const optionValue = String(option.value || '').trim().toLowerCase();
@@ -180,12 +201,11 @@ export function GoalsAvailabilityScreen({
             })}
           </div>
         </div>
-
       </div>
 
       <div className="flex-1" />
 
-      <Button onClick={handleNext}>{isArabic ? 'الخطوة التالية' : 'Next Step'}</Button>
-    </div>);
-
+      <Button onClick={onNext}>{copy.cta}</Button>
+    </div>
+  );
 }

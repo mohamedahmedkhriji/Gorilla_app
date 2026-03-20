@@ -7,7 +7,7 @@ import {
   emojiExercisesBg,
   emojiRightArrow,
 } from '../../services/emojiTheme';
-import { getActiveLanguage, getStoredLanguage } from '../../services/language';
+import { getActiveLanguage, getStoredLanguage, pickLanguage } from '../../services/language';
 
 interface EducationSectionProps {
   onExercises: () => void;
@@ -22,14 +22,38 @@ export function EducationSection({
   exercisesCoachmarkTargetId,
   booksCoachmarkTargetId,
 }: EducationSectionProps) {
-  const isArabic = getActiveLanguage(getStoredLanguage()) === 'ar';
-  const copy = {
-    learningHub: isArabic ? 'مركز التعلّم' : 'Learning Hub',
-    exercises: isArabic ? 'التمارين' : 'Exercises',
-    browse: isArabic ? 'استعراض' : 'Browse',
-    books: isArabic ? 'الكتب' : 'Books',
-    comingSoon: isArabic ? 'قريبًا' : 'Coming Soon',
-  };
+  const language = getActiveLanguage(getStoredLanguage());
+  const copy = pickLanguage(language, {
+    en: {
+      learningHub: 'Learning Hub',
+      exercises: 'Exercises',
+      browse: 'Browse',
+      books: 'Books',
+      comingSoon: 'Coming Soon',
+    },
+    ar: {
+      learningHub: 'مركز التعلّم',
+      exercises: 'التمارين',
+      browse: 'استعراض',
+      books: 'الكتب',
+      comingSoon: 'قريبًا',
+    },
+    it: {
+      learningHub: 'Centro Formazione',
+      exercises: 'Esercizi',
+      browse: 'Esplora',
+      books: 'Libri',
+      comingSoon: 'In arrivo',
+    },
+    de: {
+      learningHub: 'Lernzentrum',
+      exercises: 'Ubungen',
+      browse: 'Ansehen',
+      books: 'Bucher',
+      comingSoon: 'Demnachst',
+    },
+  });
+
   return (
     <div className="space-y-3">
       <h3 className="text-[11px] font-semibold text-text-secondary uppercase tracking-[0.15em] px-1">{copy.learningHub}</h3>

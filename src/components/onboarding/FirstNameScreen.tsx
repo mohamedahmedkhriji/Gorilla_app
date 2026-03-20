@@ -12,24 +12,40 @@ interface FirstNameScreenProps {
   };
 }
 
+const COPY = {
+  en: {
+    intro: "Let's get started!",
+    title: 'What would you like us to call you?',
+    label: 'First name',
+    placeholder: 'Your name',
+    cta: 'Next',
+  },
+  ar: {
+    intro: '\u0644\u0646\u0628\u062f\u0623!',
+    title: '\u0628\u0623\u064a \u0627\u0633\u0645 \u062a\u062d\u0628 \u0623\u0646 \u0646\u0646\u0627\u062f\u064a\u0643\u061f',
+    label: '\u0627\u0644\u0627\u0633\u0645 \u0627\u0644\u0623\u0648\u0644',
+    placeholder: '\u0627\u0633\u0645\u0643',
+    cta: '\u0627\u0644\u062a\u0627\u0644\u064a',
+  },
+  it: {
+    intro: 'Iniziamo!',
+    title: 'Come vuoi che ti chiamiamo?',
+    label: 'Nome',
+    placeholder: 'Il tuo nome',
+    cta: 'Avanti',
+  },
+  de: {
+    intro: 'Los gehts!',
+    title: 'Wie sollen wir dich nennen?',
+    label: 'Vorname',
+    placeholder: 'Dein Name',
+    cta: 'Weiter',
+  },
+} as const;
+
 export function FirstNameScreen({ onNext, onDataChange, onboardingData }: FirstNameScreenProps) {
   const language = getOnboardingLanguage();
-  const isArabic = language === 'ar';
-  const copy = isArabic
-    ? {
-        intro: 'لنبدأ!',
-        title: 'بأي اسم تحب أن نناديك؟',
-        label: 'الاسم الأول',
-        placeholder: 'اسمك',
-        cta: 'التالي',
-      }
-    : {
-        intro: "Let's get started!",
-        title: 'What would you like us to call you?',
-        label: 'First name',
-        placeholder: 'Your name',
-        cta: 'Next',
-      };
+  const copy = COPY[language] ?? COPY.en;
   const [firstName, setFirstName] = useState(
     String(onboardingData?.firstName || onboardingData?.name || '').trim(),
   );

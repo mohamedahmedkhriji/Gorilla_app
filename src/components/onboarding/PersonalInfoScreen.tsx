@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
 import { DEFAULT_ONBOARDING_CONFIG, type SelectOption } from '../../config/onboardingConfig';
-import { getOnboardingLanguage, localizeGenderButtonLabel } from './onboardingI18n';
+import { getOnboardingLanguage } from './onboardingI18n';
 
 const MAX_BODY_METRIC = 250;
 
@@ -12,6 +12,90 @@ interface PersonalInfoScreenProps {
   onboardingData?: any;
   genderOptions?: SelectOption[];
 }
+
+const COPY = {
+  en: {
+    title: 'Tell us about yourself',
+    subtitle: 'We use this to calibrate your initial plan.',
+    age: 'Age',
+    gender: 'Gender',
+    height: 'Height',
+    weight: 'Weight',
+    next: 'Next Step',
+    ageRequired: 'Age is required',
+    genderRequired: 'Gender is required',
+    heightRequired: 'Height is required',
+    weightRequired: 'Weight is required',
+    heightMax: `Height must be ${MAX_BODY_METRIC} cm or less`,
+    weightMax: `Weight must be ${MAX_BODY_METRIC} kg or less`,
+    agePlaceholder: 'e.g. 28',
+    heightPlaceholder: 'cm',
+    weightPlaceholder: 'kg',
+    male: 'Man',
+    female: 'Woman',
+  },
+  ar: {
+    title: '\u0623\u062e\u0628\u0631\u0646\u0627 \u0639\u0646 \u0646\u0641\u0633\u0643',
+    subtitle: '\u0646\u0633\u062a\u062e\u062f\u0645 \u0647\u0630\u0627 \u0644\u0636\u0628\u0637 \u062e\u0637\u062a\u0643 \u0627\u0644\u0623\u0648\u0644\u0649.',
+    age: '\u0627\u0644\u0639\u0645\u0631',
+    gender: '\u0627\u0644\u062c\u0646\u0633',
+    height: '\u0627\u0644\u0637\u0648\u0644',
+    weight: '\u0627\u0644\u0648\u0632\u0646',
+    next: '\u0627\u0644\u062e\u0637\u0648\u0629 \u0627\u0644\u062a\u0627\u0644\u064a\u0629',
+    ageRequired: '\u0627\u0644\u0639\u0645\u0631 \u0645\u0637\u0644\u0648\u0628',
+    genderRequired: '\u0627\u0644\u062c\u0646\u0633 \u0645\u0637\u0644\u0648\u0628',
+    heightRequired: '\u0627\u0644\u0637\u0648\u0644 \u0645\u0637\u0644\u0648\u0628',
+    weightRequired: '\u0627\u0644\u0648\u0632\u0646 \u0645\u0637\u0644\u0648\u0628',
+    heightMax: `\u064a\u062c\u0628 \u0623\u0646 \u064a\u0643\u0648\u0646 \u0627\u0644\u0637\u0648\u0644 ${MAX_BODY_METRIC} \u0633\u0645 \u0623\u0648 \u0623\u0642\u0644`,
+    weightMax: `\u064a\u062c\u0628 \u0623\u0646 \u064a\u0643\u0648\u0646 \u0627\u0644\u0648\u0632\u0646 ${MAX_BODY_METRIC} \u0643\u062c\u0645 \u0623\u0648 \u0623\u0642\u0644`,
+    agePlaceholder: '\u0645\u062b\u0627\u0644: 28',
+    heightPlaceholder: '\u0633\u0645',
+    weightPlaceholder: '\u0643\u062c\u0645',
+    male: '\u0630\u0643\u0631',
+    female: '\u0623\u0646\u062b\u0649',
+  },
+  it: {
+    title: 'Parlaci di te',
+    subtitle: 'Usiamo queste informazioni per calibrare il tuo primo piano.',
+    age: 'Eta',
+    gender: 'Genere',
+    height: 'Altezza',
+    weight: 'Peso',
+    next: 'Prossimo passo',
+    ageRequired: 'L eta e obbligatoria',
+    genderRequired: 'Il genere e obbligatorio',
+    heightRequired: 'L altezza e obbligatoria',
+    weightRequired: 'Il peso e obbligatorio',
+    heightMax: `L altezza deve essere ${MAX_BODY_METRIC} cm o meno`,
+    weightMax: `Il peso deve essere ${MAX_BODY_METRIC} kg o meno`,
+    agePlaceholder: 'es. 28',
+    heightPlaceholder: 'cm',
+    weightPlaceholder: 'kg',
+    male: 'Uomo',
+    female: 'Donna',
+  },
+  de: {
+    title: 'Erzaehl uns etwas ueber dich',
+    subtitle: 'Wir nutzen das, um deinen ersten Plan anzupassen.',
+    age: 'Alter',
+    gender: 'Geschlecht',
+    height: 'Groesse',
+    weight: 'Gewicht',
+    next: 'Naechster Schritt',
+    ageRequired: 'Alter ist erforderlich',
+    genderRequired: 'Geschlecht ist erforderlich',
+    heightRequired: 'Groesse ist erforderlich',
+    weightRequired: 'Gewicht ist erforderlich',
+    heightMax: `Die Groesse muss ${MAX_BODY_METRIC} cm oder weniger sein`,
+    weightMax: `Das Gewicht muss ${MAX_BODY_METRIC} kg oder weniger sein`,
+    agePlaceholder: 'z. B. 28',
+    heightPlaceholder: 'cm',
+    weightPlaceholder: 'kg',
+    male: 'Mann',
+    female: 'Frau',
+  },
+} as const;
+
 export function PersonalInfoScreen({
   onNext,
   onDataChange,
@@ -19,44 +103,7 @@ export function PersonalInfoScreen({
   genderOptions,
 }: PersonalInfoScreenProps) {
   const language = getOnboardingLanguage();
-  const isArabic = language === 'ar';
-  const copy = isArabic
-    ? {
-        title: 'أخبرنا عن نفسك',
-        subtitle: 'نستخدم هذا لضبط خطتك الأولى.',
-        age: 'العمر',
-        gender: 'الجنس',
-        height: 'الطول',
-        weight: 'الوزن',
-        next: 'الخطوة التالية',
-        ageRequired: 'العمر مطلوب',
-        genderRequired: 'الجنس مطلوب',
-        heightRequired: 'الطول مطلوب',
-        weightRequired: 'الوزن مطلوب',
-        heightMax: `يجب أن يكون الطول ${MAX_BODY_METRIC} سم أو أقل`,
-        weightMax: `يجب أن يكون الوزن ${MAX_BODY_METRIC} كجم أو أقل`,
-        agePlaceholder: 'مثال: 28',
-        heightPlaceholder: 'سم',
-        weightPlaceholder: 'كجم',
-      }
-    : {
-        title: 'Tell us about yourself',
-        subtitle: 'We use this to calibrate your initial plan.',
-        age: 'Age',
-        gender: 'Gender',
-        height: 'Height',
-        weight: 'Weight',
-        next: 'Next Step',
-        ageRequired: 'Age is required',
-        genderRequired: 'Gender is required',
-        heightRequired: 'Height is required',
-        weightRequired: 'Weight is required',
-        heightMax: `Height must be ${MAX_BODY_METRIC} cm or less`,
-        weightMax: `Weight must be ${MAX_BODY_METRIC} kg or less`,
-        agePlaceholder: 'e.g. 28',
-        heightPlaceholder: 'cm',
-        weightPlaceholder: 'kg',
-      };
+  const copy = COPY[language] ?? COPY.en;
   const genderSelectOptions = genderOptions?.length
     ? genderOptions
     : DEFAULT_ONBOARDING_CONFIG.options.genders;
@@ -64,14 +111,16 @@ export function PersonalInfoScreen({
     .filter((option) => ['male', 'female'].includes(String(option?.value || '').trim().toLowerCase()))
     .map((option) => ({
       value: String(option.value || '').trim().toLowerCase(),
-      label: String(option.value || '').trim().toLowerCase() === 'male' ? 'Man' : 'Woman',
+      label: String(option.value || '').trim().toLowerCase() === 'male' ? copy.male : copy.female,
     }));
+
   if (!genderButtonOptions.length) {
     genderButtonOptions.push(
-      { value: 'male', label: 'Man' },
-      { value: 'female', label: 'Woman' },
+      { value: 'male', label: copy.male },
+      { value: 'female', label: copy.female },
     );
   }
+
   const [age, setAge] = useState(String(onboardingData?.age ?? ''));
   const [gender, setGender] = useState(String(onboardingData?.gender ?? '').trim().toLowerCase());
   const [height, setHeight] = useState(String(onboardingData?.height ?? ''));
@@ -168,16 +217,13 @@ export function PersonalInfoScreen({
                       : 'border-white/15 bg-white/[0.03] text-text-secondary hover:border-white/25 hover:bg-white/[0.05]'
                   }`}
                 >
-                  {localizeGenderButtonLabel(option.value, language)}
+                  {option.label}
                 </button>
               );
             })}
           </div>
-          {errors.gender ? (
-            <p className="text-xs text-red-400 ml-1">{errors.gender}</p>
-          ) : null}
+          {errors.gender ? <p className="text-xs text-red-400 ml-1">{errors.gender}</p> : null}
         </div>
-
 
         <div className="grid grid-cols-2 gap-4">
           <Input
@@ -222,6 +268,6 @@ export function PersonalInfoScreen({
       <div className="flex-1" />
 
       <Button onClick={handleNext}>{copy.next}</Button>
-    </div>);
-
+    </div>
+  );
 }

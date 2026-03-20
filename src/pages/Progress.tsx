@@ -18,8 +18,9 @@ import {
   PROGRESS_COACHMARK_VERSION,
   readCoachmarkProgress,
 } from '../services/coachmarks';
-import { AppLanguage, getActiveLanguage } from '../services/language';
+import { AppLanguage, getActiveLanguage, pickLanguage } from '../services/language';
 import { useScrollToTopOnChange } from '../shared/scroll';
+
 interface ProgressProps {
   resetSignal?: number;
   guidedTourActive?: boolean;
@@ -38,13 +39,12 @@ export function Progress({
   onGuidedTourDismiss,
 }: ProgressProps) {
   const [view, setView] = useState<'dashboard' | 'report' | 'recovery' | 'measurements' | 'photos' | 'exercise' | 'insights' | 'weeklyCheckin' | 'strengthScore'>(
-    'dashboard'
+    'dashboard',
   );
   const [language, setLanguage] = useState<AppLanguage>(() => getActiveLanguage());
   const [coachmarkStepIndex, setCoachmarkStepIndex] = useState(0);
   const [isCoachmarkOpen, setIsCoachmarkOpen] = useState(false);
   const hasTrackedVisitRef = useRef(false);
-  const isArabic = language === 'ar';
   const coachmarkScope = getCoachmarkUserScope();
   const coachmarkDefaultSeenSteps = useMemo(
     () => ({
@@ -68,77 +68,233 @@ export function Progress({
     [coachmarkDefaultSeenSteps, coachmarkScope],
   );
   const coachmarkCopy = useMemo(
-    () => ({
-      next: isArabic ? 'التالي' : 'Next',
-      skip: isArabic ? 'تخطي' : 'Skip',
-      finish: isArabic ? 'حسناً' : 'Got it',
-      steps: [
-        {
-          id: 'page_intro',
-          targetId: 'progress_dashboard',
-          title: isArabic ? 'هذه صفحة التقدم' : 'This is your progress page',
-          body: isArabic
-            ? 'هنا تتابع تقدمك كله من الأعلى إلى الأسفل.'
-            : 'This page shows your full progress flow from top to bottom.',
-          placement: 'bottom' as const,
-        },
-        {
-          id: 'strength_chart',
-          targetId: 'progress_strength_chart',
-          title: isArabic ? 'قوتك الحقيقية' : 'Your real strength',
-          body: isArabic
-            ? 'يعرض هذا المخطط اتجاه 1RM التقديري حتى ترى هل قوتك تتقدم فعلاً.'
-            : 'This chart shows your estimated 1RM trend so you can see if strength is truly moving up.',
-          placement: 'bottom' as const,
-        },
-        {
-          id: 'consistency',
-          targetId: 'progress_consistency_card',
-          title: isArabic ? 'حافظ على الانتظام' : 'Stay consistent',
-          body: isArabic
-            ? 'هنا ترى نسبة التزامك هذا الأسبوع وعدد الأيام التي أنجزتها.'
-            : 'See your weekly consistency and how many planned training days you completed.',
-          placement: 'bottom' as const,
-        },
-        {
-          id: 'total_volume',
-          targetId: 'progress_total_volume_card',
-          title: isArabic ? 'تتبّع الحمل' : 'Track workload',
-          body: isArabic
-            ? 'إجمالي الحجم يوضح كمية العمل التي رفعتها عبر الجلسات.'
-            : 'Total volume helps you understand how much work you are accumulating across sessions.',
-          placement: 'bottom' as const,
-        },
-        {
-          id: 'muscle_distribution',
-          targetId: 'progress_muscle_distribution_card',
-          title: isArabic ? 'شاهد تركيز الخطة' : 'See plan focus',
-          body: isArabic
-            ? 'هذا يوضح العضلات التي تستهدفها خطتك الحالية أكثر من غيرها.'
-            : 'This shows which muscle groups your current plan is emphasizing the most.',
-          placement: 'bottom' as const,
-        },
-        {
-          id: 'report',
-          targetId: 'progress_biweekly_report_button',
-          title: isArabic ? 'راجع تقريرك' : 'Review your report',
-          body: isArabic
-            ? 'افتح التقرير نصف الأسبوعي لمراجعة الملخصات والاتجاهات المهمة.'
-            : 'Open your bi-weekly report for a clearer summary of your key progress trends.',
-          placement: 'top' as const,
-        },
-        {
-          id: 'overload',
-          targetId: 'progress_overload_card',
-          title: isArabic ? 'طوّر الفترة التالية' : 'Progress the next block',
-          body: isArabic
-            ? 'هنا يقترح RepSet أهداف التدرج القادمة بناءً على خطتك وأدائك الأخير.'
-            : 'RepSet suggests your next overload targets here based on your plan and recent training.',
-          placement: 'top' as const,
-        },
-      ] satisfies CoachmarkStep[],
+    () => pickLanguage(language, {
+      en: {
+        next: 'Next',
+        skip: 'Skip',
+        finish: 'Got it',
+        steps: [
+          {
+            id: 'page_intro',
+            targetId: 'progress_dashboard',
+            title: 'This is your progress page',
+            body: 'This page shows your full progress flow from top to bottom.',
+            placement: 'bottom' as const,
+          },
+          {
+            id: 'strength_chart',
+            targetId: 'progress_strength_chart',
+            title: 'Your real strength',
+            body: 'This chart shows your estimated 1RM trend so you can see if strength is truly moving up.',
+            placement: 'bottom' as const,
+          },
+          {
+            id: 'consistency',
+            targetId: 'progress_consistency_card',
+            title: 'Stay consistent',
+            body: 'See your weekly consistency and how many planned training days you completed.',
+            placement: 'bottom' as const,
+          },
+          {
+            id: 'total_volume',
+            targetId: 'progress_total_volume_card',
+            title: 'Track workload',
+            body: 'Total volume helps you understand how much work you are accumulating across sessions.',
+            placement: 'bottom' as const,
+          },
+          {
+            id: 'muscle_distribution',
+            targetId: 'progress_muscle_distribution_card',
+            title: 'See plan focus',
+            body: 'This shows which muscle groups your current plan is emphasizing the most.',
+            placement: 'bottom' as const,
+          },
+          {
+            id: 'report',
+            targetId: 'progress_biweekly_report_button',
+            title: 'Review your report',
+            body: 'Open your bi-weekly report for a clearer summary of your key progress trends.',
+            placement: 'top' as const,
+          },
+          {
+            id: 'overload',
+            targetId: 'progress_overload_card',
+            title: 'Progress the next block',
+            body: 'RepSet suggests your next overload targets here based on your plan and recent training.',
+            placement: 'top' as const,
+          },
+        ] satisfies CoachmarkStep[],
+      },
+      ar: {
+        next: 'التالي',
+        skip: 'تخطي',
+        finish: 'حسنًا',
+        steps: [
+          {
+            id: 'page_intro',
+            targetId: 'progress_dashboard',
+            title: 'هذه صفحة التقدم',
+            body: 'هنا تتابع تقدمك كاملًا من الأعلى إلى الأسفل.',
+            placement: 'bottom' as const,
+          },
+          {
+            id: 'strength_chart',
+            targetId: 'progress_strength_chart',
+            title: 'قوتك الحقيقية',
+            body: 'يعرض هذا المخطط اتجاه 1RM التقديري حتى ترى هل قوتك تتقدم فعلًا.',
+            placement: 'bottom' as const,
+          },
+          {
+            id: 'consistency',
+            targetId: 'progress_consistency_card',
+            title: 'حافظ على الانتظام',
+            body: 'هنا ترى نسبة التزامك هذا الأسبوع وعدد الأيام التي أنجزتها.',
+            placement: 'bottom' as const,
+          },
+          {
+            id: 'total_volume',
+            targetId: 'progress_total_volume_card',
+            title: 'تتبّع الحمل',
+            body: 'إجمالي الحجم يوضح كمية العمل التي رفعتها عبر الجلسات.',
+            placement: 'bottom' as const,
+          },
+          {
+            id: 'muscle_distribution',
+            targetId: 'progress_muscle_distribution_card',
+            title: 'شاهد تركيز الخطة',
+            body: 'هذا يوضح العضلات التي تستهدفها خطتك الحالية أكثر من غيرها.',
+            placement: 'bottom' as const,
+          },
+          {
+            id: 'report',
+            targetId: 'progress_biweekly_report_button',
+            title: 'راجع تقريرك',
+            body: 'افتح التقرير نصف الأسبوعي لمراجعة الملخصات والاتجاهات المهمة.',
+            placement: 'top' as const,
+          },
+          {
+            id: 'overload',
+            targetId: 'progress_overload_card',
+            title: 'طوّر الفترة التالية',
+            body: 'هنا يقترح RepSet أهداف التدرج القادمة بناءً على خطتك وأدائك الأخير.',
+            placement: 'top' as const,
+          },
+        ] satisfies CoachmarkStep[],
+      },
+      it: {
+        next: 'Avanti',
+        skip: 'Salta',
+        finish: 'Ho capito',
+        steps: [
+          {
+            id: 'page_intro',
+            targetId: 'progress_dashboard',
+            title: 'Questa e la tua pagina progressi',
+            body: 'Qui puoi seguire tutto il tuo andamento dall’inizio alla fine.',
+            placement: 'bottom' as const,
+          },
+          {
+            id: 'strength_chart',
+            targetId: 'progress_strength_chart',
+            title: 'La tua forza reale',
+            body: 'Questo grafico mostra l’andamento del tuo 1RM stimato per capire se la forza sta davvero crescendo.',
+            placement: 'bottom' as const,
+          },
+          {
+            id: 'consistency',
+            targetId: 'progress_consistency_card',
+            title: 'Resta costante',
+            body: 'Qui vedi la tua costanza settimanale e quanti giorni pianificati hai completato.',
+            placement: 'bottom' as const,
+          },
+          {
+            id: 'total_volume',
+            targetId: 'progress_total_volume_card',
+            title: 'Monitora il carico',
+            body: 'Il volume totale ti aiuta a capire quanto lavoro stai accumulando tra le sessioni.',
+            placement: 'bottom' as const,
+          },
+          {
+            id: 'muscle_distribution',
+            targetId: 'progress_muscle_distribution_card',
+            title: 'Guarda il focus del piano',
+            body: 'Questo mostra quali gruppi muscolari il tuo piano attuale sta enfatizzando di piu.',
+            placement: 'bottom' as const,
+          },
+          {
+            id: 'report',
+            targetId: 'progress_biweekly_report_button',
+            title: 'Rivedi il tuo report',
+            body: 'Apri il report bisettimanale per una sintesi piu chiara delle tue tendenze principali.',
+            placement: 'top' as const,
+          },
+          {
+            id: 'overload',
+            targetId: 'progress_overload_card',
+            title: 'Fai avanzare il prossimo blocco',
+            body: 'Qui RepSet suggerisce i prossimi obiettivi di sovraccarico in base al tuo piano e agli allenamenti recenti.',
+            placement: 'top' as const,
+          },
+        ] satisfies CoachmarkStep[],
+      },
+      de: {
+        next: 'Weiter',
+        skip: 'Uberspringen',
+        finish: 'Verstanden',
+        steps: [
+          {
+            id: 'page_intro',
+            targetId: 'progress_dashboard',
+            title: 'Das ist deine Fortschrittsseite',
+            body: 'Hier siehst du deinen kompletten Fortschritt von oben bis unten.',
+            placement: 'bottom' as const,
+          },
+          {
+            id: 'strength_chart',
+            targetId: 'progress_strength_chart',
+            title: 'Deine echte Kraft',
+            body: 'Dieses Diagramm zeigt den Trend deines geschatzten 1RM, damit du echte Kraftentwicklung erkennst.',
+            placement: 'bottom' as const,
+          },
+          {
+            id: 'consistency',
+            targetId: 'progress_consistency_card',
+            title: 'Bleib konstant',
+            body: 'Hier siehst du deine Wochenkonstanz und wie viele geplante Trainingstage du geschafft hast.',
+            placement: 'bottom' as const,
+          },
+          {
+            id: 'total_volume',
+            targetId: 'progress_total_volume_card',
+            title: 'Belastung verfolgen',
+            body: 'Das Gesamtvolumen hilft dir zu verstehen, wie viel Arbeit du uber mehrere Einheiten sammelst.',
+            placement: 'bottom' as const,
+          },
+          {
+            id: 'muscle_distribution',
+            targetId: 'progress_muscle_distribution_card',
+            title: 'Fokus des Plans sehen',
+            body: 'Das zeigt, welche Muskelgruppen dein aktueller Plan am starksten betont.',
+            placement: 'bottom' as const,
+          },
+          {
+            id: 'report',
+            targetId: 'progress_biweekly_report_button',
+            title: 'Deinen Report prufen',
+            body: 'Offne deinen Zwei-Wochen-Report fur eine klarere Zusammenfassung deiner wichtigsten Trends.',
+            placement: 'top' as const,
+          },
+          {
+            id: 'overload',
+            targetId: 'progress_overload_card',
+            title: 'Den nachsten Block steigern',
+            body: 'Hier schlagt RepSet deine nachsten Uberlastungsziele basierend auf Plan und aktuellem Training vor.',
+            placement: 'top' as const,
+          },
+        ] satisfies CoachmarkStep[],
+      },
     }),
-    [isArabic],
+    [language],
   );
   const coachmarkSteps = coachmarkCopy.steps;
   const activeCoachmarkStep = coachmarkSteps[coachmarkStepIndex] || null;
@@ -256,6 +412,7 @@ export function Progress({
   if (view === 'strengthScore') {
     return <StrengthScoreScreen onBack={() => setView('dashboard')} />;
   }
+
   return (
     <div data-coachmark-target="progress_page" className="relative pb-24">
       <div className="space-y-2">
@@ -282,7 +439,6 @@ export function Progress({
         onSkip={handleCoachmarkSkip}
         onTargetAction={null}
       />
-    </div>);
-
+    </div>
+  );
 }
-

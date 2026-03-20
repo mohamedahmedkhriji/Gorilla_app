@@ -30,7 +30,7 @@ import {
 } from '../services/coachmarks';
 import { getRankBadgeImage } from '../services/rankTheme';
 import { emojiComingSoon, emojiMyNutrition, emojiProfile, emojiRightArrow, emojiShop } from '../services/emojiTheme';
-import { AppLanguage, getActiveLanguage } from '../services/language';
+import { AppLanguage, getActiveLanguage, pickLanguage } from '../services/language';
 import { formatWorkoutDayLabel, normalizeWorkoutDayKey } from '../services/workoutDayLabel';
 import {
   clearTodayWorkoutSelection,
@@ -476,7 +476,6 @@ export function Home({
   const hasTrackedHomeVisitRef = useRef(false);
 
   useScrollToTopOnChange([view, resetSignal]);
-  const isArabic = language === 'ar';
 
   useEffect(() => {
     const handleLanguageChanged = () => {
@@ -487,6 +486,7 @@ export function Home({
     window.addEventListener('app-language-changed', handleLanguageChanged);
     return () => window.removeEventListener('app-language-changed', handleLanguageChanged);
   }, []);
+
   const selectedTodayWorkout = useMemo(
     () => weekPlanWorkouts.find((workout) => workout.key === todayWorkoutSelection?.workoutKey) || null,
     [todayWorkoutSelection?.workoutKey, weekPlanWorkouts],
@@ -500,24 +500,85 @@ export function Home({
     todayWorkoutSelection?.completed
     && Number(overallRecovery || 0) < 60
   );
+  const restDayLabel = pickLanguage(language, {
+    en: 'Rest Day',
+    ar: '\u064a\u0648\u0645 \u0631\u0627\u062d\u0629',
+    it: 'Giorno di riposo',
+    de: 'Ruhetag',
+  });
+  const customWorkoutLabel = pickLanguage(language, {
+    en: 'Custom Workout',
+    ar: '\u062a\u0645\u0631\u064a\u0646 \u0645\u062e\u0635\u0635',
+    it: 'Allenamento personalizzato',
+    de: 'Benutzerdefiniertes Workout',
+  });
+  const workoutCardCopy = useMemo(
+    () => pickLanguage(language, {
+      en: {
+        recoveryFirst: 'Recovery first',
+        recoveryMessage: (recovery: number) => `Recovery is ${recovery}%. A rest or lighter day is the better next move.`,
+        recommendedNext: 'Recommended next',
+        chooseTraining: 'Choose today\'s training',
+        chooseWorkoutBody: 'Pick the session from your week plan that fits today.',
+        tapToOpenPlan: 'Tap to open your week plan',
+        chooseFromPlan: 'Choose from My Plan',
+        viewMyPlan: 'View My Plan',
+        ready: 'Ready',
+        done: 'Done',
+      },
+      ar: {
+        recoveryFirst: '\u0627\u0644\u062a\u0639\u0627\u0641\u064a \u0623\u0648\u0644\u0627',
+        recoveryMessage: (recovery: number) => `\u0627\u0644\u062a\u0639\u0627\u0641\u064a \u0644\u062f\u064a\u0643 \u0627\u0644\u0622\u0646 ${recovery}%. \u062e\u0630 \u0631\u0627\u062d\u0629 \u0623\u0648 \u062d\u0635\u0629 \u0623\u062e\u0641 \u0642\u0628\u0644 \u0627\u0644\u062a\u0645\u0631\u064a\u0646 \u0627\u0644\u062a\u0627\u0644\u064a.`,
+        recommendedNext: '\u0627\u0644\u0627\u0642\u062a\u0631\u0627\u062d \u0627\u0644\u062a\u0627\u0644\u064a',
+        chooseTraining: '\u0627\u062e\u062a\u0631 \u062a\u062f\u0631\u064a\u0628 \u0627\u0644\u064a\u0648\u0645',
+        chooseWorkoutBody: '\u0627\u062e\u062a\u0631 \u0645\u0646 \u062e\u0637\u0629 \u0627\u0644\u0623\u0633\u0628\u0648\u0639 \u0627\u0644\u062d\u0635\u0629 \u0627\u0644\u062a\u064a \u062a\u0646\u0627\u0633\u0628\u0643 \u0627\u0644\u064a\u0648\u0645.',
+        tapToOpenPlan: '\u0627\u0636\u063a\u0637 \u0644\u0641\u062a\u062d \u062e\u0637\u062a\u0643 \u0627\u0644\u0623\u0633\u0628\u0648\u0639\u064a\u0629',
+        chooseFromPlan: '\u0627\u062e\u062a\u0631 \u0645\u0646 \u062e\u0637\u062a\u064a',
+        viewMyPlan: '\u0627\u0637\u0644\u0639 \u0639\u0644\u0649 \u062e\u0637\u062a\u064a',
+        ready: '\u062c\u0627\u0647\u0632',
+        done: '\u062a\u0645',
+      },
+      it: {
+        recoveryFirst: 'Prima il recupero',
+        recoveryMessage: (recovery: number) => `Il tuo recupero ora e ${recovery}%. Meglio scegliere riposo o una sessione piu leggera prima del prossimo allenamento.`,
+        recommendedNext: 'Prossimo consiglio',
+        chooseTraining: 'Scegli l\'allenamento di oggi',
+        chooseWorkoutBody: 'Scegli dalla tua settimana la sessione piu adatta a oggi.',
+        tapToOpenPlan: 'Tocca per aprire il tuo piano settimanale',
+        chooseFromPlan: 'Scegli dal mio piano',
+        viewMyPlan: 'Apri il mio piano',
+        ready: 'Pronto',
+        done: 'Fatto',
+      },
+      de: {
+        recoveryFirst: 'Erholung zuerst',
+        recoveryMessage: (recovery: number) => `Deine Erholung liegt bei ${recovery}%. Ein Ruhetag oder eine leichtere Einheit ist jetzt die bessere Wahl.`,
+        recommendedNext: 'Empfohlener nachster Schritt',
+        chooseTraining: 'Wahle dein heutiges Training',
+        chooseWorkoutBody: 'Wahle aus deinem Wochenplan die Einheit, die heute passt.',
+        tapToOpenPlan: 'Tippe hier, um deinen Wochenplan zu offnen',
+        chooseFromPlan: 'Aus meinem Plan wahlen',
+        viewMyPlan: 'Meinen Plan offnen',
+        ready: 'Bereit',
+        done: 'Fertig',
+      },
+    }),
+    [language],
+  );
   const workoutRecommendation = useMemo(() => {
     if (!todayWorkoutSelection?.completed) return null;
     if (shouldSuggestRecoveryFirst) {
       return {
-        title: isArabic ? 'التعافي أولًا' : 'Recovery first',
-        detail: isArabic
-          ? `تعافيك الآن ${Math.round(overallRecovery)}٪. خذ راحة أو حصة خفيفة قبل التمرين التالي.`
-          : `Recovery is ${Math.round(overallRecovery)}%. A rest or lighter day is the better next move.`,
+        title: workoutCardCopy.recoveryFirst,
+        detail: workoutCardCopy.recoveryMessage(Math.round(overallRecovery)),
       };
     }
     if (!nextRecommendedWorkout) return null;
     return {
-      title: isArabic ? 'الاقتراح التالي' : 'Recommended next',
-      detail: isArabic
-        ? `${nextRecommendedWorkout.workoutName} - ${nextRecommendedWorkout.dayLabel}`
-        : `${nextRecommendedWorkout.workoutName} - ${nextRecommendedWorkout.dayLabel}`,
+      title: workoutCardCopy.recommendedNext,
+      detail: `${nextRecommendedWorkout.workoutName} - ${nextRecommendedWorkout.dayLabel}`,
     };
-  }, [isArabic, nextRecommendedWorkout, overallRecovery, shouldSuggestRecoveryFirst, todayWorkoutSelection?.completed]);
+  }, [nextRecommendedWorkout, overallRecovery, shouldSuggestRecoveryFirst, todayWorkoutSelection?.completed, workoutCardCopy]);
   const todayWorkoutExercises = useMemo(() => {
     const baseExercises = normalizeTodayWorkoutExercises(todayWorkoutData?.exercises);
     const extraExercises = normalizeTodayWorkoutExercises(extraTodayExercises);
@@ -538,52 +599,38 @@ export function Home({
   }, [todayWorkoutData, extraTodayExercises, storedTodayExerciseSnapshot]);
   const todayWorkoutExerciseCount = Math.max(todayWorkoutExercises.length, storedTodayExerciseCount);
   const hasAnyTodayExercises = todayWorkoutExerciseCount > 0;
-  const workoutCardTitle = shouldChooseWorkoutToday
-    ? (isArabic ? 'اختر تدريب اليوم' : 'Choose today\'s training')
-    : (todayWorkout === 'Rest Day' && hasAnyTodayExercises ? 'Custom Workout' : todayWorkout);
   const isWorkoutCardRestDay = !shouldChooseWorkoutToday && todayWorkout === 'Rest Day' && !hasAnyTodayExercises;
+  const workoutCardTitle = shouldChooseWorkoutToday
+    ? workoutCardCopy.chooseTraining
+    : (todayWorkout === 'Rest Day' && hasAnyTodayExercises ? customWorkoutLabel : todayWorkout);
   const workoutCardSubtitle = shouldChooseWorkoutToday
-    ? (
-      isArabic
-        ? 'اختر من خطة الأسبوع الحصة التي تناسبك اليوم.'
-        : 'Pick the session from your week plan that fits today.'
-    )
+    ? workoutCardCopy.chooseWorkoutBody
     : (workoutRecommendation?.detail ?? null);
   const workoutCardDetailLines = shouldChooseWorkoutToday
-    ? [
-        isArabic
-          ? 'اضغط لفتح خطتك الأسبوعية'
-          : 'Tap to open your week plan',
-      ]
+    ? [workoutCardCopy.tapToOpenPlan]
     : undefined;
   const workoutCardActionLabel = shouldChooseWorkoutToday
-    ? (isArabic ? 'اختر من خطتي' : 'Choose from My Plan')
+    ? workoutCardCopy.chooseFromPlan
     : todayWorkoutSelection?.completed
-      ? (isArabic ? 'اطلع على خطتي' : 'View My Plan')
+      ? workoutCardCopy.viewMyPlan
       : undefined;
   const workoutCardProgressCaption = shouldChooseWorkoutToday
-    ? (isArabic ? 'جاهز' : 'Ready')
+    ? workoutCardCopy.ready
     : todayWorkoutSelection?.completed
-      ? (isArabic ? 'تم' : 'Done')
+      ? workoutCardCopy.done
       : undefined;
-  const workoutCardTitleDisplay = shouldChooseWorkoutToday
-    ? (isArabic ? 'اختر تدريب اليوم' : 'Choose today\'s training')
-    : workoutCardTitle;
-  const workoutCardSubtitleDisplay = shouldChooseWorkoutToday
-    ? (isArabic ? 'اختر من خطة الأسبوع الحصة التي تناسبك اليوم.' : 'Pick the session from your week plan that fits today.')
-    : workoutCardSubtitle;
-  const workoutCardDetailLinesDisplay = shouldChooseWorkoutToday
-    ? [isArabic ? 'اضغط لفتح خطتك الأسبوعية' : 'Tap to open your week plan']
-    : workoutCardDetailLines;
+  const workoutCardTitleDisplay = shouldChooseWorkoutToday ? workoutCardCopy.chooseTraining : workoutCardTitle;
+  const workoutCardSubtitleDisplay = shouldChooseWorkoutToday ? workoutCardCopy.chooseWorkoutBody : workoutCardSubtitle;
+  const workoutCardDetailLinesDisplay = shouldChooseWorkoutToday ? [workoutCardCopy.tapToOpenPlan] : workoutCardDetailLines;
   const workoutCardActionLabelDisplay = shouldChooseWorkoutToday
-    ? (isArabic ? 'اختر من خطتي' : 'Choose from My Plan')
+    ? workoutCardCopy.chooseFromPlan
     : todayWorkoutSelection?.completed
-      ? (isArabic ? 'اطلع على خطتي' : 'View My Plan')
+      ? workoutCardCopy.viewMyPlan
       : workoutCardActionLabel;
   const workoutCardProgressCaptionDisplay = shouldChooseWorkoutToday
-    ? (isArabic ? 'جاهز' : 'Ready')
+    ? workoutCardCopy.ready
     : todayWorkoutSelection?.completed
-      ? (isArabic ? 'تم' : 'Done')
+      ? workoutCardCopy.done
       : workoutCardProgressCaption;
 
   const handleOpenWorkoutCard = () => {
@@ -594,6 +641,7 @@ export function Home({
 
     onNavigate('workout', workoutCardTitleDisplay);
   };
+
   const rankName = String(programProgress?.rank || 'Bronze');
   const rankBadgeImage = getRankBadgeImage(rankName);
   const coachmarkScope = getCoachmarkUserScope(currentUser);
@@ -619,69 +667,181 @@ export function Home({
     }),
     [coachmarkDefaultSeenSteps, coachmarkScope],
   );
-  const homeCopy = {
-    tagline: isArabic ? 'جاهز لتحقيق أهدافك اليوم؟' : 'Ready to crush your goals today?',
-    rank: isArabic ? 'الرتبة' : 'Rank',
-    myNutrition: isArabic ? 'تغذيتي' : 'My Nutrition',
-    shop: isArabic ? 'المتجر' : 'Shop',
-    comingSoon: isArabic ? 'قريبًا' : 'Coming soon',
-    ok: isArabic ? 'حسنًا' : 'OK',
-    books: isArabic ? 'الكتب' : 'Books',
-  };
-  const coachmarkCopy = useMemo(
-    () => ({
-      next: isArabic ? 'التالي' : 'Next',
-      skip: isArabic ? 'تخطي' : 'Skip',
-      finish: isArabic ? 'حسناً' : 'Got it',
-      startHereTitle: shouldChooseWorkoutToday
-        ? (isArabic ? 'اختر من خطتك' : 'Choose from My Plan')
-        : (isArabic ? 'افتح تمرينك' : 'Open your workout'),
-      startHereBody: shouldChooseWorkoutToday
-        ? (
-          isArabic
-            ? 'إذا لم تختر حصة بعد، اضغط هنا للذهاب إلى خطتك واختيار تمرين اليوم.'
-            : 'If you have not picked a session yet, tap here to go to My Plan and choose today\'s workout.'
-        )
-        : (
-          isArabic
-            ? 'بعد حفظ حصة اليوم، اضغط هنا لفتح خطة التمرين الكاملة والبدء.'
-            : 'Once today\'s session is saved, tap here to open the full workout plan and start training.'
-        ),
-      startHereAction: shouldChooseWorkoutToday
-        ? (isArabic ? 'افتح خطتي' : 'Open My Plan')
-        : (isArabic ? 'افتح التمرين' : 'Open Workout'),
-      recoveryTitle: isArabic ? 'تدرّب بذكاء' : 'Train smarter',
-      recoveryBody: isArabic
-        ? 'يعرض التعافي مدى جاهزية جسمك قبل الجلسة التالية.'
-        : 'Recovery shows how ready your body is before your next session.',
-      progressTitle: isArabic ? 'شاهد تطورك' : 'See your growth',
-      progressBody: isArabic
-        ? 'تتبع انتظامك وأداءك وتحسن قوتك من هنا.'
-        : 'Track your consistency, performance and strength improvements here.',
-      nutritionTitle: isArabic ? 'غذِّ نتائجك' : 'Fuel your results',
-      nutritionBody: isArabic
-        ? 'احصل على إرشادات للسعرات والبروتين بما يناسب هدفك.'
-        : 'Get guidance for calories and protein based on your goal.',
-      exercisesTitle: isArabic ? 'تعلّم الحركات' : 'Learn each movement',
-      exercisesBody: isArabic
-        ? 'استخدم هذه البطاقة لاستكشاف التمارين الصحيحة ومشاهدة الشرح قبل أن تبدأ.'
-        : 'Use this card to browse exercises and watch how each movement should be performed.',
-      booksTitle: isArabic ? 'مكتبة معرفية' : 'Build your knowledge',
-      booksBody: isArabic
-        ? 'هذه البطاقة مخصّصة للمحتوى التعليمي والكتب التي تساعدك تفهم التدريب بشكل أفضل.'
-        : 'This card is for educational guides and books that help you understand your training better.',
+  const homeCopy = useMemo(
+    () => pickLanguage(language, {
+      en: {
+        tagline: 'Ready to crush your goals today?',
+        rank: 'Rank',
+        myNutrition: 'My Nutrition',
+        shop: 'Shop',
+        comingSoon: 'Coming soon',
+        ok: 'OK',
+        books: 'Books',
+        back: 'Back',
+        eatWellAndRecover: 'Eat well and recover',
+        sets: 'sets',
+        reps: 'reps',
+        rest: 'rest',
+        challenge: 'Challenge',
+        challengePlaceholder: (name: string) => `Challenge screen placeholder for ${name}.`,
+        defaultFriendName: 'this friend',
+      },
+      ar: {
+        tagline: '\u062c\u0627\u0647\u0632 \u0644\u062a\u062d\u0642\u064a\u0642 \u0623\u0647\u062f\u0627\u0641\u0643 \u0627\u0644\u064a\u0648\u0645\u061f',
+        rank: '\u0627\u0644\u0631\u062a\u0628\u0629',
+        myNutrition: '\u062a\u063a\u0630\u064a\u062a\u064a',
+        shop: '\u0627\u0644\u0645\u062a\u062c\u0631',
+        comingSoon: '\u0642\u0631\u064a\u0628\u0627',
+        ok: '\u062d\u0633\u0646\u0627',
+        books: '\u0627\u0644\u0643\u062a\u0628',
+        back: '\u0631\u062c\u0648\u0639',
+        eatWellAndRecover: '\u0643\u0644 \u062c\u064a\u062f\u0627 \u0648\u062a\u0639\u0627\u0641',
+        sets: '\u0645\u062c\u0645\u0648\u0639\u0627\u062a',
+        reps: '\u062a\u0643\u0631\u0627\u0631\u0627\u062a',
+        rest: '\u0631\u0627\u062d\u0629',
+        challenge: '\u0627\u0644\u062a\u062d\u062f\u064a',
+        challengePlaceholder: (name: string) => `\u0647\u0630\u0647 \u0634\u0627\u0634\u0629 \u062a\u062c\u0631\u064a\u0628\u064a\u0629 \u0644\u0644\u062a\u062d\u062f\u064a \u0645\u0639 ${name}.`,
+        defaultFriendName: '\u0647\u0630\u0627 \u0627\u0644\u0635\u062f\u064a\u0642',
+      },
+      it: {
+        tagline: 'Pronto a raggiungere i tuoi obiettivi oggi?',
+        rank: 'Grado',
+        myNutrition: 'La mia nutrizione',
+        shop: 'Negozio',
+        comingSoon: 'In arrivo',
+        ok: 'OK',
+        books: 'Libri',
+        back: 'Indietro',
+        eatWellAndRecover: 'Mangia bene e recupera',
+        sets: 'serie',
+        reps: 'ripetizioni',
+        rest: 'recupero',
+        challenge: 'Sfida',
+        challengePlaceholder: (name: string) => `Schermata segnaposto della sfida per ${name}.`,
+        defaultFriendName: 'questo amico',
+      },
+      de: {
+        tagline: 'Bereit, heute deine Ziele zu erreichen?',
+        rank: 'Rang',
+        myNutrition: 'Meine Ernahrung',
+        shop: 'Shop',
+        comingSoon: 'Demnachst',
+        ok: 'OK',
+        books: 'Bucher',
+        back: 'Zuruck',
+        eatWellAndRecover: 'Iss gut und erhole dich',
+        sets: 'Satze',
+        reps: 'Wiederholungen',
+        rest: 'Pause',
+        challenge: 'Challenge',
+        challengePlaceholder: (name: string) => `Challenge-Platzhalter fur ${name}.`,
+        defaultFriendName: 'dieser Freund',
+      },
     }),
-    [isArabic, shouldChooseWorkoutToday],
+    [language],
+  );
+  const coachmarkCopy = useMemo(
+    () => pickLanguage(language, {
+      en: {
+        next: 'Next',
+        skip: 'Skip',
+        finish: 'Got it',
+        startHereTitle: shouldChooseWorkoutToday ? 'Choose from My Plan' : 'Open your workout',
+        startHereBody: shouldChooseWorkoutToday
+          ? 'If you have not picked a session yet, tap here to go to My Plan and choose today\'s workout.'
+          : 'Once today\'s session is saved, tap here to open the full workout plan and start training.',
+        startHereAction: shouldChooseWorkoutToday ? 'Open My Plan' : 'Open Workout',
+        recoveryTitle: 'Train smarter',
+        recoveryBody: 'Recovery shows how ready your body is before your next session.',
+        progressTitle: 'See your growth',
+        progressBody: 'Track your consistency, performance and strength improvements here.',
+        nutritionTitle: 'Fuel your results',
+        nutritionBody: 'Get guidance for calories and protein based on your goal.',
+        exercisesTitle: 'Learn each movement',
+        exercisesBody: 'Use this card to browse exercises and watch how each movement should be performed.',
+        booksTitle: 'Build your knowledge',
+        booksBody: 'This card is for educational guides and books that help you understand your training better.',
+      },
+      ar: {
+        next: '\u0627\u0644\u062a\u0627\u0644\u064a',
+        skip: '\u062a\u062e\u0637\u064a',
+        finish: '\u062d\u0633\u0646\u0627',
+        startHereTitle: shouldChooseWorkoutToday ? '\u0627\u062e\u062a\u0631 \u0645\u0646 \u062e\u0637\u062a\u0643' : '\u0627\u0641\u062a\u062d \u062a\u0645\u0631\u064a\u0646\u0643',
+        startHereBody: shouldChooseWorkoutToday
+          ? '\u0625\u0630\u0627 \u0644\u0645 \u062a\u062e\u062a\u0631 \u062d\u0635\u0629 \u0628\u0639\u062f\u060c \u0627\u0636\u063a\u0637 \u0647\u0646\u0627 \u0644\u0644\u0630\u0647\u0627\u0628 \u0625\u0644\u0649 \u062e\u0637\u062a\u0643 \u0648\u0627\u062e\u062a\u064a\u0627\u0631 \u062a\u0645\u0631\u064a\u0646 \u0627\u0644\u064a\u0648\u0645.'
+          : '\u0628\u0639\u062f \u062d\u0641\u0638 \u062d\u0635\u0629 \u0627\u0644\u064a\u0648\u0645\u060c \u0627\u0636\u063a\u0637 \u0647\u0646\u0627 \u0644\u0641\u062a\u062d \u062e\u0637\u0629 \u0627\u0644\u062a\u0645\u0631\u064a\u0646 \u0627\u0644\u0643\u0627\u0645\u0644\u0629 \u0648\u0627\u0644\u0628\u062f\u0621.',
+        startHereAction: shouldChooseWorkoutToday ? '\u0627\u0641\u062a\u062d \u062e\u0637\u062a\u064a' : '\u0627\u0641\u062a\u062d \u0627\u0644\u062a\u0645\u0631\u064a\u0646',
+        recoveryTitle: '\u062a\u062f\u0631\u0628 \u0628\u0630\u0643\u0627\u0621',
+        recoveryBody: '\u064a\u0639\u0631\u0636 \u0627\u0644\u062a\u0639\u0627\u0641\u064a \u0645\u062f\u0649 \u062c\u0627\u0647\u0632\u064a\u0629 \u062c\u0633\u0645\u0643 \u0642\u0628\u0644 \u0627\u0644\u062c\u0644\u0633\u0629 \u0627\u0644\u062a\u0627\u0644\u064a\u0629.',
+        progressTitle: '\u0634\u0627\u0647\u062f \u062a\u0637\u0648\u0631\u0643',
+        progressBody: '\u062a\u062a\u0628\u0639 \u0627\u0646\u062a\u0638\u0627\u0645\u0643 \u0648\u0623\u062f\u0627\u0621\u0643 \u0648\u062a\u062d\u0633\u0646 \u0642\u0648\u062a\u0643 \u0645\u0646 \u0647\u0646\u0627.',
+        nutritionTitle: '\u063a\u0630 \u0646\u062a\u0627\u0626\u062c\u0643',
+        nutritionBody: '\u0627\u062d\u0635\u0644 \u0639\u0644\u0649 \u0625\u0631\u0634\u0627\u062f\u0627\u062a \u0644\u0644\u0633\u0639\u0631\u0627\u062a \u0648\u0627\u0644\u0628\u0631\u0648\u062a\u064a\u0646 \u0628\u0645\u0627 \u064a\u0646\u0627\u0633\u0628 \u0647\u062f\u0641\u0643.',
+        exercisesTitle: '\u062a\u0639\u0644\u0645 \u0627\u0644\u062d\u0631\u0643\u0627\u062a',
+        exercisesBody: '\u0627\u0633\u062a\u062e\u062f\u0645 \u0647\u0630\u0647 \u0627\u0644\u0628\u0637\u0627\u0642\u0629 \u0644\u0627\u0633\u062a\u0643\u0634\u0627\u0641 \u0627\u0644\u062a\u0645\u0627\u0631\u064a\u0646 \u0627\u0644\u0635\u062d\u064a\u062d\u0629 \u0648\u0645\u0634\u0627\u0647\u062f\u0629 \u0627\u0644\u0634\u0631\u062d \u0642\u0628\u0644 \u0623\u0646 \u062a\u0628\u062f\u0623.',
+        booksTitle: '\u0645\u0643\u062a\u0628\u0629 \u0645\u0639\u0631\u0641\u064a\u0629',
+        booksBody: '\u0647\u0630\u0647 \u0627\u0644\u0628\u0637\u0627\u0642\u0629 \u0645\u062e\u0635\u0635\u0629 \u0644\u0644\u0645\u062d\u062a\u0648\u0649 \u0627\u0644\u062a\u0639\u0644\u064a\u0645\u064a \u0648\u0627\u0644\u0643\u062a\u0628 \u0627\u0644\u062a\u064a \u062a\u0633\u0627\u0639\u062f\u0643 \u0639\u0644\u0649 \u0641\u0647\u0645 \u0627\u0644\u062a\u062f\u0631\u064a\u0628 \u0628\u0634\u0643\u0644 \u0623\u0641\u0636\u0644.',
+      },
+      it: {
+        next: 'Avanti',
+        skip: 'Salta',
+        finish: 'Ho capito',
+        startHereTitle: shouldChooseWorkoutToday ? 'Scegli dal mio piano' : 'Apri il tuo allenamento',
+        startHereBody: shouldChooseWorkoutToday
+          ? 'Se non hai ancora scelto una sessione, tocca qui per aprire il tuo piano e selezionare l\'allenamento di oggi.'
+          : 'Quando la sessione di oggi e salvata, tocca qui per aprire il piano completo e iniziare ad allenarti.',
+        startHereAction: shouldChooseWorkoutToday ? 'Apri il mio piano' : 'Apri allenamento',
+        recoveryTitle: 'Allenati con intelligenza',
+        recoveryBody: 'Il recupero mostra quanto il tuo corpo e pronto prima della prossima sessione.',
+        progressTitle: 'Guarda la tua crescita',
+        progressBody: 'Monitora costanza, prestazioni e miglioramenti della forza da qui.',
+        nutritionTitle: 'Nutri i tuoi risultati',
+        nutritionBody: 'Ricevi indicazioni su calorie e proteine in base al tuo obiettivo.',
+        exercisesTitle: 'Impara ogni movimento',
+        exercisesBody: 'Usa questa card per esplorare gli esercizi e vedere come eseguire correttamente ogni movimento.',
+        booksTitle: 'Cresci con la conoscenza',
+        booksBody: 'Questa card e dedicata a guide educative e libri che ti aiutano a capire meglio il tuo allenamento.',
+      },
+      de: {
+        next: 'Weiter',
+        skip: 'Uberspringen',
+        finish: 'Verstanden',
+        startHereTitle: shouldChooseWorkoutToday ? 'Aus meinem Plan wahlen' : 'Dein Workout offnen',
+        startHereBody: shouldChooseWorkoutToday
+          ? 'Wenn du noch keine Einheit gewahlt hast, tippe hier, um zu Mein Plan zu gehen und das heutige Workout auszuwahlen.'
+          : 'Sobald die heutige Einheit gespeichert ist, tippe hier, um den vollstandigen Plan zu offnen und zu starten.',
+        startHereAction: shouldChooseWorkoutToday ? 'Meinen Plan offnen' : 'Workout offnen',
+        recoveryTitle: 'Smarter trainieren',
+        recoveryBody: 'Die Erholung zeigt dir, wie bereit dein Korper vor der nachsten Einheit ist.',
+        progressTitle: 'Sieh deinen Fortschritt',
+        progressBody: 'Verfolge hier deine Konstanz, Leistung und Kraftentwicklung.',
+        nutritionTitle: 'Unterstutze deine Ergebnisse',
+        nutritionBody: 'Erhalte Kalorien- und Proteinempfehlungen passend zu deinem Ziel.',
+        exercisesTitle: 'Lerne jede Bewegung',
+        exercisesBody: 'Nutze diese Karte, um Ubungen zu durchsuchen und die richtige Ausfuhrung anzusehen.',
+        booksTitle: 'Wissen ausbauen',
+        booksBody: 'Diese Karte fuhrt zu Guides und Buchern, die dir helfen, dein Training besser zu verstehen.',
+      },
+    }),
+    [language, shouldChooseWorkoutToday],
   );
   const homeCoachmarkSteps = useMemo<CoachmarkStep[]>(
     () => [
       {
         id: 'header',
         targetId: 'home_header_card',
-        title: isArabic ? 'هذه بطاقة البداية' : 'This is your home header',
-        body: isArabic
-          ? 'من هنا ترى صفحتك الرئيسية بسرعة ويمكنك فتح ملفك الشخصي من الأعلى.'
-          : 'This top card is the start of your Home page and also opens your profile area.',
+        title: pickLanguage(language, {
+          en: 'This is your home header',
+          ar: '\u0647\u0630\u0647 \u0628\u0637\u0627\u0642\u0629 \u0627\u0644\u0628\u062f\u0627\u064a\u0629',
+          it: 'Questa e la tua intestazione home',
+          de: 'Das ist dein Home-Header',
+        }),
+        body: pickLanguage(language, {
+          en: 'This top card is the start of your Home page and also opens your profile area.',
+          ar: '\u0645\u0646 \u0647\u0646\u0627 \u062a\u0631\u0649 \u0635\u0641\u062d\u062a\u0643 \u0627\u0644\u0631\u0626\u064a\u0633\u064a\u0629 \u0628\u0633\u0631\u0639\u0629 \u0648\u064a\u0645\u0643\u0646\u0643 \u0641\u062a\u062d \u0645\u0644\u0641\u0643 \u0627\u0644\u0634\u062e\u0635\u064a \u0645\u0646 \u0627\u0644\u0623\u0639\u0644\u0649.',
+          it: 'Questa card in alto e l\'inizio della tua Home e ti permette anche di aprire il profilo.',
+          de: 'Diese obere Karte ist der Start deiner Home-Seite und offnet auch deinen Profilbereich.',
+        }),
         placement: 'bottom',
         shape: 'rounded',
         padding: 8,
@@ -690,10 +850,18 @@ export function Home({
       {
         id: 'today_gradient',
         targetId: 'home_today_plan_gradient',
-        title: isArabic ? 'هذه واجهة تمرين اليوم' : 'This is your workout hero',
-        body: isArabic
-          ? 'هذه الواجهة السريعة تقودك إلى اختيار تمرين اليوم أو فتح خطة التمرين المحفوظة.'
-          : 'This quick hero area leads you to choose today’s workout or open the workout plan you already saved.',
+        title: pickLanguage(language, {
+          en: 'This is your workout hero',
+          ar: '\u0647\u0630\u0647 \u0648\u0627\u062c\u0647\u0629 \u062a\u0645\u0631\u064a\u0646 \u0627\u0644\u064a\u0648\u0645',
+          it: 'Questa e la tua area allenamento',
+          de: 'Das ist dein Workout-Bereich',
+        }),
+        body: pickLanguage(language, {
+          en: 'This quick hero area leads you to choose today\'s workout or open the workout plan you already saved.',
+          ar: '\u0647\u0630\u0647 \u0627\u0644\u0648\u0627\u062c\u0647\u0629 \u0627\u0644\u0633\u0631\u064a\u0639\u0629 \u062a\u0642\u0648\u062f\u0643 \u0625\u0644\u0649 \u0627\u062e\u062a\u064a\u0627\u0631 \u062a\u0645\u0631\u064a\u0646 \u0627\u0644\u064a\u0648\u0645 \u0623\u0648 \u0641\u062a\u062d \u062e\u0637\u0629 \u0627\u0644\u062a\u0645\u0631\u064a\u0646 \u0627\u0644\u0645\u062d\u0641\u0648\u0638\u0629.',
+          it: 'Questa area rapida ti porta a scegliere l\'allenamento di oggi oppure ad aprire il piano che hai gia salvato.',
+          de: 'Dieser schnelle Bereich fuhrt dich dazu, das heutige Workout auszuwahlen oder deinen bereits gespeicherten Plan zu offnen.',
+        }),
         placement: 'bottom',
         shape: 'rounded',
         padding: 8,
@@ -712,10 +880,18 @@ export function Home({
       {
         id: 'rank',
         targetId: 'home_rank_card',
-        title: isArabic ? 'هذه رتبتك' : 'This is your rank card',
-        body: isArabic
-          ? 'من هنا تتابع رتبتك ونقاطك ومكافآت التقدم.'
-          : 'Use this card to check your rank, points, and reward progress.',
+        title: pickLanguage(language, {
+          en: 'This is your rank card',
+          ar: '\u0647\u0630\u0647 \u0631\u062a\u0628\u062a\u0643',
+          it: 'Questa e la tua card grado',
+          de: 'Das ist deine Rangkarte',
+        }),
+        body: pickLanguage(language, {
+          en: 'Use this card to check your rank, points, and reward progress.',
+          ar: '\u0645\u0646 \u0647\u0646\u0627 \u062a\u062a\u0627\u0628\u0639 \u0631\u062a\u0628\u062a\u0643 \u0648\u0646\u0642\u0627\u0637\u0643 \u0648\u0645\u0643\u0627\u0641\u0622\u062a \u0627\u0644\u062a\u0642\u062f\u0645.',
+          it: 'Usa questa card per controllare grado, punti e avanzamento ricompense.',
+          de: 'Nutze diese Karte, um deinen Rang, deine Punkte und deinen Belohnungsfortschritt zu sehen.',
+        }),
         placement: 'top',
         shape: 'rounded',
         padding: 8,
@@ -762,22 +938,39 @@ export function Home({
         cornerRadius: 20,
       },
     ],
-    [coachmarkCopy],
+    [coachmarkCopy, language],
   );
   const activeCoachmarkSteps = homeCoachmarkSteps;
   const activeCoachmarkStep = activeCoachmarkSteps[coachmarkStepIndex] || null;
   const isCoachmarkOpen = coachmarkMode !== null && !!activeCoachmarkStep;
-  const rankNameMap: Record<string, string> = {
-    bronze: 'برونزي',
-    silver: 'فضي',
-    gold: 'ذهبي',
-    platinum: 'بلاتيني',
-    diamond: 'ألماسي',
-    elite: 'نخبوي',
-  };
-  const rankNameDisplay = isArabic
-    ? (rankNameMap[String(rankName || '').trim().toLowerCase()] || rankName)
-    : rankName;
+  const rankKey = String(rankName || '').trim().toLowerCase();
+  const rankNameDisplay = pickLanguage(language, {
+    en: rankName,
+    ar: ({
+      bronze: '\u0628\u0631\u0648\u0646\u0632\u064a',
+      silver: '\u0641\u0636\u064a',
+      gold: '\u0630\u0647\u0628\u064a',
+      platinum: '\u0628\u0644\u0627\u062a\u064a\u0646\u064a',
+      diamond: '\u0623\u0644\u0645\u0627\u0633\u064a',
+      elite: '\u0646\u062e\u0628\u0648\u064a',
+    } as Record<string, string>)[rankKey] || rankName,
+    it: ({
+      bronze: 'Bronzo',
+      silver: 'Argento',
+      gold: 'Oro',
+      platinum: 'Platino',
+      diamond: 'Diamante',
+      elite: 'Elite',
+    } as Record<string, string>)[rankKey] || rankName,
+    de: ({
+      bronze: 'Bronze',
+      silver: 'Silber',
+      gold: 'Gold',
+      platinum: 'Platin',
+      diamond: 'Diamant',
+      elite: 'Elite',
+    } as Record<string, string>)[rankKey] || rankName,
+  });
 
   const updateRecovery = (value: number) => {
     const next = clampPercent(value);
@@ -1253,20 +1446,20 @@ export function Home({
             onClick={() => setView('main')}
             className="absolute top-7 left-0 inline-flex items-center gap-2 rounded-xl surface-glass px-3 py-2 text-sm text-text-primary">
             <ArrowLeft size={16} />
-            Back
+            {homeCopy.back}
           </button>
           <div className="w-20 h-20 rounded-3xl bg-accent/12 border border-accent/30 flex items-center justify-center mb-6">
             <MoonStar size={36} className="text-accent" />
           </div>
-          <h2 className="text-3xl font-semibold text-white mb-3">Rest Day</h2>
-          <p className="text-text-secondary text-sm">Eat well and recover</p>
+          <h2 className="text-3xl font-semibold text-white mb-3">{restDayLabel}</h2>
+          <p className="text-text-secondary text-sm">{homeCopy.eatWellAndRecover}</p>
         </div>
       );
     }
     
     // Get today's workout exercises
     const exercises = todayWorkoutExercises;
-    const workoutDetailTitle = todayWorkout === 'Rest Day' ? 'Custom Workout' : todayWorkout;
+    const workoutDetailTitle = todayWorkout === 'Rest Day' ? customWorkoutLabel : todayWorkout;
     
     return (
       <div className="pb-24 pt-4">
@@ -1274,7 +1467,7 @@ export function Home({
           onClick={() => setView('main')}
           className="inline-flex items-center gap-2 rounded-xl surface-glass px-3 py-2 text-sm text-text-primary mb-4">
           <ArrowLeft size={16} />
-          Back
+          {homeCopy.back}
         </button>
         <h2 className="text-2xl font-semibold text-white mb-2">{workoutDetailTitle}</h2>
         <p className="text-text-secondary text-sm mb-6">{todayWorkoutData?.workout_type}</p>
@@ -1284,9 +1477,9 @@ export function Home({
             <div key={i} className="surface-card rounded-2xl p-4 border border-white/15">
               <h3 className="text-base font-semibold text-white mb-2">{ex.exerciseName || ex.name}</h3>
               <div className="flex gap-4 text-xs text-text-secondary">
-                <span>{ex.sets} sets</span>
-                <span>{ex.reps} reps</span>
-                <span>{ex.rest}s rest</span>
+                <span>{ex.sets} {homeCopy.sets}</span>
+                <span>{ex.reps} {homeCopy.reps}</span>
+                <span>{ex.rest}s {homeCopy.rest}</span>
               </div>
               {ex.notes && <p className="text-xs text-text-tertiary mt-2">{ex.notes}</p>}
             </div>
@@ -1323,14 +1516,14 @@ export function Home({
             className="inline-flex items-center gap-2 rounded-xl surface-glass px-3 py-2 text-sm text-text-primary"
           >
             <ArrowLeft size={16} />
-            Back
+            {homeCopy.back}
           </button>
         </div>
         <div className="px-4 sm:px-6 pt-8">
           <div className="surface-card rounded-2xl border border-white/10 p-5">
-            <h2 className="text-xl font-semibold text-white">Challenge</h2>
+            <h2 className="text-xl font-semibold text-white">{homeCopy.challenge}</h2>
             <p className="mt-2 text-sm text-text-secondary">
-              Challenge screen placeholder for {selectedFriend?.name || 'this friend'}.
+              {homeCopy.challengePlaceholder(selectedFriend?.name || homeCopy.defaultFriendName)}
             </p>
           </div>
         </div>
