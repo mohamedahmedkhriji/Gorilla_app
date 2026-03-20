@@ -54,6 +54,13 @@ export function WorkoutSplitScreen({
     [localizedOptions, trainingDays],
   );
   const recommendedId = recommendedSplitForDays(trainingDays, splitRecommendations);
+  const advanceToNextStep = () => {
+    if (typeof window !== 'undefined') {
+      window.setTimeout(() => onNext(), 0);
+      return;
+    }
+    onNext();
+  };
 
   const initialSelection = useMemo(() => {
     const saved = String(onboardingData?.workoutSplitPreference || '').trim().toLowerCase();
@@ -85,6 +92,10 @@ export function WorkoutSplitScreen({
   const handleNext = () => {
     const selectedOption = persistSelection(selectedId);
     if (!selectedOption) return;
+    if (selectedOption.id === 'custom') {
+      advanceToNextStep();
+      return;
+    }
     onNext();
   };
 
@@ -113,7 +124,7 @@ export function WorkoutSplitScreen({
                 setSelectedId(option.id);
                 const selectedOption = persistSelection(option.id);
                 if (option.id === 'custom') {
-                  if (selectedOption) onNext();
+                  if (selectedOption) advanceToNextStep();
                 }
               }}
               className={`w-full rounded-xl border p-4 text-left transition-colors ${

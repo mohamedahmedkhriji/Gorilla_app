@@ -16,6 +16,7 @@ type ExerciseVideoAsset = {
   simplifiedFileName: string;
   bodyPart: string;
   folderName: string;
+  folderTarget: string;
   url: string;
 };
 
@@ -89,6 +90,43 @@ const simplifyLookup = (value: string) => {
   return cleanedTokens.join(' ').trim();
 };
 
+const inferSpecificVideoTarget = (value: string) => {
+  const text = normalizeExerciseVideoLookup(value);
+  if (!text) return '';
+  if (/(bicep|biceps|curl)/.test(text)) return 'biceps';
+  if (/(tricep|triceps|push down|press down|kick back|skull crusher|overhead extension)/.test(text)) return 'triceps';
+  if (/(calf|calves)/.test(text)) return 'calves';
+  if (/(abs|abdom|core|oblique|crunch|sit up|leg raise|plank|twist)/.test(text)) return 'abs';
+  if (/(shoulder|delt|delts|arnold press|lateral raise|front raise|rear delt)/.test(text)) return 'shoulders';
+  if (/(back|lat|trap|traps|rhomboid|erector|pulldown|pull up|pullup|chin up|chinup|row|deadlift|shrug|pullover)/.test(text)) return 'back';
+  if (/(chest|pector|pec|bench press|push up|pushup|fly|crossovers|pec deck|guillotine press|dip)/.test(text)) return 'chest';
+  if (/(leg|quad|quadricep|hamstring|glute|thigh|squat|lunge|press)/.test(text)) return 'legs';
+  return '';
+};
+
+const resolveInputVideoTarget = ({
+  name,
+  muscle,
+  bodyPart,
+}: ExerciseVideoLookupInput) => (
+  inferSpecificVideoTarget(String(muscle || ''))
+  || inferSpecificVideoTarget(String(bodyPart || ''))
+  || inferSpecificVideoTarget(String(name || ''))
+);
+
+const doesAssetMatchTarget = (
+  asset: Pick<ExerciseVideoAsset, 'folderTarget' | 'bodyPart'>,
+  target: string,
+  broadBodyPart: string,
+) => {
+  if (target) {
+    if (asset.folderTarget) return asset.folderTarget === target;
+    if (asset.bodyPart) return asset.bodyPart === broadBodyPart;
+  }
+  if (broadBodyPart && asset.bodyPart) return asset.bodyPart === broadBodyPart;
+  return true;
+};
+
 const tokenOverlapRatio = (left: string, right: string) => {
   const leftTokens = [...new Set(tokenizeLookup(left))];
   const rightTokens = [...new Set(tokenizeLookup(right))];
@@ -117,12 +155,14 @@ const videoAssets: ExerciseVideoAsset[] = Object.entries(videoModules).map(([sou
   const fileName = pathParts[pathParts.length - 1] || '';
   const folderName = String(pathParts[pathParts.length - 2] || '').trim();
   const bodyPart = inferExerciseVideoBodyPart(folderName);
+  const folderTarget = inferSpecificVideoTarget(folderName);
   return {
     fileName,
     normalizedFileName: normalizeExerciseVideoLookup(fileName),
     simplifiedFileName: simplifyLookup(fileName),
     bodyPart,
     folderName,
+    folderTarget,
     url,
   };
 });
@@ -158,6 +198,7 @@ export const resolveExerciseVideo = ({
 }: ExerciseVideoLookupInput): ExerciseVideoMatch => {
   const normalizedName = normalizeExerciseVideoLookup(name);
   const bodyPartKey = inferExerciseVideoBodyPart(bodyPart || muscle);
+  const specificTarget = resolveInputVideoTarget({ name, muscle, bodyPart });
 
   if (!normalizedName) {
     return {
@@ -170,11 +211,14 @@ export const resolveExerciseVideo = ({
 
   const manifestMatch = resolveExerciseVideoManifest({ name, muscle, bodyPart });
   if (manifestMatch.matchType === 'alias' && manifestMatch.fileName) {
-    return toMatch(findAssetByFileName(manifestMatch.fileName), 'alias');
+    const aliasAsset = findAssetByFileName(manifestMatch.fileName);
+    if (aliasAsset && doesAssetMatchTarget(aliasAsset, specificTarget, bodyPartKey)) {
+      return toMatch(aliasAsset, 'alias');
+    }
   }
 
   const filenameMatch = videoAssets.find((asset) => {
-    if (bodyPartKey && asset.bodyPart && asset.bodyPart !== bodyPartKey) return false;
+    if (!doesAssetMatchTarget(asset, specificTarget, bodyPartKey)) return false;
     return matchesLookup(normalizedName, asset.normalizedFileName);
   });
   if (filenameMatch) {
@@ -184,7 +228,7 @@ export const resolveExerciseVideo = ({
   const simplifiedName = simplifyLookup(name || normalizedName);
   if (simplifiedName) {
     const simplifiedPhraseMatch = videoAssets.find((asset) => {
-      if (bodyPartKey && asset.bodyPart && asset.bodyPart !== bodyPartKey) return false;
+      if (!doesAssetMatchTarget(asset, specificTarget, bodyPartKey)) return false;
       return (
         matchesLookup(simplifiedName, asset.simplifiedFileName)
         || containsWholePhrase(asset.simplifiedFileName, simplifiedName)
@@ -196,12 +240,12 @@ export const resolveExerciseVideo = ({
     }
 
     const fuzzyCandidates = videoAssets
-      .filter((asset) => !bodyPartKey || !asset.bodyPart || asset.bodyPart === bodyPartKey)
+      .filter((asset) => doesAssetMatchTarget(asset, specificTarget, bodyPartKey))
       .map((asset) => ({
         asset,
         score: tokenOverlapRatio(simplifiedName, asset.simplifiedFileName || asset.normalizedFileName),
       }))
-      .filter((entry) => entry.score >= 0.5)
+      .filter((entry) => entry.score >= 0.75)
       .sort((left, right) => right.score - left.score);
 
     if (fuzzyCandidates.length > 0) {
@@ -210,7 +254,10 @@ export const resolveExerciseVideo = ({
   }
 
   if (manifestMatch.matchType === 'fallback' && manifestMatch.fileName) {
-    return toMatch(findAssetByFileName(manifestMatch.fileName), 'fallback');
+    const fallbackAsset = findAssetByFileName(manifestMatch.fileName);
+    if (fallbackAsset && doesAssetMatchTarget(fallbackAsset, specificTarget, bodyPartKey)) {
+      return toMatch(fallbackAsset, 'fallback');
+    }
   }
 
   return {

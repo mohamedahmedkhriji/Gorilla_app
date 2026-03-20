@@ -117,6 +117,104 @@ const normalizeAthleteIdentityCategory = (value) =>
     .toLowerCase()
     .replace(/\s+/g, '_');
 
+const CARDIO_EXERCISE_KEYWORDS = new RegExp(
+  'cardio|conditioning|aerobic|metcon|hiit|interval|circuit|endurance|run|running|jog|cycling|bike|row|rowing|elliptical|jump rope|skipping|shadow boxing|battle ropes|burpee|sprawl|high knees|mountain climber|agility ladder|shuttle run|bear crawl|carioca|skater|jumping jack|lunge high knee',
+  'i',
+);
+
+const CARDIO_MODE_KEYWORDS = {
+  interval: /(burpee|sprawl|high knees|mountain climber|battle ropes|shuttle run|jump rope|agility ladder|skater|sprint|jumping jack|carioca)/i,
+  circuit: /(burpee|sprawl|battle ropes|shadow boxing|mountain climber|jump rope|bear crawl|agility ladder|high knees|skater)/i,
+  tempo: /(run|running|row|rowing|cycle|cycling|shadow boxing|jump rope|battle ropes)/i,
+  zone2: /(run|running|walk|walking|cycle|cycling|row|rowing|elliptical|shadow boxing|jump rope)/i,
+  recovery: /(walking|shadow boxing|cycle|cycling|row|rowing|mobility|easy|light)/i,
+  long: /(run|running|walk|walking|cycle|cycling|row|rowing|elliptical)/i,
+};
+
+const CARDIO_LEVEL_ADJUSTMENTS = {
+  beginner: -1,
+  intermediate: 0,
+  advanced: 1,
+};
+
+const CARDIO_SESSION_LIBRARY = {
+  2: [
+    { name: 'Interval Conditioning', workoutType: 'Cardio Intervals', mode: 'interval', primary: ['Legs', 'Shoulders', 'Abs'], secondary: ['Back'], exerciseCount: 4 },
+    { name: 'Aerobic Base', workoutType: 'Zone 2 Cardio', mode: 'zone2', primary: ['Legs', 'Back'], secondary: ['Shoulders', 'Abs'], exerciseCount: 3 },
+  ],
+  3: [
+    { name: 'Speed Intervals', workoutType: 'Cardio Intervals', mode: 'interval', primary: ['Legs', 'Shoulders', 'Abs'], secondary: ['Back'], exerciseCount: 4 },
+    { name: 'Tempo Conditioning', workoutType: 'Tempo Cardio', mode: 'tempo', primary: ['Legs', 'Back', 'Shoulders'], secondary: ['Abs'], exerciseCount: 4 },
+    { name: 'Long Aerobic Base', workoutType: 'Zone 2 Cardio', mode: 'long', primary: ['Legs', 'Back'], secondary: ['Shoulders', 'Abs'], exerciseCount: 3 },
+  ],
+  4: [
+    { name: 'Speed Intervals', workoutType: 'Cardio Intervals', mode: 'interval', primary: ['Legs', 'Shoulders', 'Abs'], secondary: ['Back'], exerciseCount: 5 },
+    { name: 'Cardio Circuit', workoutType: 'Cardio Circuit', mode: 'circuit', primary: ['Legs', 'Shoulders', 'Abs'], secondary: ['Back'], exerciseCount: 5 },
+    { name: 'Aerobic Base', workoutType: 'Zone 2 Cardio', mode: 'zone2', primary: ['Legs', 'Back'], secondary: ['Shoulders', 'Abs'], exerciseCount: 3 },
+    { name: 'Recovery Cardio', workoutType: 'Recovery Cardio', mode: 'recovery', primary: ['Abs', 'Shoulders', 'Legs'], secondary: ['Back'], exerciseCount: 3 },
+  ],
+  5: [
+    { name: 'Speed Intervals', workoutType: 'Cardio Intervals', mode: 'interval', primary: ['Legs', 'Shoulders', 'Abs'], secondary: ['Back'], exerciseCount: 5 },
+    { name: 'Tempo Conditioning', workoutType: 'Tempo Cardio', mode: 'tempo', primary: ['Legs', 'Back', 'Shoulders'], secondary: ['Abs'], exerciseCount: 4 },
+    { name: 'Zone 2 Base', workoutType: 'Zone 2 Cardio', mode: 'zone2', primary: ['Legs', 'Back'], secondary: ['Shoulders', 'Abs'], exerciseCount: 3 },
+    { name: 'Cardio Circuit', workoutType: 'Cardio Circuit', mode: 'circuit', primary: ['Legs', 'Shoulders', 'Abs'], secondary: ['Back'], exerciseCount: 5 },
+    { name: 'Long Aerobic Base', workoutType: 'Zone 2 Cardio', mode: 'long', primary: ['Legs', 'Back'], secondary: ['Shoulders', 'Abs'], exerciseCount: 3 },
+  ],
+  6: [
+    { name: 'Speed Intervals', workoutType: 'Cardio Intervals', mode: 'interval', primary: ['Legs', 'Shoulders', 'Abs'], secondary: ['Back'], exerciseCount: 5 },
+    { name: 'Zone 2 Base', workoutType: 'Zone 2 Cardio', mode: 'zone2', primary: ['Legs', 'Back'], secondary: ['Shoulders', 'Abs'], exerciseCount: 3 },
+    { name: 'Cardio Circuit', workoutType: 'Cardio Circuit', mode: 'circuit', primary: ['Legs', 'Shoulders', 'Abs'], secondary: ['Back'], exerciseCount: 5 },
+    { name: 'Tempo Conditioning', workoutType: 'Tempo Cardio', mode: 'tempo', primary: ['Legs', 'Back', 'Shoulders'], secondary: ['Abs'], exerciseCount: 4 },
+    { name: 'Recovery Cardio', workoutType: 'Recovery Cardio', mode: 'recovery', primary: ['Abs', 'Shoulders', 'Legs'], secondary: ['Back'], exerciseCount: 3 },
+    { name: 'Long Aerobic Base', workoutType: 'Zone 2 Cardio', mode: 'long', primary: ['Legs', 'Back'], secondary: ['Shoulders', 'Abs'], exerciseCount: 3 },
+  ],
+};
+
+const CARDIO_MODE_PROGRAMMING = {
+  interval: { sets: 4, reps: '30-45 sec', restSeconds: 30, rpeBase: 7.2, durationMinutes: 30 },
+  circuit: { sets: 4, reps: '40-60 sec', restSeconds: 20, rpeBase: 7.1, durationMinutes: 35 },
+  tempo: { sets: 3, reps: '6-10 min', restSeconds: 45, rpeBase: 6.8, durationMinutes: 40 },
+  zone2: { sets: 1, reps: '20-35 min', restSeconds: 0, rpeBase: 6.0, durationMinutes: 45 },
+  recovery: { sets: 2, reps: '15-25 min', restSeconds: 45, rpeBase: 5.5, durationMinutes: 30 },
+  long: { sets: 1, reps: '30-50 min', restSeconds: 0, rpeBase: 6.1, durationMinutes: 50 },
+};
+
+const isCardioExercise = ({ exerciseType = '', name = '', description = '' }) => {
+  const merged = `${exerciseType} ${name} ${description}`.toLowerCase();
+  return CARDIO_EXERCISE_KEYWORDS.test(merged);
+};
+
+const buildCardioSplitByDays = (daysPerWeek) => {
+  if (daysPerWeek <= 2) return CARDIO_SESSION_LIBRARY[2];
+  if (daysPerWeek === 3) return CARDIO_SESSION_LIBRARY[3];
+  if (daysPerWeek === 4) return CARDIO_SESSION_LIBRARY[4];
+  if (daysPerWeek === 5) return CARDIO_SESSION_LIBRARY[5];
+  return CARDIO_SESSION_LIBRARY[6];
+};
+
+const selectCardioModePool = (pool, mode) => {
+  const matcher = CARDIO_MODE_KEYWORDS[mode] || CARDIO_EXERCISE_KEYWORDS;
+  const preferred = pool.filter((exercise) => matcher.test(`${exercise.name} ${exercise.exerciseType || ''} ${exercise.description || ''}`));
+  return preferred.length ? preferred : pool;
+};
+
+const getCardioProgression = ({ week, level, mode }) => {
+  const base = CARDIO_MODE_PROGRAMMING[mode] || CARDIO_MODE_PROGRAMMING.circuit;
+  const levelDelta = CARDIO_LEVEL_ADJUSTMENTS[level] || 0;
+  const blockBoost = Math.min(2, Math.floor((week - 1) / 3));
+  const sets = Math.max(1, base.sets + levelDelta + (mode === 'zone2' || mode === 'long' || mode === 'recovery' ? 0 : blockBoost > 0 ? 1 : 0));
+  const restSeconds = Math.max(0, base.restSeconds - (blockBoost * 2));
+  const rpe = Math.max(5.0, Math.min(9.2, Number((base.rpeBase + (blockBoost * 0.1)).toFixed(1))));
+
+  return {
+    sets,
+    reps: base.reps,
+    restSeconds,
+    rpe,
+    durationMinutes: base.durationMinutes + (blockBoost * 2),
+  };
+};
+
 const isExplosiveExercise = ({ exerciseType = '', name = '', description = '' }) => {
   const merged = `${exerciseType} ${name} ${description}`.toLowerCase();
   return /(plyometric|plyometrics|explosive|jump|bound|throw|sprint|agility|sprawl|snatch|clean and jerk|power clean|push press|medicine ball)/.test(merged);
@@ -480,6 +578,8 @@ const loadCatalogPool = async (conn, { userLevel, equipmentPrefs }) => {
         primaryMuscle: normalizeMuscleGroup(row.body_part),
         equipment: normalizeEquipment(row.equipment),
         level: String(row.level || '').toLowerCase(),
+        exerciseType,
+        description,
         isStretch: Number(row.is_stretch || 0) === 1 || /stretch/i.test(exerciseType),
         isExplosive: isExplosiveExercise({ exerciseType, name: canonicalName, description }),
         isIsometric: isIsometricExercise({ exerciseType, name: canonicalName, description }),
@@ -530,6 +630,161 @@ const programProgressionForWeek = ({ week, goal, level, adjustment }) => {
   return { sets, rpe, reps, restSeconds: preset.restSeconds };
 };
 
+const generateCardioProgram = async (
+  conn,
+  {
+    userId,
+    gymId = null,
+    experienceLevel = 'intermediate',
+    daysPerWeek = 4,
+    cycleWeeks = 12,
+    equipment = null,
+    notes = null,
+  },
+) => {
+  const clampedDays = Math.max(2, Math.min(6, Number(daysPerWeek) || 4));
+  const clampedWeeks = Math.max(8, Math.min(16, Number(cycleWeeks) || 12));
+  const normalizedLevel = String(experienceLevel || 'intermediate');
+  const equipmentPrefs = parseEquipmentPreferences(equipment);
+  const pool = await loadCatalogPool(conn, { userLevel: normalizedLevel, equipmentPrefs });
+  const cardioPool = pool.filter(isCardioExercise);
+  const activePool = cardioPool.length >= 8 ? cardioPool : pool;
+
+  if (activePool.length < 12) {
+    throw new Error(`Not enough exercises after equipment/level filtering (${activePool.length} found).`);
+  }
+
+  const split = buildCardioSplitByDays(clampedDays);
+  const weekdays = WEEKDAY_BY_DAYS_PER_WEEK[clampedDays] || WEEKDAY_BY_DAYS_PER_WEEK[4];
+
+  const [insertProgram] = await conn.execute(
+    `INSERT INTO programs
+      (gym_id, created_by_user_id, target_user_id, name, description, program_type, goal, experience_level, days_per_week, cycle_weeks, is_template, is_active)
+     VALUES (?, NULL, ?, ?, ?, ?, ?, ?, ?, ?, 0, 1)`,
+    [
+      gymId || null,
+      userId,
+      `${clampedWeeks}-Week Cardio Conditioning Plan`,
+      notes || `Generated from cardio onboarding (goal=endurance, level=${normalizedLevel}, days=${clampedDays}).`,
+      'cardio',
+      'endurance',
+      normalizedLevel,
+      clampedDays,
+      clampedWeeks,
+    ],
+  );
+
+  const programId = Number(insertProgram.insertId);
+  const legacyExerciseCache = new Map();
+  let dayOrder = 0;
+  const usedPerWeek = new Set();
+  let lastDayPrimaryMuscles = new Set();
+
+  for (let week = 1; week <= clampedWeeks; week += 1) {
+    usedPerWeek.clear();
+
+    for (let dayIdx = 0; dayIdx < split.length; dayIdx += 1) {
+      const day = split[dayIdx];
+      dayOrder += 1;
+      const dayName = weekdays[dayIdx % weekdays.length];
+      const dayPrimaryMuscles = new Set(day.primary);
+      const sessionPool = selectCardioModePool(activePool, day.mode);
+      const dayPool = sessionPool.filter((ex) => dayPrimaryMuscles.has(ex.primaryMuscle));
+      const daySecondaryPool = sessionPool.filter((ex) => day.secondary.includes(ex.primaryMuscle));
+      const sessionPlan = CARDIO_MODE_PROGRAMMING[day.mode] || CARDIO_MODE_PROGRAMMING.circuit;
+      const exerciseTarget = Math.max(
+        2,
+        day.exerciseCount + (CARDIO_LEVEL_ADJUSTMENTS[normalizedLevel] || 0),
+      );
+      const selection = [
+        ...pickUniqueExercises({
+          pool: [...dayPool, ...daySecondaryPool],
+          fallbackPool: sessionPool,
+          count: exerciseTarget,
+          usedNames: usedPerWeek,
+          lastDayPrimaryMuscles,
+          dayPrimaryMuscles,
+          preferVideoLinkedBackExercises: false,
+        }),
+      ];
+
+      if (selection.length < Math.max(2, exerciseTarget - 1)) {
+        const fallbackSelection = pickUniqueExercises({
+          pool: sessionPool,
+          fallbackPool: activePool,
+          count: exerciseTarget,
+          usedNames: usedPerWeek,
+          lastDayPrimaryMuscles,
+          dayPrimaryMuscles,
+          preferVideoLinkedBackExercises: false,
+        });
+        selection.length = 0;
+        selection.push(...fallbackSelection);
+      }
+
+      if (selection.length === 0) {
+        throw new Error(`Could not build a valid cardio exercise selection for week ${week}, day ${day.name}.`);
+      }
+
+      const [workoutIns] = await conn.execute(
+        `INSERT INTO workouts
+          (program_id, workout_name, workout_type, day_order, day_name, estimated_duration_minutes, notes)
+         VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        [
+          programId,
+          `Week ${week} - ${day.name}`,
+          String(day.workoutType || 'Cardio'),
+          dayOrder,
+          dayName,
+          sessionPlan.durationMinutes + Math.min(6, Math.floor((week - 1) / 2) * 2),
+          `${day.mode.toUpperCase()} focus | ${sessionPlan.reps} work / ${sessionPlan.restSeconds || 0}s rest`,
+        ],
+      );
+      const workoutId = Number(workoutIns.insertId);
+
+      const progression = getCardioProgression({
+        week,
+        level: normalizedLevel,
+        mode: day.mode,
+      });
+
+      for (let idx = 0; idx < selection.length; idx += 1) {
+        const ex = selection[idx];
+        usedPerWeek.add(ex.normalizedName);
+        const legacyExerciseId = await ensureLegacyExerciseId(conn, legacyExerciseCache, ex.name);
+
+        await conn.execute(
+          `INSERT INTO workout_exercises
+            (workout_id, exercise_id, order_index, exercise_name_snapshot, muscle_group_snapshot, target_sets, target_reps, target_weight, rest_seconds, tempo, rpe_target, notes)
+           VALUES (?, ?, ?, ?, ?, ?, ?, NULL, ?, NULL, ?, NULL)`,
+          [
+            workoutId,
+            legacyExerciseId,
+            idx + 1,
+            ex.name,
+            ex.primaryMuscle,
+            progression.sets,
+            progression.reps,
+            progression.restSeconds,
+            progression.rpe,
+          ],
+        );
+      }
+
+      lastDayPrimaryMuscles = dayPrimaryMuscles;
+    }
+  }
+
+  return {
+    programId,
+    daysPerWeek: clampedDays,
+    cycleWeeks: clampedWeeks,
+    name: `${clampedWeeks}-Week Cardio Conditioning Plan`,
+    programType: 'cardio',
+    goal: 'endurance',
+  };
+};
+
 export const generatePersonalizedProgram = async (
   conn,
   {
@@ -550,6 +805,8 @@ export const generatePersonalizedProgram = async (
   const clampedWeeks = Math.max(8, Math.min(16, Number(cycleWeeks) || 12));
   const normalizedGoal = String(goal || 'general_fitness');
   const normalizedLevel = String(experienceLevel || 'intermediate');
+  const normalizedIdentity = normalizeAthleteIdentity(athleteIdentity);
+  const isCardioIdentity = normalizedIdentity === 'cardio';
   const equipmentPrefs = parseEquipmentPreferences(equipment);
   const athleteMovementBias = resolveAthleteMovementBias({
     goal: normalizedGoal,
@@ -558,8 +815,20 @@ export const generatePersonalizedProgram = async (
   });
 
   const pool = await loadCatalogPool(conn, { userLevel: normalizedLevel, equipmentPrefs });
-  if (pool.length < 30) {
+  if (!isCardioIdentity && pool.length < 30) {
     throw new Error(`Not enough exercises after equipment/level filtering (${pool.length} found).`);
+  }
+
+  if (isCardioIdentity) {
+    return generateCardioProgram(conn, {
+      userId,
+      gymId,
+      experienceLevel: normalizedLevel,
+      daysPerWeek: clampedDays,
+      cycleWeeks: clampedWeeks,
+      equipment,
+      notes,
+    });
   }
 
   const split = splitByDays(clampedDays, splitPreference);

@@ -165,7 +165,12 @@ export const AdminLogin: React.FC = () => {
           <div>
             <label className="block text-sm font-medium mb-2">Email</label>
             <input
-              type="email"
+              type="text"
+              inputMode="email"
+              autoComplete="email"
+              autoCapitalize="none"
+              autoCorrect="off"
+              spellCheck={false}
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               placeholder="your@email.com"

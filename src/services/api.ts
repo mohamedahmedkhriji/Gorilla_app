@@ -144,7 +144,7 @@ export const api = {
   },
 
   saveOnboarding: async (userId: number, data: any) => {
-    const payload = { userId, ...(data || {}) };
+    const payload = { ...(data || {}), userId };
     try {
       const res = await fetch(`${API_URL}/user/onboarding`, {
         method: 'POST',

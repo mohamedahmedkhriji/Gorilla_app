@@ -33,7 +33,9 @@ const STEP_TITLES_AR: Partial<Record<OnboardingStepId, string>> = {
   ai_analysis: 'التحليل',
   body_results: 'النتائج',
   custom_plan: 'تخصيص الخطة',
+  custom_plan_builder: 'قوالب الخطة',
   custom_plan_advice: 'نصائح الذكاء الاصطناعي',
+  custom_plan_templates: 'قوالب الخطة',
   sport_age_gender: 'العمر والجنس',
   sport_experience: 'خبرة الرياضة',
   sport_plan_choice: 'اختيار الخطة',
@@ -102,6 +104,21 @@ const ATHLETE_IDENTITY_AR: Record<string, {
           beginner_gym: 'مبتدئ في النادي',
           natural_athlete: 'رياضي طبيعي',
           classic_physique: 'كلاسيك فيزيك',
+        },
+      },
+    },
+  },
+  cardio: {
+    label: 'كارديو',
+    description: 'تحسين اللياقة العامة والتحمل وحرق السعرات بشكل متوازن.',
+    subGroups: {
+      cardio_goal: {
+        title: 'حسب التركيز',
+        items: {
+          fat_loss: 'حرق الدهون',
+          endurance: 'التحمل',
+          conditioning: 'التهيئة البدنية',
+          heart_health: 'صحة القلب',
         },
       },
     },
@@ -492,3 +509,4 @@ export const localizeExperienceLevel = (value: string, language: AppLanguage) =>
   if (value.toLowerCase() === 'advanced') return 'متقدم';
   return value;
 };
+

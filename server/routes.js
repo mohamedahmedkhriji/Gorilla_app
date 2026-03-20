@@ -3218,8 +3218,9 @@ const buildCustomProgramDraft = async (conn, userId, rawPayload = {}) => {
   }
 
   const cycleWeeks = Math.round(Number(rawPayload.cycleWeeks || 0));
-  if (!Number.isFinite(cycleWeeks) || cycleWeeks < 8 || cycleWeeks > 16) {
-    throw new Error('cycleWeeks must be between 8 and 16');
+  const weekPlansRaw = Array.isArray(rawPayload.weekPlans) ? rawPayload.weekPlans : [];
+  if (!Number.isFinite(cycleWeeks) || cycleWeeks < 6 || cycleWeeks > 16) {
+    throw new Error('cycleWeeks must be between 6 and 16');
   }
 
   const selectedDaysRaw = Array.isArray(rawPayload.selectedDays)
@@ -3237,6 +3238,50 @@ const buildCustomProgramDraft = async (conn, userId, rawPayload = {}) => {
   ];
   if (!selectedDays.length) {
     throw new Error('At least one valid training day is required');
+  }
+
+  if (weekPlansRaw.length > 0) {
+    const normalizedWeekCount = Math.max(1, Math.min(2, cycleWeeks));
+    const normalizedWeekPlans = weekPlansRaw.slice(0, normalizedWeekCount).map((week, index) => {
+      const weeklyWorkouts = Array.isArray(week?.weeklyWorkouts)
+        ? week.weeklyWorkouts
+        : Array.isArray(week?.workouts)
+          ? week.workouts
+          : [];
+      return {
+        weekNumber: Math.max(1, Math.min(2, Number(week?.weekNumber || index + 1))),
+        weeklyWorkouts,
+      };
+    });
+    const firstWeekWorkouts = Array.isArray(normalizedWeekPlans[0]?.weeklyWorkouts)
+      ? normalizedWeekPlans[0].weeklyWorkouts
+      : [];
+    if (!firstWeekWorkouts.length) {
+      throw new Error('Week 1 workout plan is required');
+    }
+    if (normalizedWeekPlans.length > 1) {
+      const secondWeekWorkouts = Array.isArray(normalizedWeekPlans[1]?.weeklyWorkouts)
+        ? normalizedWeekPlans[1].weeklyWorkouts
+        : [];
+      if (!secondWeekWorkouts.length) {
+        throw new Error('Week 2 workout plan is required');
+      }
+    }
+    const planNameInput = String(rawPayload.planName || rawPayload.name || '').trim();
+    const planName = planNameInput || `Custom ${cycleWeeks}-Week Plan`;
+    const description = String(rawPayload.description || '').trim() || `User-customized ${cycleWeeks}-week plan`;
+
+    return {
+      user: userRows[0],
+      goal: normalizeGoalEnum(userRows[0].fitness_goal),
+      experienceLevel: normalizeExperienceEnum(userRows[0].experience_level) || 'intermediate',
+      planName,
+      description,
+      cycleWeeks,
+      selectedDays,
+      weekPlans: normalizedWeekPlans,
+      weeklyWorkouts: firstWeekWorkouts,
+    };
   }
 
   const weeklyWorkoutsRaw = Array.isArray(rawPayload.weeklyWorkouts)
@@ -3440,6 +3485,235 @@ const persistCustomProgramDraft = async (
     ],
   );
   const programId = Number(programInsert.insertId);
+
+  const usingWeekPlans = Array.isArray(draft.weekPlans) && draft.weekPlans.length > 0;
+  if (usingWeekPlans) {
+    const buildWeekTemplatesByDay = (weeklyWorkouts) => {
+      const templatesByDay = new Map();
+      const catalogIds = [];
+
+      weeklyWorkouts.forEach((workout) => {
+        const dayName = normalizeProgramDayName(workout?.dayName || workout?.day || workout?.weekday);
+        if (!dayName) return;
+
+        const durationRaw = Number(
+          workout?.estimatedDurationMinutes
+          ?? workout?.estimated_duration_minutes
+          ?? workout?.durationMinutes
+          ?? 0,
+        );
+        const estimatedDurationMinutes = Number.isFinite(durationRaw) && durationRaw > 0
+          ? Math.max(20, Math.min(180, Math.round(durationRaw)))
+          : null;
+
+        const rawExercises = Array.isArray(workout?.exercises) ? workout.exercises : [];
+        if (!rawExercises.length) {
+          throw new Error(`At least one exercise is required for ${dayName}`);
+        }
+
+        const normalizedExercises = [];
+        for (let index = 0; index < rawExercises.length; index += 1) {
+          const exercise = rawExercises[index];
+          const sets = Math.round(Number(exercise?.sets || 0));
+          if (!Number.isFinite(sets) || sets < 1 || sets > 10) {
+            throw new Error(`Invalid sets on ${dayName} exercise #${index + 1}. Allowed: 1..10.`);
+          }
+
+          const reps = String(exercise?.reps || '').trim() || '8-12';
+          if (reps.length > 20) {
+            throw new Error(`Reps is too long on ${dayName} exercise #${index + 1}.`);
+          }
+
+          const restSecondsRaw = Number(exercise?.restSeconds ?? exercise?.rest ?? 90);
+          const restSeconds = Number.isFinite(restSecondsRaw)
+            ? Math.max(30, Math.min(600, Math.round(restSecondsRaw)))
+            : 90;
+          const targetWeightRaw = Number(exercise?.targetWeight ?? exercise?.weightKg ?? exercise?.weight ?? 0);
+          const targetWeight = Number.isFinite(targetWeightRaw) && targetWeightRaw > 0
+            ? Math.max(0, Math.min(1000, Number(targetWeightRaw.toFixed(2))))
+            : null;
+          const tempoRaw = String(exercise?.tempo || '').trim();
+          const tempo = tempoRaw ? tempoRaw.slice(0, 20) : null;
+          const rpeTargetRaw = Number(exercise?.rpeTarget ?? exercise?.rpe ?? 0);
+          const rpeTarget = Number.isFinite(rpeTargetRaw)
+            ? Number(Math.max(5.5, Math.min(10, rpeTargetRaw)).toFixed(1))
+            : null;
+          const targetMuscles = normalizeRecoveryMuscleTargets(
+            exercise?.targetMuscles
+            ?? exercise?.muscleTargets
+            ?? exercise?.primaryMuscles
+            ?? exercise?.muscles
+            ?? exercise?.muscleGroup,
+            3,
+          );
+
+          const exerciseCatalogId = Number(exercise?.exerciseCatalogId || 0) || null;
+          const inputName = String(exercise?.exerciseName || exercise?.name || '').trim();
+          if (!exerciseCatalogId && !inputName) {
+            throw new Error(`Exercise name is required on ${dayName} exercise #${index + 1}.`);
+          }
+          if (exerciseCatalogId) catalogIds.push(exerciseCatalogId);
+
+          normalizedExercises.push({
+            orderIndex: index + 1,
+            exerciseCatalogId,
+            inputName,
+            sets,
+            reps,
+            restSeconds,
+            targetWeight,
+            tempo,
+            rpeTarget,
+            targetMuscles,
+            notes: exercise?.notes ? String(exercise.notes).trim() : null,
+          });
+        }
+
+        templatesByDay.set(dayName, {
+          workoutName: String(workout?.workoutName || workout?.name || dayName).trim() || dayName,
+          workoutType: workout?.workoutType ? String(workout.workoutType).trim() : null,
+          estimatedDurationMinutes,
+          notes: workout?.notes ? String(workout.notes).trim() : null,
+          exercises: normalizedExercises,
+        });
+      });
+
+      for (const dayName of draft.selectedDays) {
+        if (!templatesByDay.has(dayName)) {
+          throw new Error(`Missing workout template for ${dayName}`);
+        }
+      }
+
+      return { templatesByDay, catalogIds };
+    };
+
+    const sourceWeekPlans = Array.isArray(draft.weekPlans) && draft.weekPlans.length > 0
+      ? draft.weekPlans
+      : [{ weeklyWorkouts: draft.weeklyWorkouts || [] }];
+    const weekTemplates = Array.from({ length: draft.cycleWeeks }, (_unused, index) => {
+      const sourceWeek = sourceWeekPlans[index % sourceWeekPlans.length] || sourceWeekPlans[sourceWeekPlans.length - 1] || {};
+      return {
+        weekNumber: index + 1,
+        ...buildWeekTemplatesByDay(Array.isArray(sourceWeek?.weeklyWorkouts) ? sourceWeek.weeklyWorkouts : []),
+      };
+    });
+
+    const uniqueCatalogIds = [...new Set(weekTemplates.flatMap((week) => week.catalogIds))]
+      .filter((id) => Number.isFinite(id) && id > 0);
+    const catalogById = new Map();
+    if (uniqueCatalogIds.length) {
+      const placeholders = uniqueCatalogIds.map(() => '?').join(', ');
+      const [catalogRows] = await conn.execute(
+        `SELECT id, canonical_name, body_part
+         FROM exercise_catalog
+         WHERE id IN (${placeholders}) AND is_active = 1`,
+        uniqueCatalogIds,
+      );
+      catalogRows.forEach((row) => {
+        catalogById.set(Number(row.id), {
+          name: String(row.canonical_name || '').trim(),
+          bodyPart: row.body_part ? String(row.body_part).trim() : null,
+        });
+      });
+    }
+
+    for (const week of weekTemplates) {
+      for (const dayName of draft.selectedDays) {
+        const dayTemplate = week.templatesByDay.get(dayName);
+        for (const exercise of dayTemplate.exercises) {
+          if (exercise.exerciseCatalogId && !catalogById.has(Number(exercise.exerciseCatalogId))) {
+            throw new Error(`Exercise catalog id ${exercise.exerciseCatalogId} for ${dayName} is invalid or inactive`);
+          }
+        }
+      }
+    }
+
+    let dayOrder = 0;
+    for (const week of weekTemplates) {
+      for (const dayName of draft.selectedDays) {
+        const dayTemplate = week.templatesByDay.get(dayName);
+        dayOrder += 1;
+
+        const workoutDisplayName = String(dayTemplate.workoutName || dayName).trim();
+        const workoutName = `Week ${week.weekNumber} - ${workoutDisplayName}`;
+        const estimatedDurationMinutes = Number.isFinite(Number(dayTemplate.estimatedDurationMinutes || 0))
+          && Number(dayTemplate.estimatedDurationMinutes || 0) > 0
+          ? Math.max(20, Math.min(180, Math.round(Number(dayTemplate.estimatedDurationMinutes))))
+          : Math.max(
+            25,
+            Math.min(180, Math.round((dayTemplate.exercises.length * 11) + 18)),
+          );
+
+        const [workoutInsert] = await conn.execute(
+          `INSERT INTO workouts
+            (program_id, workout_name, workout_type, day_order, day_name, estimated_duration_minutes, notes)
+           VALUES (?, ?, ?, ?, ?, ?, ?)`,
+          [
+            programId,
+            workoutName.slice(0, 255),
+            String(dayTemplate.workoutType || 'Custom').slice(0, 100),
+            dayOrder,
+            dayName,
+            estimatedDurationMinutes,
+            dayTemplate.notes,
+          ],
+        );
+        const workoutId = Number(workoutInsert.insertId);
+
+        for (const exercise of dayTemplate.exercises) {
+          const catalogMatch = exercise.exerciseCatalogId
+            ? catalogById.get(Number(exercise.exerciseCatalogId))
+            : null;
+          const exerciseName = (catalogMatch?.name || exercise.inputName).slice(0, 255);
+          const muscleGroupSnapshot = buildMuscleGroupSnapshot({
+            catalogBodyPart: catalogMatch?.bodyPart || null,
+            targetMuscles: exercise.targetMuscles,
+          });
+          const muscleGroupSnapshotValue = muscleGroupSnapshot ? muscleGroupSnapshot.slice(0, 255) : null;
+
+          await conn.execute(
+            `INSERT INTO workout_exercises
+              (workout_id, exercise_id, order_index, exercise_name_snapshot, muscle_group_snapshot, target_sets, target_reps, target_weight, rest_seconds, tempo, rpe_target, notes)
+             VALUES (?, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            [
+              workoutId,
+              exercise.orderIndex,
+              exerciseName,
+              muscleGroupSnapshotValue,
+              exercise.sets,
+              exercise.reps,
+              exercise.targetWeight,
+              exercise.restSeconds,
+              exercise.tempo,
+              exercise.rpeTarget,
+              exercise.notes,
+            ],
+          );
+        }
+      }
+    }
+
+    const assignment = await assignProgramToUser(conn, {
+      userId,
+      programId,
+      reason: assignmentReason,
+      note: assignmentNote || `User custom plan: ${draft.cycleWeeks} weeks, ${draft.selectedDays.length} days/week`,
+      assignmentSource,
+    });
+
+    return {
+      programId,
+      assignment,
+      assignedProgram: {
+        id: programId,
+        name: draft.planName,
+        programType: 'custom',
+        goal: draft.goal,
+        daysPerWeek: draft.selectedDays.length,
+        cycleWeeks: draft.cycleWeeks,
+      },
+    };
+  }
 
   let dayOrder = 0;
   for (let week = 1; week <= draft.cycleWeeks; week += 1) {
@@ -4629,7 +4903,7 @@ router.post('/user/onboarding', authMutationRateLimit, requireAuth('user'), asyn
       disableClaude,
     } = req.body;
 
-    const normalizedUserId = toNumber(userId);
+    const normalizedUserId = toNumber(userId, toNumber(authUser?.id));
     if (!normalizedUserId) {
       return res.status(400).json({ error: 'Valid userId is required' });
     }
@@ -4681,6 +4955,7 @@ router.post('/user/onboarding', authMutationRateLimit, requireAuth('user'), asyn
     const normalizedAthleteIdentityCategory = normalizeAthleteIdentityCategory(
       athleteIdentityCategory || req.body.athlete_identity_category,
     );
+    const prefersCardioPlan = normalizedAthleteIdentity === 'cardio';
     const normalizedAthleteSubCategoryId = normalizeShortText(
       athleteSubCategoryId || req.body.athlete_sub_category_id,
       100,
@@ -4727,7 +5002,7 @@ router.post('/user/onboarding', authMutationRateLimit, requireAuth('user'), asyn
       gender: normalizedGender,
       heightCm: normalizedHeight,
       weightKg: normalizedWeight,
-      goal: normalizedGoal,
+      goal: prefersCardioPlan ? 'endurance' : normalizedGoal,
       experienceLevel: normalizedExperience || 'intermediate',
       daysPerWeek: normalizedDays,
       sessionDuration: normalizedSessionDuration,
@@ -4757,16 +5032,16 @@ router.post('/user/onboarding', authMutationRateLimit, requireAuth('user'), asyn
     const onboardingProfileJson = JSON.stringify(onboardingProfilePayload);
 
     const claudeEnabled = hasAnthropicConfig();
-    const shouldUseClaude = toBooleanFlag(useClaude, claudeEnabled);
+    const shouldUseClaude = toBooleanFlag(useClaude, claudeEnabled) && !prefersCardioPlan;
     const shouldDisableClaude = toBooleanFlag(disableClaude, false);
     const templateEligibleSplit = ['full_body', 'upper_lower', 'push_pull_legs', 'hybrid'].includes(normalizedSplitPreference);
-    const aiPlanRequested = normalizedSplitPreference !== 'custom';
+    const aiPlanRequested = normalizedSplitPreference !== 'custom' && !prefersCardioPlan;
     const hasCustomPlanPayload = customPlan && typeof customPlan === 'object';
     let claudeExerciseAnchors = [];
     let claudeGeneration = null;
     let warning = null;
 
-    if (hasExplicitSplitPreference && templateEligibleSplit) {
+    if (hasExplicitSplitPreference && templateEligibleSplit && !prefersCardioPlan) {
       try {
         claudeExerciseAnchors = await buildTemplateExerciseAnchorsForSplit(pool, {
           splitPreference: normalizedSplitPreference,
@@ -4785,7 +5060,7 @@ router.post('/user/onboarding', authMutationRateLimit, requireAuth('user'), asyn
           gender: normalizedGender,
           heightCm: normalizedHeight,
           weightKg: normalizedWeight,
-          goal: normalizedGoal,
+          goal: prefersCardioPlan ? 'endurance' : normalizedGoal,
           experienceLevel: normalizedExperience || 'intermediate',
           daysPerWeek: normalizedDays,
           sessionDuration: normalizedSessionDuration,
@@ -4814,7 +5089,7 @@ router.post('/user/onboarding', authMutationRateLimit, requireAuth('user'), asyn
           gender: normalizedGender,
           heightCm: normalizedHeight,
           weightKg: normalizedWeight,
-          goal: normalizedGoal,
+          goal: prefersCardioPlan ? 'endurance' : normalizedGoal,
           experienceLevel: normalizedExperience || 'intermediate',
           daysPerWeek: normalizedDays,
           sessionDuration: normalizedSessionDuration,
@@ -4933,7 +5208,7 @@ router.post('/user/onboarding', authMutationRateLimit, requireAuth('user'), asyn
     let planSource = 'template';
 
     try {
-      if (!assignedProgram && !assignmentInfo && normalizedSplitPreference === 'custom' && hasCustomPlanPayload) {
+      if (!assignedProgram && !assignmentInfo && normalizedSplitPreference === 'custom' && hasCustomPlanPayload && !prefersCardioPlan) {
         let customDraft;
         try {
           customDraft = await buildCustomProgramDraft(conn, normalizedUserId, customPlan);
@@ -5028,6 +5303,7 @@ router.post('/user/onboarding', authMutationRateLimit, requireAuth('user'), asyn
         && hasExplicitSplitPreference
         && templateEligibleSplit
         && !athleteNeedsPerformanceWork
+        && !prefersCardioPlan
       ) {
         const templateResult = await assignTemplateProgramFromLibrary(conn, {
           userId: normalizedUserId,
@@ -5045,7 +5321,7 @@ router.post('/user/onboarding', authMutationRateLimit, requireAuth('user'), asyn
         const generatedProgram = await generatePersonalizedProgram(conn, {
           userId: normalizedUserId,
           gymId: normalizedGymId,
-          goal: normalizedGoal,
+          goal: prefersCardioPlan ? 'endurance' : normalizedGoal,
           experienceLevel: normalizedExperience || 'intermediate',
           daysPerWeek: normalizedDays,
           cycleWeeks: 12,

@@ -5,6 +5,7 @@ import {
   emojiBasketball,
   emojiBodybuilding,
   emojiCombatSports,
+  emojiCardio,
   emojiFootball,
   emojiHandball,
   emojiSwimming,
@@ -33,6 +34,7 @@ interface AthleteIdentityScreenProps {
 type GroupSelectionMap = Record<string, string[]>;
 const DEFAULT_ICON_MAP: Record<string, string> = {
   bodybuilding: emojiBodybuilding,
+  cardio: emojiCardio,
   football: emojiFootball,
   basketball: emojiBasketball,
   handball: emojiHandball,

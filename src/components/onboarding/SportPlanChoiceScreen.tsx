@@ -30,6 +30,13 @@ export function SportPlanChoiceScreen({
   }, [onboardingData?.workoutSplitPreference]);
 
   const [selectedId, setSelectedId] = useState<string>(initialSelection);
+  const advanceToNextStep = () => {
+    if (typeof window !== 'undefined') {
+      window.setTimeout(() => onNext(), 0);
+      return;
+    }
+    onNext();
+  };
 
   const persistSelection = (nextId: string) => {
     const selectedOption = localizedOptions.find((option) => option.id === nextId);
@@ -50,6 +57,10 @@ export function SportPlanChoiceScreen({
 
   const handleNext = () => {
     persistSelection(selectedId);
+    if (selectedId === 'custom') {
+      advanceToNextStep();
+      return;
+    }
     onNext();
   };
 

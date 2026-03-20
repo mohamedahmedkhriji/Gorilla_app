@@ -81,6 +81,8 @@ export const ONBOARDING_STEP_IDS = [
   'ai_analysis',
   'body_results',
   'custom_plan',
+  'custom_plan_builder',
+  'custom_plan_templates',
   'custom_plan_advice',
   'sport_age_gender',
   'sport_experience',
@@ -136,7 +138,7 @@ export type OnboardingConfig = {
 export const DEFAULT_ONBOARDING_CONFIG: OnboardingConfig = {
   version: 1,
   trackMap: {
-    bodybuilding: ['bodybuilding'],
+    bodybuilding: ['bodybuilding', 'cardio'],
     defaultTrack: 'sport',
   },
   steps: {
@@ -151,7 +153,7 @@ export const DEFAULT_ONBOARDING_CONFIG: OnboardingConfig = {
     ],
     sport: ['sport_age_gender', 'sport_experience', 'sport_plan_choice'],
     branchBySplit: {
-      custom: ['custom_plan', 'custom_plan_advice'],
+      custom: ['custom_plan', 'custom_plan_builder'],
       aiBodybuilding: ['ai_plan_tuning', 'body_image_upload', 'ai_analysis', 'body_results'],
       aiSport: ['ai_analysis', 'body_results'],
     },
@@ -173,6 +175,8 @@ export const DEFAULT_ONBOARDING_CONFIG: OnboardingConfig = {
     ai_analysis: { title: 'Analyzing', showBack: false },
     body_results: { title: 'Results', showBack: false, showHeader: false, showProgress: false },
     custom_plan: { title: 'Customize Plan', showBack: false },
+    custom_plan_builder: { title: 'Plan Templates', showBack: false },
+    custom_plan_templates: { title: 'Plan Templates', showBack: false },
     custom_plan_advice: { title: 'AI Advice', showBack: false },
     sport_age_gender: { title: 'Age & Gender' },
     sport_experience: { title: 'Sports Experience' },
@@ -237,6 +241,25 @@ export const DEFAULT_ONBOARDING_CONFIG: OnboardingConfig = {
               { id: 'beginner_gym', label: 'Beginner gym' },
               { id: 'natural_athlete', label: 'Natural athlete' },
               { id: 'classic_physique', label: 'Classic physique' },
+            ],
+          },
+        ],
+      },
+      {
+        id: 'cardio',
+        label: 'Cardio',
+        description: 'Improve endurance, calorie burn, and overall conditioning.',
+        iconKey: 'cardio',
+        category: 'fitness',
+        subGroups: [
+          {
+            id: 'cardio_goal',
+            title: 'By Focus',
+            items: [
+              { id: 'fat_loss', label: 'Fat loss' },
+              { id: 'endurance', label: 'Endurance' },
+              { id: 'conditioning', label: 'Conditioning' },
+              { id: 'heart_health', label: 'Heart health' },
             ],
           },
         ],

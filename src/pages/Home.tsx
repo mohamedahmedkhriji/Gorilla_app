@@ -545,26 +545,26 @@ export function Home({
   const workoutCardSubtitle = shouldChooseWorkoutToday
     ? (
       isArabic
-        ? 'Ø§Ø®ØªØ± Ù…Ù† Ø®Ø·Ø© Ø§Ù„Ø£Ø³Ø¨ÙˆØ¹ Ø§Ù„Ø­ØµØ© Ø§Ù„ØªÙŠ ØªÙ†Ø§Ø³Ø¨Ùƒ Ø§Ù„ÙŠÙˆÙ….'
+        ? 'اختر من خطة الأسبوع الحصة التي تناسبك اليوم.'
         : 'Pick the session from your week plan that fits today.'
     )
     : (workoutRecommendation?.detail ?? null);
   const workoutCardDetailLines = shouldChooseWorkoutToday
     ? [
         isArabic
-          ? 'Ø§Ø¶ØºØ· Ù„ÙØªØ­ Ø®Ø·ØªÙƒ Ø§Ù„Ø£Ø³Ø¨ÙˆØ¹ÙŠØ©'
+          ? 'اضغط لفتح خطتك الأسبوعية'
           : 'Tap to open your week plan',
       ]
     : undefined;
   const workoutCardActionLabel = shouldChooseWorkoutToday
-    ? (isArabic ? 'Ø§Ø®ØªØ± Ù…Ù† Ø®Ø·ØªÙŠ' : 'Choose from My Plan')
+    ? (isArabic ? 'اختر من خطتي' : 'Choose from My Plan')
     : todayWorkoutSelection?.completed
-      ? (isArabic ? 'Ø§Ø·Ù„Ø¹ Ø¹Ù„Ù‰ Ø®Ø·ØªÙŠ' : 'View My Plan')
+      ? (isArabic ? 'اطلع على خطتي' : 'View My Plan')
       : undefined;
   const workoutCardProgressCaption = shouldChooseWorkoutToday
-    ? (isArabic ? 'Ø¬Ø§Ù‡Ø²' : 'Ready')
+    ? (isArabic ? 'جاهز' : 'Ready')
     : todayWorkoutSelection?.completed
-      ? (isArabic ? 'ØªÙ…' : 'Done')
+      ? (isArabic ? 'تم' : 'Done')
       : undefined;
   const workoutCardTitleDisplay = shouldChooseWorkoutToday
     ? (isArabic ? 'اختر تدريب اليوم' : 'Choose today\'s training')
@@ -1562,4 +1562,5 @@ export function Home({
     </div>);
 
 }
+
 

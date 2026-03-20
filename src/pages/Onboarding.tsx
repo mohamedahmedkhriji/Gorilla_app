@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { OnboardingLayout } from '../components/onboarding/OnboardingLayout';
 import { AppMotivationScreen } from '../components/onboarding/AppMotivationScreen';
 import { WelcomeScreen } from '../components/onboarding/WelcomeScreen';
@@ -142,6 +142,8 @@ const STEP_COMPONENTS: Record<OnboardingStepId, React.ComponentType<any>> = {
   ai_analysis: AIAnalysisScreen,
   body_results: BodyAnalysisResultsScreen,
   custom_plan: CustomPlanOnboardingScreen,
+  custom_plan_builder: CustomPlanOnboardingScreen,
+  custom_plan_templates: CustomPlanOnboardingScreen,
   custom_plan_advice: CustomPlanAdviceScreen,
   sport_age_gender: SportAgeGenderScreen,
   sport_experience: SportExperienceYearsScreen,
@@ -213,10 +215,18 @@ const resolveStepMeta = (
   return { ...base, ...override };
 };
 
+type OnboardingStepEntry = {
+  id: OnboardingStepId;
+  component: React.ComponentType<any>;
+  meta: ReturnType<typeof resolveStepMeta>;
+};
+
 export function Onboarding({ onComplete }: OnboardingProps) {
   const [onboardingData, setOnboardingData] = useState<any>({});
   const [remoteConfig, setRemoteConfig] = useState<Partial<OnboardingConfig> | null>(null);
   const [currentStepId, setCurrentStepId] = useState<OnboardingStepId | null>(null);
+  const currentStepIdRef = useRef<OnboardingStepId | null>(null);
+  const stepsRef = useRef<OnboardingStepEntry[]>([]);
   const onboardingLanguage = getOnboardingLanguage();
 
   const handleDataChange = useCallback((data: any) => {
@@ -313,6 +323,9 @@ export function Onboarding({ onComplete }: OnboardingProps) {
     [config, stepIds, track],
   );
 
+  currentStepIdRef.current = currentStepId;
+  stepsRef.current = steps;
+
   useEffect(() => {
     if (!steps.length) return;
     if (!currentStepId || !steps.some((step) => step.id === currentStepId)) {
@@ -327,31 +340,34 @@ export function Onboarding({ onComplete }: OnboardingProps) {
   }, [currentStepId, steps]);
 
   const next = useCallback(() => {
-    if (!steps.length) return;
+    const currentSteps = stepsRef.current;
+    const activeStepId = currentStepIdRef.current;
+    if (!currentSteps.length) return;
 
-    const index = steps.findIndex((step) => step.id === currentStepId);
+    const index = currentSteps.findIndex((step) => step.id === activeStepId);
     if (index < 0) {
-      setCurrentStepId(steps[0].id);
+      setCurrentStepId(currentSteps[0].id);
       return;
     }
 
-    const nextStep = steps[index + 1];
+    const nextStep = currentSteps[index + 1];
     if (!nextStep) {
       void handleComplete();
       return;
     }
 
     setCurrentStepId(nextStep.id);
-  }, [currentStepId, handleComplete, steps]);
+  }, [handleComplete]);
 
   const back = useCallback(() => {
     setCurrentStepId((prev) => {
-      if (!steps.length) return null;
-      const index = steps.findIndex((step) => step.id === prev);
-      if (index <= 0) return steps[0].id;
-      return steps[index - 1].id;
+      const currentSteps = stepsRef.current;
+      if (!currentSteps.length) return null;
+      const index = currentSteps.findIndex((step) => step.id === prev);
+      if (index <= 0) return currentSteps[0].id;
+      return currentSteps[index - 1].id;
     });
-  }, [steps]);
+  }, []);
 
   const currentStep = steps[stepIndex];
   const CurrentComponent = currentStep?.component;
@@ -421,6 +437,7 @@ export function Onboarding({ onComplete }: OnboardingProps) {
         onComplete={isLastStep ? handleComplete : next}
         onDataChange={handleDataChange}
         onboardingData={onboardingData}
+        stepId={currentStep.id}
         userId={storedUser?.id}
         {...(stepPropsById[currentStep.id] || {})}
       />
