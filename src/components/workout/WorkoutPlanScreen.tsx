@@ -905,6 +905,8 @@ export function WorkoutPlanScreen({
                         <video
                           src={videoUrl}
                           className="h-full w-full object-cover"
+                          autoPlay
+                          loop
                           playsInline
                           muted
                           preload="metadata"
