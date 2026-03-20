@@ -13,6 +13,7 @@ interface CustomPlanOnboardingScreenProps {
   onboardingData?: any;
   stepId?: string;
   userId?: number;
+  persistOnboardingState?: boolean;
 }
 
 type ExerciseDraft = {
@@ -305,6 +306,7 @@ export function CustomPlanOnboardingScreen({
   onboardingData,
   stepId,
   userId,
+  persistOnboardingState = true,
 }: CustomPlanOnboardingScreenProps) {
   const language = getOnboardingLanguage();
   const isArabic = language === 'ar';
@@ -906,13 +908,15 @@ export function CustomPlanOnboardingScreen({
 
       setIsSavingPlan(true);
       try {
-        await api.saveOnboarding(Number(resolvedUserId || 0), {
-          ...(onboardingData || {}),
-          customPlan: null,
-          language,
-          useClaude: false,
-          disableClaude: true,
-        });
+        if (persistOnboardingState) {
+          await api.saveOnboarding(Number(resolvedUserId || 0), {
+            ...(onboardingData || {}),
+            customPlan: null,
+            language,
+            useClaude: false,
+            disableClaude: true,
+          });
+        }
 
         const response = await api.saveCustomProgram(Number(resolvedUserId || 0), customPlanPayload);
 
@@ -930,8 +934,10 @@ export function CustomPlanOnboardingScreen({
               repeatedWeekPlans,
             }));
           }
-          localStorage.removeItem('onboardingCustomAdvice');
-          localStorage.removeItem('onboardingPlanWarning');
+          if (persistOnboardingState) {
+            localStorage.removeItem('onboardingCustomAdvice');
+            localStorage.removeItem('onboardingPlanWarning');
+          }
         }
       } finally {
         setIsSavingPlan(false);
@@ -1239,7 +1245,7 @@ export function CustomPlanOnboardingScreen({
                                               event.stopPropagation();
                                               const video = event.currentTarget;
                                               video.currentTime = 0;
-                                              void video.play().catch(() => {});
+                                              void video.play().catch(() => undefined);
                                             }}
                                           />
                                         ) : (

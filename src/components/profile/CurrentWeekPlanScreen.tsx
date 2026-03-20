@@ -2,6 +2,8 @@ import React, { useEffect, useState } from 'react';
 import { Header } from '../ui/Header';
 import { api } from '../../services/api';
 import { formatWorkoutDayLabel } from '../../services/workoutDayLabel';
+import { AppLanguage, getActiveLanguage, getStoredLanguage } from '../../services/language';
+import { translateExerciseName, translateProgramText, translateWorkoutType } from '../../services/programI18n';
 
 interface CurrentWeekPlanScreenProps {
   onBack: () => void;
@@ -48,12 +50,64 @@ const parseExercises = (raw: unknown): WeekWorkout['exercises'] => {
 };
 
 export function CurrentWeekPlanScreen({ onBack, onOpenWorkout, onCreateCustom }: CurrentWeekPlanScreenProps) {
+  const [language, setLanguage] = useState<AppLanguage>(() => getActiveLanguage());
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [programName, setProgramName] = useState('Current Program');
   const [currentWeek, setCurrentWeek] = useState(1);
   const [totalWeeks, setTotalWeeks] = useState(0);
   const [workouts, setWorkouts] = useState<WeekWorkout[]>([]);
+  const isArabic = language === 'ar';
+  const copy = isArabic
+    ? {
+      title: 'خطة الأسبوع الحالي',
+      defaultProgram: 'البرنامج الحالي',
+      program: 'البرنامج',
+      loading: 'جارٍ تحميل تمارين هذا الأسبوع...',
+      noSession: 'لم يتم العثور على جلسة مستخدم نشطة.',
+      loadFailed: 'تعذر تحميل خطة الأسبوع الحالي.',
+      empty: 'لا توجد تمارين لهذا الأسبوع.',
+      exerciseFallback: 'تمرين',
+      sets: (value: number) => `${value} مجموعات`,
+      rest: (value: number) => `${value}ث راحة`,
+      moreExercises: (value: number) => `+${value} تمارين إضافية`,
+      dayFallback: (value: number) => `اليوم ${value}`,
+      weekLabel: (week: number, total: number) => `الأسبوع ${week}${total > 0 ? ` / ${total}` : ''}`,
+      customizePlan: 'تخصيص الخطة',
+      openWorkout: 'افتح التمرين',
+    }
+    : {
+      title: 'Current Week Plan',
+      defaultProgram: 'Current Program',
+      program: 'Program',
+      loading: 'Loading current week workouts...',
+      noSession: 'No active user session found.',
+      loadFailed: 'Failed to load current week plan.',
+      empty: 'No workouts found for this week.',
+      exerciseFallback: 'Exercise',
+      sets: (value: number) => `${value} sets`,
+      rest: (value: number) => `${value}s rest`,
+      moreExercises: (value: number) => `+${value} more exercises`,
+      dayFallback: (value: number) => `Day ${value}`,
+      weekLabel: (week: number, total: number) => `Week ${week}${total > 0 ? ` / ${total}` : ''}`,
+      customizePlan: 'Customize Plan',
+      openWorkout: 'Open Workout',
+    };
+
+  useEffect(() => {
+    setLanguage(getActiveLanguage());
+
+    const handleLanguageChanged = () => {
+      setLanguage(getStoredLanguage());
+    };
+
+    window.addEventListener('app-language-changed', handleLanguageChanged);
+    window.addEventListener('storage', handleLanguageChanged);
+    return () => {
+      window.removeEventListener('app-language-changed', handleLanguageChanged);
+      window.removeEventListener('storage', handleLanguageChanged);
+    };
+  }, []);
 
   useEffect(() => {
     const fetchPlan = async () => {
@@ -63,7 +117,7 @@ export function CurrentWeekPlanScreen({ onBack, onOpenWorkout, onCreateCustom }:
         const user = JSON.parse(localStorage.getItem('appUser') || localStorage.getItem('user') || '{}');
         const userId = Number(localStorage.getItem('appUserId') || localStorage.getItem('userId') || user?.id || 0);
         if (!userId) {
-          setError('No active user session found.');
+          setError(copy.noSession);
           setWorkouts([]);
           return;
         }
@@ -90,32 +144,34 @@ export function CurrentWeekPlanScreen({ onBack, onOpenWorkout, onCreateCustom }:
         setWorkouts(normalized);
       } catch (e) {
         console.error('Failed to load current week plan:', e);
-        setError('Failed to load current week plan.');
+        setError(copy.loadFailed);
       } finally {
         setLoading(false);
       }
     };
 
     void fetchPlan();
-  }, []);
+  }, [copy.loadFailed, copy.noSession]);
 
   return (
     <div className="flex-1 flex flex-col h-full bg-background pb-24">
       <div className="px-4 sm:px-6 pt-2">
-        <Header title="Current Week Plan" onBack={onBack} />
+        <Header title={copy.title} onBack={onBack} />
       </div>
 
       <div className="px-4 sm:px-6 pt-2 space-y-4">
         <div className="bg-card rounded-xl border border-white/10 p-4">
-          <div className="text-sm text-text-secondary">Program</div>
-          <div className="text-white font-semibold mt-1">{programName}</div>
+          <div className="text-sm text-text-secondary">{copy.program}</div>
+          <div className="text-white font-semibold mt-1">
+            {translateProgramText(programName || copy.defaultProgram, language)}
+          </div>
           <div className="text-xs text-text-tertiary mt-1">
-            Week {currentWeek}{totalWeeks > 0 ? ` / ${totalWeeks}` : ''}
+            {copy.weekLabel(currentWeek, totalWeeks)}
           </div>
         </div>
 
         {loading && (
-          <div className="text-text-secondary text-sm">Loading current week workouts...</div>
+          <div className="text-text-secondary text-sm">{copy.loading}</div>
         )}
 
         {!loading && error && (
@@ -126,7 +182,7 @@ export function CurrentWeekPlanScreen({ onBack, onOpenWorkout, onCreateCustom }:
 
         {!loading && !error && workouts.length === 0 && (
           <div className="bg-card rounded-xl border border-white/10 p-4 text-sm text-text-secondary">
-            No workouts found for this week.
+            {copy.empty}
           </div>
         )}
 
@@ -137,13 +193,19 @@ export function CurrentWeekPlanScreen({ onBack, onOpenWorkout, onCreateCustom }:
                 <div className="flex items-center justify-between gap-2">
                   <div>
                     <div className="text-xs uppercase text-text-secondary">
-                      {formatWorkoutDayLabel(workout.day_name, '') || `Day ${workout.day_order}`}
+                      {formatWorkoutDayLabel(
+                        workout.day_name,
+                        copy.dayFallback(workout.day_order),
+                        language,
+                      ) || copy.dayFallback(workout.day_order)}
                     </div>
-                    <div className="text-white font-semibold">{workout.workout_name}</div>
+                    <div className="text-white font-semibold">
+                      {translateProgramText(workout.workout_name, language)}
+                    </div>
                   </div>
                   {workout.workout_type && (
                     <span className="text-[10px] uppercase text-accent bg-accent/10 border border-accent/20 px-2 py-1 rounded">
-                      {workout.workout_type}
+                      {translateWorkoutType(workout.workout_type, language)}
                     </span>
                   )}
                 </div>
@@ -152,17 +214,21 @@ export function CurrentWeekPlanScreen({ onBack, onOpenWorkout, onCreateCustom }:
                   <div className="mt-3 space-y-1.5">
                     {workout.exercises.slice(0, 6).map((ex, idx) => (
                       <div key={`${workout.id}-ex-${idx}`} className="text-xs text-text-secondary">
-                        <span className="text-white">{ex.exerciseName || ex.name || 'Exercise'}</span>
+                        <span className="text-white">
+                          {translateExerciseName(ex.exerciseName || ex.name || copy.exerciseFallback, language)}
+                        </span>
                         {' | '}
-                        <span>{Number(ex.sets || 0)} sets</span>
+                        <span>{copy.sets(Number(ex.sets || 0))}</span>
                         {' | '}
                         <span>{String(ex.reps || '-')}</span>
                         {' | '}
-                        <span>{Number(ex.rest || 0)}s rest</span>
+                        <span>{copy.rest(Number(ex.rest || 0))}</span>
                       </div>
                     ))}
                     {workout.exercises.length > 6 && (
-                      <div className="text-xs text-text-tertiary">+{workout.exercises.length - 6} more exercises</div>
+                      <div className="text-xs text-text-tertiary">
+                        {copy.moreExercises(workout.exercises.length - 6)}
+                      </div>
                     )}
                   </div>
                 )}
@@ -177,14 +243,14 @@ export function CurrentWeekPlanScreen({ onBack, onOpenWorkout, onCreateCustom }:
             onClick={onCreateCustom}
             className="w-full bg-white/5 text-white border border-white/10 font-semibold rounded-xl p-3 hover:bg-white/10 transition-colors"
           >
-            Customize Plan
+            {copy.customizePlan}
           </button>
           <button
             type="button"
             onClick={onOpenWorkout}
             className="w-full bg-accent text-black font-semibold rounded-xl p-3 hover:bg-accent/90 transition-colors"
           >
-            Open Workout
+            {copy.openWorkout}
           </button>
         </div>
       </div>

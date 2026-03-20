@@ -6,6 +6,8 @@ import { PostWorkoutSummary, type WorkoutDaySummaryData } from '../components/wo
 import { ExerciseVideoScreen } from '../components/workout/ExerciseVideoScreen';
 import { WorkoutPlanScreen } from '../components/workout/WorkoutPlanScreen';
 import { TrackerScreen } from '../components/workout/TrackerScreen';
+import { PresetProgramScreen } from '../components/profile/PresetProgramScreen';
+import { CustomPlanBuilderScreen } from '../components/profile/CustomPlanBuilderScreen';
 import { api } from '../services/api';
 import {
   getCoachmarkUserScope,
@@ -23,9 +25,11 @@ import {
   clearTodayWorkoutSelection,
   markTodayWorkoutSelectionCompleted,
   readTodayWorkoutSelection,
+  readWorkoutAssignmentHistory,
   saveTodayWorkoutSelection,
   TODAY_WORKOUT_SELECTION_UPDATED_EVENT,
   type TodayWorkoutSelection,
+  type WorkoutAssignmentHistoryEntry,
 } from '../services/todayWorkoutSelection';
 import { OPEN_PICKED_WORKOUT_PLAN } from '../services/workoutNavigation';
 import { useScrollToTopOnChange } from '../shared/scroll';
@@ -74,7 +78,7 @@ type WeekPlanWorkout = {
   dayOrder: number;
 };
 
-type ViewState = 'overview' | 'plan' | 'tracker' | 'video' | 'live' | 'summary';
+type ViewState = 'overview' | 'plan' | 'tracker' | 'video' | 'live' | 'summary' | 'presetPlans' | 'customPlanBuilder';
 
 type SummaryMuscle = {
   name: string;
@@ -89,6 +93,12 @@ type SummaryExercise = {
   topWeight: number;
   volume: number;
   targetMuscles: string[];
+};
+
+type CoachOption = {
+  id: number;
+  name: string;
+  email?: string;
 };
 
 const readStoredUser = () => {
@@ -707,7 +717,11 @@ export function Workout({
   const [todayWorkoutSelection, setTodayWorkoutSelection] = useState<TodayWorkoutSelection | null>(
     () => readTodayWorkoutSelection(workoutStorageScope),
   );
+  const [workoutAssignmentHistory, setWorkoutAssignmentHistory] = useState<WorkoutAssignmentHistoryEntry[]>(
+    () => readWorkoutAssignmentHistory(workoutStorageScope),
+  );
   const [userProgram, setUserProgram] = useState<any>(null);
+  const [programProgress, setProgramProgress] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [completedExercises, setCompletedExercises] = useState<string[]>([]);
@@ -718,6 +732,11 @@ export function Workout({
   const [hasLatestSummary, setHasLatestSummary] = useState(false);
   const [lastAutoSummaryKey, setLastAutoSummaryKey] = useState('');
   const [postedSummaryTokens, setPostedSummaryTokens] = useState<string[]>([]);
+  const [isPlanChoiceOpen, setIsPlanChoiceOpen] = useState(false);
+  const [isCoachPickerOpen, setIsCoachPickerOpen] = useState(false);
+  const [coaches, setCoaches] = useState<CoachOption[]>([]);
+  const [coachesLoading, setCoachesLoading] = useState(false);
+  const [coachRequestingId, setCoachRequestingId] = useState<number | null>(null);
   const [language, setLanguage] = useState<AppLanguage>(() => getActiveLanguage());
   const [coachmarkMode, setCoachmarkMode] = useState<'plan' | 'tracker' | null>(null);
   const [coachmarkStepIndex, setCoachmarkStepIndex] = useState(0);
@@ -750,6 +769,53 @@ export function Workout({
     );
 
   const isArabic = language === 'ar';
+  const renewalCopy = useMemo(
+    () => ({
+      modalTitle: isArabic ? 'أنشئ خطة تمريني' : 'Create My Workout Plan',
+      modalBody: isArabic ? 'اختر طريقة بناء خطتك.' : 'Choose how you want to build your next plan.',
+      buildSolo: isArabic ? 'إنشاء بنفسي' : 'Build By Myself',
+      withCoach: isArabic ? 'مع مدرب' : 'With Coach',
+      chooseCoach: isArabic ? 'اختر مدرباً' : 'Choose a Coach',
+      chooseCoachBody: isArabic ? 'اختر مدرباً لإرسال طلب خطة جديدة.' : 'Choose a coach to request a new plan.',
+      loadingCoaches: isArabic ? 'جارٍ تحميل المدربين...' : 'Loading coaches...',
+      noCoaches: isArabic ? 'لا يوجد مدربون متاحون الآن.' : 'No coaches are available right now.',
+      sending: isArabic ? 'جارٍ الإرسال' : 'Sending',
+      requestSent: isArabic ? 'تم إرسال طلب الخطة إلى' : 'Plan request sent to',
+      requestFailed: isArabic ? 'تعذر إرسال طلب الخطة.' : 'Failed to send plan request.',
+      completedTitle: isArabic ? 'خطة مكتملة' : 'Plan Complete',
+      completedSubtitle: isArabic ? 'أنشئ خطة جديدة' : 'Create a new plan',
+    }),
+    [isArabic],
+  );
+  const hasStartedTodayWorkout = useMemo(() => {
+    if (!todayWorkoutSelection?.workoutKey) return false;
+    if (todayWorkoutSelection.completed) return true;
+    if (completedExercises.length > 0) return true;
+
+    return Object.values(exerciseSets).some((setRows) =>
+      Array.isArray(setRows) && setRows.some((setRow) => isSetCompleted(setRow)),
+    );
+  }, [
+      completedExercises,
+      exerciseSets,
+      todayWorkoutSelection?.completed,
+      todayWorkoutSelection?.workoutKey,
+    ]);
+  const isPlanCompleted = useMemo(() => {
+    const summary = programProgress?.summary;
+    const totalWeeks = Number(summary?.totalWeeks || userProgram?.totalWeeks || 0);
+    if (!programProgress?.hasActiveProgram || totalWeeks <= 0) return false;
+
+    const plannedWorkouts = Number(summary?.plannedWorkouts || 0);
+    const completedWorkouts = Number(summary?.completedWorkouts || 0);
+    const calendarDaysLeft = Number(summary?.calendarDaysLeft ?? -1);
+
+    if (plannedWorkouts > 0 && completedWorkouts >= plannedWorkouts) {
+      return true;
+    }
+
+    return calendarDaysLeft === 0;
+  }, [programProgress, userProgram?.totalWeeks]);
   const coachmarkScope = getCoachmarkUserScope(currentUser);
   const planCoachmarkOptions = useMemo(
     () => ({
@@ -1062,11 +1128,13 @@ export function Workout({
 
   useEffect(() => {
     setTodayWorkoutSelection(readTodayWorkoutSelection(workoutStorageScope));
+    setWorkoutAssignmentHistory(readWorkoutAssignmentHistory(workoutStorageScope));
   }, [workoutStorageScope]);
 
   useEffect(() => {
     const handleTodayWorkoutSelectionUpdated = () => {
       setTodayWorkoutSelection(readTodayWorkoutSelection(workoutStorageScope));
+      setWorkoutAssignmentHistory(readWorkoutAssignmentHistory(workoutStorageScope));
     };
 
     window.addEventListener(TODAY_WORKOUT_SELECTION_UPDATED_EVENT, handleTodayWorkoutSelectionUpdated);
@@ -1287,14 +1355,23 @@ export function Workout({
         setWeekPlanWorkouts([]);
         setSelectedWorkoutKey('');
         setTodayWorkoutSelection(null);
+        setWorkoutAssignmentHistory([]);
         setCurrentWorkoutName('Rest Day');
         setCurrentWorkoutDayLabel('Rest Day');
+        setProgramProgress(null);
         localStorage.setItem(workoutStorageKeys.exerciseCount, '0');
         localStorage.removeItem(workoutStorageKeys.exerciseSnapshot);
         return;
       }
 
-      const program = await api.getUserProgram(userId);
+      const [program, progress] = await Promise.all([
+        api.getUserProgram(userId),
+        api.getProgramProgress(userId).catch((progressError) => {
+          console.error('Failed to fetch workout program progress:', progressError);
+          return null;
+        }),
+      ]);
+      const nextProgramProgress = progress && typeof progress === 'object' ? progress : null;
       const nextWeekPlanWorkouts = buildWeekPlanWorkouts(program);
       const nextSelectableWorkouts = nextWeekPlanWorkouts.filter(hasWorkoutExercises);
       const storedSelection = readTodayWorkoutSelection(workoutStorageScope);
@@ -1310,12 +1387,43 @@ export function Workout({
             ? program.workouts
             : [],
       });
+      setProgramProgress(nextProgramProgress);
 
       setWeekPlanWorkouts(nextWeekPlanWorkouts);
+      const nextPlanSummary = nextProgramProgress?.summary;
+      const nextPlanCompleted = Boolean(
+        nextProgramProgress?.hasActiveProgram
+        && Number(nextPlanSummary?.totalWeeks || program?.totalWeeks || 0) > 0
+        && (
+          (Number(nextPlanSummary?.plannedWorkouts || 0) > 0
+            && Number(nextPlanSummary?.completedWorkouts || 0) >= Number(nextPlanSummary?.plannedWorkouts || 0))
+          || Number(nextPlanSummary?.calendarDaysLeft ?? -1) === 0
+        )
+      );
+
+      if (nextPlanCompleted) {
+        clearTodayWorkoutSelection(workoutStorageScope);
+        clearLocalWorkoutState(workoutStorageScope);
+        setTodayWorkoutSelection(null);
+        setWorkoutAssignmentHistory(readWorkoutAssignmentHistory(workoutStorageScope));
+        setSelectedWorkoutKey('');
+        setTodayExercises([]);
+        setCompletedExercises([]);
+        setExerciseSets({});
+        setCurrentWorkoutName(renewalCopy.completedTitle);
+        setCurrentWorkoutDayLabel(renewalCopy.completedSubtitle);
+        localStorage.setItem(homeMetricStorageKeys.homeWorkoutProgress, '0');
+        localStorage.setItem(workoutStorageKeys.exerciseCount, '0');
+        localStorage.removeItem(workoutStorageKeys.exerciseSnapshot);
+        setView('overview');
+        return;
+      }
+
       if (storedSelection && !hasWorkoutExercises(nextSelectedWorkout)) {
         clearTodayWorkoutSelection(workoutStorageScope);
       }
       setTodayWorkoutSelection(normalizedSelection);
+      setWorkoutAssignmentHistory(readWorkoutAssignmentHistory(workoutStorageScope));
       setSelectedWorkoutKey((currentKey) => {
         if (currentKey && nextSelectableWorkouts.some((workout) => workout.key === currentKey)) {
           return currentKey;
@@ -1360,6 +1468,7 @@ export function Workout({
       setWeekPlanWorkouts([]);
       setSelectedWorkoutKey('');
       setTodayWorkoutSelection(null);
+      setProgramProgress(null);
       setUserProgram(null);
       setCurrentWorkoutName('Rest Day');
       setCurrentWorkoutDayLabel('Rest Day');
@@ -1368,19 +1477,95 @@ export function Workout({
     } finally {
       setLoading(false);
     }
-  }, [userId, workoutDay, workoutStorageKeys.exerciseCount, workoutStorageKeys.exerciseSnapshot, workoutStorageScope]);
+  }, [
+    homeMetricStorageKeys.homeWorkoutProgress,
+    renewalCopy.completedSubtitle,
+    renewalCopy.completedTitle,
+    userId,
+    workoutDay,
+    workoutStorageKeys.exerciseCount,
+    workoutStorageKeys.exerciseSnapshot,
+    workoutStorageScope,
+  ]);
 
   useEffect(() => {
     void loadWorkoutData();
   }, [loadWorkoutData]);
 
   useEffect(() => {
+    if (!isCoachPickerOpen) return;
+
+    let cancelled = false;
+
+    const loadCoaches = async () => {
+      try {
+        setCoachesLoading(true);
+        const list = await api.getAllCoaches();
+        if (cancelled) return;
+        const normalized = Array.isArray(list)
+          ? list
+            .map((coach: any) => ({
+              id: Number(coach?.id || 0),
+              name: String(coach?.name || '').trim() || (isArabic ? 'مدرب' : 'Coach'),
+              email: coach?.email ? String(coach.email).trim() : undefined,
+            }))
+            .filter((coach: CoachOption) => coach.id > 0)
+          : [];
+        setCoaches(normalized);
+      } catch (error) {
+        console.error('Failed to load coaches:', error);
+        if (!cancelled) setCoaches([]);
+      } finally {
+        if (!cancelled) setCoachesLoading(false);
+      }
+    };
+
+    void loadCoaches();
+    return () => {
+      cancelled = true;
+    };
+  }, [isArabic, isCoachPickerOpen]);
+
+  useEffect(() => {
     setView('overview');
   }, [resetSignal]);
+
+  const handleNewPlanSaved = useCallback(() => {
+    setIsPlanChoiceOpen(false);
+    setIsCoachPickerOpen(false);
+    setView('overview');
+    window.dispatchEvent(new CustomEvent('program-updated'));
+    void loadWorkoutData();
+  }, [loadWorkoutData]);
+
+  const handleSelectCoachForNewPlan = useCallback(async (coach: CoachOption) => {
+    if (!userId || coachRequestingId) return;
+
+    try {
+      setCoachRequestingId(coach.id);
+      await api.requestCoachPlanCreation(userId, coach.id);
+      setIsCoachPickerOpen(false);
+      setIsPlanChoiceOpen(false);
+      window.alert(`${renewalCopy.requestSent} ${coach.name}.`);
+    } catch (error: any) {
+      console.error('Failed to send coach plan request:', error);
+      window.alert(error?.message || renewalCopy.requestFailed);
+    } finally {
+      setCoachRequestingId(null);
+    }
+  }, [coachRequestingId, renewalCopy.requestFailed, renewalCopy.requestSent, userId]);
 
   const pickWorkoutForToday = (workoutKey: string) => {
     const nextWorkout = selectableWeekPlanWorkouts.find((workout) => workout.key === workoutKey);
     if (!hasWorkoutExercises(nextWorkout)) return;
+
+    if (
+      hasStartedTodayWorkout
+      && todayWorkoutSelection?.workoutKey
+      && todayWorkoutSelection.workoutKey !== workoutKey
+    ) {
+      return;
+    }
 
     setSelectedWorkoutKey(workoutKey);
 
@@ -1964,6 +2149,25 @@ export function Workout({
     }
   };
 
+  if (view === 'presetPlans') {
+    return (
+      <PresetProgramScreen
+        onBack={() => setView('overview')}
+        onSaved={handleNewPlanSaved}
+        onBuildCustom={() => setView('customPlanBuilder')}
+      />
+    );
+  }
+
+  if (view === 'customPlanBuilder') {
+    return (
+      <CustomPlanBuilderScreen
+        onBack={() => setView('presetPlans')}
+        onSaved={handleNewPlanSaved}
+      />
+    );
+  }
+
   if (view === 'overview') {
     return (
       <>
@@ -1974,6 +2178,7 @@ export function Workout({
             setView('plan');
           }}
           onPickWorkoutForToday={pickWorkoutForToday}
+          onOpenNewPlanFlow={() => setIsPlanChoiceOpen(true)}
           currentDayLabel={currentWorkoutDayLabel}
           workouts={selectableWeekPlanWorkouts.map((workout) => ({
             key: workout.key,
@@ -2002,8 +2207,10 @@ export function Workout({
           selectedTodayWorkoutDayLabel={todayWorkoutSelection?.dayLabel || currentWorkoutDayLabel}
           hasTodaySelection={!!todayWorkoutSelection?.workoutKey}
           isTodaySelectionCompleted={!!todayWorkoutSelection?.completed}
+          isTodayPlanLocked={hasStartedTodayWorkout}
+          isPlanCompleted={isPlanCompleted}
           recommendedWorkout={
-            todayWorkoutSelection?.completed && recommendedNextWorkout
+            !isPlanCompleted && todayWorkoutSelection?.completed && recommendedNextWorkout
               ? {
                   workoutName: recommendedNextWorkout.workoutName,
                   dayLabel: recommendedNextWorkout.dayLabel,
@@ -2011,10 +2218,87 @@ export function Workout({
               : null
           }
           userProgram={userProgram}
+          assignmentHistory={workoutAssignmentHistory}
           accountCreatedAt={currentUser?.created_at || currentUser?.createdAt || null}
           loading={loading}
           error={loadError}
         />
+        {isPlanChoiceOpen && (
+          <div
+            className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4"
+            onClick={() => setIsPlanChoiceOpen(false)}
+          >
+            <div
+              dir={isArabic ? 'rtl' : 'ltr'}
+              className={`w-full max-w-sm bg-card border border-white/10 rounded-2xl p-4 space-y-3 ${isArabic ? 'text-right' : 'text-left'}`}
+              onClick={(event) => event.stopPropagation()}
+            >
+              <h3 className="text-white font-semibold text-lg">{renewalCopy.modalTitle}</h3>
+              <p className="text-sm text-text-secondary">{renewalCopy.modalBody}</p>
+              <button
+                type="button"
+                onClick={() => {
+                  setIsPlanChoiceOpen(false);
+                  setView('presetPlans');
+                }}
+                className={`w-full bg-white/5 hover:bg-white/10 transition-colors rounded-xl p-3 text-white border border-white/10 ${isArabic ? 'text-right' : 'text-left'}`}
+              >
+                {renewalCopy.buildSolo}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setIsPlanChoiceOpen(false);
+                  setIsCoachPickerOpen(true);
+                }}
+                className={`w-full bg-white/5 hover:bg-white/10 transition-colors rounded-xl p-3 text-white border border-white/10 ${isArabic ? 'text-right' : 'text-left'}`}
+              >
+                {renewalCopy.withCoach}
+              </button>
+            </div>
+          </div>
+        )}
+        {isCoachPickerOpen && (
+          <div
+            className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4"
+            onClick={() => setIsCoachPickerOpen(false)}
+          >
+            <div
+              dir={isArabic ? 'rtl' : 'ltr'}
+              className={`w-full max-w-sm bg-card border border-white/10 rounded-2xl p-4 space-y-3 max-h-[80vh] overflow-y-auto ${isArabic ? 'text-right' : 'text-left'}`}
+              onClick={(event) => event.stopPropagation()}
+            >
+              <h3 className="text-white font-semibold text-lg">{renewalCopy.chooseCoach}</h3>
+              <p className="text-sm text-text-secondary">{renewalCopy.chooseCoachBody}</p>
+
+              {coachesLoading && (
+                <div className="text-sm text-text-secondary">{renewalCopy.loadingCoaches}</div>
+              )}
+
+              {!coachesLoading && coaches.length === 0 && (
+                <div className="text-sm text-text-secondary">{renewalCopy.noCoaches}</div>
+              )}
+
+              {!coachesLoading && coaches.map((coach) => (
+                <button
+                  key={coach.id}
+                  type="button"
+                  disabled={coachRequestingId !== null}
+                  onClick={() => void handleSelectCoachForNewPlan(coach)}
+                  className={`w-full bg-white/5 hover:bg-white/10 transition-colors rounded-xl p-3 text-white border border-white/10 disabled:opacity-50 ${isArabic ? 'text-right' : 'text-left'}`}
+                >
+                  <div className="font-medium">
+                    {coach.name}
+                    {coachRequestingId === coach.id ? ` (${renewalCopy.sending})` : ''}
+                  </div>
+                  {coach.email && (
+                    <div className="text-xs text-text-secondary mt-0.5">{coach.email}</div>
+                  )}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
         <CoachmarkOverlay
           isOpen={coachmarkMode === 'plan' && !!activeCoachmarkStep}
           step={coachmarkMode === 'plan' ? activeCoachmarkStep : null}

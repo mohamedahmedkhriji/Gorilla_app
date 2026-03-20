@@ -1026,21 +1026,21 @@ export function WorkoutPlanScreen({
 
       {isCardioModalOpen && !isRestDayView && (
         <div
-          className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/80 px-3 pb-3 pt-2 sm:px-4 sm:pb-4 sm:pt-3"
+          className="fixed inset-x-0 top-0 bottom-[calc(env(safe-area-inset-bottom,0px)+5.75rem)] z-[70] flex items-end justify-center overflow-hidden bg-black/80 px-3 pb-3 pt-3 backdrop-blur-sm sm:inset-0 sm:items-center sm:px-4 sm:pb-4 sm:pt-4"
           onClick={() => {
             setIsCardioRunning(false);
             setIsCardioModalOpen(false);
           }}
         >
           <div
-            className={`relative my-0 w-full max-w-lg self-start overflow-y-auto rounded-[1.6rem] border border-white/10 bg-[linear-gradient(180deg,rgba(18,23,34,0.98),rgba(9,12,20,0.98))] p-4 shadow-[0_24px_64px_rgba(0,0,0,0.45)] max-h-[90vh] ${isArabic ? 'text-right' : 'text-left'}`}
+            className={`relative flex max-h-full w-full max-w-lg flex-col overflow-hidden rounded-[1.6rem] border border-white/10 bg-[linear-gradient(180deg,rgba(18,23,34,0.98),rgba(9,12,20,0.98))] p-4 shadow-[0_24px_64px_rgba(0,0,0,0.45)] ${isArabic ? 'text-right' : 'text-left'}`}
             dir={isArabic ? 'rtl' : 'ltr'}
             onClick={(event) => event.stopPropagation()}
           >
             <div className={`pointer-events-none absolute inset-0 bg-gradient-to-br ${selectedCardioPreset.accentClass}`} />
             <div className="pointer-events-none absolute right-0 top-0 h-36 w-36 rounded-full bg-white/10 blur-3xl" />
 
-            <div className="relative">
+            <div className="relative flex min-h-0 flex-1 flex-col">
               <div className={`flex items-start justify-between gap-3 ${isArabic ? 'flex-row-reverse' : ''}`}>
                 <div>
                   <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-accent">
@@ -1062,7 +1062,7 @@ export function WorkoutPlanScreen({
                 </button>
               </div>
 
-              <div className="mt-4">
+              <div className="mt-4 min-h-0 space-y-4 overflow-y-auto overscroll-contain pr-1">
                 <div className="mb-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-text-tertiary sm:text-[11px] sm:tracking-[0.16em]">
                   {cardioCopy.modeLabel}
                 </div>
@@ -1090,82 +1090,82 @@ export function WorkoutPlanScreen({
                     );
                   })}
                 </div>
-              </div>
 
-              <div className="mt-4 grid gap-3 sm:grid-cols-[minmax(0,1fr)_9.5rem]">
-                <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-text-tertiary sm:text-[11px] sm:tracking-[0.16em]">
-                      {cardioCopy.timerLabel}
+                <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_9.5rem]">
+                  <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-text-tertiary sm:text-[11px] sm:tracking-[0.16em]">
+                        {cardioCopy.timerLabel}
+                      </div>
+                      <div className="rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.1em] text-accent sm:px-3 sm:py-1 sm:text-[11px] sm:tracking-[0.12em]">
+                        {cardioProgress}% {cardioCopy.progressLabel}
+                      </div>
                     </div>
-                    <div className="rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.1em] text-accent sm:px-3 sm:py-1 sm:text-[11px] sm:tracking-[0.12em]">
-                      {cardioProgress}% {cardioCopy.progressLabel}
+
+                    <div className="mt-3 flex justify-center">
+                      <div
+                        className="seven-seg-shell"
+                        role="timer"
+                        aria-label={cardioCopy.timerAria(cardioTimerText)}
+                      >
+                        <div className="seven-seg-group">
+                          <SevenSegmentDigit digit={cardioM1} />
+                          <SevenSegmentDigit digit={cardioM2} />
+                        </div>
+                        <div className="seven-seg-colon" aria-hidden="true">
+                          <span className="dot" />
+                          <span className="dot" />
+                        </div>
+                        <div className="seven-seg-group">
+                          <SevenSegmentDigit digit={cardioS1} />
+                          <SevenSegmentDigit digit={cardioS2} />
+                        </div>
+                      </div>
                     </div>
+
+                    <div className="mt-3 grid grid-cols-2 gap-2">
+                      <div className="rounded-xl border border-white/8 bg-white/[0.03] px-3 py-2.5">
+                        <div className="text-[9px] font-semibold uppercase tracking-[0.1em] text-text-tertiary sm:text-[10px] sm:tracking-[0.14em]">
+                          {cardioCopy.suggestedLabel}
+                        </div>
+                        <div className="mt-1.5 text-base font-semibold text-white sm:text-lg">{selectedCardioPreset.durationMinutes} {cardioCopy.minuteShort}</div>
+                      </div>
+                      <div className="rounded-xl border border-white/8 bg-white/[0.03] px-3 py-2.5">
+                        <div className="text-[9px] font-semibold uppercase tracking-[0.1em] text-text-tertiary sm:text-[10px] sm:tracking-[0.14em]">
+                          {cardioCopy.caloriesLabel}
+                        </div>
+                        <div className="mt-1.5 text-base font-semibold text-white sm:text-lg">{cardioEstimatedCalories} {cardioCopy.kcalShort}</div>
+                      </div>
+                    </div>
+
+                    {cardioProgress >= 100 && (
+                      <div className="mt-3 rounded-xl border border-emerald-400/25 bg-emerald-400/10 px-3 py-2.5 text-xs text-emerald-100 sm:text-sm">
+                        {cardioCopy.completedHint}
+                      </div>
+                    )}
                   </div>
 
-                  <div className="mt-3 flex justify-center">
-                    <div
-                      className="seven-seg-shell"
-                      role="timer"
-                      aria-label={cardioCopy.timerAria(cardioTimerText)}
+                  <div className="flex flex-col gap-2">
+                    <button
+                      type="button"
+                      onClick={toggleCardioTimer}
+                      className={`flex min-h-[3rem] items-center justify-center gap-2 rounded-xl px-3 text-xs font-semibold uppercase tracking-[0.1em] transition-colors sm:text-sm sm:tracking-[0.12em] ${
+                        isCardioRunning
+                          ? 'bg-rose-500 text-white hover:bg-rose-400'
+                          : 'bg-accent text-black hover:bg-[#aee600]'
+                      }`}
                     >
-                      <div className="seven-seg-group">
-                        <SevenSegmentDigit digit={cardioM1} />
-                        <SevenSegmentDigit digit={cardioM2} />
-                      </div>
-                      <div className="seven-seg-colon" aria-hidden="true">
-                        <span className="dot" />
-                        <span className="dot" />
-                      </div>
-                      <div className="seven-seg-group">
-                        <SevenSegmentDigit digit={cardioS1} />
-                        <SevenSegmentDigit digit={cardioS2} />
-                      </div>
-                    </div>
+                      {isCardioRunning ? <Square size={16} /> : <Play size={16} fill="currentColor" />}
+                      {isCardioRunning ? cardioCopy.stop : cardioCopy.start}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={resetCardioTimer}
+                      className="flex min-h-[3rem] items-center justify-center rounded-xl border border-white/10 bg-white/[0.04] px-3 text-xs font-semibold uppercase tracking-[0.1em] text-text-primary transition-colors hover:bg-white/[0.08] sm:text-sm sm:tracking-[0.12em]"
+                    >
+                      {cardioCopy.reset}
+                    </button>
                   </div>
-
-                  <div className="mt-3 grid grid-cols-2 gap-2">
-                    <div className="rounded-xl border border-white/8 bg-white/[0.03] px-3 py-2.5">
-                      <div className="text-[9px] font-semibold uppercase tracking-[0.1em] text-text-tertiary sm:text-[10px] sm:tracking-[0.14em]">
-                        {cardioCopy.suggestedLabel}
-                      </div>
-                      <div className="mt-1.5 text-base font-semibold text-white sm:text-lg">{selectedCardioPreset.durationMinutes} {cardioCopy.minuteShort}</div>
-                    </div>
-                    <div className="rounded-xl border border-white/8 bg-white/[0.03] px-3 py-2.5">
-                      <div className="text-[9px] font-semibold uppercase tracking-[0.1em] text-text-tertiary sm:text-[10px] sm:tracking-[0.14em]">
-                        {cardioCopy.caloriesLabel}
-                      </div>
-                      <div className="mt-1.5 text-base font-semibold text-white sm:text-lg">{cardioEstimatedCalories} {cardioCopy.kcalShort}</div>
-                    </div>
-                  </div>
-
-                  {cardioProgress >= 100 && (
-                    <div className="mt-3 rounded-xl border border-emerald-400/25 bg-emerald-400/10 px-3 py-2.5 text-xs text-emerald-100 sm:text-sm">
-                      {cardioCopy.completedHint}
-                    </div>
-                  )}
-                </div>
-
-                <div className="flex flex-col gap-2">
-                  <button
-                    type="button"
-                    onClick={toggleCardioTimer}
-                    className={`flex min-h-[3rem] items-center justify-center gap-2 rounded-xl px-3 text-xs font-semibold uppercase tracking-[0.1em] transition-colors sm:text-sm sm:tracking-[0.12em] ${
-                      isCardioRunning
-                        ? 'bg-rose-500 text-white hover:bg-rose-400'
-                        : 'bg-accent text-black hover:bg-[#aee600]'
-                    }`}
-                  >
-                    {isCardioRunning ? <Square size={16} /> : <Play size={16} fill="currentColor" />}
-                    {isCardioRunning ? cardioCopy.stop : cardioCopy.start}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={resetCardioTimer}
-                    className="flex min-h-[3rem] items-center justify-center rounded-xl border border-white/10 bg-white/[0.04] px-3 text-xs font-semibold uppercase tracking-[0.1em] text-text-primary transition-colors hover:bg-white/[0.08] sm:text-sm sm:tracking-[0.12em]"
-                  >
-                    {cardioCopy.reset}
-                  </button>
                 </div>
               </div>
             </div>

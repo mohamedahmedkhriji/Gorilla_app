@@ -1,3 +1,5 @@
+import { AppLanguage } from './language';
+
 const DAY_LABELS: Record<string, { long: string; short: string }> = {
   monday: { long: 'Monday', short: 'Mon' },
   tuesday: { long: 'Tuesday', short: 'Tue' },
@@ -6,6 +8,16 @@ const DAY_LABELS: Record<string, { long: string; short: string }> = {
   friday: { long: 'Friday', short: 'Fri' },
   saturday: { long: 'Saturday', short: 'Sat' },
   sunday: { long: 'Sunday', short: 'Sun' },
+};
+
+const ARABIC_DAY_LABELS: Record<string, { long: string; short: string }> = {
+  monday: { long: 'الاثنين', short: 'اثن' },
+  tuesday: { long: 'الثلاثاء', short: 'ثلا' },
+  wednesday: { long: 'الأربعاء', short: 'أرب' },
+  thursday: { long: 'الخميس', short: 'خمي' },
+  friday: { long: 'الجمعة', short: 'جمع' },
+  saturday: { long: 'السبت', short: 'سبت' },
+  sunday: { long: 'الأحد', short: 'أحد' },
 };
 
 const DAY_ALIASES: Record<string, keyof typeof DAY_LABELS> = {
@@ -34,12 +46,14 @@ export const normalizeWorkoutDayKey = (value: unknown) => {
   return DAY_ALIASES[normalized] || '';
 };
 
-export const formatWorkoutDayLabel = (value: unknown, fallback = '') => {
+const getDayLabels = (language: AppLanguage) => (language === 'ar' ? ARABIC_DAY_LABELS : DAY_LABELS);
+
+export const formatWorkoutDayLabel = (value: unknown, fallback = '', language: AppLanguage = 'en') => {
   const key = normalizeWorkoutDayKey(value);
-  return key ? DAY_LABELS[key].long : fallback;
+  return key ? getDayLabels(language)[key].long : fallback;
 };
 
-export const formatWorkoutDayShortLabel = (value: unknown, fallback = '') => {
+export const formatWorkoutDayShortLabel = (value: unknown, fallback = '', language: AppLanguage = 'en') => {
   const key = normalizeWorkoutDayKey(value);
-  return key ? DAY_LABELS[key].short : fallback;
+  return key ? getDayLabels(language)[key].short : fallback;
 };

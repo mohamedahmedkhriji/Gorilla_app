@@ -1,626 +1,459 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Header } from '../ui/Header';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { CustomPlanOnboardingScreen } from '../onboarding/CustomPlanOnboardingScreen';
+import { OnboardingLayout } from '../onboarding/OnboardingLayout';
 import { api } from '../../services/api';
-import { stripExercisePrefix } from '../../services/exerciseName';
+import { AppLanguage, getActiveLanguage, getStoredLanguage } from '../../services/language';
 
 interface CustomPlanBuilderScreenProps {
   onBack: () => void;
   onSaved: () => void;
 }
 
-interface CatalogExercise {
-  id: number;
-  name: string;
-}
+type BuilderStage = 'setup' | 'templates';
 
-interface PlanExerciseDraft {
+type ExercisePayload = {
   exerciseName: string;
   exerciseCatalogId: number | null;
   sets: number;
   reps: string;
   restSeconds: number;
-}
+  targetWeight: number;
+  targetMuscles: string[];
+};
 
-interface DayPlanDraft {
+type WorkoutPayload = {
+  dayName: string;
   workoutName: string;
-  exercises: PlanExerciseDraft[];
-}
+  workoutType: 'Custom';
+  targetMuscles: string[];
+  exercises: ExercisePayload[];
+};
 
-interface RawCatalogExercise {
-  id?: number;
-  name?: string;
-}
+type WeekPlanPayload = {
+  weeklyWorkouts: WorkoutPayload[];
+};
+
+type BuilderData = {
+  workoutDays: number;
+  customPlan: {
+    planName: string;
+    cycleWeeks: number;
+    templateWeekCount: number;
+    selectedDays: string[];
+    weeklyWorkouts: WorkoutPayload[];
+    weekPlans: WeekPlanPayload[];
+  };
+};
 
 interface RawProgramWorkout {
   day_order?: number;
   day_name?: string;
+  dayName?: string;
   workout_name?: string;
+  workoutName?: string;
   exercises?: unknown;
+  targetMuscles?: unknown;
+  target_muscles?: unknown;
+  muscles?: unknown;
+  muscleGroup?: unknown;
+  muscle_group?: unknown;
 }
 
 interface RawProgramResponse {
   name?: string;
+  planName?: string;
   totalWeeks?: number;
+  cycleWeeks?: number;
   currentWeekWorkouts?: RawProgramWorkout[];
 }
 
-interface ExerciseAutocompleteFieldProps {
-  value: string;
-  options: CatalogExercise[];
-  onChange: (nextValue: string) => void;
-  onSelect: (exercise: CatalogExercise) => void;
-  placeholder?: string;
-  className?: string;
+interface StoredAssignedProgramTemplate {
+  name?: string;
+  planName?: string;
+  totalWeeks?: number;
+  cycleWeeks?: number;
+  templateWeekCount?: number;
+  selectedDays?: unknown[];
+  templateWeekPlans?: Array<{ weeklyWorkouts?: unknown[] }>;
 }
 
-const WEEK_DAYS: Array<{ key: string; label: string }> = [
-  { key: 'monday', label: 'Mon' },
-  { key: 'tuesday', label: 'Tue' },
-  { key: 'wednesday', label: 'Wed' },
-  { key: 'thursday', label: 'Thu' },
-  { key: 'friday', label: 'Fri' },
-  { key: 'saturday', label: 'Sat' },
-  { key: 'sunday', label: 'Sun' },
-];
+const WEEK_DAYS = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'] as const;
 
-const fullDayName = (dayKey: string) => {
-  const entry = WEEK_DAYS.find((d) => d.key === dayKey);
-  return entry ? entry.label : dayKey;
+const COPY = {
+  en: {
+    setupTitle: 'Custom Plan',
+    templatesTitle: 'Plan Templates',
+    loading: 'Loading your custom plan...',
+    loadError: 'Could not load your current plan.',
+    noSession: 'No active user session found.',
+    defaultPlanName: 'My Custom Plan',
+  },
+  ar: {
+    setupTitle: 'الخطة المخصصة',
+    templatesTitle: 'قوالب الخطة',
+    loading: 'جارٍ تحميل خطتك المخصصة...',
+    loadError: 'تعذر تحميل خطتك الحالية.',
+    noSession: 'لا توجد جلسة مستخدم نشطة.',
+    defaultPlanName: 'خطتي المخصصة',
+  },
+} as const;
+
+const orderDays = (days: string[]) => {
+  const selected = new Set(days);
+  return WEEK_DAYS.filter((day) => selected.has(day));
 };
 
-const createDefaultExercise = (): PlanExerciseDraft => ({
-  exerciseName: '',
-  exerciseCatalogId: null,
-  sets: 3,
-  reps: '8-12',
-  restSeconds: 90,
-});
+const normalizeDayKey = (value: unknown) => {
+  const normalized = String(value || '').trim().toLowerCase();
+  return WEEK_DAYS.includes(normalized as typeof WEEK_DAYS[number]) ? normalized : '';
+};
 
-const parseExercises = (raw: unknown) => {
-  if (Array.isArray(raw)) return raw;
-  if (typeof raw !== 'string') return [];
+const parseArrayInput = (value: unknown): unknown[] => {
+  if (Array.isArray(value)) return value;
+  if (typeof value !== 'string') return [];
+
+  const trimmed = value.trim();
+  if (!trimmed) return [];
+
   try {
-    const parsed = JSON.parse(raw);
+    const parsed = JSON.parse(trimmed);
+    return Array.isArray(parsed) ? parsed : [trimmed];
+  } catch {
+    return trimmed.includes(',') ? trimmed.split(',') : [trimmed];
+  }
+};
+
+const parseStringList = (value: unknown) => (
+  [...new Set(
+    parseArrayInput(value)
+      .map((entry) => String(entry || '').trim())
+      .filter(Boolean),
+  )]
+);
+
+const parseExercises = (value: unknown) => {
+  if (Array.isArray(value)) return value;
+  if (typeof value !== 'string') return [];
+
+  try {
+    const parsed = JSON.parse(value);
     return Array.isArray(parsed) ? parsed : [];
   } catch {
     return [];
   }
 };
 
-function ExerciseAutocompleteField({
-  value,
-  options,
-  onChange,
-  onSelect,
-  placeholder = 'Exercise name',
-  className = '',
-}: ExerciseAutocompleteFieldProps) {
-  const [isOpen, setIsOpen] = useState(false);
-  const rootRef = useRef<HTMLDivElement | null>(null);
+const parseExerciseMuscles = (exercise: Record<string, unknown>) => (
+  parseStringList(
+    exercise.targetMuscles
+    ?? exercise.target_muscles
+    ?? exercise.muscles
+    ?? exercise.muscleGroup
+    ?? exercise.muscle_group
+    ?? exercise.targetMuscle,
+  ).slice(0, 3)
+);
 
-  const filteredOptions = useMemo(() => {
-    const query = stripExercisePrefix(value).trim().toLowerCase();
-    if (!query) return options.slice(0, 10);
-    return options
-      .filter((exercise) => {
-        const name = exercise.name || '';
-        const haystack = `${name} ${stripExercisePrefix(name)}`.toLowerCase();
-        return haystack.includes(query);
-      })
-      .slice(0, 10);
-  }, [options, value]);
-
-  useEffect(() => {
-    const handleOutsideClick = (event: MouseEvent) => {
-      if (!rootRef.current) return;
-      if (!rootRef.current.contains(event.target as Node)) {
-        setIsOpen(false);
-      }
-    };
-    document.addEventListener('mousedown', handleOutsideClick);
-    return () => document.removeEventListener('mousedown', handleOutsideClick);
-  }, []);
-
-  return (
-    <div ref={rootRef} className={`relative ${className}`}>
-      <input
-        type="text"
-        value={value}
-        onFocus={() => setIsOpen(true)}
-        onClick={() => setIsOpen(true)}
-        onChange={(e) => {
-          onChange(e.target.value);
-          setIsOpen(true);
-        }}
-        onKeyDown={(e) => {
-          if (e.key === 'Escape') {
-            setIsOpen(false);
-            return;
-          }
-          if (e.key === 'Enter' && isOpen && filteredOptions.length) {
-            e.preventDefault();
-            onSelect(filteredOptions[0]);
-            setIsOpen(false);
-          }
-        }}
-        placeholder={placeholder}
-        className="w-full bg-background border border-white/10 rounded-lg px-3 py-2 text-white text-sm outline-none focus:border-accent/60"
-      />
-
-      {isOpen && (
-        <div className="absolute top-full left-0 right-0 mt-1 z-30 max-h-56 overflow-y-auto bg-card border border-white/10 rounded-lg shadow-xl">
-          {filteredOptions.length > 0 ? (
-            filteredOptions.map((exercise) => (
-              <button
-                key={exercise.id}
-                type="button"
-                onMouseDown={(e) => e.preventDefault()}
-                onClick={() => {
-                  onSelect(exercise);
-                  setIsOpen(false);
-                }}
-                className="w-full text-left px-3 py-2 text-sm text-white hover:bg-white/10 transition-colors"
-              >
-                {stripExercisePrefix(exercise.name)}
-              </button>
-            ))
-          ) : (
-            <div className="px-3 py-2 text-sm text-text-secondary">
-              No matching exercise
-            </div>
-          )}
-        </div>
-      )}
-    </div>
+const extractWorkoutMuscles = (workout: RawProgramWorkout) => {
+  const directMuscles = parseStringList(
+    workout.targetMuscles
+    ?? workout.target_muscles
+    ?? workout.muscles
+    ?? workout.muscleGroup
+    ?? workout.muscle_group,
   );
-}
+
+  if (directMuscles.length) {
+    return directMuscles.slice(0, 3);
+  }
+
+  const exerciseMuscles = parseExercises(workout.exercises).flatMap((exercise) => {
+    if (!exercise || typeof exercise !== 'object') return [];
+    return parseExerciseMuscles(exercise as Record<string, unknown>);
+  });
+
+  return [...new Set(exerciseMuscles)].slice(0, 3);
+};
+
+const normalizeWorkoutPayload = (workout: RawProgramWorkout, fallbackIndex: number): WorkoutPayload | null => {
+  const dayName = normalizeDayKey(workout.dayName || workout.day_name);
+  if (!dayName) return null;
+
+  const exercises = parseExercises(workout.exercises)
+    .map((exercise) => {
+      const raw = exercise && typeof exercise === 'object'
+        ? exercise as Record<string, unknown>
+        : {};
+
+      const exerciseName = String(raw.exerciseName || raw.name || '').trim();
+      const exerciseCatalogId = Number(raw.exerciseCatalogId || raw.exerciseId || 0) || null;
+      if (!exerciseName && !exerciseCatalogId) return null;
+
+      return {
+        exerciseName,
+        exerciseCatalogId,
+        sets: Math.max(1, Math.min(10, Math.round(Number(raw.sets || 3)))),
+        reps: String(raw.reps || '8-12').trim().slice(0, 20) || '8-12',
+        restSeconds: Math.max(30, Math.min(600, Math.round(Number(raw.restSeconds || raw.rest || 90)))),
+        targetWeight: Math.max(0, Math.min(1000, Number(raw.targetWeight ?? raw.weightKg ?? raw.weight ?? 20) || 20)),
+        targetMuscles: parseExerciseMuscles(raw),
+      } satisfies ExercisePayload;
+    })
+    .filter((exercise): exercise is ExercisePayload => Boolean(exercise));
+
+  const workoutName = String(workout.workoutName || workout.workout_name || '').trim()
+    .replace(/^week\s+\d+\s*-\s*/i, '')
+    || `Day ${fallbackIndex + 1}`;
+
+  return {
+    dayName,
+    workoutName,
+    workoutType: 'Custom',
+    targetMuscles: extractWorkoutMuscles(workout),
+    exercises,
+  };
+};
+
+const normalizeWeekPlanPayload = (value: unknown): WeekPlanPayload | null => {
+  if (!value || typeof value !== 'object') return null;
+
+  const weeklyWorkouts = parseArrayInput((value as { weeklyWorkouts?: unknown[] }).weeklyWorkouts)
+    .map((workout, index) => {
+      if (!workout || typeof workout !== 'object') return null;
+      return normalizeWorkoutPayload(workout as RawProgramWorkout, index);
+    })
+    .filter((workout): workout is WorkoutPayload => Boolean(workout));
+
+  return weeklyWorkouts.length ? { weeklyWorkouts } : null;
+};
+
+const createDefaultSelectedDays = (count: number) => WEEK_DAYS.slice(0, Math.max(2, Math.min(6, count)));
+
+const buildInitialBuilderData = (
+  program: RawProgramResponse | null,
+  storedTemplate: StoredAssignedProgramTemplate | null,
+  language: AppLanguage,
+): BuilderData => {
+  const sortedCurrentWeekWorkouts = [...(Array.isArray(program?.currentWeekWorkouts) ? program.currentWeekWorkouts : [])]
+    .sort((left, right) => {
+      const leftDay = normalizeDayKey(left.day_name || left.dayName);
+      const rightDay = normalizeDayKey(right.day_name || right.dayName);
+      const leftIndex = leftDay ? WEEK_DAYS.indexOf(leftDay as typeof WEEK_DAYS[number]) : Number.MAX_SAFE_INTEGER;
+      const rightIndex = rightDay ? WEEK_DAYS.indexOf(rightDay as typeof WEEK_DAYS[number]) : Number.MAX_SAFE_INTEGER;
+      return (Number(left.day_order || leftIndex) - Number(right.day_order || rightIndex));
+    });
+
+  const weeklyWorkouts = sortedCurrentWeekWorkouts
+    .map((workout, index) => normalizeWorkoutPayload(workout, index))
+    .filter((workout): workout is WorkoutPayload => Boolean(workout));
+
+  const templateWeekPlans = Array.isArray(storedTemplate?.templateWeekPlans)
+    ? storedTemplate.templateWeekPlans
+      .map((weekPlan) => normalizeWeekPlanPayload(weekPlan))
+      .filter((weekPlan): weekPlan is WeekPlanPayload => Boolean(weekPlan))
+    : [];
+
+  const selectedDays = orderDays(
+    parseArrayInput(storedTemplate?.selectedDays).length
+      ? parseArrayInput(storedTemplate?.selectedDays).map((day) => normalizeDayKey(day)).filter(Boolean)
+      : weeklyWorkouts.map((workout) => workout.dayName),
+  );
+
+  const fallbackSelectedDays = selectedDays.length
+    ? selectedDays
+    : createDefaultSelectedDays(weeklyWorkouts.length || 4);
+
+  const templateWeekCount = Math.max(
+    1,
+    Math.min(
+      2,
+      Number(
+        storedTemplate?.templateWeekCount
+        || (templateWeekPlans.length > 1 ? templateWeekPlans.length : 1),
+      ) || 1,
+    ),
+  );
+
+  const resolvedWeeklyWorkouts = templateWeekPlans[0]?.weeklyWorkouts?.length
+    ? templateWeekPlans[0].weeklyWorkouts
+    : weeklyWorkouts;
+
+  const resolvedWeekPlans = templateWeekPlans.length
+    ? templateWeekPlans.slice(0, templateWeekCount)
+    : [{ weeklyWorkouts: resolvedWeeklyWorkouts }];
+
+  return {
+    workoutDays: Math.max(2, Math.min(6, fallbackSelectedDays.length || 4)),
+    customPlan: {
+      planName: String(
+        storedTemplate?.planName
+        || storedTemplate?.name
+        || program?.planName
+        || program?.name
+        || COPY[language].defaultPlanName,
+      ).trim() || COPY[language].defaultPlanName,
+      cycleWeeks: Math.max(
+        6,
+        Math.min(
+          16,
+          Math.round(Number(storedTemplate?.cycleWeeks || storedTemplate?.totalWeeks || program?.cycleWeeks || program?.totalWeeks || 6)),
+        ),
+      ),
+      templateWeekCount,
+      selectedDays: fallbackSelectedDays,
+      weeklyWorkouts: resolvedWeeklyWorkouts,
+      weekPlans: resolvedWeekPlans,
+    },
+  };
+};
+
+const getStoredUserId = () => {
+  if (typeof window === 'undefined') return 0;
+
+  try {
+    const user = JSON.parse(localStorage.getItem('appUser') || localStorage.getItem('user') || '{}');
+    return Number(localStorage.getItem('appUserId') || localStorage.getItem('userId') || user?.id || 0);
+  } catch {
+    return 0;
+  }
+};
+
+const getStoredAssignedTemplate = (): StoredAssignedProgramTemplate | null => {
+  if (typeof window === 'undefined') return null;
+
+  try {
+    const raw = localStorage.getItem('assignedProgramTemplate');
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === 'object' ? parsed as StoredAssignedProgramTemplate : null;
+  } catch {
+    return null;
+  }
+};
 
 export function CustomPlanBuilderScreen({ onBack, onSaved }: CustomPlanBuilderScreenProps) {
+  const [language, setLanguage] = useState<AppLanguage>(() => getActiveLanguage());
   const [loading, setLoading] = useState(true);
-  const [activeSubmitMode, setActiveSubmitMode] = useState<'direct' | 'coach' | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState<string | null>(null);
-  const [catalog, setCatalog] = useState<CatalogExercise[]>([]);
-  const [planName, setPlanName] = useState('My Custom Plan');
-  const [cycleWeeks, setCycleWeeks] = useState(8);
-  const [selectedDays, setSelectedDays] = useState<string[]>(['monday', 'wednesday', 'friday']);
-  const [dayPlans, setDayPlans] = useState<Record<string, DayPlanDraft>>({});
+  const [stage, setStage] = useState<BuilderStage>('setup');
+  const [userId, setUserId] = useState<number>(0);
+  const [builderData, setBuilderData] = useState<BuilderData | null>(null);
 
-  const catalogByName = useMemo(() => {
-    const map = new Map<string, CatalogExercise>();
-    catalog.forEach((exercise) => {
-      const raw = exercise.name.trim().toLowerCase();
-      const stripped = stripExercisePrefix(exercise.name).trim().toLowerCase();
-      if (raw) map.set(raw, exercise);
-      if (stripped) map.set(stripped, exercise);
-    });
-    return map;
-  }, [catalog]);
-
-  const ensureDayPlan = (dayKey: string): DayPlanDraft => {
-    return dayPlans[dayKey] || {
-      workoutName: `${fullDayName(dayKey)} Workout`,
-      exercises: [createDefaultExercise()],
+  useEffect(() => {
+    const handleLanguageChanged = () => {
+      setLanguage(getStoredLanguage());
     };
-  };
+
+    window.addEventListener('app-language-changed', handleLanguageChanged);
+    window.addEventListener('storage', handleLanguageChanged);
+    return () => {
+      window.removeEventListener('app-language-changed', handleLanguageChanged);
+      window.removeEventListener('storage', handleLanguageChanged);
+    };
+  }, []);
+
+  const copy = COPY[language] || COPY.en;
 
   useEffect(() => {
     const initialize = async () => {
+      if (builderData) return;
+
       setLoading(true);
       setError(null);
+
+      const resolvedUserId = getStoredUserId();
+      if (!resolvedUserId) {
+        setError(copy.noSession);
+        setLoading(false);
+        return;
+      }
+
       try {
-        const user = JSON.parse(localStorage.getItem('appUser') || localStorage.getItem('user') || '{}');
-        const userId = Number(localStorage.getItem('appUserId') || localStorage.getItem('userId') || user?.id || 0);
-        if (!userId) {
-          setError('No active user session found.');
-          return;
-        }
-
-        const [catalogRes, programRes] = await Promise.all([
-          api.getExerciseCatalog('All', '', 500),
-          api.getUserProgram(userId),
-        ]);
-        const typedProgram = (programRes || {}) as RawProgramResponse;
-
-        const catalogExercises = Array.isArray(catalogRes?.exercises)
-          ? (catalogRes.exercises as RawCatalogExercise[])
-            .map((ex) => ({
-              id: Number(ex.id || 0),
-              name: String(ex.name || '').trim(),
-            }))
-            .filter((ex: CatalogExercise) => ex.id > 0 && ex.name.length > 0)
-          : [];
-        setCatalog(catalogExercises);
-
-        const currentWeekWorkouts = Array.isArray(typedProgram.currentWeekWorkouts)
-          ? typedProgram.currentWeekWorkouts
-          : [];
-        if (!currentWeekWorkouts.length) {
-          return;
-        }
-
-        const sorted = [...currentWeekWorkouts].sort((a, b) => Number(a.day_order || 0) - Number(b.day_order || 0));
-        const days = sorted
-          .map((workout) => String(workout.day_name || '').trim().toLowerCase())
-          .filter((day: string) => WEEK_DAYS.some((entry) => entry.key === day));
-        const uniqueDays = [...new Set(days)];
-        if (uniqueDays.length) setSelectedDays(uniqueDays);
-
-        const nextPlans: Record<string, DayPlanDraft> = {};
-        sorted.forEach((workout) => {
-          const dayKey = String(workout.day_name || '').trim().toLowerCase();
-          if (!WEEK_DAYS.some((entry) => entry.key === dayKey)) return;
-
-          const normalizedWorkoutName = String(workout.workout_name || '')
-            .replace(/^week\s+\d+\s*-\s*/i, '')
-            .trim() || `${fullDayName(dayKey)} Workout`;
-
-          const rawExercises = parseExercises(workout.exercises);
-          const exercises = rawExercises
-            .map((exercise) => {
-              const raw = typeof exercise === 'object' && exercise !== null
-                ? (exercise as Record<string, unknown>)
-                : {};
-              return {
-                exerciseName: stripExercisePrefix(String(raw.exerciseName || raw.name || '').trim()),
-                exerciseCatalogId: null,
-                sets: Math.max(1, Math.min(10, Math.round(Number(raw.sets || 3)))),
-                reps: String(raw.reps || '8-12').slice(0, 20),
-                restSeconds: Math.max(30, Math.min(600, Math.round(Number(raw.rest || 90)))),
-              };
-            })
-            .filter((exercise: PlanExerciseDraft) => exercise.exerciseName.length > 0);
-
-          nextPlans[dayKey] = {
-            workoutName: normalizedWorkoutName,
-            exercises: exercises.length ? exercises : [createDefaultExercise()],
-          };
-        });
-        setDayPlans(nextPlans);
-
-        const inferredWeeks = Number(typedProgram.totalWeeks || 0);
-        if (Number.isFinite(inferredWeeks) && inferredWeeks >= 8 && inferredWeeks <= 16) {
-          setCycleWeeks(inferredWeeks);
-        }
-
-        if (typedProgram.name) {
-          setPlanName(String(typedProgram.name).slice(0, 255));
-        }
-      } catch (e) {
-        console.error('Failed to initialize custom plan builder:', e);
-        setError('Could not load data to build your custom plan.');
+        const program = await api.getUserProgram(resolvedUserId) as RawProgramResponse;
+        setBuilderData(buildInitialBuilderData(program, getStoredAssignedTemplate(), language));
+        setUserId(resolvedUserId);
+      } catch (initializationError) {
+        console.error('Failed to initialize profile custom plan builder:', initializationError);
+        setBuilderData(buildInitialBuilderData(null, getStoredAssignedTemplate(), language));
+        setUserId(resolvedUserId);
+        setError(copy.loadError);
       } finally {
         setLoading(false);
       }
     };
 
     void initialize();
-  }, []);
+  }, [builderData, copy.loadError, copy.noSession, language]);
 
-  const toggleDay = (dayKey: string) => {
-    setSelectedDays((prev) => {
-      if (prev.includes(dayKey)) return prev.filter((d) => d !== dayKey);
-      return [...prev, dayKey];
-    });
-    setDayPlans((prev) => ({
-      ...prev,
-      [dayKey]: prev[dayKey] || {
-        workoutName: `${fullDayName(dayKey)} Workout`,
-        exercises: [createDefaultExercise()],
-      },
-    }));
-  };
-
-  const setWorkoutName = (dayKey: string, value: string) => {
-    setDayPlans((prev) => ({
-      ...prev,
-      [dayKey]: {
-        ...ensureDayPlan(dayKey),
-        workoutName: value,
-      },
-    }));
-  };
-
-  const addExercise = (dayKey: string) => {
-    setDayPlans((prev) => ({
-      ...prev,
-      [dayKey]: {
-        ...ensureDayPlan(dayKey),
-        exercises: [...ensureDayPlan(dayKey).exercises, createDefaultExercise()],
-      },
-    }));
-  };
-
-  const removeExercise = (dayKey: string, index: number) => {
-    const plan = ensureDayPlan(dayKey);
-    const nextExercises = plan.exercises.filter((_, i) => i !== index);
-    setDayPlans((prev) => ({
-      ...prev,
-      [dayKey]: {
-        ...plan,
-        exercises: nextExercises.length ? nextExercises : [createDefaultExercise()],
-      },
-    }));
-  };
-
-  const updateExercise = (dayKey: string, index: number, patch: Partial<PlanExerciseDraft>) => {
-    const plan = ensureDayPlan(dayKey);
-    const nextExercises = plan.exercises.map((exercise, i) => (i === index ? { ...exercise, ...patch } : exercise));
-    setDayPlans((prev) => ({
-      ...prev,
-      [dayKey]: {
-        ...plan,
-        exercises: nextExercises,
-      },
-    }));
-  };
-
-  const handleExerciseNameChange = (dayKey: string, index: number, inputName: string) => {
-    const cleanedName = stripExercisePrefix(inputName);
-    const normalized = cleanedName.trim().toLowerCase();
-    const catalogMatch = catalogByName.get(normalized) || null;
-    updateExercise(dayKey, index, {
-      exerciseName: cleanedName,
-      exerciseCatalogId: catalogMatch ? catalogMatch.id : null,
-    });
-  };
-
-  const handleExerciseSelect = (dayKey: string, index: number, exercise: CatalogExercise) => {
-    updateExercise(dayKey, index, {
-      exerciseName: stripExercisePrefix(exercise.name),
-      exerciseCatalogId: exercise.id,
-    });
-  };
-
-  const handleSubmit = async (mode: 'direct' | 'coach') => {
-    setError(null);
-    setSuccess(null);
-    if (!selectedDays.length) {
-      setError('Select at least one training day.');
-      return;
-    }
-
-    const validDays = selectedDays.filter((day) => WEEK_DAYS.some((entry) => entry.key === day));
-    if (!validDays.length) {
-      setError('No valid training days selected.');
-      return;
-    }
-
-    const weeklyWorkouts = [];
-    for (const dayKey of validDays) {
-      const plan = ensureDayPlan(dayKey);
-      const workoutName = String(plan.workoutName || '').trim() || `${fullDayName(dayKey)} Workout`;
-      const exercises = plan.exercises
-        .map((exercise) => ({
-          exerciseCatalogId: exercise.exerciseCatalogId || null,
-          exerciseName: stripExercisePrefix(String(exercise.exerciseName || '').trim()),
-          sets: Math.max(1, Math.min(10, Math.round(Number(exercise.sets || 0)))),
-          reps: String(exercise.reps || '8-12').slice(0, 20),
-          restSeconds: Math.max(30, Math.min(600, Math.round(Number(exercise.restSeconds || 90)))),
-        }))
-        .filter((exercise) => exercise.exerciseName.length > 0 || Boolean(exercise.exerciseCatalogId));
-
-      if (!exercises.length) {
-        setError(`Add at least one exercise for ${fullDayName(dayKey)}.`);
-        return;
-      }
-
-      weeklyWorkouts.push({
-        dayName: dayKey,
-        workoutName,
-        workoutType: 'Custom',
-        exercises,
-      });
-    }
-
-    const user = JSON.parse(localStorage.getItem('appUser') || localStorage.getItem('user') || '{}');
-    const userId = Number(localStorage.getItem('appUserId') || localStorage.getItem('userId') || user?.id || 0);
-    if (!userId) {
-      setError('No active user session found.');
-      return;
-    }
-
-    setActiveSubmitMode(mode);
-    try {
-      const payload = {
-        planName: String(planName || 'My Custom Plan').trim() || 'My Custom Plan',
-        cycleWeeks: Math.max(8, Math.min(16, Math.round(Number(cycleWeeks || 8)))),
-        selectedDays: validDays,
-        weeklyWorkouts,
+  const handleDataChange = useCallback((
+    patch: Partial<BuilderData> & { customPlan?: Partial<BuilderData['customPlan']> },
+  ) => {
+    setBuilderData((previous) => {
+      const base = previous || buildInitialBuilderData(null, null, language);
+      return {
+        ...base,
+        ...patch,
+        customPlan: {
+          ...base.customPlan,
+          ...(patch.customPlan || {}),
+        },
       };
+    });
+  }, [language]);
 
-      if (mode === 'coach') {
-        const result = await api.requestCustomProgramApproval(userId, payload);
-        if (!result?.success) {
-          throw new Error(result?.error || 'Failed to send plan to coach');
-        }
-        setSuccess('Plan sent to coach for approval. It will activate only after approval.');
-        window.setTimeout(() => onBack(), 700);
-        return;
-      }
-
-      const result = await api.saveCustomProgram(userId, payload);
-      if (!result?.success) {
-        throw new Error(result?.error || 'Failed to save custom plan');
-      }
+  const handleComplete = useCallback(() => {
+    if (typeof window !== 'undefined') {
       localStorage.removeItem('recoveryNeedsUpdate');
-      onSaved();
-    } catch (e) {
-      console.error('Failed to save custom plan:', e);
-      setError(e instanceof Error ? e.message : 'Failed to save custom plan.');
-    } finally {
-      setActiveSubmitMode(null);
     }
-  };
+    onSaved();
+  }, [onSaved]);
+
+  const activeTitle = useMemo(
+    () => (stage === 'templates' ? copy.templatesTitle : copy.setupTitle),
+    [copy.setupTitle, copy.templatesTitle, stage],
+  );
+
+  const handleBack = useCallback(() => {
+    if (stage === 'templates') {
+      setStage('setup');
+      return;
+    }
+    onBack();
+  }, [onBack, stage]);
 
   return (
-    <div className="flex-1 flex flex-col h-full bg-background pb-24">
-      <div className="px-4 sm:px-6 pt-2">
-        <Header title="Build Custom Plan" onBack={onBack} />
-      </div>
-
-      <div className="px-4 sm:px-6 pt-4 space-y-4">
-        {loading ? (
-          <div className="text-sm text-text-secondary">Loading plan builder...</div>
+    <div className="flex-1 flex flex-col bg-background">
+      <OnboardingLayout
+        currentStep={stage === 'templates' ? 1 : 0}
+        totalSteps={2}
+        onBack={handleBack}
+        title={activeTitle}
+      >
+        {loading || !builderData ? (
+          <div className="rounded-2xl border border-white/10 bg-card/70 px-4 py-5 text-sm text-text-secondary">
+            {loading ? copy.loading : (error || copy.loadError)}
+          </div>
         ) : (
           <>
             {error && (
-              <div className="rounded-xl border border-red-500/40 bg-red-500/10 text-red-300 text-sm p-3">
+              <div className="mb-4 rounded-xl border border-white/10 bg-card/70 px-4 py-3 text-sm text-text-secondary">
                 {error}
               </div>
             )}
-            {success && (
-              <div className="rounded-xl border border-green-500/40 bg-green-500/10 text-green-300 text-sm p-3">
-                {success}
-              </div>
-            )}
 
-            <div className="bg-card border border-white/10 rounded-xl p-4 space-y-3">
-              <label className="block">
-                <span className="text-xs uppercase text-text-secondary">Plan Name</span>
-                <input
-                  type="text"
-                  value={planName}
-                  onChange={(e) => setPlanName(e.target.value)}
-                  className="mt-1 w-full bg-background border border-white/10 rounded-lg px-3 py-2 text-white outline-none focus:border-accent/60"
-                  maxLength={255}
-                />
-              </label>
-
-              <label className="block">
-                <span className="text-xs uppercase text-text-secondary">Duration (Weeks)</span>
-                <input
-                  type="number"
-                  min={8}
-                  max={16}
-                  value={cycleWeeks}
-                  onChange={(e) => setCycleWeeks(Math.max(8, Math.min(16, Number(e.target.value || 8))))}
-                  className="mt-1 w-full bg-background border border-white/10 rounded-lg px-3 py-2 text-white outline-none focus:border-accent/60"
-                />
-              </label>
-            </div>
-
-            <div className="bg-card border border-white/10 rounded-xl p-4">
-              <div className="text-xs uppercase text-text-secondary mb-3">Training Days</div>
-              <div className="grid grid-cols-4 gap-2">
-                {WEEK_DAYS.map((day) => {
-                  const active = selectedDays.includes(day.key);
-                  return (
-                    <button
-                      key={day.key}
-                      type="button"
-                      onClick={() => toggleDay(day.key)}
-                      className={`rounded-lg py-2 text-sm border transition-colors ${
-                        active
-                          ? 'bg-accent/20 border-accent text-accent'
-                          : 'bg-background border-white/10 text-text-secondary hover:text-white'
-                      }`}
-                    >
-                      {day.label}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-
-            {selectedDays.map((dayKey) => {
-              const dayPlan = ensureDayPlan(dayKey);
-              return (
-                <div key={dayKey} className="bg-card border border-white/10 rounded-xl p-4 space-y-3">
-                  <div className="flex items-center justify-between">
-                    <div className="text-white font-semibold">{fullDayName(dayKey)} Plan</div>
-                    <button
-                      type="button"
-                      onClick={() => addExercise(dayKey)}
-                      className="text-xs text-accent hover:text-white transition-colors"
-                    >
-                      + Add Exercise
-                    </button>
-                  </div>
-
-                  <input
-                    type="text"
-                    value={dayPlan.workoutName}
-                    onChange={(e) => setWorkoutName(dayKey, e.target.value)}
-                    placeholder={`${fullDayName(dayKey)} Workout`}
-                    className="w-full bg-background border border-white/10 rounded-lg px-3 py-2 text-white outline-none focus:border-accent/60"
-                  />
-
-                  <div className="grid grid-cols-12 gap-2 px-1 text-[10px] uppercase text-text-secondary">
-                    <div className="col-span-12 sm:col-span-5">Exercise</div>
-                    <div className="col-span-4 sm:col-span-2">Sets</div>
-                    <div className="col-span-4 sm:col-span-4">Reps</div>
-                    <div className="col-span-1"> </div>
-                  </div>
-
-                  <div className="space-y-2">
-                    {dayPlan.exercises.map((exercise, index) => (
-                      <div key={`${dayKey}-ex-${index}`} className="grid grid-cols-12 gap-2 items-center">
-                        <ExerciseAutocompleteField
-                          value={exercise.exerciseName}
-                          options={catalog}
-                          onChange={(nextValue) => handleExerciseNameChange(dayKey, index, nextValue)}
-                          onSelect={(selected) => handleExerciseSelect(dayKey, index, selected)}
-                          placeholder="Exercise name"
-                          className="col-span-12 sm:col-span-5"
-                        />
-                        <input
-                          type="number"
-                          min={1}
-                          max={10}
-                          value={exercise.sets}
-                          onChange={(e) => updateExercise(dayKey, index, { sets: Number(e.target.value || 1) })}
-                          className="col-span-4 sm:col-span-2 bg-background border border-white/10 rounded-lg px-2 py-2 text-white text-sm outline-none focus:border-accent/60"
-                          title="Sets"
-                          placeholder="Sets"
-                          aria-label="Sets"
-                        />
-                        <input
-                          type="text"
-                          value={exercise.reps}
-                          onChange={(e) => updateExercise(dayKey, index, { reps: e.target.value })}
-                          className="col-span-4 sm:col-span-4 bg-background border border-white/10 rounded-lg px-2 py-2 text-white text-sm outline-none focus:border-accent/60"
-                          title="Reps"
-                          placeholder="Reps"
-                          aria-label="Reps"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => removeExercise(dayKey, index)}
-                          className="col-span-1 text-red-400 hover:text-red-300 text-sm"
-                          title="Remove exercise"
-                        >
-                          x
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              );
-            })}
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <button
-                type="button"
-                onClick={() => handleSubmit('coach')}
-                disabled={Boolean(activeSubmitMode)}
-                className="w-full bg-white/5 text-white border border-white/10 font-semibold rounded-xl p-3 hover:bg-white/10 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {activeSubmitMode === 'coach' ? 'Sending...' : 'Send To Coach'}
-              </button>
-              <button
-                type="button"
-                onClick={() => handleSubmit('direct')}
-                disabled={Boolean(activeSubmitMode)}
-                className="w-full bg-accent text-black font-semibold rounded-xl p-3 hover:bg-accent/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {activeSubmitMode === 'direct' ? 'Saving...' : 'Save Directly'}
-              </button>
-            </div>
+            <CustomPlanOnboardingScreen
+              key={stage}
+              onNext={() => setStage('templates')}
+              onComplete={handleComplete}
+              onDataChange={handleDataChange}
+              onboardingData={builderData}
+              stepId={stage === 'templates' ? 'custom_plan_builder' : 'profile_custom_plan_setup'}
+              userId={userId || undefined}
+              persistOnboardingState={false}
+            />
           </>
         )}
-      </div>
+      </OnboardingLayout>
     </div>
   );
 }
-

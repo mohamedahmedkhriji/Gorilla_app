@@ -5,6 +5,7 @@ import { emojiAgenda, emojiDoneDayBg, emojiMissedDayBg } from '../../services/em
 import doneDayIcon from '../../../assets/emoji/done day.png';
 import highWeightIcon from '../../../assets/emoji/high weight.png';
 import { getActiveLanguage, getStoredLanguage } from '../../services/language';
+import type { WorkoutAssignmentHistoryEntry } from '../../services/todayWorkoutSelection';
 import { stripExercisePrefix } from '../../services/exerciseName';
 
 type AgendaDay = {
@@ -16,29 +17,33 @@ type AgendaDay = {
   exercises: string[];
   workoutKey: string;
   status: 'missed' | 'done' | 'picked' | 'recovery' | 'active' | 'past' | 'upcoming';
+  isAssignedDay: boolean;
   isPickedForToday: boolean;
   isRestDay: boolean;
 };
 
 export function AgendaSection({
   userProgram,
+  assignmentHistory = [],
   accountCreatedAt,
   showGradientOverlay = true,
   selectedWorkoutKey = '',
-  isSelectedWorkoutCompleted = false,
+  isTodayPlanLocked = false,
   onPickWorkoutForToday,
 }: {
   userProgram?: any;
+  assignmentHistory?: WorkoutAssignmentHistoryEntry[];
   programProgress?: any;
   accountCreatedAt?: string | Date | null;
   showGradientOverlay?: boolean;
   selectedWorkoutKey?: string;
-  isSelectedWorkoutCompleted?: boolean;
+  isTodayPlanLocked?: boolean;
   onPickWorkoutForToday?: (workoutKey: string) => void;
 }) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [selectedDay, setSelectedDay] = useState<AgendaDay | null>(null);
   const isArabic = getActiveLanguage(getStoredLanguage()) === 'ar';
+  const agendaTitle = isArabic ? 'أجندة 30 يومًا' : '30 Day Agenda';
   const copy = {
     weeklyAgenda: isArabic ? 'أجندة الأسبوع' : 'Weekly Agenda',
     exercises: isArabic ? 'التمارين' : 'Exercises',
@@ -52,10 +57,19 @@ export function AgendaSection({
     selectedBody: isArabic
       ? 'هذه هي الحصة المختارة للتدريب اليوم. يمكنك تغييرها في أي وقت.'
       : 'This is the workout currently chosen for today. You can change it anytime.',
+    selectedLockedBody: isArabic
+      ? 'لقد بدأت تمرين اليوم بالفعل، لذلك أصبحت خطة اليوم مقفلة.'
+      : 'You already started today\'s workout, so today\'s plan is locked.',
+    assignedBody: isArabic ? 'تم حفظ هذا التمرين لذلك اليوم.' : 'This workout was assigned to that day.',
     completedForToday: isArabic ? 'مكتمل اليوم' : 'Completed Today',
     pendingRecoveryDay: isArabic ? 'يوم تعافٍ مؤقت' : 'Recovery Day',
     chooseForToday: isArabic ? 'اختره لليوم' : 'Pick For Today',
     chosenForToday: isArabic ? 'تم اختياره لليوم' : 'Chosen For Today',
+    planLockedTitle: isArabic ? 'الخطة مقفلة' : 'Plan Locked',
+    planLockedBody: isArabic
+      ? 'بعد بدء أي تمرين اليوم، لا يمكنك تغيير خطة اليوم.'
+      : 'Once you start any exercise today, you can no longer change today\'s plan.',
+    planLocked: isArabic ? 'الخطة مقفلة' : 'Plan Locked',
     missedBody: isArabic
       ? 'تم اعتبار هذا التمرين مجدولًا كمفقود ولن يُحسب ضمن حصص هذا الأسبوع المتبقية.'
       : 'This scheduled workout was marked as missed and no longer counts toward this week\'s remaining sessions.',
@@ -87,6 +101,12 @@ export function AgendaSection({
     return date;
   };
 
+  const startOfDay = (value: Date) => {
+    const normalized = new Date(value);
+    normalized.setHours(0, 0, 0, 0);
+    return normalized;
+  };
+
   const getWorkoutKey = (workout: any, fallbackDayName: string, index: number) => {
     const dayKey = normalizeWorkoutDayKey(workout?.day_name || fallbackDayName);
     return String(workout?.id || `${dayKey || 'day'}-${index}`);
@@ -115,7 +135,11 @@ export function AgendaSection({
     return [];
   };
 
-  const programWorkouts = Array.isArray(userProgram?.workouts) ? userProgram.workouts : [];
+  const programWorkouts = Array.isArray(userProgram?.currentWeekWorkouts) && userProgram.currentWeekWorkouts.length > 0
+    ? userProgram.currentWeekWorkouts
+    : Array.isArray(userProgram?.workouts)
+      ? userProgram.workouts
+      : [];
   const completedDateKeys = new Set(
     (Array.isArray(userProgram?.completedWorkoutDates)
       ? userProgram.completedWorkoutDates
@@ -152,56 +176,120 @@ export function AgendaSection({
   );
   const fallbackWeekdays = weekdaysByDaysPerWeek[daysPerWeek] || weekdaysByDaysPerWeek[4];
 
-  const workoutByDayName = new Map<string, { workout: any; index: number }>();
+  const workoutByDayName = new Map<string, { workout: any; index: number; key: string }>();
+  const workoutByKey = new Map<string, { workout: any; index: number; key: string }>();
   programWorkouts.forEach((workout: any, index: number) => {
     const order = Number(workout?.day_order || index + 1);
     const fallbackDayName = fallbackWeekdays[((order - 1) % fallbackWeekdays.length + fallbackWeekdays.length) % fallbackWeekdays.length];
-    const key = normalizeWorkoutDayKey(workout?.day_name || fallbackDayName);
-    if (!key || workoutByDayName.has(key)) return;
-    workoutByDayName.set(key, { workout, index });
+    const dayKey = normalizeWorkoutDayKey(workout?.day_name || fallbackDayName);
+    const workoutKey = getWorkoutKey(workout, fallbackDayName, index);
+    const entry = { workout, index, key: workoutKey };
+    if (workoutKey && !workoutByKey.has(workoutKey)) {
+      workoutByKey.set(workoutKey, entry);
+    }
+    if (!dayKey || workoutByDayName.has(dayKey)) return;
+    workoutByDayName.set(dayKey, entry);
   });
 
-  const todayKey = formatDateKey(today);
-  const defaultStartDate = new Date(today);
-  defaultStartDate.setDate(today.getDate() - 10);
-  const defaultStartKey = formatDateKey(defaultStartDate);
+  const todayDate = startOfDay(today);
+  const todayKey = formatDateKey(todayDate);
+  const defaultStartDate = new Date(todayDate);
+  defaultStartDate.setDate(todayDate.getDate() - 10);
   const createdDate = normalizeDate(accountCreatedAt);
-  const createdKey = createdDate ? formatDateKey(createdDate) : null;
-  const startDate = createdKey && createdKey > defaultStartKey
-    ? (createdKey > todayKey ? today : createdDate!)
+  const createdDay = createdDate ? startOfDay(createdDate) : null;
+  const startDate = createdDay && createdDay > defaultStartDate
+    ? (createdDay > todayDate ? todayDate : createdDay)
     : defaultStartDate;
+  const assignmentByDateKey = new Map(
+    assignmentHistory
+      .filter((entry) => !!entry?.dateKey && !!entry?.workoutKey)
+      .map((entry) => [entry.dateKey, entry] as const),
+  );
+  const resolveAssignmentWorkoutEntry = (assignment: WorkoutAssignmentHistoryEntry | null) => {
+    if (!assignment?.workoutKey) return null;
+
+    if (assignment.workoutKey === 'today' && assignment.dateKey === todayKey && userProgram?.todayWorkout) {
+      return {
+        workout: {
+          ...userProgram.todayWorkout,
+          id: 'today',
+          workout_name: userProgram.todayWorkout?.name,
+          day_name: userProgram.todayWorkout?.dayName,
+        },
+        index: -1,
+        key: 'today',
+      };
+    }
+
+    const storedEntry = workoutByKey.get(assignment.workoutKey);
+    if (storedEntry) return storedEntry;
+
+    return {
+      workout: {
+        id: assignment.workoutKey,
+        workout_name: assignment.workoutName || assignment.dayLabel || 'Workout',
+        day_name: assignment.dayLabel,
+        exercises: [],
+      },
+      index: -1,
+      key: assignment.workoutKey,
+    };
+  };
+  const selectedWorkoutEntry = selectedWorkoutKey === 'today' && userProgram?.todayWorkout
+    ? {
+        workout: {
+          ...userProgram.todayWorkout,
+          id: 'today',
+          workout_name: userProgram.todayWorkout?.name,
+          day_name: userProgram.todayWorkout?.dayName,
+        },
+        index: -1,
+        key: 'today',
+      }
+    : (selectedWorkoutKey ? workoutByKey.get(selectedWorkoutKey) || null : null);
 
   const days: AgendaDay[] = Array.from({ length: 30 }, (_, i) => {
     const date = new Date(startDate);
     date.setDate(startDate.getDate() + i);
 
+    const dateKey = formatDateKey(date);
     const weekdayKey = normalizeWorkoutDayKey(date.toLocaleDateString('en-US', { weekday: 'long' }));
-    const dayWorkoutEntry = weekdayKey ? workoutByDayName.get(weekdayKey) : null;
+    const isToday = dateKey === todayKey;
+    const assignedDayEntry = assignmentByDateKey.get(dateKey) || null;
+    const assignedWorkoutEntry = resolveAssignmentWorkoutEntry(assignedDayEntry);
+    const defaultDayWorkoutEntry = weekdayKey ? workoutByDayName.get(weekdayKey) || null : null;
+    const dayWorkoutEntry = isToday && selectedWorkoutEntry
+      ? selectedWorkoutEntry
+      : assignedWorkoutEntry || defaultDayWorkoutEntry;
     const dayWorkout = dayWorkoutEntry?.workout || null;
-    const workoutKey = dayWorkout
-      ? getWorkoutKey(dayWorkout, weekdayKey || '', dayWorkoutEntry?.index ?? i)
-      : '';
+    const workoutKey = dayWorkoutEntry?.key || '';
     const label = dayWorkout
       ? getWorkoutLabel(dayWorkout.workout_name || dayWorkout.name || '')
       : restLabel;
     const exercises = dayWorkout ? parseWorkoutExercises(dayWorkout.exercises) : [];
-    const dateKey = formatDateKey(date);
     const isRestDay = !dayWorkout;
     const isMissed = missedDateKeys.has(dateKey);
-    const isCompleted = completedDateKeys.has(dateKey);
+    const isCompleted = completedDateKeys.has(dateKey) || Boolean(assignedDayEntry?.completed);
     const isPast = dateKey < todayKey;
-    const isPickedForToday = !!(workoutKey && selectedWorkoutKey && workoutKey === selectedWorkoutKey);
+    const isPickedForToday = !!(
+      isToday
+      && workoutKey
+      && selectedWorkoutKey
+      && workoutKey === selectedWorkoutKey
+    );
+    const isAssignedDay = !!(assignedDayEntry?.workoutKey || isPickedForToday);
 
     const isCurrentRecoveryDay = dateKey === todayKey && isCompleted && !selectedWorkoutKey;
+    const isPastRecoveryDay = isPast && !isMissed && !isCompleted && !isAssignedDay;
 
     const status: AgendaDay['status'] = isMissed
       ? 'missed'
-      : isCurrentRecoveryDay
+      : (isCurrentRecoveryDay || isPastRecoveryDay)
         ? 'recovery'
         : isCompleted
           ? 'done'
-      : isPickedForToday
-          ? (isSelectedWorkoutCompleted ? 'done' : 'picked')
+      : isAssignedDay
+          ? 'picked'
           : dateKey === todayKey
             ? 'active'
             : isPast
@@ -221,6 +309,7 @@ export function AgendaSection({
       exercises,
       workoutKey,
       status,
+      isAssignedDay,
       isPickedForToday,
       isRestDay,
     };
@@ -242,7 +331,7 @@ export function AgendaSection({
   return (
     <div className="space-y-3">
       <div className="flex items-end px-1">
-        <h3 className="text-[11px] font-semibold text-text-secondary uppercase tracking-[0.15em]">{copy.weeklyAgenda}</h3>
+        <h3 className="text-[11px] font-semibold text-text-secondary uppercase tracking-[0.15em]">{agendaTitle}</h3>
       </div>
 
       <div className="rounded-2xl surface-card border border-white/15 px-2 py-3 relative overflow-hidden">
@@ -269,7 +358,6 @@ export function AgendaSection({
             const isMissed = day.status === 'missed';
             const isPicked = day.status === 'picked';
             const isRecovery = day.status === 'recovery';
-            const isRestPreview = day.isRestDay && !isMissed && !isDone && !isPicked;
 
             return (
               <div
@@ -322,7 +410,7 @@ export function AgendaSection({
 
                   {isMissed ? (
                     <CalendarX2 size={16} className="relative z-10" />
-                  ) : isRecovery || isRestPreview ? (
+                  ) : isRecovery ? (
                     <img
                       src={highWeightIcon}
                       alt="Recovery day"
@@ -389,7 +477,7 @@ export function AgendaSection({
                   {copy.missedBody}
                 </p>
               </div>
-            ) : selectedDay.isPickedForToday ? (
+            ) : selectedDay.status === 'picked' ? (
               <div className="space-y-4">
                 <div className="flex flex-col items-center justify-center py-2 text-center">
                   <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-2xl border border-white/10 bg-white/5">
@@ -400,10 +488,12 @@ export function AgendaSection({
                     />
                   </div>
                   <h4 className="text-3xl leading-none text-white mb-2">
-                    {isSelectedWorkoutCompleted ? copy.completedForToday : copy.selectedForToday}
+                    {selectedDay.isPickedForToday ? copy.selectedForToday : copy.chosenForToday}
                   </h4>
                   <p className="text-sm text-text-secondary">
-                    {copy.selectedBody}
+                    {selectedDay.isPickedForToday
+                      ? (isTodayPlanLocked ? copy.selectedLockedBody : copy.selectedBody)
+                      : copy.assignedBody}
                   </p>
                 </div>
 
@@ -449,10 +539,30 @@ export function AgendaSection({
                     className="h-10 w-10 object-contain opacity-85"
                   />
                 </div>
-                <h4 className="text-3xl leading-none text-white mb-2">{copy.chooseFirstTitle}</h4>
+                <h4 className="text-3xl leading-none text-white mb-2">
+                  {isTodayPlanLocked ? copy.planLockedTitle : copy.chooseFirstTitle}
+                </h4>
                 <p className="text-sm text-text-secondary">
-                  {copy.chooseFirstBody}
+                  {isTodayPlanLocked ? copy.planLockedBody : copy.chooseFirstBody}
                 </p>
+                {!!(selectedDay.workoutKey && onPickWorkoutForToday) && (
+                  <button
+                    type="button"
+                    disabled={isTodayPlanLocked}
+                    className={`mt-5 rounded-full px-5 py-2 text-sm font-semibold transition-transform duration-200 ${
+                      isTodayPlanLocked
+                        ? 'cursor-not-allowed border border-white/10 bg-white/5 text-text-tertiary'
+                        : 'bg-accent text-black hover:-translate-y-0.5'
+                    }`}
+                    onClick={() => {
+                      if (isTodayPlanLocked) return;
+                      onPickWorkoutForToday(selectedDay.workoutKey);
+                      setSelectedDay(null);
+                    }}
+                  >
+                    {isTodayPlanLocked ? copy.planLocked : copy.chooseForToday}
+                  </button>
+                )}
               </div>
             ) : (
               <div className="space-y-2">

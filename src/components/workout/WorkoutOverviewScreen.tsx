@@ -4,6 +4,7 @@ import { Header } from '../ui/Header';
 import { AgendaSection } from '../home/AgendaSection';
 import { getBodyPartImage } from '../../services/bodyPartTheme';
 import { AppLanguage, getActiveLanguage, getStoredLanguage } from '../../services/language';
+import type { WorkoutAssignmentHistoryEntry } from '../../services/todayWorkoutSelection';
 import { normalizeWorkoutDayKey } from '../../services/workoutDayLabel';
 import rightArrowIcon from '../../../assets/emoji/right-arrow.png';
 
@@ -22,17 +23,21 @@ interface WorkoutOverviewScreenProps {
   onBack: () => void;
   onSelectWorkout: (workoutKey: string) => void;
   onPickWorkoutForToday: (workoutKey: string) => void;
+  onOpenNewPlanFlow?: () => void;
   currentDayLabel: string;
   workouts: WorkoutOverviewCard[];
   selectedTodayWorkoutName?: string;
   selectedTodayWorkoutDayLabel?: string;
   hasTodaySelection?: boolean;
   isTodaySelectionCompleted?: boolean;
+  isTodayPlanLocked?: boolean;
+  isPlanCompleted?: boolean;
   recommendedWorkout?: {
     workoutName: string;
     dayLabel: string;
   } | null;
   userProgram?: any;
+  assignmentHistory?: WorkoutAssignmentHistoryEntry[];
   accountCreatedAt?: string | Date | null;
   loading?: boolean;
   error?: string | null;
@@ -74,6 +79,7 @@ const COPY = {
     heroBody: 'Pick one card below to save it as today plan.',
     heroSelectedEyebrow: 'Saved For Today',
     heroSelectedBody: 'This is the workout currently saved for today.',
+    heroLockedBody: 'You already started today\'s workout, so today\'s plan is locked.',
     heroCompletedBody: 'Today workout is marked done. Use the next suggestion below when you are ready.',
     sectionTitle: 'Week Plan',
     recommendationTitle: 'Recommended Next',
@@ -85,8 +91,12 @@ const COPY = {
     completedBadge: 'Done',
     pickForToday: 'Pick for today',
     startMyWorkout: 'Start My Workout',
+    planLocked: 'Plan Locked',
     pickedForToday: 'Picked for today',
     completedForToday: 'Completed today',
+    planFinishedTitle: 'Plan completed',
+    planFinishedBody: 'You finished all weeks in this plan. Create a new plan to keep training next weeks.',
+    createNewPlan: 'Create New Plan',
     exerciseCount: (count: number) => `${count} ${count === 1 ? 'exercise' : 'exercises'}`,
   },
   ar: {
@@ -95,6 +105,7 @@ const COPY = {
     heroBody: 'اختر بطاقة من الأسفل لحفظها كخطة تدريب اليوم.',
     heroSelectedEyebrow: 'محفوظ لليوم',
     heroSelectedBody: 'هذه هي الحصة المحفوظة لليوم حاليًا.',
+    heroLockedBody: 'لقد بدأت تمرين اليوم بالفعل، لذلك أصبحت خطة اليوم مقفلة.',
     heroCompletedBody: 'تم تعليم حصة اليوم كمكتملة. اطلع على الاقتراح التالي عندما تكون جاهزًا.',
     sectionTitle: 'خطة الأسبوع',
     recommendationTitle: 'الاقتراح التالي',
@@ -106,8 +117,12 @@ const COPY = {
     completedBadge: 'تم',
     pickForToday: 'اختره لليوم',
     startMyWorkout: 'ابدأ تمريني',
+    planLocked: 'الخطة مقفلة',
     pickedForToday: 'محفوظ لليوم',
     completedForToday: 'مكتمل اليوم',
+    planFinishedTitle: 'اكتملت الخطة',
+    planFinishedBody: 'أنهيت جميع أسابيع هذه الخطة. أنشئ خطة جديدة لتكمل التدريب في الأسابيع القادمة.',
+    createNewPlan: 'أنشئ خطة جديدة',
     exerciseCount: (count: number) => `${count} ${count === 1 ? 'تمرين' : 'تمارين'}`,
   },
 } as const;
@@ -125,14 +140,18 @@ export function WorkoutOverviewScreen({
   onBack,
   onSelectWorkout,
   onPickWorkoutForToday,
+  onOpenNewPlanFlow,
   currentDayLabel,
   workouts,
   selectedTodayWorkoutName,
   selectedTodayWorkoutDayLabel,
   hasTodaySelection = false,
   isTodaySelectionCompleted = false,
+  isTodayPlanLocked = false,
+  isPlanCompleted = false,
   recommendedWorkout = null,
   userProgram,
+  assignmentHistory = [],
   accountCreatedAt,
   loading = false,
   error = null,
@@ -190,10 +209,14 @@ export function WorkoutOverviewScreen({
 
   const heroEyebrow = hasTodaySelection ? copy.heroSelectedEyebrow : copy.heroEyebrow;
   const heroTitle = hasTodaySelection
-    ? String(selectedTodayWorkoutName || '').trim() || localizeDay(currentDayLabel)
+    ? String(selectedTodayWorkoutName || '').trim() || localizeDay(selectedTodayWorkoutDayLabel || currentDayLabel)
     : localizeDay(currentDayLabel);
   const heroBody = hasTodaySelection
-    ? (isTodaySelectionCompleted ? copy.heroCompletedBody : copy.heroSelectedBody)
+    ? (isTodaySelectionCompleted
+        ? copy.heroCompletedBody
+        : isTodayPlanLocked
+          ? copy.heroLockedBody
+          : copy.heroSelectedBody)
     : copy.heroBody;
 
   return (
@@ -252,9 +275,10 @@ export function WorkoutOverviewScreen({
         <div data-coachmark-target="my_plan_agenda_card">
           <AgendaSection
             userProgram={userProgram}
+            assignmentHistory={assignmentHistory}
             accountCreatedAt={accountCreatedAt}
             selectedWorkoutKey={selectableWorkouts.find((workout) => workout.isPickedForToday)?.key || ''}
-            isSelectedWorkoutCompleted={isTodaySelectionCompleted}
+            isTodayPlanLocked={isTodayPlanLocked}
             onPickWorkoutForToday={onPickWorkoutForToday}
           />
         </div>
@@ -278,15 +302,36 @@ export function WorkoutOverviewScreen({
             </div>
           )}
 
-          {!loading && !error && cards.length === 0 && (
+          {!loading && !error && !isPlanCompleted && cards.length === 0 && (
             <div className="rounded-2xl border border-white/10 bg-card/60 px-4 py-5 text-sm text-text-secondary">
               {copy.empty}
             </div>
           )}
 
-          {!loading && !error && cards.length > 0 && (
+          {!loading && !error && isPlanCompleted && (
+            <div className={`rounded-[1.6rem] border border-accent/30 bg-accent/10 p-5 ${isArabic ? 'text-right' : 'text-left'}`}>
+              <div className="text-base font-semibold text-white">{copy.planFinishedTitle}</div>
+              <div className="mt-2 text-sm text-text-secondary">
+                {copy.planFinishedBody}
+              </div>
+              <div className={`mt-4 flex ${isArabic ? 'justify-start' : 'justify-end'}`}>
+                <button
+                  type="button"
+                  onClick={onOpenNewPlanFlow}
+                  className="inline-flex min-w-[12rem] items-center justify-center rounded-full border border-accent/30 bg-accent px-4 py-2.5 text-xs font-semibold uppercase tracking-[0.12em] text-black transition-colors hover:bg-[#aee600]"
+                >
+                  {copy.createNewPlan}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {!loading && !error && !isPlanCompleted && cards.length > 0 && (
             <div className="space-y-3">
-              {cards.map((workout, index) => (
+              {cards.map((workout, index) => {
+                const isLockedForSelection = isTodayPlanLocked && hasTodaySelection && !workout.isPickedForToday;
+
+                return (
                 <div
                   key={workout.key}
                   data-coachmark-target={index === 0 ? 'my_plan_first_week_card' : undefined}
@@ -368,6 +413,10 @@ export function WorkoutOverviewScreen({
                       type="button"
                       data-coachmark-target={index === 0 ? 'my_plan_first_action_button' : undefined}
                       onClick={() => {
+                        if (workout.isCompletedToday || isLockedForSelection) {
+                          return;
+                        }
+
                         if (workout.isPickedForToday && !workout.isCompletedToday) {
                           onSelectWorkout(workout.key);
                           return;
@@ -375,10 +424,12 @@ export function WorkoutOverviewScreen({
 
                         onPickWorkoutForToday(workout.key);
                       }}
-                      disabled={!!workout.isCompletedToday}
+                      disabled={!!workout.isCompletedToday || isLockedForSelection}
                       className={`inline-flex min-w-[10.5rem] items-center justify-center rounded-full border px-4 py-2 text-xs font-semibold uppercase tracking-[0.12em] transition-colors ${
                         workout.isCompletedToday
                           ? 'cursor-default border-emerald-500/25 bg-emerald-500/10 text-emerald-200'
+                          : isLockedForSelection
+                            ? 'cursor-not-allowed border-white/10 bg-white/5 text-text-tertiary'
                           : workout.isPickedForToday
                             ? 'border-accent/30 bg-accent text-black hover:bg-[#aee600]'
                           : 'border-accent/30 bg-accent/20 text-text-primary hover:bg-accent/25'
@@ -388,11 +439,14 @@ export function WorkoutOverviewScreen({
                         ? copy.completedForToday
                         : workout.isPickedForToday
                           ? copy.startMyWorkout
-                          : copy.pickForToday}
+                          : isLockedForSelection
+                            ? copy.planLocked
+                            : copy.pickForToday}
                     </button>
                   </div>
                 </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>

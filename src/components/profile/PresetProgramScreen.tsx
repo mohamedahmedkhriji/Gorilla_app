@@ -1,6 +1,15 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Header } from '../ui/Header';
 import { api } from '../../services/api';
+import { AppLanguage, getActiveLanguage, getStoredLanguage } from '../../services/language';
+import {
+  translateAiSignal,
+  translateExperienceLevel,
+  translateExerciseName,
+  translateProgramText,
+  translateWorkoutType,
+} from '../../services/programI18n';
+import { formatWorkoutDayShortLabel } from '../../services/workoutDayLabel';
 
 interface PresetProgramScreenProps {
   onBack: () => void;
@@ -285,13 +294,92 @@ const readStoredUser = () => {
 };
 
 export function PresetProgramScreen({ onBack, onSaved, onBuildCustom }: PresetProgramScreenProps) {
+  const [language, setLanguage] = useState<AppLanguage>(() => getActiveLanguage());
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [workoutDays, setWorkoutDays] = useState(4);
   const [recommendedTemplateId, setRecommendedTemplateId] = useState<ProgramTemplate['id']>('upperlower');
   const [selectedTemplateId, setSelectedTemplateId] = useState<ProgramTemplate['id'] | null>(null);
-  const [aiRecommendationNote, setAiRecommendationNote] = useState('AI is preparing your best split recommendation.');
+  const [aiRecommendationMeta, setAiRecommendationMeta] = useState<{
+    type: 'loading' | 'fallback' | 'signals';
+    days: number;
+    signals: string[];
+    level: string;
+  }>({
+    type: 'loading',
+    days: 4,
+    signals: [],
+    level: '',
+  });
+  const isArabic = language === 'ar';
+  const copy = isArabic
+    ? {
+      title: 'البرامج المخصصة',
+      loadingNote: 'الذكاء الاصطناعي يجهز أفضل تقسيمة لك.',
+      selectPlanFirst: 'اختر بطاقة خطة أولاً (PPL أو SP أو UL).',
+      noSession: 'لم يتم العثور على جلسة مستخدم نشطة.',
+      saveFailed: 'تعذر حفظ البرنامج.',
+      recommendedByAi: 'مقترح من الذكاء الاصطناعي',
+      aiRecommends: (title: string) => `يقترح الذكاء الاصطناعي ${title} لملفك الشخصي.`,
+      aiSignals: (signals: string[], level: string) =>
+        `إشارات الذكاء الاصطناعي: ${signals.join('، ')}${level ? ` | المستوى: ${level}` : ''}.`,
+      aiFallback: (days: number) => `اختار الذكاء الاصطناعي هذه التقسيمة بناءً على ${days} أيام تدريب أسبوعياً.`,
+      recommended: 'مقترح',
+      daysPerWeek: (value: number) => `${value} أيام/الأسبوع`,
+      buildManualPlan: 'إنشاء خطة يدوية',
+      buildManualPlanBody: 'أنشئ خطتك بنفسك، ثم أكدها أو أرسلها للمدرب للمراجعة.',
+      customBuilder: 'منشئ مخصص',
+      hiddenUntilSelect: 'تفاصيل الأيام والبرنامج مخفية حتى تضغط على بطاقة خطة.',
+      availableDays: 'الأيام المتاحة (تلقائياً من الخطة المختارة)',
+      twoMonthProgram: (title: string) => `برنامج ${title} لشهرين`,
+      repeatsForEightWeeks: 'يتكرر الجدول الأسبوعي أدناه لمدة 8 أسابيع.',
+      weekChip: (value: number) => `أ${value}`,
+      sets: (value: number) => `${value} مجموعات`,
+      rest: (value: number) => `${value}ث راحة`,
+      save: 'احفظ هذه الخطة',
+      saving: 'جارٍ الحفظ...',
+      enableSaveHint: 'اختر بطاقة خطة أولاً لتفعيل الحفظ.',
+      savedSuccess: (title: string) => `تم حفظ ${title} كخطتك النشطة.`,
+      subtitle: {
+        ppl: 'تقسيمة دفع/سحب/أرجل الكلاسيكية لمدة 6 أيام بحجم تدريبي مرتفع.',
+        splitpush: 'تقسيمة Push هجينة على 5 أيام.',
+        upperlower: 'تقسيمة علوي / سفلي متوازنة على 4 أيام.',
+      },
+    }
+    : {
+      title: 'Customized Programs',
+      loadingNote: 'AI is preparing your best split recommendation.',
+      selectPlanFirst: 'Select a plan card first (PPL, SP, or UL).',
+      noSession: 'No active user session found.',
+      saveFailed: 'Failed to save program.',
+      recommendedByAi: 'Recommended by AI',
+      aiRecommends: (title: string) => `AI recommends ${title} for your profile.`,
+      aiSignals: (signals: string[], level: string) =>
+        `AI signals: ${signals.join(', ')}${level ? ` | level: ${level}` : ''}.`,
+      aiFallback: (days: number) => `AI analyzed your profile and selected this split for ${days} days/week.`,
+      recommended: 'Recommended',
+      daysPerWeek: (value: number) => `${value} days/week`,
+      buildManualPlan: 'Build Manual Plan',
+      buildManualPlanBody: 'Create your own plan, then confirm it or send it to coach for validation.',
+      customBuilder: 'Custom builder',
+      hiddenUntilSelect: 'Days and program details are hidden until you click a plan card.',
+      availableDays: 'Available Days (auto from selected plan)',
+      twoMonthProgram: (title: string) => `${title} - 2 Month Program`,
+      repeatsForEightWeeks: 'Weekly split below repeats for 8 weeks.',
+      weekChip: (value: number) => `W${value}`,
+      sets: (value: number) => `${value} sets`,
+      rest: (value: number) => `${value}s rest`,
+      save: 'Save This Plan',
+      saving: 'Saving...',
+      enableSaveHint: 'Select a plan card first to enable save.',
+      savedSuccess: (title: string) => `${title} saved as your active plan.`,
+      subtitle: {
+        ppl: 'Classic Push/Pull/Legs done 6 days for high volume.',
+        splitpush: 'Split Push (5-day hybrid split).',
+        upperlower: 'Upper / Lower (balanced 4-day split).',
+      },
+    };
 
   const templateById = useMemo(() => {
     const map = new Map<ProgramTemplate['id'], ProgramTemplate>();
@@ -308,6 +396,31 @@ export function PresetProgramScreen({ onBack, onSaved, onBuildCustom }: PresetPr
       : []),
     [selectedTemplate],
   );
+  const aiRecommendationNote = useMemo(() => {
+    if (aiRecommendationMeta.type === 'loading') return copy.loadingNote;
+    if (aiRecommendationMeta.type === 'signals' && aiRecommendationMeta.signals.length > 0) {
+      return copy.aiSignals(
+        aiRecommendationMeta.signals.map((signal) => translateAiSignal(signal, language)),
+        translateExperienceLevel(aiRecommendationMeta.level, language),
+      );
+    }
+    return copy.aiFallback(aiRecommendationMeta.days || workoutDays);
+  }, [aiRecommendationMeta, copy, language, workoutDays]);
+
+  useEffect(() => {
+    setLanguage(getActiveLanguage());
+
+    const handleLanguageChanged = () => {
+      setLanguage(getStoredLanguage());
+    };
+
+    window.addEventListener('app-language-changed', handleLanguageChanged);
+    window.addEventListener('storage', handleLanguageChanged);
+    return () => {
+      window.removeEventListener('app-language-changed', handleLanguageChanged);
+      window.removeEventListener('storage', handleLanguageChanged);
+    };
+  }, []);
 
   useEffect(() => {
     const bootstrap = async () => {
@@ -331,7 +444,12 @@ export function PresetProgramScreen({ onBack, onSaved, onBuildCustom }: PresetPr
         );
         const resolvedDays = clampWorkoutDays(fromProgram > 0 ? fromProgram : fromLocalUser);
         let recommended = recommendTemplateByDays(resolvedDays);
-        let recommendationNote = `AI fallback: selected from your ${resolvedDays} training days/week.`;
+        let recommendationMeta: typeof aiRecommendationMeta = {
+          type: 'fallback',
+          days: resolvedDays,
+          signals: [],
+          level: '',
+        };
 
         try {
           const insights = await api.getOnboardingInsights({
@@ -349,15 +467,25 @@ export function PresetProgramScreen({ onBack, onSaved, onBuildCustom }: PresetPr
           const suggestedLevel = String(insights?.interpretation?.suggestedExperienceLevel || '').trim();
 
           recommended = mapAiWorkoutTypesToTemplate(suggestedWorkoutTypes, resolvedDays);
-          recommendationNote = suggestedWorkoutTypes.length
-            ? `AI signals: ${suggestedWorkoutTypes.slice(0, 2).join(', ')}${suggestedLevel ? ` | level: ${suggestedLevel}` : ''}.`
-            : `AI analyzed your profile and selected this split for ${resolvedDays} days/week.`;
+          recommendationMeta = suggestedWorkoutTypes.length
+            ? {
+              type: 'signals',
+              days: resolvedDays,
+              signals: suggestedWorkoutTypes.slice(0, 2),
+              level: suggestedLevel,
+            }
+            : {
+              type: 'fallback',
+              days: resolvedDays,
+              signals: [],
+              level: '',
+            };
         } catch (aiError) {
           console.error('Failed to compute AI recommendation, using fallback:', aiError);
         }
 
         setWorkoutDays(resolvedDays);
-        setAiRecommendationNote(recommendationNote);
+        setAiRecommendationMeta(recommendationMeta);
         setRecommendedTemplateId(recommended);
       } catch (fetchError) {
         console.error('Failed to infer workout-day recommendation:', fetchError);
@@ -371,13 +499,13 @@ export function PresetProgramScreen({ onBack, onSaved, onBuildCustom }: PresetPr
     setError(null);
     setSuccess(null);
     if (!selectedTemplate) {
-      setError('Select a plan card first (PPL, SP, or UL).');
+      setError(copy.selectPlanFirst);
       return;
     }
     const user = readStoredUser();
     const userId = Number(localStorage.getItem('appUserId') || localStorage.getItem('userId') || user?.id || 0);
     if (!userId) {
-      setError('No active user session found.');
+      setError(copy.noSession);
       return;
     }
 
@@ -407,11 +535,11 @@ export function PresetProgramScreen({ onBack, onSaved, onBuildCustom }: PresetPr
       }
 
       localStorage.removeItem('recoveryNeedsUpdate');
-      setSuccess(`${selectedTemplate.title} saved as your active plan.`);
+      setSuccess(copy.savedSuccess(selectedTemplate.title));
       window.setTimeout(() => onSaved(), 500);
     } catch (saveError) {
       console.error('Failed to save preset plan:', saveError);
-      setError(saveError instanceof Error ? saveError.message : 'Failed to save program.');
+      setError(saveError instanceof Error && !isArabic ? saveError.message : copy.saveFailed);
     } finally {
       setIsSaving(false);
     }
@@ -420,7 +548,7 @@ export function PresetProgramScreen({ onBack, onSaved, onBuildCustom }: PresetPr
   return (
     <div className="flex-1 flex flex-col h-full bg-background pb-24">
       <div className="px-4 sm:px-6 pt-2">
-        <Header title="Customized Programs" onBack={onBack} />
+        <Header title={copy.title} onBack={onBack} />
       </div>
 
       <div className="px-4 sm:px-6 pt-2 space-y-4">
@@ -436,9 +564,9 @@ export function PresetProgramScreen({ onBack, onSaved, onBuildCustom }: PresetPr
         )}
 
         <div className="bg-card border border-white/10 rounded-xl p-4">
-          <div className="text-sm text-text-secondary">Recommended by AI</div>
+          <div className="text-sm text-text-secondary">{copy.recommendedByAi}</div>
           <div className="text-white mt-1">
-            AI recommends <span className="font-semibold">{templateById.get(recommendedTemplateId)?.title || 'UL'}</span> for your profile.
+            {copy.aiRecommends(templateById.get(recommendedTemplateId)?.title || 'UL')}
           </div>
           <div className="text-xs text-text-secondary mt-1">
             {aiRecommendationNote}
@@ -464,12 +592,12 @@ export function PresetProgramScreen({ onBack, onSaved, onBuildCustom }: PresetPr
                   <div className="text-white font-semibold">{template.title}</div>
                   {isRecommended && (
                     <span className="text-[10px] uppercase tracking-wide px-2 py-1 rounded border border-accent/50 text-accent bg-accent/10">
-                      Recommended
+                      {copy.recommended}
                     </span>
                   )}
                 </div>
-                <div className="text-xs text-text-secondary mt-1">{template.subtitle}</div>
-                <div className="text-xs text-text-tertiary mt-3">{template.daysPerWeek} days/week</div>
+                <div className="text-xs text-text-secondary mt-1">{copy.subtitle[template.id]}</div>
+                <div className="text-xs text-text-tertiary mt-3">{copy.daysPerWeek(template.daysPerWeek)}</div>
               </button>
             );
           })}
@@ -479,31 +607,31 @@ export function PresetProgramScreen({ onBack, onSaved, onBuildCustom }: PresetPr
             onClick={onBuildCustom}
             className="text-left rounded-xl border border-white/10 bg-card p-4 hover:bg-white/5 transition-colors"
           >
-            <div className="text-white font-semibold">Build Manual Plan</div>
+            <div className="text-white font-semibold">{copy.buildManualPlan}</div>
             <div className="text-xs text-text-secondary mt-1">
-              Create your own plan, then confirm it or send it to coach for validation.
+              {copy.buildManualPlanBody}
             </div>
-            <div className="text-xs text-text-tertiary mt-3">Custom builder</div>
+            <div className="text-xs text-text-tertiary mt-3">{copy.customBuilder}</div>
           </button>
         </div>
 
         {!selectedTemplate && (
           <div className="bg-card border border-white/10 rounded-xl p-4 text-sm text-text-secondary">
-            Days and program details are hidden until you click a plan card.
+            {copy.hiddenUntilSelect}
           </div>
         )}
 
         {selectedTemplate && (
           <>
             <div className="bg-card border border-white/10 rounded-xl p-4">
-              <div className="text-sm text-text-secondary">Available Days (auto from selected plan)</div>
+              <div className="text-sm text-text-secondary">{copy.availableDays}</div>
               <div className="mt-2 flex flex-wrap gap-2">
                 {selectedTemplateDays.map((day) => (
                   <span
                     key={`selected-day-${day}`}
                     className="text-xs px-2.5 py-1 rounded-full border border-accent/40 bg-accent/10 text-accent"
                   >
-                    {DAY_LABELS[day] || day}
+                    {formatWorkoutDayShortLabel(day, DAY_LABELS[day] || day, language)}
                   </span>
                 ))}
               </div>
@@ -511,8 +639,8 @@ export function PresetProgramScreen({ onBack, onSaved, onBuildCustom }: PresetPr
 
             <div className="rounded-xl p-4 space-y-3 border bg-accent/5 border-accent/40">
               <div>
-                <div className="text-white font-semibold">{selectedTemplate.title} - 2 Month Program</div>
-                <div className="text-xs text-text-secondary mt-1">Weekly split below repeats for 8 weeks.</div>
+                <div className="text-white font-semibold">{copy.twoMonthProgram(selectedTemplate.title)}</div>
+                <div className="text-xs text-text-secondary mt-1">{copy.repeatsForEightWeeks}</div>
               </div>
 
               <div className="grid grid-cols-4 sm:grid-cols-8 gap-2">
@@ -521,7 +649,7 @@ export function PresetProgramScreen({ onBack, onSaved, onBuildCustom }: PresetPr
                     key={`${selectedTemplate.id}-week-${index + 1}`}
                     className="text-center text-xs rounded-lg border border-white/10 bg-background py-2 text-text-secondary"
                   >
-                    W{index + 1}
+                    {copy.weekChip(index + 1)}
                   </div>
                 ))}
               </div>
@@ -531,20 +659,24 @@ export function PresetProgramScreen({ onBack, onSaved, onBuildCustom }: PresetPr
                   <div key={`${selectedTemplate.id}-${workout.dayName}`} className="rounded-lg border border-white/10 bg-background p-3">
                     <div className="flex items-center justify-between gap-2">
                       <div className="text-white text-sm font-medium">
-                        {DAY_LABELS[workout.dayName] || workout.dayName} - {workout.workoutName}
+                        {formatWorkoutDayShortLabel(workout.dayName, DAY_LABELS[workout.dayName] || workout.dayName, language)}
+                        {' - '}
+                        {translateProgramText(workout.workoutName, language)}
                       </div>
-                      <div className="text-[10px] uppercase text-text-tertiary">{workout.workoutType}</div>
+                      <div className="text-[10px] uppercase text-text-tertiary">
+                        {translateWorkoutType(workout.workoutType, language)}
+                      </div>
                     </div>
                     <div className="mt-2 space-y-1">
                       {workout.exercises.map((exercise) => (
                         <div key={`${selectedTemplate.id}-${workout.dayName}-${exercise.exerciseName}`} className="text-xs text-text-secondary">
-                          <span className="text-white">{exercise.exerciseName}</span>
+                          <span className="text-white">{translateExerciseName(exercise.exerciseName, language)}</span>
                           {' | '}
-                          {exercise.sets} sets
+                          {copy.sets(exercise.sets)}
                           {' | '}
                           {exercise.reps}
                           {' | '}
-                          {exercise.restSeconds}s rest
+                          {copy.rest(exercise.restSeconds)}
                         </div>
                       ))}
                     </div>
@@ -562,11 +694,11 @@ export function PresetProgramScreen({ onBack, onSaved, onBuildCustom }: PresetPr
             disabled={isSaving || !selectedTemplate}
             className="w-full bg-accent text-black font-semibold rounded-xl p-3 hover:bg-accent/90 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
           >
-            {isSaving ? 'Saving...' : 'Save This Plan'}
+            {isSaving ? copy.saving : copy.save}
           </button>
           {!selectedTemplate && (
             <div className="text-xs text-text-secondary text-center">
-              Select a plan card first to enable save.
+              {copy.enableSaveHint}
             </div>
           )}
         </div>
