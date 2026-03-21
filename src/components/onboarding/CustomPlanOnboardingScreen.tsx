@@ -4,6 +4,7 @@ import { api } from '../../services/api';
 import { getBodyPartImage } from '../../services/bodyPartTheme';
 import { stripExercisePrefix } from '../../services/exerciseName';
 import { resolveExerciseVideo } from '../../services/exerciseVideos';
+import { localizeCustomPlanName } from '../../services/programI18n';
 import { getOnboardingLanguage } from './onboardingI18n';
 
 interface CustomPlanOnboardingScreenProps {
@@ -379,6 +380,10 @@ export function CustomPlanOnboardingScreen({
       };
 
   const uiCopy = isArabic ? CUSTOM_PLAN_COPY_AR : copy;
+  const resolvePlanName = useCallback((value: unknown) => {
+    const localizedName = localizeCustomPlanName(value, language).trim();
+    return localizedName || uiCopy.defaultPlanName;
+  }, [language, uiCopy.defaultPlanName]);
 
   const capitalize = (value: string) => `${value.charAt(0).toUpperCase()}${value.slice(1)}`;
   const getDayLabel = useCallback((dayKey: string, variant: 'short' | 'full' = 'short') => {
@@ -426,7 +431,7 @@ export function CustomPlanOnboardingScreen({
   );
 
   const [planName, setPlanName] = useState<string>(
-    String(existing.planName || uiCopy.defaultPlanName),
+    resolvePlanName(existing.planName || uiCopy.defaultPlanName),
   );
   const [cycleWeeks, setCycleWeeks] = useState<number>(
     normalizedCycleWeeks,
@@ -437,6 +442,14 @@ export function CustomPlanOnboardingScreen({
   const [expandedMusclePickers, setExpandedMusclePickers] = useState<Record<string, boolean>>({});
   const [error, setError] = useState<string>('');
   const [isSavingPlan, setIsSavingPlan] = useState(false);
+
+  useEffect(() => {
+    setPlanName((current) => {
+      const nextPlanName = resolvePlanName(current);
+      return nextPlanName === current ? current : nextPlanName;
+    });
+  }, [resolvePlanName]);
+
   const advanceToNextStep = () => {
     if (typeof window !== 'undefined') {
       window.setTimeout(() => onNext(), 0);
@@ -792,7 +805,7 @@ export function CustomPlanOnboardingScreen({
 
     onDataChange?.({
       customPlan: {
-        planName: String(planName || uiCopy.defaultPlanName).trim() || uiCopy.defaultPlanName,
+        planName: resolvePlanName(planName),
         cycleWeeks: Math.max(6, Math.min(16, Math.round(Number(cycleWeeks || 6)))),
         templateWeekCount,
         selectedDays,
@@ -800,7 +813,7 @@ export function CustomPlanOnboardingScreen({
         weekPlans: weekPayloads,
       },
     });
-  }, [cycleWeeks, templateWeekCount, weekPlans, onDataChange, planName, selectedDays, uiCopy.defaultPlanName, getPlanCardLabel]);
+  }, [cycleWeeks, templateWeekCount, weekPlans, onDataChange, planName, selectedDays, getPlanCardLabel, resolvePlanName]);
 
   const buildWeekPayloads = useCallback(
     (weeks: WeekPlanDraft[]) => weeks.slice(0, templateWeekCount).map((week) => buildValidatedWeekPayload(week)),
@@ -809,14 +822,14 @@ export function CustomPlanOnboardingScreen({
 
   const buildCustomPlanPayload = useCallback(
     (weekPayloads: Array<{ weeklyWorkouts: any[] }>) => ({
-      planName: String(planName || uiCopy.defaultPlanName).trim() || uiCopy.defaultPlanName,
+      planName: resolvePlanName(planName),
       cycleWeeks: Math.max(6, Math.min(16, Math.round(Number(cycleWeeks || 6)))),
       templateWeekCount,
       selectedDays,
       weeklyWorkouts: weekPayloads[0]?.weeklyWorkouts || [],
       weekPlans: weekPayloads,
     }),
-    [cycleWeeks, planName, selectedDays, templateWeekCount, uiCopy.defaultPlanName],
+    [cycleWeeks, planName, resolvePlanName, selectedDays, templateWeekCount],
   );
 
   const buildValidatedWeekPayload = (week: WeekPlanDraft) => ({
@@ -874,7 +887,7 @@ export function CustomPlanOnboardingScreen({
     if (!isTemplateStage) {
       onDataChange?.({
         customPlan: {
-          planName: String(planName || uiCopy.defaultPlanName).trim() || uiCopy.defaultPlanName,
+          planName: resolvePlanName(planName),
           cycleWeeks: Math.max(6, Math.min(16, Math.round(Number(cycleWeeks || 6)))),
           templateWeekCount,
           selectedDays,

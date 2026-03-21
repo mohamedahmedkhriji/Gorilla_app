@@ -5,8 +5,9 @@ import { Bookmark, CalendarX2, Plus, Play, Search, Square, TriangleAlert, X } fr
 import { getBodyPartImage } from '../../services/bodyPartTheme';
 import { resolveExerciseVideo } from '../../services/exerciseVideos';
 import { AppLanguage, getActiveLanguage, getStoredLanguage } from '../../services/language';
-import { normalizeWorkoutDayKey } from '../../services/workoutDayLabel';
+import { formatWorkoutDayLabel, normalizeWorkoutDayKey } from '../../services/workoutDayLabel';
 import { stripExercisePrefix } from '../../services/exerciseName';
+import { translateExerciseName, translateProgramText } from '../../services/programI18n';
 
 interface WorkoutPlanScreenProps {
   onBack: () => void;
@@ -155,6 +156,44 @@ const AR_DAY_LABELS: Record<string, string> = {
   friday: 'الجمعة',
   saturday: 'السبت',
   sunday: 'الأحد',
+};
+
+const IT_MUSCLE_LABELS: Record<string, string> = {
+  chest: 'Petto',
+  back: 'Schiena',
+  shoulders: 'Spalle',
+  'front shoulders': 'Spalle anteriori',
+  'side shoulders': 'Spalle laterali',
+  'rear shoulders': 'Spalle posteriori',
+  triceps: 'Tricipiti',
+  biceps: 'Bicipiti',
+  abs: 'Addome',
+  quadriceps: 'Quadricipiti',
+  hamstrings: 'Femorali',
+  calves: 'Polpacci',
+  forearms: 'Avambracci',
+  glutes: 'Glutei',
+  adductors: 'Adduttori',
+  general: 'Generale',
+};
+
+const DE_MUSCLE_LABELS: Record<string, string> = {
+  chest: 'Brust',
+  back: 'Ruecken',
+  shoulders: 'Schultern',
+  'front shoulders': 'Vordere Schultern',
+  'side shoulders': 'Seitliche Schultern',
+  'rear shoulders': 'Hintere Schultern',
+  triceps: 'Trizeps',
+  biceps: 'Bizeps',
+  abs: 'Bauch',
+  quadriceps: 'Quadrizeps',
+  hamstrings: 'Beinbeuger',
+  calves: 'Waden',
+  forearms: 'Unterarme',
+  glutes: 'Gesaess',
+  adductors: 'Adduktoren',
+  general: 'Allgemein',
 };
 
 const SEGMENT_MAP: Record<string, [boolean, boolean, boolean, boolean, boolean, boolean, boolean]> = {
@@ -345,6 +384,178 @@ const CARDIO_PLAN_I18N = {
   },
 } as const;
 
+const LOCALIZED_WORKOUT_PLAN_I18N: Record<AppLanguage, typeof WORKOUT_PLAN_I18N.en> = {
+  en: WORKOUT_PLAN_I18N.en,
+  ar: WORKOUT_PLAN_I18N.ar,
+  it: {
+    markMissedAria: 'Segna oggi come saltato',
+    missDay: 'Salta Giorno',
+    openLatestSummaryAria: 'Apri l ultimo riepilogo allenamento',
+    loadingWorkout: 'Caricamento allenamento...',
+    workout: 'Allenamento',
+    exerciseFallback: 'Esercizio',
+    generalMuscle: 'Generale',
+    restDayLabel: 'Giorno di riposo',
+    targetMuscles: 'Muscoli Target',
+    targetMusclesEmpty: 'I muscoli target appariranno dopo il caricamento degli esercizi.',
+    exercisesCount: (count: number) => `${count} ${count === 1 ? 'esercizio' : 'esercizi'}`,
+    addExerciseAria: 'Aggiungi esercizio',
+    restDayEmpty: 'Giorno di riposo. Nessun allenamento programmato per oggi.',
+    noExercises: 'Nessun esercizio aggiunto per oggi. Tocca il pulsante piu per aggiungerne uno.',
+    setsLabel: 'serie',
+    repsLabel: 'ripetizioni',
+    kgLabel: 'kg',
+    restSeconds: (value: number) => `${value}s recupero`,
+    restAsNeeded: 'Recupero libero',
+    lastWeightLabel: 'Ultimo peso',
+    videoMissing: 'Video mancante',
+    addExerciseTitle: 'Aggiungi Esercizio',
+    addExerciseSubtitle: 'Scegli un esercizio da aggiungere per oggi.',
+    closeAddExercise: 'Chiudi finestra aggiungi esercizio',
+    loadingExercises: 'Caricamento esercizi...',
+    catalogError: 'Impossibile caricare il catalogo esercizi.',
+    exercisesHeading: 'Esercizi',
+    chooseExerciseHint: 'Scegli una scheda esercizio per aggiungerla a oggi.',
+    selectMuscleHint: 'Seleziona un gruppo muscolare qui sotto per esplorare gli esercizi.',
+    previewVideoAria: 'Anteprima video esercizio',
+    clear: 'Cancella',
+    searchExercise: 'Cerca nome esercizio...',
+    selectMuscleFirst: 'Seleziona prima un gruppo muscolare',
+    pickMuscleCard: 'Scegli una scheda muscolare qui sotto per caricare gli esercizi corrispondenti.',
+    noMatchingExercise: (label: string) => `Nessun esercizio trovato per ${label}.`,
+    muscleGroups: 'Gruppi Muscolari',
+    noExerciseGroups: 'Nessun gruppo esercizi disponibile.',
+    add: 'Aggiungi',
+    addFail: 'Impossibile aggiungere l esercizio.',
+    missFail: 'Impossibile segnare questo allenamento come saltato.',
+    missTitle: 'Saltare l allenamento di oggi?',
+    missDescription: (workoutName: string) =>
+      `Questo segnera ${workoutName} come saltato, lo rimuovera dal flusso attivo di oggi e interrompera la tua serie di oggi.`,
+    closeMissDialog: 'Chiudi finestra giorno saltato',
+    missWarning: 'Usa questa opzione solo se stai saltando intenzionalmente la sessione programmata.',
+    keepWorkout: 'Mantieni Allenamento',
+    marking: 'Aggiornamento...',
+    confirmMiss: 'Si, Salta Questo Giorno',
+  },
+  de: {
+    markMissedAria: 'Markiere heute als verpasst',
+    missDay: 'Tag Ueberspringen',
+    openLatestSummaryAria: 'Letzte Trainingszusammenfassung oeffnen',
+    loadingWorkout: 'Training wird geladen...',
+    workout: 'Workout',
+    exerciseFallback: 'Uebung',
+    generalMuscle: 'Allgemein',
+    restDayLabel: 'Ruhetag',
+    targetMuscles: 'Zielmuskeln',
+    targetMusclesEmpty: 'Die Zielmuskeln erscheinen, sobald die Uebungen geladen sind.',
+    exercisesCount: (count: number) => `${count} ${count === 1 ? 'Uebung' : 'Uebungen'}`,
+    addExerciseAria: 'Uebung hinzufuegen',
+    restDayEmpty: 'Ruhetag. Fuer heute ist kein Training geplant.',
+    noExercises: 'Fuer heute wurden noch keine Uebungen hinzugefuegt. Tippe auf Plus, um eine hinzuzufuegen.',
+    setsLabel: 'Saetze',
+    repsLabel: 'Wdh',
+    kgLabel: 'kg',
+    restSeconds: (value: number) => `${value}s Pause`,
+    restAsNeeded: 'Pause nach Bedarf',
+    lastWeightLabel: 'Letztes Gewicht',
+    videoMissing: 'Video fehlt',
+    addExerciseTitle: 'Uebung Hinzufuegen',
+    addExerciseSubtitle: 'Waehle eine Uebung aus, die du heute hinzufuegen moechtest.',
+    closeAddExercise: 'Dialog Uebung hinzufuegen schliessen',
+    loadingExercises: 'Uebungen werden geladen...',
+    catalogError: 'Der Uebungskatalog konnte nicht geladen werden.',
+    exercisesHeading: 'Uebungen',
+    chooseExerciseHint: 'Waehle eine Uebungskarte aus, um sie zu heute hinzuzufuegen.',
+    selectMuscleHint: 'Waehle unten eine Muskelgruppe, um Uebungen zu durchsuchen.',
+    previewVideoAria: 'Uebungsvideo vorschau',
+    clear: 'Leeren',
+    searchExercise: 'Uebungsname suchen...',
+    selectMuscleFirst: 'Waehle zuerst eine Muskelgruppe',
+    pickMuscleCard: 'Waehle unten eine Muskelkarte aus, um passende Uebungen zu laden.',
+    noMatchingExercise: (label: string) => `Keine passende Uebung fuer ${label} gefunden.`,
+    muscleGroups: 'Muskelgruppen',
+    noExerciseGroups: 'Keine Uebungsgruppen verfuegbar.',
+    add: 'Hinzufuegen',
+    addFail: 'Die Uebung konnte nicht hinzugefuegt werden.',
+    missFail: 'Dieses Training konnte nicht als verpasst markiert werden.',
+    missTitle: 'Heutiges Training ueberspringen?',
+    missDescription: (workoutName: string) =>
+      `Dadurch wird ${workoutName} als verpasst markiert, aus dem heutigen aktiven Ablauf entfernt und deine heutige Trainingsserie unterbrochen.`,
+    closeMissDialog: 'Dialog verpasster Tag schliessen',
+    missWarning: 'Verwende dies nur, wenn du die geplante Einheit absichtlich auslaesst.',
+    keepWorkout: 'Workout Behalten',
+    marking: 'Wird aktualisiert...',
+    confirmMiss: 'Ja, Diesen Tag Ueberspringen',
+  },
+};
+
+const LOCALIZED_CARDIO_PLAN_I18N: Record<AppLanguage, typeof CARDIO_PLAN_I18N.en> = {
+  en: CARDIO_PLAN_I18N.en,
+  ar: CARDIO_PLAN_I18N.ar,
+  it: {
+    title: 'Finale Cardio Opzionale',
+    badge: 'Opzionale',
+    body: 'Aggiungi un breve blocco cardio dopo i pesi se vuoi piu condizionamento e consumo calorico.',
+    open: 'Apri Cardio',
+    resume: 'Riprendi Cardio',
+    close: 'Chiudi finestra cardio',
+    modalEyebrow: 'Extra Cardio',
+    modalTitle: 'Chiudi forte con un blocco cardio',
+    modalBody: 'Scegli lo stile giusto per oggi, poi avvia il timer quando sei pronto.',
+    modeLabel: 'Stile cardio',
+    suggestedLabel: 'Consigliato',
+    caloriesLabel: 'Calorie',
+    liveBurnLabel: 'Consumo live',
+    timerLabel: 'Timer',
+    timerAria: (value: string) => `Timer cardio ${value}`,
+    reset: 'Reset',
+    start: 'Avvia',
+    stop: 'Stop',
+    readyHint: 'Puoi saltarlo in qualsiasi momento. E un extra finale, non parte obbligatoria dell allenamento.',
+    progressLabel: 'Progresso obiettivo',
+    completedHint: 'Ottima chiusura. Puoi continuare o resettare per un altro giro.',
+    minuteShort: 'min',
+    kcalShort: 'kcal',
+    presets: {
+      incline_walk: { name: 'Camminata in salita', hint: 'Recupero facile' },
+      bike: { name: 'Bici', hint: 'Consumo fluido a basso impatto' },
+      jog: { name: 'Jog leggero', hint: 'Spinta calorie piu rapida' },
+      row: { name: 'Vogatore', hint: 'Cardio total body' },
+    } as Record<CardioPresetId, { name: string; hint: string }>,
+  },
+  de: {
+    title: 'Optionales Cardio-Finish',
+    badge: 'Optional',
+    body: 'Fuege nach dem Krafttraining einen kurzen Cardio-Block hinzu, wenn du mehr Kondition und Kalorienverbrauch moechtest.',
+    open: 'Cardio Oeffnen',
+    resume: 'Cardio Fortsetzen',
+    close: 'Cardio-Dialog schliessen',
+    modalEyebrow: 'Cardio Zusatz',
+    modalTitle: 'Beende stark mit einem Cardio-Block',
+    modalBody: 'Waehle heute den passenden Stil und starte den Timer, wenn du bereit bist.',
+    modeLabel: 'Cardio-Stil',
+    suggestedLabel: 'Empfohlen',
+    caloriesLabel: 'Kalorien',
+    liveBurnLabel: 'Live Verbrauch',
+    timerLabel: 'Timer',
+    timerAria: (value: string) => `Cardio-Timer ${value}`,
+    reset: 'Zuruecksetzen',
+    start: 'Start',
+    stop: 'Stopp',
+    readyHint: 'Du kannst dies jederzeit ueberspringen. Es ist ein extra Finisher und kein Pflichtteil des Workouts.',
+    progressLabel: 'Ziel Fortschritt',
+    completedHint: 'Starker Abschluss. Du kannst weitermachen oder fuer eine weitere Runde zuruecksetzen.',
+    minuteShort: 'min',
+    kcalShort: 'kcal',
+    presets: {
+      incline_walk: { name: 'Steigung Gehen', hint: 'Leichtes Erholungstempo' },
+      bike: { name: 'Fahrrad', hint: 'Sanfter Low-Impact Verbrauch' },
+      jog: { name: 'Leichter Lauf', hint: 'Schnellster Kalorien-Schub' },
+      row: { name: 'Rudergeraet', hint: 'Ganzkoerper Cardio' },
+    } as Record<CardioPresetId, { name: string; hint: string }>,
+  },
+};
+
 const formatCardioClock = (seconds: number) => {
   const safeSeconds = Math.max(0, Math.floor(seconds));
   const mins = Math.floor(safeSeconds / 60);
@@ -418,23 +629,35 @@ export function WorkoutPlanScreen({
   const [cardioSeconds, setCardioSeconds] = useState(0);
   const [isCardioRunning, setIsCardioRunning] = useState(false);
   const cardioIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const copy = WORKOUT_PLAN_I18N[language] || WORKOUT_PLAN_I18N.en;
-  const cardioCopy = CARDIO_PLAN_I18N[language] || CARDIO_PLAN_I18N.en;
+  const copy = LOCALIZED_WORKOUT_PLAN_I18N[language] || LOCALIZED_WORKOUT_PLAN_I18N.en;
+  const cardioCopy = LOCALIZED_CARDIO_PLAN_I18N[language] || LOCALIZED_CARDIO_PLAN_I18N.en;
   const isArabic = language === 'ar';
 
   const toLocalizedMuscleLabel = useCallback(
-    (value: string) => (language === 'ar' ? (AR_MUSCLE_LABELS[value.trim().toLowerCase()] || value) : value),
+    (value: string) => {
+      const key = value.trim().toLowerCase();
+      if (language === 'ar') return AR_MUSCLE_LABELS[key] || value;
+      if (language === 'it') return IT_MUSCLE_LABELS[key] || value;
+      if (language === 'de') return DE_MUSCLE_LABELS[key] || value;
+      return value;
+    },
     [language],
   );
 
   const toLocalizedDayLabel = useCallback(
     (value: string) => {
-      if (language !== 'ar') return value;
-      if (value.toLowerCase().includes('rest day')) return copy.restDayLabel;
-      const key = normalizeWorkoutDayKey(value);
-      return key ? (AR_DAY_LABELS[key] || value) : value;
+      const normalized = String(value || '').trim();
+      if (!normalized) return copy.workout;
+      if (normalized.toLowerCase().includes('rest day') || normalized.toLowerCase().includes('recovery day')) {
+        return copy.restDayLabel;
+      }
+      const key = normalizeWorkoutDayKey(normalized);
+      if (key) {
+        return formatWorkoutDayLabel(key, normalized, language);
+      }
+      return translateProgramText(normalized, language);
     },
-    [copy.restDayLabel, language],
+    [copy.restDayLabel, copy.workout, language],
   );
 
   useEffect(() => {
@@ -933,7 +1156,9 @@ export function WorkoutPlanScreen({
 
                   <div className="min-w-0 flex-1">
                     <div className="min-w-0">
-                      <h4 className="truncate text-sm font-semibold text-white">{stripExercisePrefix(exercise.name)}</h4>
+                      <h4 className="truncate text-sm font-semibold text-white">
+                        {translateExerciseName(stripExercisePrefix(exercise.name), language)}
+                      </h4>
                       <p className="mt-1 text-xs text-text-secondary">
                         {exercise.sets} {copy.setsLabel} - {exercise.reps || '--'} {copy.repsLabel} - {exercise.targetWeight ? `${exercise.targetWeight} ${copy.kgLabel}` : formatRestLabel(exercise.rest)}
                         {lastWeight ? ` - ${copy.lastWeightLabel} ${lastWeight} ${copy.kgLabel}` : ''}
@@ -1311,7 +1536,9 @@ export function WorkoutPlanScreen({
                                   {copy.add}
                                 </div>
                               </div>
-                              <div className="truncate text-sm font-bold text-white">{stripExercisePrefix(exercise.name)}</div>
+                              <div className="truncate text-sm font-bold text-white">
+                                {translateExerciseName(stripExercisePrefix(exercise.name), language)}
+                              </div>
                               <div className="mt-1 flex items-center justify-between gap-2">
                                 <div className="truncate text-[10px] uppercase tracking-wider text-text-secondary">
                                   {toLocalizedMuscleLabel(muscleLabel)}

@@ -414,6 +414,458 @@ const ATHLETE_IDENTITY_AR: Record<string, {
 };
 
 export const localizeAthleteOptions = (options: AthleteOption[], language: AppLanguage) => {
+  const ATHLETE_IDENTITY_IT: Record<string, {
+    label: string;
+    description: string;
+    subGroups?: Record<string, { title: string; items: Record<string, string> }>;
+  }> = {
+    bodybuilding: {
+      label: 'Bodybuilding',
+      description: 'Costruisci massa muscolare, simmetria e forza orientata al fisico.',
+      subGroups: {
+        bodybuilding_category: {
+          title: 'Per categoria',
+          items: {
+            hypertrophy: 'Ipertrofia',
+            powerlifting: 'Powerlifting',
+            cutting: 'Definizione',
+            bulking: 'Massa',
+            beginner_gym: 'Principiante in palestra',
+            natural_athlete: 'Atleta natural',
+            classic_physique: 'Classic physique',
+          },
+        },
+      },
+    },
+    cardio: {
+      label: 'Cardio',
+      description: 'Migliora resistenza, consumo calorico e condizionamento generale.',
+      subGroups: {
+        cardio_goal: {
+          title: 'Per focus',
+          items: {
+            fat_loss: 'Perdita di grasso',
+            endurance: 'Resistenza',
+            conditioning: 'Condizionamento',
+            heart_health: 'Salute del cuore',
+          },
+        },
+      },
+    },
+    football: {
+      label: 'Calcio',
+      description: 'Migliora velocita, agilita, potenza e resistenza partita.',
+      subGroups: {
+        football_position: {
+          title: 'Per ruolo',
+          items: {
+            striker: 'Attaccante',
+            winger: 'Ala',
+            midfielder: 'Centrocampista',
+            defender: 'Difensore',
+            goalkeeper: 'Portiere',
+          },
+        },
+        football_goal: {
+          title: 'Per obiettivo',
+          items: {
+            speed_acceleration: 'Velocita e accelerazione',
+            match_endurance: 'Resistenza partita',
+            shooting_power: 'Potenza di tiro',
+            injury_prevention: 'Prevenzione infortuni',
+            strength_duels: 'Forza nei duelli',
+          },
+        },
+        football_phase: {
+          title: 'Per fase stagione',
+          items: {
+            pre_season: 'Pre-stagione',
+            in_season: 'Durante la stagione',
+            off_season: 'Fuori stagione',
+          },
+        },
+      },
+    },
+    basketball: {
+      label: 'Basket',
+      description: 'Allena esplosivita, salto verticale e condizionamento da campo.',
+      subGroups: {
+        basketball_role: {
+          title: 'Per ruolo',
+          items: {
+            guard: 'Guardia',
+            forward: 'Ala',
+            center: 'Centro',
+          },
+        },
+        basketball_goal: {
+          title: 'Per obiettivo',
+          items: {
+            vertical_jump: 'Salto verticale',
+            explosive_speed: 'Velocita esplosiva',
+            lateral_agility: 'Agilita laterale',
+            knee_injury_prevention: 'Prevenzione infortuni al ginocchio',
+            core_stability: 'Stabilita del core',
+          },
+        },
+        basketball_phase: {
+          title: 'Per fase',
+          items: {
+            pre_season: 'Pre-stagione',
+            in_season: 'Durante la stagione',
+            off_season: 'Fuori stagione',
+          },
+        },
+      },
+    },
+    handball: {
+      label: 'Pallamano',
+      description: 'Aumenta potenza rotazionale, accelerazione e resistenza ripetuta.',
+      subGroups: {
+        handball_position: {
+          title: 'Per ruolo',
+          items: {
+            wing: 'Ala',
+            backcourt: 'Terzino',
+            pivot: 'Pivot',
+            goalkeeper: 'Portiere',
+          },
+        },
+        handball_goal: {
+          title: 'Per obiettivo',
+          items: {
+            throwing_power: 'Potenza di tiro',
+            jump_explosiveness: 'Esplosivita nel salto',
+            shoulder_strength: 'Forza delle spalle',
+            sprint_endurance: 'Resistenza agli sprint',
+          },
+        },
+        handball_phase: {
+          title: 'Per fase',
+          items: {
+            pre_season: 'Pre-stagione',
+            in_season: 'Durante la stagione',
+            off_season: 'Fuori stagione',
+          },
+        },
+      },
+    },
+    swimming: {
+      label: 'Nuoto',
+      description: 'Sviluppa resistenza total body, capacita polmonare e controllo.',
+      subGroups: {
+        swimming_stroke: {
+          title: 'Per stile',
+          items: {
+            freestyle: 'Stile libero',
+            breaststroke: 'Rana',
+            butterfly: 'Farfalla',
+            backstroke: 'Dorso',
+          },
+        },
+        swimming_goal: {
+          title: 'Per obiettivo',
+          items: {
+            shoulder_mobility: 'Mobilita delle spalle',
+            core_endurance: 'Resistenza del core',
+            breathing_capacity: 'Capacita respiratoria',
+            technique_strength: 'Forza tecnica',
+          },
+        },
+        swimming_phase: {
+          title: 'Per fase',
+          items: {
+            conditioning_phase: 'Fase di condizionamento',
+            competition_phase: 'Fase competitiva',
+            recovery_phase: 'Fase di recupero',
+          },
+        },
+      },
+    },
+    combat_sports: {
+      label: 'Sport da combattimento',
+      description: 'Costruisci condizionamento, velocita di reazione e potenza funzionale.',
+      subGroups: {
+        combat_sport_type: {
+          title: 'Per sport',
+          items: {
+            boxing: 'Boxe',
+            mma: 'MMA',
+            muay_thai: 'Muay Thai',
+            wrestling: 'Lotta',
+            judo: 'Judo',
+          },
+        },
+        combat_goal: {
+          title: 'Per obiettivo',
+          items: {
+            power_endurance: 'Resistenza alla potenza',
+            speed_reaction: 'Velocita e reazione',
+            weight_cut_conditioning: 'Condizionamento per taglio peso',
+            neck_core_strength: 'Forza di collo e core',
+          },
+        },
+        combat_phase: {
+          title: 'Per fase',
+          items: {
+            fight_camp: 'Fight camp',
+            off_camp: 'Fuori camp',
+            recovery: 'Recupero',
+          },
+        },
+      },
+    },
+  };
+
+  const ATHLETE_IDENTITY_DE: Record<string, {
+    label: string;
+    description: string;
+    subGroups?: Record<string, { title: string; items: Record<string, string> }>;
+  }> = {
+    bodybuilding: {
+      label: 'Bodybuilding',
+      description: 'Baue Muskelmasse, Symmetrie und physikorientierte Kraft auf.',
+      subGroups: {
+        bodybuilding_category: {
+          title: 'Nach Kategorie',
+          items: {
+            hypertrophy: 'Hypertrophie',
+            powerlifting: 'Powerlifting',
+            cutting: 'Definition',
+            bulking: 'Aufbau',
+            beginner_gym: 'Gym-Anfaenger',
+            natural_athlete: 'Naturaler Athlet',
+            classic_physique: 'Classic Physique',
+          },
+        },
+      },
+    },
+    cardio: {
+      label: 'Cardio',
+      description: 'Verbessere Ausdauer, Kalorienverbrauch und allgemeine Kondition.',
+      subGroups: {
+        cardio_goal: {
+          title: 'Nach Fokus',
+          items: {
+            fat_loss: 'Fettverlust',
+            endurance: 'Ausdauer',
+            conditioning: 'Kondition',
+            heart_health: 'Herzgesundheit',
+          },
+        },
+      },
+    },
+    football: {
+      label: 'Fussball',
+      description: 'Verbessere Schnelligkeit, Agilitaet, Kraft und Spielausdauer.',
+      subGroups: {
+        football_position: {
+          title: 'Nach Position',
+          items: {
+            striker: 'Stuermer',
+            winger: 'Fluegel',
+            midfielder: 'Mittelfeld',
+            defender: 'Verteidiger',
+            goalkeeper: 'Torwart',
+          },
+        },
+        football_goal: {
+          title: 'Nach Ziel',
+          items: {
+            speed_acceleration: 'Schnelligkeit und Antritt',
+            match_endurance: 'Spielausdauer',
+            shooting_power: 'Schusskraft',
+            injury_prevention: 'Verletzungspraevention',
+            strength_duels: 'Zweikampfstaerke',
+          },
+        },
+        football_phase: {
+          title: 'Nach Saisonphase',
+          items: {
+            pre_season: 'Vorbereitung',
+            in_season: 'Saison',
+            off_season: 'Off-Season',
+          },
+        },
+      },
+    },
+    basketball: {
+      label: 'Basketball',
+      description: 'Trainiere Explosivitaet, vertikale Sprungkraft und Spielfeld-Kondition.',
+      subGroups: {
+        basketball_role: {
+          title: 'Nach Rolle',
+          items: {
+            guard: 'Guard',
+            forward: 'Forward',
+            center: 'Center',
+          },
+        },
+        basketball_goal: {
+          title: 'Nach Ziel',
+          items: {
+            vertical_jump: 'Vertikalsprung',
+            explosive_speed: 'Explosive Geschwindigkeit',
+            lateral_agility: 'Seitliche Agilitaet',
+            knee_injury_prevention: 'Praevention Knieverletzungen',
+            core_stability: 'Core-Stabilitaet',
+          },
+        },
+        basketball_phase: {
+          title: 'Nach Phase',
+          items: {
+            pre_season: 'Vorbereitung',
+            in_season: 'Saison',
+            off_season: 'Off-Season',
+          },
+        },
+      },
+    },
+    handball: {
+      label: 'Handball',
+      description: 'Steigere Rotationskraft, Beschleunigung und wiederholbare Ausdauer.',
+      subGroups: {
+        handball_position: {
+          title: 'Nach Position',
+          items: {
+            wing: 'Aussen',
+            backcourt: 'Rueckraum',
+            pivot: 'Kreislaeufer',
+            goalkeeper: 'Torwart',
+          },
+        },
+        handball_goal: {
+          title: 'Nach Ziel',
+          items: {
+            throwing_power: 'Wurfkraft',
+            jump_explosiveness: 'Sprungexplosivitaet',
+            shoulder_strength: 'Schulterkraft',
+            sprint_endurance: 'Sprintausdauer',
+          },
+        },
+        handball_phase: {
+          title: 'Nach Phase',
+          items: {
+            pre_season: 'Vorbereitung',
+            in_season: 'Saison',
+            off_season: 'Off-Season',
+          },
+        },
+      },
+    },
+    swimming: {
+      label: 'Schwimmen',
+      description: 'Entwickle Ganzkoerper-Ausdauer, Lungenkapazitaet und Kontrolle.',
+      subGroups: {
+        swimming_stroke: {
+          title: 'Nach Stil',
+          items: {
+            freestyle: 'Freistil',
+            breaststroke: 'Brust',
+            butterfly: 'Schmetterling',
+            backstroke: 'Ruecken',
+          },
+        },
+        swimming_goal: {
+          title: 'Nach Ziel',
+          items: {
+            shoulder_mobility: 'Schulterbeweglichkeit',
+            core_endurance: 'Core-Ausdauer',
+            breathing_capacity: 'Atemkapazitaet',
+            technique_strength: 'Technikkraft',
+          },
+        },
+        swimming_phase: {
+          title: 'Nach Phase',
+          items: {
+            conditioning_phase: 'Aufbauphase',
+            competition_phase: 'Wettkampfphase',
+            recovery_phase: 'Erholungsphase',
+          },
+        },
+      },
+    },
+    combat_sports: {
+      label: 'Kampfsport',
+      description: 'Baue Kondition, Reaktionsschnelligkeit und funktionelle Kraft auf.',
+      subGroups: {
+        combat_sport_type: {
+          title: 'Nach Sportart',
+          items: {
+            boxing: 'Boxen',
+            mma: 'MMA',
+            muay_thai: 'Muay Thai',
+            wrestling: 'Ringen',
+            judo: 'Judo',
+          },
+        },
+        combat_goal: {
+          title: 'Nach Ziel',
+          items: {
+            power_endurance: 'Kraftausdauer',
+            speed_reaction: 'Geschwindigkeit und Reaktion',
+            weight_cut_conditioning: 'Conditioning fuer Weight Cut',
+            neck_core_strength: 'Nacken- und Core-Kraft',
+          },
+        },
+        combat_phase: {
+          title: 'Nach Phase',
+          items: {
+            fight_camp: 'Fight Camp',
+            off_camp: 'Ausserhalb des Camps',
+            recovery: 'Erholung',
+          },
+        },
+      },
+    },
+  };
+
+  if (language === 'it') {
+    return options.map((option) => {
+      const it = ATHLETE_IDENTITY_IT[option.id];
+      if (!it) return option;
+      return {
+        ...option,
+        label: it.label || option.label,
+        description: it.description || option.description,
+        subGroups: option.subGroups.map((group) => {
+          const groupIt = it.subGroups?.[group.id];
+          return {
+            ...group,
+            title: groupIt?.title || group.title,
+            items: group.items.map((item) => ({
+              ...item,
+              label: groupIt?.items?.[item.id] || item.label,
+            })),
+          };
+        }),
+      };
+    });
+  }
+
+  if (language === 'de') {
+    return options.map((option) => {
+      const de = ATHLETE_IDENTITY_DE[option.id];
+      if (!de) return option;
+      return {
+        ...option,
+        label: de.label || option.label,
+        description: de.description || option.description,
+        subGroups: option.subGroups.map((group) => {
+          const groupDe = de.subGroups?.[group.id];
+          return {
+            ...group,
+            title: groupDe?.title || group.title,
+            items: group.items.map((item) => ({
+              ...item,
+              label: groupDe?.items?.[item.id] || item.label,
+            })),
+          };
+        }),
+      };
+    });
+  }
+
   if (language !== 'ar') return options;
   return options.map((option) => {
     const ar = ATHLETE_IDENTITY_AR[option.id];

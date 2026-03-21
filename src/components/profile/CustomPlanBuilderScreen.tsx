@@ -3,6 +3,7 @@ import { CustomPlanOnboardingScreen } from '../onboarding/CustomPlanOnboardingSc
 import { OnboardingLayout } from '../onboarding/OnboardingLayout';
 import { api } from '../../services/api';
 import { AppLanguage, getActiveLanguage, getStoredLanguage } from '../../services/language';
+import { localizeCustomPlanName } from '../../services/programI18n';
 
 interface CustomPlanBuilderScreenProps {
   onBack: () => void;
@@ -95,6 +96,22 @@ const COPY = {
     loadError: 'تعذر تحميل خطتك الحالية.',
     noSession: 'لا توجد جلسة مستخدم نشطة.',
     defaultPlanName: 'خطتي المخصصة',
+  },
+  it: {
+    setupTitle: 'Piano personalizzato',
+    templatesTitle: 'Modelli piano',
+    loading: 'Caricamento del tuo piano personalizzato...',
+    loadError: 'Impossibile caricare il piano attuale.',
+    noSession: 'Nessuna sessione utente attiva trovata.',
+    defaultPlanName: 'Piano personalizzato',
+  },
+  de: {
+    setupTitle: 'Individueller Plan',
+    templatesTitle: 'Planvorlagen',
+    loading: 'Dein individueller Plan wird geladen...',
+    loadError: 'Dein aktueller Plan konnte nicht geladen werden.',
+    noSession: 'Keine aktive Benutzersitzung gefunden.',
+    defaultPlanName: 'Individueller Plan',
   },
 } as const;
 
@@ -234,6 +251,7 @@ const buildInitialBuilderData = (
   storedTemplate: StoredAssignedProgramTemplate | null,
   language: AppLanguage,
 ): BuilderData => {
+  const copy = COPY[language] || COPY.en;
   const sortedCurrentWeekWorkouts = [...(Array.isArray(program?.currentWeekWorkouts) ? program.currentWeekWorkouts : [])]
     .sort((left, right) => {
       const leftDay = normalizeDayKey(left.day_name || left.dayName);
@@ -285,13 +303,14 @@ const buildInitialBuilderData = (
   return {
     workoutDays: Math.max(2, Math.min(6, fallbackSelectedDays.length || 4)),
     customPlan: {
-      planName: String(
+      planName: localizeCustomPlanName(
         storedTemplate?.planName
         || storedTemplate?.name
         || program?.planName
         || program?.name
-        || COPY[language].defaultPlanName,
-      ).trim() || COPY[language].defaultPlanName,
+        || copy.defaultPlanName,
+        language,
+      ).trim() || copy.defaultPlanName,
       cycleWeeks: Math.max(
         6,
         Math.min(

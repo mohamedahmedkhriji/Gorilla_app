@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState, useId, useCallback } from 'react';
 import { Card } from '../ui/Card';
 import { api } from '../../services/api';
-import { AppLanguage, getActiveLanguage, getStoredLanguage } from '../../services/language';
+import { AppLanguage, getActiveLanguage, getLanguageLocale, getStoredLanguage } from '../../services/language';
 
 interface StrengthWeekPoint {
   yearWeek: number;
@@ -72,6 +72,32 @@ const STRENGTH_CHART_I18N = {
     start: 'البداية',
     mid: 'الوسط',
     now: 'الآن',
+  },
+  it: {
+    heading: 'Progressi di Forza',
+    subtitle: 'Media settimanale stimata del 1RM',
+    trend: 'Trend',
+    baseline: 'Base',
+    current: 'Attuale',
+    noData: 'Registra serie con peso per sbloccare il tuo trend di forza.',
+    min: 'Min',
+    max: 'Max',
+    start: 'Inizio',
+    mid: 'Meta',
+    now: 'Ora',
+  },
+  de: {
+    heading: 'Kraftfortschritt',
+    subtitle: 'Geschaetzter 1RM-Wochendurchschnitt',
+    trend: 'Trend',
+    baseline: 'Basis',
+    current: 'Aktuell',
+    noData: 'Protokolliere gewichtete Saetze, um deinen Krafttrend freizuschalten.',
+    min: 'Min',
+    max: 'Max',
+    start: 'Start',
+    mid: 'Mitte',
+    now: 'Jetzt',
   },
 } as const;
 
@@ -188,10 +214,7 @@ export function StrengthChart({ coachmarkTargetId }: StrengthChartProps) {
       if (!value) return '-';
       const date = new Date(value);
       if (Number.isNaN(date.getTime())) return '-';
-      return date.toLocaleDateString(
-        language === 'ar' ? 'ar-EG' : undefined,
-        { month: 'short', day: 'numeric' },
-      );
+      return date.toLocaleDateString(getLanguageLocale(language), { month: 'short', day: 'numeric' });
     };
 
     return {

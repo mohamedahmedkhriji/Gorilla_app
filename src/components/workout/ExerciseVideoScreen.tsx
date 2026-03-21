@@ -96,6 +96,16 @@ const EXERCISE_VIDEO_I18N: Record<AppLanguage, {
     noVideo: 'لا يوجد فيديو مرتبط بهذا التمرين بعد',
     defaultMuscle: 'الصدر',
   },
+  it: {
+    muscleDistributionTitle: 'Distribuzione Muscolare (Target del Piano)',
+    noVideo: 'Nessun video collegato ancora per questo esercizio',
+    defaultMuscle: 'Petto',
+  },
+  de: {
+    muscleDistributionTitle: 'Muskelverteilung (Plan-Ziel)',
+    noVideo: 'Fuer diese Uebung ist noch kein Video verknuepft',
+    defaultMuscle: 'Brust',
+  },
 };
 
 const AR_SUB_MUSCLE_LABELS: Record<string, string> = {
@@ -129,6 +139,72 @@ const AR_BASE_MUSCLE_LABELS: Record<string, string> = {
   core: 'الجذع',
   legs: 'الأرجل',
   general: 'عام',
+};
+
+const IT_SUB_MUSCLE_LABELS: Record<string, string> = {
+  'upper chest': 'Petto alto',
+  'mid chest': 'Petto medio',
+  'lower chest': 'Petto basso',
+  'upper back': 'Schiena alta',
+  'lower back': 'Schiena bassa',
+  lats: 'Dorsali',
+  'long head biceps': 'Capo lungo bicipite',
+  'short head biceps': 'Capo corto bicipite',
+  brachialis: 'Brachiale',
+  'upper abs': 'Addome alto',
+  obliques: 'Obliqui',
+  'lower abs': 'Addome basso',
+  'front delts': 'Deltoidi anteriori',
+  'side delts': 'Deltoidi laterali',
+  'rear delts': 'Deltoidi posteriori',
+  'long head triceps': 'Capo lungo tricipite',
+  'lateral head triceps': 'Capo laterale tricipite',
+  'medial head triceps': 'Capo mediale tricipite',
+};
+
+const DE_SUB_MUSCLE_LABELS: Record<string, string> = {
+  'upper chest': 'Obere Brust',
+  'mid chest': 'Mittlere Brust',
+  'lower chest': 'Untere Brust',
+  'upper back': 'Oberer Ruecken',
+  'lower back': 'Unterer Ruecken',
+  lats: 'Latissimus',
+  'long head biceps': 'Langer Bizepskopf',
+  'short head biceps': 'Kurzer Bizepskopf',
+  brachialis: 'Brachialis',
+  'upper abs': 'Obere Bauchmuskeln',
+  obliques: 'Schraege Bauchmuskeln',
+  'lower abs': 'Untere Bauchmuskeln',
+  'front delts': 'Vordere Delts',
+  'side delts': 'Seitliche Delts',
+  'rear delts': 'Hintere Delts',
+  'long head triceps': 'Langer Trizepskopf',
+  'lateral head triceps': 'Lateraler Trizepskopf',
+  'medial head triceps': 'Medialer Trizepskopf',
+};
+
+const IT_BASE_MUSCLE_LABELS: Record<string, string> = {
+  chest: 'Petto',
+  back: 'Schiena',
+  shoulders: 'Spalle',
+  triceps: 'Tricipiti',
+  biceps: 'Bicipiti',
+  abs: 'Addome',
+  core: 'Core',
+  legs: 'Gambe',
+  general: 'Generale',
+};
+
+const DE_BASE_MUSCLE_LABELS: Record<string, string> = {
+  chest: 'Brust',
+  back: 'Ruecken',
+  shoulders: 'Schultern',
+  triceps: 'Trizeps',
+  biceps: 'Bizeps',
+  abs: 'Bauch',
+  core: 'Core',
+  legs: 'Beine',
+  general: 'Allgemein',
 };
 
 const SEGMENT_COUNT = 10;
@@ -478,7 +554,7 @@ const detectExerciseGroup = (muscle?: string, videoUrl?: string) => {
 export function ExerciseVideoScreen({ onBack, exercise }: ExerciseVideoScreenProps) {
   const language = getActiveLanguage(getStoredLanguage());
   const isArabic = language === 'ar';
-  const copy = EXERCISE_VIDEO_I18N[isArabic ? 'ar' : 'en'];
+  const copy = EXERCISE_VIDEO_I18N[language] || EXERCISE_VIDEO_I18N.en;
   const videoRef = useRef<HTMLVideoElement>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const displayExerciseName = getDisplayExerciseName(exercise?.name);
@@ -507,15 +583,19 @@ export function ExerciseVideoScreen({ onBack, exercise }: ExerciseVideoScreenPro
                 : getMuscleDistribution(targetMuscles);
 
   const toLocalizedSubMuscle = (value: string) => {
-    if (!isArabic) return value;
     const key = String(value || '').trim().toLowerCase();
-    return AR_SUB_MUSCLE_LABELS[key] || AR_BASE_MUSCLE_LABELS[key] || value;
+    if (language === 'ar') return AR_SUB_MUSCLE_LABELS[key] || AR_BASE_MUSCLE_LABELS[key] || value;
+    if (language === 'it') return IT_SUB_MUSCLE_LABELS[key] || IT_BASE_MUSCLE_LABELS[key] || value;
+    if (language === 'de') return DE_SUB_MUSCLE_LABELS[key] || DE_BASE_MUSCLE_LABELS[key] || value;
+    return value;
   };
 
   const toLocalizedBaseMuscle = (value?: string) => {
-    if (!isArabic) return value || copy.defaultMuscle;
     const key = String(value || '').trim().toLowerCase();
-    return AR_BASE_MUSCLE_LABELS[key] || value || copy.defaultMuscle;
+    if (language === 'ar') return AR_BASE_MUSCLE_LABELS[key] || value || copy.defaultMuscle;
+    if (language === 'it') return IT_BASE_MUSCLE_LABELS[key] || value || copy.defaultMuscle;
+    if (language === 'de') return DE_BASE_MUSCLE_LABELS[key] || value || copy.defaultMuscle;
+    return value || copy.defaultMuscle;
   };
 
   const togglePlay = () => {

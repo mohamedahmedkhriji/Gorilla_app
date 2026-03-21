@@ -4,7 +4,7 @@ import { formatWorkoutDayLabel, formatWorkoutDayShortLabel, normalizeWorkoutDayK
 import { emojiAgenda, emojiDoneDayBg, emojiMissedDayBg } from '../../services/emojiTheme';
 import doneDayIcon from '../../../assets/emoji/done day.png';
 import highWeightIcon from '../../../assets/emoji/high weight.png';
-import { getActiveLanguage, getStoredLanguage } from '../../services/language';
+import { AppLanguage, getActiveLanguage, getLanguageLocale, getStoredLanguage } from '../../services/language';
 import type { WorkoutAssignmentHistoryEntry } from '../../services/todayWorkoutSelection';
 import { stripExercisePrefix } from '../../services/exerciseName';
 
@@ -20,6 +20,115 @@ type AgendaDay = {
   isAssignedDay: boolean;
   isPickedForToday: boolean;
   isRestDay: boolean;
+};
+
+const AGENDA_TITLE: Record<AppLanguage, string> = {
+  en: '30 Day Agenda',
+  ar: 'أجندة 30 يوماً',
+  it: 'Agenda di 30 Giorni',
+  de: '30-Tage-Agenda',
+};
+
+const AGENDA_COPY: Record<AppLanguage, {
+  exercises: string;
+  recoveryDay: string;
+  missedDay: string;
+  chooseFirstTitle: string;
+  chooseFirstBody: string;
+  selectedForToday: string;
+  selectedBody: string;
+  selectedLockedBody: string;
+  assignedBody: string;
+  completedForToday: string;
+  pendingRecoveryDay: string;
+  chooseForToday: string;
+  chosenForToday: string;
+  planLockedTitle: string;
+  planLockedBody: string;
+  planLocked: string;
+  missedBody: string;
+  recoveryBody: string;
+}> = {
+  en: {
+    exercises: 'Exercises',
+    recoveryDay: 'Recovery Day',
+    missedDay: 'Missed Day',
+    chooseFirstTitle: 'Choose This First',
+    chooseFirstBody: 'Pick this workout for today first before seeing the workout details.',
+    selectedForToday: 'Selected For Today',
+    selectedBody: 'This is the workout currently chosen for today. You can change it anytime.',
+    selectedLockedBody: 'You already started today\'s workout, so today\'s plan is locked.',
+    assignedBody: 'This workout was assigned to that day.',
+    completedForToday: 'Completed Today',
+    pendingRecoveryDay: 'Recovery Day',
+    chooseForToday: 'Pick For Today',
+    chosenForToday: 'Chosen For Today',
+    planLockedTitle: 'Plan Locked',
+    planLockedBody: 'Once you start any exercise today, you can no longer change today\'s plan.',
+    planLocked: 'Plan Locked',
+    missedBody: 'This scheduled workout was marked as missed and no longer counts toward this week\'s remaining sessions.',
+    recoveryBody: 'Rest and let your muscles recover',
+  },
+  ar: {
+    exercises: 'التمارين',
+    recoveryDay: 'يوم التعافي',
+    missedDay: 'يوم مفقود',
+    chooseFirstTitle: 'اختر الحصة أولاً',
+    chooseFirstBody: 'اختر هذه الحصة لليوم أولاً قبل رؤية تفاصيل التمرين.',
+    selectedForToday: 'مختار لليوم',
+    selectedBody: 'هذه هي الحصة المختارة للتدريب اليوم. يمكنك تغييرها في أي وقت.',
+    selectedLockedBody: 'لقد بدأت تمرين اليوم بالفعل، لذلك أصبحت خطة اليوم مقفلة.',
+    assignedBody: 'تم حفظ هذا التمرين لذلك اليوم.',
+    completedForToday: 'مكتمل اليوم',
+    pendingRecoveryDay: 'يوم تعافٍ مؤقت',
+    chooseForToday: 'اختره لليوم',
+    chosenForToday: 'تم اختياره لليوم',
+    planLockedTitle: 'الخطة مقفلة',
+    planLockedBody: 'بعد بدء أي تمرين اليوم، لا يمكنك تغيير خطة اليوم.',
+    planLocked: 'الخطة مقفلة',
+    missedBody: 'تم اعتبار هذا التمرين المجدول كمفقود ولن يُحسب ضمن حصص هذا الأسبوع المتبقية.',
+    recoveryBody: 'استرح ودع عضلاتك تتعافى',
+  },
+  it: {
+    exercises: 'Esercizi',
+    recoveryDay: 'Giorno di Recupero',
+    missedDay: 'Giorno Saltato',
+    chooseFirstTitle: 'Scegli Prima Questo',
+    chooseFirstBody: 'Scegli prima questo workout per oggi prima di vedere i dettagli dell\'allenamento.',
+    selectedForToday: 'Selezionato Per Oggi',
+    selectedBody: 'Questo e il workout attualmente scelto per oggi. Puoi cambiarlo in qualsiasi momento.',
+    selectedLockedBody: 'Hai gia iniziato il workout di oggi, quindi il piano di oggi e bloccato.',
+    assignedBody: 'Questo workout e stato assegnato a quel giorno.',
+    completedForToday: 'Completato Oggi',
+    pendingRecoveryDay: 'Giorno di Recupero',
+    chooseForToday: 'Scegli per oggi',
+    chosenForToday: 'Scelto Per Oggi',
+    planLockedTitle: 'Piano Bloccato',
+    planLockedBody: 'Una volta iniziato un esercizio oggi, non puoi piu cambiare il piano di oggi.',
+    planLocked: 'Piano Bloccato',
+    missedBody: 'Questo workout programmato e stato segnato come saltato e non conta piu per le sessioni rimanenti di questa settimana.',
+    recoveryBody: 'Riposati e lascia recuperare i tuoi muscoli',
+  },
+  de: {
+    exercises: 'Uebungen',
+    recoveryDay: 'Erholungstag',
+    missedDay: 'Verpasster Tag',
+    chooseFirstTitle: 'Waehle Das Zuerst',
+    chooseFirstBody: 'Waehle dieses Workout zuerst fuer heute aus, bevor du die Trainingsdetails ansiehst.',
+    selectedForToday: 'Fuer Heute Ausgewaehlt',
+    selectedBody: 'Dies ist das Workout, das aktuell fuer heute ausgewaehlt ist. Du kannst es jederzeit aendern.',
+    selectedLockedBody: 'Du hast das heutige Workout bereits begonnen, deshalb ist der heutige Plan gesperrt.',
+    assignedBody: 'Dieses Workout wurde diesem Tag zugewiesen.',
+    completedForToday: 'Heute Erledigt',
+    pendingRecoveryDay: 'Erholungstag',
+    chooseForToday: 'Fuer heute waehlen',
+    chosenForToday: 'Fuer Heute Gewaehlt',
+    planLockedTitle: 'Plan Gesperrt',
+    planLockedBody: 'Sobald du heute eine Uebung beginnst, kannst du den heutigen Plan nicht mehr aendern.',
+    planLocked: 'Plan Gesperrt',
+    missedBody: 'Dieses geplante Workout wurde als verpasst markiert und zaehlt nicht mehr zu den verbleibenden Einheiten dieser Woche.',
+    recoveryBody: 'Ruhe dich aus und gib deinen Muskeln Zeit zur Erholung',
+  },
 };
 
 export function AgendaSection({
@@ -42,8 +151,9 @@ export function AgendaSection({
 }) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [selectedDay, setSelectedDay] = useState<AgendaDay | null>(null);
-  const isArabic = getActiveLanguage(getStoredLanguage()) === 'ar';
-  const agendaTitle = isArabic ? 'أجندة 30 يومًا' : '30 Day Agenda';
+  const language = getActiveLanguage(getStoredLanguage()) as AppLanguage;
+  const isArabic = language === 'ar';
+  const agendaTitle = AGENDA_TITLE[language] || AGENDA_TITLE.en;
   const copy = {
     weeklyAgenda: isArabic ? 'أجندة الأسبوع' : 'Weekly Agenda',
     exercises: isArabic ? 'التمارين' : 'Exercises',
@@ -75,6 +185,7 @@ export function AgendaSection({
       : 'This scheduled workout was marked as missed and no longer counts toward this week\'s remaining sessions.',
     recoveryBody: isArabic ? 'استرح ودع عضلاتك تتعافى' : 'Rest and let your muscles recover',
   };
+  const localizedCopy = AGENDA_COPY[language] || copy;
   const arDayLabels: Record<string, { long: string; short: string }> = {
     monday: { long: 'الاثنين', short: 'اثن' },
     tuesday: { long: 'الثلاثاء', short: 'ثلا' },
@@ -297,12 +408,20 @@ export function AgendaSection({
               : 'upcoming';
 
     return {
-      day: isArabic
-        ? (arDayLabels[weekdayKey || '']?.short || date.toLocaleDateString('ar-EG', { weekday: 'short' }))
-        : formatWorkoutDayShortLabel(weekdayKey, date.toLocaleDateString('en-US', { weekday: 'short' })),
-      dayLabel: isArabic
-        ? (arDayLabels[weekdayKey || '']?.long || date.toLocaleDateString('ar-EG', { weekday: 'long' }))
-        : formatWorkoutDayLabel(weekdayKey, date.toLocaleDateString('en-US', { weekday: 'long' })),
+      day: formatWorkoutDayShortLabel(
+        weekdayKey,
+        isArabic
+          ? (arDayLabels[weekdayKey || '']?.short || date.toLocaleDateString('ar-EG', { weekday: 'short' }))
+          : date.toLocaleDateString(getLanguageLocale(language), { weekday: 'short' }),
+        language,
+      ),
+      dayLabel: formatWorkoutDayLabel(
+        weekdayKey,
+        isArabic
+          ? (arDayLabels[weekdayKey || '']?.long || date.toLocaleDateString('ar-EG', { weekday: 'long' }))
+          : date.toLocaleDateString(getLanguageLocale(language), { weekday: 'long' }),
+        language,
+      ),
       date: date.getDate(),
       fullDate: date,
       label,
@@ -450,7 +569,7 @@ export function AgendaSection({
             <div className="flex justify-between items-start mb-4">
               <div>
                 <h3 className="text-3xl leading-none text-white">
-                  {selectedDay.fullDate.toLocaleDateString(isArabic ? 'ar-EG' : 'en-US', { month: 'long', day: 'numeric' })}
+                  {selectedDay.fullDate.toLocaleDateString(getLanguageLocale(language), { month: 'long', day: 'numeric' })}
                 </h3>
                 <p className="text-xs uppercase tracking-[0.1em] text-text-secondary mt-2">
                   {isArabic ? selectedDay.dayLabel : (selectedDay.dayLabel || '').toUpperCase()}
@@ -463,7 +582,7 @@ export function AgendaSection({
 
             <div className="mb-4 text-sm text-text-secondary">
               {selectedDay.label === restLabel || selectedDay.status === 'recovery'
-                ? copy.recoveryDay
+                ? localizedCopy.recoveryDay
                 : selectedDay.label}
             </div>
 
@@ -472,9 +591,9 @@ export function AgendaSection({
                 <div className="w-16 h-16 rounded-2xl bg-rose-500/12 border border-rose-500/30 flex items-center justify-center mb-4">
                   <CalendarX2 size={30} className="text-rose-300" />
                 </div>
-                <h4 className="text-3xl leading-none text-white mb-2">{copy.missedDay}</h4>
+                <h4 className="text-3xl leading-none text-white mb-2">{localizedCopy.missedDay}</h4>
                 <p className="text-sm text-text-secondary">
-                  {copy.missedBody}
+                  {localizedCopy.missedBody}
                 </p>
               </div>
             ) : selectedDay.status === 'picked' ? (
@@ -488,18 +607,18 @@ export function AgendaSection({
                     />
                   </div>
                   <h4 className="text-3xl leading-none text-white mb-2">
-                    {selectedDay.isPickedForToday ? copy.selectedForToday : copy.chosenForToday}
+                    {selectedDay.isPickedForToday ? localizedCopy.selectedForToday : localizedCopy.chosenForToday}
                   </h4>
                   <p className="text-sm text-text-secondary">
                     {selectedDay.isPickedForToday
-                      ? (isTodayPlanLocked ? copy.selectedLockedBody : copy.selectedBody)
-                      : copy.assignedBody}
+                      ? (isTodayPlanLocked ? localizedCopy.selectedLockedBody : localizedCopy.selectedBody)
+                      : localizedCopy.assignedBody}
                   </p>
                 </div>
 
                 {selectedDay.exercises.length > 0 && (
                   <div className="space-y-2">
-                    <h4 className="text-[11px] font-semibold text-text-secondary uppercase tracking-[0.12em] mb-3">{copy.exercises}</h4>
+                    <h4 className="text-[11px] font-semibold text-text-secondary uppercase tracking-[0.12em] mb-3">{localizedCopy.exercises}</h4>
                     {selectedDay.exercises.map((exercise, index) => {
                       const isDone = selectedDay.status === 'done';
                       return (
@@ -526,9 +645,9 @@ export function AgendaSection({
                   />
                 </div>
                 <h4 className="text-3xl leading-none text-white mb-2">
-                  {selectedDay.status === 'recovery' ? copy.pendingRecoveryDay : copy.recoveryDay}
+                  {selectedDay.status === 'recovery' ? localizedCopy.pendingRecoveryDay : localizedCopy.recoveryDay}
                 </h4>
-                <p className="text-sm text-text-secondary">{copy.recoveryBody}</p>
+                <p className="text-sm text-text-secondary">{localizedCopy.recoveryBody}</p>
               </div>
             ) : selectedDay.status !== 'done' ? (
               <div className="flex flex-col items-center justify-center py-8 text-center">
@@ -540,10 +659,10 @@ export function AgendaSection({
                   />
                 </div>
                 <h4 className="text-3xl leading-none text-white mb-2">
-                  {isTodayPlanLocked ? copy.planLockedTitle : copy.chooseFirstTitle}
+                  {isTodayPlanLocked ? localizedCopy.planLockedTitle : localizedCopy.chooseFirstTitle}
                 </h4>
                 <p className="text-sm text-text-secondary">
-                  {isTodayPlanLocked ? copy.planLockedBody : copy.chooseFirstBody}
+                  {isTodayPlanLocked ? localizedCopy.planLockedBody : localizedCopy.chooseFirstBody}
                 </p>
                 {!!(selectedDay.workoutKey && onPickWorkoutForToday) && (
                   <button
@@ -560,13 +679,13 @@ export function AgendaSection({
                       setSelectedDay(null);
                     }}
                   >
-                    {isTodayPlanLocked ? copy.planLocked : copy.chooseForToday}
+                    {isTodayPlanLocked ? localizedCopy.planLocked : localizedCopy.chooseForToday}
                   </button>
                 )}
               </div>
             ) : (
               <div className="space-y-2">
-                <h4 className="text-[11px] font-semibold text-text-secondary uppercase tracking-[0.12em] mb-3">{copy.exercises}</h4>
+                <h4 className="text-[11px] font-semibold text-text-secondary uppercase tracking-[0.12em] mb-3">{localizedCopy.exercises}</h4>
                 {selectedDay.exercises.map((exercise, index) => (
                   <div key={index} className="bg-background rounded-xl p-3 border border-white/10 flex items-center justify-between">
                     <span className="text-white text-sm">{stripExercisePrefix(exercise)}</span>

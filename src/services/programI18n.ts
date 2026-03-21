@@ -11,6 +11,31 @@ const replaceByMap = (value: string, replacements: Array<[string, string]>) =>
     value,
   );
 
+const CUSTOM_PLAN_NAME_BY_LANGUAGE: Record<AppLanguage, string> = {
+  en: 'My Custom Plan',
+  ar: 'خطتي المخصصة',
+  it: 'Piano personalizzato',
+  de: 'Individueller Plan',
+};
+
+const CUSTOM_PLAN_NAME_ALIASES = new Set([
+  ...Object.values(CUSTOM_PLAN_NAME_BY_LANGUAGE),
+  'Custom Plan',
+  'My Personalized Plan',
+  'Personalized Plan',
+  'الخطة المخصصة',
+].map((value) => normalizeText(value)));
+
+export const localizeCustomPlanName = (
+  value: unknown,
+  language: AppLanguage = 'en',
+) => {
+  const text = String(value || '').trim();
+  if (!text) return text;
+  if (!CUSTOM_PLAN_NAME_ALIASES.has(normalizeText(text))) return text;
+  return CUSTOM_PLAN_NAME_BY_LANGUAGE[language] || CUSTOM_PLAN_NAME_BY_LANGUAGE.en;
+};
+
 const ARABIC_EXERCISE_NAME_MAP: Record<string, string> = {
   'assisted dip': 'ديب مساعد',
   'back squat': 'سكوات خلفي',
@@ -258,6 +283,12 @@ const GERMAN_LEVEL_MAP: Record<string, string> = {
 };
 
 const PROGRAM_TEXT_REPLACEMENTS: Array<[string, string]> = [
+  ['Custom Workout', 'تمرين مخصص'],
+  ['Recovery Day', 'يوم التعافي'],
+  ['Rest Day', 'يوم راحة'],
+  ['Leg Day', 'يوم الأرجل'],
+  ['Pull Day', 'يوم السحب'],
+  ['Push Day', 'يوم الدفع'],
   ['Strength & Bulk Plan', 'خطة القوة والتضخيم'],
   ['Upper / Lower', 'علوي / سفلي'],
   ['Upper/Lower', 'علوي/سفلي'],
@@ -322,9 +353,17 @@ export const translateExperienceLevel = (value: unknown, language: AppLanguage =
 export const translateProgramText = (value: unknown, language: AppLanguage = 'en') => {
   const text = String(value || '').trim();
   if (!text) return text;
+  const localizedCustomPlanName = localizeCustomPlanName(text, language);
+  if (localizedCustomPlanName !== text) return localizedCustomPlanName;
   if (language === 'ar') return repairMojibakeText(replaceByMap(text, PROGRAM_TEXT_REPLACEMENTS));
   if (language === 'it') {
     return replaceByMap(text, [
+      ['Custom Workout', 'Allenamento personalizzato'],
+      ['Recovery Day', 'Giorno di recupero'],
+      ['Rest Day', 'Giorno di riposo'],
+      ['Leg Day', 'Giorno gambe'],
+      ['Pull Day', 'Giorno tirata'],
+      ['Push Day', 'Giorno spinta'],
       ['Strength & Bulk Plan', 'Piano Forza e Massa'],
       ['Upper / Lower', 'Parte Superiore / Inferiore'],
       ['Upper/Lower', 'Parte Superiore/Inferiore'],
@@ -351,6 +390,12 @@ export const translateProgramText = (value: unknown, language: AppLanguage = 'en
   }
   if (language === 'de') {
     return replaceByMap(text, [
+      ['Custom Workout', 'Benutzerdefiniertes Workout'],
+      ['Recovery Day', 'Erholungstag'],
+      ['Rest Day', 'Ruhetag'],
+      ['Leg Day', 'Beintag'],
+      ['Pull Day', 'Pull-Tag'],
+      ['Push Day', 'Push-Tag'],
       ['Strength & Bulk Plan', 'Kraft- und Masseplan'],
       ['Upper / Lower', 'Oberkorper / Unterkorper'],
       ['Upper/Lower', 'Oberkorper/Unterkorper'],

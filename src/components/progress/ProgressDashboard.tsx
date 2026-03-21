@@ -196,6 +196,40 @@ const PROGRESS_DASHBOARD_I18N = {
     fireAlt: 'نار',
     progressDialogAria: 'نافذة معلومات صفحة التقدم',
   },
+  it: {
+    title: 'I Tuoi Progressi',
+    strengthScoreInfo: 'Info punteggio forza',
+    totalVolume: 'Volume Totale',
+    muscleDistribution: 'Distribuzione Muscolare (Target del Piano)',
+    noPlanDistribution: 'Nessuna distribuzione del piano disponibile per questo utente.',
+    viewBiWeeklyReport: 'Visualizza Report Bisettimanale',
+    progressDialogTitle: 'Cosa trovi in questa pagina',
+    close: 'Chiudi',
+    infoLine1: 'Il tuo trend settimanale della forza (1RM stimato).',
+    infoLine2: 'La tua percentuale settimanale di costanza e i giorni completati.',
+    infoLine3: 'Il volume totale sollevato.',
+    infoLine4: 'I principali muscoli target del piano attuale.',
+    infoLine5: 'Prossimi consigli di overload e accesso rapido al report.',
+    fireAlt: 'Fuoco',
+    progressDialogAria: 'Finestra info pagina progressi',
+  },
+  de: {
+    title: 'Dein Fortschritt',
+    strengthScoreInfo: 'Infos zum Kraftwert',
+    totalVolume: 'Gesamtvolumen',
+    muscleDistribution: 'Muskelverteilung (Plan-Ziel)',
+    noPlanDistribution: 'Fuer diesen Nutzer ist noch keine Planverteilung verfuegbar.',
+    viewBiWeeklyReport: 'Zweiwochenbericht Anzeigen',
+    progressDialogTitle: 'Was auf dieser Seite ist',
+    close: 'Schliessen',
+    infoLine1: 'Dein woechentlicher Krafttrend (geschaetztes 1RM).',
+    infoLine2: 'Deine woechentliche Konstanz in Prozent und abgeschlossene Tage.',
+    infoLine3: 'Dein gesamtes bewegtes Volumen.',
+    infoLine4: 'Deine wichtigsten Zielmuskeln im aktuellen Plan.',
+    infoLine5: 'Naechste Overload-Empfehlungen und schneller Berichtszugang.',
+    fireAlt: 'Feuer',
+    progressDialogAria: 'Info-Dialog Fortschrittsseite',
+  },
 } as const;
 
 const ARABIC_MUSCLE_NAME_MAP: Record<string, string> = {
@@ -211,9 +245,37 @@ const ARABIC_MUSCLE_NAME_MAP: Record<string, string> = {
   Forearms: 'الساعد',
 };
 
+const ITALIAN_MUSCLE_NAME_MAP: Record<string, string> = {
+  Abs: 'Addome',
+  Triceps: 'Tricipiti',
+  Biceps: 'Bicipiti',
+  Chest: 'Petto',
+  Back: 'Schiena',
+  Shoulders: 'Spalle',
+  Quadriceps: 'Quadricipiti',
+  Hamstrings: 'Femorali',
+  Calves: 'Polpacci',
+  Forearms: 'Avambracci',
+};
+
+const GERMAN_MUSCLE_NAME_MAP: Record<string, string> = {
+  Abs: 'Bauch',
+  Triceps: 'Trizeps',
+  Biceps: 'Bizeps',
+  Chest: 'Brust',
+  Back: 'Ruecken',
+  Shoulders: 'Schultern',
+  Quadriceps: 'Quadrizeps',
+  Hamstrings: 'Beinbeuger',
+  Calves: 'Waden',
+  Forearms: 'Unterarme',
+};
+
 const getLocalizedMuscleName = (name: string, language: AppLanguage) => {
-  if (language !== 'ar') return name;
-  return ARABIC_MUSCLE_NAME_MAP[name] || name;
+  if (language === 'ar') return ARABIC_MUSCLE_NAME_MAP[name] || name;
+  if (language === 'it') return ITALIAN_MUSCLE_NAME_MAP[name] || name;
+  if (language === 'de') return GERMAN_MUSCLE_NAME_MAP[name] || name;
+  return name;
 };
 
 export function ProgressDashboard({ onViewReport, onViewStrengthScore }: ProgressDashboardProps) {
@@ -375,7 +437,11 @@ export function ProgressDashboard({ onViewReport, onViewStrengthScore }: Progres
   const consistencyLabel = `${completionPercent}%`;
   const weeklyDaysLabel = language === 'ar'
     ? `${completedThisWeek} / ${plannedThisWeek} أيام`
-    : `${completedThisWeek} / ${plannedThisWeek} days`;
+    : language === 'it'
+      ? `${completedThisWeek} / ${plannedThisWeek} giorni`
+      : language === 'de'
+        ? `${completedThisWeek} / ${plannedThisWeek} Tage`
+        : `${completedThisWeek} / ${plannedThisWeek} days`;
 
   return (
     <div data-coachmark-target="progress_dashboard" className="space-y-6">

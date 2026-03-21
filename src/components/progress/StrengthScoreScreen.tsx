@@ -341,6 +341,192 @@ const STRENGTH_SCORE_I18N = {
       all: 'كل الوقت',
     } as Record<RangeKey, string>,
   },
+  it: {
+    title: 'Punteggio Forza',
+    infoAria: 'Informazioni punteggio forza',
+    trendPending: 'Trend in attesa',
+    recovery: 'Recupero',
+    avgSummary: (avgText: string, samples: number, range: string) =>
+      `1RM medio ${avgText} da ${samples} campioni giornalieri con carico nella finestra ${range.toLowerCase()} selezionata.`,
+    noScoreYet: 'Nessun punteggio forza ancora. Completa serie con carico e questa pagina iniziera a mostrare punteggio, classifica muscolare e trend.',
+    rank: 'Livello',
+    thisWeek: 'Questa settimana',
+    completion: 'completamento',
+    load30D: 'Carico 30G',
+    setsLogged: (sets: number) => `${sets} serie registrate`,
+    totalPoints: (points: number) => `${points.toLocaleString()} pt`,
+    streak: 'Serie attiva',
+    workoutDaySingular: 'giorno di allenamento',
+    workoutDayPlural: 'giorni di allenamento',
+    score: 'Punteggio',
+    recent: 'recente',
+    scoreRange: 'Intervallo punteggio',
+    momentum: 'Momentum',
+    weightedSamples: 'Campioni con carico',
+    rangeStillBuilding: 'Intervallo ancora in costruzione',
+    samplesPerBucket: (value: number) => `${value} campioni per intervallo`,
+    muscleAverage: 'Media muscolare',
+    rankingPending: 'Classifica in attesa',
+    musclesTracked: (count: number) => `${count} muscoli tracciati`,
+    readiness: 'Prontezza',
+    readyNeedRest: (ready: number, needRest: number) => `${ready} pronti | ${needRest} da recuperare`,
+    strengthHistory: 'Storico della forza',
+    start: 'Inizio',
+    current: 'Attuale',
+    change: 'Variazione',
+    notEnoughWeightedSets: 'Non ci sono ancora abbastanza serie con carico. Registra serie completate con carico per iniziare a costruire il tuo trend.',
+    vsPreviousBucket: (delta: string) => `${delta} rispetto all intervallo precedente`,
+    firstTrackedBucket: 'Primo intervallo tracciato',
+    peakMuscle: 'Muscolo migliore',
+    developmentLane: 'Area di sviluppo',
+    trainingStatus: 'Stato allenamento',
+    needMoreStrengthData: 'Servono piu dati di forza',
+    logMoreWeightedSets: 'Registra piu serie con carico per classificare i muscoli.',
+    opportunity: 'Opportunita',
+    highlightsFurthest: 'Questa scheda evidenzia il muscolo piu lontano dal tuo punteggio migliore.',
+    planCompletionWeek: (percent: number) => `${percent}% completamento piano questa settimana`,
+    musclesRecoverySummary: (ready: number, almost: number, damaged: number) =>
+      `${ready} muscoli pronti, ${almost} quasi pronti, ${damaged} da recuperare di piu.`,
+    strengthPerMuscle: 'Forza per muscolo',
+    muscleLeaderboard: 'Classifica muscolare',
+    rankedMuscles: (count: number) => `${count} muscoli classificati dall output allenante tracciato`,
+    rankingAppears: 'La classifica apparira quando saranno registrate abbastanza serie con carico.',
+    scoreBand: 'Fascia punteggio',
+    outputGap: 'Gap prestazione',
+    recShort: 'Rec',
+    na: 'N/D',
+    unlockLeaderboard: 'Inizia a registrare serie con carico per sbloccare classifica muscolare, livelli di forza e dettaglio collegato al recupero.',
+    aboutTitle: 'Info Punteggio Forza',
+    aboutSubtitle: (range: string) =>
+      `Questa pagina combina i tuoi dati di carico registrati con aderenza al piano e recupero nella finestra ${range.toLowerCase()} corrente.`,
+    closeInfo: 'Chiudi informazioni punteggio forza',
+    snapshotLine: 'Il tuo punteggio principale e una fotografia della forza costruita sulle serie completate con carico.',
+    scoreCalcLine: 'Per ogni esercizio e per ogni giorno di allenamento, l app prende il tuo miglior 1RM stimato, ne calcola la media e converte il risultato in un punteggio da 80 a 320.',
+    sectionMeaning: 'Cosa significa ogni sezione',
+    heroMeaning: 'La scheda principale mostra punteggio attuale, livello, intervallo punteggio, trend recente, aderenza settimanale e carico degli ultimi 30 giorni.',
+    historyMeaning: 'Storico della forza mostra come cambia il punteggio nel tempo. Nella vista `Mese` ogni punto e un giorno, mentre `6 mesi`, `Anno` e `Sempre` raggruppano i risultati per mese.',
+    leaderboardMeaning: 'La classifica muscolare ordina i gruppi muscolari allenati con piu forza e li abbina alla prontezza di recupero quando disponibile.',
+    rangeCoverage: 'Copertura intervallo corrente',
+    rangeCoverageWithSamples: (samples: number) =>
+      `Questa vista si basa attualmente su ${samples} campioni giornalieri di allenamento registrati. Piu serie con carico completate rendono punteggio e classifica piu stabili.`,
+    rangeCoverageNoSamples: 'Non sono stati trovati campioni di allenamento con carico in questo intervallo. Registra serie completate con carico per generare punteggio, storico e classifica muscolare.',
+    couldNotLoadScore: 'Impossibile caricare lo strength score.',
+    noScoreLabel: 'Nessun punteggio',
+    waitingForSessions: 'In attesa delle tue prime sessioni con carico',
+    strengthClimbing: 'La forza sta salendo',
+    smallUpward: 'Piccolo trend positivo',
+    offRecentPeak: 'Sei sotto al tuo picco recente',
+    slightDip: 'Leggero calo di prestazione',
+    holdingSteady: 'Stabile',
+    completeSetsForDashboard: 'Completa serie con carico e questa schermata diventera una vera dashboard della forza.',
+    rangeTrendText: (delta: string, range: string, deltaPct: string) =>
+      `${delta} nella finestra ${range.toLowerCase()} corrente, con una variazione del ${deltaPct} rispetto alla base.`,
+    rangeWindow: (range: string) => `Finestra ${range.toLowerCase()}`,
+    firstPointMessage: 'C e solo un punto tracciato per ora. Aggiungi altre sessioni per sbloccare la direzione del trend.',
+    tierAtScore: (tier: string, score: number) => `${tier} a ${score}`,
+    avgBestSummary: (avgText: string, bestText: string) => `Media ${avgText} | Migliore ${bestText}`,
+    bestOpportunitySummary: (bestText: string, gapText: string) => `Migliore ${bestText} | Opportunita ${gapText}`,
+    pointsSuffix: ' pt',
+    rangeLabel: {
+      month: 'Mese',
+      '6months': '6 mesi',
+      year: 'Anno',
+      all: 'Sempre',
+    } as Record<RangeKey, string>,
+  },
+  de: {
+    title: 'Kraftwert',
+    infoAria: 'Informationen zum Strength Score',
+    trendPending: 'Trend ausstehend',
+    recovery: 'Erholung',
+    avgSummary: (avgText: string, samples: number, range: string) =>
+      `Durchschnittlicher 1RM ${avgText} aus ${samples} gewichteten Trainingsproben im gewahlten ${range}-Zeitraum.`,
+    noScoreYet: 'Noch kein Strength Score. Schliesse gewichtete Satze ab und diese Seite zeigt bald deinen Score, dein Muskelranking und deinen Trend.',
+    rank: 'Rang',
+    thisWeek: 'Diese Woche',
+    completion: 'Abschluss',
+    load30D: '30T Last',
+    setsLogged: (sets: number) => `${sets} protokollierte Satze`,
+    totalPoints: (points: number) => `${points.toLocaleString()} Pkt`,
+    streak: 'Serie',
+    workoutDaySingular: 'Trainingstag',
+    workoutDayPlural: 'Trainingstage',
+    score: 'Score',
+    recent: 'aktuell',
+    scoreRange: 'Score-Bereich',
+    momentum: 'Momentum',
+    weightedSamples: 'Gewichtete Proben',
+    rangeStillBuilding: 'Bereich wird noch aufgebaut',
+    samplesPerBucket: (value: number) => `${value} Proben pro Abschnitt`,
+    muscleAverage: 'Muskelmittelwert',
+    rankingPending: 'Ranking ausstehend',
+    musclesTracked: (count: number) => `${count} Muskeln verfolgt`,
+    readiness: 'Bereitschaft',
+    readyNeedRest: (ready: number, needRest: number) => `${ready} bereit | ${needRest} brauchen Pause`,
+    strengthHistory: 'Kraftverlauf',
+    start: 'Start',
+    current: 'Aktuell',
+    change: 'Veranderung',
+    notEnoughWeightedSets: 'Noch nicht genug gewichtete Satze. Protokolliere abgeschlossene gewichtete Satze, um deinen Trend aufzubauen.',
+    vsPreviousBucket: (delta: string) => `${delta} gegenuber dem vorherigen Abschnitt`,
+    firstTrackedBucket: 'Erster erfasster Abschnitt',
+    peakMuscle: 'Starkster Muskel',
+    developmentLane: 'Entwicklungsfeld',
+    trainingStatus: 'Trainingsstatus',
+    needMoreStrengthData: 'Mehr Kraftdaten erforderlich',
+    logMoreWeightedSets: 'Protokolliere mehr gewichtete Satze, um Muskeln zu ranken.',
+    opportunity: 'Potenzial',
+    highlightsFurthest: 'Diese Karte hebt den Muskel hervor, der am weitesten von deinem Top-Score entfernt ist.',
+    planCompletionWeek: (percent: number) => `${percent}% Planabschluss diese Woche`,
+    musclesRecoverySummary: (ready: number, almost: number, damaged: number) =>
+      `${ready} Muskeln bereit, ${almost} fast bereit, ${damaged} brauchen mehr Erholung.`,
+    strengthPerMuscle: 'Kraft pro Muskel',
+    muscleLeaderboard: 'Muskel-Rangliste',
+    rankedMuscles: (count: number) => `${count} gerankte Muskeln aus erfasstem Trainingsoutput`,
+    rankingAppears: 'Die Rangliste erscheint, sobald genug gewichtete Satze erfasst wurden.',
+    scoreBand: 'Score-Band',
+    outputGap: 'Leistungslucke',
+    recShort: 'Erh',
+    na: 'k. A.',
+    unlockLeaderboard: 'Beginne mit dem Protokollieren gewichteter Satze, um Muskel-Rangliste, Kraftstufen und die erholungsbezogene Aufschlüsselung freizuschalten.',
+    aboutTitle: 'Infos zum Kraftwert',
+    aboutSubtitle: (range: string) =>
+      `Diese Seite kombiniert deinen protokollierten Trainingsoutput mit Trainingskonstanz und Erholungsdaten fur den aktuellen ${range}-Zeitraum.`,
+    closeInfo: 'Strength-Score-Info schliessen',
+    snapshotLine: 'Dein Hauptscore ist eine Kraftaufnahme auf Basis abgeschlossener gewichteter Satze.',
+    scoreCalcLine: 'Fur jede Ubung an jedem Trainingstag nimmt die App dein bestes geschatztes 1RM, bildet daraus einen Durchschnitt und wandelt ihn in einen Score von 80 bis 320 um.',
+    sectionMeaning: 'Was die Bereiche bedeuten',
+    heroMeaning: 'Die Hauptkarte zeigt deinen aktuellen Score, dein Level, den Score-Bereich, den letzten Trend, die Wochenkonstanz und die 30-Tage-Last.',
+    historyMeaning: 'Der Kraftverlauf zeigt, wie sich der Score uber die Zeit verandert. In der Ansicht `Monat` ist jeder Punkt ein Tag, wahrend `6 Monate`, `Jahr` und `Gesamt` die Ergebnisse monatsweise gruppieren.',
+    leaderboardMeaning: 'Die Muskel-Rangliste ordnet die Muskelgruppen, die du am starksten trainierst, und kombiniert sie mit der Erholungsbereitschaft, wenn diese Daten verfugbar sind.',
+    rangeCoverage: 'Abdeckung des aktuellen Zeitraums',
+    rangeCoverageWithSamples: (samples: number) =>
+      `Diese Ansicht basiert aktuell auf ${samples} protokollierten Trainingsproben. Mehr abgeschlossene gewichtete Satze machen Score und Muskelranking stabiler.`,
+    rangeCoverageNoSamples: 'In diesem Zeitraum wurden noch keine gewichteten Trainingsproben gefunden. Protokolliere abgeschlossene gewichtete Satze, um Score, Verlauf und Muskelranking zu erzeugen.',
+    couldNotLoadScore: 'Strength Score konnte nicht geladen werden.',
+    noScoreLabel: 'Noch kein Score',
+    waitingForSessions: 'Warten auf deine ersten gewichteten Einheiten',
+    strengthClimbing: 'Kraft steigt',
+    smallUpward: 'Leichter Aufwartstrend',
+    offRecentPeak: 'Du liegst unter deinem letzten Hoch',
+    slightDip: 'Leichter Leistungsruckgang',
+    holdingSteady: 'Bleibt stabil',
+    completeSetsForDashboard: 'Schliesse gewichtete Satze ab und dieser Bereich wird zu einem echten Kraft-Dashboard.',
+    rangeTrendText: (delta: string, range: string, deltaPct: string) =>
+      `${delta} im aktuellen ${range}-Fenster, mit ${deltaPct} Veranderung gegenuber deiner Basis.`,
+    rangeWindow: (range: string) => `${range}-Fenster`,
+    firstPointMessage: 'Bisher gibt es nur einen erfassten Punkt. Fuge weitere Einheiten hinzu, um eine Trendrichtung zu erhalten.',
+    tierAtScore: (tier: string, score: number) => `${tier} bei ${score}`,
+    avgBestSummary: (avgText: string, bestText: string) => `Durchschnitt ${avgText} | Bestwert ${bestText}`,
+    bestOpportunitySummary: (bestText: string, gapText: string) => `Bestwert ${bestText} | Potenzial ${gapText}`,
+    pointsSuffix: ' Pkt',
+    rangeLabel: {
+      month: 'Monat',
+      '6months': '6 Monate',
+      year: 'Jahr',
+      all: 'Gesamt',
+    } as Record<RangeKey, string>,
+  },
 } as const;
 
 const AR_TIER_LABELS: Record<string, string> = {
@@ -372,6 +558,76 @@ const AR_MUSCLE_LABELS: Record<string, string> = {
   forearms: 'الساعد',
 };
 
+const IT_TIER_LABELS: Record<string, string> = {
+  beginner: 'Principiante',
+  intermediate: 'Intermedio',
+  advanced: 'Avanzato',
+  elite: 'Elite',
+  athlete: 'Atleta',
+  bronze: 'Bronzo',
+  silver: 'Argento',
+  gold: 'Oro',
+  platinum: 'Platino',
+  diamond: 'Diamante',
+};
+
+const DE_TIER_LABELS: Record<string, string> = {
+  beginner: 'Anfanger',
+  intermediate: 'Fortgeschritten',
+  advanced: 'Erfahren',
+  elite: 'Elite',
+  athlete: 'Athlet',
+  bronze: 'Bronze',
+  silver: 'Silber',
+  gold: 'Gold',
+  platinum: 'Platin',
+  diamond: 'Diamant',
+};
+
+const IT_MUSCLE_LABELS: Record<string, string> = {
+  chest: 'Petto',
+  back: 'Schiena',
+  shoulder: 'Spalla',
+  shoulders: 'Spalle',
+  tricep: 'Tricipite',
+  triceps: 'Tricipiti',
+  bicep: 'Bicipite',
+  biceps: 'Bicipiti',
+  abs: 'Addome',
+  quadriceps: 'Quadricipiti',
+  hamstrings: 'Femorali',
+  calves: 'Polpacci',
+  forearms: 'Avambracci',
+};
+
+const DE_MUSCLE_LABELS: Record<string, string> = {
+  chest: 'Brust',
+  back: 'Rucken',
+  shoulder: 'Schulter',
+  shoulders: 'Schultern',
+  tricep: 'Trizeps',
+  triceps: 'Trizeps',
+  bicep: 'Bizeps',
+  biceps: 'Bizeps',
+  abs: 'Bauch',
+  quadriceps: 'Quadrizeps',
+  hamstrings: 'Beinbeuger',
+  calves: 'Waden',
+  forearms: 'Unterarme',
+};
+
+const TIER_LABELS_BY_LANGUAGE: Partial<Record<AppLanguage, Record<string, string>>> = {
+  ar: AR_TIER_LABELS,
+  it: IT_TIER_LABELS,
+  de: DE_TIER_LABELS,
+};
+
+const MUSCLE_LABELS_BY_LANGUAGE: Partial<Record<AppLanguage, Record<string, string>>> = {
+  ar: AR_MUSCLE_LABELS,
+  it: IT_MUSCLE_LABELS,
+  de: DE_MUSCLE_LABELS,
+};
+
 export function StrengthScoreScreen({ onBack }: StrengthScoreScreenProps) {
   const [activeRange, setActiveRange] = useState<RangeKey>('6months');
   const [language, setLanguage] = useState<AppLanguage>('en');
@@ -382,14 +638,14 @@ export function StrengthScoreScreen({ onBack }: StrengthScoreScreenProps) {
   const [support, setSupport] = useState<StrengthSupportData>(defaultSupportData);
   const [showInfo, setShowInfo] = useState(false);
   const copy = STRENGTH_SCORE_I18N[language] || STRENGTH_SCORE_I18N.en;
-  const toLocalizedTier = useCallback(
-    (value: string) => (language === 'ar' ? (AR_TIER_LABELS[value.trim().toLowerCase()] || value) : value),
-    [language],
-  );
-  const toLocalizedMuscle = useCallback(
-    (value: string) => (language === 'ar' ? (AR_MUSCLE_LABELS[value.trim().toLowerCase()] || value) : value),
-    [language],
-  );
+  const toLocalizedTier = useCallback((value: string) => {
+    const labels = TIER_LABELS_BY_LANGUAGE[language];
+    return labels?.[value.trim().toLowerCase()] || value;
+  }, [language]);
+  const toLocalizedMuscle = useCallback((value: string) => {
+    const labels = MUSCLE_LABELS_BY_LANGUAGE[language];
+    return labels?.[value.trim().toLowerCase()] || value;
+  }, [language]);
 
   useEffect(() => {
     setLanguage(getActiveLanguage());

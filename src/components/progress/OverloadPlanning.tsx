@@ -29,6 +29,24 @@ const OVERLOAD_I18N = {
     footerPlan: 'يتم إنشاء التوصيات من أسبوع خطتك الحالي وآخر مجموعات مكتملة لديك.',
     footerRecent: 'استنادًا إلى أدائك الأخير، يقترح RepSet هذه الزيادات للحفاظ على الزيادة التدريجية.',
   },
+  it: {
+    title: 'Overload del Prossimo Periodo',
+    sourcePrefix: 'Fonte',
+    sourcePlan: 'Settimana attuale del piano',
+    sourceRecent: 'Prestazione recente',
+    empty: 'Nessun consiglio di overload ancora disponibile. Registra piu serie per generare i tuoi prossimi obiettivi di progressione.',
+    footerPlan: 'I consigli vengono generati dalla tua settimana di piano attiva e dalle tue ultime serie completate.',
+    footerRecent: 'In base alla tua prestazione recente, RepSet consiglia questi aumenti per mantenere il sovraccarico progressivo.',
+  },
+  de: {
+    title: 'Overload fuer den Naechsten Zeitraum',
+    sourcePrefix: 'Quelle',
+    sourcePlan: 'Aktuelle Planwoche',
+    sourceRecent: 'Letzte Leistung',
+    empty: 'Noch keine Overload-Empfehlungen vorhanden. Protokolliere mehr Saetze, um deine naechsten Fortschrittsziele zu erzeugen.',
+    footerPlan: 'Die Empfehlungen werden aus deiner aktiven Planwoche und deinen zuletzt abgeschlossenen Saetzen erzeugt.',
+    footerRecent: 'Basierend auf deiner letzten Leistung empfiehlt RepSet diese Steigerungen, um progressiven Overload beizubehalten.',
+  },
 } as const;
 
 interface OverloadPlanningProps {

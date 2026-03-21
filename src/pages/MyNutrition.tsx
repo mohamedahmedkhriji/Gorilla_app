@@ -15,7 +15,7 @@ import { Header } from '../components/ui/Header';
 import { Card } from '../components/ui/Card';
 import { api } from '../services/api';
 import { getNutritionInputsOverride, NUTRITION_INPUTS_UPDATED_EVENT } from '../services/nutritionOverrides';
-import { getActiveLanguage, getStoredLanguage } from '../services/language';
+import { AppLanguage, getActiveLanguage, getStoredLanguage } from '../services/language';
 
 interface MyNutritionProps {
   onBack: () => void;
@@ -156,6 +156,145 @@ const getMealIcon = (slot: string): LucideIcon => {
 
 const formatSigned = (value: number) => (value > 0 ? `+${value}` : `${value}`);
 
+const NUTRITION_I18N = {
+  en: {
+    title: 'My Nutrition',
+    today: 'Today',
+    remaining: 'Remaining',
+    over: 'Over',
+    baseGoal: 'Base Goal',
+    food: 'Food',
+    exercise: 'Exercise',
+    goalPrefix: 'Goal',
+    tdee: 'TDEE',
+    carbs: 'Carbs',
+    protein: 'Protein',
+    fat: 'Fat',
+    meals: 'Meals',
+    activity: 'Activity',
+    hydration: 'Hydration',
+    dailyTotals: 'Daily Totals',
+    dailyWater: 'Daily water',
+    fromFoods: 'From foods',
+    drinkDirectly: 'Drink directly',
+    caloriesPlanned: 'Calories planned',
+    proteinPlanned: 'Protein planned',
+    fiber: 'Fiber',
+    sodium: 'Sodium',
+    loadingPlan: 'Building your daily food plan...',
+    noSession: 'No active user session found. Please login again.',
+    missingProfile: 'Missing profile data (age, weight, height). Update profile details to generate automatic nutrition.',
+    loadFailed: 'Failed to build nutrition plan.',
+    generalFitness: 'General Fitness',
+    breakfast: 'Breakfast',
+    lunch: 'Lunch',
+    dinner: 'Dinner',
+    snack: (n: number) => `Snack ${n}`,
+  },
+  ar: {
+    title: '\u062a\u063a\u0630\u064a\u062a\u064a',
+    today: '\u0627\u0644\u064a\u0648\u0645',
+    remaining: '\u0645\u062a\u0628\u0642\u064a',
+    over: '\u0641\u0627\u0626\u0636',
+    baseGoal: '\u0627\u0644\u0647\u062f\u0641 \u0627\u0644\u0623\u0633\u0627\u0633\u064a',
+    food: '\u0627\u0644\u0637\u0639\u0627\u0645',
+    exercise: '\u0627\u0644\u062a\u0645\u0631\u064a\u0646',
+    goalPrefix: '\u0627\u0644\u0647\u062f\u0641',
+    tdee: '\u0645\u0639\u062f\u0644 \u0627\u0644\u062d\u0631\u0642 \u0627\u0644\u064a\u0648\u0645\u064a',
+    carbs: '\u0627\u0644\u0643\u0631\u0628\u0648\u0647\u064a\u062f\u0631\u0627\u062a',
+    protein: '\u0627\u0644\u0628\u0631\u0648\u062a\u064a\u0646',
+    fat: '\u0627\u0644\u062f\u0647\u0648\u0646',
+    meals: '\u0627\u0644\u0648\u062c\u0628\u0627\u062a',
+    activity: '\u0627\u0644\u0646\u0634\u0627\u0637',
+    hydration: '\u0627\u0644\u062a\u0631\u0637\u064a\u0628',
+    dailyTotals: '\u0627\u0644\u0625\u062c\u0645\u0627\u0644\u064a\u0627\u062a \u0627\u0644\u064a\u0648\u0645\u064a\u0629',
+    dailyWater: '\u0627\u0644\u0645\u0627\u0621 \u0627\u0644\u064a\u0648\u0645\u064a',
+    fromFoods: '\u0645\u0646 \u0627\u0644\u0637\u0639\u0627\u0645',
+    drinkDirectly: '\u0627\u0634\u0631\u0628 \u0645\u0628\u0627\u0634\u0631\u0629',
+    caloriesPlanned: '\u0627\u0644\u0633\u0639\u0631\u0627\u062a \u0627\u0644\u0645\u062e\u0637\u0637\u0629',
+    proteinPlanned: '\u0627\u0644\u0628\u0631\u0648\u062a\u064a\u0646 \u0627\u0644\u0645\u062e\u0637\u0637',
+    fiber: '\u0627\u0644\u0623\u0644\u064a\u0627\u0641',
+    sodium: '\u0627\u0644\u0635\u0648\u062f\u064a\u0648\u0645',
+    loadingPlan: '\u062c\u0627\u0631\u064d \u0625\u0639\u062f\u0627\u062f \u062e\u0637\u0629 \u0627\u0644\u0637\u0639\u0627\u0645 \u0627\u0644\u064a\u0648\u0645\u064a\u0629...',
+    noSession: '\u0644\u0627 \u062a\u0648\u062c\u062f \u062c\u0644\u0633\u0629 \u0645\u0633\u062a\u062e\u062f\u0645 \u0646\u0634\u0637\u0629. \u064a\u0631\u062c\u0649 \u062a\u0633\u062c\u064a\u0644 \u0627\u0644\u062f\u062e\u0648\u0644 \u0645\u0631\u0629 \u0623\u062e\u0631\u0649.',
+    missingProfile: '\u0628\u064a\u0627\u0646\u0627\u062a \u0627\u0644\u0645\u0644\u0641 \u0627\u0644\u0634\u062e\u0635\u064a \u0646\u0627\u0642\u0635\u0629 (\u0627\u0644\u0639\u0645\u0631\u060c \u0627\u0644\u0648\u0632\u0646\u060c \u0627\u0644\u0637\u0648\u0644). \u062d\u062f\u0651\u062b \u0628\u064a\u0627\u0646\u0627\u062a\u0643 \u0644\u0625\u0646\u0634\u0627\u0621 \u062e\u0637\u0629 \u0627\u0644\u062a\u063a\u0630\u064a\u0629.',
+    loadFailed: '\u062a\u0639\u0630\u0631 \u0625\u0646\u0634\u0627\u0621 \u062e\u0637\u0629 \u0627\u0644\u062a\u063a\u0630\u064a\u0629.',
+    generalFitness: '\u0644\u064a\u0627\u0642\u0629 \u0639\u0627\u0645\u0629',
+    breakfast: '\u0627\u0644\u0625\u0641\u0637\u0627\u0631',
+    lunch: '\u0627\u0644\u063a\u062f\u0627\u0621',
+    dinner: '\u0627\u0644\u0639\u0634\u0627\u0621',
+    snack: (n: number) => `\u0648\u062c\u0628\u0629 \u062e\u0641\u064a\u0641\u0629 ${n}`,
+  },
+  it: {
+    title: 'La Mia Nutrizione',
+    today: 'Oggi',
+    remaining: 'Rimanenti',
+    over: 'Oltre',
+    baseGoal: 'Obiettivo base',
+    food: 'Cibo',
+    exercise: 'Esercizio',
+    goalPrefix: 'Obiettivo',
+    tdee: 'TDEE',
+    carbs: 'Carboidrati',
+    protein: 'Proteine',
+    fat: 'Grassi',
+    meals: 'Pasti',
+    activity: 'Attivita',
+    hydration: 'Idratazione',
+    dailyTotals: 'Totali giornalieri',
+    dailyWater: 'Acqua giornaliera',
+    fromFoods: 'Dagli alimenti',
+    drinkDirectly: 'Da bere',
+    caloriesPlanned: 'Calorie pianificate',
+    proteinPlanned: 'Proteine pianificate',
+    fiber: 'Fibre',
+    sodium: 'Sodio',
+    loadingPlan: 'Sto preparando il tuo piano alimentare giornaliero...',
+    noSession: 'Nessuna sessione utente attiva trovata. Effettua di nuovo l accesso.',
+    missingProfile: 'Dati profilo mancanti (eta, peso, altezza). Aggiorna il profilo per generare la nutrizione automatica.',
+    loadFailed: 'Impossibile creare il piano nutrizionale.',
+    generalFitness: 'Fitness generale',
+    breakfast: 'Colazione',
+    lunch: 'Pranzo',
+    dinner: 'Cena',
+    snack: (n: number) => `Spuntino ${n}`,
+  },
+  de: {
+    title: 'Meine Ernahrung',
+    today: 'Heute',
+    remaining: 'Ubrig',
+    over: 'Daruber',
+    baseGoal: 'Basisziel',
+    food: 'Essen',
+    exercise: 'Training',
+    goalPrefix: 'Ziel',
+    tdee: 'TDEE',
+    carbs: 'Kohlenhydrate',
+    protein: 'Protein',
+    fat: 'Fett',
+    meals: 'Mahlzeiten',
+    activity: 'Aktivitat',
+    hydration: 'Hydration',
+    dailyTotals: 'Tagessummen',
+    dailyWater: 'Taegliches Wasser',
+    fromFoods: 'Aus Lebensmitteln',
+    drinkDirectly: 'Direkt trinken',
+    caloriesPlanned: 'Geplante Kalorien',
+    proteinPlanned: 'Geplantes Protein',
+    fiber: 'Ballaststoffe',
+    sodium: 'Natrium',
+    loadingPlan: 'Dein taeglicher Ernahrungsplan wird erstellt...',
+    noSession: 'Keine aktive Benutzersitzung gefunden. Bitte melde dich erneut an.',
+    missingProfile: 'Profildaten fehlen (Alter, Gewicht, Groesse). Aktualisiere dein Profil, um die automatische Ernahrung zu erstellen.',
+    loadFailed: 'Ernaehrungsplan konnte nicht erstellt werden.',
+    generalFitness: 'Allgemeine Fitness',
+    breakfast: 'Fruehstueck',
+    lunch: 'Mittagessen',
+    dinner: 'Abendessen',
+    snack: (n: number) => `Snack ${n}`,
+  },
+} as const;
+
 interface CircularMeterProps {
   value: number;
   max: number;
@@ -212,8 +351,9 @@ function CircularMeter({
 }
 
 export function MyNutrition({ onBack }: MyNutritionProps) {
-  const isArabic = getActiveLanguage(getStoredLanguage()) === 'ar';
-  const copy = {
+  const [language, setLanguage] = useState<AppLanguage>(() => getActiveLanguage(getStoredLanguage()));
+  const isArabic = language === 'ar';
+  const legacyCopy = {
     title: isArabic ? 'تغذيتي' : 'My Nutrition',
     today: isArabic ? 'اليوم' : 'Today',
     remaining: isArabic ? 'متبقي' : 'Remaining',
@@ -244,6 +384,8 @@ export function MyNutrition({ onBack }: MyNutritionProps) {
       : 'Missing profile data (age, weight, height). Update profile details to generate automatic nutrition.',
     loadFailed: isArabic ? 'تعذر إنشاء خطة التغذية.' : 'Failed to build nutrition plan.',
   };
+  void legacyCopy;
+  const copy = NUTRITION_I18N[language] || NUTRITION_I18N.en;
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [plan, setPlan] = useState<NutritionPlanResponse | null>(null);
@@ -254,6 +396,19 @@ export function MyNutrition({ onBack }: MyNutritionProps) {
   const [activeView, setActiveView] = useState<NutritionView>('meals');
   const [expandedMeals, setExpandedMeals] = useState<Record<string, boolean>>({});
   const userId = useMemo(() => getCurrentUserId(), []);
+
+  useEffect(() => {
+    const handleLanguageChanged = () => {
+      setLanguage(getStoredLanguage());
+    };
+
+    window.addEventListener('app-language-changed', handleLanguageChanged);
+    window.addEventListener('storage', handleLanguageChanged);
+    return () => {
+      window.removeEventListener('app-language-changed', handleLanguageChanged);
+      window.removeEventListener('storage', handleLanguageChanged);
+    };
+  }, []);
 
   useEffect(() => {
     const onInputsUpdated = (event: Event) => {
@@ -348,7 +503,7 @@ export function MyNutrition({ onBack }: MyNutritionProps) {
         const message = loadError instanceof Error ? loadError.message : copy.loadFailed;
         if (!cancelled) {
           setPlan(null);
-          setError(isArabic ? copy.loadFailed : message);
+          setError(language === 'en' ? message : copy.loadFailed);
         }
       } finally {
         if (!cancelled) setLoading(false);
@@ -359,7 +514,7 @@ export function MyNutrition({ onBack }: MyNutritionProps) {
     return () => {
       cancelled = true;
     };
-  }, [userId, refreshSeed]);
+  }, [userId, refreshSeed, copy.loadFailed, copy.missingProfile, copy.noSession, language]);
 
   useEffect(() => {
     if (!plan?.meals?.length) return;
@@ -416,6 +571,67 @@ export function MyNutrition({ onBack }: MyNutritionProps) {
       'snack/fat': 'سناك/دهون',
     };
     return categoryMap[key] ?? value;
+  };
+
+  const localizedMealTitles = useMemo(() => {
+    if (!plan?.meals || language === 'en' || language === 'ar') return mealTitles;
+    let snackNumber = 0;
+    return plan.meals.map((meal, index) => {
+      const slot = String(meal.slot || 'Meal');
+      const slotKey = slot.toLowerCase();
+      if (slotKey.includes('snack')) {
+        snackNumber += 1;
+        return copy.snack(snackNumber);
+      }
+      if (slotKey.includes('breakfast')) return copy.breakfast;
+      if (slotKey.includes('lunch')) return copy.lunch;
+      if (slotKey.includes('dinner')) return copy.dinner;
+      return mealTitles[index] || slot;
+    });
+  }, [copy, language, mealTitles, plan]);
+
+  const localizedGoalDisplay = useMemo(() => {
+    if (language === 'en' || language === 'ar') return goalDisplay;
+    const key = normalizeGoal(goalKey);
+    if (!key) return copy.generalFitness;
+    if (language === 'it') {
+      if (key.includes('fat') || key.includes('loss')) return 'Perdita di grasso';
+      if (key.includes('recomp')) return 'Ricomposizione corporea';
+      if (key.includes('hypertrophy') || key.includes('muscle')) return 'Costruzione muscolare';
+      if (key.includes('strength')) return 'Aumento della forza';
+      if (key.includes('endurance')) return 'Maggiore resistenza';
+      return copy.generalFitness;
+    }
+    if (key.includes('fat') || key.includes('loss')) return 'Fettverlust';
+    if (key.includes('recomp')) return 'Koerperrekomposition';
+    if (key.includes('hypertrophy') || key.includes('muscle')) return 'Muskelaufbau';
+    if (key.includes('strength')) return 'Kraftaufbau';
+    if (key.includes('endurance')) return 'Mehr Ausdauer';
+    return copy.generalFitness;
+  }, [copy.generalFitness, goalDisplay, goalKey, language]);
+
+  const localizeCategory = (value: string) => {
+    if (language === 'en' || language === 'ar') return translateCategory(value);
+    const key = String(value || '').trim().toLowerCase();
+    const categoryMap =
+      language === 'it'
+        ? {
+            'meal/protein': 'Pasto/Proteine',
+            'meal/carbs': 'Pasto/Carboidrati',
+            'meal/fat': 'Pasto/Grassi',
+            'snack/protein': 'Spuntino/Proteine',
+            'snack/carbs': 'Spuntino/Carboidrati',
+            'snack/fat': 'Spuntino/Grassi',
+          }
+        : {
+            'meal/protein': 'Mahlzeit/Protein',
+            'meal/carbs': 'Mahlzeit/Kohlenhydrate',
+            'meal/fat': 'Mahlzeit/Fett',
+            'snack/protein': 'Snack/Protein',
+            'snack/carbs': 'Snack/Kohlenhydrate',
+            'snack/fat': 'Snack/Fett',
+          };
+    return categoryMap[key as keyof typeof categoryMap] ?? value;
   };
 
   const toggleMeal = (mealKey: string) =>
@@ -506,7 +722,7 @@ export function MyNutrition({ onBack }: MyNutritionProps) {
                   />
                 </div>
                 <div className="mt-3 text-[11px] leading-tight text-text-tertiary">
-                  {copy.goalPrefix}: {goalDisplay}{tdee ? ` | ${copy.tdee} ${tdee} kcal` : ''}
+                  {copy.goalPrefix}: {localizedGoalDisplay}{tdee ? ` | ${copy.tdee} ${tdee} kcal` : ''}
                 </div>
               </div>
             </Card>
@@ -574,7 +790,7 @@ export function MyNutrition({ onBack }: MyNutritionProps) {
                             <MealIcon size={18} />
                           </div>
                           <div className="text-lg font-semibold leading-tight text-white">
-                            {mealTitles[index]}
+                            {localizedMealTitles[index]}
                           </div>
                         </div>
                         <div className="flex shrink-0 items-center gap-2">
@@ -590,7 +806,7 @@ export function MyNutrition({ onBack }: MyNutritionProps) {
                               <div className="flex items-start justify-between gap-3">
                                 <div className="text-sm font-semibold text-white">{item.name}</div>
                                 <div className="rounded-full bg-white/10 px-2 py-0.5 text-[10px] uppercase tracking-wide text-text-secondary">
-                                  {translateCategory(item.category)}
+                                  {localizeCategory(item.category)}
                                 </div>
                               </div>
                               <div className="mt-1 text-[11px] text-text-secondary">

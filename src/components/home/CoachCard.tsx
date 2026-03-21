@@ -24,6 +24,18 @@ const COACH_CARD_I18N = {
     subtitle: 'دعم المحادثة',
     cta: 'ابدأ المحادثة',
   },
+  it: {
+    coachSupportLogoAlt: 'Logo supporto coach',
+    title: 'Supporto del Nostro Coach',
+    subtitle: 'Supporto Chat',
+    cta: 'Chatta Ora',
+  },
+  de: {
+    coachSupportLogoAlt: 'Coach-Support-Logo',
+    title: 'Unser Coach-Support',
+    subtitle: 'Chat-Support',
+    cta: 'Jetzt Chatten',
+  },
 } as const;
 
 export function CoachCard({ onClick, coachmarkTargetId }: CoachCardProps) {

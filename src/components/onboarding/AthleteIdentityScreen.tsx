@@ -82,6 +82,45 @@ export function AthleteIdentityScreen({
 }: AthleteIdentityScreenProps) {
   const language = getOnboardingLanguage();
   const isArabic = language === 'ar';
+  const copy = language === 'ar'
+    ? {
+        title: '\u0623\u0646\u0627',
+        subtitle: '\u0627\u062e\u062a\u0631 \u0645\u0644\u0641\u064b\u0627 \u0648\u0627\u062d\u062f\u064b\u0627 \u0648\u0647\u062f\u0641\u064b\u0627 \u0645\u062d\u062f\u062f\u064b\u0627.',
+        fitnessSection: '\u0644\u064a\u0627\u0642\u0629 / \u0647\u064a\u0626\u0629',
+        athleteSection: '\u0631\u064a\u0627\u0636\u0627\u062a \u0627\u0644\u0631\u064a\u0627\u0636\u064a\u064a\u0646',
+        subCategories: '\u0627\u0644\u0641\u0626\u0627\u062a \u0627\u0644\u0641\u0631\u0639\u064a\u0629',
+        chooseUpTo: '\u0627\u062e\u062a\u0631 \u062d\u062a\u0649',
+        cta: '\u0645\u062a\u0627\u0628\u0639\u0629',
+      }
+    : language === 'it'
+      ? {
+          title: 'Profilo',
+          subtitle: 'Scegli un profilo e un obiettivo specifico.',
+          fitnessSection: 'FITNESS / FISICO',
+          athleteSection: 'SPORT ATLETICI',
+          subCategories: 'Sotto-categorie',
+          chooseUpTo: 'Scegli fino a',
+          cta: 'Continua',
+        }
+      : language === 'de'
+        ? {
+            title: 'ICH BIN',
+            subtitle: 'Waehle ein Profil und ein konkretes Ziel.',
+            fitnessSection: 'FITNESS / PHYSIQUE',
+            athleteSection: 'ATHLETISCHE SPORTARTEN',
+            subCategories: 'Unterkategorien',
+            chooseUpTo: 'Waehle bis zu',
+            cta: 'Weiter',
+          }
+        : {
+            title: 'I AM',
+            subtitle: 'Choose one profile and one specific goal.',
+            fitnessSection: 'FITNESS / PHYSIQUE',
+            athleteSection: 'ATHLETE SPORTS',
+            subCategories: 'Sub-Categories',
+            chooseUpTo: 'Choose up to',
+            cta: 'Continue',
+          };
   const athleteOptions = options?.length
     ? options
     : DEFAULT_ONBOARDING_CONFIG.options.athleteIdentity;
@@ -252,7 +291,7 @@ export function AthleteIdentityScreen({
   const renderSubCategoryPanel = (option: AthleteOption) => (
     <div className="space-y-4 rounded-2xl border border-white/10 bg-card/60 p-4">
       <h3 className="text-sm font-semibold uppercase tracking-[0.14em] text-accent">
-        {isArabic ? `${option.label} - الفئات الفرعية` : `${option.label.toUpperCase()} - Sub-Categories`}
+        {isArabic ? `${option.label} - ${copy.subCategories}` : `${option.label.toUpperCase()} - ${copy.subCategories}`}
       </h3>
 
       {option.subGroups.map((group) => (
@@ -261,9 +300,7 @@ export function AthleteIdentityScreen({
             <p className="text-sm font-semibold text-white">{group.title}</p>
             {getGroupLimit(group.id, selectionLimits) > 1 ? (
               <span className="text-[11px] uppercase tracking-[0.12em] text-text-tertiary">
-                {isArabic
-                  ? `اختر حتى ${getGroupLimit(group.id, selectionLimits)}`
-                  : `Choose up to ${getGroupLimit(group.id, selectionLimits)}`}
+                {`${copy.chooseUpTo} ${getGroupLimit(group.id, selectionLimits)}`}
               </span>
             ) : null}
           </div>
@@ -335,23 +372,23 @@ export function AthleteIdentityScreen({
   return (
     <div className="flex-1 flex flex-col space-y-6">
       <div className="space-y-2">
-        <h2 className="text-2xl font-light text-white">{isArabic ? 'أنا' : 'I AM'}</h2>
+        <h2 className="text-2xl font-light text-white">{copy.title}</h2>
         <p className="text-text-secondary">
-          {isArabic ? 'اختر ملفًا واحدًا وهدفًا محددًا.' : 'Choose one profile and one specific goal.'}
+          {copy.subtitle}
         </p>
       </div>
 
       <div className="space-y-5">
         <div className="space-y-3">
           <h3 className="text-xs font-semibold uppercase tracking-[0.14em] text-accent">
-            {isArabic ? 'لياقة / هيئة' : 'FITNESS / PHYSIQUE'}
+            {copy.fitnessSection}
           </h3>
           <div className="space-y-3">{localizedOptions.filter((option) => option.category === 'fitness').map(renderMainOptionCard)}</div>
         </div>
 
         <div className="space-y-3">
           <h3 className="text-xs font-semibold uppercase tracking-[0.14em] text-accent">
-            {isArabic ? 'رياضات الرياضيين' : 'ATHLETE SPORTS'}
+            {copy.athleteSection}
           </h3>
           <div className="space-y-3">{localizedOptions.filter((option) => option.category === 'athlete_sports').map(renderMainOptionCard)}</div>
         </div>
@@ -360,7 +397,7 @@ export function AthleteIdentityScreen({
       <div className="flex-1" />
 
       <Button onClick={onNext} disabled={!canContinue}>
-        {isArabic ? 'متابعة' : 'Continue'}
+        {copy.cta}
       </Button>
     </div>
   );

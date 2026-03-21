@@ -3,7 +3,7 @@ import { Header } from '../ui/Header';
 import { SlidersHorizontal, ChevronDown, X } from 'lucide-react';
 import { api } from '../../services/api';
 import { getBodyPartImage } from '../../services/bodyPartTheme';
-import { getActiveLanguage, getStoredLanguage } from '../../services/language';
+import { AppLanguage, getActiveLanguage, getStoredLanguage } from '../../services/language';
 interface MuscleRecoveryScreenProps {
   onBack: () => void;
 }
@@ -53,6 +53,159 @@ const AR_MUSCLE_LABELS: Record<string, string> = {
   abs: 'البطن',
 };
 
+const IT_MUSCLE_LABELS: Record<string, string> = {
+  chest: 'Petto',
+  back: 'Schiena',
+  quadriceps: 'Quadricipiti',
+  hamstrings: 'Femorali',
+  shoulders: 'Spalle',
+  biceps: 'Bicipiti',
+  triceps: 'Tricipiti',
+  forearms: 'Avambracci',
+  calves: 'Polpacci',
+  abs: 'Addome',
+};
+
+const DE_MUSCLE_LABELS: Record<string, string> = {
+  chest: 'Brust',
+  back: 'Ruecken',
+  quadriceps: 'Quadrizeps',
+  hamstrings: 'Beinbeuger',
+  shoulders: 'Schultern',
+  biceps: 'Bizeps',
+  triceps: 'Trizeps',
+  forearms: 'Unterarme',
+  calves: 'Waden',
+  abs: 'Bauch',
+};
+
+const RECOVERY_I18N = {
+  en: {
+    title: 'Muscle Recovery',
+    damaged: 'Damaged muscles',
+    almost: 'Almost ready',
+    ready: 'Ready to train',
+    lastTrained: 'Last trained',
+    today: 'Today',
+    yesterday: 'Yesterday',
+    daysAgo: (days: number) => `${days} days ago`,
+    notTrained: 'Not trained recently',
+    todayLabel: 'Today',
+    weekLabel: 'Week',
+    setsLabel: 'sets',
+    remaining: 'Remaining',
+    volume: 'Volume',
+    hourAbbr: 'h',
+    factorsTitle: 'Recovery Factors',
+    sleepHours: 'Sleep Hours',
+    protein: 'Protein Intake',
+    supplements: 'Supplements',
+    cancel: 'Cancel',
+    update: 'Update',
+    low: 'Low (<0.8g/kg)',
+    medium: 'Medium (0.8-1.2g/kg)',
+    high: 'High (1.6-2.2g/kg)',
+    none: 'None',
+    creatine: 'Creatine',
+    full: 'Full Stack',
+    loadError: 'Failed to load recovery status',
+    updateError: 'Failed to update recovery factors',
+  },
+  ar: {
+    title: '\u062a\u0639\u0627\u0641\u064a \u0627\u0644\u0639\u0636\u0644\u0627\u062a',
+    damaged: '\u0639\u0636\u0644\u0627\u062a \u0645\u0631\u0647\u0642\u0629',
+    almost: '\u0639\u0644\u0649 \u0648\u0634\u0643 \u0627\u0644\u062a\u0639\u0627\u0641\u064a',
+    ready: '\u062c\u0627\u0647\u0632 \u0644\u0644\u062a\u062f\u0631\u064a\u0628',
+    lastTrained: '\u0622\u062e\u0631 \u062a\u062f\u0631\u064a\u0628',
+    today: '\u0627\u0644\u064a\u0648\u0645',
+    yesterday: '\u0623\u0645\u0633',
+    daysAgo: (days: number) => `\u0642\u0628\u0644 ${days} \u0623\u064a\u0627\u0645`,
+    notTrained: '\u0644\u0645 \u064a\u062a\u0645 \u0627\u0644\u062a\u062f\u0631\u064a\u0628 \u0645\u0624\u062e\u0631\u064b\u0627',
+    todayLabel: '\u0627\u0644\u064a\u0648\u0645',
+    weekLabel: '\u0627\u0644\u0623\u0633\u0628\u0648\u0639',
+    setsLabel: '\u0645\u062c\u0645\u0648\u0639\u0627\u062a',
+    remaining: '\u0627\u0644\u0645\u062a\u0628\u0642\u064a',
+    volume: '\u0627\u0644\u062d\u062c\u0645',
+    hourAbbr: '\u0633',
+    factorsTitle: '\u0639\u0648\u0627\u0645\u0644 \u0627\u0644\u062a\u0639\u0627\u0641\u064a',
+    sleepHours: '\u0633\u0627\u0639\u0627\u062a \u0627\u0644\u0646\u0648\u0645',
+    protein: '\u062a\u0646\u0627\u0648\u0644 \u0627\u0644\u0628\u0631\u0648\u062a\u064a\u0646',
+    supplements: '\u0627\u0644\u0645\u0643\u0645\u0644\u0627\u062a',
+    cancel: '\u0625\u0644\u063a\u0627\u0621',
+    update: '\u062a\u062d\u062f\u064a\u062b',
+    low: '\u0645\u0646\u062e\u0641\u0636 (\u0623\u0642\u0644 \u0645\u0646 0.8\u063a/\u0643\u063a)',
+    medium: '\u0645\u062a\u0648\u0633\u0637 (0.8-1.2\u063a/\u0643\u063a)',
+    high: '\u0645\u0631\u062a\u0641\u0639 (1.6-2.2\u063a/\u0643\u063a)',
+    none: '\u0628\u062f\u0648\u0646',
+    creatine: '\u0643\u0631\u064a\u0627\u062a\u064a\u0646',
+    full: '\u0645\u062c\u0645\u0648\u0639\u0629 \u0643\u0627\u0645\u0644\u0629',
+    loadError: '\u062a\u0639\u0630\u0631 \u062a\u062d\u0645\u064a\u0644 \u062d\u0627\u0644\u0629 \u0627\u0644\u062a\u0639\u0627\u0641\u064a',
+    updateError: '\u062a\u0639\u0630\u0631 \u062a\u062d\u062f\u064a\u062b \u0639\u0648\u0627\u0645\u0644 \u0627\u0644\u062a\u0639\u0627\u0641\u064a',
+  },
+  it: {
+    title: 'Recupero Muscolare',
+    damaged: 'Muscoli affaticati',
+    almost: 'Quasi pronti',
+    ready: 'Pronti ad allenarsi',
+    lastTrained: 'Ultimo allenamento',
+    today: 'Oggi',
+    yesterday: 'Ieri',
+    daysAgo: (days: number) => `${days} giorni fa`,
+    notTrained: 'Non allenato di recente',
+    todayLabel: 'Oggi',
+    weekLabel: 'Settimana',
+    setsLabel: 'serie',
+    remaining: 'Rimanenti',
+    volume: 'Volume',
+    hourAbbr: 'h',
+    factorsTitle: 'Fattori di Recupero',
+    sleepHours: 'Ore di sonno',
+    protein: 'Assunzione proteica',
+    supplements: 'Integratori',
+    cancel: 'Annulla',
+    update: 'Aggiorna',
+    low: 'Basso (<0.8g/kg)',
+    medium: 'Medio (0.8-1.2g/kg)',
+    high: 'Alto (1.6-2.2g/kg)',
+    none: 'Nessuno',
+    creatine: 'Creatina',
+    full: 'Stack completo',
+    loadError: 'Impossibile caricare lo stato di recupero',
+    updateError: 'Impossibile aggiornare i fattori di recupero',
+  },
+  de: {
+    title: 'Muskelerholung',
+    damaged: 'Erschoepfte Muskeln',
+    almost: 'Fast bereit',
+    ready: 'Bereit fuers Training',
+    lastTrained: 'Zuletzt trainiert',
+    today: 'Heute',
+    yesterday: 'Gestern',
+    daysAgo: (days: number) => `vor ${days} Tagen`,
+    notTrained: 'Nicht kuerzlich trainiert',
+    todayLabel: 'Heute',
+    weekLabel: 'Woche',
+    setsLabel: 'Saetze',
+    remaining: 'Verbleibend',
+    volume: 'Volumen',
+    hourAbbr: 'h',
+    factorsTitle: 'Erholungsfaktoren',
+    sleepHours: 'Schlafstunden',
+    protein: 'Proteinzufuhr',
+    supplements: 'Supplemente',
+    cancel: 'Abbrechen',
+    update: 'Aktualisieren',
+    low: 'Niedrig (<0.8g/kg)',
+    medium: 'Mittel (0.8-1.2g/kg)',
+    high: 'Hoch (1.6-2.2g/kg)',
+    none: 'Keine',
+    creatine: 'Kreatin',
+    full: 'Kompletter Stack',
+    loadError: 'Erholungsstatus konnte nicht geladen werden',
+    updateError: 'Erholungsfaktoren konnten nicht aktualisiert werden',
+  },
+} as const;
+
 const mergeRecoveryWithDefaults = (incoming: MuscleRecoveryItem[] = []): MuscleRecoveryItem[] => {
   const safeNumber = (value: unknown, fallback = 0) => {
     const n = Number(value);
@@ -87,8 +240,9 @@ const mergeRecoveryWithDefaults = (incoming: MuscleRecoveryItem[] = []): MuscleR
 };
 
 export function MuscleRecoveryScreen({ onBack }: MuscleRecoveryScreenProps) {
-  const isArabic = getActiveLanguage(getStoredLanguage()) === 'ar';
-  const copy = {
+  const [language, setLanguage] = useState<AppLanguage>(() => getActiveLanguage(getStoredLanguage()));
+  const isArabic = language === 'ar';
+  const legacyCopy = {
     title: isArabic ? 'تعافي العضلات' : 'Muscle Recovery',
     damaged: isArabic ? 'عضلات مرهقة' : 'Damaged muscles',
     almost: isArabic ? 'على وشك التعافي' : 'Almost ready',
@@ -119,10 +273,25 @@ export function MuscleRecoveryScreen({ onBack }: MuscleRecoveryScreenProps) {
     loadError: isArabic ? 'تعذر تحميل حالة التعافي' : 'Failed to load recovery status',
     updateError: isArabic ? 'تعذر تحديث عوامل التعافي' : 'Failed to update recovery factors',
   };
+  void legacyCopy;
+  const copy = RECOVERY_I18N[language] || RECOVERY_I18N.en;
   const [muscleRecoveries, setMuscleRecoveries] = useState<MuscleRecoveryItem[]>(DEFAULT_MUSCLES);
   const [showFactors, setShowFactors] = useState(false);
   const [factors, setFactors] = useState({ sleepHours: '7', proteinIntake: 'medium', supplements: 'none', soreness: 3, energy: 3 });
   const [error, setError] = useState('');
+
+  useEffect(() => {
+    const handleLanguageChanged = () => {
+      setLanguage(getStoredLanguage());
+    };
+
+    window.addEventListener('app-language-changed', handleLanguageChanged);
+    window.addEventListener('storage', handleLanguageChanged);
+    return () => {
+      window.removeEventListener('app-language-changed', handleLanguageChanged);
+      window.removeEventListener('storage', handleLanguageChanged);
+    };
+  }, []);
 
   const loadRecovery = async () => {
     try {
@@ -201,9 +370,11 @@ export function MuscleRecoveryScreen({ onBack }: MuscleRecoveryScreenProps) {
 
   const getMuscleImage = (muscleGroup: string) => getBodyPartImage(muscleGroup);
   const toLocalizedMuscle = (value: string) => {
-    if (!isArabic) return value;
     const key = String(value || '').trim().toLowerCase();
-    return AR_MUSCLE_LABELS[key] || value;
+    if (language === 'ar') return AR_MUSCLE_LABELS[key] || value;
+    if (language === 'it') return IT_MUSCLE_LABELS[key] || value;
+    if (language === 'de') return DE_MUSCLE_LABELS[key] || value;
+    return value;
   };
 
   const readyMuscles = muscleRecoveries.filter((m) => m.score >= 90).sort((a, b) => a.score - b.score);

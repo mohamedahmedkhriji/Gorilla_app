@@ -25,6 +25,8 @@ export interface FriendMember {
   total_points?: number | string;
   total_workouts?: number | string;
   rank?: string;
+  workout_split_preference?: string | null;
+  workout_split_label?: string | null;
   friend_status?: FriendRelationshipStatus;
   friendship_id?: number | string | null;
   can_view_profile?: boolean;
@@ -200,6 +202,76 @@ const FRIENDS_LIST_I18N = {
     tapPhoto: 'اضغط على الصورة لعرضها بحجم أكبر',
     noPendingFriendRequests: 'لا توجد طلبات صداقة معلقة.',
     noUsersForFilter: 'لم يتم العثور على مستخدمين لهذا الفلتر.',
+  },
+  it: {
+    title: 'Amici',
+    tabFriends: 'Amici',
+    tabGymMembers: 'Membri della Palestra',
+    tabRequests: 'Richieste',
+    searchPlaceholder: 'Cerca membri della palestra per nome...',
+    invitationAlreadyPending: 'invito gia in attesa.',
+    requestSentPrefix: 'Richiesta di amicizia inviata a',
+    requestSentTitle: 'Richiesta inviata',
+    requestPendingTitle: 'Gia in attesa',
+    failedToSendInvitation: 'Invio dell invito non riuscito.',
+    requestFailedTitle: 'Impossibile inviare la richiesta',
+    failedToAcceptRequest: 'Accettazione della richiesta non riuscita.',
+    failedToDeclineRequest: 'Rifiuto della richiesta non riuscito.',
+    requestAcceptedTitle: 'Amico aggiunto',
+    requestIgnoredTitle: 'Richiesta ignorata',
+    requestAccepted: 'Richiesta accettata.',
+    requestIgnored: 'Richiesta ignorata.',
+    profileSuffix: 'profilo',
+    openImagePreview: 'Apri anteprima foto profilo',
+    member: 'Membro',
+    workouts: 'allenamenti',
+    friendRequest: 'Richiesta di amicizia',
+    requestSubtitle: 'Vuole connettersi con te',
+    sameGym: 'Stessa palestra',
+    view: 'Apri',
+    sending: 'Invio...',
+    sendInvite: 'Invia Invito',
+    pending: 'In attesa',
+    accept: 'Accetta',
+    decline: 'Ignora',
+    tapPhoto: 'Tocca la foto per ingrandire',
+    noPendingFriendRequests: 'Nessuna richiesta di amicizia in attesa.',
+    noUsersForFilter: 'Nessun utente trovato per questo filtro.',
+  },
+  de: {
+    title: 'Freunde',
+    tabFriends: 'Freunde',
+    tabGymMembers: 'Studio-Mitglieder',
+    tabRequests: 'Anfragen',
+    searchPlaceholder: 'Suche Studio-Mitglieder nach Namen...',
+    invitationAlreadyPending: 'Einladung bereits ausstehend.',
+    requestSentPrefix: 'Freundschaftsanfrage gesendet an',
+    requestSentTitle: 'Anfrage gesendet',
+    requestPendingTitle: 'Bereits ausstehend',
+    failedToSendInvitation: 'Einladung konnte nicht gesendet werden.',
+    requestFailedTitle: 'Anfrage konnte nicht gesendet werden',
+    failedToAcceptRequest: 'Anfrage konnte nicht angenommen werden.',
+    failedToDeclineRequest: 'Anfrage konnte nicht abgelehnt werden.',
+    requestAcceptedTitle: 'Freund hinzugefuegt',
+    requestIgnoredTitle: 'Anfrage ignoriert',
+    requestAccepted: 'Anfrage angenommen.',
+    requestIgnored: 'Anfrage ignoriert.',
+    profileSuffix: 'Profil',
+    openImagePreview: 'Profilfoto-Vorschau oeffnen',
+    member: 'Mitglied',
+    workouts: 'Workouts',
+    friendRequest: 'Freundschaftsanfrage',
+    requestSubtitle: 'Moechte sich mit dir verbinden',
+    sameGym: 'Gleiches Studio',
+    view: 'Ansehen',
+    sending: 'Wird gesendet...',
+    sendInvite: 'Einladen',
+    pending: 'Ausstehend',
+    accept: 'Annehmen',
+    decline: 'Ignorieren',
+    tapPhoto: 'Tippe auf das Foto zum Vergroessern',
+    noPendingFriendRequests: 'Keine ausstehenden Freundschaftsanfragen.',
+    noUsersForFilter: 'Keine Nutzer fuer diesen Filter gefunden.',
   },
 } as const;
 
@@ -473,60 +545,78 @@ export function FriendsList({ onBack, onFriendClick }: FriendsListProps) {
                     : 'border-white/10'
               }`}
             >
-              <div className={`flex items-center gap-4 ${isIncomingRequest ? 'min-w-0 flex-1' : ''}`}>
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    if (profileImage) {
-                      setAvatarPreview({ src: profileImage, name: member.name });
-                    }
-                  }}
-                  disabled={!profileImage}
-                  className={`relative h-14 w-14 shrink-0 overflow-hidden rounded-full bg-white/10 flex items-center justify-center font-bold text-white ${
-                    profileImage ? 'cursor-zoom-in ring-2 ring-white/15 shadow-lg shadow-black/20' : ''
-                  }`}
-                  aria-label={profileImage ? copy.openImagePreview : undefined}
-                >
-                  {profileImage ? (
-                    <img
-                      src={profileImage}
-                      alt={`${member.name} ${copy.profileSuffix}`}
-                      className="h-full w-full rounded-full object-cover"
-                    />
-                  ) : (
-                    memberInitials
-                  )}
-                </button>
+              <div className={status === 'none' ? 'space-y-3' : `flex items-center gap-4 ${isIncomingRequest ? 'min-w-0 flex-1' : ''}`}>
+                <div className={`flex items-center gap-4 ${status === 'none' || isIncomingRequest ? 'min-w-0 flex-1' : ''}`}>
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (profileImage) {
+                        setAvatarPreview({ src: profileImage, name: member.name });
+                      }
+                    }}
+                    disabled={!profileImage}
+                    className={`relative h-14 w-14 shrink-0 overflow-hidden rounded-full bg-white/10 flex items-center justify-center font-bold text-white ${
+                      profileImage ? 'cursor-zoom-in ring-2 ring-white/15 shadow-lg shadow-black/20' : ''
+                    }`}
+                    aria-label={profileImage ? copy.openImagePreview : undefined}
+                  >
+                    {profileImage ? (
+                      <img
+                        src={profileImage}
+                        alt={`${member.name} ${copy.profileSuffix}`}
+                        className="h-full w-full rounded-full object-cover"
+                      />
+                    ) : (
+                      memberInitials
+                    )}
+                  </button>
 
-                <div className="min-w-0 flex-1">
-                  <h3 className="font-bold text-white truncate">{member.name}</h3>
-                  {isIncomingRequest ? (
-                    <div className="mt-1 space-y-1">
-                      <div className="text-[11px] uppercase tracking-[0.2em] text-text-tertiary">
-                        {copy.friendRequest}
+                  <div className="min-w-0 flex-1">
+                    <h3 className="font-bold text-white truncate">{member.name}</h3>
+                    {isIncomingRequest ? (
+                      <div className="mt-1 space-y-1">
+                        <div className="text-[11px] uppercase tracking-[0.2em] text-text-tertiary">
+                          {copy.friendRequest}
+                        </div>
+                        <div className="text-sm text-text-secondary">
+                          {copy.requestSubtitle}
+                        </div>
+                        <div className="text-[11px] text-text-tertiary">
+                          {copy.tapPhoto}
+                        </div>
                       </div>
-                      <div className="text-sm text-text-secondary">
-                        {copy.requestSubtitle}
+                    ) : (
+                      <div className="flex items-center gap-2 mt-1 flex-wrap">
+                        <span className="text-xs text-accent bg-accent/10 px-2 py-0.5 rounded font-medium flex items-center gap-1">
+                          <Trophy size={10} /> {member.rank || copy.member}
+                        </span>
+                        <span className="text-xs text-text-tertiary">
+                          {toNonNegativeNumber(member.total_workouts)} {copy.workouts}
+                        </span>
+                        <span className="text-[11px] text-text-secondary bg-white/5 px-2 py-0.5 rounded">
+                          {copy.sameGym}
+                        </span>
                       </div>
-                      <div className="text-[11px] text-text-tertiary">
-                        {copy.tapPhoto}
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="flex items-center gap-2 mt-1 flex-wrap">
-                      <span className="text-xs text-accent bg-accent/10 px-2 py-0.5 rounded font-medium flex items-center gap-1">
-                        <Trophy size={10} /> {member.rank || copy.member}
-                      </span>
-                      <span className="text-xs text-text-tertiary">
-                        {toNonNegativeNumber(member.total_workouts)} {copy.workouts}
-                      </span>
-                      <span className="text-[11px] text-text-secondary bg-white/5 px-2 py-0.5 rounded">
-                        {copy.sameGym}
-                      </span>
-                    </div>
-                  )}
+                    )}
+                  </div>
                 </div>
+
+                {status === 'none' && (
+                  <div className="flex justify-center">
+                    <button
+                      type="button"
+                      disabled={isBusy}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        void handleSendInvite(member);
+                      }}
+                      className="px-3 py-2 rounded-lg text-xs font-semibold border border-accent/40 text-accent hover:bg-accent/10 disabled:opacity-60"
+                    >
+                      {isBusy ? copy.sending : copy.sendInvite}
+                    </button>
+                  </div>
+                )}
               </div>
 
               {status === 'accepted' && (
@@ -540,20 +630,6 @@ export function FriendsList({ onBack, onFriendClick }: FriendsListProps) {
                 >
                   {copy.view}
                   <ChevronRight size={14} />
-                </button>
-              )}
-
-              {status === 'none' && (
-                <button
-                  type="button"
-                  disabled={isBusy}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    void handleSendInvite(member);
-                  }}
-                  className="px-3 py-2 rounded-lg text-xs font-semibold border border-accent/40 text-accent hover:bg-accent/10 disabled:opacity-60"
-                >
-                  {isBusy ? copy.sending : copy.sendInvite}
                 </button>
               )}
 

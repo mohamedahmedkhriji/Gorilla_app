@@ -1,14 +1,39 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Header } from '../components/ui/Header';
 import { Card } from '../components/ui/Card';
-import { Trophy, X, ChevronLeft, ChevronRight } from 'lucide-react';
+import {
+  ArrowRight,
+  ChevronLeft,
+  ChevronRight,
+  Dumbbell,
+  Sparkles,
+  Trophy,
+  X,
+} from 'lucide-react';
 import { api } from '../services/api';
+import { getBodyPartImage } from '../services/bodyPartTheme';
+import {
+  AppLanguage,
+  getActiveLanguage,
+  getLanguageLocale,
+  getStoredLanguage,
+  pickLanguage,
+} from '../services/language';
+import {
+  translateProgramText,
+  translateWorkoutType,
+} from '../services/programI18n';
+import {
+  formatWorkoutDayShortLabel,
+} from '../services/workoutDayLabel';
 import type { FriendMember } from './FriendsList';
+
 interface FriendProfileProps {
   onBack: () => void;
   onChallenge: () => void;
   friend?: FriendMember | null;
 }
+
 type FriendPost = {
   id: number;
   userId: number;
@@ -37,6 +62,383 @@ type BlogFeedPost = {
   };
 };
 
+type WorkoutExercise = {
+  exerciseName?: string;
+  exercise_name?: string;
+  name?: string;
+  sets?: number;
+  targetSets?: number;
+  target_sets?: number;
+  reps?: string | number;
+  rest?: number;
+  notes?: string | null;
+  targetMuscles?: unknown;
+  muscleTargets?: unknown;
+  muscles?: unknown;
+  muscleGroup?: unknown;
+  muscle_group?: unknown;
+  muscle?: unknown;
+  bodyPart?: unknown;
+};
+
+type FriendWorkout = {
+  id: number;
+  workout_name: string;
+  workout_type: string | null;
+  day_order: number;
+  day_name: string;
+  notes?: string | null;
+  focusMuscles?: string[];
+  exercises: WorkoutExercise[];
+};
+
+type FriendPlanMuscle = {
+  name: string;
+  percent: number;
+};
+
+type FriendPlanView = 'overview' | 'plan';
+
+type FriendProfileCopy = {
+  profileTitle: string;
+  planTitle: string;
+  lockedTitle: string;
+  lockedBody: string;
+  backToFriends: string;
+  inviteToGymDay: string;
+  challenge: string;
+  badges: string;
+  trainingSplit: string;
+  viewFriendPlan: string;
+  planPeek: string;
+  planLoading: string;
+  planError: string;
+  emptyPlan: string;
+  posts: string;
+  loadingPosts: string;
+  noPosts: string;
+  today: string;
+  yesterday: string;
+  recently: string;
+  likes: string;
+  comments: string;
+  views: string;
+  inviteModalTitle: string;
+  inviteModalSubtitle: string;
+  selectedSession: string;
+  chooseDateTime: string;
+  time: string;
+  sendInvitation: string;
+  closeImagePreview: string;
+  comingSoon: string;
+  challengeSoonTitle: string;
+  challengeSoonBody: string;
+  challengeSoonHint: string;
+  challengeSoonCta: string;
+  noSession: string;
+  friendNotSelected: string;
+  inviteSent: string;
+  inviteFailed: string;
+  level: (value: number) => string;
+  weekLabel: (week: number, total: number) => string;
+  workoutsLabel: (value: number) => string;
+  exerciseCount: (value: number) => string;
+  moreExercises: (value: number) => string;
+  targetMuscles: string;
+  targetMusclesHint: string;
+  weeklySchedule: string;
+  weeklyScheduleHint: string;
+  planHighlights: string;
+  planHighlightsHint: string;
+  notes: string;
+  sets: (value: number) => string;
+  reps: (value: string | number) => string;
+  rest: (value: number) => string;
+  workoutFallback: (value: number) => string;
+  postMediaAlt: string;
+};
+
+const FRIEND_PROFILE_I18N = {
+  en: {
+    profileTitle: 'Friend Profile',
+    planTitle: 'Friend Plan',
+    lockedTitle: 'Profile locked',
+    lockedBody: 'Send a friend invitation and wait for acceptance before viewing this profile.',
+    backToFriends: 'Back to Friends',
+    inviteToGymDay: 'Invite to Gym Day',
+    challenge: 'Challenge',
+    badges: 'Badges',
+    trainingSplit: 'Training Split',
+    viewFriendPlan: 'Open full plan',
+    planPeek: 'Tap to explore workouts, focus muscles, and weekly details.',
+    planLoading: 'Loading friend plan...',
+    planError: 'Unable to load this friend plan right now.',
+    emptyPlan: 'No active training plan was found for this friend yet.',
+    posts: 'Posts',
+    loadingPosts: 'Loading posts...',
+    noPosts: 'No posts uploaded yet.',
+    today: 'Today',
+    yesterday: 'Yesterday',
+    recently: 'Recently',
+    likes: 'likes',
+    comments: 'comments',
+    views: 'views',
+    inviteModalTitle: 'Invite to Session',
+    inviteModalSubtitle: 'Pick date and time for your workout together.',
+    selectedSession: 'Selected session',
+    chooseDateTime: 'Choose a date and time',
+    time: 'Time',
+    sendInvitation: 'Send Invitation',
+    closeImagePreview: 'Close image preview',
+    comingSoon: 'Coming Soon',
+    challengeSoonTitle: 'Challenges are almost here',
+    challengeSoonBody: 'We are polishing competitive workouts so you can challenge friends with score tracking and better matchups.',
+    challengeSoonHint: 'For now, invite them to a gym session while we finish the challenge experience.',
+    challengeSoonCta: 'Got it',
+    noSession: 'No active user session found.',
+    friendNotSelected: 'Friend not selected.',
+    inviteSent: 'Session invitation sent!',
+    inviteFailed: 'Failed to send invitation',
+    level: (value: number) => `Level ${value}`,
+    weekLabel: (week: number, total: number) => `Week ${week}${total > 0 ? ` / ${total}` : ''}`,
+    workoutsLabel: (value: number) => `${value} workouts`,
+    exerciseCount: (value: number) => `${value} exercises`,
+    moreExercises: (value: number) => `+${value} more exercises`,
+    targetMuscles: 'Target Muscles',
+    targetMusclesHint: 'Main muscle groups this friend is focusing on right now.',
+    weeklySchedule: 'Weekly Schedule',
+    weeklyScheduleHint: 'A polished look at the current plan week.',
+    planHighlights: 'Plan Highlights',
+    planHighlightsHint: 'Current split, active week, and workout density.',
+    notes: 'Coach note',
+    sets: (value: number) => `${value} sets`,
+    reps: (value: string | number) => `${value} reps`,
+    rest: (value: number) => `${value}s rest`,
+    workoutFallback: (value: number) => `Workout ${value}`,
+    postMediaAlt: 'Post media',
+  },
+  ar: {
+    profileTitle: 'Friend Profile',
+    planTitle: 'Friend Plan',
+    lockedTitle: 'Profile locked',
+    lockedBody: 'Send a friend invitation and wait for acceptance before viewing this profile.',
+    backToFriends: 'Back to Friends',
+    inviteToGymDay: 'Invite to Gym Day',
+    challenge: 'Challenge',
+    badges: 'Badges',
+    trainingSplit: 'Training Split',
+    viewFriendPlan: 'Open full plan',
+    planPeek: 'Tap to explore workouts, focus muscles, and weekly details.',
+    planLoading: 'Loading friend plan...',
+    planError: 'Unable to load this friend plan right now.',
+    emptyPlan: 'No active training plan was found for this friend yet.',
+    posts: 'Posts',
+    loadingPosts: 'Loading posts...',
+    noPosts: 'No posts uploaded yet.',
+    today: 'Today',
+    yesterday: 'Yesterday',
+    recently: 'Recently',
+    likes: 'likes',
+    comments: 'comments',
+    views: 'views',
+    inviteModalTitle: 'Invite to Session',
+    inviteModalSubtitle: 'Pick date and time for your workout together.',
+    selectedSession: 'Selected session',
+    chooseDateTime: 'Choose a date and time',
+    time: 'Time',
+    sendInvitation: 'Send Invitation',
+    closeImagePreview: 'Close image preview',
+    comingSoon: 'قريبًا',
+    challengeSoonTitle: 'التحديات قادمة قريبًا',
+    challengeSoonBody: 'نعمل الآن على تحسين تجربة التحديات بين الأصدقاء مع تتبع النتائج ومواجهات أفضل.',
+    challengeSoonHint: 'إلى ذلك الحين يمكنك دعوة صديقك إلى جلسة تدريب حتى نكمل هذه الميزة.',
+    challengeSoonCta: 'حسنًا',
+    noSession: 'No active user session found.',
+    friendNotSelected: 'Friend not selected.',
+    inviteSent: 'Session invitation sent!',
+    inviteFailed: 'Failed to send invitation',
+    level: (value: number) => `Level ${value}`,
+    weekLabel: (week: number, total: number) => `Week ${week}${total > 0 ? ` / ${total}` : ''}`,
+    workoutsLabel: (value: number) => `${value} workouts`,
+    exerciseCount: (value: number) => `${value} exercises`,
+    moreExercises: (value: number) => `+${value} more exercises`,
+    targetMuscles: 'Target Muscles',
+    targetMusclesHint: 'Main muscle groups this friend is focusing on right now.',
+    weeklySchedule: 'Weekly Schedule',
+    weeklyScheduleHint: 'A polished look at the current plan week.',
+    planHighlights: 'Plan Highlights',
+    planHighlightsHint: 'Current split, active week, and workout density.',
+    notes: 'Coach note',
+    sets: (value: number) => `${value} sets`,
+    reps: (value: string | number) => `${value} reps`,
+    rest: (value: number) => `${value}s rest`,
+    workoutFallback: (value: number) => `Workout ${value}`,
+    postMediaAlt: 'Post media',
+  },
+  it: {
+    profileTitle: 'Profilo Amico',
+    planTitle: 'Piano Amico',
+    lockedTitle: 'Profilo bloccato',
+    lockedBody: 'Invia una richiesta di amicizia e attendi l\'accettazione prima di visualizzare questo profilo.',
+    backToFriends: 'Torna agli amici',
+    inviteToGymDay: 'Invita a una sessione',
+    challenge: 'Sfida',
+    badges: 'Badge',
+    trainingSplit: 'Split di allenamento',
+    viewFriendPlan: 'Apri piano completo',
+    planPeek: 'Tocca per vedere allenamenti, muscoli target e dettagli della settimana.',
+    planLoading: 'Caricamento piano dell\'amico...',
+    planError: 'Impossibile caricare il piano di questo amico ora.',
+    emptyPlan: 'Nessun piano di allenamento attivo trovato per questo amico.',
+    posts: 'Post',
+    loadingPosts: 'Caricamento post...',
+    noPosts: 'Nessun post caricato.',
+    today: 'Oggi',
+    yesterday: 'Ieri',
+    recently: 'Di recente',
+    likes: 'mi piace',
+    comments: 'commenti',
+    views: 'visualizzazioni',
+    inviteModalTitle: 'Invita alla sessione',
+    inviteModalSubtitle: 'Scegli data e ora per allenarvi insieme.',
+    selectedSession: 'Sessione selezionata',
+    chooseDateTime: 'Scegli data e ora',
+    time: 'Ora',
+    sendInvitation: 'Invia invito',
+    closeImagePreview: 'Chiudi anteprima immagine',
+    comingSoon: 'Prossimamente',
+    challengeSoonTitle: 'Le sfide stanno arrivando',
+    challengeSoonBody: 'Stiamo rifinendo le sfide tra amici con tracciamento punteggi e abbinamenti migliori.',
+    challengeSoonHint: 'Nel frattempo puoi invitare il tuo amico a una sessione in palestra.',
+    challengeSoonCta: 'Capito',
+    noSession: 'Nessuna sessione utente attiva trovata.',
+    friendNotSelected: 'Amico non selezionato.',
+    inviteSent: 'Invito alla sessione inviato!',
+    inviteFailed: 'Impossibile inviare l\'invito',
+    level: (value: number) => `Livello ${value}`,
+    weekLabel: (week: number, total: number) => `Settimana ${week}${total > 0 ? ` / ${total}` : ''}`,
+    workoutsLabel: (value: number) => `${value} allenamenti`,
+    exerciseCount: (value: number) => `${value} esercizi`,
+    moreExercises: (value: number) => `+${value} altri esercizi`,
+    targetMuscles: 'Muscoli Target',
+    targetMusclesHint: 'I principali gruppi muscolari su cui si concentra adesso.',
+    weeklySchedule: 'Programma Settimanale',
+    weeklyScheduleHint: 'Una vista piu curata della settimana attiva.',
+    planHighlights: 'Punti Chiave del Piano',
+    planHighlightsHint: 'Split attuale, settimana attiva e densita del lavoro.',
+    notes: 'Nota del coach',
+    sets: (value: number) => `${value} serie`,
+    reps: (value: string | number) => `${value} ripetizioni`,
+    rest: (value: number) => `${value}s recupero`,
+    workoutFallback: (value: number) => `Allenamento ${value}`,
+    postMediaAlt: 'Media del post',
+  },
+  de: {
+    profileTitle: 'Freundesprofil',
+    planTitle: 'Trainingsplan des Freundes',
+    lockedTitle: 'Profil gesperrt',
+    lockedBody: 'Sende zuerst eine Freundesanfrage und warte auf die Annahme, bevor du dieses Profil ansiehst.',
+    backToFriends: 'Zuruck zu Freunden',
+    inviteToGymDay: 'Zum Training einladen',
+    challenge: 'Herausfordern',
+    badges: 'Abzeichen',
+    trainingSplit: 'Trainingssplit',
+    viewFriendPlan: 'Kompletten Plan offnen',
+    planPeek: 'Tippe hier fur Workouts, Zielmuskeln und Wochen-Details.',
+    planLoading: 'Freundesplan wird geladen...',
+    planError: 'Dieser Freundesplan kann gerade nicht geladen werden.',
+    emptyPlan: 'Fur diesen Freund wurde noch kein aktiver Trainingsplan gefunden.',
+    posts: 'Beitrage',
+    loadingPosts: 'Beitrage werden geladen...',
+    noPosts: 'Noch keine Beitrage hochgeladen.',
+    today: 'Heute',
+    yesterday: 'Gestern',
+    recently: 'Kuerzlich',
+    likes: 'Likes',
+    comments: 'Kommentare',
+    views: 'Aufrufe',
+    inviteModalTitle: 'Zur Session einladen',
+    inviteModalSubtitle: 'Wahle Datum und Uhrzeit fur euer gemeinsames Training.',
+    selectedSession: 'Ausgewahlte Session',
+    chooseDateTime: 'Datum und Uhrzeit auswahlen',
+    time: 'Uhrzeit',
+    sendInvitation: 'Einladung senden',
+    closeImagePreview: 'Bildvorschau schliessen',
+    comingSoon: 'Demnaechst',
+    challengeSoonTitle: 'Challenges kommen bald',
+    challengeSoonBody: 'Wir verfeinern gerade Wettbewerbe mit Freunden inklusive Punktestand und besseren Matchups.',
+    challengeSoonHint: 'Bis dahin kannst du deinen Freund zu einer gemeinsamen Session einladen.',
+    challengeSoonCta: 'Verstanden',
+    noSession: 'Keine aktive Benutzersitzung gefunden.',
+    friendNotSelected: 'Kein Freund ausgewahlt.',
+    inviteSent: 'Session-Einladung gesendet!',
+    inviteFailed: 'Einladung konnte nicht gesendet werden',
+    level: (value: number) => `Level ${value}`,
+    weekLabel: (week: number, total: number) => `Woche ${week}${total > 0 ? ` / ${total}` : ''}`,
+    workoutsLabel: (value: number) => `${value} Workouts`,
+    exerciseCount: (value: number) => `${value} Ubungen`,
+    moreExercises: (value: number) => `+${value} weitere Ubungen`,
+    targetMuscles: 'Zielmuskeln',
+    targetMusclesHint: 'Die wichtigsten Muskelgruppen, auf die sich der Plan gerade konzentriert.',
+    weeklySchedule: 'Wochenplan',
+    weeklyScheduleHint: 'Eine klarere Ansicht der aktiven Trainingswoche.',
+    planHighlights: 'Plan-Highlights',
+    planHighlightsHint: 'Aktueller Split, aktive Woche und Trainingsdichte.',
+    notes: 'Coach-Notiz',
+    sets: (value: number) => `${value} Satze`,
+    reps: (value: string | number) => `${value} Wiederholungen`,
+    rest: (value: number) => `${value}s Pause`,
+    workoutFallback: (value: number) => `Workout ${value}`,
+    postMediaAlt: 'Beitragsmedium',
+  },
+} satisfies Record<AppLanguage, FriendProfileCopy>;
+
+const MUSCLE_NAME_MAP: Record<AppLanguage, Record<string, string>> = {
+  en: {},
+  ar: {
+    Abs: 'Abs',
+    Back: 'Back',
+    Biceps: 'Biceps',
+    Calves: 'Calves',
+    Chest: 'Chest',
+    Forearms: 'Forearms',
+    Glutes: 'Glutes',
+    Hamstrings: 'Hamstrings',
+    Quadriceps: 'Quadriceps',
+    Shoulders: 'Shoulders',
+    Triceps: 'Triceps',
+  },
+  it: {
+    Abs: 'Addome',
+    Back: 'Schiena',
+    Biceps: 'Bicipiti',
+    Calves: 'Polpacci',
+    Chest: 'Petto',
+    Forearms: 'Avambracci',
+    Glutes: 'Glutei',
+    Hamstrings: 'Femorali',
+    Quadriceps: 'Quadricipiti',
+    Shoulders: 'Spalle',
+    Triceps: 'Tricipiti',
+  },
+  de: {
+    Abs: 'Bauch',
+    Back: 'Ruecken',
+    Biceps: 'Bizeps',
+    Calves: 'Waden',
+    Chest: 'Brust',
+    Forearms: 'Unterarme',
+    Glutes: 'Gesaess',
+    Hamstrings: 'Beinbeuger',
+    Quadriceps: 'Quadrizeps',
+    Shoulders: 'Schultern',
+    Triceps: 'Trizeps',
+  },
+};
+
+const QUICK_SESSION_TIMES = ['06:30', '08:00', '17:30', '19:00'];
+const TEMPLATE_DAY_NAMES = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+
 const getLevelFromPoints = (points: number) => {
   if (points >= 2200) return 6;
   if (points >= 1400) return 5;
@@ -57,29 +459,342 @@ const isUsableProfileImage = (value: unknown) => {
   );
 };
 
-const formatRelativeDay = (isoDate: string) => {
+const toTitleCase = (value: unknown) =>
+  String(value || '')
+    .trim()
+    .toLowerCase()
+    .split(/[\s_-]+/)
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(' ');
+
+const parseExercises = (raw: unknown): WorkoutExercise[] => {
+  if (Array.isArray(raw)) return raw as WorkoutExercise[];
+  if (typeof raw !== 'string') return [];
+
+  try {
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed as WorkoutExercise[] : [];
+  } catch {
+    return [];
+  }
+};
+
+const parseTargetMuscles = (raw: unknown): string[] => {
+  if (Array.isArray(raw)) {
+    return raw.map((entry) => toTitleCase(entry)).filter(Boolean);
+  }
+
+  if (typeof raw !== 'string' || !raw.trim()) return [];
+
+  try {
+    const parsed = JSON.parse(raw);
+    if (Array.isArray(parsed)) {
+      return parsed.map((entry) => toTitleCase(entry)).filter(Boolean);
+    }
+  } catch {
+    return raw
+      .split(/[,;|]+/)
+      .map((entry) => toTitleCase(entry))
+      .filter(Boolean);
+  }
+
+  return [];
+};
+
+const inferMusclesFromExerciseName = (exerciseName: unknown) => {
+  const name = String(exerciseName || '').toLowerCase();
+  const matches: string[] = [];
+
+  if (/bench|chest|fly|push-up|push up/.test(name)) matches.push('Chest', 'Triceps', 'Shoulders');
+  if (/deadlift|row|pull-up|pull up|lat|pulldown|pullover/.test(name)) matches.push('Back', 'Biceps', 'Forearms');
+  if (/squat|leg press|lunge|split squat|step up/.test(name)) matches.push('Quadriceps', 'Hamstrings', 'Calves');
+  if (/romanian deadlift|rdl|leg curl|hamstring/.test(name)) matches.push('Hamstrings');
+  if (/shoulder|overhead press|lateral raise|rear delt/.test(name)) matches.push('Shoulders', 'Triceps');
+  if (/curl/.test(name)) matches.push('Biceps', 'Forearms');
+  if (/tricep|triceps|dip/.test(name)) matches.push('Triceps');
+  if (/calf/.test(name)) matches.push('Calves');
+  if (/abs|core|crunch|plank|sit-up|sit up/.test(name)) matches.push('Abs');
+  if (/glute|hip thrust/.test(name)) matches.push('Glutes');
+
+  return [...new Set(matches.map((entry) => toTitleCase(entry)).filter(Boolean))];
+};
+
+const getExerciseMuscles = (exercise: WorkoutExercise) => {
+  const explicit = [
+    ...parseTargetMuscles(exercise.targetMuscles),
+    ...parseTargetMuscles(exercise.muscleTargets),
+    ...parseTargetMuscles(exercise.muscles),
+    toTitleCase(exercise.muscleGroup || exercise.muscle_group || exercise.muscle || exercise.bodyPart || ''),
+  ].filter(Boolean);
+
+  if (explicit.length > 0) {
+    return [...new Set(explicit)];
+  }
+
+  return inferMusclesFromExerciseName(exercise.exerciseName || exercise.exercise_name || exercise.name || '');
+};
+
+const buildProgramDistribution = (workouts: FriendWorkout[]): FriendPlanMuscle[] => {
+  const byMuscle = new Map<string, number>();
+
+  workouts.forEach((workout) => {
+    if (Array.isArray(workout.focusMuscles) && workout.focusMuscles.length > 0 && workout.exercises.length === 0) {
+      const share = 1 / workout.focusMuscles.length;
+      workout.focusMuscles.forEach((muscle) => {
+        byMuscle.set(muscle, Number(byMuscle.get(muscle) || 0) + share);
+      });
+      return;
+    }
+
+    workout.exercises.forEach((exercise) => {
+      const plannedSets = Math.max(
+        1,
+        Number(exercise.sets ?? exercise.targetSets ?? exercise.target_sets ?? 1) || 1,
+      );
+      const muscles = getExerciseMuscles(exercise);
+      if (muscles.length === 0) return;
+
+      const share = plannedSets / muscles.length;
+      muscles.forEach((muscle) => {
+        byMuscle.set(muscle, Number(byMuscle.get(muscle) || 0) + share);
+      });
+    });
+  });
+
+  const total = Array.from(byMuscle.values()).reduce((sum, value) => sum + Number(value || 0), 0);
+  if (total <= 0) return [];
+
+  return Array.from(byMuscle.entries())
+    .map(([name, value]) => ({
+      name,
+      percent: Math.max(0, Math.min(100, (Number(value) / total) * 100)),
+    }))
+    .sort((left, right) => right.percent - left.percent)
+    .slice(0, 4);
+};
+
+const localizeMuscleName = (value: string, language: AppLanguage) =>
+  MUSCLE_NAME_MAP[language][value] || value;
+
+const normalizeWorkouts = (raw: unknown): FriendWorkout[] =>
+  (Array.isArray(raw) ? raw : [])
+    .map((entry: any) => ({
+      id: Number(entry?.id || 0),
+      workout_name: String(entry?.workout_name || entry?.name || 'Workout'),
+      workout_type: entry?.workout_type ? String(entry.workout_type) : null,
+      day_order: Number(entry?.day_order || 0),
+      day_name: String(entry?.day_name || ''),
+      notes: entry?.notes ? String(entry.notes) : null,
+      focusMuscles: [],
+      exercises: parseExercises(entry?.exercises),
+    }))
+    .sort((left, right) => left.day_order - right.day_order);
+
+const normalizeSplitPreference = (value: unknown) =>
+  String(value || '')
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, '_');
+
+const createTemplateWorkout = (
+  dayOrder: number,
+  workoutName: string,
+  focusMuscles: string[],
+  note = 'Built from saved split preference.',
+): FriendWorkout => ({
+  id: -(dayOrder + 1),
+  workout_name: workoutName,
+  workout_type: null,
+  day_order: dayOrder + 1,
+  day_name: TEMPLATE_DAY_NAMES[dayOrder] || `Day ${dayOrder + 1}`,
+  notes: note,
+  focusMuscles,
+  exercises: [],
+});
+
+const buildFallbackSplitWorkouts = (splitPreference: unknown, splitLabel: unknown) => {
+  const normalized = normalizeSplitPreference(splitPreference || splitLabel);
+  const templateNote = 'Fallback preview generated from saved split preference.';
+
+  if (normalized.includes('push_pull_legs') || normalized === 'ppl') {
+    return {
+      programName: String(splitLabel || 'Push / Pull / Legs'),
+      workouts: [
+        createTemplateWorkout(0, 'Push', ['Chest', 'Shoulders', 'Triceps'], templateNote),
+        createTemplateWorkout(1, 'Pull', ['Back', 'Biceps', 'Forearms'], templateNote),
+        createTemplateWorkout(2, 'Legs', ['Quadriceps', 'Hamstrings', 'Calves'], templateNote),
+        createTemplateWorkout(3, 'Push', ['Chest', 'Shoulders', 'Triceps'], templateNote),
+        createTemplateWorkout(4, 'Pull', ['Back', 'Biceps', 'Forearms'], templateNote),
+        createTemplateWorkout(5, 'Legs', ['Quadriceps', 'Hamstrings', 'Calves'], templateNote),
+      ],
+    };
+  }
+
+  if (normalized.includes('upper_lower') || normalized === 'upperlower') {
+    return {
+      programName: String(splitLabel || 'Upper / Lower'),
+      workouts: [
+        createTemplateWorkout(0, 'Upper Body', ['Chest', 'Back', 'Shoulders'], templateNote),
+        createTemplateWorkout(1, 'Lower Body', ['Quadriceps', 'Hamstrings', 'Calves'], templateNote),
+        createTemplateWorkout(2, 'Upper Body', ['Chest', 'Back', 'Biceps'], templateNote),
+        createTemplateWorkout(3, 'Lower Body', ['Glutes', 'Quadriceps', 'Hamstrings'], templateNote),
+      ],
+    };
+  }
+
+  if (normalized.includes('full_body')) {
+    return {
+      programName: String(splitLabel || 'Full Body Focus'),
+      workouts: [
+        createTemplateWorkout(0, 'Full Body A', ['Chest', 'Back', 'Quadriceps'], templateNote),
+        createTemplateWorkout(1, 'Full Body B', ['Shoulders', 'Hamstrings', 'Biceps'], templateNote),
+        createTemplateWorkout(2, 'Full Body C', ['Chest', 'Back', 'Abs'], templateNote),
+      ],
+    };
+  }
+
+  if (normalized.includes('hybrid') || normalized.includes('splitpush')) {
+    return {
+      programName: String(splitLabel || 'Hybrid Split'),
+      workouts: [
+        createTemplateWorkout(0, 'Chest & Triceps', ['Chest', 'Triceps'], templateNote),
+        createTemplateWorkout(1, 'Back & Biceps', ['Back', 'Biceps'], templateNote),
+        createTemplateWorkout(2, 'Legs', ['Quadriceps', 'Hamstrings', 'Calves'], templateNote),
+        createTemplateWorkout(3, 'Upper Body', ['Chest', 'Back', 'Shoulders'], templateNote),
+        createTemplateWorkout(4, 'Lower Body', ['Glutes', 'Quadriceps', 'Hamstrings'], templateNote),
+      ],
+    };
+  }
+
+  if (normalized.includes('custom') || normalized.includes('body_part') || normalized.includes('bro')) {
+    return {
+      programName: String(splitLabel || 'Body Part Split'),
+      workouts: [
+        createTemplateWorkout(0, 'Chest & Triceps', ['Chest', 'Triceps'], templateNote),
+        createTemplateWorkout(1, 'Back & Biceps', ['Back', 'Biceps'], templateNote),
+        createTemplateWorkout(2, 'Legs', ['Quadriceps', 'Hamstrings', 'Calves'], templateNote),
+        createTemplateWorkout(3, 'Shoulders', ['Shoulders', 'Forearms'], templateNote),
+        createTemplateWorkout(4, 'Arms & Core', ['Biceps', 'Triceps', 'Abs'], templateNote),
+      ],
+    };
+  }
+
+  if (normalized.includes('auto') || normalized) {
+    return {
+      programName: String(splitLabel || 'Balanced Split'),
+      workouts: [
+        createTemplateWorkout(0, 'Chest & Triceps', ['Chest', 'Triceps'], templateNote),
+        createTemplateWorkout(1, 'Legs', ['Quadriceps', 'Hamstrings', 'Calves'], templateNote),
+        createTemplateWorkout(2, 'Back & Biceps', ['Back', 'Biceps'], templateNote),
+        createTemplateWorkout(3, 'Shoulders & Core', ['Shoulders', 'Abs'], templateNote),
+      ],
+    };
+  }
+
+  return {
+    programName: String(splitLabel || 'Balanced Split'),
+    workouts: [
+      createTemplateWorkout(0, 'Chest & Triceps', ['Chest', 'Triceps'], templateNote),
+      createTemplateWorkout(1, 'Legs', ['Quadriceps', 'Hamstrings', 'Calves'], templateNote),
+      createTemplateWorkout(2, 'Back & Biceps', ['Back', 'Biceps'], templateNote),
+      createTemplateWorkout(3, 'Shoulders & Core', ['Shoulders', 'Abs'], templateNote),
+    ],
+  };
+};
+
+const getWorkoutLabel = (
+  workout: FriendWorkout,
+  language: AppLanguage,
+  fallback: string,
+) => {
+  if (workout.workout_type) {
+    return translateWorkoutType(workout.workout_type, language);
+  }
+  return translateProgramText(workout.workout_name || fallback, language);
+};
+
+const buildSplitPreviewRows = (
+  workouts: FriendWorkout[],
+  language: AppLanguage,
+  fallback: (value: number) => string,
+) => {
+  const groups = new Map<string, { label: string; days: string[] }>();
+
+  workouts.forEach((workout) => {
+    const key = String(workout.workout_type || workout.workout_name || workout.day_order || 'workout');
+    const existing = groups.get(key);
+    const nextDay = formatWorkoutDayShortLabel(
+      workout.day_name,
+      fallback(workout.day_order),
+      language,
+    );
+    const nextLabel = getWorkoutLabel(workout, language, fallback(workout.day_order));
+
+    if (existing) {
+      if (nextDay && !existing.days.includes(nextDay)) {
+        existing.days.push(nextDay);
+      }
+      return;
+    }
+
+    groups.set(key, {
+      label: nextLabel,
+      days: nextDay ? [nextDay] : [],
+    });
+  });
+
+  return Array.from(groups.values()).slice(0, 4);
+};
+
+const formatRelativeDay = (
+  isoDate: string,
+  language: AppLanguage,
+  copy: FriendProfileCopy,
+) => {
   const date = new Date(isoDate);
-  if (Number.isNaN(date.getTime())) return 'Recently';
+  if (Number.isNaN(date.getTime())) return copy.recently;
+
   const now = new Date();
   const startNow = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
   const startThen = new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
   const dayDiff = Math.floor((startNow - startThen) / (24 * 60 * 60 * 1000));
-  if (dayDiff <= 0) return 'Today';
-  if (dayDiff === 1) return 'Yesterday';
-  if (dayDiff < 7) return `${dayDiff}d ago`;
-  return date.toLocaleDateString();
+
+  if (dayDiff <= 0) return copy.today;
+  if (dayDiff === 1) return copy.yesterday;
+  if (dayDiff < 7) return `${dayDiff}d`;
+  return date.toLocaleDateString(getLanguageLocale(language));
 };
 
-const QUICK_SESSION_TIMES = ['06:30', '08:00', '17:30', '19:00'];
+const getActiveViewerId = () => {
+  try {
+    const user = JSON.parse(localStorage.getItem('appUser') || localStorage.getItem('user') || '{}');
+    return Number(user?.id || localStorage.getItem('appUserId') || localStorage.getItem('userId') || 0);
+  } catch {
+    return Number(localStorage.getItem('appUserId') || localStorage.getItem('userId') || 0);
+  }
+};
 
-export function FriendProfile({ onBack, onChallenge, friend }: FriendProfileProps) {
+export function FriendProfile({ onBack, friend }: FriendProfileProps) {
+  const [language, setLanguage] = useState<AppLanguage>(() => getActiveLanguage());
   const [showInvite, setShowInvite] = useState(false);
+  const [showChallengeSoon, setShowChallengeSoon] = useState(false);
   const [showAvatarPreview, setShowAvatarPreview] = useState(false);
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [selectedTime, setSelectedTime] = useState({ hour: 9, minute: 0 });
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [friendPosts, setFriendPosts] = useState<FriendPost[]>([]);
   const [loadingFriendPosts, setLoadingFriendPosts] = useState(false);
+  const [view, setView] = useState<FriendPlanView>('overview');
+  const [friendPlanLoading, setFriendPlanLoading] = useState(false);
+  const [friendPlanFailed, setFriendPlanFailed] = useState(false);
+  const [friendProgramName, setFriendProgramName] = useState('Current Program');
+  const [friendCurrentWeek, setFriendCurrentWeek] = useState(1);
+  const [friendTotalWeeks, setFriendTotalWeeks] = useState(0);
+  const [friendWorkouts, setFriendWorkouts] = useState<FriendWorkout[]>([]);
+  const [friendPlanMuscles, setFriendPlanMuscles] = useState<FriendPlanMuscle[]>([]);
+
+  const copy = pickLanguage(language, FRIEND_PROFILE_I18N);
 
   const friendId = Number(friend?.id || 0);
   const friendName = String(friend?.name || 'Friend').trim() || 'Friend';
@@ -92,9 +807,28 @@ export function FriendProfile({ onBack, onChallenge, friend }: FriendProfileProp
   const friendStatus = String(friend?.friend_status || '').trim().toLowerCase();
   const canViewProfile = friendStatus === 'accepted' || !!friend?.can_view_profile;
   const friendInitials = useMemo(
-    () => friendName.split(' ').filter(Boolean).map((n) => n[0]).join('').slice(0, 2).toUpperCase() || 'FR',
+    () => friendName.split(' ').filter(Boolean).map((name) => name[0]).join('').slice(0, 2).toUpperCase() || 'FR',
     [friendName],
   );
+
+  useEffect(() => {
+    setLanguage(getActiveLanguage());
+
+    const handleLanguageChanged = () => {
+      setLanguage(getStoredLanguage());
+    };
+
+    window.addEventListener('app-language-changed', handleLanguageChanged);
+    window.addEventListener('storage', handleLanguageChanged);
+    return () => {
+      window.removeEventListener('app-language-changed', handleLanguageChanged);
+      window.removeEventListener('storage', handleLanguageChanged);
+    };
+  }, []);
+
+  useEffect(() => {
+    setView('overview');
+  }, [friendId]);
 
   useEffect(() => {
     const loadFriendPosts = async () => {
@@ -118,7 +852,7 @@ export function FriendProfile({ onBack, onChallenge, friend }: FriendProfileProp
             description: String(post?.description || ''),
             mediaType: post?.mediaType === 'video' ? 'video' : 'image',
             mediaUrl: String(post?.mediaUrl || ''),
-            mediaAlt: String(post?.mediaAlt || 'Post media'),
+            mediaAlt: String(post?.mediaAlt || copy.postMediaAlt),
             createdAt: typeof post?.createdAt === 'string' ? post.createdAt : null,
             likes: Number(post?.metrics?.likes || 0),
             comments: Number(post?.metrics?.comments || 0),
@@ -134,7 +868,111 @@ export function FriendProfile({ onBack, onChallenge, friend }: FriendProfileProp
     };
 
     void loadFriendPosts();
-  }, [friendId]);
+  }, [copy.postMediaAlt, friendId]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadFriendPlan = async () => {
+      if (!canViewProfile || !friendId || friendId <= 0) {
+        setFriendPlanLoading(false);
+        setFriendPlanFailed(false);
+        setFriendProgramName('Current Program');
+        setFriendCurrentWeek(1);
+        setFriendTotalWeeks(0);
+        setFriendWorkouts([]);
+        setFriendPlanMuscles([]);
+        return;
+      }
+
+      setFriendPlanLoading(true);
+      setFriendPlanFailed(false);
+
+      try {
+        const viewerId = getActiveViewerId();
+        if (!viewerId || viewerId <= 0) {
+          throw new Error(copy.noSession);
+        }
+
+        const programData = await api.getFriendPlanPreview(viewerId, friendId);
+        if (cancelled) return;
+
+        let normalizedWorkouts = normalizeWorkouts(
+          Array.isArray(programData?.currentWeekWorkouts)
+            ? programData.currentWeekWorkouts
+            : Array.isArray(programData?.workouts)
+              ? programData.workouts
+              : [],
+        );
+
+        let nextProgramName = String(programData?.name || 'Current Program');
+        let nextCurrentWeek = Number(programData?.currentWeek || 1);
+        let nextTotalWeeks = Number(programData?.totalWeeks || 0);
+        const fallbackSplitPreference = String(
+          programData?.splitPreference || friend?.workout_split_preference || '',
+        );
+        const fallbackSplitLabel = String(
+          programData?.splitLabel || friend?.workout_split_label || '',
+        );
+
+        if (normalizedWorkouts.length === 0) {
+          const fallback = buildFallbackSplitWorkouts(
+            fallbackSplitPreference,
+            fallbackSplitLabel,
+          );
+
+          if (fallback.workouts.length > 0) {
+            normalizedWorkouts = fallback.workouts;
+            nextProgramName = fallback.programName || nextProgramName;
+            nextCurrentWeek = 1;
+            nextTotalWeeks = 1;
+          }
+        }
+
+        setFriendProgramName(nextProgramName);
+        setFriendCurrentWeek(nextCurrentWeek);
+        setFriendTotalWeeks(nextTotalWeeks);
+        setFriendWorkouts(normalizedWorkouts);
+        setFriendPlanMuscles(buildProgramDistribution(normalizedWorkouts));
+      } catch (error) {
+        if (!cancelled) {
+          const fallback = buildFallbackSplitWorkouts(
+            friend?.workout_split_preference,
+            friend?.workout_split_label,
+          );
+
+          if (fallback.workouts.length > 0) {
+            setFriendPlanFailed(false);
+            setFriendProgramName(fallback.programName || 'Current Program');
+            setFriendCurrentWeek(1);
+            setFriendTotalWeeks(1);
+            setFriendWorkouts(fallback.workouts);
+            setFriendPlanMuscles(buildProgramDistribution(fallback.workouts));
+          } else {
+            const apiError = error as Error & { status?: number };
+            if (apiError?.status && ![403, 404].includes(Number(apiError.status))) {
+              console.error('Failed to load friend plan:', error);
+            }
+            setFriendPlanFailed(true);
+            setFriendProgramName('Current Program');
+            setFriendCurrentWeek(1);
+            setFriendTotalWeeks(0);
+            setFriendWorkouts([]);
+            setFriendPlanMuscles([]);
+          }
+        }
+      } finally {
+        if (!cancelled) {
+          setFriendPlanLoading(false);
+        }
+      }
+    };
+
+    void loadFriendPlan();
+    return () => {
+      cancelled = true;
+    };
+  }, [canViewProfile, copy.noSession, friend?.workout_split_label, friend?.workout_split_preference, friendId]);
 
   const getDaysInMonth = (date: Date) => {
     const year = date.getFullYear();
@@ -146,44 +984,49 @@ export function FriendProfile({ onBack, onChallenge, friend }: FriendProfileProp
 
   const isToday = (date: Date) => {
     const today = new Date();
-    return date.getDate() === today.getDate() && 
-           date.getMonth() === today.getMonth() && 
-           date.getFullYear() === today.getFullYear();
+    return date.getDate() === today.getDate()
+      && date.getMonth() === today.getMonth()
+      && date.getFullYear() === today.getFullYear();
   };
 
   const isSameDay = (date1: Date | null, date2: Date) => {
     if (!date1) return false;
-    return date1.getDate() === date2.getDate() && 
-           date1.getMonth() === date2.getMonth() && 
-           date1.getFullYear() === date2.getFullYear();
+    return date1.getDate() === date2.getDate()
+      && date1.getMonth() === date2.getMonth()
+      && date1.getFullYear() === date2.getFullYear();
   };
 
   const handleSendInvite = async () => {
     if (!selectedDate) return;
+
     const user = JSON.parse(localStorage.getItem('appUser') || localStorage.getItem('user') || '{}');
     const fromUserId = Number(user?.id || 0);
+
     if (!fromUserId || fromUserId <= 0) {
-      alert('No active user session found.');
+      alert(copy.noSession);
       return;
     }
+
     if (!friendId || friendId <= 0) {
-      alert('Friend not selected.');
+      alert(copy.friendNotSelected);
       return;
     }
+
     const dateStr = selectedDate.toISOString().split('T')[0];
     const timeStr = `${selectedTime.hour.toString().padStart(2, '0')}:${selectedTime.minute.toString().padStart(2, '0')}`;
+
     try {
       await api.sendInvitation(fromUserId, friendId, dateStr, timeStr);
       setShowInvite(false);
-      alert('Session invitation sent!');
+      alert(copy.inviteSent);
     } catch (error) {
-      alert(error instanceof Error ? error.message : 'Failed to send invitation');
+      alert(error instanceof Error ? error.message : copy.inviteFailed);
     }
   };
 
   const selectedTimeValue = `${selectedTime.hour.toString().padStart(2, '0')}:${selectedTime.minute.toString().padStart(2, '0')}`;
   const selectedSessionLabel = selectedDate
-    ? `${selectedDate.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })} at ${selectedTimeValue}`
+    ? `${selectedDate.toLocaleDateString(getLanguageLocale(language), { weekday: 'short', month: 'short', day: 'numeric' })} · ${selectedTimeValue}`
     : null;
 
   const handleTimeInputChange = (value: string) => {
@@ -195,24 +1038,32 @@ export function FriendProfile({ onBack, onChallenge, friend }: FriendProfileProp
     setSelectedTime({ hour, minute });
   };
 
+  const splitPreviewRows = useMemo(
+    () => buildSplitPreviewRows(friendWorkouts, language, copy.workoutFallback),
+    [copy, friendWorkouts, language],
+  );
+
+  const totalExercises = useMemo(
+    () => friendWorkouts.reduce((sum, workout) => sum + workout.exercises.length, 0),
+    [friendWorkouts],
+  );
+
   if (!canViewProfile) {
     return (
       <div className="flex-1 flex flex-col bg-background min-h-screen pb-24">
         <div className="px-4 sm:px-6 pt-2">
-          <Header title="Friend Profile" onBack={onBack} />
+          <Header title={copy.profileTitle} onBack={onBack} />
         </div>
         <div className="px-4 sm:px-6 pt-8">
           <Card className="p-5 border border-white/10">
-            <h2 className="text-lg font-semibold text-white">Profile locked</h2>
-            <p className="text-sm text-text-secondary mt-2">
-              Send a friend invitation and wait for acceptance before viewing this profile.
-            </p>
+            <h2 className="text-lg font-semibold text-white">{copy.lockedTitle}</h2>
+            <p className="mt-2 text-sm text-text-secondary">{copy.lockedBody}</p>
             <button
               type="button"
               onClick={onBack}
-              className="mt-4 w-full bg-accent text-black py-2.5 rounded-xl font-semibold hover:bg-accent/90 transition-colors"
+              className="mt-4 w-full rounded-xl bg-accent py-2.5 font-semibold text-black transition-colors hover:bg-accent/90"
             >
-              Back to Friends
+              {copy.backToFriends}
             </button>
           </Card>
         </div>
@@ -220,215 +1071,416 @@ export function FriendProfile({ onBack, onChallenge, friend }: FriendProfileProp
     );
   }
 
+  const renderPlanView = () => (
+    <div className="px-4 sm:px-6 space-y-5 pb-24">
+      <div className="relative overflow-hidden rounded-[1.9rem] border border-white/12 bg-[radial-gradient(circle_at_top_right,rgba(34,211,238,0.18),transparent_34%),radial-gradient(circle_at_bottom_left,rgba(187,255,92,0.14),transparent_32%),linear-gradient(160deg,rgba(18,24,34,0.98),rgba(10,14,22,0.98))] p-5 shadow-[0_18px_50px_rgba(0,0,0,0.26)]">
+        <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(135deg,rgba(255,255,255,0.04),transparent_56%)]" />
+        <div className="relative">
+          <div className="flex items-start justify-between gap-4">
+            <div className="min-w-0">
+              <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-accent">
+                <Sparkles size={12} />
+                {copy.planHighlights}
+              </div>
+              <h2 className="mt-3 text-2xl font-semibold leading-tight text-white">
+                {translateProgramText(friendProgramName, language)}
+              </h2>
+              <p className="mt-2 max-w-xl text-sm leading-relaxed text-text-secondary">
+                {copy.planHighlightsHint}
+              </p>
+            </div>
+          </div>
+
+          <div className="mt-5 grid grid-cols-3 gap-3">
+            <div className="rounded-2xl border border-white/10 bg-black/20 px-3 py-3">
+              <div className="text-[10px] uppercase tracking-[0.14em] text-text-tertiary">{copy.workoutsLabel(friendWorkouts.length)}</div>
+              <div className="mt-2 text-xl font-semibold text-white">{friendWorkouts.length}</div>
+            </div>
+            <div className="rounded-2xl border border-white/10 bg-black/20 px-3 py-3">
+              <div className="text-[10px] uppercase tracking-[0.14em] text-text-tertiary">{copy.exerciseCount(totalExercises)}</div>
+              <div className="mt-2 text-xl font-semibold text-white">{totalExercises}</div>
+            </div>
+            <div className="rounded-2xl border border-white/10 bg-black/20 px-3 py-3">
+              <div className="text-[10px] uppercase tracking-[0.14em] text-text-tertiary">{copy.targetMuscles}</div>
+              <div className="mt-2 text-xl font-semibold text-white">{friendPlanMuscles.length}</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {friendPlanLoading && (
+        <Card className="border border-white/10 !p-4 text-sm text-text-secondary">
+          {copy.planLoading}
+        </Card>
+      )}
+
+      {!friendPlanLoading && friendPlanFailed && (
+        <Card className="border border-red-500/25 bg-red-500/10 !p-4 text-sm text-red-200">
+          {copy.planError}
+        </Card>
+      )}
+
+      {!friendPlanLoading && !friendPlanFailed && friendWorkouts.length === 0 && (
+        <Card className="border border-white/10 !p-4 text-sm text-text-secondary">
+          {copy.emptyPlan}
+        </Card>
+      )}
+
+      {!friendPlanLoading && !friendPlanFailed && friendPlanMuscles.length > 0 && (
+        <div className="space-y-3">
+          <div>
+            <h3 className="text-lg font-semibold text-white">{copy.targetMuscles}</h3>
+            <p className="mt-1 text-sm text-text-secondary">{copy.targetMusclesHint}</p>
+          </div>
+          <div className="grid grid-cols-2 gap-2.5">
+            {friendPlanMuscles.map((muscle) => (
+              <div
+                key={`${muscle.name}-card`}
+                className="overflow-hidden rounded-[1.35rem] border border-white/10 bg-card/80"
+              >
+                <img
+                  src={getBodyPartImage(muscle.name)}
+                  alt={localizeMuscleName(muscle.name, language)}
+                  className="h-20 w-full object-cover object-center sm:h-24"
+                  loading="lazy"
+                />
+                <div className="p-2.5">
+                  <div className="text-[13px] font-semibold text-white sm:text-sm">
+                    {localizeMuscleName(muscle.name, language)}
+                  </div>
+                  <div className="mt-0.5 text-[11px] text-text-secondary">{copy.targetMuscles}</div>
+                  <div className="mt-2 inline-flex rounded-full border border-accent/25 bg-accent/10 px-2 py-0.5 text-[11px] font-semibold text-accent">
+                    {Math.round(muscle.percent)}%
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {!friendPlanLoading && !friendPlanFailed && friendWorkouts.length > 0 && (
+        <div className="space-y-3">
+          <div>
+            <h3 className="text-lg font-semibold text-white">{copy.weeklySchedule}</h3>
+            <p className="mt-1 text-sm text-text-secondary">{copy.weeklyScheduleHint}</p>
+          </div>
+          <div className="space-y-3">
+            {friendWorkouts.map((workout) => {
+              const workoutMuscles = [
+                ...new Set(
+                  Array.isArray(workout.focusMuscles) && workout.focusMuscles.length > 0
+                    ? workout.focusMuscles
+                    : workout.exercises.flatMap(getExerciseMuscles),
+                ),
+              ].slice(0, 4);
+              const workoutLabel = getWorkoutLabel(workout, language, copy.workoutFallback(workout.day_order));
+
+              return (
+                <div
+                  key={`${workout.id}-${workout.day_order}`}
+                  className="overflow-hidden rounded-[1.75rem] border border-white/10 bg-[linear-gradient(180deg,rgba(20,24,31,0.96),rgba(13,17,24,0.98))] p-4 shadow-[0_12px_34px_rgba(0,0,0,0.22)]"
+                >
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="min-w-0">
+                      <h4 className="text-xl font-semibold text-white">{workoutLabel}</h4>
+                    </div>
+                    <div className="rounded-2xl border border-white/10 bg-black/20 px-3 py-2 text-right">
+                      <div className="text-[10px] uppercase tracking-[0.14em] text-text-tertiary">
+                        {copy.targetMuscles}
+                      </div>
+                      <div className="mt-1 text-lg font-electrolize text-white">{workoutMuscles.length}</div>
+                    </div>
+                  </div>
+
+                  {workoutMuscles.length > 0 && (
+                    <div className="mt-4 grid grid-cols-2 gap-2.5">
+                      {workoutMuscles.map((muscle) => (
+                        <div
+                          key={`${workout.id}-focus-${muscle}`}
+                          className="overflow-hidden rounded-2xl border border-white/8 bg-white/[0.03]"
+                        >
+                          <img
+                            src={getBodyPartImage(muscle)}
+                            alt={localizeMuscleName(muscle, language)}
+                            className="h-20 w-full object-cover object-center"
+                            loading="lazy"
+                          />
+                          <div className="px-3 py-2.5 text-center">
+                            <div className="text-sm font-semibold text-white">
+                              {localizeMuscleName(muscle, language)}
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+
   return (
     <div className="flex-1 flex flex-col bg-background min-h-screen pb-24">
       <div className="px-4 sm:px-6 pt-2">
-        <Header title="Friend Profile" onBack={onBack} />
+        <Header
+          title={view === 'plan' ? copy.planTitle : copy.profileTitle}
+          onBack={view === 'plan' ? () => setView('overview') : onBack}
+        />
       </div>
 
-      <div className="px-4 sm:px-6 flex flex-col items-center mb-8">
-        <div className="w-24 h-24 rounded-full bg-white/10 flex items-center justify-center text-2xl font-bold text-white mb-4">
-          {friendProfilePicture ? (
+      {view === 'plan' ? (
+        renderPlanView()
+      ) : (
+        <div className="px-4 sm:px-6 space-y-6">
+          <div className="mb-8 flex flex-col items-center pt-2">
+            <div className="mb-4 h-24 w-24 rounded-full bg-white/10 text-2xl font-bold text-white">
+              {friendProfilePicture ? (
+                <button
+                  type="button"
+                  onClick={() => setShowAvatarPreview(true)}
+                  className="h-full w-full cursor-zoom-in overflow-hidden rounded-full"
+                  aria-label={`${copy.profileTitle}: ${friendName}`}
+                >
+                  <img
+                    src={friendProfilePicture}
+                    alt={`${friendName} avatar`}
+                    className="h-full w-full rounded-full object-cover"
+                  />
+                </button>
+              ) : (
+                <div className="flex h-full w-full items-center justify-center rounded-full">
+                  {friendInitials}
+                </div>
+              )}
+            </div>
+            <h2 className="text-2xl font-bold text-white">{friendName}</h2>
+            <div className="mt-2 flex items-center gap-2">
+              <Trophy size={16} className="text-yellow-500" />
+              <span className="text-sm text-text-secondary">
+                {friendRank} · {copy.level(friendLevel)}
+              </span>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
             <button
               type="button"
-              onClick={() => setShowAvatarPreview(true)}
-              className="w-full h-full rounded-full overflow-hidden cursor-zoom-in"
-              aria-label={`View ${friendName} profile image`}
+              onClick={() => setShowInvite(true)}
+              className="w-full rounded-xl bg-accent py-3 font-bold text-black transition-colors hover:bg-accent/90"
             >
-              <img
-                src={friendProfilePicture}
-                alt={`${friendName} avatar`}
-                className="w-full h-full rounded-full object-cover"
-              />
+              {copy.inviteToGymDay}
             </button>
-          ) : (
-            friendInitials
-          )}
-        </div>
-        <h2 className="text-2xl font-bold text-white">{friendName}</h2>
-        <div className="flex items-center gap-2 mt-2">
-          <Trophy size={16} className="text-yellow-500" />
-          <span className="text-sm text-text-secondary">
-            {friendRank} - Level {friendLevel}
-          </span>
-        </div>
-      </div>
+            <button
+              type="button"
+              onClick={() => setShowChallengeSoon(true)}
+              className="w-full rounded-xl border border-white/15 bg-white/5 py-3 font-bold text-white transition-colors hover:bg-white/10"
+            >
+              {copy.challenge}
+            </button>
+          </div>
 
-      <div className="px-4 sm:px-6 space-y-6">
-        <div className="grid grid-cols-2 gap-3">
-          <button
-            type="button"
-            onClick={() => setShowInvite(true)}
-            className="w-full bg-accent text-black font-bold py-3 rounded-xl hover:bg-accent/90 transition-colors"
-          >
-            Invite to Gym Day
-          </button>
-          <button
-            type="button"
-            onClick={onChallenge}
-            className="w-full border border-white/15 bg-white/5 text-white font-bold py-3 rounded-xl hover:bg-white/10 transition-colors"
-          >
-            Challenge
-          </button>
-        </div>
+          <div className="space-y-3">
+            <h3 className="text-sm font-bold uppercase tracking-wider text-text-secondary">
+              {copy.badges}
+            </h3>
+            <div className="flex gap-3 overflow-x-auto pb-2">
+              {[1, 2, 3, 4].map((index) => (
+                <div
+                  key={index}
+                  className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full border border-white/10 bg-card"
+                >
+                  <Trophy size={24} className={index === 1 ? 'text-accent' : 'text-text-tertiary'} />
+                </div>
+              ))}
+            </div>
+          </div>
 
-        <div className="space-y-3">
-          <h3 className="text-sm font-bold text-text-secondary uppercase tracking-wider">
-            Badges
-          </h3>
-          <div className="flex gap-3 overflow-x-auto pb-2">
-            {[1, 2, 3, 4].map((i) =>
-            <div
-              key={i}
-              className="w-16 h-16 rounded-full bg-card border border-white/10 flex items-center justify-center shrink-0">
+          <div className="space-y-3">
+            <h3 className="text-sm font-bold uppercase tracking-wider text-text-secondary">
+              {copy.trainingSplit}
+            </h3>
+            <button
+              type="button"
+              onClick={() => setView('plan')}
+              className="block w-full text-left"
+            >
+              <Card className="relative overflow-hidden border border-white/12 bg-[radial-gradient(circle_at_top_right,rgba(34,211,238,0.14),transparent_30%),radial-gradient(circle_at_bottom_left,rgba(187,255,92,0.1),transparent_28%),linear-gradient(160deg,rgba(20,24,31,0.98),rgba(11,15,24,0.98))] p-4 transition-all duration-200 hover:border-accent/35">
+                <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(135deg,rgba(255,255,255,0.04),transparent_58%)]" />
+                <div className="relative">
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="min-w-0">
+                      <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-accent">
+                        <Dumbbell size={12} />
+                        {copy.trainingSplit}
+                      </div>
+                      <h4 className="mt-3 text-xl font-semibold leading-tight text-white">
+                        {translateProgramText(friendProgramName, language)}
+                      </h4>
+                      <p className="mt-1 text-sm text-text-secondary">
+                        {copy.weekLabel(friendCurrentWeek, friendTotalWeeks)} · {copy.workoutsLabel(friendWorkouts.length)}
+                      </p>
+                    </div>
+                    <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-accent/25 bg-accent/10 text-accent">
+                      <ArrowRight size={18} />
+                    </div>
+                  </div>
 
-                <Trophy
-                size={24}
-                className={i === 1 ? 'text-accent' : 'text-text-tertiary'} />
+                  <div className="mt-4 space-y-2 rounded-2xl border border-white/8 bg-black/15 p-3">
+                    {friendPlanLoading ? (
+                      <div className="text-sm text-text-secondary">{copy.planLoading}</div>
+                    ) : friendPlanFailed ? (
+                      <div className="text-sm text-red-200">{copy.planError}</div>
+                    ) : splitPreviewRows.length === 0 ? (
+                      <div className="text-sm text-text-secondary">{copy.emptyPlan}</div>
+                    ) : (
+                      splitPreviewRows.map((row) => (
+                        <div key={`${row.label}-${row.days.join(',')}`} className="flex items-center justify-between gap-4 text-sm">
+                          <span className="font-semibold text-white">{row.label}</span>
+                          <span className="text-text-tertiary">{row.days.join(', ')}</span>
+                        </div>
+                      ))
+                    )}
+                  </div>
 
+                  <div className="mt-4 flex items-center justify-between gap-3 text-xs text-text-secondary">
+                    <span>{copy.planPeek}</span>
+                    <span className="font-semibold text-accent">{copy.viewFriendPlan}</span>
+                  </div>
+                </div>
+              </Card>
+            </button>
+          </div>
+
+          <div className="space-y-3">
+            <h3 className="text-sm font-bold uppercase tracking-wider text-text-secondary">
+              {copy.posts}
+            </h3>
+            {loadingFriendPosts ? (
+              <Card className="!p-3 text-sm text-text-secondary">{copy.loadingPosts}</Card>
+            ) : friendPosts.length === 0 ? (
+              <Card className="!p-3 text-sm text-text-secondary">{copy.noPosts}</Card>
+            ) : (
+              <div className="space-y-3">
+                {friendPosts.map((post) => (
+                  <Card key={post.id} className="!p-3 space-y-2">
+                    <div className="text-xs text-text-secondary">
+                      {formatRelativeDay(post.createdAt || '', language, copy)}
+                    </div>
+                    {post.mediaUrl && (
+                      post.mediaType === 'video' ? (
+                        <video
+                          src={post.mediaUrl}
+                          className="max-h-64 w-full rounded-xl border border-white/10 bg-black/20 object-contain"
+                          controls
+                          preload="metadata"
+                        />
+                      ) : (
+                        <img
+                          src={post.mediaUrl}
+                          alt={post.mediaAlt || copy.postMediaAlt}
+                          className="max-h-64 w-full rounded-xl border border-white/10 bg-black/20 object-contain"
+                          loading="lazy"
+                        />
+                      )
+                    )}
+                    {post.description.trim() && (
+                      <div className="text-sm leading-relaxed text-white">{post.description}</div>
+                    )}
+                    <div className="text-xs text-text-tertiary">
+                      {new Intl.NumberFormat(getLanguageLocale(language)).format(Math.max(0, post.likes))} {copy.likes}
+                      {' · '}
+                      {new Intl.NumberFormat(getLanguageLocale(language)).format(Math.max(0, post.comments))} {copy.comments}
+                      {' · '}
+                      {new Intl.NumberFormat(getLanguageLocale(language)).format(Math.max(0, post.views))} {copy.views}
+                    </div>
+                  </Card>
+                ))}
               </div>
             )}
           </div>
         </div>
-
-        <div className="space-y-3">
-          <h3 className="text-sm font-bold text-text-secondary uppercase tracking-wider">
-            Training Split
-          </h3>
-          <Card className="p-4 space-y-2">
-            <div className="flex justify-between text-sm">
-              <span className="text-white">Push</span>
-              <span className="text-text-tertiary">Mon, Thu</span>
-            </div>
-            <div className="flex justify-between text-sm">
-              <span className="text-white">Pull</span>
-              <span className="text-text-tertiary">Tue, Fri</span>
-            </div>
-            <div className="flex justify-between text-sm">
-              <span className="text-white">Legs</span>
-              <span className="text-text-tertiary">Wed, Sat</span>
-            </div>
-          </Card>
-        </div>
-
-        <div className="space-y-3">
-          <h3 className="text-sm font-bold text-text-secondary uppercase tracking-wider">
-            Posts
-          </h3>
-          {loadingFriendPosts ? (
-            <Card className="!p-3 text-sm text-text-secondary">Loading posts...</Card>
-          ) : friendPosts.length === 0 ? (
-            <Card className="!p-3 text-sm text-text-secondary">No posts uploaded yet.</Card>
-          ) : (
-            <div className="space-y-3">
-              {friendPosts.map((post) => (
-                <Card key={post.id} className="!p-3 space-y-2">
-                  <div className="text-xs text-text-secondary">{formatRelativeDay(post.createdAt || '')}</div>
-                  {post.mediaUrl && (
-                    post.mediaType === 'video' ? (
-                      <video
-                        src={post.mediaUrl}
-                        className="w-full rounded-xl border border-white/10 bg-black/20 max-h-64 object-contain"
-                        controls
-                        preload="metadata"
-                      />
-                    ) : (
-                      <img
-                        src={post.mediaUrl}
-                        alt={post.mediaAlt}
-                        className="w-full rounded-xl border border-white/10 bg-black/20 max-h-64 object-contain"
-                        loading="lazy"
-                      />
-                    )
-                  )}
-                  {post.description.trim() && (
-                    <div className="text-sm text-white leading-relaxed">{post.description}</div>
-                  )}
-                  <div className="text-xs text-text-tertiary">
-                    {new Intl.NumberFormat('en-US').format(Math.max(0, post.likes))} likes - {' '}
-                    {new Intl.NumberFormat('en-US').format(Math.max(0, post.comments))} comments - {' '}
-                    {new Intl.NumberFormat('en-US').format(Math.max(0, post.views))} views
-                  </div>
-                </Card>
-              ))}
-            </div>
-          )}
-        </div>
-      </div>
+      )}
 
       {showInvite && (
         <div
-          className="fixed inset-x-0 top-0 bottom-[calc(env(safe-area-inset-bottom,0px)+5.5rem)] z-40 bg-black/70 backdrop-blur-md flex items-end sm:inset-0 sm:items-center sm:justify-center overflow-hidden p-0 sm:p-6"
+          className="fixed inset-x-0 top-0 bottom-[calc(env(safe-area-inset-bottom,0px)+5.5rem)] z-40 flex items-end overflow-hidden bg-black/70 p-0 backdrop-blur-md sm:inset-0 sm:items-center sm:justify-center sm:p-6"
           onClick={() => setShowInvite(false)}
         >
           <div
-            className="w-full sm:max-w-md rounded-t-3xl sm:rounded-3xl border border-white/15 bg-gradient-to-b from-[#1f1f25] to-[#131318] shadow-2xl max-h-full sm:max-h-[88vh] min-h-0 flex flex-col overflow-hidden"
-            onClick={(e) => e.stopPropagation()}
+            className="flex min-h-0 max-h-full w-full flex-col overflow-hidden rounded-t-3xl border border-white/15 bg-gradient-to-b from-[#1f1f25] to-[#131318] shadow-2xl sm:max-h-[88vh] sm:max-w-md sm:rounded-3xl"
+            onClick={(event) => event.stopPropagation()}
           >
             <div className="shrink-0 border-b border-white/10 bg-[linear-gradient(180deg,rgba(31,31,37,0.98),rgba(19,19,24,0.95))] p-5 sm:p-6">
-              <div className="flex justify-between items-start gap-4">
+              <div className="flex items-start justify-between gap-4">
                 <div>
-                  <h3 className="text-xl font-bold text-white">Invite to Session</h3>
-                  <p className="text-xs text-text-secondary mt-1">Pick date and time for your workout together.</p>
+                  <h3 className="text-xl font-bold text-white">{copy.inviteModalTitle}</h3>
+                  <p className="mt-1 text-xs text-text-secondary">{copy.inviteModalSubtitle}</p>
                 </div>
                 <button
                   type="button"
                   onClick={() => setShowInvite(false)}
-                  className="w-9 h-9 rounded-xl border border-white/15 text-text-secondary hover:text-white hover:bg-white/5 flex items-center justify-center"
+                  className="flex h-9 w-9 items-center justify-center rounded-xl border border-white/15 text-text-secondary hover:bg-white/5 hover:text-white"
                 >
                   <X size={18} />
                 </button>
               </div>
 
-              <div className="mt-4 px-3 py-2.5 rounded-xl bg-accent/10 border border-accent/25">
-                <div className="text-[11px] uppercase tracking-wide text-accent/80">Selected session</div>
-                <div className="text-sm text-white mt-1">
-                  {selectedSessionLabel || 'Choose a date and time'}
+              <div className="mt-4 rounded-xl border border-accent/25 bg-accent/10 px-3 py-2.5">
+                <div className="text-[11px] uppercase tracking-wide text-accent/80">{copy.selectedSession}</div>
+                <div className="mt-1 text-sm text-white">
+                  {selectedSessionLabel || copy.chooseDateTime}
                 </div>
               </div>
             </div>
 
-            <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain touch-pan-y [-webkit-overflow-scrolling:touch] p-5 pb-24 sm:p-6 sm:pb-6 space-y-6">
+            <div className="flex-1 min-h-0 space-y-6 overflow-y-auto overscroll-contain p-5 pb-24 [-webkit-overflow-scrolling:touch] sm:p-6 sm:pb-6">
               <div>
-                <div className="flex items-center justify-between mb-4">
+                <div className="mb-4 flex items-center justify-between">
                   <button
                     type="button"
                     onClick={() => setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1))}
-                    className="w-8 h-8 rounded-lg border border-white/10 hover:bg-white/5 text-text-secondary flex items-center justify-center"
+                    className="flex h-8 w-8 items-center justify-center rounded-lg border border-white/10 text-text-secondary hover:bg-white/5"
                   >
                     <ChevronLeft size={16} />
                   </button>
-                  <span className="text-white font-semibold">
-                    {currentMonth.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
+                  <span className="font-semibold text-white">
+                    {currentMonth.toLocaleDateString(getLanguageLocale(language), { month: 'long', year: 'numeric' })}
                   </span>
                   <button
                     type="button"
                     onClick={() => setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1))}
-                    className="w-8 h-8 rounded-lg border border-white/10 hover:bg-white/5 text-text-secondary flex items-center justify-center"
+                    className="flex h-8 w-8 items-center justify-center rounded-lg border border-white/10 text-text-secondary hover:bg-white/5"
                   >
                     <ChevronRight size={16} />
                   </button>
                 </div>
 
-                <div className="grid grid-cols-7 gap-1.5 mb-2">
-                  {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((day, i) => (
-                    <div key={i} className="text-center text-[11px] text-text-tertiary font-semibold py-1.5">{day}</div>
+                <div className="mb-2 grid grid-cols-7 gap-1.5">
+                  {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((day, index) => (
+                    <div key={index} className="py-1.5 text-center text-[11px] font-semibold text-text-tertiary">
+                      {day}
+                    </div>
                   ))}
                 </div>
 
                 <div className="grid grid-cols-7 gap-1.5">
-                  {Array.from({ length: getDaysInMonth(currentMonth).firstDay }).map((_, i) => (
-                    <div key={`empty-${i}`} />
+                  {Array.from({ length: getDaysInMonth(currentMonth).firstDay }).map((_, index) => (
+                    <div key={`empty-${index}`} />
                   ))}
-                  {Array.from({ length: getDaysInMonth(currentMonth).daysInMonth }).map((_, i) => {
-                    const date = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), i + 1);
+                  {Array.from({ length: getDaysInMonth(currentMonth).daysInMonth }).map((_, index) => {
+                    const date = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), index + 1);
                     const isPast = date < new Date(new Date().setHours(0, 0, 0, 0));
                     const selected = isSameDay(selectedDate, date);
                     const today = isToday(date);
 
                     return (
                       <button
-                        key={i}
+                        key={index}
                         type="button"
                         disabled={isPast}
                         onClick={() => setSelectedDate(date)}
@@ -436,13 +1488,13 @@ export function FriendProfile({ onBack, onChallenge, friend }: FriendProfileProp
                           selected
                             ? 'bg-accent text-black shadow-[0_0_0_2px_rgba(255,255,255,0.08)]'
                             : today
-                              ? 'bg-white/10 text-white border border-white/20'
+                              ? 'border border-white/20 bg-white/10 text-white'
                               : isPast
-                                ? 'text-text-tertiary cursor-not-allowed'
-                                : 'text-white hover:bg-white/6 border border-transparent hover:border-white/10'
+                                ? 'cursor-not-allowed text-text-tertiary'
+                                : 'border border-transparent text-white hover:border-white/10 hover:bg-white/6'
                         }`}
                       >
-                        {i + 1}
+                        {index + 1}
                       </button>
                     );
                   })}
@@ -450,24 +1502,24 @@ export function FriendProfile({ onBack, onChallenge, friend }: FriendProfileProp
               </div>
 
               <div className="space-y-3">
-                <label className="text-sm text-text-secondary block">Time</label>
+                <label className="block text-sm text-text-secondary">{copy.time}</label>
                 <input
                   type="time"
                   value={selectedTimeValue}
                   step={900}
-                  onChange={(e) => handleTimeInputChange(e.target.value)}
-                  className="w-full bg-background/80 border border-white/15 rounded-xl px-4 py-3 text-white outline-none focus:border-accent/60"
+                  onChange={(event) => handleTimeInputChange(event.target.value)}
+                  className="w-full rounded-xl border border-white/15 bg-background/80 px-4 py-3 text-white outline-none focus:border-accent/60"
                 />
-                <div className="flex gap-2 flex-wrap">
+                <div className="flex flex-wrap gap-2">
                   {QUICK_SESSION_TIMES.map((time) => (
                     <button
                       key={time}
                       type="button"
                       onClick={() => handleTimeInputChange(time)}
-                      className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${
+                      className={`rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors ${
                         selectedTimeValue === time
-                          ? 'bg-accent text-black border-accent/80'
-                          : 'border-white/15 text-text-secondary hover:text-white hover:bg-white/5'
+                          ? 'border-accent/80 bg-accent text-black'
+                          : 'border-white/15 text-text-secondary hover:bg-white/5 hover:text-white'
                       }`}
                     >
                       {time}
@@ -480,9 +1532,66 @@ export function FriendProfile({ onBack, onChallenge, friend }: FriendProfileProp
                 type="button"
                 onClick={handleSendInvite}
                 disabled={!selectedDate}
-                className="w-full bg-accent text-black font-bold py-3.5 rounded-xl hover:bg-accent/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                className="w-full rounded-xl bg-accent py-3.5 font-bold text-black transition-colors hover:bg-accent/90 disabled:cursor-not-allowed disabled:opacity-50"
               >
-                Send Invitation
+                {copy.sendInvitation}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showChallengeSoon && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4 backdrop-blur-md sm:p-6"
+          onClick={() => setShowChallengeSoon(false)}
+        >
+          <div
+            className="relative w-full max-w-md overflow-hidden rounded-[2rem] border border-white/15 bg-[radial-gradient(circle_at_top_right,rgba(34,211,238,0.18),transparent_34%),radial-gradient(circle_at_bottom_left,rgba(187,255,92,0.12),transparent_32%),linear-gradient(160deg,rgba(18,24,34,0.98),rgba(10,14,22,0.98))] p-6 shadow-[0_24px_80px_rgba(0,0,0,0.38)]"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(135deg,rgba(255,255,255,0.05),transparent_58%)]" />
+            <button
+              type="button"
+              onClick={() => setShowChallengeSoon(false)}
+              className="absolute right-4 top-4 flex h-10 w-10 items-center justify-center rounded-full border border-white/15 bg-white/5 text-white transition-colors hover:bg-white/10"
+              aria-label={copy.challengeSoonCta}
+            >
+              <X size={18} />
+            </button>
+
+            <div className="relative">
+              <div className="inline-flex items-center gap-2 rounded-full border border-accent/25 bg-accent/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-accent">
+                <Sparkles size={12} />
+                {copy.comingSoon}
+              </div>
+
+              <div className="mt-5 flex h-16 w-16 items-center justify-center rounded-[1.4rem] border border-white/10 bg-white/5 text-accent shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]">
+                <Dumbbell size={28} />
+              </div>
+
+              <h3 className="mt-5 text-2xl font-semibold leading-tight text-white">
+                {copy.challengeSoonTitle}
+              </h3>
+              <p className="mt-3 text-sm leading-relaxed text-text-secondary">
+                {copy.challengeSoonBody}
+              </p>
+
+              <div className="mt-5 rounded-2xl border border-white/10 bg-black/20 p-4">
+                <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-accent/80">
+                  {copy.challenge}
+                </div>
+                <p className="mt-2 text-sm leading-relaxed text-white">
+                  {copy.challengeSoonHint}
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setShowChallengeSoon(false)}
+                className="mt-6 w-full rounded-xl bg-accent py-3.5 font-bold text-black transition-colors hover:bg-accent/90"
+              >
+                {copy.challengeSoonCta}
               </button>
             </div>
           </div>
@@ -491,27 +1600,25 @@ export function FriendProfile({ onBack, onChallenge, friend }: FriendProfileProp
 
       {showAvatarPreview && friendProfilePicture && (
         <div
-          className="fixed inset-0 z-50 bg-black/90 p-4 sm:p-8 flex items-center justify-center"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 p-4 sm:p-8"
           onClick={() => setShowAvatarPreview(false)}
         >
           <button
             type="button"
             onClick={() => setShowAvatarPreview(false)}
-            className="absolute top-4 right-4 w-10 h-10 rounded-full bg-white/10 border border-white/20 text-white flex items-center justify-center hover:bg-white/20"
-            aria-label="Close image preview"
+            className="absolute right-4 top-4 flex h-10 w-10 items-center justify-center rounded-full border border-white/20 bg-white/10 text-white hover:bg-white/20"
+            aria-label={copy.closeImagePreview}
           >
             <X size={20} />
           </button>
           <img
             src={friendProfilePicture}
             alt={`${friendName} avatar`}
-            className="max-w-full max-h-full rounded-2xl object-contain"
-            onClick={(e) => e.stopPropagation()}
+            className="max-h-full max-w-full rounded-2xl object-contain"
+            onClick={(event) => event.stopPropagation()}
           />
         </div>
       )}
-    </div>);
-
+    </div>
+  );
 }
-
-

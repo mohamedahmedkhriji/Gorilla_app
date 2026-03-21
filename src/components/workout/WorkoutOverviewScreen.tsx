@@ -5,7 +5,7 @@ import { AgendaSection } from '../home/AgendaSection';
 import { getBodyPartImage } from '../../services/bodyPartTheme';
 import { AppLanguage, getActiveLanguage, getStoredLanguage } from '../../services/language';
 import type { WorkoutAssignmentHistoryEntry } from '../../services/todayWorkoutSelection';
-import { normalizeWorkoutDayKey } from '../../services/workoutDayLabel';
+import { formatWorkoutDayLabel } from '../../services/workoutDayLabel';
 import rightArrowIcon from '../../../assets/emoji/right-arrow.png';
 
 type WorkoutOverviewCard = {
@@ -72,6 +72,44 @@ const AR_MUSCLE_LABELS: Record<string, string> = {
   general: 'عام',
 };
 
+const IT_MUSCLE_LABELS: Record<string, string> = {
+  chest: 'Petto',
+  back: 'Schiena',
+  shoulders: 'Spalle',
+  'front shoulders': 'Spalle anteriori',
+  'side shoulders': 'Spalle laterali',
+  'rear shoulders': 'Spalle posteriori',
+  triceps: 'Tricipiti',
+  biceps: 'Bicipiti',
+  abs: 'Addome',
+  quadriceps: 'Quadricipiti',
+  hamstrings: 'Femorali',
+  calves: 'Polpacci',
+  forearms: 'Avambracci',
+  glutes: 'Glutei',
+  adductors: 'Adduttori',
+  general: 'Generale',
+};
+
+const DE_MUSCLE_LABELS: Record<string, string> = {
+  chest: 'Brust',
+  back: 'Ruecken',
+  shoulders: 'Schultern',
+  'front shoulders': 'Vordere Schultern',
+  'side shoulders': 'Seitliche Schultern',
+  'rear shoulders': 'Hintere Schultern',
+  triceps: 'Trizeps',
+  biceps: 'Bizeps',
+  abs: 'Bauch',
+  quadriceps: 'Quadrizeps',
+  hamstrings: 'Beinbeuger',
+  calves: 'Waden',
+  forearms: 'Unterarme',
+  glutes: 'Gesaess',
+  adductors: 'Adduktoren',
+  general: 'Allgemein',
+};
+
 const COPY = {
   en: {
     title: 'My Plan',
@@ -127,6 +165,146 @@ const COPY = {
   },
 } as const;
 
+const LOCALIZED_COPY: Record<AppLanguage, typeof COPY.en> = {
+  en: COPY.en,
+  ar: {
+    title: 'خطتي',
+    heroEyebrow: 'يومك الحالي',
+    heroBody: 'اختر بطاقة من الأسفل لحفظها كخطة تدريب اليوم.',
+    heroSelectedEyebrow: 'محفوظ لليوم',
+    heroSelectedBody: 'هذه هي الحصة المحفوظة لليوم حالياً.',
+    heroLockedBody: 'لقد بدأت تمرين اليوم بالفعل، لذلك أصبحت خطة اليوم مقفلة.',
+    heroCompletedBody: 'تم تعليم حصة اليوم كمكتملة. اطلع على الاقتراح التالي عندما تكون جاهزاً.',
+    sectionTitle: 'خطة الأسبوع',
+    recommendationTitle: 'الاقتراح التالي',
+    loading: 'جارٍ تحميل خطة الأسبوع...',
+    empty: 'لا توجد خطة تمارين لهذا الأسبوع بعد.',
+    error: 'تعذر تحميل خطة الأسبوع.',
+    todayBadge: 'اليوم',
+    pickedBadge: 'محفوظ',
+    completedBadge: 'تم',
+    pickForToday: 'اختره لليوم',
+    startMyWorkout: 'ابدأ تمريني',
+    planLocked: 'الخطة مقفلة',
+    pickedForToday: 'محفوظ لليوم',
+    completedForToday: 'مكتمل اليوم',
+    planFinishedTitle: 'اكتملت الخطة',
+    planFinishedBody: 'أنهيت جميع أسابيع هذه الخطة. أنشئ خطة جديدة لتكمل التدريب في الأسابيع القادمة.',
+    createNewPlan: 'أنشئ خطة جديدة',
+    exerciseCount: (count: number) => `${count} ${count === 1 ? 'تمرين' : 'تمارين'}`,
+  },
+  it: {
+    title: 'Il Mio Piano',
+    heroEyebrow: 'Giorno Attuale',
+    heroBody: 'Scegli una scheda qui sotto per salvarla come piano di oggi.',
+    heroSelectedEyebrow: 'Salvato Per Oggi',
+    heroSelectedBody: 'Questo e il workout attualmente salvato per oggi.',
+    heroLockedBody: 'Hai gia iniziato il workout di oggi, quindi il piano di oggi e bloccato.',
+    heroCompletedBody: 'Il workout di oggi e segnato come completato. Usa il suggerimento seguente quando sei pronto.',
+    sectionTitle: 'Piano Settimanale',
+    recommendationTitle: 'Prossimo Consigliato',
+    loading: 'Caricamento del tuo piano settimanale...',
+    empty: 'Nessun piano di allenamento trovato per questa settimana.',
+    error: 'Impossibile caricare il tuo piano settimanale.',
+    todayBadge: 'Oggi',
+    pickedBadge: 'Scelto',
+    completedBadge: 'Fatto',
+    pickForToday: 'Scegli per oggi',
+    startMyWorkout: 'Inizia Il Mio Workout',
+    planLocked: 'Piano Bloccato',
+    pickedForToday: 'Scelto per oggi',
+    completedForToday: 'Completato oggi',
+    planFinishedTitle: 'Piano completato',
+    planFinishedBody: 'Hai finito tutte le settimane di questo piano. Crea un nuovo piano per continuare ad allenarti nelle prossime settimane.',
+    createNewPlan: 'Crea Un Nuovo Piano',
+    exerciseCount: (count: number) => `${count} ${count === 1 ? 'esercizio' : 'esercizi'}`,
+  },
+  de: {
+    title: 'Mein Plan',
+    heroEyebrow: 'Aktueller Tag',
+    heroBody: 'Waehle unten eine Karte aus, um sie als heutigen Plan zu speichern.',
+    heroSelectedEyebrow: 'Fuer Heute Gespeichert',
+    heroSelectedBody: 'Dies ist das Workout, das aktuell fuer heute gespeichert ist.',
+    heroLockedBody: 'Du hast das heutige Workout bereits begonnen, deshalb ist der heutige Plan gesperrt.',
+    heroCompletedBody: 'Das heutige Workout ist als erledigt markiert. Nutze den naechsten Vorschlag, wenn du bereit bist.',
+    sectionTitle: 'Wochenplan',
+    recommendationTitle: 'Naechste Empfehlung',
+    loading: 'Dein Wochenplan wird geladen...',
+    empty: 'Fuer diese Woche wurde noch kein Trainingsplan gefunden.',
+    error: 'Dein Wochenplan konnte nicht geladen werden.',
+    todayBadge: 'Heute',
+    pickedBadge: 'Gewaehlt',
+    completedBadge: 'Erledigt',
+    pickForToday: 'Fuer heute waehlen',
+    startMyWorkout: 'Mein Workout Starten',
+    planLocked: 'Plan Gesperrt',
+    pickedForToday: 'Fuer heute gewaehlt',
+    completedForToday: 'Heute erledigt',
+    planFinishedTitle: 'Plan abgeschlossen',
+    planFinishedBody: 'Du hast alle Wochen dieses Plans abgeschlossen. Erstelle einen neuen Plan, um in den kommenden Wochen weiterzutrainieren.',
+    createNewPlan: 'Neuen Plan Erstellen',
+    exerciseCount: (count: number) => `${count} ${count === 1 ? 'Uebung' : 'Uebungen'}`,
+  },
+};
+
+const MUSCLE_LABELS: Record<AppLanguage, Record<string, string>> = {
+  en: {},
+  ar: {
+    chest: 'الصدر',
+    back: 'الظهر',
+    shoulders: 'الأكتاف',
+    'front shoulders': 'الأكتاف الأمامية',
+    'side shoulders': 'الأكتاف الجانبية',
+    'rear shoulders': 'الأكتاف الخلفية',
+    triceps: 'الترايسبس',
+    biceps: 'البايسبس',
+    abs: 'البطن',
+    quadriceps: 'الرباعية',
+    hamstrings: 'الخلفية',
+    calves: 'السمانة',
+    forearms: 'الساعد',
+    glutes: 'الألوية',
+    adductors: 'المقربات',
+    general: 'عام',
+  },
+  it: {
+    chest: 'Petto',
+    back: 'Schiena',
+    shoulders: 'Spalle',
+    'front shoulders': 'Spalle anteriori',
+    'side shoulders': 'Spalle laterali',
+    'rear shoulders': 'Spalle posteriori',
+    triceps: 'Tricipiti',
+    biceps: 'Bicipiti',
+    abs: 'Addome',
+    quadriceps: 'Quadricipiti',
+    hamstrings: 'Femorali',
+    calves: 'Polpacci',
+    forearms: 'Avambracci',
+    glutes: 'Glutei',
+    adductors: 'Adduttori',
+    general: 'Generale',
+  },
+  de: {
+    chest: 'Brust',
+    back: 'Ruecken',
+    shoulders: 'Schultern',
+    'front shoulders': 'Vordere Schultern',
+    'side shoulders': 'Seitliche Schultern',
+    'rear shoulders': 'Hintere Schultern',
+    triceps: 'Trizeps',
+    biceps: 'Bizeps',
+    abs: 'Bauch',
+    quadriceps: 'Quadrizeps',
+    hamstrings: 'Beinbeuger',
+    calves: 'Waden',
+    forearms: 'Unterarme',
+    glutes: 'Gesaess',
+    adductors: 'Adduktoren',
+    general: 'Allgemein',
+  },
+};
+
 const toTitleCase = (value: string) =>
   String(value || '')
     .trim()
@@ -173,18 +351,16 @@ export function WorkoutOverviewScreen({
     };
   }, []);
 
-  const copy = COPY[language] || COPY.en;
+  const copy = LOCALIZED_COPY[language] || LOCALIZED_COPY.en;
   const isArabic = language === 'ar';
 
   const localizeDay = (value: string) => {
-    if (!isArabic) return value;
-    const key = normalizeWorkoutDayKey(value);
-    return key ? (AR_DAY_LABELS[key] || value) : value;
+    return formatWorkoutDayLabel(value, value, language);
   };
 
   const localizeMuscle = (value: string) => {
-    if (!isArabic) return value;
-    return AR_MUSCLE_LABELS[String(value || '').trim().toLowerCase()] || value;
+    const normalized = String(value || '').trim().toLowerCase();
+    return MUSCLE_LABELS[language]?.[normalized] || value;
   };
 
   const selectableWorkouts = useMemo(
@@ -204,7 +380,7 @@ export function WorkoutOverviewScreen({
         };
       }),
     })),
-    [selectableWorkouts, isArabic],
+    [language, selectableWorkouts],
   );
 
   const heroEyebrow = hasTodaySelection ? copy.heroSelectedEyebrow : copy.heroEyebrow;

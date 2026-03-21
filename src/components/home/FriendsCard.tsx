@@ -27,6 +27,16 @@ const FRIENDS_CARD_I18N = {
     friendsLogoAlt: 'الأصدقاء',
     profileSuffix: 'الملف الشخصي',
   },
+  it: {
+    friends: 'Amici',
+    friendsLogoAlt: 'Amici',
+    profileSuffix: 'profilo',
+  },
+  de: {
+    friends: 'Freunde',
+    friendsLogoAlt: 'Freunde',
+    profileSuffix: 'Profil',
+  },
 } as const;
 
 const toFriendStatus = (value: unknown) => {

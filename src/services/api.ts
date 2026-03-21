@@ -634,6 +634,11 @@ export const api = {
     return parseApiResponse(res, 'Failed to fetch gym members');
   },
 
+  getFriendPlanPreview: async (viewerId: number, friendId: number) => {
+    const res = await fetch(`${API_URL}/friends/${viewerId}/${friendId}/plan-preview`);
+    return parseApiResponse(res, 'Failed to fetch friend plan preview');
+  },
+
   sendFriendRequest: async (fromUserId: number, toUserId: number) => {
     const res = await fetch(`${API_URL}/friends/request`, {
       method: 'POST',

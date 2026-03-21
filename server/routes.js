@@ -730,6 +730,25 @@ const resolveFriendRelationshipStatus = (friendship, currentUserId) => {
   return 'none';
 };
 
+const getAcceptedFriendship = async (userIdA, userIdB) => {
+  const pair = getOrderedFriendPair(userIdA, userIdB);
+  if (!pair) return null;
+
+  const [rows] = await pool.execute(
+    `SELECT id, user_id, friend_id, status, initiated_by, accepted_at
+     FROM friendships
+     WHERE user_id = ? AND friend_id = ?
+     LIMIT 1`,
+    [pair.userId, pair.friendId],
+  );
+
+  const friendship = rows[0] || null;
+  if (!friendship) return null;
+  return String(friendship.status || '').trim().toLowerCase() === 'accepted'
+    ? friendship
+    : null;
+};
+
 const toBooleanFlag = (value, fallback = false) => {
   if (value == null) return fallback;
   const key = String(value).trim().toLowerCase();
@@ -6683,7 +6702,8 @@ router.get('/user/:userId/gym-members', async (req, res) => {
     }
 
     const [members] = await pool.execute(
-      `SELECT id, name, gym_id, ${profileImageColumn} AS profile_picture, total_points, total_workouts, \`rank\`
+      `SELECT id, name, gym_id, ${profileImageColumn} AS profile_picture, total_points, total_workouts, \`rank\`,
+              workout_split_preference, workout_split_label
        FROM users
        WHERE gym_id = ? AND id <> ? AND role = 'user' AND is_active = 1
        ORDER BY total_points DESC`,
@@ -7103,6 +7123,154 @@ router.post('/invitations/send', authMutationRateLimit, requireAuth('user'), req
     );
 
     return res.json({ success: true, invitationId: result.insertId });
+  } catch (error) {
+    return res.status(500).json({ error: error.message });
+  }
+});
+
+router.get('/friends/:viewerId/:friendId/plan-preview', requireAuth('user'), requireUserAccess('viewerId', { allowSelf: true }), async (req, res) => {
+  try {
+    const viewerId = toNumber(req.params.viewerId);
+    const friendId = toNumber(req.params.friendId);
+    if (!viewerId || viewerId <= 0 || !friendId || friendId <= 0) {
+      return res.status(400).json({ error: 'Invalid viewerId or friendId' });
+    }
+
+    const friendship = await getAcceptedFriendship(viewerId, friendId);
+    if (!friendship) {
+      return res.status(403).json({ error: 'Friend plan preview is available only for accepted friends' });
+    }
+
+    const [profileRows] = await pool.execute(
+      `SELECT
+          id,
+          name,
+          workout_split_preference,
+          workout_split_label
+       FROM users
+       WHERE id = ? AND role = 'user'
+       LIMIT 1`,
+      [friendId],
+    );
+
+    if (!profileRows.length) {
+      return res.status(404).json({ error: 'Friend not found' });
+    }
+
+    const profile = profileRows[0];
+
+    const [assignmentRows] = await pool.execute(
+      `SELECT pa.id, pa.program_id, pa.start_date, pa.next_rotation_date, pa.rotation_weeks,
+              p.name, p.program_type, p.goal, p.days_per_week, p.cycle_weeks
+       FROM program_assignments pa
+       JOIN programs p ON p.id = pa.program_id
+       WHERE pa.user_id = ? AND pa.status = 'active'
+       ORDER BY pa.created_at DESC
+       LIMIT 1`,
+      [friendId],
+    );
+
+    const assignment = assignmentRows[0];
+    if (!assignment) {
+      return res.json({
+        id: null,
+        assignmentId: null,
+        name: '',
+        friendName: profile.name || '',
+        currentWeek: 1,
+        totalWeeks: 0,
+        workouts: [],
+        currentWeekWorkouts: [],
+        splitPreference: profile.workout_split_preference || '',
+        splitLabel: profile.workout_split_label || '',
+      });
+    }
+
+    const [workoutRows] = await pool.execute(
+      `SELECT id, workout_name, workout_type, day_order, day_name, estimated_duration_minutes, notes
+       FROM workouts
+       WHERE program_id = ?
+       ORDER BY day_order ASC`,
+      [assignment.program_id],
+    );
+
+    const [exerciseRows] = await pool.execute(
+      `SELECT
+          we.id AS workout_exercise_id,
+          we.workout_id,
+          we.order_index,
+          we.exercise_name_snapshot,
+          we.muscle_group_snapshot,
+          we.target_sets,
+          we.target_reps,
+          we.target_weight,
+          we.rest_seconds,
+          we.tempo,
+          we.rpe_target,
+          we.notes
+       FROM workout_exercises we
+       JOIN workouts w ON w.id = we.workout_id
+       WHERE w.program_id = ?
+       ORDER BY we.workout_id, we.order_index`,
+      [assignment.program_id],
+    );
+
+    const exercisesByWorkout = new Map();
+    exerciseRows.forEach((row) => {
+      if (!exercisesByWorkout.has(row.workout_id)) exercisesByWorkout.set(row.workout_id, []);
+      exercisesByWorkout.get(row.workout_id).push({
+        id: Number(row.workout_exercise_id || 0) || null,
+        exerciseName: row.exercise_name_snapshot,
+        targetMuscles: parseMuscleGroups(row.muscle_group_snapshot),
+        muscleGroup: parseMuscleGroups(row.muscle_group_snapshot)[0] || null,
+        sets: row.target_sets,
+        reps: row.target_reps,
+        targetWeight: row.target_weight,
+        rest: row.rest_seconds,
+        tempo: row.tempo,
+        rpeTarget: row.rpe_target,
+        notes: row.notes,
+      });
+    });
+
+    const workouts = normalizeProgramWorkouts(workoutRows.map((w) => ({
+      id: w.id,
+      workout_name: w.workout_name,
+      workout_type: w.workout_type,
+      day_order: w.day_order,
+      day_name: w.day_name,
+      estimated_duration_minutes: w.estimated_duration_minutes,
+      notes: w.notes,
+      exercises: JSON.stringify(exercisesByWorkout.get(w.id) || []),
+    })), assignment.days_per_week);
+
+    const currentWeek = getCurrentWeek(assignment.start_date, assignment.cycle_weeks);
+    const workoutsPerWeek = Math.max(1, Number(assignment.days_per_week || 1));
+    const currentWeekStartDayOrder = ((currentWeek - 1) * workoutsPerWeek) + 1;
+    const currentWeekEndDayOrder = currentWeekStartDayOrder + workoutsPerWeek - 1;
+
+    const currentWeekWorkouts = workouts.filter((w) => {
+      const dayOrder = Number(w.day_order || 0);
+      return dayOrder >= currentWeekStartDayOrder && dayOrder <= currentWeekEndDayOrder;
+    });
+
+    return res.json({
+      id: assignment.program_id,
+      assignmentId: assignment.id,
+      name: assignment.name,
+      friendName: profile.name || '',
+      programType: assignment.program_type,
+      goal: assignment.goal,
+      daysPerWeek: Number(assignment.days_per_week || 0),
+      currentWeek,
+      totalWeeks: assignment.cycle_weeks,
+      rotationWeeks: assignment.rotation_weeks,
+      nextRotationDate: assignment.next_rotation_date,
+      workouts,
+      currentWeekWorkouts,
+      splitPreference: profile.workout_split_preference || '',
+      splitLabel: profile.workout_split_label || '',
+    });
   } catch (error) {
     return res.status(500).json({ error: error.message });
   }
