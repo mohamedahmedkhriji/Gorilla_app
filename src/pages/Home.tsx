@@ -19,6 +19,7 @@ import { MyNutrition } from './MyNutrition';
 import { ExerciseVideoScreen } from '../components/workout/ExerciseVideoScreen';
 import { MuscleRecoveryScreen } from '../components/progress/MuscleRecoveryScreen';
 import { RankingsRewardsScreen } from '../components/profile/RankingsRewardsScreen';
+import { FriendChallengeScreen } from '../components/profile/FriendChallengeScreen';
 import { api } from '../services/api';
 import {
   getCoachmarkUserScope,
@@ -42,6 +43,7 @@ import { OPEN_PICKED_WORKOUT_PLAN } from '../services/workoutNavigation';
 import { useScrollToTopOnChange } from '../shared/scroll';
 interface HomeProps {
   onNavigate: (tab: string, day?: string) => void;
+  onTabBarVisibilityChange?: (visible: boolean) => void;
   resetSignal?: number;
   guidedTourActive?: boolean;
   onGuidedTourComplete?: () => void;
@@ -424,6 +426,7 @@ type HomeView =
 'nutrition';
 export function Home({
   onNavigate,
+  onTabBarVisibilityChange,
   resetSignal = 0,
   guidedTourActive = false,
   onGuidedTourComplete,
@@ -476,6 +479,14 @@ export function Home({
   const hasTrackedHomeVisitRef = useRef(false);
 
   useScrollToTopOnChange([view, resetSignal]);
+
+  useEffect(() => {
+    onTabBarVisibilityChange?.(view !== 'friendChallenge');
+
+    return () => {
+      onTabBarVisibilityChange?.(true);
+    };
+  }, [onTabBarVisibilityChange, view]);
 
   useEffect(() => {
     const handleLanguageChanged = () => {
@@ -1508,26 +1519,12 @@ export function Home({
   );
   if (view === 'friendChallenge') {
     return (
-      <div className="flex-1 flex flex-col bg-background min-h-screen pb-24">
-        <div className="px-4 sm:px-6 pt-2">
-          <button
-            type="button"
-            onClick={() => setView('friendProfile')}
-            className="inline-flex items-center gap-2 rounded-xl surface-glass px-3 py-2 text-sm text-text-primary"
-          >
-            <ArrowLeft size={16} />
-            {homeCopy.back}
-          </button>
-        </div>
-        <div className="px-4 sm:px-6 pt-8">
-          <div className="surface-card rounded-2xl border border-white/10 p-5">
-            <h2 className="text-xl font-semibold text-white">{homeCopy.challenge}</h2>
-            <p className="mt-2 text-sm text-text-secondary">
-              {homeCopy.challengePlaceholder(selectedFriend?.name || homeCopy.defaultFriendName)}
-            </p>
-          </div>
-        </div>
-      </div>
+      <FriendChallengeScreen
+        onBack={() => setView('friendProfile')}
+        onExitHome={() => setView('main')}
+        friendName={selectedFriend?.name}
+        friendId={selectedFriend?.id}
+      />
     );
   }
   if (view === 'coachList')
@@ -1738,7 +1735,6 @@ export function Home({
         {/* Calculators */}
         <CalculatorCard onClick={() => setView('calculator')} />
       </div>
-
       <CoachmarkOverlay
         isOpen={isCoachmarkOpen}
         step={activeCoachmarkStep}

@@ -48,6 +48,13 @@ const ACHIEVEMENT_SEEDS = [
 
 let achievementInfrastructurePromise = null;
 
+const slugifyValue = (value) => String(value || '')
+  .trim()
+  .toLowerCase()
+  .replace(/['’]/g, '')
+  .replace(/[^a-z0-9]+/g, '-')
+  .replace(/^-+|-+$/g, '');
+
 const normalizeUserId = (userId) => {
   const value = Number(userId);
   return Number.isInteger(value) && value > 0 ? value : 0;
@@ -56,6 +63,65 @@ const normalizeUserId = (userId) => {
 const toFiniteNumber = (value, fallback = 0) => {
   const normalized = Number(value);
   return Number.isFinite(normalized) ? normalized : fallback;
+};
+
+const ensureColumnExists = async (tableName, columnName, alterSql) => {
+  const [rows] = await pool.execute(
+    `SELECT 1
+     FROM information_schema.columns
+     WHERE table_schema = DATABASE()
+       AND table_name = ?
+       AND column_name = ?
+     LIMIT 1`,
+    [tableName, columnName],
+  );
+
+  if (!rows.length) {
+    await pool.execute(alterSql);
+  }
+};
+
+const ensureIndexExists = async (tableName, indexName, createSql) => {
+  const [rows] = await pool.execute(
+    `SELECT 1
+     FROM information_schema.statistics
+     WHERE table_schema = DATABASE()
+       AND table_name = ?
+       AND index_name = ?
+     LIMIT 1`,
+    [tableName, indexName],
+  );
+
+  if (!rows.length) {
+    await pool.execute(createSql);
+  }
+};
+
+const buildSlugUpdates = (rows, prefix) => {
+  const usedSlugs = new Set();
+  const updates = [];
+
+  for (const row of Array.isArray(rows) ? rows : []) {
+    const id = Number(row?.id || 0);
+    const currentSlug = slugifyValue(row?.slug);
+    const baseSlug = currentSlug || slugifyValue(row?.name) || `${prefix}-${id || 'item'}`;
+    let nextSlug = baseSlug;
+
+    if (usedSlugs.has(nextSlug)) {
+      let suffix = id > 0 ? id : 2;
+      while (usedSlugs.has(`${baseSlug}-${suffix}`)) {
+        suffix += 1;
+      }
+      nextSlug = `${baseSlug}-${suffix}`;
+    }
+
+    usedSlugs.add(nextSlug);
+    if (currentSlug !== nextSlug) {
+      updates.push({ id, slug: nextSlug });
+    }
+  }
+
+  return updates;
 };
 
 const evaluateRule = (value, operatorSymbol, targetValue) => {
@@ -154,6 +220,37 @@ const ensureAchievementInfrastructure = async () => {
       INDEX idx_user_rewards_user (user_id, status)
     ) ENGINE=InnoDB`,
   );
+
+  await ensureColumnExists('achievements', 'name', 'ALTER TABLE achievements ADD COLUMN name VARCHAR(120) NOT NULL DEFAULT \'Achievement\' AFTER id');
+  await ensureColumnExists('achievements', 'slug', 'ALTER TABLE achievements ADD COLUMN slug VARCHAR(140) NULL AFTER name');
+  await ensureColumnExists('achievements', 'description', 'ALTER TABLE achievements ADD COLUMN description VARCHAR(255) NOT NULL DEFAULT \'\' AFTER slug');
+  await ensureColumnExists('achievements', 'xp_reward', 'ALTER TABLE achievements ADD COLUMN xp_reward INT NOT NULL DEFAULT 0 AFTER description');
+  await ensureColumnExists('achievements', 'reward_id', 'ALTER TABLE achievements ADD COLUMN reward_id BIGINT NULL AFTER xp_reward');
+  await ensureColumnExists('achievements', 'created_at', 'ALTER TABLE achievements ADD COLUMN created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP AFTER reward_id');
+  await ensureColumnExists('achievement_rules', 'operator_symbol', 'ALTER TABLE achievement_rules ADD COLUMN operator_symbol ENUM(\'>=\', \'=\', \'<=\', \'>\', \'<\') NOT NULL DEFAULT \'>=\' AFTER condition_type');
+  await ensureColumnExists('achievement_rules', 'timeframe_type', 'ALTER TABLE achievement_rules ADD COLUMN timeframe_type ENUM(\'lifetime\', \'daily\', \'weekly\', \'monthly\', \'program\', \'custom\') NOT NULL DEFAULT \'lifetime\' AFTER target_value');
+  await ensureColumnExists('achievement_rules', 'timeframe_days', 'ALTER TABLE achievement_rules ADD COLUMN timeframe_days INT NULL AFTER timeframe_type');
+  await ensureIndexExists('achievements', 'idx_achievements_reward', 'CREATE INDEX idx_achievements_reward ON achievements (reward_id)');
+  await ensureIndexExists('achievement_rules', 'idx_achievement_rules_achievement', 'CREATE INDEX idx_achievement_rules_achievement ON achievement_rules (achievement_id)');
+  await ensureIndexExists('achievement_rules', 'idx_achievement_rules_type', 'CREATE INDEX idx_achievement_rules_type ON achievement_rules (condition_type)');
+  await ensureIndexExists('user_achievements', 'idx_user_achievements_user', 'CREATE INDEX idx_user_achievements_user ON user_achievements (user_id)');
+  await ensureIndexExists('user_achievements', 'idx_user_achievements_unlocked', 'CREATE INDEX idx_user_achievements_unlocked ON user_achievements (unlocked_at)');
+  await ensureIndexExists('user_rewards', 'idx_user_rewards_user', 'CREATE INDEX idx_user_rewards_user ON user_rewards (user_id, status)');
+
+  const [achievementSlugRows] = await pool.execute(
+    `SELECT id, name, slug
+     FROM achievements
+     ORDER BY id ASC`,
+  );
+  const achievementSlugUpdates = buildSlugUpdates(achievementSlugRows, 'achievement');
+  for (const update of achievementSlugUpdates) {
+    await pool.execute(
+      `UPDATE achievements
+       SET slug = ?
+       WHERE id = ?`,
+      [update.slug, update.id],
+    );
+  }
 
   for (const achievement of ACHIEVEMENT_SEEDS) {
     await pool.execute(
@@ -375,4 +472,3 @@ export const evaluateAndAwardAchievements = async ({ userId } = {}) => {
     rewards,
   };
 };
-

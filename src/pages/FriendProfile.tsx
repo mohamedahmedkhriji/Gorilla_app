@@ -3,13 +3,19 @@ import { Header } from '../components/ui/Header';
 import { Card } from '../components/ui/Card';
 import {
   ArrowRight,
+  CalendarDays,
   ChevronLeft,
   ChevronRight,
+  Clock3,
   Dumbbell,
   Sparkles,
   Trophy,
   X,
 } from 'lucide-react';
+import benchPressIcon from '../../assets/Workout/bench-press icon.png';
+import deadliftIcon from '../../assets/Workout/Deadlift icon.png';
+import pushUpIcon from '../../assets/Workout/push-up icon.png';
+import squatRepRaceIcon from '../../assets/Workout/Squat Rep Race icon.png';
 import { api } from '../services/api';
 import { getBodyPartImage } from '../services/bodyPartTheme';
 import {
@@ -98,6 +104,9 @@ type FriendPlanMuscle = {
 };
 
 type FriendPlanView = 'overview' | 'plan';
+type ChallengeBadgeKey = 'push_up_duel' | 'squat_rep_race' | 'bench_press' | 'deadlift_one';
+
+type FriendChallengeWinStats = Record<ChallengeBadgeKey, number>;
 
 type FriendProfileCopy = {
   profileTitle: string;
@@ -218,62 +227,62 @@ const FRIEND_PROFILE_I18N = {
     postMediaAlt: 'Post media',
   },
   ar: {
-    profileTitle: 'Friend Profile',
-    planTitle: 'Friend Plan',
-    lockedTitle: 'Profile locked',
-    lockedBody: 'Send a friend invitation and wait for acceptance before viewing this profile.',
-    backToFriends: 'Back to Friends',
-    inviteToGymDay: 'Invite to Gym Day',
-    challenge: 'Challenge',
-    badges: 'Badges',
-    trainingSplit: 'Training Split',
-    viewFriendPlan: 'Open full plan',
-    planPeek: 'Tap to explore workouts, focus muscles, and weekly details.',
-    planLoading: 'Loading friend plan...',
-    planError: 'Unable to load this friend plan right now.',
-    emptyPlan: 'No active training plan was found for this friend yet.',
-    posts: 'Posts',
-    loadingPosts: 'Loading posts...',
-    noPosts: 'No posts uploaded yet.',
-    today: 'Today',
-    yesterday: 'Yesterday',
-    recently: 'Recently',
-    likes: 'likes',
-    comments: 'comments',
-    views: 'views',
-    inviteModalTitle: 'Invite to Session',
-    inviteModalSubtitle: 'Pick date and time for your workout together.',
-    selectedSession: 'Selected session',
-    chooseDateTime: 'Choose a date and time',
-    time: 'Time',
-    sendInvitation: 'Send Invitation',
-    closeImagePreview: 'Close image preview',
+    profileTitle: 'ملف الصديق',
+    planTitle: 'خطة الصديق',
+    lockedTitle: 'الملف مقفل',
+    lockedBody: 'أرسل دعوة صداقة وانتظر القبول قبل عرض هذا الملف.',
+    backToFriends: 'العودة إلى الأصدقاء',
+    inviteToGymDay: 'ادعُ إلى يوم جيم',
+    challenge: 'تحدي',
+    badges: 'الشارات',
+    trainingSplit: 'تقسيمة التدريب',
+    viewFriendPlan: 'افتح الخطة كاملة',
+    planPeek: 'اضغط لاستكشاف التمارين والعضلات المستهدفة وتفاصيل الأسبوع.',
+    planLoading: 'جارٍ تحميل خطة الصديق...',
+    planError: 'تعذر تحميل خطة هذا الصديق الآن.',
+    emptyPlan: 'لا توجد خطة تدريب نشطة لهذا الصديق حتى الآن.',
+    posts: 'المنشورات',
+    loadingPosts: 'جارٍ تحميل المنشورات...',
+    noPosts: 'لا توجد منشورات حتى الآن.',
+    today: 'اليوم',
+    yesterday: 'أمس',
+    recently: 'مؤخرًا',
+    likes: 'إعجاب',
+    comments: 'تعليق',
+    views: 'مشاهدة',
+    inviteModalTitle: 'دعوة إلى جلسة',
+    inviteModalSubtitle: 'اختر التاريخ والوقت للتمرين معًا.',
+    selectedSession: 'الجلسة المحددة',
+    chooseDateTime: 'اختر التاريخ والوقت',
+    time: 'الوقت',
+    sendInvitation: 'إرسال الدعوة',
+    closeImagePreview: 'إغلاق معاينة الصورة',
     comingSoon: 'قريبًا',
     challengeSoonTitle: 'التحديات قادمة قريبًا',
     challengeSoonBody: 'نعمل الآن على تحسين تجربة التحديات بين الأصدقاء مع تتبع النتائج ومواجهات أفضل.',
     challengeSoonHint: 'إلى ذلك الحين يمكنك دعوة صديقك إلى جلسة تدريب حتى نكمل هذه الميزة.',
     challengeSoonCta: 'حسنًا',
-    noSession: 'No active user session found.',
-    friendNotSelected: 'Friend not selected.',
-    inviteSent: 'Session invitation sent!',
-    inviteFailed: 'Failed to send invitation',
-    level: (value: number) => `Level ${value}`,
-    weekLabel: (week: number, total: number) => `Week ${week}${total > 0 ? ` / ${total}` : ''}`,
-    workoutsLabel: (value: number) => `${value} workouts`,
-    exerciseCount: (value: number) => `${value} exercises`,
-    moreExercises: (value: number) => `+${value} more exercises`,
-    targetMuscles: 'Target Muscles',
-    targetMusclesHint: 'Main muscle groups this friend is focusing on right now.',
-    weeklySchedule: 'Weekly Schedule',
-    weeklyScheduleHint: 'A polished look at the current plan week.',
-    planHighlights: 'Plan Highlights',
-    planHighlightsHint: 'Current split, active week, and workout density.',
-    notes: 'Coach note',
-    sets: (value: number) => `${value} sets`,
-    reps: (value: string | number) => `${value} reps`,
-    rest: (value: number) => `${value}s rest`,
-    workoutFallback: (value: number) => `Workout ${value}`,
-    postMediaAlt: 'Post media',
+    noSession: 'لم يتم العثور على جلسة مستخدم نشطة.',
+    friendNotSelected: 'لم يتم تحديد صديق.',
+    inviteSent: 'تم إرسال دعوة الجلسة!',
+    inviteFailed: 'فشل في إرسال الدعوة',
+    level: (value: number) => `المستوى ${value}`,
+    weekLabel: (week: number, total: number) => `الأسبوع ${week}${total > 0 ? ` / ${total}` : ''}`,
+    workoutsLabel: (value: number) => `${value} تمارين`,
+    exerciseCount: (value: number) => `${value} تمارين`,
+    moreExercises: (value: number) => `+${value} تمارين إضافية`,
+    targetMuscles: 'العضلات المستهدفة',
+    targetMusclesHint: 'أهم مجموعات العضلات التي يركز عليها هذا الصديق الآن.',
+    weeklySchedule: 'الجدول الأسبوعي',
+    weeklyScheduleHint: 'نظرة مرتبة على أسبوع الخطة الحالي.',
+    planHighlights: 'أهم الخطة',
+    planHighlightsHint: 'التقسيمة الحالية والأسبوع النشط وكثافة التمرين.',
+    notes: 'ملاحظة المدرب',
+    sets: (value: number) => `${value} مجموعات`,
+    reps: (value: string | number) => `${value} تكرارات`,
+    rest: (value: number) => `${value}ث راحة`,
+    workoutFallback: (value: number) => `تمرين ${value}`,
+    postMediaAlt: 'وسائط المنشور',
   },
   it: {
     profileTitle: 'Profilo Amico',
@@ -434,6 +443,114 @@ const MUSCLE_NAME_MAP: Record<AppLanguage, Record<string, string>> = {
     Shoulders: 'Schultern',
     Triceps: 'Trizeps',
   },
+};
+
+const createEmptyChallengeWinStats = (): FriendChallengeWinStats => ({
+  push_up_duel: 0,
+  squat_rep_race: 0,
+  bench_press: 0,
+  deadlift_one: 0,
+});
+
+const CHALLENGE_BADGE_ITEMS: Array<{
+  key: ChallengeBadgeKey;
+  iconSrc: string;
+  alt: string;
+}> = [
+  {
+    key: 'push_up_duel',
+    iconSrc: pushUpIcon,
+    alt: 'Push-Up Duel',
+  },
+  {
+    key: 'squat_rep_race',
+    iconSrc: squatRepRaceIcon,
+    alt: 'Squat Rep Race',
+  },
+  {
+    key: 'bench_press',
+    iconSrc: benchPressIcon,
+    alt: 'Bench Press',
+  },
+  {
+    key: 'deadlift_one',
+    iconSrc: deadliftIcon,
+    alt: 'Deadlift One',
+  },
+];
+
+const getLocalizedFriendFallbackName = (language: AppLanguage) =>
+  pickLanguage(language, {
+    en: 'Friend',
+    ar: 'صديق',
+    it: 'Amico',
+    de: 'Freund',
+  });
+
+const getLocalizedMemberRank = (language: AppLanguage) =>
+  pickLanguage(language, {
+    en: 'Member',
+    ar: 'عضو',
+    it: 'Membro',
+    de: 'Mitglied',
+  });
+
+const getLocalizedAvatarAlt = (language: AppLanguage, name: string) =>
+  pickLanguage(language, {
+    en: `${name} avatar`,
+    ar: `صورة ${name}`,
+    it: `Avatar di ${name}`,
+    de: `Avatar von ${name}`,
+  });
+
+const getLocalizedBadgeAlt = (language: AppLanguage, key: ChallengeBadgeKey) => {
+  const labels: Record<ChallengeBadgeKey, { en: string; ar: string; it: string; de: string }> = {
+    push_up_duel: {
+      en: 'Push-Up Duel',
+      ar: 'تحدي الضغط',
+      it: 'Duello di Push-Up',
+      de: 'Liegestuetz-Duell',
+    },
+    squat_rep_race: {
+      en: 'Squat Rep Race',
+      ar: 'سباق تكرارات السكوات',
+      it: 'Gara di Squat',
+      de: 'Squat-Wettkampf',
+    },
+    bench_press: {
+      en: 'Bench Press',
+      ar: 'بنش برس',
+      it: 'Panca Piana',
+      de: 'Bankdruecken',
+    },
+    deadlift_one: {
+      en: 'Deadlift One',
+      ar: 'تحدي الديدليفت',
+      it: 'Deadlift Singolo',
+      de: 'Deadlift Einzelversuch',
+    },
+  };
+
+  return pickLanguage(language, labels[key]);
+};
+
+const getLocalizedRankLabel = (language: AppLanguage, rank: string) => {
+  const normalizedRank = String(rank || '').trim().toLowerCase();
+
+  if (!normalizedRank) {
+    return getLocalizedMemberRank(language);
+  }
+
+  const localizedRanks = {
+    bronze: pickLanguage(language, { en: 'Bronze', ar: 'برونزي', it: 'Bronzo', de: 'Bronze' }),
+    silver: pickLanguage(language, { en: 'Silver', ar: 'فضي', it: 'Argento', de: 'Silber' }),
+    gold: pickLanguage(language, { en: 'Gold', ar: 'ذهبي', it: 'Oro', de: 'Gold' }),
+    platinum: pickLanguage(language, { en: 'Platinum', ar: 'بلاتيني', it: 'Platino', de: 'Platin' }),
+    diamond: pickLanguage(language, { en: 'Diamond', ar: 'ألماسي', it: 'Diamante', de: 'Diamant' }),
+    member: getLocalizedMemberRank(language),
+  } satisfies Record<string, string>;
+
+  return localizedRanks[normalizedRank] || rank;
 };
 
 const QUICK_SESSION_TIMES = ['06:30', '08:00', '17:30', '19:00'];
@@ -762,7 +879,14 @@ const formatRelativeDay = (
 
   if (dayDiff <= 0) return copy.today;
   if (dayDiff === 1) return copy.yesterday;
-  if (dayDiff < 7) return `${dayDiff}d`;
+  if (dayDiff < 7) {
+    return pickLanguage(language, {
+      en: `${dayDiff}d`,
+      ar: `منذ ${dayDiff} يوم`,
+      it: `${dayDiff}g`,
+      de: `vor ${dayDiff} T`,
+    });
+  }
   return date.toLocaleDateString(getLanguageLocale(language));
 };
 
@@ -775,10 +899,9 @@ const getActiveViewerId = () => {
   }
 };
 
-export function FriendProfile({ onBack, friend }: FriendProfileProps) {
+export function FriendProfile({ onBack, onChallenge, friend }: FriendProfileProps) {
   const [language, setLanguage] = useState<AppLanguage>(() => getActiveLanguage());
   const [showInvite, setShowInvite] = useState(false);
-  const [showChallengeSoon, setShowChallengeSoon] = useState(false);
   const [showAvatarPreview, setShowAvatarPreview] = useState(false);
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [selectedTime, setSelectedTime] = useState({ hour: 9, minute: 0 });
@@ -793,12 +916,14 @@ export function FriendProfile({ onBack, friend }: FriendProfileProps) {
   const [friendTotalWeeks, setFriendTotalWeeks] = useState(0);
   const [friendWorkouts, setFriendWorkouts] = useState<FriendWorkout[]>([]);
   const [friendPlanMuscles, setFriendPlanMuscles] = useState<FriendPlanMuscle[]>([]);
+  const [friendChallengeWins, setFriendChallengeWins] = useState<FriendChallengeWinStats>(() => createEmptyChallengeWinStats());
 
   const copy = pickLanguage(language, FRIEND_PROFILE_I18N);
 
   const friendId = Number(friend?.id || 0);
-  const friendName = String(friend?.name || 'Friend').trim() || 'Friend';
-  const friendRank = String(friend?.rank || 'Member');
+  const fallbackFriendName = getLocalizedFriendFallbackName(language);
+  const friendName = String(friend?.name || fallbackFriendName).trim() || fallbackFriendName;
+  const friendRank = getLocalizedRankLabel(language, String(friend?.rank || getLocalizedMemberRank(language)));
   const friendTotalPoints = Number(friend?.total_points || 0);
   const friendLevel = getLevelFromPoints(friendTotalPoints);
   const friendProfilePicture = isUsableProfileImage(friend?.profile_picture)
@@ -974,6 +1099,51 @@ export function FriendProfile({ onBack, friend }: FriendProfileProps) {
     };
   }, [canViewProfile, copy.noSession, friend?.workout_split_label, friend?.workout_split_preference, friendId]);
 
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadFriendChallengeWins = async () => {
+      if (!canViewProfile || !friendId || friendId <= 0) {
+        setFriendChallengeWins(createEmptyChallengeWinStats());
+        return;
+      }
+
+      try {
+        const viewerId = getActiveViewerId();
+        if (!viewerId || viewerId <= 0) {
+          throw new Error(copy.noSession);
+        }
+
+        const response = await api.getFriendChallengeWinStats(viewerId, friendId);
+        if (cancelled) return;
+
+        const rawStats = response?.stats && typeof response.stats === 'object'
+          ? response.stats as Partial<Record<ChallengeBadgeKey, unknown>>
+          : {};
+
+        setFriendChallengeWins({
+          push_up_duel: Math.max(0, Number.parseInt(String(rawStats.push_up_duel ?? 0), 10) || 0),
+          squat_rep_race: Math.max(0, Number.parseInt(String(rawStats.squat_rep_race ?? 0), 10) || 0),
+          bench_press: Math.max(0, Number.parseInt(String(rawStats.bench_press ?? 0), 10) || 0),
+          deadlift_one: Math.max(0, Number.parseInt(String(rawStats.deadlift_one ?? 0), 10) || 0),
+        });
+      } catch (error) {
+        if (cancelled) return;
+        const apiError = error as Error & { status?: number };
+        if (apiError?.status && ![403, 404].includes(Number(apiError.status))) {
+          console.error('Failed to load friend challenge win stats:', error);
+        }
+        setFriendChallengeWins(createEmptyChallengeWinStats());
+      }
+    };
+
+    void loadFriendChallengeWins();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [canViewProfile, copy.noSession, friendId]);
+
   const getDaysInMonth = (date: Date) => {
     const year = date.getFullYear();
     const month = date.getMonth();
@@ -1028,6 +1198,9 @@ export function FriendProfile({ onBack, friend }: FriendProfileProps) {
   const selectedSessionLabel = selectedDate
     ? `${selectedDate.toLocaleDateString(getLanguageLocale(language), { weekday: 'short', month: 'short', day: 'numeric' })} · ${selectedTimeValue}`
     : null;
+  const selectedDateLabel = selectedDate
+    ? selectedDate.toLocaleDateString(getLanguageLocale(language), { weekday: 'long', month: 'long', day: 'numeric' })
+    : copy.chooseDateTime;
 
   const handleTimeInputChange = (value: string) => {
     const [hourRaw, minuteRaw] = value.split(':');
@@ -1248,7 +1421,7 @@ export function FriendProfile({ onBack, friend }: FriendProfileProps) {
                 >
                   <img
                     src={friendProfilePicture}
-                    alt={`${friendName} avatar`}
+                    alt={getLocalizedAvatarAlt(language, friendName)}
                     className="h-full w-full rounded-full object-cover"
                   />
                 </button>
@@ -1277,7 +1450,7 @@ export function FriendProfile({ onBack, friend }: FriendProfileProps) {
             </button>
             <button
               type="button"
-              onClick={() => setShowChallengeSoon(true)}
+              onClick={onChallenge}
               className="w-full rounded-xl border border-white/15 bg-white/5 py-3 font-bold text-white transition-colors hover:bg-white/10"
             >
               {copy.challenge}
@@ -1288,15 +1461,33 @@ export function FriendProfile({ onBack, friend }: FriendProfileProps) {
             <h3 className="text-sm font-bold uppercase tracking-wider text-text-secondary">
               {copy.badges}
             </h3>
-            <div className="flex gap-3 overflow-x-auto pb-2">
-              {[1, 2, 3, 4].map((index) => (
-                <div
-                  key={index}
-                  className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full border border-white/10 bg-card"
-                >
-                  <Trophy size={24} className={index === 1 ? 'text-accent' : 'text-text-tertiary'} />
-                </div>
-              ))}
+            <div className="flex flex-wrap justify-center gap-4 pb-2">
+              {CHALLENGE_BADGE_ITEMS.map((badge) => {
+                const winCount = friendChallengeWins[badge.key];
+                const isUnlocked = winCount > 0;
+
+                return (
+                  <div
+                    key={badge.key}
+                    className="flex min-w-[4.5rem] flex-col items-center gap-2"
+                  >
+                    <div
+                      className={`flex h-16 w-16 items-center justify-center rounded-full border shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] ${
+                        isUnlocked ? 'border-accent/30 bg-accent/12' : 'border-white/10 bg-card'
+                      }`}
+                    >
+                      <img
+                        src={badge.iconSrc}
+                        alt={getLocalizedBadgeAlt(language, badge.key)}
+                        className={`h-10 w-10 object-contain drop-shadow-[0_6px_12px_rgba(0,0,0,0.28)] ${isUnlocked ? '' : 'opacity-75'}`}
+                      />
+                    </div>
+                    <div className={`text-sm font-black ${isUnlocked ? 'text-accent' : 'text-text-tertiary'}`}>
+                      {winCount}
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           </div>
 
@@ -1412,63 +1603,94 @@ export function FriendProfile({ onBack, friend }: FriendProfileProps) {
           onClick={() => setShowInvite(false)}
         >
           <div
-            className="flex min-h-0 max-h-full w-full flex-col overflow-hidden rounded-t-3xl border border-white/15 bg-gradient-to-b from-[#1f1f25] to-[#131318] shadow-2xl sm:max-h-[88vh] sm:max-w-md sm:rounded-3xl"
+            className="relative flex min-h-0 max-h-full w-full flex-col overflow-hidden rounded-t-[2rem] border border-white/12 bg-[radial-gradient(circle_at_top_right,rgba(187,255,92,0.16),transparent_28%),radial-gradient(circle_at_bottom_left,rgba(255,255,255,0.07),transparent_34%),linear-gradient(160deg,rgba(24,24,30,0.98),rgba(11,11,15,0.98))] shadow-[0_24px_90px_rgba(0,0,0,0.55)] sm:max-h-[88vh] sm:max-w-lg sm:rounded-[2rem]"
             onClick={(event) => event.stopPropagation()}
           >
-            <div className="shrink-0 border-b border-white/10 bg-[linear-gradient(180deg,rgba(31,31,37,0.98),rgba(19,19,24,0.95))] p-5 sm:p-6">
+            <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(135deg,rgba(255,255,255,0.06),transparent_42%)]" />
+            <div className="pointer-events-none absolute left-1/2 top-3 h-1.5 w-14 -translate-x-1/2 rounded-full bg-white/20 sm:hidden" />
+
+            <div className="relative shrink-0 border-b border-white/10 bg-black/10 p-5 sm:p-6">
               <div className="flex items-start justify-between gap-4">
-                <div>
-                  <h3 className="text-xl font-bold text-white">{copy.inviteModalTitle}</h3>
-                  <p className="mt-1 text-xs text-text-secondary">{copy.inviteModalSubtitle}</p>
+                <div className="space-y-4">
+                  <div className="inline-flex items-center gap-2 rounded-full border border-accent/25 bg-accent/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-accent">
+                    <Sparkles size={12} />
+                    {copy.inviteToGymDay}
+                  </div>
+
+                  <div>
+                    <h3 className="text-2xl font-semibold leading-tight text-white">{copy.inviteModalTitle}</h3>
+                    <p className="mt-2 max-w-sm text-sm leading-relaxed text-text-secondary">{copy.inviteModalSubtitle}</p>
+                  </div>
                 </div>
                 <button
                   type="button"
                   onClick={() => setShowInvite(false)}
-                  className="flex h-9 w-9 items-center justify-center rounded-xl border border-white/15 text-text-secondary hover:bg-white/5 hover:text-white"
+                  className="flex h-10 w-10 items-center justify-center rounded-full border border-white/15 bg-white/5 text-text-secondary transition-colors hover:bg-white/10 hover:text-white"
                 >
                   <X size={18} />
                 </button>
               </div>
 
-              <div className="mt-4 rounded-xl border border-accent/25 bg-accent/10 px-3 py-2.5">
-                <div className="text-[11px] uppercase tracking-wide text-accent/80">{copy.selectedSession}</div>
-                <div className="mt-1 text-sm text-white">
-                  {selectedSessionLabel || copy.chooseDateTime}
+              <div className="mt-5 grid gap-3 sm:grid-cols-2">
+                <div className="rounded-[1.35rem] border border-white/10 bg-white/[0.04] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]">
+                  <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-accent/85">
+                    <CalendarDays size={13} />
+                    {copy.selectedSession}
+                  </div>
+                  <div className="mt-3 text-sm font-semibold text-white">
+                    {selectedDateLabel}
+                  </div>
+                  <div className="mt-1 text-xs text-text-secondary">
+                    {selectedSessionLabel || copy.chooseDateTime}
+                  </div>
+                </div>
+
+                <div className="rounded-[1.35rem] border border-white/10 bg-white/[0.04] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]">
+                  <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-accent/85">
+                    <Clock3 size={13} />
+                    {copy.time}
+                  </div>
+                  <div className="mt-3 text-lg font-semibold tracking-[0.08em] text-white">
+                    {selectedTimeValue}
+                  </div>
+                  <div className="mt-1 text-xs text-text-secondary">
+                    {selectedDate ? copy.selectedSession : copy.chooseDateTime}
+                  </div>
                 </div>
               </div>
             </div>
 
-            <div className="flex-1 min-h-0 space-y-6 overflow-y-auto overscroll-contain p-5 pb-24 [-webkit-overflow-scrolling:touch] sm:p-6 sm:pb-6">
-              <div>
+            <div className="relative flex-1 min-h-0 space-y-4 overflow-y-auto overscroll-contain p-5 [-webkit-overflow-scrolling:touch] sm:p-6">
+              <div className="rounded-[1.5rem] border border-white/10 bg-black/10 p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] sm:p-5">
                 <div className="mb-4 flex items-center justify-between">
                   <button
                     type="button"
                     onClick={() => setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1))}
-                    className="flex h-8 w-8 items-center justify-center rounded-lg border border-white/10 text-text-secondary hover:bg-white/5"
+                    className="flex h-10 w-10 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.04] text-text-secondary transition-colors hover:bg-white/10 hover:text-white"
                   >
                     <ChevronLeft size={16} />
                   </button>
-                  <span className="font-semibold text-white">
+                  <span className="text-sm font-semibold uppercase tracking-[0.16em] text-white">
                     {currentMonth.toLocaleDateString(getLanguageLocale(language), { month: 'long', year: 'numeric' })}
                   </span>
                   <button
                     type="button"
                     onClick={() => setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1))}
-                    className="flex h-8 w-8 items-center justify-center rounded-lg border border-white/10 text-text-secondary hover:bg-white/5"
+                    className="flex h-10 w-10 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.04] text-text-secondary transition-colors hover:bg-white/10 hover:text-white"
                   >
                     <ChevronRight size={16} />
                   </button>
                 </div>
 
-                <div className="mb-2 grid grid-cols-7 gap-1.5">
+                <div className="mb-3 grid grid-cols-7 gap-2">
                   {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((day, index) => (
-                    <div key={index} className="py-1.5 text-center text-[11px] font-semibold text-text-tertiary">
+                    <div key={index} className="py-1.5 text-center text-[11px] font-semibold uppercase tracking-[0.16em] text-text-tertiary">
                       {day}
                     </div>
                   ))}
                 </div>
 
-                <div className="grid grid-cols-7 gap-1.5">
+                <div className="grid grid-cols-7 gap-2">
                   {Array.from({ length: getDaysInMonth(currentMonth).firstDay }).map((_, index) => (
                     <div key={`empty-${index}`} />
                   ))}
@@ -1484,14 +1706,14 @@ export function FriendProfile({ onBack, friend }: FriendProfileProps) {
                         type="button"
                         disabled={isPast}
                         onClick={() => setSelectedDate(date)}
-                        className={`aspect-square rounded-xl text-sm font-semibold transition-all ${
+                        className={`aspect-square rounded-2xl border text-sm font-semibold transition-all ${
                           selected
-                            ? 'bg-accent text-black shadow-[0_0_0_2px_rgba(255,255,255,0.08)]'
+                            ? 'border-accent/70 bg-accent text-black shadow-[0_18px_35px_rgba(187,255,92,0.22)]'
                             : today
-                              ? 'border border-white/20 bg-white/10 text-white'
+                              ? 'border-white/20 bg-white/10 text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]'
                               : isPast
-                                ? 'cursor-not-allowed text-text-tertiary'
-                                : 'border border-transparent text-white hover:border-white/10 hover:bg-white/6'
+                                ? 'cursor-not-allowed border-transparent bg-transparent text-text-tertiary opacity-40'
+                                : 'border-transparent bg-white/[0.03] text-white hover:-translate-y-0.5 hover:border-white/12 hover:bg-white/[0.08]'
                         }`}
                       >
                         {index + 1}
@@ -1501,25 +1723,28 @@ export function FriendProfile({ onBack, friend }: FriendProfileProps) {
                 </div>
               </div>
 
-              <div className="space-y-3">
-                <label className="block text-sm text-text-secondary">{copy.time}</label>
+              <div className="rounded-[1.5rem] border border-white/10 bg-black/10 p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] sm:p-5">
+                <div className="mb-4 flex items-center gap-2 text-sm font-semibold text-white">
+                  <Clock3 size={16} className="text-accent" />
+                  {copy.time}
+                </div>
                 <input
                   type="time"
                   value={selectedTimeValue}
                   step={900}
                   onChange={(event) => handleTimeInputChange(event.target.value)}
-                  className="w-full rounded-xl border border-white/15 bg-background/80 px-4 py-3 text-white outline-none focus:border-accent/60"
+                  className="w-full rounded-2xl border border-white/12 bg-white/[0.04] px-4 py-3.5 text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] outline-none transition-all focus:border-accent/60 focus:bg-white/[0.06]"
                 />
-                <div className="flex flex-wrap gap-2">
+                <div className="mt-4 flex flex-wrap gap-2">
                   {QUICK_SESSION_TIMES.map((time) => (
                     <button
                       key={time}
                       type="button"
                       onClick={() => handleTimeInputChange(time)}
-                      className={`rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors ${
+                      className={`rounded-full border px-3.5 py-2 text-xs font-semibold tracking-wide transition-all ${
                         selectedTimeValue === time
-                          ? 'border-accent/80 bg-accent text-black'
-                          : 'border-white/15 text-text-secondary hover:bg-white/5 hover:text-white'
+                          ? 'border-accent/80 bg-accent text-black shadow-[0_12px_24px_rgba(187,255,92,0.18)]'
+                          : 'border-white/12 bg-white/[0.03] text-text-secondary hover:border-white/20 hover:bg-white/[0.08] hover:text-white'
                       }`}
                     >
                       {time}
@@ -1527,71 +1752,19 @@ export function FriendProfile({ onBack, friend }: FriendProfileProps) {
                   ))}
                 </div>
               </div>
+            </div>
 
+            <div className="relative shrink-0 border-t border-white/10 bg-black/20 p-5 backdrop-blur-sm sm:p-6">
               <button
                 type="button"
                 onClick={handleSendInvite}
                 disabled={!selectedDate}
-                className="w-full rounded-xl bg-accent py-3.5 font-bold text-black transition-colors hover:bg-accent/90 disabled:cursor-not-allowed disabled:opacity-50"
+                className="group w-full rounded-2xl bg-accent px-4 py-4 text-sm font-bold text-black shadow-[0_18px_45px_rgba(187,255,92,0.28)] transition-all hover:-translate-y-0.5 hover:bg-accent/90 disabled:translate-y-0 disabled:cursor-not-allowed disabled:opacity-50"
               >
-                {copy.sendInvitation}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {showChallengeSoon && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4 backdrop-blur-md sm:p-6"
-          onClick={() => setShowChallengeSoon(false)}
-        >
-          <div
-            className="relative w-full max-w-md overflow-hidden rounded-[2rem] border border-white/15 bg-[radial-gradient(circle_at_top_right,rgba(34,211,238,0.18),transparent_34%),radial-gradient(circle_at_bottom_left,rgba(187,255,92,0.12),transparent_32%),linear-gradient(160deg,rgba(18,24,34,0.98),rgba(10,14,22,0.98))] p-6 shadow-[0_24px_80px_rgba(0,0,0,0.38)]"
-            onClick={(event) => event.stopPropagation()}
-          >
-            <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(135deg,rgba(255,255,255,0.05),transparent_58%)]" />
-            <button
-              type="button"
-              onClick={() => setShowChallengeSoon(false)}
-              className="absolute right-4 top-4 flex h-10 w-10 items-center justify-center rounded-full border border-white/15 bg-white/5 text-white transition-colors hover:bg-white/10"
-              aria-label={copy.challengeSoonCta}
-            >
-              <X size={18} />
-            </button>
-
-            <div className="relative">
-              <div className="inline-flex items-center gap-2 rounded-full border border-accent/25 bg-accent/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-accent">
-                <Sparkles size={12} />
-                {copy.comingSoon}
-              </div>
-
-              <div className="mt-5 flex h-16 w-16 items-center justify-center rounded-[1.4rem] border border-white/10 bg-white/5 text-accent shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]">
-                <Dumbbell size={28} />
-              </div>
-
-              <h3 className="mt-5 text-2xl font-semibold leading-tight text-white">
-                {copy.challengeSoonTitle}
-              </h3>
-              <p className="mt-3 text-sm leading-relaxed text-text-secondary">
-                {copy.challengeSoonBody}
-              </p>
-
-              <div className="mt-5 rounded-2xl border border-white/10 bg-black/20 p-4">
-                <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-accent/80">
-                  {copy.challenge}
-                </div>
-                <p className="mt-2 text-sm leading-relaxed text-white">
-                  {copy.challengeSoonHint}
-                </p>
-              </div>
-
-              <button
-                type="button"
-                onClick={() => setShowChallengeSoon(false)}
-                className="mt-6 w-full rounded-xl bg-accent py-3.5 font-bold text-black transition-colors hover:bg-accent/90"
-              >
-                {copy.challengeSoonCta}
+                <span className="flex items-center justify-center gap-2">
+                  {copy.sendInvitation}
+                  <ArrowRight size={16} className="transition-transform group-hover:translate-x-0.5" />
+                </span>
               </button>
             </div>
           </div>

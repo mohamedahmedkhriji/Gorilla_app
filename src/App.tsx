@@ -33,6 +33,7 @@ export function App() {
   const [hasOnboarded, setHasOnboarded] = useState(false);
   const [showLogin, setShowLogin] = useState(false);
   const [activeTab, setActiveTab] = useState('home');
+  const [isTabBarVisible, setIsTabBarVisible] = useState(true);
   const [tabResetSignal, setTabResetSignal] = useState(0);
   const [workoutDay, setWorkoutDay] = useState('Push Day');
   const [workoutLaunchMode, setWorkoutLaunchMode] = useState<'default' | 'picked-plan'>('default');
@@ -238,6 +239,7 @@ export function App() {
         return (
           <Home
             onNavigate={handleNavigate}
+            onTabBarVisibilityChange={setIsTabBarVisible}
             resetSignal={tabResetSignal}
             guidedTourActive={guidedTourStage === 'home'}
             onGuidedTourComplete={() => completeGuidedTourStage('home')}
@@ -269,6 +271,7 @@ export function App() {
         return (
           <Profile
             onNavigateTab={handleNavigate}
+            onTabBarVisibilityChange={setIsTabBarVisible}
             resetSignal={tabResetSignal}
             guidedTourActive={guidedTourStage === 'profile'}
             onGuidedTourComplete={() => completeGuidedTourStage('profile')}
@@ -288,6 +291,7 @@ export function App() {
         return (
           <Home
             onNavigate={handleNavigate}
+            onTabBarVisibilityChange={setIsTabBarVisible}
             resetSignal={tabResetSignal}
             guidedTourActive={guidedTourStage === 'home'}
             onGuidedTourComplete={() => completeGuidedTourStage('home')}
@@ -306,10 +310,10 @@ export function App() {
       <div
         className={`min-h-screen pb-6 pt-4 ${
           activeTab === 'blogs'
-            ? 'bg-background px-4 sm:px-6 pb-[calc(env(safe-area-inset-bottom,0px)+6rem)]'
+            ? `bg-background px-4 sm:px-6 ${isTabBarVisible ? 'pb-[calc(env(safe-area-inset-bottom,0px)+6rem)]' : 'pb-6'}`
             : activeTab === 'profile' || activeTab === 'workout'
-              ? 'px-0 pt-0 pb-[calc(env(safe-area-inset-bottom,0px)+6rem)]'
-              : 'px-4 sm:px-6 pb-[calc(env(safe-area-inset-bottom,0px)+6rem)]'
+              ? `px-0 pt-0 ${isTabBarVisible ? 'pb-[calc(env(safe-area-inset-bottom,0px)+6rem)]' : 'pb-0'}`
+              : `px-4 sm:px-6 ${isTabBarVisible ? 'pb-[calc(env(safe-area-inset-bottom,0px)+6rem)]' : 'pb-6'}`
         }`}
       >
         <AnimatePresence mode="wait">
@@ -337,7 +341,7 @@ export function App() {
         </AnimatePresence>
       </div>
 
-      <TabBar activeTab={activeTab} onTabChange={handleTabChange} />
+      {isTabBarVisible && <TabBar activeTab={activeTab} onTabChange={handleTabChange} />}
     </div>
   );
 }

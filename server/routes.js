@@ -749,6 +749,433 @@ const getAcceptedFriendship = async (userIdA, userIdB) => {
     : null;
 };
 
+const normalizeChallengeInviteKey = (value) => String(value || '')
+  .trim()
+  .toLowerCase()
+  .replace(/[^a-z0-9]+/g, '_')
+  .replace(/^_+|_+$/g, '');
+
+const defaultChallengeInviteTitle = (challengeKey) => {
+  const normalizedKey = normalizeChallengeInviteKey(challengeKey);
+  if (normalizedKey === 'push_up_duel') return 'Push-Up Duel';
+  if (normalizedKey === 'squat_rep_race') return 'Squat Rep Race';
+  if (normalizedKey === 'bench_press') return 'Bench Press';
+  if (normalizedKey === 'deadlift_one') return 'Deadlift One';
+
+  return normalizedKey
+    .split('_')
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(' ') || 'Challenge';
+};
+
+const getChallengeInviteStatus = (payload) => {
+  const payloadObject = payload && typeof payload === 'object' ? payload : {};
+  return String(payloadObject.responseStatus || payloadObject.status || 'pending')
+    .trim()
+    .toLowerCase();
+};
+
+const parseChallengeJson = (rawValue, fallback) => {
+  if (!rawValue) return fallback;
+  if (typeof rawValue === 'object') return rawValue;
+  if (typeof rawValue !== 'string') return fallback;
+  try {
+    const parsed = JSON.parse(rawValue);
+    return parsed && typeof parsed === 'object' ? parsed : fallback;
+  } catch {
+    return fallback;
+  }
+};
+
+const createChallengeSessionClientMatchId = (challengeKey = 'push_up_duel') =>
+  `${normalizeChallengeInviteKey(challengeKey) || 'challenge'}-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+
+const FRIEND_CHALLENGE_STRENGTH_KEYS = new Set(['squat_rep_race', 'bench_press', 'deadlift_one']);
+
+const isStrengthChallengeKey = (challengeKey) =>
+  FRIEND_CHALLENGE_STRENGTH_KEYS.has(normalizeChallengeInviteKey(challengeKey));
+
+const createRepChallengeRound = (number = 1) => ({
+  number,
+  player1: 0,
+  player2: 0,
+  status: 'player1',
+});
+
+const createStrengthChallengeRound = (number = 1) => ({
+  number,
+  weightKg: 0,
+  player1Result: 'pending',
+  player2Result: 'pending',
+  status: 'player1',
+});
+
+const createChallengeSessionRounds = (challengeKey = 'push_up_duel') => ([
+  isStrengthChallengeKey(challengeKey)
+    ? createStrengthChallengeRound(1)
+    : createRepChallengeRound(1),
+]);
+
+const normalizeChallengeRoundStatus = (value) => {
+  const normalized = String(value || '').trim().toLowerCase();
+  if (normalized === 'player2') return 'player2';
+  if (normalized === 'complete') return 'complete';
+  return 'player1';
+};
+
+const normalizeStrengthChallengeResult = (value) => {
+  const normalized = String(value || '').trim().toLowerCase();
+  if (normalized === 'made') return 'made';
+  if (normalized === 'missed') return 'missed';
+  return 'pending';
+};
+
+const normalizeChallengeRounds = (rawRounds, challengeKey = 'push_up_duel') => {
+  if (isStrengthChallengeKey(challengeKey)) {
+    if (!Array.isArray(rawRounds) || !rawRounds.length) {
+      return createChallengeSessionRounds(challengeKey);
+    }
+
+    const normalizedRounds = rawRounds.map((round, index) => {
+      const roundObject = round && typeof round === 'object' ? round : {};
+      const parsedNumber = Number(roundObject.number);
+      const roundNumber = Number.isInteger(parsedNumber) && parsedNumber > 0 ? parsedNumber : index + 1;
+      return {
+        number: roundNumber,
+        weightKg: Math.max(0, Number.parseFloat(roundObject.weightKg) || 0),
+        player1Result: normalizeStrengthChallengeResult(roundObject.player1Result),
+        player2Result: normalizeStrengthChallengeResult(roundObject.player2Result),
+        status: normalizeChallengeRoundStatus(roundObject.status),
+      };
+    });
+
+    normalizedRounds.sort((left, right) => left.number - right.number);
+    return normalizedRounds;
+  }
+
+  if (!Array.isArray(rawRounds) || !rawRounds.length) {
+    return createChallengeSessionRounds(challengeKey);
+  }
+
+  const normalizedRounds = rawRounds.map((round, index) => {
+    const roundObject = round && typeof round === 'object' ? round : {};
+    const parsedNumber = Number(roundObject.number);
+    const roundNumber = Number.isInteger(parsedNumber) && parsedNumber > 0 ? parsedNumber : index + 1;
+    return {
+      number: roundNumber,
+      player1: Math.max(0, Number.parseInt(roundObject.player1, 10) || 0),
+      player2: Math.max(0, Number.parseInt(roundObject.player2, 10) || 0),
+      status: normalizeChallengeRoundStatus(roundObject.status),
+    };
+  });
+
+  normalizedRounds.sort((left, right) => left.number - right.number);
+  return normalizedRounds;
+};
+
+const getChallengeSessionActiveRound = (rounds, challengeKey = 'push_up_duel') => {
+  const normalizedRounds = normalizeChallengeRounds(rounds, challengeKey);
+  return normalizedRounds[normalizedRounds.length - 1];
+};
+
+const getChallengeSessionCurrentPlayer = (rounds, challengeKey = 'push_up_duel') => {
+  const activeRound = getChallengeSessionActiveRound(rounds, challengeKey);
+  return activeRound.status === 'complete' ? 'complete' : activeRound.status;
+};
+
+const getChallengeRoundWinner = (round, challengeKey = 'push_up_duel') => {
+  if (isStrengthChallengeKey(challengeKey)) {
+    if (!round || String(round.status || '').trim().toLowerCase() !== 'complete') return 'tie';
+    const player1Result = normalizeStrengthChallengeResult(round.player1Result);
+    const player2Result = normalizeStrengthChallengeResult(round.player2Result);
+    if (player1Result === 'made' && player2Result === 'missed') return 'player1';
+    if (player2Result === 'made' && player1Result === 'missed') return 'player2';
+    return 'tie';
+  }
+
+  if (!round || round.player1 === round.player2) return 'tie';
+  return round.player1 > round.player2 ? 'player1' : 'player2';
+};
+
+const FRIEND_CHALLENGE_ROUND_WIN_POINTS = 10;
+const FRIEND_CHALLENGE_ROUND_TIE_POINTS = 5;
+const FRIEND_CHALLENGE_INVITE_TIMEOUT_MINUTES = 5;
+const FRIEND_CHALLENGE_INVITE_TIMEOUT_MS = FRIEND_CHALLENGE_INVITE_TIMEOUT_MINUTES * 60 * 1000;
+
+const hasChallengeInviteExpired = (createdAt) => {
+  const timestamp = new Date(createdAt || 0).getTime();
+  if (!Number.isFinite(timestamp) || timestamp <= 0) return false;
+  return (Date.now() - timestamp) >= FRIEND_CHALLENGE_INVITE_TIMEOUT_MS;
+};
+
+const expireFriendChallengeInviteNotification = async (executor, notificationRow) => {
+  const payload = safeParseJson(notificationRow?.data, {});
+  const payloadObject = payload && typeof payload === 'object' ? payload : {};
+  const currentStatus = getChallengeInviteStatus(payloadObject);
+  if (currentStatus !== 'pending' || !hasChallengeInviteExpired(notificationRow?.created_at)) {
+    return {
+      expired: false,
+      status: currentStatus,
+      sessionId: toNumber(payloadObject.sessionId) || null,
+    };
+  }
+
+  const notificationId = Number(notificationRow?.id || 0);
+  const senderUserId = toNumber(payloadObject.senderUserId);
+  const challengeKey = normalizeChallengeInviteKey(payloadObject.challengeKey);
+  const challengeTitle = String(payloadObject.challengeTitle || defaultChallengeInviteTitle(challengeKey)).trim() || 'Challenge';
+  const sessionId = toNumber(payloadObject.sessionId) || null;
+  const actedAt = new Date().toISOString();
+  const receiverMessage = `${challengeTitle} expired after ${FRIEND_CHALLENGE_INVITE_TIMEOUT_MINUTES} minutes.`;
+  const senderMessage = `Your ${challengeTitle} invite expired after ${FRIEND_CHALLENGE_INVITE_TIMEOUT_MINUTES} minutes without a response.`;
+  const updatedPayload = {
+    ...payloadObject,
+    responseStatus: 'cancelled',
+    actedAt,
+    cancelledAt: actedAt,
+    autoCancelled: true,
+    sessionId,
+  };
+
+  await executor.execute(
+    `UPDATE notifications
+     SET message = ?, data = ?
+     WHERE id = ?`,
+    [receiverMessage, JSON.stringify(updatedPayload), notificationId],
+  );
+
+  await executor.execute(
+    `UPDATE friend_challenge_sessions
+     SET status = 'declined', updated_at = CURRENT_TIMESTAMP
+     WHERE invitation_notification_id = ?
+       AND status = 'pending'`,
+    [notificationId],
+  );
+
+  if (senderUserId > 0) {
+    const [existingRows] = await executor.execute(
+      `SELECT id
+       FROM notifications
+       WHERE user_id = ?
+         AND type = 'friend_challenge_response'
+         AND JSON_VALID(data)
+         AND CAST(JSON_UNQUOTE(JSON_EXTRACT(data, '$.receiverNotificationId')) AS UNSIGNED) = ?
+         AND COALESCE(JSON_UNQUOTE(JSON_EXTRACT(data, '$.responseStatus')), '') = 'cancelled'
+       LIMIT 1`,
+      [senderUserId, notificationId],
+    );
+
+    if (!existingRows.length) {
+      await executor.execute(
+        `INSERT INTO notifications (user_id, type, title, message, data)
+         VALUES (?, 'friend_challenge_response', 'Challenge Cancelled', ?, ?)`,
+        [
+          senderUserId,
+          senderMessage,
+          JSON.stringify({
+            challengeKey,
+            challengeTitle,
+            responseStatus: 'cancelled',
+            receiverNotificationId: notificationId,
+            sessionId,
+            autoCancelled: true,
+            cancelledAt: actedAt,
+          }),
+        ],
+      );
+    }
+  }
+
+  return {
+    expired: true,
+    status: 'cancelled',
+    sessionId,
+    challengeKey,
+    challengeTitle,
+    senderUserId,
+  };
+};
+
+const expireStaleFriendChallengeInvitesForUser = async (userId) => {
+  const normalizedUserId = toNumber(userId);
+  if (!normalizedUserId || normalizedUserId <= 0) return;
+
+  let conn;
+  try {
+    conn = await pool.getConnection();
+    await conn.beginTransaction();
+
+    const [rows] = await conn.execute(
+      `SELECT id, user_id, data, created_at
+       FROM notifications
+       WHERE type = 'friend_challenge_invite'
+         AND JSON_VALID(data)
+         AND COALESCE(JSON_UNQUOTE(JSON_EXTRACT(data, '$.responseStatus')), 'pending') = 'pending'
+         AND created_at <= DATE_SUB(NOW(), INTERVAL 5 MINUTE)
+         AND (
+           user_id = ?
+           OR CAST(JSON_UNQUOTE(JSON_EXTRACT(data, '$.senderUserId')) AS UNSIGNED) = ?
+         )
+       ORDER BY created_at ASC
+       LIMIT 50
+       FOR UPDATE`,
+      [normalizedUserId, normalizedUserId],
+    );
+
+    for (const row of rows) {
+      await expireFriendChallengeInviteNotification(conn, row);
+    }
+
+    await conn.commit();
+  } catch (error) {
+    if (conn) await conn.rollback();
+    throw error;
+  } finally {
+    if (conn) conn.release();
+  }
+};
+
+const getFriendChallengePointsByRole = (rounds, challengeKey = 'push_up_duel') => {
+  const normalizedRounds = normalizeChallengeRounds(rounds, challengeKey);
+
+  if (isStrengthChallengeKey(challengeKey)) {
+    const decidingRound = [...normalizedRounds]
+      .reverse()
+      .find((round) => round.status === 'complete' && getChallengeRoundWinner(round, challengeKey) !== 'tie');
+
+    if (!decidingRound) {
+      return { player1: 0, player2: 0 };
+    }
+
+    const winner = getChallengeRoundWinner(decidingRound, challengeKey);
+    const decidingWeightKg = Number(decidingRound.weightKg || 0);
+    const winnerPoints = decidingWeightKg > 100 ? 50 : 20;
+    const loserPoints = decidingWeightKg > 100 ? 20 : 10;
+    return winner === 'player1'
+      ? { player1: winnerPoints, player2: loserPoints }
+      : { player1: loserPoints, player2: winnerPoints };
+  }
+
+  return normalizedRounds.reduce((totals, round) => {
+    if (round.status !== 'complete') return totals;
+
+    const winner = getChallengeRoundWinner(round, challengeKey);
+    if (winner === 'player1') {
+      totals.player1 += FRIEND_CHALLENGE_ROUND_WIN_POINTS;
+      return totals;
+    }
+    if (winner === 'player2') {
+      totals.player2 += FRIEND_CHALLENGE_ROUND_WIN_POINTS;
+      return totals;
+    }
+
+    totals.player1 += FRIEND_CHALLENGE_ROUND_TIE_POINTS;
+    totals.player2 += FRIEND_CHALLENGE_ROUND_TIE_POINTS;
+    return totals;
+  }, { player1: 0, player2: 0 });
+};
+
+const getChallengeSessionWinner = (rounds, challengeKey = 'push_up_duel') => {
+  const normalizedRounds = normalizeChallengeRounds(rounds, challengeKey);
+
+  if (isStrengthChallengeKey(challengeKey)) {
+    const decidingRound = [...normalizedRounds]
+      .reverse()
+      .find((round) => round.status === 'complete' && getChallengeRoundWinner(round, challengeKey) !== 'tie');
+    return decidingRound ? getChallengeRoundWinner(decidingRound, challengeKey) : null;
+  }
+
+  const completedRounds = normalizedRounds.filter((round) => round.status === 'complete');
+  if (!completedRounds.length) return null;
+
+  let player1Wins = 0;
+  let player2Wins = 0;
+  let player1Total = 0;
+  let player2Total = 0;
+
+  normalizedRounds.forEach((round) => {
+    player1Total += round.player1;
+    player2Total += round.player2;
+  });
+
+  completedRounds.forEach((round) => {
+    const winner = getChallengeRoundWinner(round, challengeKey);
+    if (winner === 'player1') player1Wins += 1;
+    if (winner === 'player2') player2Wins += 1;
+  });
+
+  if (player1Wins > player2Wins) return 'player1';
+  if (player2Wins > player1Wins) return 'player2';
+  if (player1Total > player2Total) return 'player1';
+  if (player2Total > player1Total) return 'player2';
+  return null;
+};
+
+const getChallengeSessionPlayerRole = (sessionRow, userId) => {
+  const normalizedUserId = Number(userId || 0);
+  if (normalizedUserId > 0 && normalizedUserId === Number(sessionRow?.sender_user_id || 0)) return 'player1';
+  if (normalizedUserId > 0 && normalizedUserId === Number(sessionRow?.receiver_user_id || 0)) return 'player2';
+  return null;
+};
+
+const buildFriendChallengeSessionResponse = (sessionRow) => {
+  const challengeKey = normalizeChallengeInviteKey(sessionRow?.challenge_key) || 'push_up_duel';
+  const challengeMode = isStrengthChallengeKey(challengeKey) ? 'weight' : 'reps';
+  const rounds = normalizeChallengeRounds(parseChallengeJson(sessionRow?.rounds_json, []), challengeKey);
+  const completedRounds = rounds.filter((round) => round.status === 'complete');
+  const player1Wins = completedRounds.filter((round) => getChallengeRoundWinner(round, challengeKey) === 'player1').length;
+  const player2Wins = completedRounds.filter((round) => getChallengeRoundWinner(round, challengeKey) === 'player2').length;
+  const decidingRound = [...completedRounds]
+    .reverse()
+    .find((round) => getChallengeRoundWinner(round, challengeKey) !== 'tie') || null;
+
+  const totals = challengeMode === 'weight'
+    ? {
+      player1BestWeightKg: rounds.reduce(
+        (max, round) => (round.player1Result === 'made' ? Math.max(max, Number(round.weightKg || 0)) : max),
+        0,
+      ),
+      player2BestWeightKg: rounds.reduce(
+        (max, round) => (round.player2Result === 'made' ? Math.max(max, Number(round.weightKg || 0)) : max),
+        0,
+      ),
+      player1MadeRounds: rounds.filter((round) => round.player1Result === 'made').length,
+      player2MadeRounds: rounds.filter((round) => round.player2Result === 'made').length,
+      player1Wins,
+      player2Wins,
+      completedRounds: completedRounds.length,
+      decidingWeightKg: Number(decidingRound?.weightKg || 0),
+    }
+    : {
+      player1Reps: rounds.reduce((sum, round) => sum + round.player1, 0),
+      player2Reps: rounds.reduce((sum, round) => sum + round.player2, 0),
+      player1Wins,
+      player2Wins,
+      completedRounds: completedRounds.length,
+    };
+
+  return {
+    id: Number(sessionRow?.id || 0),
+    challengeKey,
+    challengeMode,
+    senderUserId: Number(sessionRow?.sender_user_id || 0),
+    receiverUserId: Number(sessionRow?.receiver_user_id || 0),
+    invitationNotificationId: Number(sessionRow?.invitation_notification_id || 0),
+    status: String(sessionRow?.status || 'pending').trim().toLowerCase() || 'pending',
+    clientMatchId: String(sessionRow?.client_match_id || '').trim(),
+    winnerUserId: Number(sessionRow?.winner_user_id || 0) || null,
+    abandonedByUserId: toNumber(parseChallengeJson(sessionRow?.metadata_json, {})?.abandonedByUserId) || null,
+    abandonedByUserName: String(parseChallengeJson(sessionRow?.metadata_json, {})?.abandonedByUserName || '').trim() || '',
+    abandonedAt: parseChallengeJson(sessionRow?.metadata_json, {})?.abandonedAt || null,
+    currentPlayer: getChallengeSessionCurrentPlayer(rounds, challengeKey),
+    rounds,
+    totals,
+    completedAt: sessionRow?.completed_at || null,
+    updatedAt: sessionRow?.updated_at || null,
+  };
+};
+
 const toBooleanFlag = (value, fallback = false) => {
   if (value == null) return fallback;
   const key = String(value).trim().toLowerCase();
@@ -1485,6 +1912,128 @@ const ensureFriendshipInfrastructure = async () => {
   );
 };
 
+const ensureFriendChallengeInfrastructure = async () => {
+  await pool.execute(
+    `CREATE TABLE IF NOT EXISTS friend_challenge_sessions (
+      id BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
+      challenge_key VARCHAR(80) NOT NULL,
+      sender_user_id INT UNSIGNED NOT NULL,
+      receiver_user_id INT UNSIGNED NOT NULL,
+      invitation_notification_id BIGINT UNSIGNED NULL,
+      status ENUM('pending','active','completed','declined','abandoned') NOT NULL DEFAULT 'pending',
+      winner_user_id INT UNSIGNED NULL,
+      client_match_id VARCHAR(120) NOT NULL,
+      rounds_json JSON NOT NULL,
+      metadata_json JSON NULL,
+      completed_at DATETIME NULL,
+      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      UNIQUE KEY uk_friend_challenge_session_match (client_match_id),
+      UNIQUE KEY uk_friend_challenge_session_invite (invitation_notification_id),
+      KEY idx_friend_challenge_session_sender (sender_user_id, status),
+      KEY idx_friend_challenge_session_receiver (receiver_user_id, status),
+      CONSTRAINT fk_friend_challenge_session_sender FOREIGN KEY (sender_user_id) REFERENCES users(id) ON DELETE CASCADE ON UPDATE CASCADE,
+      CONSTRAINT fk_friend_challenge_session_receiver FOREIGN KEY (receiver_user_id) REFERENCES users(id) ON DELETE CASCADE ON UPDATE CASCADE,
+      CONSTRAINT fk_friend_challenge_session_winner FOREIGN KEY (winner_user_id) REFERENCES users(id) ON DELETE SET NULL ON UPDATE CASCADE
+    ) ENGINE=InnoDB`,
+  );
+
+  const [sessionStatusRows] = await pool.execute(
+    `SELECT column_type
+     FROM information_schema.columns
+     WHERE table_schema = DATABASE()
+       AND table_name = 'friend_challenge_sessions'
+       AND column_name = 'status'
+     LIMIT 1`,
+  );
+  const sessionStatusColumnType = String(sessionStatusRows[0]?.column_type || '').toLowerCase();
+  if (sessionStatusColumnType && !sessionStatusColumnType.includes("'abandoned'")) {
+    await pool.execute(
+      `ALTER TABLE friend_challenge_sessions
+       MODIFY COLUMN status ENUM('pending','active','completed','declined','abandoned') NOT NULL DEFAULT 'pending'`,
+    );
+  }
+
+  await pool.execute(
+    `CREATE TABLE IF NOT EXISTS friend_challenge_results (
+      id BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
+      challenge_key VARCHAR(80) NOT NULL,
+      participant_a_id INT UNSIGNED NOT NULL,
+      participant_b_id INT UNSIGNED NOT NULL,
+      participant_a_points INT NOT NULL DEFAULT 0,
+      participant_b_points INT NOT NULL DEFAULT 0,
+      submitted_by_user_id INT UNSIGNED NOT NULL,
+      winner_user_id INT UNSIGNED NOT NULL,
+      loser_user_id INT UNSIGNED NOT NULL,
+      points_reward INT NOT NULL DEFAULT 0,
+      client_match_id VARCHAR(120) NOT NULL,
+      metadata_json JSON NULL,
+      completed_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      UNIQUE KEY uk_friend_challenge_match (challenge_key, participant_a_id, participant_b_id, client_match_id),
+      KEY idx_friend_challenge_winner (winner_user_id, completed_at),
+      KEY idx_friend_challenge_loser (loser_user_id, completed_at),
+      CONSTRAINT fk_friend_challenge_participant_a FOREIGN KEY (participant_a_id) REFERENCES users(id) ON DELETE CASCADE ON UPDATE CASCADE,
+      CONSTRAINT fk_friend_challenge_participant_b FOREIGN KEY (participant_b_id) REFERENCES users(id) ON DELETE CASCADE ON UPDATE CASCADE,
+      CONSTRAINT fk_friend_challenge_submitted_by FOREIGN KEY (submitted_by_user_id) REFERENCES users(id) ON DELETE CASCADE ON UPDATE CASCADE,
+      CONSTRAINT fk_friend_challenge_winner FOREIGN KEY (winner_user_id) REFERENCES users(id) ON DELETE CASCADE ON UPDATE CASCADE,
+      CONSTRAINT fk_friend_challenge_loser FOREIGN KEY (loser_user_id) REFERENCES users(id) ON DELETE CASCADE ON UPDATE CASCADE
+    ) ENGINE=InnoDB`,
+  );
+
+  const ensureColumnExists = async (columnName, alterSql) => {
+    const [rows] = await pool.execute(
+      `SELECT 1
+       FROM information_schema.columns
+       WHERE table_schema = DATABASE()
+         AND table_name = 'friend_challenge_results'
+         AND column_name = ?
+       LIMIT 1`,
+      [columnName],
+    );
+
+    if (!rows.length) {
+      await pool.execute(alterSql);
+    }
+  };
+
+  await ensureColumnExists(
+    'participant_a_points',
+    `ALTER TABLE friend_challenge_results
+     ADD COLUMN participant_a_points INT NOT NULL DEFAULT 0 AFTER participant_b_id`,
+  );
+  await ensureColumnExists(
+    'participant_b_points',
+    `ALTER TABLE friend_challenge_results
+     ADD COLUMN participant_b_points INT NOT NULL DEFAULT 0 AFTER participant_a_points`,
+  );
+
+  await pool.execute(
+    `UPDATE friend_challenge_results
+     SET participant_a_points = CASE
+           WHEN participant_a_points = 0 AND participant_b_points = 0 AND winner_user_id = participant_a_id THEN points_reward
+           ELSE participant_a_points
+         END,
+         participant_b_points = CASE
+           WHEN participant_a_points = 0 AND participant_b_points = 0 AND winner_user_id = participant_b_id THEN points_reward
+           ELSE participant_b_points
+         END
+     WHERE points_reward > 0`,
+  );
+};
+
+let friendChallengeInfrastructurePromise;
+const ensureFriendChallengeInfrastructureOnce = async () => {
+  if (!friendChallengeInfrastructurePromise) {
+    friendChallengeInfrastructurePromise = ensureFriendChallengeInfrastructure().catch((error) => {
+      friendChallengeInfrastructurePromise = null;
+      throw error;
+    });
+  }
+  return friendChallengeInfrastructurePromise;
+};
+
 const ensureProgramChangeRequestInfrastructure = async () => {
   await pool.execute(
     `CREATE TABLE IF NOT EXISTS program_change_requests (
@@ -1570,6 +2119,79 @@ const ensureFriendshipInfrastructureOnce = async () => {
   return friendshipInfrastructurePromise;
 };
 
+const CHALLENGE_NOTIFICATION_TYPES = [
+  'workout_reminder',
+  'friend_request',
+  'friend_accept',
+  'message',
+  'mission_complete',
+  'program_updated',
+  'coach_message',
+  'system',
+  'account_ban',
+  'plan_review_request',
+  'plan_coach_request',
+  'plan_coach_request_sent',
+  'plan_created_by_coach',
+  'plan_review_approved',
+  'plan_review_rejected',
+  'blog_like',
+  'blog_comment',
+  'friend_challenge_invite',
+  'friend_challenge_response',
+];
+
+let challengeNotificationTypesPromise;
+const ensureChallengeNotificationTypesOnce = async () => {
+  if (!challengeNotificationTypesPromise) {
+    challengeNotificationTypesPromise = (async () => {
+      const [rows] = await pool.execute(
+        `SELECT COLUMN_TYPE
+         FROM INFORMATION_SCHEMA.COLUMNS
+         WHERE TABLE_SCHEMA = DATABASE()
+           AND TABLE_NAME = 'notifications'
+           AND COLUMN_NAME = 'type'
+         LIMIT 1`,
+      );
+
+      const columnType = String(rows[0]?.COLUMN_TYPE || '');
+      const hasInviteType = columnType.includes("'friend_challenge_invite'");
+      const hasResponseType = columnType.includes("'friend_challenge_response'");
+      if (!hasInviteType || !hasResponseType) {
+        const enumList = CHALLENGE_NOTIFICATION_TYPES.map((value) => `'${value}'`).join(', ');
+        await pool.execute(
+          `ALTER TABLE notifications
+           MODIFY COLUMN type ENUM(${enumList}) NOT NULL DEFAULT 'system'`,
+        );
+      }
+
+      await pool.execute(
+        `UPDATE notifications
+         SET type = 'friend_challenge_invite'
+         WHERE (type = '' OR type = 'system')
+           AND title = 'New Challenge'
+           AND JSON_VALID(data)
+           AND JSON_EXTRACT(data, '$.senderUserId') IS NOT NULL
+           AND JSON_EXTRACT(data, '$.challengeKey') IS NOT NULL`,
+      );
+
+      await pool.execute(
+        `UPDATE notifications
+         SET type = 'friend_challenge_response'
+         WHERE (type = '' OR type = 'system')
+           AND (title = 'Challenge Accepted' OR title = 'Challenge Declined')
+           AND JSON_VALID(data)
+           AND JSON_EXTRACT(data, '$.receiverNotificationId') IS NOT NULL
+           AND JSON_EXTRACT(data, '$.challengeKey') IS NOT NULL`,
+      );
+    })().catch((error) => {
+      challengeNotificationTypesPromise = null;
+      throw error;
+    });
+  }
+  return challengeNotificationTypesPromise;
+};
+
 const ensureGamificationInfrastructure = async () => {
   const ensureColumnExists = async (tableName, columnName, alterSql) => {
     const [rows] = await pool.execute(
@@ -1609,6 +2231,7 @@ const ensureGamificationInfrastructure = async () => {
   await ensureColumnExists('users', 'total_xp', 'ALTER TABLE users ADD COLUMN total_xp INT NOT NULL DEFAULT 0');
   await ensureColumnExists('users', 'current_level_id', 'ALTER TABLE users ADD COLUMN current_level_id INT NULL');
   await ensureIndexExists('users', 'idx_users_current_level_id', 'CREATE INDEX idx_users_current_level_id ON users (current_level_id)');
+  await ensureFriendChallengeInfrastructure();
 
   await pool.execute(
     `UPDATE users
@@ -2023,13 +2646,33 @@ const ensureGamificationInfrastructure = async () => {
   );
 };
 
-const gamificationReady = ensureGamificationInfrastructure()
-  .then(() => true)
-  .catch((error) => {
-    // Keep API server booting even if DB bootstrap fails.
-    console.error('Failed to initialize gamification infrastructure:', error?.message || error);
-    return false;
-  });
+const delay = (ms) => new Promise((resolve) => {
+  setTimeout(resolve, ms);
+});
+
+const initializeGamificationInfrastructureWithRetry = async () => {
+  const maxAttempts = Math.max(1, Number.parseInt(process.env.GAMIFICATION_INIT_RETRIES || '3', 10) || 3);
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    try {
+      await ensureGamificationInfrastructure();
+      return true;
+    } catch (error) {
+      const message = error?.message || error;
+      if (attempt >= maxAttempts) {
+        console.error('Failed to initialize gamification infrastructure:', message);
+        return false;
+      }
+
+      console.warn(`Gamification infrastructure init attempt ${attempt}/${maxAttempts} failed:`, message);
+      await delay(2000 * attempt);
+    }
+  }
+
+  return false;
+};
+
+const gamificationReady = initializeGamificationInfrastructureWithRetry();
 
 const collectUserGamificationMetrics = async (userId, baseDate = new Date()) => {
   const startOfWeek = formatDateISO(getStartOfWeek(baseDate));
@@ -2725,6 +3368,7 @@ const updateUserPointsAndRank = async (userId, metrics) => {
   const [
     [missionPointRows],
     [challengePointRows],
+    [friendChallengePointRows],
     [completedMissionRows],
     [completedChallengeRows],
   ] = await Promise.all([
@@ -2743,6 +3387,18 @@ const updateUserPointsAndRank = async (userId, metrics) => {
       [userId],
     ),
     pool.execute(
+      `SELECT COALESCE(SUM(
+          CASE
+            WHEN participant_a_id = ? THEN participant_a_points
+            WHEN participant_b_id = ? THEN participant_b_points
+            ELSE 0
+          END
+        ), 0) AS total_points
+       FROM friend_challenge_results
+       WHERE participant_a_id = ? OR participant_b_id = ?`,
+      [userId, userId, userId, userId],
+    ),
+    pool.execute(
       `SELECT COUNT(*) AS completed_count
        FROM user_missions
        WHERE user_id = ? AND status = 'completed'`,
@@ -2758,6 +3414,7 @@ const updateUserPointsAndRank = async (userId, metrics) => {
 
   const missionPoints = Number(missionPointRows[0]?.total_points || 0);
   const challengePoints = Number(challengePointRows[0]?.total_points || 0);
+  const friendChallengePoints = Number(friendChallengePointRows[0]?.total_points || 0);
   let blogPostCount = 0;
   try {
     const [blogRows] = await pool.execute(
@@ -2771,7 +3428,7 @@ const updateUserPointsAndRank = async (userId, metrics) => {
     blogPostCount = 0;
   }
   const blogPoints = Math.max(0, blogPostCount) * BLOG_POST_UPLOAD_POINTS;
-  const totalPoints = missionPoints + challengePoints + blogPoints;
+  const totalPoints = missionPoints + challengePoints + friendChallengePoints + blogPoints;
   const totalWorkouts = Math.max(0, Math.floor(Number(metrics.training_days || 0)));
   const rank = getRankFromPoints(totalPoints);
 
@@ -2788,6 +3445,7 @@ const updateUserPointsAndRank = async (userId, metrics) => {
     rank,
     missionPoints,
     challengePoints,
+    friendChallengePoints,
     blogPostCount: Math.max(0, blogPostCount),
     blogPoints,
     completedMissions: Number(completedMissionRows[0]?.completed_count || 0),
@@ -6621,7 +7279,7 @@ router.get('/leaderboard/:userId', requireAuth('user'), requireUserAccess('userI
           u.name,
           u.gym_id,
           ${profileImageColumn} AS profile_picture,
-          COALESCE(monthly_missions.points, 0) + COALESCE(monthly_challenges.points, 0) AS points,
+          COALESCE(monthly_missions.points, 0) + COALESCE(monthly_challenges.points, 0) + COALESCE(monthly_friend_challenges.points, 0) AS points,
           COALESCE(u.total_points, 0) AS total_points
         FROM users u
         LEFT JOIN (
@@ -6642,6 +7300,19 @@ router.get('/leaderboard/:userId', requireAuth('user'), requireUserAccess('userI
             AND uc.completed_at < DATE_ADD(DATE_FORMAT(NOW(), '%Y-%m-01'), INTERVAL 1 MONTH)
           GROUP BY uc.user_id
         ) monthly_challenges ON monthly_challenges.user_id = u.id
+        LEFT JOIN (
+          SELECT challenge_points.user_id, SUM(challenge_points.points) AS points
+          FROM (
+            SELECT fcr.participant_a_id AS user_id, fcr.participant_a_points AS points, fcr.completed_at
+            FROM friend_challenge_results fcr
+            UNION ALL
+            SELECT fcr.participant_b_id AS user_id, fcr.participant_b_points AS points, fcr.completed_at
+            FROM friend_challenge_results fcr
+          ) challenge_points
+          WHERE challenge_points.completed_at >= DATE_FORMAT(NOW(), '%Y-%m-01')
+            AND challenge_points.completed_at < DATE_ADD(DATE_FORMAT(NOW(), '%Y-%m-01'), INTERVAL 1 MONTH)
+          GROUP BY challenge_points.user_id
+        ) monthly_friend_challenges ON monthly_friend_challenges.user_id = u.id
         WHERE ${scopeWhere}
         ORDER BY points DESC, u.id ASC
       `;
@@ -7128,6 +7799,600 @@ router.post('/invitations/send', authMutationRateLimit, requireAuth('user'), req
   }
 });
 
+router.post('/friend-challenges/invite', authMutationRateLimit, requireAuth('user'), requireUserAccess((req) => req.body?.userId, { allowSelf: true }), async (req, res) => {
+  try {
+    await ensureFriendshipInfrastructureOnce();
+    await ensureChallengeNotificationTypesOnce();
+    await ensureFriendChallengeInfrastructureOnce();
+
+    const userId = toNumber(req.body?.userId);
+    const friendId = toNumber(req.body?.friendId);
+    const challengeKey = normalizeChallengeInviteKey(req.body?.challengeKey);
+    const challengeTitleRaw = String(req.body?.challengeTitle || '').trim();
+    const challengeTitle = challengeTitleRaw || defaultChallengeInviteTitle(challengeKey);
+
+    if (!userId || userId <= 0 || !friendId || friendId <= 0 || userId === friendId) {
+      return res.status(400).json({ error: 'Valid userId and friendId are required' });
+    }
+    if (!challengeKey) {
+      return res.status(400).json({ error: 'challengeKey is required' });
+    }
+
+    const friendship = await getAcceptedFriendship(userId, friendId);
+    if (!friendship) {
+      return res.status(403).json({ error: 'Friend challenges are available only between accepted friends' });
+    }
+
+    const [senderRows] = await pool.execute(
+      `SELECT id, name
+       FROM users
+       WHERE id = ?
+       LIMIT 1`,
+      [userId],
+    );
+    const senderName = String(senderRows[0]?.name || 'Someone').trim() || 'Someone';
+
+    const [notificationRows] = await pool.execute(
+      `SELECT id, data, created_at
+       FROM notifications
+       WHERE user_id = ?
+         AND type = 'friend_challenge_invite'
+       ORDER BY created_at DESC
+       LIMIT 50`,
+      [friendId],
+    );
+
+    for (const notificationRow of notificationRows) {
+      const payload = safeParseJson(notificationRow.data, {});
+      const payloadObject = payload && typeof payload === 'object' ? payload : {};
+      if (toNumber(payloadObject.senderUserId) !== userId) continue;
+      if (normalizeChallengeInviteKey(payloadObject.challengeKey) !== challengeKey) continue;
+      if (getChallengeInviteStatus(payloadObject) !== 'pending') continue;
+      if (hasChallengeInviteExpired(notificationRow.created_at)) {
+        await expireFriendChallengeInviteNotification(pool, notificationRow);
+        continue;
+      }
+
+      return res.json({
+        success: true,
+        alreadyPending: true,
+        notificationId: Number(notificationRow.id || 0),
+        challengeKey,
+        challengeTitle,
+      });
+    }
+
+    const payload = {
+      senderUserId: userId,
+      senderName,
+      challengeKey,
+      challengeTitle,
+      responseStatus: 'pending',
+      challengeFlow: 'sender_device',
+    };
+
+    const [insertResult] = await pool.execute(
+      `INSERT INTO notifications (user_id, type, title, message, data)
+       VALUES (?, 'friend_challenge_invite', 'New Challenge', ?, ?)`,
+      [friendId, `${senderName} challenged you to ${challengeTitle}`, JSON.stringify(payload)],
+    );
+
+    return res.json({
+      success: true,
+      notificationId: Number(insertResult?.insertId || 0),
+      challengeKey,
+      challengeTitle,
+    });
+  } catch (error) {
+    return res.status(500).json({ error: error.message });
+  }
+});
+
+router.post('/friend-challenges/respond', authMutationRateLimit, requireAuth('user'), requireUserAccess((req) => req.body?.userId, { allowSelf: true }), async (req, res) => {
+  let conn;
+  try {
+    await ensureChallengeNotificationTypesOnce();
+    await ensureFriendChallengeInfrastructureOnce();
+
+    const userId = toNumber(req.body?.userId);
+    const notificationId = toNumber(req.body?.notificationId);
+    const action = String(req.body?.action || '').trim().toLowerCase();
+
+    if (!userId || userId <= 0 || !notificationId || notificationId <= 0) {
+      return res.status(400).json({ error: 'Valid userId and notificationId are required' });
+    }
+    if (!['accept', 'decline'].includes(action)) {
+      return res.status(400).json({ error: 'Action must be accept or decline' });
+    }
+
+    conn = await pool.getConnection();
+    await conn.beginTransaction();
+
+    const [notificationRows] = await conn.execute(
+      `SELECT id, user_id, data, created_at
+       FROM notifications
+       WHERE id = ?
+         AND user_id = ?
+         AND type = 'friend_challenge_invite'
+       LIMIT 1
+       FOR UPDATE`,
+      [notificationId, userId],
+    );
+
+    if (!notificationRows.length) {
+      await conn.rollback();
+      return res.status(404).json({ error: 'Challenge invite not found' });
+    }
+
+    const payload = safeParseJson(notificationRows[0].data, {});
+    const payloadObject = payload && typeof payload === 'object' ? payload : {};
+    if (hasChallengeInviteExpired(notificationRows[0].created_at)) {
+      const expiredResult = await expireFriendChallengeInviteNotification(conn, notificationRows[0]);
+      await conn.commit();
+      return res.status(409).json({
+        error: 'Challenge invite expired',
+        status: expiredResult.status,
+        sessionId: expiredResult.sessionId,
+      });
+    }
+    const currentStatus = getChallengeInviteStatus(payloadObject);
+    if (currentStatus !== 'pending') {
+      await conn.rollback();
+      return res.status(409).json({
+        error: 'Challenge invite is no longer pending',
+        status: currentStatus,
+        sessionId: toNumber(payloadObject.sessionId) || null,
+      });
+    }
+
+    const nextStatus = action === 'accept' ? 'accepted' : 'declined';
+    const challengeKey = normalizeChallengeInviteKey(payloadObject.challengeKey);
+    const challengeTitle = String(payloadObject.challengeTitle || defaultChallengeInviteTitle(payloadObject.challengeKey)).trim() || 'Challenge';
+    const senderUserId = toNumber(payloadObject.senderUserId);
+    let sessionId = toNumber(payloadObject.sessionId) || null;
+    let clientMatchId = String(payloadObject.clientMatchId || '').trim();
+
+    if (nextStatus === 'accepted') {
+      const [sessionRows] = await conn.execute(
+        `SELECT id, client_match_id
+         FROM friend_challenge_sessions
+         WHERE invitation_notification_id = ?
+         LIMIT 1
+         FOR UPDATE`,
+        [notificationId],
+      );
+
+      if (sessionRows.length) {
+        sessionId = Number(sessionRows[0].id || 0) || sessionId;
+        clientMatchId = String(sessionRows[0].client_match_id || '').trim() || clientMatchId;
+        await conn.execute(
+          `UPDATE friend_challenge_sessions
+           SET status = 'active', winner_user_id = NULL, completed_at = NULL
+           WHERE id = ?`,
+          [sessionId],
+        );
+      } else {
+        clientMatchId = clientMatchId || createChallengeSessionClientMatchId(challengeKey);
+        const [sessionInsertResult] = await conn.execute(
+          `INSERT INTO friend_challenge_sessions
+             (challenge_key, sender_user_id, receiver_user_id, invitation_notification_id, status, client_match_id, rounds_json, metadata_json)
+           VALUES (?, ?, ?, ?, 'active', ?, ?, ?)`,
+          [
+            challengeKey,
+            senderUserId,
+            userId,
+            notificationId,
+            clientMatchId,
+            JSON.stringify(createChallengeSessionRounds(challengeKey)),
+            JSON.stringify({
+              createdFrom: 'invite_accept',
+              challengeFlow: 'both_devices_turn_based',
+            }),
+          ],
+        );
+        sessionId = Number(sessionInsertResult?.insertId || 0) || null;
+      }
+    }
+
+    const updatedPayload = {
+      ...payloadObject,
+      responseStatus: nextStatus,
+      actedAt: new Date().toISOString(),
+      sessionId,
+      clientMatchId: clientMatchId || undefined,
+    };
+
+    await conn.execute(
+      `UPDATE notifications
+       SET data = ?, is_read = 1, read_at = NOW()
+       WHERE id = ?`,
+      [JSON.stringify(updatedPayload), notificationId],
+    );
+
+    if (senderUserId) {
+      const [actorRows] = await pool.execute(
+        `SELECT name
+         FROM users
+         WHERE id = ?
+         LIMIT 1`,
+        [userId],
+      );
+      const actorName = String(actorRows[0]?.name || 'Someone').trim() || 'Someone';
+      const responseTitle = nextStatus === 'accepted' ? 'Challenge Accepted' : 'Challenge Declined';
+      const responseMessage = nextStatus === 'accepted'
+        ? `${actorName} accepted your ${challengeTitle} challenge`
+        : `${actorName} declined your ${challengeTitle} challenge`;
+      const responsePayload = {
+        challengeKey,
+        challengeTitle,
+        responseStatus: nextStatus,
+        byUserId: userId,
+        byUserName: actorName,
+        receiverNotificationId: notificationId,
+        sessionId,
+        clientMatchId: clientMatchId || undefined,
+      };
+
+      await conn.execute(
+        `INSERT INTO notifications (user_id, type, title, message, data)
+         VALUES (?, 'friend_challenge_response', ?, ?, ?)`,
+        [senderUserId, responseTitle, responseMessage, JSON.stringify(responsePayload)],
+      );
+    }
+
+    await conn.commit();
+
+    return res.json({
+      success: true,
+      notificationId,
+      status: nextStatus,
+      challengeKey,
+      challengeTitle,
+      senderUserId,
+      senderName: String(payloadObject.senderName || 'Someone').trim() || 'Someone',
+      sessionId,
+      clientMatchId: clientMatchId || null,
+    });
+  } catch (error) {
+    if (conn) await conn.rollback();
+    return res.status(500).json({ error: error.message });
+  } finally {
+    if (conn) conn.release();
+  }
+});
+
+router.get('/friend-challenges/session/:sessionId', requireAuth('user'), requireUserAccess((req) => req.query?.userId, { allowSelf: true }), async (req, res) => {
+  try {
+    await ensureFriendChallengeInfrastructureOnce();
+
+    const userId = toNumber(req.query?.userId);
+    const sessionId = toNumber(req.params.sessionId);
+    if (!userId || userId <= 0 || !sessionId || sessionId <= 0) {
+      return res.status(400).json({ error: 'Valid userId and sessionId are required' });
+    }
+
+    const [sessionRows] = await pool.execute(
+      `SELECT id, challenge_key, sender_user_id, receiver_user_id, invitation_notification_id, status, winner_user_id, client_match_id, rounds_json, metadata_json, completed_at, updated_at
+       FROM friend_challenge_sessions
+       WHERE id = ?
+       LIMIT 1`,
+      [sessionId],
+    );
+
+    if (!sessionRows.length) {
+      return res.status(404).json({ error: 'Challenge session not found' });
+    }
+
+    const sessionRow = sessionRows[0];
+    if (!getChallengeSessionPlayerRole(sessionRow, userId)) {
+      return res.status(403).json({ error: 'You do not have access to this challenge session' });
+    }
+
+    return res.json({
+      success: true,
+      session: buildFriendChallengeSessionResponse(sessionRow),
+    });
+  } catch (error) {
+    return res.status(500).json({ error: error.message });
+  }
+});
+
+router.post('/friend-challenges/session/submit-turn', authMutationRateLimit, requireAuth('user'), requireUserAccess((req) => req.body?.userId, { allowSelf: true }), async (req, res) => {
+  let conn;
+  try {
+    await ensureFriendChallengeInfrastructureOnce();
+
+    const userId = toNumber(req.body?.userId);
+    const sessionId = toNumber(req.body?.sessionId);
+    const reps = Number.parseInt(req.body?.reps, 10);
+    if (!userId || userId <= 0 || !sessionId || sessionId <= 0) {
+      return res.status(400).json({ error: 'Valid userId and sessionId are required' });
+    }
+
+    conn = await pool.getConnection();
+    await conn.beginTransaction();
+
+    const [sessionRows] = await conn.execute(
+      `SELECT id, challenge_key, sender_user_id, receiver_user_id, invitation_notification_id, status, winner_user_id, client_match_id, rounds_json, metadata_json, completed_at, updated_at
+       FROM friend_challenge_sessions
+       WHERE id = ?
+       FOR UPDATE`,
+      [sessionId],
+    );
+
+    if (!sessionRows.length) {
+      await conn.rollback();
+      return res.status(404).json({ error: 'Challenge session not found' });
+    }
+
+    const sessionRow = sessionRows[0];
+    const challengeKey = normalizeChallengeInviteKey(sessionRow.challenge_key) || 'push_up_duel';
+    if (!isStrengthChallengeKey(challengeKey) && (!Number.isInteger(reps) || reps < 0)) {
+      await conn.rollback();
+      return res.status(400).json({ error: 'reps must be a non-negative integer' });
+    }
+    const playerRole = getChallengeSessionPlayerRole(sessionRow, userId);
+    if (!playerRole) {
+      await conn.rollback();
+      return res.status(403).json({ error: 'You do not have access to this challenge session' });
+    }
+    const sessionStatus = String(sessionRow.status || '').trim().toLowerCase();
+    if (sessionStatus === 'completed') {
+      await conn.rollback();
+      return res.status(409).json({ error: 'This challenge is already finished' });
+    }
+    if (sessionStatus !== 'active') {
+      await conn.rollback();
+      return res.status(409).json({ error: 'This challenge is no longer active' });
+    }
+
+    const rounds = normalizeChallengeRounds(parseChallengeJson(sessionRow.rounds_json, []), challengeKey);
+    const activeRound = getChallengeSessionActiveRound(rounds, challengeKey);
+    if (!activeRound || activeRound.status === 'complete') {
+      await conn.rollback();
+      return res.status(409).json({ error: 'The current round is already complete' });
+    }
+    if (activeRound.status !== playerRole) {
+      await conn.rollback();
+      return res.status(409).json({ error: 'It is not your turn to count right now' });
+    }
+
+    if (isStrengthChallengeKey(challengeKey)) {
+      const outcome = normalizeStrengthChallengeResult(req.body?.outcome);
+      if (!['made', 'missed'].includes(outcome)) {
+        await conn.rollback();
+        return res.status(400).json({ error: 'outcome must be made or missed' });
+      }
+
+      if (playerRole === 'player1') {
+        const weightKg = Math.max(0, Number.parseFloat(req.body?.weightKg) || 0);
+        if (!Number.isFinite(weightKg) || weightKg <= 0) {
+          await conn.rollback();
+          return res.status(400).json({ error: 'weightKg must be greater than 0' });
+        }
+        activeRound.weightKg = weightKg;
+      } else if (!(Number(activeRound.weightKg || 0) > 0)) {
+        await conn.rollback();
+        return res.status(409).json({ error: 'The challenge sender must set the round weight first' });
+      }
+
+      activeRound[playerRole === 'player1' ? 'player1Result' : 'player2Result'] = outcome;
+      activeRound.status = playerRole === 'player1' ? 'player2' : 'complete';
+    } else {
+      activeRound[playerRole] = reps;
+      activeRound.status = playerRole === 'player1' ? 'player2' : 'complete';
+    }
+
+    await conn.execute(
+      `UPDATE friend_challenge_sessions
+       SET status = 'active', rounds_json = ?, updated_at = CURRENT_TIMESTAMP
+       WHERE id = ?`,
+      [JSON.stringify(rounds), sessionId],
+    );
+
+    await conn.commit();
+
+    return res.json({
+      success: true,
+      session: buildFriendChallengeSessionResponse({
+        ...sessionRow,
+        status: 'active',
+        rounds_json: JSON.stringify(rounds),
+      }),
+    });
+  } catch (error) {
+    if (conn) await conn.rollback();
+    return res.status(500).json({ error: error.message });
+  } finally {
+    if (conn) conn.release();
+  }
+});
+
+router.post('/friend-challenges/session/add-round', authMutationRateLimit, requireAuth('user'), requireUserAccess((req) => req.body?.userId, { allowSelf: true }), async (req, res) => {
+  let conn;
+  try {
+    await ensureFriendChallengeInfrastructureOnce();
+
+    const userId = toNumber(req.body?.userId);
+    const sessionId = toNumber(req.body?.sessionId);
+    if (!userId || userId <= 0 || !sessionId || sessionId <= 0) {
+      return res.status(400).json({ error: 'Valid userId and sessionId are required' });
+    }
+
+    conn = await pool.getConnection();
+    await conn.beginTransaction();
+
+    const [sessionRows] = await conn.execute(
+      `SELECT id, challenge_key, sender_user_id, receiver_user_id, invitation_notification_id, status, winner_user_id, client_match_id, rounds_json, metadata_json, completed_at, updated_at
+       FROM friend_challenge_sessions
+       WHERE id = ?
+       FOR UPDATE`,
+      [sessionId],
+    );
+
+    if (!sessionRows.length) {
+      await conn.rollback();
+      return res.status(404).json({ error: 'Challenge session not found' });
+    }
+
+    const sessionRow = sessionRows[0];
+    const challengeKey = normalizeChallengeInviteKey(sessionRow.challenge_key) || 'push_up_duel';
+    if (Number(sessionRow.sender_user_id || 0) !== userId) {
+      await conn.rollback();
+      return res.status(403).json({ error: 'Only the challenge sender can add a new round' });
+    }
+    const sessionStatus = String(sessionRow.status || '').trim().toLowerCase();
+    if (sessionStatus === 'completed') {
+      await conn.rollback();
+      return res.status(409).json({ error: 'This challenge is already finished' });
+    }
+    if (sessionStatus !== 'active') {
+      await conn.rollback();
+      return res.status(409).json({ error: 'This challenge is no longer active' });
+    }
+
+    const rounds = normalizeChallengeRounds(parseChallengeJson(sessionRow.rounds_json, []), challengeKey);
+    const activeRound = getChallengeSessionActiveRound(rounds, challengeKey);
+    if (!activeRound || activeRound.status !== 'complete') {
+      await conn.rollback();
+      return res.status(409).json({ error: 'Finish the current round before adding a new one' });
+    }
+
+    rounds.push(
+      isStrengthChallengeKey(challengeKey)
+        ? createStrengthChallengeRound(rounds.length + 1)
+        : createRepChallengeRound(rounds.length + 1),
+    );
+
+    await conn.execute(
+      `UPDATE friend_challenge_sessions
+       SET status = 'active', winner_user_id = NULL, completed_at = NULL, rounds_json = ?, updated_at = CURRENT_TIMESTAMP
+       WHERE id = ?`,
+      [JSON.stringify(rounds), sessionId],
+    );
+
+    await conn.commit();
+
+    return res.json({
+      success: true,
+      session: buildFriendChallengeSessionResponse({
+        ...sessionRow,
+        status: 'active',
+        winner_user_id: null,
+        completed_at: null,
+        rounds_json: JSON.stringify(rounds),
+      }),
+    });
+  } catch (error) {
+    if (conn) await conn.rollback();
+    return res.status(500).json({ error: error.message });
+  } finally {
+    if (conn) conn.release();
+  }
+});
+
+router.post('/friend-challenges/session/leave', authMutationRateLimit, requireAuth('user'), requireUserAccess((req) => req.body?.userId, { allowSelf: true }), async (req, res) => {
+  let conn;
+  try {
+    await ensureFriendChallengeInfrastructureOnce();
+
+    const userId = toNumber(req.body?.userId);
+    const sessionId = toNumber(req.body?.sessionId);
+    if (!userId || userId <= 0 || !sessionId || sessionId <= 0) {
+      return res.status(400).json({ error: 'Valid userId and sessionId are required' });
+    }
+
+    conn = await pool.getConnection();
+    await conn.beginTransaction();
+
+    const [sessionRows] = await conn.execute(
+      `SELECT id, challenge_key, sender_user_id, receiver_user_id, invitation_notification_id, status, winner_user_id, client_match_id, rounds_json, metadata_json, completed_at, updated_at
+       FROM friend_challenge_sessions
+       WHERE id = ?
+       FOR UPDATE`,
+      [sessionId],
+    );
+
+    if (!sessionRows.length) {
+      await conn.rollback();
+      return res.status(404).json({ error: 'Challenge session not found' });
+    }
+
+    const sessionRow = sessionRows[0];
+    if (!getChallengeSessionPlayerRole(sessionRow, userId)) {
+      await conn.rollback();
+      return res.status(403).json({ error: 'You do not have access to this challenge session' });
+    }
+
+    const sessionStatus = String(sessionRow.status || '').trim().toLowerCase();
+    if (sessionStatus === 'completed') {
+      await conn.rollback();
+      return res.status(409).json({ error: 'This challenge is already finished' });
+    }
+
+    const metadata = parseChallengeJson(sessionRow.metadata_json, {});
+    const normalizedMetadata = metadata && typeof metadata === 'object' ? metadata : {};
+
+    if (sessionStatus === 'abandoned') {
+      await conn.rollback();
+      return res.json({
+        success: true,
+        alreadyAbandoned: true,
+        session: buildFriendChallengeSessionResponse({
+          ...sessionRow,
+          metadata_json: JSON.stringify(normalizedMetadata),
+        }),
+      });
+    }
+
+    const [actorRows] = await conn.execute(
+      `SELECT name
+       FROM users
+       WHERE id = ?
+       LIMIT 1`,
+      [userId],
+    );
+    const actorName = String(actorRows[0]?.name || 'Someone').trim() || 'Someone';
+    const abandonedAt = new Date().toISOString();
+    const nextMetadata = {
+      ...normalizedMetadata,
+      abandonedByUserId: userId,
+      abandonedByUserName: actorName,
+      abandonedAt,
+      challengeClosedWithoutWinner: true,
+    };
+
+    await conn.execute(
+      `UPDATE friend_challenge_sessions
+       SET status = 'abandoned',
+           winner_user_id = NULL,
+           metadata_json = ?,
+           completed_at = NOW(),
+           updated_at = CURRENT_TIMESTAMP
+       WHERE id = ?`,
+      [JSON.stringify(nextMetadata), sessionId],
+    );
+
+    await conn.commit();
+
+    return res.json({
+      success: true,
+      session: buildFriendChallengeSessionResponse({
+        ...sessionRow,
+        status: 'abandoned',
+        winner_user_id: null,
+        metadata_json: JSON.stringify(nextMetadata),
+        completed_at: abandonedAt,
+      }),
+    });
+  } catch (error) {
+    if (conn) await conn.rollback();
+    return res.status(500).json({ error: error.message });
+  } finally {
+    if (conn) conn.release();
+  }
+});
+
 router.get('/friends/:viewerId/:friendId/plan-preview', requireAuth('user'), requireUserAccess('viewerId', { allowSelf: true }), async (req, res) => {
   try {
     const viewerId = toNumber(req.params.viewerId);
@@ -7273,6 +8538,286 @@ router.get('/friends/:viewerId/:friendId/plan-preview', requireAuth('user'), req
     });
   } catch (error) {
     return res.status(500).json({ error: error.message });
+  }
+});
+
+router.get('/friends/:viewerId/:friendId/challenge-win-stats', requireAuth('user'), requireUserAccess('viewerId', { allowSelf: true }), async (req, res) => {
+  try {
+    const viewerId = toNumber(req.params.viewerId);
+    const friendId = toNumber(req.params.friendId);
+    if (!viewerId || viewerId <= 0 || !friendId || friendId <= 0) {
+      return res.status(400).json({ error: 'Invalid viewerId or friendId' });
+    }
+
+    const friendship = await getAcceptedFriendship(viewerId, friendId);
+    if (!friendship) {
+      return res.status(403).json({ error: 'Friend challenge stats are available only for accepted friends' });
+    }
+
+    const supportedChallengeKeys = ['push_up_duel', 'squat_rep_race', 'bench_press', 'deadlift_one'];
+    const stats = {
+      push_up_duel: 0,
+      squat_rep_race: 0,
+      bench_press: 0,
+      deadlift_one: 0,
+    };
+
+    const [rows] = await pool.execute(
+      `SELECT challenge_key, COUNT(*) AS win_count
+       FROM friend_challenge_results
+       WHERE winner_user_id = ?
+         AND challenge_key IN (?, ?, ?, ?)
+       GROUP BY challenge_key`,
+      [friendId, ...supportedChallengeKeys],
+    );
+
+    rows.forEach((row) => {
+      const challengeKey = normalizeChallengeInviteKey(row.challenge_key);
+      if (!Object.prototype.hasOwnProperty.call(stats, challengeKey)) return;
+      stats[challengeKey] = Number(row.win_count || 0);
+    });
+
+    return res.json({
+      success: true,
+      userId: friendId,
+      stats,
+    });
+  } catch (error) {
+    return res.status(500).json({ error: error.message });
+  }
+});
+
+router.post('/friend-challenges/complete', authMutationRateLimit, requireAuth('user'), requireUserAccess((req) => req.body?.userId, { allowSelf: true }), async (req, res) => {
+  let conn;
+  try {
+    await ensureFriendshipInfrastructureOnce();
+    await ensureFriendChallengeInfrastructureOnce();
+    await gamificationReady;
+
+    const userId = toNumber(req.body?.userId);
+    const friendId = toNumber(req.body?.friendId);
+    const winnerUserId = toNumber(req.body?.winnerUserId);
+    const sessionId = toNumber(req.body?.sessionId);
+    const challengeKey = String(req.body?.challengeKey || '').trim().toLowerCase();
+    let clientMatchId = String(req.body?.clientMatchId || '').trim();
+    let rounds = Array.isArray(req.body?.rounds) ? req.body.rounds : [];
+
+    if (!userId || userId <= 0 || !friendId || friendId <= 0 || userId === friendId) {
+      return res.status(400).json({ error: 'Valid userId and friendId are required' });
+    }
+    if (!winnerUserId || ![userId, friendId].includes(winnerUserId)) {
+      return res.status(400).json({ error: 'winnerUserId must match one of the challenge participants' });
+    }
+    if (challengeKey && !['push_up_duel', 'squat_rep_race', 'bench_press', 'deadlift_one'].includes(challengeKey)) {
+      return res.status(400).json({ error: 'Unsupported challenge key' });
+    }
+
+    const friendship = await getAcceptedFriendship(userId, friendId);
+    if (!friendship) {
+      return res.status(403).json({ error: 'Friend challenges are available only between accepted friends' });
+    }
+
+    const pair = getOrderedFriendPair(userId, friendId);
+    if (!pair) {
+      return res.status(400).json({ error: 'Invalid friend pair' });
+    }
+
+    let resolvedChallengeKey = challengeKey || 'push_up_duel';
+
+    if (sessionId) {
+      const [sessionRows] = await pool.execute(
+        `SELECT id, challenge_key, sender_user_id, receiver_user_id, status, winner_user_id, client_match_id, rounds_json
+         FROM friend_challenge_sessions
+         WHERE id = ?
+         LIMIT 1`,
+        [sessionId],
+      );
+
+      if (!sessionRows.length) {
+        return res.status(404).json({ error: 'Challenge session not found' });
+      }
+
+      const sessionRow = sessionRows[0];
+      if (Number(sessionRow.sender_user_id || 0) !== userId) {
+        return res.status(403).json({ error: 'Only the challenge sender can finish this challenge' });
+      }
+      if (Number(sessionRow.receiver_user_id || 0) !== friendId) {
+        return res.status(400).json({ error: 'friendId does not match this challenge session' });
+      }
+      const sessionStatus = String(sessionRow.status || '').trim().toLowerCase();
+      if (sessionStatus === 'abandoned') {
+        return res.status(409).json({ error: 'This challenge was cancelled because a player left early' });
+      }
+      if (sessionStatus !== 'active' && sessionStatus !== 'completed') {
+        return res.status(409).json({ error: 'This challenge is no longer active' });
+      }
+
+      rounds = normalizeChallengeRounds(parseChallengeJson(sessionRow.rounds_json, []), sessionRow.challenge_key);
+      const activeRound = getChallengeSessionActiveRound(rounds, sessionRow.challenge_key);
+      if (!activeRound || activeRound.status !== 'complete') {
+        return res.status(409).json({ error: 'Finish the current round before ending the challenge' });
+      }
+
+      const sessionWinner = getChallengeSessionWinner(rounds, sessionRow.challenge_key);
+      if (!sessionWinner) {
+        return res.status(409).json({ error: 'This challenge is tied. Add another round to decide the winner.' });
+      }
+
+      const expectedWinnerUserId = sessionWinner === 'player1'
+        ? Number(sessionRow.sender_user_id || 0)
+        : Number(sessionRow.receiver_user_id || 0);
+      if (winnerUserId !== expectedWinnerUserId) {
+        return res.status(409).json({ error: 'winnerUserId does not match the session winner' });
+      }
+
+      clientMatchId = String(sessionRow.client_match_id || '').trim();
+      resolvedChallengeKey = normalizeChallengeInviteKey(sessionRow.challenge_key) || 'push_up_duel';
+    }
+
+    if (!['push_up_duel', 'squat_rep_race', 'bench_press', 'deadlift_one'].includes(resolvedChallengeKey)) {
+      return res.status(400).json({ error: 'Unsupported challenge key' });
+    }
+    if (!clientMatchId || clientMatchId.length > 120) {
+      return res.status(400).json({ error: 'clientMatchId is required' });
+    }
+
+    const loserUserId = winnerUserId === userId ? friendId : userId;
+    rounds = normalizeChallengeRounds(rounds, resolvedChallengeKey);
+    const pointsByRole = getFriendChallengePointsByRole(rounds, resolvedChallengeKey);
+    const senderIsParticipantA = pair.userId === userId;
+    const participantAPoints = senderIsParticipantA ? pointsByRole.player1 : pointsByRole.player2;
+    const participantBPoints = senderIsParticipantA ? pointsByRole.player2 : pointsByRole.player1;
+    const totalPointsAwarded = participantAPoints + participantBPoints;
+    const decidingRound = [...rounds]
+      .reverse()
+      .find((round) => round.status === 'complete' && getChallengeRoundWinner(round, resolvedChallengeKey) !== 'tie') || null;
+    const metadataJson = JSON.stringify({
+      challengeMode: isStrengthChallengeKey(resolvedChallengeKey) ? 'weight' : 'reps',
+      rounds,
+      decidingWeightKg: Number(decidingRound?.weightKg || 0),
+      pointsByUser: {
+        [pair.userId]: participantAPoints,
+        [pair.friendId]: participantBPoints,
+      },
+      sessionId: sessionId || null,
+      submittedAt: new Date().toISOString(),
+    });
+
+    conn = await pool.getConnection();
+    await conn.beginTransaction();
+
+    const [existingRows] = await conn.execute(
+      `SELECT id, winner_user_id, points_reward, participant_a_points, participant_b_points
+       FROM friend_challenge_results
+       WHERE challenge_key = ?
+         AND participant_a_id = ?
+         AND participant_b_id = ?
+         AND client_match_id = ?
+       LIMIT 1`,
+      [resolvedChallengeKey, pair.userId, pair.friendId, clientMatchId],
+    );
+
+    if (existingRows.length) {
+      if (sessionId) {
+        await conn.execute(
+          `UPDATE friend_challenge_sessions
+           SET status = 'completed', winner_user_id = ?, completed_at = COALESCE(completed_at, NOW())
+           WHERE id = ?`,
+          [Number(existingRows[0].winner_user_id || 0) || winnerUserId, sessionId],
+        );
+      }
+      await conn.commit();
+      return res.json({
+        success: true,
+        alreadyRecorded: true,
+        winnerUserId: Number(existingRows[0].winner_user_id || 0),
+        pointsAwarded: Number(existingRows[0].points_reward || 0),
+        participantPoints: {
+          [pair.userId]: Number(existingRows[0].participant_a_points || 0),
+          [pair.friendId]: Number(existingRows[0].participant_b_points || 0),
+        },
+      });
+    }
+
+    await conn.execute(
+      `INSERT INTO friend_challenge_results
+         (challenge_key, participant_a_id, participant_b_id, participant_a_points, participant_b_points, submitted_by_user_id, winner_user_id, loser_user_id, points_reward, client_match_id, metadata_json, completed_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())`,
+      [resolvedChallengeKey, pair.userId, pair.friendId, participantAPoints, participantBPoints, userId, winnerUserId, loserUserId, totalPointsAwarded, clientMatchId, metadataJson],
+    );
+
+    if (sessionId) {
+      await conn.execute(
+        `UPDATE friend_challenge_sessions
+         SET status = 'completed', winner_user_id = ?, completed_at = NOW()
+         WHERE id = ?`,
+        [winnerUserId, sessionId],
+      );
+    }
+
+    await conn.commit();
+
+    const participantIds = [pair.userId, pair.friendId];
+    const [participantASummary, participantBSummary] = await Promise.all([
+      refreshGamificationForUser(pair.userId),
+      refreshGamificationForUser(pair.friendId),
+    ]);
+    const [participantRows] = await pool.execute(
+      `SELECT id, COALESCE(total_points, 0) AS total_points, COALESCE(\`rank\`, 'Bronze') AS \`rank\`
+       FROM users
+       WHERE id IN (?, ?)`,
+      participantIds,
+    );
+    const participantRowMap = new Map(
+      participantRows.map((row) => [
+        Number(row.id || 0),
+        {
+          totalPoints: Number(row.total_points || 0),
+          rank: String(row.rank || 'Bronze'),
+        },
+      ]),
+    );
+    const participantSummaryMap = new Map([
+      [pair.userId, participantASummary],
+      [pair.friendId, participantBSummary],
+    ]);
+
+    const buildParticipantSummary = (participantId, pointsAwarded) => {
+      const refreshed = participantSummaryMap.get(participantId);
+      const row = participantRowMap.get(participantId) || {};
+      return {
+        userId: participantId,
+        pointsAwarded,
+        totalPoints: Number(refreshed?.totalPoints || row.totalPoints || 0),
+        rank: String(refreshed?.rank || row.rank || 'Bronze'),
+      };
+    };
+
+    const winnerSummary = buildParticipantSummary(winnerUserId, winnerUserId === pair.userId ? participantAPoints : participantBPoints);
+    const loserSummary = buildParticipantSummary(loserUserId, loserUserId === pair.userId ? participantAPoints : participantBPoints);
+
+    return res.json({
+      success: true,
+      challengeKey: resolvedChallengeKey,
+      winnerUserId,
+      loserUserId,
+      pointsAwarded: totalPointsAwarded,
+      participantPoints: {
+        [pair.userId]: participantAPoints,
+        [pair.friendId]: participantBPoints,
+      },
+      winner: winnerSummary,
+      loser: loserSummary,
+      participants: {
+        [pair.userId]: buildParticipantSummary(pair.userId, participantAPoints),
+        [pair.friendId]: buildParticipantSummary(pair.friendId, participantBPoints),
+      },
+    });
+  } catch (error) {
+    if (conn) await conn.rollback();
+    return res.status(500).json({ error: error.message });
+  } finally {
+    if (conn) conn.release();
   }
 });
 
@@ -8965,7 +10510,11 @@ router.put('/messages/read-user/:userId/:coachId', authMutationRateLimit, requir
 
 router.get('/notifications/:userId', requireAuth(), requireUserAccess('userId', { allowSelf: true }), async (req, res) => {
   try {
+    await ensureChallengeNotificationTypesOnce();
+    await ensureFriendChallengeInfrastructureOnce();
+
     const { userId } = req.params;
+    await expireStaleFriendChallengeInvitesForUser(userId);
     const [rows] = await pool.execute(
       `SELECT id, user_id, type, title, message, data, is_read, read_at, created_at
        FROM notifications

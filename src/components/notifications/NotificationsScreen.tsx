@@ -1,12 +1,20 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import challengeHeroImage from '../../../assets/Workout/CHALLENGE.png';
 import { Header } from '../ui/Header';
 import { Card } from '../ui/Card';
 import { Bell, Dumbbell, MessageSquare, Trophy, Gift, TrendingUp } from 'lucide-react';
 import { api } from '../../services/api';
-import { AppLanguage, getActiveLanguage, getStoredLanguage } from '../../services/language';
+import { AppLanguage, getActiveLanguage, getStoredLanguage, pickLanguage } from '../../services/language';
 
 interface NotificationsScreenProps {
   onBack: () => void;
+  onOpenAcceptedChallenge?: (challenge: {
+    friendId: number;
+    friendName: string;
+    challengeKey: string;
+    challengeTitle: string;
+    challengeSessionId: number;
+  }) => void;
 }
 
 interface AppNotification {
@@ -20,6 +28,7 @@ interface AppNotification {
 }
 
 type FriendshipTerminalStatus = 'accepted' | 'declined';
+type ChallengeInviteTerminalStatus = 'accepted' | 'declined' | 'cancelled';
 
 type ApiLikeError = Error & {
   status?: number;
@@ -35,6 +44,7 @@ const iconByType: Record<string, { icon: React.ComponentType<{ size?: number; cl
   plan_created_by_coach: { icon: Trophy, color: 'text-green-500', bg: 'bg-green-500/10' },
   plan_review_approved: { icon: Trophy, color: 'text-green-500', bg: 'bg-green-500/10' },
   plan_review_rejected: { icon: Gift, color: 'text-red-500', bg: 'bg-red-500/10' },
+  friend_challenge_invite: { icon: TrendingUp, color: 'text-accent', bg: 'bg-accent/10' },
 };
 
 const toPositiveInt = (value: unknown) => {
@@ -54,6 +64,30 @@ const parseNotificationData = (rawValue: unknown): Record<string, unknown> => {
   } catch {
     return {};
   }
+};
+
+const resolveNotificationType = (notification: AppNotification, data: Record<string, unknown>) => {
+  const normalizedType = String(notification.type || '').trim().toLowerCase();
+  if (normalizedType) return normalizedType;
+
+  const title = String(notification.title || '').trim();
+  if (
+    title === 'New Challenge'
+    && Number(data.senderUserId || 0) > 0
+    && String(data.challengeKey || '').trim()
+  ) {
+    return 'friend_challenge_invite';
+  }
+
+  if (
+    (title === 'Challenge Accepted' || title === 'Challenge Declined' || title === 'Challenge Cancelled')
+    && Number(data.receiverNotificationId || 0) > 0
+    && String(data.challengeKey || '').trim()
+  ) {
+    return 'friend_challenge_response';
+  }
+
+  return normalizedType;
 };
 
 const getErrorMessage = (error: unknown, fallback: string) =>
@@ -77,6 +111,21 @@ const getFriendshipConflictStatus = (error: unknown): FriendshipTerminalStatus |
 const isFriendshipConflictError = (error: unknown) => {
   const apiError = error as ApiLikeError;
   return apiError?.status === 409;
+};
+
+const toChallengeInviteTerminalStatus = (value: unknown): ChallengeInviteTerminalStatus | null => {
+  const status = String(value || '').trim().toLowerCase();
+  if (status === 'accepted' || status === 'declined' || status === 'cancelled') return status;
+  return null;
+};
+
+const getChallengeInviteConflictStatus = (error: unknown): ChallengeInviteTerminalStatus | null => {
+  const apiError = error as ApiLikeError;
+  if (apiError?.status !== 409) return null;
+  const data = (apiError?.data && typeof apiError.data === 'object')
+    ? (apiError.data as Record<string, unknown>)
+    : {};
+  return toChallengeInviteTerminalStatus(data.status);
 };
 
 const NOTIFICATIONS_I18N = {
@@ -107,6 +156,17 @@ const NOTIFICATIONS_I18N = {
     minutesAgo: 'm ago',
     hoursAgo: 'h ago',
     daysAgo: 'd ago',
+    failedAcceptChallengeInvite: 'Failed to accept challenge invite',
+    failedDeclineChallengeInvite: 'Failed to decline challenge invite',
+    acceptedChallengeInviteMessage: 'You accepted this challenge invite.',
+    declinedChallengeInviteMessage: 'You declined this challenge invite.',
+    cancelledChallengeInviteMessage: 'This challenge invite expired after 5 minutes.',
+    challengeInviteAccepted: 'Challenge accepted',
+    challengeInviteDeclined: 'Challenge declined',
+    challengeInviteCancelled: 'Challenge cancelled',
+    challengeInvitePendingNote: 'If you accept, both of you count only your own turn.',
+    challengeInviteAcceptButton: 'Accept',
+    challengeInviteRefuseButton: 'Refuse',
   },
   ar: {
     title: 'الإشعارات',
@@ -235,6 +295,64 @@ const EXACT_NOTIFICATION_TEXT_AR: Record<string, string> = {
 };
 
 const localizeNotificationText = (notif: AppNotification, language: AppLanguage) => {
+  const data = parseNotificationData(notif.data);
+  const notificationType = resolveNotificationType(notif, data);
+  const challengeTitle = String(data.challengeTitle || 'Challenge').trim() || 'Challenge';
+  const senderName = String(data.senderName || 'Friend').trim() || 'Friend';
+  const responseStatus = String(data.responseStatus || '').trim().toLowerCase();
+
+  if (notificationType === 'friend_challenge_invite') {
+    const localized = pickLanguage(language, {
+      en: {
+        title: 'New Challenge',
+        message: `${senderName} challenged you to ${challengeTitle}`,
+      },
+      ar: {
+        title: 'تحدٍ جديد',
+        message: `${senderName} تحداك في ${challengeTitle}`,
+      },
+      it: {
+        title: 'Nuova sfida',
+        message: `${senderName} ti ha sfidato in ${challengeTitle}`,
+      },
+      de: {
+        title: 'Neue Challenge',
+        message: `${senderName} hat dich zu ${challengeTitle} herausgefordert`,
+      },
+    });
+
+    return localized;
+  }
+
+  if (notificationType === 'friend_challenge_response') {
+    const localized = pickLanguage(language, {
+      en: {
+        accepted: { title: 'Challenge Accepted', message: `${challengeTitle} was accepted.` },
+        declined: { title: 'Challenge Declined', message: `${challengeTitle} was declined.` },
+        cancelled: { title: 'Challenge Cancelled', message: `${challengeTitle} expired after 5 minutes.` },
+      },
+      ar: {
+        accepted: { title: 'تم قبول التحدي', message: `تم قبول ${challengeTitle}.` },
+        declined: { title: 'تم رفض التحدي', message: `تم رفض ${challengeTitle}.` },
+        cancelled: { title: 'تم إلغاء التحدي', message: `انتهى ${challengeTitle} بعد 5 دقائق.` },
+      },
+      it: {
+        accepted: { title: 'Sfida accettata', message: `${challengeTitle} e stata accettata.` },
+        declined: { title: 'Sfida rifiutata', message: `${challengeTitle} e stata rifiutata.` },
+        cancelled: { title: 'Sfida annullata', message: `${challengeTitle} e scaduta dopo 5 minuti.` },
+      },
+      de: {
+        accepted: { title: 'Challenge angenommen', message: `${challengeTitle} wurde angenommen.` },
+        declined: { title: 'Challenge abgelehnt', message: `${challengeTitle} wurde abgelehnt.` },
+        cancelled: { title: 'Challenge abgebrochen', message: `${challengeTitle} ist nach 5 Minuten abgelaufen.` },
+      },
+    });
+
+    if (responseStatus === 'accepted' || responseStatus === 'declined' || responseStatus === 'cancelled') {
+      return localized[responseStatus];
+    }
+  }
+
   if (language !== 'ar') {
     return { title: notif.title, message: notif.message };
   }
@@ -263,7 +381,7 @@ const formatTimeAgo = (value: string, language: AppLanguage) => {
   return new Date(value).toLocaleDateString();
 };
 
-export function NotificationsScreen({ onBack }: NotificationsScreenProps) {
+export function NotificationsScreen({ onBack, onOpenAcceptedChallenge }: NotificationsScreenProps) {
   const [loading, setLoading] = useState(true);
   const [clearing, setClearing] = useState(false);
   const [showClearConfirm, setShowClearConfirm] = useState(false);
@@ -271,9 +389,109 @@ export function NotificationsScreen({ onBack }: NotificationsScreenProps) {
   const [items, setItems] = useState<AppNotification[]>([]);
   const [actioningNotificationId, setActioningNotificationId] = useState<number | null>(null);
   const [actioningFriendshipId, setActioningFriendshipId] = useState<number | null>(null);
+  const [challengeIntroTitle, setChallengeIntroTitle] = useState('');
+  const [acceptedChallenge, setAcceptedChallenge] = useState<{
+    friendId: number;
+    friendName: string;
+    challengeKey: string;
+    challengeTitle: string;
+    challengeSessionId: number;
+  } | null>(null);
   const pendingFriendshipIdsRef = useRef<Set<number>>(new Set());
   const [language, setLanguage] = useState<AppLanguage>('en');
   const copy = NOTIFICATIONS_I18N[language] || NOTIFICATIONS_I18N.en;
+  const copyWithFallbacks = copy as typeof copy & {
+    failedAcceptChallengeInvite?: string;
+    failedDeclineChallengeInvite?: string;
+    acceptedChallengeInviteMessage?: string;
+    declinedChallengeInviteMessage?: string;
+    cancelledChallengeInviteMessage?: string;
+    challengeInviteAccepted?: string;
+    challengeInviteDeclined?: string;
+    challengeInviteCancelled?: string;
+    challengeInvitePendingNote?: string;
+    challengeInviteAcceptButton?: string;
+    challengeInviteRefuseButton?: string;
+  };
+  const localizedChallengeInviteCopy = useMemo(
+    () => pickLanguage(language, {
+      en: {
+        failedAcceptChallengeInvite: 'Failed to accept challenge invite',
+        failedDeclineChallengeInvite: 'Failed to decline challenge invite',
+        acceptedChallengeInviteMessage: 'You accepted this challenge invite.',
+        declinedChallengeInviteMessage: 'You declined this challenge invite.',
+        cancelledChallengeInviteMessage: 'This challenge invite expired after 5 minutes.',
+        challengeInviteAccepted: 'Challenge accepted',
+        challengeInviteDeclined: 'Challenge declined',
+        challengeInviteCancelled: 'Challenge cancelled',
+        challengeInvitePendingNote: 'If you accept, both of you count only your own turn.',
+        challengeInviteAcceptButton: 'Accept',
+        challengeInviteRefuseButton: 'Refuse',
+      },
+      ar: {
+        failedAcceptChallengeInvite: 'فشل قبول دعوة التحدي',
+        failedDeclineChallengeInvite: 'فشل رفض دعوة التحدي',
+        acceptedChallengeInviteMessage: 'لقد قبلت دعوة التحدي هذه.',
+        declinedChallengeInviteMessage: 'لقد رفضت دعوة التحدي هذه.',
+        cancelledChallengeInviteMessage: 'انتهت دعوة التحدي بعد 5 دقائق.',
+        challengeInviteAccepted: 'تم قبول التحدي',
+        challengeInviteDeclined: 'تم رفض التحدي',
+        challengeInviteCancelled: 'تم إلغاء التحدي',
+        challengeInvitePendingNote: 'إذا قبلت، فكل واحد منكما يسجل دوره فقط.',
+        challengeInviteAcceptButton: 'قبول',
+        challengeInviteRefuseButton: 'رفض',
+      },
+      it: {
+        failedAcceptChallengeInvite: 'Impossibile accettare l invito alla sfida',
+        failedDeclineChallengeInvite: 'Impossibile rifiutare l invito alla sfida',
+        acceptedChallengeInviteMessage: 'Hai accettato questo invito alla sfida.',
+        declinedChallengeInviteMessage: 'Hai rifiutato questo invito alla sfida.',
+        cancelledChallengeInviteMessage: 'Questo invito alla sfida e scaduto dopo 5 minuti.',
+        challengeInviteAccepted: 'Sfida accettata',
+        challengeInviteDeclined: 'Sfida rifiutata',
+        challengeInviteCancelled: 'Sfida annullata',
+        challengeInvitePendingNote: 'Se accetti, ognuno di voi conta solo il proprio turno.',
+        challengeInviteAcceptButton: 'Accetta',
+        challengeInviteRefuseButton: 'Rifiuta',
+      },
+      de: {
+        failedAcceptChallengeInvite: 'Die Challenge-Einladung konnte nicht angenommen werden',
+        failedDeclineChallengeInvite: 'Die Challenge-Einladung konnte nicht abgelehnt werden',
+        acceptedChallengeInviteMessage: 'Du hast diese Challenge-Einladung angenommen.',
+        declinedChallengeInviteMessage: 'Du hast diese Challenge-Einladung abgelehnt.',
+        cancelledChallengeInviteMessage: 'Diese Challenge-Einladung ist nach 5 Minuten abgelaufen.',
+        challengeInviteAccepted: 'Challenge angenommen',
+        challengeInviteDeclined: 'Challenge abgelehnt',
+        challengeInviteCancelled: 'Challenge abgebrochen',
+        challengeInvitePendingNote: 'Wenn du annimmst, zahlt jeder nur seinen eigenen Zug.',
+        challengeInviteAcceptButton: 'Annehmen',
+        challengeInviteRefuseButton: 'Ablehnen',
+      },
+    }),
+    [language],
+  );
+  const failedAcceptChallengeInvite =
+    copyWithFallbacks.failedAcceptChallengeInvite || localizedChallengeInviteCopy.failedAcceptChallengeInvite;
+  const failedDeclineChallengeInvite =
+    copyWithFallbacks.failedDeclineChallengeInvite || localizedChallengeInviteCopy.failedDeclineChallengeInvite;
+  const acceptedChallengeInviteMessage =
+    copyWithFallbacks.acceptedChallengeInviteMessage || localizedChallengeInviteCopy.acceptedChallengeInviteMessage;
+  const declinedChallengeInviteMessage =
+    copyWithFallbacks.declinedChallengeInviteMessage || localizedChallengeInviteCopy.declinedChallengeInviteMessage;
+  const cancelledChallengeInviteMessage =
+    copyWithFallbacks.cancelledChallengeInviteMessage || localizedChallengeInviteCopy.cancelledChallengeInviteMessage;
+  const challengeInviteAcceptedLabel =
+    copyWithFallbacks.challengeInviteAccepted || localizedChallengeInviteCopy.challengeInviteAccepted;
+  const challengeInviteDeclinedLabel =
+    copyWithFallbacks.challengeInviteDeclined || localizedChallengeInviteCopy.challengeInviteDeclined;
+  const challengeInviteCancelledLabel =
+    copyWithFallbacks.challengeInviteCancelled || localizedChallengeInviteCopy.challengeInviteCancelled;
+  const challengeInvitePendingNote =
+    copyWithFallbacks.challengeInvitePendingNote || localizedChallengeInviteCopy.challengeInvitePendingNote;
+  const challengeInviteAcceptButton =
+    copyWithFallbacks.challengeInviteAcceptButton || localizedChallengeInviteCopy.challengeInviteAcceptButton;
+  const challengeInviteRefuseButton =
+    copyWithFallbacks.challengeInviteRefuseButton || localizedChallengeInviteCopy.challengeInviteRefuseButton;
 
   useEffect(() => {
     setLanguage(getActiveLanguage());
@@ -289,6 +507,20 @@ export function NotificationsScreen({ onBack }: NotificationsScreenProps) {
       window.removeEventListener('storage', handleLanguageChanged);
     };
   }, []);
+
+  useEffect(() => {
+    if (!challengeIntroTitle) return undefined;
+
+    const timer = window.setTimeout(() => {
+      setChallengeIntroTitle('');
+      if (acceptedChallenge && onOpenAcceptedChallenge) {
+        onOpenAcceptedChallenge(acceptedChallenge);
+      }
+      setAcceptedChallenge(null);
+    }, 1800);
+
+    return () => window.clearTimeout(timer);
+  }, [acceptedChallenge, challengeIntroTitle, onOpenAcceptedChallenge]);
 
   const userId = useMemo(() => {
     try {
@@ -420,6 +652,82 @@ export function NotificationsScreen({ onBack }: NotificationsScreenProps) {
     }
   };
 
+  const handleChallengeInviteResponse = async (
+    notification: AppNotification,
+    action: 'accept' | 'decline',
+  ) => {
+    if (!userId) return;
+
+    const notificationData = parseNotificationData(notification.data);
+    setError('');
+    setActioningNotificationId(notification.id);
+    try {
+      let resolvedStatus: ChallengeInviteTerminalStatus = action === 'accept' ? 'accepted' : 'declined';
+      let resolvedTitle = String(notificationData.challengeTitle || 'Challenge').trim() || 'Challenge';
+      let resolvedChallengeKey = String(notificationData.challengeKey || '').trim().toLowerCase();
+      let resolvedSenderId = toPositiveInt(notificationData.senderUserId);
+      let resolvedSenderName = String(notificationData.senderName || '').trim() || 'Friend';
+      let resolvedSessionId = toPositiveInt(notificationData.sessionId);
+
+      try {
+        const response = await api.respondToFriendChallengeInvite(userId, notification.id, action);
+        resolvedStatus = toChallengeInviteTerminalStatus(response?.status) || resolvedStatus;
+        resolvedTitle = String(response?.challengeTitle || resolvedTitle).trim() || resolvedTitle;
+        resolvedChallengeKey = String(response?.challengeKey || resolvedChallengeKey).trim().toLowerCase();
+        resolvedSenderId = toPositiveInt(response?.senderUserId) || resolvedSenderId;
+        resolvedSenderName = String(response?.senderName || resolvedSenderName).trim() || resolvedSenderName;
+        resolvedSessionId = toPositiveInt(response?.sessionId) || resolvedSessionId;
+      } catch (e) {
+        const conflictStatus = getChallengeInviteConflictStatus(e);
+        if (!conflictStatus) {
+          setError(
+            getErrorMessage(
+              e,
+              action === 'accept' ? failedAcceptChallengeInvite : failedDeclineChallengeInvite,
+            ),
+          );
+          return;
+        }
+        resolvedStatus = conflictStatus;
+      }
+
+      setItems((prev) => prev.map((item) => {
+        if (item.id !== notification.id) return item;
+        const itemData = parseNotificationData(item.data);
+        return {
+          ...item,
+          unread: false,
+          message: resolvedStatus === 'accepted'
+            ? acceptedChallengeInviteMessage
+            : resolvedStatus === 'cancelled'
+              ? cancelledChallengeInviteMessage
+              : declinedChallengeInviteMessage,
+          data: {
+            ...itemData,
+            responseStatus: resolvedStatus,
+            challengeTitle: resolvedTitle,
+            sessionId: resolvedSessionId,
+          },
+        };
+      }));
+
+      if (resolvedStatus === 'accepted') {
+        if (resolvedSenderId && resolvedChallengeKey && resolvedSessionId) {
+          setAcceptedChallenge({
+            friendId: resolvedSenderId,
+            friendName: resolvedSenderName,
+            challengeKey: resolvedChallengeKey,
+            challengeTitle: resolvedTitle,
+            challengeSessionId: resolvedSessionId,
+          });
+        }
+        setChallengeIntroTitle(resolvedTitle);
+      }
+    } finally {
+      setActioningNotificationId(null);
+    }
+  };
+
   const handleClearAll = async () => {
     if (!userId || !items.length || clearing) return;
 
@@ -464,19 +772,24 @@ export function NotificationsScreen({ onBack }: NotificationsScreenProps) {
         )}
 
         {!loading && !error && items.map((notif) => {
-          const visual = iconByType[notif.type] || { icon: TrendingUp, color: 'text-accent', bg: 'bg-accent/10' };
-          const Icon = visual.icon;
           const data = parseNotificationData(notif.data);
+          const notificationType = resolveNotificationType(notif, data);
+          const visual = iconByType[notificationType] || { icon: TrendingUp, color: 'text-accent', bg: 'bg-accent/10' };
+          const Icon = visual.icon;
           const friendshipId = toPositiveInt(data.friendshipId);
           const requestType = String(data.requestType || '').trim().toLowerCase();
           const responseStatus = String(data.responseStatus || '').trim().toLowerCase();
-          const isHandled = responseStatus === 'accepted' || responseStatus === 'declined';
+          const isHandled = responseStatus === 'accepted' || responseStatus === 'declined' || responseStatus === 'cancelled';
           const isFriendRequest =
-            notif.type === 'friend_request'
+            notificationType === 'friend_request'
             && !!friendshipId
             && (!requestType || requestType === 'friendship');
           const showFriendRequestActions = isFriendRequest && !isHandled;
-          const actionBusy = actioningNotificationId === notif.id || actioningFriendshipId === friendshipId;
+          const isChallengeInvite = notificationType === 'friend_challenge_invite';
+          const showChallengeInviteActions = isChallengeInvite && !isHandled;
+          const actionBusy =
+            actioningNotificationId === notif.id
+            || (!!friendshipId && actioningFriendshipId === friendshipId);
           const localizedNotif = localizeNotificationText(notif, language);
 
           return (
@@ -530,9 +843,49 @@ export function NotificationsScreen({ onBack }: NotificationsScreenProps) {
                   </div>
                 )}
 
+                {showChallengeInviteActions && (
+                  <div className="mt-3">
+                    <div className="grid grid-cols-2 gap-2">
+                      <button
+                        type="button"
+                        disabled={actionBusy}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          void handleChallengeInviteResponse(notif, 'accept');
+                        }}
+                        className="w-full px-3 py-2.5 rounded-xl text-xs font-semibold bg-accent text-black hover:bg-accent/90 disabled:opacity-60"
+                      >
+                        {actionBusy ? copy.processing : challengeInviteAcceptButton}
+                      </button>
+                      <button
+                        type="button"
+                        disabled={actionBusy}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          void handleChallengeInviteResponse(notif, 'decline');
+                        }}
+                        className="w-full px-3 py-2.5 rounded-xl text-xs font-semibold border border-white/15 text-text-secondary hover:bg-white/5 disabled:opacity-60"
+                      >
+                        {challengeInviteRefuseButton}
+                      </button>
+                    </div>
+                    <div className="mt-2 text-[11px] text-text-tertiary">
+                      {challengeInvitePendingNote}
+                    </div>
+                  </div>
+                )}
+
                 {isHandled && (
                   <div className="mt-2 text-[11px] text-text-tertiary">
-                    {responseStatus === 'accepted' ? copy.requestAccepted : copy.requestDeclined}
+                    {isChallengeInvite
+                      ? (
+                        responseStatus === 'accepted'
+                          ? challengeInviteAcceptedLabel
+                          : responseStatus === 'cancelled'
+                            ? challengeInviteCancelledLabel
+                            : challengeInviteDeclinedLabel
+                      )
+                      : (responseStatus === 'accepted' ? copy.requestAccepted : copy.requestDeclined)}
                   </div>
                 )}
               </div>
@@ -577,6 +930,16 @@ export function NotificationsScreen({ onBack }: NotificationsScreenProps) {
           </div>
         </div>
       )}
+
+      {challengeIntroTitle ? (
+        <div className="fixed inset-0 z-[70] bg-black">
+          <img
+            src={challengeHeroImage}
+            alt={challengeIntroTitle}
+            className="h-full w-full object-cover"
+          />
+        </div>
+      ) : null}
     </div>
   );
 }

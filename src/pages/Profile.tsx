@@ -9,6 +9,7 @@ import { CustomPlanBuilderScreen } from '../components/profile/CustomPlanBuilder
 import { PresetProgramScreen } from '../components/profile/PresetProgramScreen';
 import { MyPostsScreen } from '../components/profile/MyPostsScreen';
 import { NotificationsScreen } from '../components/notifications/NotificationsScreen';
+import { FriendChallengeScreen } from '../components/profile/FriendChallengeScreen';
 import { FriendsList, FriendMember } from './FriendsList';
 import { FriendProfile } from './FriendProfile';
 import { CoachList } from './CoachList';
@@ -27,6 +28,7 @@ import {
 } from '../services/coachmarks';
 interface ProfileProps {
   onNavigateTab?: (tab: string, day?: string) => void;
+  onTabBarVisibilityChange?: (visible: boolean) => void;
   resetSignal?: number;
   guidedTourActive?: boolean;
   onGuidedTourComplete?: () => void;
@@ -57,8 +59,18 @@ const PROFILE_PAGE_I18N = {
   },
 } as const;
 
+const toChallengeCardId = (challengeKey?: string | null) => {
+  const normalized = String(challengeKey || '').trim().toLowerCase();
+  if (normalized === 'push_up_duel') return 'push-up-duel';
+  if (normalized === 'squat_rep_race') return 'squat-rep-race';
+  if (normalized === 'bench_press') return 'bench-press';
+  if (normalized === 'deadlift_one') return 'deadlift-one';
+  return 'push-up-duel';
+};
+
 export function Profile({
   onNavigateTab,
+  onTabBarVisibilityChange,
   resetSignal = 0,
   guidedTourActive = false,
   onGuidedTourComplete,
@@ -66,9 +78,16 @@ export function Profile({
   onRestartGuidedTour,
 }: ProfileProps) {
   const [view, setView] = useState<
-    'main' | 'gym' | 'rank' | 'settings' | 'notifications' | 'weeklyPlan' | 'presetPlans' | 'customPlanBuilder' | 'posts' | 'friends' | 'friendProfile' | 'friendChallenge' | 'coachList' | 'chat'>(
+    'main' | 'gym' | 'rank' | 'settings' | 'notifications' | 'weeklyPlan' | 'presetPlans' | 'customPlanBuilder' | 'posts' | 'friends' | 'friendProfile' | 'friendChallenge' | 'notificationChallenge' | 'coachList' | 'chat'>(
     'main');
   const [selectedFriend, setSelectedFriend] = useState<FriendMember | null>(null);
+  const [acceptedChallengeContext, setAcceptedChallengeContext] = useState<{
+    friendId: number;
+    friendName: string;
+    challengeKey: string;
+    challengeTitle: string;
+    challengeSessionId: number;
+  } | null>(null);
   const [selectedCoach, setSelectedCoach] = useState<{id: number, name: string} | null>(null);
   const [unreadCount, setUnreadCount] = useState(0);
   const [language, setLanguage] = useState<AppLanguage>('en');
@@ -76,6 +95,14 @@ export function Profile({
   const [isCoachmarkOpen, setIsCoachmarkOpen] = useState(false);
 
   useScrollToTopOnChange([view, resetSignal]);
+
+  useEffect(() => {
+    onTabBarVisibilityChange?.(view !== 'friendChallenge' && view !== 'notificationChallenge');
+
+    return () => {
+      onTabBarVisibilityChange?.(true);
+    };
+  }, [onTabBarVisibilityChange, view]);
 
   const copy = PROFILE_PAGE_I18N[language] || PROFILE_PAGE_I18N.en;
 
@@ -453,7 +480,15 @@ export function Profile({
     />
   );
   if (view === 'notifications')
-  return <NotificationsScreen onBack={() => setView('main')} />;
+  return (
+    <NotificationsScreen
+      onBack={() => setView('main')}
+      onOpenAcceptedChallenge={(challenge) => {
+        setAcceptedChallengeContext(challenge);
+        setView('notificationChallenge');
+      }}
+    />
+  );
   if (view === 'weeklyPlan')
   return (
     <CurrentWeekPlanScreen
@@ -499,26 +534,26 @@ export function Profile({
   );
   if (view === 'friendChallenge') {
     return (
-      <div className="flex-1 flex flex-col bg-background min-h-screen pb-24">
-        <div className="px-4 sm:px-6 pt-2">
-          <button
-            type="button"
-            onClick={() => setView('friendProfile')}
-            className="inline-flex items-center gap-2 rounded-xl surface-glass px-3 py-2 text-sm text-text-primary"
-          >
-            <ArrowLeft size={16} />
-            {copy.back}
-          </button>
-        </div>
-        <div className="px-4 sm:px-6 pt-8">
-          <div className="surface-card rounded-2xl border border-white/10 p-5">
-            <h2 className="text-xl font-semibold text-white">{copy.challenge}</h2>
-            <p className="mt-2 text-sm text-text-secondary">
-              {copy.challengePlaceholder} {selectedFriend?.name || copy.challengeFallbackFriend}.
-            </p>
-          </div>
-        </div>
-      </div>
+      <FriendChallengeScreen
+        onBack={() => setView('friendProfile')}
+        onExitHome={() => setView('main')}
+        friendName={selectedFriend?.name}
+        friendId={selectedFriend?.id}
+      />
+    );
+  }
+  if (view === 'notificationChallenge') {
+    return (
+      <FriendChallengeScreen
+        onBack={() => setView('notifications')}
+        onExitHome={() => setView('main')}
+        friendName={acceptedChallengeContext?.friendName}
+        friendId={acceptedChallengeContext?.friendId}
+        initialView="intro"
+        directChallengeId={toChallengeCardId(acceptedChallengeContext?.challengeKey)}
+        currentUserPlayer="player2"
+        challengeSessionId={acceptedChallengeContext?.challengeSessionId}
+      />
     );
   }
   if (view === 'coachList')

@@ -13,6 +13,13 @@ const CONDITION_TYPES = Array.from(new Set(
     .filter(Boolean),
 ));
 
+const slugifyValue = (value) => String(value || '')
+  .trim()
+  .toLowerCase()
+  .replace(/['’]/g, '')
+  .replace(/[^a-z0-9]+/g, '-')
+  .replace(/^-+|-+$/g, '');
+
 const normalizeUserId = (userId) => {
   const value = Number(userId);
   return Number.isInteger(value) && value > 0 ? value : 0;
@@ -21,6 +28,65 @@ const normalizeUserId = (userId) => {
 const toFiniteNumber = (value, fallback = 0) => {
   const normalized = Number(value);
   return Number.isFinite(normalized) ? normalized : fallback;
+};
+
+const ensureColumnExists = async (tableName, columnName, alterSql) => {
+  const [rows] = await pool.execute(
+    `SELECT 1
+     FROM information_schema.columns
+     WHERE table_schema = DATABASE()
+       AND table_name = ?
+       AND column_name = ?
+     LIMIT 1`,
+    [tableName, columnName],
+  );
+
+  if (!rows.length) {
+    await pool.execute(alterSql);
+  }
+};
+
+const ensureIndexExists = async (tableName, indexName, createSql) => {
+  const [rows] = await pool.execute(
+    `SELECT 1
+     FROM information_schema.statistics
+     WHERE table_schema = DATABASE()
+       AND table_name = ?
+       AND index_name = ?
+     LIMIT 1`,
+    [tableName, indexName],
+  );
+
+  if (!rows.length) {
+    await pool.execute(createSql);
+  }
+};
+
+const buildSlugUpdates = (rows, prefix) => {
+  const usedSlugs = new Set();
+  const updates = [];
+
+  for (const row of Array.isArray(rows) ? rows : []) {
+    const id = Number(row?.id || 0);
+    const currentSlug = slugifyValue(row?.slug);
+    const baseSlug = currentSlug || slugifyValue(row?.name) || `${prefix}-${id || 'item'}`;
+    let nextSlug = baseSlug;
+
+    if (usedSlugs.has(nextSlug)) {
+      let suffix = id > 0 ? id : 2;
+      while (usedSlugs.has(`${baseSlug}-${suffix}`)) {
+        suffix += 1;
+      }
+      nextSlug = `${baseSlug}-${suffix}`;
+    }
+
+    usedSlugs.add(nextSlug);
+    if (currentSlug !== nextSlug) {
+      updates.push({ id, slug: nextSlug });
+    }
+  }
+
+  return updates;
 };
 
 const safeScalar = async (sql, params = [], field = 'value') => {
@@ -217,6 +283,48 @@ const ensureBadgeInfrastructure = async () => {
       INDEX idx_user_badge_progress_user (user_id)
     ) ENGINE=InnoDB`,
   );
+
+  await ensureColumnExists('badges', 'category_id', 'ALTER TABLE badges ADD COLUMN category_id INT NULL AFTER id');
+  await ensureColumnExists('badges', 'name', 'ALTER TABLE badges ADD COLUMN name VARCHAR(120) NOT NULL DEFAULT \'Badge\' AFTER category_id');
+  await ensureColumnExists('badges', 'slug', 'ALTER TABLE badges ADD COLUMN slug VARCHAR(140) NULL AFTER name');
+  await ensureColumnExists('badges', 'description', 'ALTER TABLE badges ADD COLUMN description VARCHAR(255) NOT NULL DEFAULT \'\' AFTER slug');
+  await ensureColumnExists('badges', 'icon_url', 'ALTER TABLE badges ADD COLUMN icon_url VARCHAR(255) NULL AFTER description');
+  await ensureColumnExists('badges', 'rarity', 'ALTER TABLE badges ADD COLUMN rarity ENUM(\'common\', \'rare\', \'epic\', \'legendary\') NOT NULL DEFAULT \'common\' AFTER icon_url');
+  await ensureColumnExists('badges', 'is_hidden', 'ALTER TABLE badges ADD COLUMN is_hidden BOOLEAN NOT NULL DEFAULT FALSE AFTER rarity');
+  await ensureColumnExists('badges', 'xp_reward', 'ALTER TABLE badges ADD COLUMN xp_reward INT NOT NULL DEFAULT 0 AFTER is_hidden');
+  await ensureColumnExists('badges', 'points_reward', 'ALTER TABLE badges ADD COLUMN points_reward INT NOT NULL DEFAULT 0 AFTER xp_reward');
+  await ensureColumnExists('badges', 'active', 'ALTER TABLE badges ADD COLUMN active BOOLEAN NOT NULL DEFAULT TRUE AFTER points_reward');
+  await ensureColumnExists('badges', 'created_at', 'ALTER TABLE badges ADD COLUMN created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP AFTER active');
+  await ensureColumnExists('badge_rules', 'operator_symbol', 'ALTER TABLE badge_rules ADD COLUMN operator_symbol ENUM(\'>=\', \'=\', \'<=\', \'>\', \'<\') NOT NULL DEFAULT \'>=\' AFTER condition_type');
+  await ensureColumnExists('badge_rules', 'secondary_value', 'ALTER TABLE badge_rules ADD COLUMN secondary_value DECIMAL(12,2) NULL AFTER target_value');
+  await ensureColumnExists('badge_rules', 'timeframe_type', 'ALTER TABLE badge_rules ADD COLUMN timeframe_type ENUM(\'lifetime\', \'daily\', \'weekly\', \'monthly\', \'program\', \'custom\') NOT NULL DEFAULT \'lifetime\' AFTER secondary_value');
+  await ensureColumnExists('badge_rules', 'timeframe_days', 'ALTER TABLE badge_rules ADD COLUMN timeframe_days INT NULL AFTER timeframe_type');
+  await ensureColumnExists('badge_rules', 'stack_group', 'ALTER TABLE badge_rules ADD COLUMN stack_group VARCHAR(80) NULL AFTER timeframe_days');
+  await ensureColumnExists('user_badges', 'progress_value', 'ALTER TABLE user_badges ADD COLUMN progress_value DECIMAL(12,2) NOT NULL DEFAULT 0 AFTER unlocked_at');
+  await ensureColumnExists('user_badges', 'is_seen', 'ALTER TABLE user_badges ADD COLUMN is_seen BOOLEAN NOT NULL DEFAULT FALSE AFTER progress_value');
+  await ensureColumnExists('user_badge_progress', 'updated_at', 'ALTER TABLE user_badge_progress ADD COLUMN updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP AFTER percent_complete');
+  await ensureIndexExists('badges', 'idx_badges_category', 'CREATE INDEX idx_badges_category ON badges (category_id)');
+  await ensureIndexExists('badges', 'idx_badges_hidden', 'CREATE INDEX idx_badges_hidden ON badges (is_hidden)');
+  await ensureIndexExists('badge_rules', 'idx_badge_rules_badge', 'CREATE INDEX idx_badge_rules_badge ON badge_rules (badge_id)');
+  await ensureIndexExists('badge_rules', 'idx_badge_rules_type', 'CREATE INDEX idx_badge_rules_type ON badge_rules (condition_type)');
+  await ensureIndexExists('user_badges', 'idx_user_badges_user', 'CREATE INDEX idx_user_badges_user ON user_badges (user_id)');
+  await ensureIndexExists('user_badges', 'idx_user_badges_unlocked', 'CREATE INDEX idx_user_badges_unlocked ON user_badges (unlocked_at)');
+  await ensureIndexExists('user_badge_progress', 'idx_user_badge_progress_user', 'CREATE INDEX idx_user_badge_progress_user ON user_badge_progress (user_id)');
+
+  const [badgeSlugRows] = await pool.execute(
+    `SELECT id, name, slug
+     FROM badges
+     ORDER BY id ASC`,
+  );
+  const badgeSlugUpdates = buildSlugUpdates(badgeSlugRows, 'badge');
+  for (const update of badgeSlugUpdates) {
+    await pool.execute(
+      `UPDATE badges
+       SET slug = ?
+       WHERE id = ?`,
+      [update.slug, update.id],
+    );
+  }
 
   for (const [name, description] of BADGE_CATEGORIES) {
     await pool.execute(

@@ -44,9 +44,63 @@ const withAuthHeaders = (init: RequestInit = {}, context: ApiAuthContext = 'auto
   };
 };
 
-const fetch = (input: RequestInfo | URL, init?: RequestInit) => nativeFetch(input, withAuthHeaders(init));
-const fetchWithContext = (input: RequestInfo | URL, init: RequestInit | undefined, context: ApiAuthContext) =>
-  nativeFetch(input, withAuthHeaders(init, context));
+const isNetworkRequestError = (error: unknown) => {
+  if (error instanceof TypeError) return true;
+  const message = String((error as Error)?.message || '').toLowerCase();
+  return (
+    message.includes('failed to fetch')
+    || message.includes('networkerror')
+    || message.includes('load failed')
+    || message.includes('connection refused')
+  );
+};
+
+const toNetworkApiError = (error: unknown) => {
+  if (!isNetworkRequestError(error)) return error;
+  return createApiError(
+    'Backend is offline. Please wait a moment or restart the backend server.',
+    503,
+  );
+};
+
+const fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
+  try {
+    return await nativeFetch(input, withAuthHeaders(init));
+  } catch (error) {
+    throw toNetworkApiError(error);
+  }
+};
+
+const fetchWithContext = async (input: RequestInfo | URL, init: RequestInit | undefined, context: ApiAuthContext) => {
+  try {
+    return await nativeFetch(input, withAuthHeaders(init, context));
+  } catch (error) {
+    throw toNetworkApiError(error);
+  }
+};
+
+const fetchWithTimeout = async (
+  input: RequestInfo | URL,
+  init: RequestInit | undefined,
+  timeoutMs = 12000,
+) => {
+  const controller = new AbortController();
+  const timer = globalThis.setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    return await fetch(input, {
+      ...init,
+      signal: controller.signal,
+    });
+  } catch (error) {
+    if ((error as Error)?.name === 'AbortError') {
+      throw createApiError('Request timed out. Please try again.', 408);
+    }
+    throw toNetworkApiError(error);
+  } finally {
+    globalThis.clearTimeout(timer);
+  }
+};
 
 const isOnboardingGatewayTimeout = (error: unknown) => {
   const status = Number((error as ApiError)?.status || 0);
@@ -639,6 +693,105 @@ export const api = {
     return parseApiResponse(res, 'Failed to fetch friend plan preview');
   },
 
+  getFriendChallengeWinStats: async (viewerId: number, friendId: number) => {
+    const res = await fetch(`${API_URL}/friends/${viewerId}/${friendId}/challenge-win-stats`);
+    return parseApiResponse(res, 'Failed to fetch friend challenge win stats');
+  },
+
+  completeFriendChallenge: async (input: {
+    userId: number;
+    friendId: number;
+    winnerUserId: number;
+    challengeKey: 'push_up_duel' | 'squat_rep_race' | 'bench_press' | 'deadlift_one';
+    clientMatchId?: string;
+    sessionId?: number;
+    rounds?: Array<Record<string, unknown>>;
+  }) => {
+    const res = await fetch(`${API_URL}/friend-challenges/complete`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(input),
+    });
+    if (res.status === 404) {
+      throw createApiError(
+        'Friend challenge endpoint not found. Restart backend server and try again.',
+        404,
+      );
+    }
+    return parseApiResponse(res, 'Failed to complete friend challenge');
+  },
+
+  getFriendChallengeSession: async (userId: number, sessionId: number) => {
+    const res = await fetch(`${API_URL}/friend-challenges/session/${sessionId}?userId=${userId}`);
+    return parseApiResponse(res, 'Failed to fetch friend challenge session');
+  },
+
+  submitFriendChallengeTurn: async (input: {
+    userId: number;
+    sessionId: number;
+    reps?: number;
+    weightKg?: number;
+    outcome?: 'made' | 'missed';
+  }) => {
+    const res = await fetch(`${API_URL}/friend-challenges/session/submit-turn`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(input),
+    });
+    return parseApiResponse(res, 'Failed to submit push-up count');
+  },
+
+  addFriendChallengeRound: async (input: {
+    userId: number;
+    sessionId: number;
+  }) => {
+    const res = await fetch(`${API_URL}/friend-challenges/session/add-round`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(input),
+    });
+    return parseApiResponse(res, 'Failed to add a new challenge round');
+  },
+
+  leaveFriendChallengeSession: async (input: {
+    userId: number;
+    sessionId: number;
+  }) => {
+    const res = await fetch(`${API_URL}/friend-challenges/session/leave`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(input),
+    });
+    return parseApiResponse(res, 'Failed to leave the challenge');
+  },
+
+  sendFriendChallengeInvite: async (input: {
+    userId: number;
+    friendId: number;
+    challengeKey: string;
+    challengeTitle: string;
+  }) => {
+    const res = await fetch(`${API_URL}/friend-challenges/invite`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(input),
+    });
+    return parseApiResponse(res, 'Failed to send friend challenge invite');
+  },
+
+  respondToFriendChallengeInvite: async (
+    userId: number,
+    notificationId: number,
+    action: 'accept' | 'decline',
+  ) => {
+    const res = await fetchWithTimeout(`${API_URL}/friend-challenges/respond`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId, notificationId, action }),
+    }, 12000);
+    return parseApiResponse(res, 'Failed to respond to friend challenge invite');
+  },
+
   sendFriendRequest: async (fromUserId: number, toUserId: number) => {
     const res = await fetch(`${API_URL}/friends/request`, {
       method: 'POST',
@@ -677,14 +830,14 @@ export const api = {
 
   getNotifications: async (userId: number) => {
     const res = await fetch(`${API_URL}/notifications/${userId}`);
-    return res.json();
+    return parseApiResponse(res, 'Failed to fetch notifications');
   },
 
   markNotificationRead: async (notificationId: number) => {
     const res = await fetch(`${API_URL}/notifications/${notificationId}/read`, {
       method: 'PUT'
     });
-    return res.json();
+    return parseApiResponse(res, 'Failed to mark notification as read');
   },
 
   clearNotifications: async (userId: number) => {
