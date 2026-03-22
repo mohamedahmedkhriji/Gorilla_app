@@ -1049,8 +1049,10 @@ const normalizeChallengeRounds = (rawRounds, challengeKey = 'push_up_duel') => {
 };
 
 const getChallengeSessionActiveRound = (rounds, challengeKey = 'push_up_duel') => {
-  const normalizedRounds = normalizeChallengeRounds(rounds, challengeKey);
-  return normalizedRounds[normalizedRounds.length - 1];
+  const candidateRounds = Array.isArray(rounds) && rounds.length
+    ? rounds
+    : normalizeChallengeRounds(rounds, challengeKey);
+  return candidateRounds[candidateRounds.length - 1];
 };
 
 const getChallengeSessionCurrentPlayer = (rounds, challengeKey = 'push_up_duel') => {
@@ -2824,6 +2826,28 @@ const delay = (ms) => new Promise((resolve) => {
   setTimeout(resolve, ms);
 });
 
+const formatGamificationInitError = (error) => {
+  const message = error?.message || String(error);
+  const host = String(process.env.DB_HOST || '127.0.0.1').trim() || '127.0.0.1';
+  const port = Number(process.env.DB_PORT || 3306);
+  const database = String(process.env.DB_NAME || '').trim() || '(unset)';
+  const user = String(process.env.DB_USER || '').trim() || '(unset)';
+
+  if (error?.code === 'ECONNREFUSED') {
+    return `${message}. MySQL is not reachable at ${host}:${port}; check DB_HOST/DB_PORT and make sure the MySQL service is running.`;
+  }
+
+  if (error?.code === 'ER_ACCESS_DENIED_ERROR') {
+    return `${message}. MySQL rejected the credentials for DB_USER=${user}; check DB_USER/DB_PASSWORD in .env.`;
+  }
+
+  if (error?.code === 'ER_BAD_DB_ERROR') {
+    return `${message}. Database "${database}" does not exist; create it or import server/init_innodb.sql.`;
+  }
+
+  return message;
+};
+
 const initializeGamificationInfrastructureWithRetry = async () => {
   const maxAttempts = Math.max(1, Number.parseInt(process.env.GAMIFICATION_INIT_RETRIES || '3', 10) || 3);
 
@@ -2832,7 +2856,7 @@ const initializeGamificationInfrastructureWithRetry = async () => {
       await ensureGamificationInfrastructure();
       return true;
     } catch (error) {
-      const message = error?.message || error;
+      const message = formatGamificationInitError(error);
       if (attempt >= maxAttempts) {
         console.error('Failed to initialize gamification infrastructure:', message);
         return false;

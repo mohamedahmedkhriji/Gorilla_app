@@ -391,17 +391,35 @@ const loadTodayExerciseCount = (keys: { workoutDate: string; exerciseCount: stri
   }
 };
 
-const loadTodayExerciseSnapshot = (keys: { workoutDate: string; exerciseSnapshot: string }) => {
+const loadTodayExerciseSnapshotState = (keys: { workoutDate: string; exerciseSnapshot: string }) => {
   const today = new Date().toDateString();
   const savedDate = localStorage.getItem(keys.workoutDate);
-  if (savedDate && savedDate !== today) return [];
+  if (savedDate && savedDate !== today) {
+    return {
+      exercises: [] as any[],
+      hasSnapshot: false,
+    };
+  }
 
   try {
     const raw = localStorage.getItem(keys.exerciseSnapshot);
-    const parsed = raw ? JSON.parse(raw) : [];
-    return Array.isArray(parsed) ? parsed : [];
+    if (raw === null) {
+      return {
+        exercises: [] as any[],
+        hasSnapshot: false,
+      };
+    }
+
+    const parsed = JSON.parse(raw);
+    return {
+      exercises: Array.isArray(parsed) ? parsed : [],
+      hasSnapshot: true,
+    };
   } catch {
-    return [];
+    return {
+      exercises: [] as any[],
+      hasSnapshot: false,
+    };
   }
 };
 
@@ -471,7 +489,10 @@ export function Home({
     () => loadTodayExerciseCount(workoutStorageKeys),
   );
   const [storedTodayExerciseSnapshot, setStoredTodayExerciseSnapshot] = useState<any[]>(
-    () => loadTodayExerciseSnapshot(workoutStorageKeys),
+    () => loadTodayExerciseSnapshotState(workoutStorageKeys).exercises,
+  );
+  const [hasStoredTodayExerciseSnapshot, setHasStoredTodayExerciseSnapshot] = useState<boolean>(
+    () => loadTodayExerciseSnapshotState(workoutStorageKeys).hasSnapshot,
   );
   const [language, setLanguage] = useState<AppLanguage>(() => getActiveLanguage());
   const [coachmarkMode, setCoachmarkMode] = useState<'main' | null>(null);
@@ -596,7 +617,7 @@ export function Home({
     const snapshotExercises = normalizeTodayWorkoutExercises(storedTodayExerciseSnapshot);
     const seen = new Set<string>();
     const mergedExercises = [...baseExercises, ...extraExercises];
-    const preferredExercises = snapshotExercises.length > mergedExercises.length
+    const preferredExercises = hasStoredTodayExerciseSnapshot
       ? snapshotExercises
       : mergedExercises;
 
@@ -607,7 +628,7 @@ export function Home({
       seen.add(key);
       return true;
     });
-  }, [todayWorkoutData, extraTodayExercises, storedTodayExerciseSnapshot]);
+  }, [todayWorkoutData, extraTodayExercises, hasStoredTodayExerciseSnapshot, storedTodayExerciseSnapshot]);
   const todayWorkoutExerciseCount = Math.max(todayWorkoutExercises.length, storedTodayExerciseCount);
   const hasAnyTodayExercises = todayWorkoutExerciseCount > 0;
   const isWorkoutCardRestDay = !shouldChooseWorkoutToday && todayWorkout === 'Rest Day' && !hasAnyTodayExercises;
@@ -1108,7 +1129,11 @@ export function Home({
     const fetchProgram = async () => {
       setExtraTodayExercises(loadTodayExtraExercises(workoutStorageKeys));
       setStoredTodayExerciseCount(loadTodayExerciseCount(workoutStorageKeys));
-      setStoredTodayExerciseSnapshot(loadTodayExerciseSnapshot(workoutStorageKeys));
+      {
+        const snapshotState = loadTodayExerciseSnapshotState(workoutStorageKeys);
+        setStoredTodayExerciseSnapshot(snapshotState.exercises);
+        setHasStoredTodayExerciseSnapshot(snapshotState.hasSnapshot);
+      }
       if (!currentUserId) {
         setUserProgram({ workouts: [] });
         setWeekPlanWorkouts([]);
@@ -1116,6 +1141,7 @@ export function Home({
         setTodayWorkout('Rest Day');
         setTodayWorkoutData(null);
         setStoredTodayExerciseSnapshot([]);
+        setHasStoredTodayExerciseSnapshot(false);
         return;
       }
 
@@ -1214,7 +1240,9 @@ export function Home({
     const handleExtraExercisesUpdated = () => {
       setExtraTodayExercises(loadTodayExtraExercises(workoutStorageKeys));
       setStoredTodayExerciseCount(loadTodayExerciseCount(workoutStorageKeys));
-      setStoredTodayExerciseSnapshot(loadTodayExerciseSnapshot(workoutStorageKeys));
+      const snapshotState = loadTodayExerciseSnapshotState(workoutStorageKeys);
+      setStoredTodayExerciseSnapshot(snapshotState.exercises);
+      setHasStoredTodayExerciseSnapshot(snapshotState.hasSnapshot);
     };
     window.addEventListener('workout-extra-exercises-updated', handleExtraExercisesUpdated);
 

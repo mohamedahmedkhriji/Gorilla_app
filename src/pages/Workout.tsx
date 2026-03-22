@@ -184,12 +184,16 @@ const loadLocalWorkoutState = (scope: string) => {
       completedExercises: [] as string[],
       exerciseSets: {} as Record<string, any[]>,
       extraExercises: [] as any[],
+      exerciseSnapshot: [] as any[],
+      hasExerciseSnapshot: false,
     };
   }
 
   let completedExercises: string[] = [];
   let exerciseSets: Record<string, any[]> = {};
   let extraExercises: any[] = [];
+  let exerciseSnapshot: any[] = [];
+  let hasExerciseSnapshot = false;
 
   try {
     const completedRaw = localStorage.getItem(keys.completedExercises);
@@ -215,7 +219,19 @@ const loadLocalWorkoutState = (scope: string) => {
     extraExercises = [];
   }
 
-  return { completedExercises, exerciseSets, extraExercises };
+  try {
+    const snapshotRaw = localStorage.getItem(keys.exerciseSnapshot);
+    hasExerciseSnapshot = snapshotRaw !== null;
+    if (snapshotRaw !== null) {
+      const parsedSnapshot = JSON.parse(snapshotRaw);
+      exerciseSnapshot = Array.isArray(parsedSnapshot) ? parsedSnapshot : [];
+    }
+  } catch {
+    exerciseSnapshot = [];
+    hasExerciseSnapshot = false;
+  }
+
+  return { completedExercises, exerciseSets, extraExercises, exerciseSnapshot, hasExerciseSnapshot };
 };
 
 const clearLocalWorkoutState = (scope: string) => {
@@ -1455,8 +1471,15 @@ export function Workout({
       const normalizedExtras = Array.isArray(storedState.extraExercises)
         ? storedState.extraExercises.map((ex: any) => normalizeWorkoutExerciseEntry(ex, true))
         : [];
+      const normalizedSnapshot = Array.isArray(storedState.exerciseSnapshot)
+        ? storedState.exerciseSnapshot.map((ex: any) => normalizeWorkoutExerciseEntry(ex, Boolean(ex?.isExtra)))
+        : [];
 
-      syncTodayExercises([...(nextSelectedWorkout.exercises || []), ...normalizedExtras]);
+      syncTodayExercises(
+        storedState.hasExerciseSnapshot
+          ? normalizedSnapshot
+          : [...(nextSelectedWorkout.exercises || []), ...normalizedExtras],
+      );
       setCurrentWorkoutDayLabel(String(nextSelectedWorkout.dayLabel || workoutDay).trim() || 'Workout');
       setCurrentWorkoutName(
         String(nextSelectedWorkout.workoutName || workoutDay).trim() || 'Workout',

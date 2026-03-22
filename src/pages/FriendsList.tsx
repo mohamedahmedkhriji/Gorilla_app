@@ -545,7 +545,13 @@ export function FriendsList({ onBack, onFriendClick }: FriendsListProps) {
                     : 'border-white/10'
               }`}
             >
-              <div className={status === 'none' ? 'space-y-3' : `flex items-center gap-4 ${isIncomingRequest ? 'min-w-0 flex-1' : ''}`}>
+              <div
+                className={
+                  status === 'none' || status === 'accepted'
+                    ? 'space-y-3'
+                    : `flex items-center gap-4 ${isIncomingRequest ? 'min-w-0 flex-1' : ''}`
+                }
+              >
                 <div className={`flex items-center gap-4 ${status === 'none' || isIncomingRequest ? 'min-w-0 flex-1' : ''}`}>
                   <button
                     type="button"
@@ -620,17 +626,19 @@ export function FriendsList({ onBack, onFriendClick }: FriendsListProps) {
               </div>
 
               {status === 'accepted' && (
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onFriendClick(member);
-                  }}
-                  className="px-3 py-2 rounded-lg text-xs font-semibold bg-accent text-black hover:bg-accent/90 transition-colors inline-flex items-center gap-1"
-                >
-                  {copy.view}
-                  <ChevronRight size={14} />
-                </button>
+                <div className="mt-2 flex justify-center">
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onFriendClick(member);
+                    }}
+                    className="px-3 py-2 rounded-lg text-xs font-semibold bg-accent text-black hover:bg-accent/90 transition-colors inline-flex items-center gap-1"
+                  >
+                    {copy.view}
+                    <ChevronRight size={14} />
+                  </button>
+                </div>
               )}
 
               {status === 'outgoing_pending' && (

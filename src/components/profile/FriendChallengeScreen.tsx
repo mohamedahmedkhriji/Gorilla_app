@@ -5,7 +5,6 @@ import {
   LoaderCircle,
   Minus,
   Plus,
-  Swords,
   Trophy,
 } from 'lucide-react';
 import benchPressImage from '../../../assets/Workout/Bench Press.png';
@@ -1030,7 +1029,13 @@ export function FriendChallengeScreen({
   const resolvedFriendId = toPositiveInteger(friendId);
   const currentUserName = getStoredDisplayName(storedUser);
   const currentUserDisplayName = currentUserName || youLabel;
-  const currentPlayer = currentUserPlayer === 'player2' ? 'player2' : 'player1';
+  const currentPlayer = useMemo<PlayerKey>(() => {
+    if (challengeSession && currentUserId) {
+      if (challengeSession.senderUserId === currentUserId) return 'player1';
+      if (challengeSession.receiverUserId === currentUserId) return 'player2';
+    }
+    return currentUserPlayer === 'player2' ? 'player2' : 'player1';
+  }, [challengeSession, currentUserId, currentUserPlayer]);
   const canManageChallenge = currentPlayer === 'player1';
   const player1DisplayName = currentPlayer === 'player1' ? currentUserDisplayName : resolvedFriendName;
   const player2DisplayName = currentPlayer === 'player2' ? currentUserDisplayName : resolvedFriendName;
@@ -1347,7 +1352,8 @@ export function FriendChallengeScreen({
     [currentChallengeKey, isStrengthChallenge, pushUpRounds, strengthRounds],
   );
   const canCountOwnTurn =
-    Boolean(activeChallengeSessionId)
+    Boolean(currentUserId)
+    && Boolean(activeChallengeSessionId)
     && Boolean(activeSessionPlayer)
     && activeSessionPlayer === currentPlayer
     && !challengeFinished
@@ -1579,7 +1585,27 @@ export function FriendChallengeScreen({
   };
 
   const handleAdvanceTurn = async (outcomeOverride?: 'made' | 'missed') => {
-    if (!currentUserId || !activeChallengeSessionId || !canCountOwnTurn) return;
+    if (!currentUserId) {
+      setSessionSyncState('error');
+      setSessionMessage(failedChallengeSyncLabel);
+      return;
+    }
+    if (!activeChallengeSessionId) {
+      setSessionSyncState('error');
+      setSessionMessage(noSessionYetLabel);
+      return;
+    }
+    if (!canCountOwnTurn) {
+      setSessionSyncState('error');
+      setSessionMessage(
+        challengeFinished
+          ? challengeFinishedLabel
+          : activeSessionPlayer
+            ? waitForOtherPlayerLabel(getPlayerDisplayName(activeSessionPlayer, true))
+            : yourCountLockedLabel,
+      );
+      return;
+    }
 
     const submittedOutcome = outcomeOverride || turnDraftOutcome;
     if (isStrengthChallenge && outcomeOverride) {
@@ -1720,11 +1746,11 @@ export function FriendChallengeScreen({
             ? saveSuccessYouLabel(currentUserPointsAwarded, resolvedFriendName, friendPointsAwarded)
             : saveSuccessFriendLabel(resolvedFriendName, friendPointsAwarded),
       );
-      if (activeChallengeSessionId && winnerUserId) {
-        shownResultSessionsRef.current.add(`${activeChallengeSessionId}:${winnerUserId}`);
+      if (activeChallengeSessionId && matchWinnerUserIdForSession) {
+        shownResultSessionsRef.current.add(`${activeChallengeSessionId}:${matchWinnerUserIdForSession}`);
       }
       setResultModal({
-        didWin: winnerUserId === currentUserId,
+        didWin: matchWinnerUserIdForSession === currentUserId,
         challengeTitle: currentChallengeTitle,
         pointsAwarded: currentUserPointsAwarded,
       });
@@ -1756,7 +1782,7 @@ export function FriendChallengeScreen({
         <div className="mt-4 overflow-hidden rounded-[1.5rem] border border-white/12 bg-[radial-gradient(circle_at_top_right,rgba(187,255,92,0.12),transparent_22%),linear-gradient(160deg,rgba(18,23,31,0.98),rgba(11,15,22,0.98))] p-4 shadow-[0_20px_60px_rgba(0,0,0,0.24)] sm:p-5">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="inline-flex items-center gap-2 rounded-full border border-accent/20 bg-accent/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-accent">
-              <Swords size={12} />
+              <Trophy size={12} className="relative animate-bounce" />
               {copy.roundLabel(activeRound.number)}
             </div>
             <div className="rounded-full border border-white/12 bg-white/5 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-white">
@@ -1773,8 +1799,8 @@ export function FriendChallengeScreen({
                 {turnLockedLabel}
               </p>
             </div>
-            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[1rem] border border-white/12 bg-white/5 text-base font-black text-white">
-              {activeRound.number}
+            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[1rem] border border-white/12 bg-white/5 text-white">
+              <Trophy size={32} className="relative animate-bounce" />
             </div>
           </div>
 
@@ -2158,7 +2184,7 @@ export function FriendChallengeScreen({
           <div className="mt-4 overflow-hidden rounded-[1.5rem] border border-white/12 bg-[radial-gradient(circle_at_top_right,rgba(34,211,238,0.15),transparent_24%),radial-gradient(circle_at_bottom_left,rgba(248,113,113,0.14),transparent_28%),linear-gradient(160deg,rgba(18,23,31,0.98),rgba(11,15,22,0.98))] p-4 shadow-[0_20px_60px_rgba(0,0,0,0.24)] sm:p-5">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div className="inline-flex items-center gap-2 rounded-full border border-accent/20 bg-accent/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-accent">
-                <Swords size={12} />
+                <Trophy size={12} className="relative animate-bounce" />
                 {copy.roundLabel(strengthActiveRound.number)}
               </div>
               <div className="rounded-full border border-white/12 bg-white/5 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-white">
@@ -2177,8 +2203,8 @@ export function FriendChallengeScreen({
                     : 'Your friend sets the weight. You only mark if you made the one rep or missed it.'}
                 </p>
               </div>
-              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[1rem] border border-white/12 bg-white/5 text-base font-black text-white">
-                {strengthActiveRound.number}
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[1rem] border border-white/12 bg-white/5 text-white">
+                <Trophy size={32} className="relative animate-bounce" />
               </div>
             </div>
 
@@ -2453,11 +2479,27 @@ export function FriendChallengeScreen({
                       </div>
                     </div>
                     <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
-                      <div className="rounded-xl border border-white/8 bg-black/20 px-3 py-2 text-text-secondary">
+                      <div
+                        className={`rounded-xl border px-3 py-2 ${
+                          round.player1Result === 'made'
+                            ? 'border-emerald-400/25 bg-emerald-500/10 text-emerald-100'
+                            : round.player1Result === 'missed'
+                              ? 'border-red-400/25 bg-red-500/10 text-red-100'
+                              : 'border-white/8 bg-black/20 text-text-secondary'
+                        }`}
+                      >
                         <span className="block font-semibold text-white">{copy.player1}</span>
                         <span>{round.player1Result === 'made' ? resultMadeLabel : round.player1Result === 'missed' ? resultMissedLabel : copy.waiting}</span>
                       </div>
-                      <div className="rounded-xl border border-white/8 bg-black/20 px-3 py-2 text-text-secondary">
+                      <div
+                        className={`rounded-xl border px-3 py-2 ${
+                          round.player2Result === 'made'
+                            ? 'border-emerald-400/25 bg-emerald-500/10 text-emerald-100'
+                            : round.player2Result === 'missed'
+                              ? 'border-red-400/25 bg-red-500/10 text-red-100'
+                              : 'border-white/8 bg-black/20 text-text-secondary'
+                        }`}
+                      >
                         <span className="block font-semibold text-white">{copy.player2}</span>
                         <span>{round.player2Result === 'made' ? resultMadeLabel : round.player2Result === 'missed' ? resultMissedLabel : copy.waiting}</span>
                       </div>
@@ -2495,7 +2537,7 @@ export function FriendChallengeScreen({
 
             <div className="mt-auto max-w-sm rounded-[1.75rem] border border-white/12 bg-black/35 p-5 backdrop-blur-md">
               <div className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-white">
-                <Swords size={12} />
+                <Trophy size={12} className="relative animate-bounce" />
                 {copy.introEyebrow}
               </div>
               <h1 className="mt-4 text-3xl font-black uppercase tracking-[0.08em] text-white">
@@ -2547,7 +2589,7 @@ export function FriendChallengeScreen({
 
           <div className="mt-6 overflow-hidden rounded-[2rem] border border-white/12 bg-[radial-gradient(circle_at_top_right,rgba(187,255,92,0.14),transparent_26%),radial-gradient(circle_at_bottom_left,rgba(34,211,238,0.14),transparent_30%),linear-gradient(160deg,rgba(19,25,33,0.98),rgba(11,15,22,0.98))] p-5 shadow-[0_24px_80px_rgba(0,0,0,0.24)] sm:p-6">
             <div className="inline-flex items-center gap-2 rounded-full border border-accent/20 bg-accent/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-accent">
-              <Swords size={12} />
+              <Trophy size={12} className="relative animate-bounce" />
               {copy.badge}
             </div>
 
