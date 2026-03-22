@@ -437,6 +437,180 @@ const normalizeUser = (user) => {
   return safeUser;
 };
 
+const getExistingTableColumns = async (conn, tableName, candidateColumns) => {
+  const normalizedColumns = [...new Set(
+    (Array.isArray(candidateColumns) ? candidateColumns : [])
+      .map((columnName) => String(columnName || '').trim())
+      .filter(Boolean),
+  )];
+  if (!normalizedColumns.length) return [];
+
+  const placeholders = normalizedColumns.map(() => '?').join(', ');
+  const [rows] = await conn.execute(
+    `SELECT COLUMN_NAME
+     FROM INFORMATION_SCHEMA.COLUMNS
+     WHERE TABLE_SCHEMA = DATABASE()
+       AND TABLE_NAME = ?
+       AND COLUMN_NAME IN (${placeholders})`,
+    [tableName, ...normalizedColumns],
+  );
+
+  const existingColumns = new Set(
+    rows.map((row) => String(row.COLUMN_NAME || row.column_name || '').trim()).filter(Boolean),
+  );
+  return normalizedColumns.filter((columnName) => existingColumns.has(columnName));
+};
+
+const deleteRowsByMatchingUserColumns = async (conn, tableName, userId, candidateColumns) => {
+  const existingColumns = await getExistingTableColumns(conn, tableName, candidateColumns);
+  if (!existingColumns.length) return 0;
+
+  const whereClause = existingColumns.map((columnName) => `\`${columnName}\` = ?`).join(' OR ');
+  const [result] = await conn.execute(
+    `DELETE FROM \`${tableName}\` WHERE ${whereClause}`,
+    existingColumns.map(() => userId),
+  );
+
+  return Number(result?.affectedRows || 0);
+};
+
+const loadIdsByMatchingUserColumns = async (conn, tableName, idColumn, userId, candidateColumns) => {
+  const [existingIdColumn] = await getExistingTableColumns(conn, tableName, [idColumn]);
+  if (!existingIdColumn) return [];
+
+  const existingColumns = await getExistingTableColumns(conn, tableName, candidateColumns);
+  if (!existingColumns.length) return [];
+
+  const whereClause = existingColumns.map((columnName) => `\`${columnName}\` = ?`).join(' OR ');
+  const [rows] = await conn.execute(
+    `SELECT DISTINCT \`${existingIdColumn}\` AS id
+     FROM \`${tableName}\`
+     WHERE ${whereClause}`,
+    existingColumns.map(() => userId),
+  );
+
+  return rows
+    .map((row) => Number(row.id || 0))
+    .filter((id, index, values) => Number.isFinite(id) && id > 0 && values.indexOf(id) === index);
+};
+
+const deleteRowsByIdList = async (conn, tableName, columnName, ids) => {
+  const normalizedIds = [...new Set(
+    (Array.isArray(ids) ? ids : [])
+      .map((value) => Number(value || 0))
+      .filter((id) => Number.isFinite(id) && id > 0),
+  )];
+  if (!normalizedIds.length) return 0;
+
+  const [existingColumn] = await getExistingTableColumns(conn, tableName, [columnName]);
+  if (!existingColumn) return 0;
+
+  const placeholders = normalizedIds.map(() => '?').join(', ');
+  const [result] = await conn.execute(
+    `DELETE FROM \`${tableName}\` WHERE \`${existingColumn}\` IN (${placeholders})`,
+    normalizedIds,
+  );
+
+  return Number(result?.affectedRows || 0);
+};
+
+const loadIdsByForeignKeyValues = async (conn, tableName, idColumn, foreignKeyColumn, ids) => {
+  const normalizedIds = [...new Set(
+    (Array.isArray(ids) ? ids : [])
+      .map((value) => Number(value || 0))
+      .filter((id) => Number.isFinite(id) && id > 0),
+  )];
+  if (!normalizedIds.length) return [];
+
+  const [existingIdColumn] = await getExistingTableColumns(conn, tableName, [idColumn]);
+  const [existingForeignKeyColumn] = await getExistingTableColumns(conn, tableName, [foreignKeyColumn]);
+  if (!existingIdColumn || !existingForeignKeyColumn) return [];
+
+  const placeholders = normalizedIds.map(() => '?').join(', ');
+  const [rows] = await conn.execute(
+    `SELECT DISTINCT \`${existingIdColumn}\` AS id
+     FROM \`${tableName}\`
+     WHERE \`${existingForeignKeyColumn}\` IN (${placeholders})`,
+    normalizedIds,
+  );
+
+  return rows
+    .map((row) => Number(row.id || 0))
+    .filter((id, index, values) => Number.isFinite(id) && id > 0 && values.indexOf(id) === index);
+};
+
+const hardDeleteUserAccount = async (conn, userId) => {
+  const directCleanupTargets = [
+    { tableName: 'messages', columns: ['sender_id', 'receiver_id'] },
+    { tableName: 'notifications', columns: ['user_id'] },
+    { tableName: 'invitations', columns: ['from_user_id', 'to_user_id'] },
+    { tableName: 'friendships', columns: ['user_id', 'friend_id', 'initiated_by'] },
+    { tableName: 'friend_challenge_sessions', columns: ['sender_user_id', 'receiver_user_id', 'winner_user_id'] },
+    { tableName: 'friend_challenge_results', columns: ['participant_a_id', 'participant_b_id', 'submitted_by_user_id', 'winner_user_id', 'loser_user_id'] },
+    { tableName: 'program_change_requests', columns: ['user_id', 'proposed_by_user_id'] },
+    { tableName: 'program_change_log', columns: ['user_id', 'changed_by_user_id'] },
+    { tableName: 'program_assignments', columns: ['user_id'] },
+    { tableName: 'recovery_factors', columns: ['user_id'] },
+    { tableName: 'workout_sessions', columns: ['user_id'] },
+    { tableName: 'muscle_recovery_status', columns: ['user_id'] },
+    { tableName: 'recovery_history', columns: ['user_id'] },
+    { tableName: 'training_readiness', columns: ['user_id'] },
+    { tableName: 'user_notification_settings', columns: ['user_id'] },
+    { tableName: 'user_health_snapshots', columns: ['user_id'] },
+    { tableName: 'user_insight_scores', columns: ['user_id'] },
+    { tableName: 'user_scoring_experiment_assignments', columns: ['user_id'] },
+    { tableName: 'plan_adaptations', columns: ['user_id'] },
+    { tableName: 'plan_recommendation_outcomes', columns: ['user_id'] },
+    { tableName: 'xp_transactions', columns: ['user_id'] },
+    { tableName: 'user_xp', columns: ['user_id'] },
+    { tableName: 'user_missions', columns: ['user_id'] },
+    { tableName: 'user_challenges', columns: ['user_id'] },
+    { tableName: 'user_badges', columns: ['user_id'] },
+    { tableName: 'user_badge_progress', columns: ['user_id'] },
+    { tableName: 'user_achievements', columns: ['user_id'] },
+    { tableName: 'user_rewards', columns: ['user_id'] },
+    { tableName: 'blog_posts', columns: ['user_id'] },
+    { tableName: 'blog_post_likes', columns: ['user_id'] },
+    { tableName: 'blog_post_views', columns: ['user_id'] },
+    { tableName: 'blog_post_comments', columns: ['user_id'] },
+    { tableName: 'blog_post_reactions', columns: ['user_id'] },
+    { tableName: 'workout_day_summaries', columns: ['user_id'] },
+    { tableName: 'missed_program_days', columns: ['user_id'] },
+    { tableName: 'progress_photos', columns: ['user_id'] },
+    { tableName: 'body_measurements', columns: ['user_id'] },
+  ];
+
+  const ownedProgramIds = await loadIdsByMatchingUserColumns(
+    conn,
+    'programs',
+    'id',
+    userId,
+    ['target_user_id', 'created_by_user_id', 'user_id'],
+  );
+  const workoutIds = await loadIdsByForeignKeyValues(conn, 'workouts', 'id', 'program_id', ownedProgramIds);
+
+  await deleteRowsByIdList(conn, 'workout_exercises', 'workout_id', workoutIds);
+  await deleteRowsByIdList(conn, 'workouts', 'id', workoutIds);
+  await deleteRowsByIdList(conn, 'program_change_requests', 'approved_program_id', ownedProgramIds);
+  await deleteRowsByIdList(conn, 'program_change_log', 'old_program_id', ownedProgramIds);
+  await deleteRowsByIdList(conn, 'program_change_log', 'new_program_id', ownedProgramIds);
+  await deleteRowsByIdList(conn, 'program_assignments', 'program_id', ownedProgramIds);
+  await deleteRowsByIdList(conn, 'plan_adaptations', 'program_id', ownedProgramIds);
+  await deleteRowsByIdList(conn, 'plan_recommendation_outcomes', 'program_id', ownedProgramIds);
+  await deleteRowsByIdList(conn, 'programs', 'id', ownedProgramIds);
+
+  for (const target of directCleanupTargets) {
+    await deleteRowsByMatchingUserColumns(conn, target.tableName, userId, target.columns);
+  }
+
+  const [result] = await conn.execute(
+    "DELETE FROM users WHERE id = ? AND role = 'user' LIMIT 1",
+    [userId],
+  );
+
+  return Number(result?.affectedRows || 0);
+};
+
 const buildCoachLoginPayload = (user) => ({
   id: Number(user?.id || 0),
   name: String(user?.name || '').trim() || 'Coach',
@@ -5374,24 +5548,38 @@ router.get('/users/:userId/exists', requireAuth(), requireUserAccess('userId', {
 });
 
 router.delete('/users/:userId', requireAuth('coach', 'gym_owner'), requireUserAccess('userId', { allowAssignedCoach: true, allowGymOwner: true, allowSelf: false }), async (req, res) => {
+  let conn;
   try {
     const userId = Number(req.params.userId);
     if (!Number.isFinite(userId) || userId <= 0) {
       return res.status(400).json({ error: 'Invalid user id' });
     }
 
-    const [result] = await pool.execute(
-      "UPDATE users SET is_active = 0 WHERE id = ? AND role = 'user'",
-      [userId]
-    );
+    conn = await pool.getConnection();
+    await conn.beginTransaction();
 
-    if (!result || result.affectedRows === 0) {
+    const [rows] = await conn.execute(
+      "SELECT id FROM users WHERE id = ? AND role = 'user' LIMIT 1",
+      [userId],
+    );
+    if (!rows.length) {
+      await conn.rollback();
       return res.status(404).json({ error: 'User not found' });
     }
 
+    const deletedRows = await hardDeleteUserAccount(conn, userId);
+    if (!deletedRows) {
+      await conn.rollback();
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    await conn.commit();
     return res.json({ success: true });
   } catch (error) {
+    if (conn) await conn.rollback();
     return res.status(500).json({ error: error.message });
+  } finally {
+    if (conn) conn.release();
   }
 });
 
