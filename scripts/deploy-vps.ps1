@@ -6,6 +6,7 @@ param(
   [string]$StaticDir = "/var/www/repset",
   [string]$NginxSite = "repset",
   [string]$ClientUrl = "https://repset.org,https://www.repset.org,http://repset.org,http://www.repset.org",
+  [int]$NodeMaxOldSpaceSizeMb = 384,
   [switch]$SkipNpmCi
 )
 
@@ -25,6 +26,7 @@ STATIC_DIR="__STATIC_DIR__"
 NGINX_SITE="__NGINX_SITE__"
 CLIENT_URL_VALUE="__CLIENT_URL__"
 RUN_NPM_CI="__RUN_NPM_CI__"
+NODE_MAX_OLD_SPACE_SIZE_MB="__NODE_MAX_OLD_SPACE_SIZE_MB__"
 
 cd "$APP_DIR"
 
@@ -70,9 +72,17 @@ if [ -z "$(read_env_value OPENAI_BIWEEKLY_REPORT_MODEL)" ]; then
   upsert_env "OPENAI_BIWEEKLY_REPORT_MODEL" "gpt-4o"
 fi
 
+if [ -f .gitattributes ] && grep -q "filter=lfs" .gitattributes; then
+  if ! git lfs version >/dev/null 2>&1; then
+    echo "Git LFS is required on the VPS for this repo. Install git-lfs and run git lfs pull before deploying."
+    exit 1
+  fi
+  git lfs pull
+fi
+
 eval "$RUN_NPM_CI"
 npm run migrate:pending
-npm run build
+NODE_OPTIONS="--max-old-space-size=${NODE_MAX_OLD_SPACE_SIZE_MB}" npm run build
 
 mkdir -p "$STATIC_DIR"
 find "$STATIC_DIR" -mindepth 1 -maxdepth 1 -exec rm -rf {} +
@@ -289,6 +299,7 @@ $remoteScript = $remoteScript.
   Replace("__STATIC_DIR__", $StaticDir).
   Replace("__NGINX_SITE__", $NginxSite).
   Replace("__CLIENT_URL__", $ClientUrl).
+  Replace("__NODE_MAX_OLD_SPACE_SIZE_MB__", $NodeMaxOldSpaceSizeMb.ToString()).
   Replace("__RUN_NPM_CI__", $npmInstallLine)
 
 $tmpFile = Join-Path $env:TEMP "gorella_deploy_vps.sh"
