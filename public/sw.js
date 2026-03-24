@@ -1,4 +1,4 @@
-const CACHE_NAME = 'repset-shell-v2';
+const CACHE_NAME = 'repset-shell-v3';
 const APP_SHELL = ['/', '/index.html', '/manifest.webmanifest', '/logo-app.png', '/logo.png'];
 
 self.addEventListener('install', (event) => {
