@@ -5,12 +5,21 @@ type StoredAdminUser = Record<string, unknown> & {
 const ADMIN_USER_STORAGE_KEYS = ['adminUser'] as const;
 const ADMIN_USER_ID_STORAGE_KEYS = ['adminUserId'] as const;
 const ADMIN_TOKEN_STORAGE_KEYS = ['adminAuthToken'] as const;
+const ADMIN_QUOTA_RECOVERY_STORAGE_KEYS = ['coach'] as const;
+const MAX_STORED_STRING_LENGTH = 32 * 1024;
 
 const hasWindow = () => typeof window !== 'undefined' && typeof window.localStorage !== 'undefined';
 
 const toPositiveInteger = (value: unknown) => {
   const parsed = Number(value);
   return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
+};
+
+const isQuotaExceededError = (error: unknown) => {
+  if (typeof DOMException !== 'undefined' && error instanceof DOMException) {
+    return error.name === 'QuotaExceededError' || error.name === 'NS_ERROR_DOM_QUOTA_REACHED';
+  }
+  return false;
 };
 
 const parseStoredAdminUser = (raw: string | null): StoredAdminUser | null => {
@@ -24,15 +33,68 @@ const parseStoredAdminUser = (raw: string | null): StoredAdminUser | null => {
   }
 };
 
+const removeStorageKeys = (keys: readonly string[]) => {
+  if (!hasWindow()) return;
+  keys.forEach((key) => {
+    window.localStorage.removeItem(key);
+  });
+};
+
+const sanitizeStoredAdminUser = (user: StoredAdminUser, userId: number | null) => {
+  const normalizedUser = userId ? { ...user, id: userId } : { ...user };
+  const next: StoredAdminUser = {};
+
+  Object.entries(normalizedUser).forEach(([key, value]) => {
+    if (value == null) {
+      next[key] = value;
+      return;
+    }
+
+    const lookupKey = String(key).trim().toLowerCase();
+    if (lookupKey === 'password') return;
+
+    if (typeof value === 'string') {
+      const isProfileImageKey = lookupKey === 'profile_picture' || lookupKey === 'profile_photo';
+      if (isProfileImageKey && value.startsWith('data:')) return;
+      if (value.length > MAX_STORED_STRING_LENGTH) return;
+      next[key] = value;
+      return;
+    }
+
+    if (typeof value === 'number' || typeof value === 'boolean') {
+      next[key] = value;
+      return;
+    }
+
+    if (
+      Array.isArray(value)
+      && value.length <= 12
+      && value.every((item) => item == null || ['string', 'number', 'boolean'].includes(typeof item))
+    ) {
+      next[key] = value;
+    }
+  });
+
+  return next;
+};
+
 const syncStoredAdminUser = (user: StoredAdminUser, userId: number | null) => {
   if (!hasWindow()) return;
 
-  const normalizedUser = userId ? { ...user, id: userId } : { ...user };
-  const serializedUser = JSON.stringify(normalizedUser);
+  const sanitizedUser = sanitizeStoredAdminUser(user, userId);
 
-  ADMIN_USER_STORAGE_KEYS.forEach((key) => {
-    window.localStorage.setItem(key, serializedUser);
-  });
+  try {
+    ADMIN_USER_STORAGE_KEYS.forEach((key) => {
+      window.localStorage.setItem(key, JSON.stringify(sanitizedUser));
+    });
+  } catch (error) {
+    if (!isQuotaExceededError(error)) throw error;
+
+    removeStorageKeys(ADMIN_QUOTA_RECOVERY_STORAGE_KEYS);
+    ADMIN_USER_STORAGE_KEYS.forEach((key) => {
+      window.localStorage.setItem(key, JSON.stringify(sanitizedUser));
+    });
+  }
 
   if (userId) {
     ADMIN_USER_ID_STORAGE_KEYS.forEach((key) => {
@@ -41,9 +103,18 @@ const syncStoredAdminUser = (user: StoredAdminUser, userId: number | null) => {
     return;
   }
 
-  ADMIN_USER_ID_STORAGE_KEYS.forEach((key) => {
-    window.localStorage.removeItem(key);
-  });
+  removeStorageKeys(ADMIN_USER_ID_STORAGE_KEYS);
+};
+
+export const persistStoredAdminUser = (user: StoredAdminUser | null) => {
+  if (!hasWindow()) return;
+  if (!user || typeof user !== 'object') {
+    clearStoredAdminSession();
+    return;
+  }
+
+  const resolvedUserId = toPositiveInteger(user.id);
+  syncStoredAdminUser(user, resolvedUserId);
 };
 
 export const persistStoredAdminSession = ({
@@ -59,8 +130,7 @@ export const persistStoredAdminSession = ({
     return;
   }
 
-  const resolvedUserId = toPositiveInteger(user.id);
-  syncStoredAdminUser(user, resolvedUserId);
+  persistStoredAdminUser(user);
 
   const normalizedToken = String(token || '').trim();
   if (normalizedToken) {
@@ -68,9 +138,7 @@ export const persistStoredAdminSession = ({
       window.localStorage.setItem(key, normalizedToken);
     });
   } else {
-    ADMIN_TOKEN_STORAGE_KEYS.forEach((key) => {
-      window.localStorage.removeItem(key);
-    });
+    removeStorageKeys(ADMIN_TOKEN_STORAGE_KEYS);
   }
 };
 
@@ -99,7 +167,11 @@ export const getStoredAdminAuthToken = () => {
 export const clearStoredAdminSession = () => {
   if (!hasWindow()) return;
 
-  [...ADMIN_USER_STORAGE_KEYS, ...ADMIN_USER_ID_STORAGE_KEYS, ...ADMIN_TOKEN_STORAGE_KEYS, 'coach', 'coachId'].forEach((key) => {
-    window.localStorage.removeItem(key);
-  });
+  removeStorageKeys([
+    ...ADMIN_USER_STORAGE_KEYS,
+    ...ADMIN_USER_ID_STORAGE_KEYS,
+    ...ADMIN_TOKEN_STORAGE_KEYS,
+    'coach',
+    'coachId',
+  ]);
 };

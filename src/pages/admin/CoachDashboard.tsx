@@ -11,7 +11,7 @@ import { getWorkspacePage } from '../../config/workspacePages';
 import { api } from '../../services/api';
 import { socketService } from '../../services/socket';
 import { useScrollToTopOnChange } from '../../shared/scroll';
-import { clearStoredAdminSession } from '../../shared/adminAuthStorage';
+import { clearStoredAdminSession, persistStoredAdminUser } from '../../shared/adminAuthStorage';
 
 interface Client extends CoachPanelClient {
   lastMessage: string;
@@ -402,7 +402,7 @@ export const CoachDashboard: React.FC<CoachDashboardProps> = ({ onLogout }) => {
       setCoachProfilePicture(dataUrl);
 
       const adminUser = JSON.parse(localStorage.getItem('adminUser') || '{}');
-      localStorage.setItem('adminUser', JSON.stringify({ ...adminUser, profile_picture: dataUrl }));
+      persistStoredAdminUser({ ...adminUser, profile_picture: dataUrl });
     } catch (err: any) {
       const rawMessage = err?.message || 'Failed to save profile picture';
       const message = rawMessage.includes('413')
