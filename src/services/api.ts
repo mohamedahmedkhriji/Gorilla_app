@@ -12,6 +12,7 @@ const nativeFetch = globalThis.fetch.bind(globalThis);
 type ApiError = Error & {
   status?: number;
   data?: unknown;
+  code?: string;
 };
 
 type ApiAuthContext = 'auto' | 'user' | 'admin' | 'none';
@@ -60,6 +61,8 @@ const toNetworkApiError = (error: unknown) => {
   return createApiError(
     'Backend is offline. Please wait a moment or restart the backend server.',
     503,
+    undefined,
+    'backend_offline',
   );
 };
 
@@ -103,6 +106,8 @@ const fetchWithTimeout = async (
 };
 
 const isOnboardingGatewayTimeout = (error: unknown) => {
+  if ((error as ApiError)?.code === 'backend_offline') return false;
+
   const status = Number((error as ApiError)?.status || 0);
   if ([408, 502, 503, 504].includes(status)) return true;
 
@@ -115,10 +120,16 @@ const isOnboardingGatewayTimeout = (error: unknown) => {
   );
 };
 
-const createApiError = (message: string, status: number, data?: unknown): ApiError => {
+const createApiError = (
+  message: string,
+  status: number,
+  data?: unknown,
+  code?: string,
+): ApiError => {
   const error = new Error(message) as ApiError;
   error.status = status;
   error.data = data;
+  error.code = code;
   return error;
 };
 

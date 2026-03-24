@@ -611,6 +611,44 @@ const hardDeleteUserAccount = async (conn, userId) => {
   return Number(result?.affectedRows || 0);
 };
 
+const loadResettableUserIdsForActor = async (conn, authUser) => {
+  const authRole = String(authUser?.role || '').trim();
+
+  if (authRole === 'coach') {
+    const coachId = Number(authUser?.id || 0);
+    if (!coachId) return [];
+
+    const [rows] = await conn.execute(
+      `SELECT id
+       FROM users
+       WHERE role = 'user' AND coach_id = ?`,
+      [coachId],
+    );
+
+    return rows
+      .map((row) => Number(row.id || 0))
+      .filter((id) => Number.isFinite(id) && id > 0);
+  }
+
+  if (authRole === 'gym_owner') {
+    const gymId = Number(authUser?.gym_id || 0);
+    if (!gymId) return [];
+
+    const [rows] = await conn.execute(
+      `SELECT id
+       FROM users
+       WHERE role = 'user' AND gym_id = ?`,
+      [gymId],
+    );
+
+    return rows
+      .map((row) => Number(row.id || 0))
+      .filter((id) => Number.isFinite(id) && id > 0);
+  }
+
+  return [];
+};
+
 const buildCoachLoginPayload = (user) => ({
   id: Number(user?.id || 0),
   name: String(user?.name || '').trim() || 'Coach',
@@ -5571,6 +5609,52 @@ router.get('/users/:userId/exists', requireAuth(), requireUserAccess('userId', {
   }
 });
 
+router.post('/users/reset-test-users', authMutationRateLimit, requireAuth('coach', 'gym_owner'), async (req, res) => {
+  let conn;
+  try {
+    const confirmValue = req.body?.confirm;
+    const isConfirmed =
+      confirmValue === true
+      || String(confirmValue || '').trim().toUpperCase() === 'DELETE_TEST_USERS';
+
+    if (!isConfirmed) {
+      return res.status(400).json({
+        error: 'Confirmation required. Send { "confirm": "DELETE_TEST_USERS" } to continue.',
+      });
+    }
+
+    conn = await pool.getConnection();
+    await conn.beginTransaction();
+
+    const userIds = await loadResettableUserIdsForActor(conn, req.authUser);
+    if (!userIds.length) {
+      await conn.commit();
+      return res.json({
+        success: true,
+        deletedUsers: 0,
+      });
+    }
+
+    let deletedUsers = 0;
+    for (const userId of userIds) {
+      deletedUsers += await hardDeleteUserAccount(conn, userId);
+    }
+
+    await conn.commit();
+    return res.json({
+      success: true,
+      deletedUsers,
+      requestedUsers: userIds.length,
+      scope: String(req.authUser?.role || '').trim() || 'unknown',
+    });
+  } catch (error) {
+    if (conn) await conn.rollback();
+    return res.status(500).json({ error: error.message || 'Failed to reset test users' });
+  } finally {
+    if (conn) conn.release();
+  }
+});
+
 router.delete('/users/:userId', requireAuth('coach', 'gym_owner'), requireUserAccess('userId', { allowAssignedCoach: true, allowGymOwner: true, allowSelf: false }), async (req, res) => {
   let conn;
   try {
@@ -10512,6 +10596,12 @@ router.post('/user/:userId/recovery', async (req, res) => {
        VALUES (?, ?, ?, ?, ?)`,
       [userId, recoveryScore, sleepHours || 7, normalizedNutrition, normalizedStress],
     );
+
+    try {
+      await rebuildTodayRecoveryStatusFromSets(userId);
+    } catch (rebuildError) {
+      console.error('Recovery rebuild after factor update failed:', rebuildError);
+    }
 
     const gamification = await refreshGamificationForUser(userId);
     const progression = await runProgressionEventSafely({

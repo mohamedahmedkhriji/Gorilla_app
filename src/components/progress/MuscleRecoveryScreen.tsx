@@ -4,6 +4,7 @@ import { SlidersHorizontal, ChevronDown, X } from 'lucide-react';
 import { api } from '../../services/api';
 import { getBodyPartImage } from '../../services/bodyPartTheme';
 import { AppLanguage, getActiveLanguage, getStoredLanguage } from '../../services/language';
+
 interface MuscleRecoveryScreenProps {
   onBack: () => void;
 }
@@ -110,6 +111,9 @@ const RECOVERY_I18N = {
     full: 'Full Stack',
     loadError: 'Failed to load recovery status',
     updateError: 'Failed to update recovery factors',
+    updating: 'Updating...',
+    fullRecoveryIn: 'Full recovery in',
+    fullyRecovered: 'Fully recovered',
   },
   ar: {
     title: '\u062a\u0639\u0627\u0641\u064a \u0627\u0644\u0639\u0636\u0644\u0627\u062a',
@@ -141,6 +145,9 @@ const RECOVERY_I18N = {
     full: '\u0645\u062c\u0645\u0648\u0639\u0629 \u0643\u0627\u0645\u0644\u0629',
     loadError: '\u062a\u0639\u0630\u0631 \u062a\u062d\u0645\u064a\u0644 \u062d\u0627\u0644\u0629 \u0627\u0644\u062a\u0639\u0627\u0641\u064a',
     updateError: '\u062a\u0639\u0630\u0631 \u062a\u062d\u062f\u064a\u062b \u0639\u0648\u0627\u0645\u0644 \u0627\u0644\u062a\u0639\u0627\u0641\u064a',
+    updating: '\u062c\u0627\u0631\u064d \u0627\u0644\u062a\u062d\u062f\u064a\u062b...',
+    fullRecoveryIn: '\u0627\u0644\u062a\u0639\u0627\u0641\u064a \u0627\u0644\u0643\u0627\u0645\u0644 \u062e\u0644\u0627\u0644',
+    fullyRecovered: '\u062a\u0645 \u0627\u0644\u062a\u0639\u0627\u0641\u064a \u0643\u0627\u0645\u0644\u064b\u0627',
   },
   it: {
     title: 'Recupero Muscolare',
@@ -172,6 +179,9 @@ const RECOVERY_I18N = {
     full: 'Stack completo',
     loadError: 'Impossibile caricare lo stato di recupero',
     updateError: 'Impossibile aggiornare i fattori di recupero',
+    updating: 'Aggiornamento...',
+    fullRecoveryIn: 'Recupero completo tra',
+    fullyRecovered: 'Recupero completo',
   },
   de: {
     title: 'Muskelerholung',
@@ -203,8 +213,21 @@ const RECOVERY_I18N = {
     full: 'Kompletter Stack',
     loadError: 'Erholungsstatus konnte nicht geladen werden',
     updateError: 'Erholungsfaktoren konnten nicht aktualisiert werden',
+    updating: 'Wird aktualisiert...',
+    fullRecoveryIn: 'Vollstaendige Erholung in',
+    fullyRecovered: 'Vollstaendig erholt',
   },
 } as const;
+
+type RecoveryFactorsState = {
+  sleepHours: string;
+  proteinIntake: string;
+  supplements: string;
+  soreness: number;
+  energy: number;
+  nutrition_quality?: string;
+  stress_level?: string;
+};
 
 const mergeRecoveryWithDefaults = (incoming: MuscleRecoveryItem[] = []): MuscleRecoveryItem[] => {
   const safeNumber = (value: unknown, fallback = 0) => {
@@ -277,8 +300,17 @@ export function MuscleRecoveryScreen({ onBack }: MuscleRecoveryScreenProps) {
   const copy = RECOVERY_I18N[language] || RECOVERY_I18N.en;
   const [muscleRecoveries, setMuscleRecoveries] = useState<MuscleRecoveryItem[]>(DEFAULT_MUSCLES);
   const [showFactors, setShowFactors] = useState(false);
-  const [factors, setFactors] = useState({ sleepHours: '7', proteinIntake: 'medium', supplements: 'none', soreness: 3, energy: 3 });
+  const [factors, setFactors] = useState<RecoveryFactorsState>({
+    sleepHours: '7',
+    proteinIntake: 'medium',
+    supplements: 'none',
+    soreness: 3,
+    energy: 3,
+    nutrition_quality: 'optimal',
+    stress_level: 'low',
+  });
   const [error, setError] = useState('');
+  const [isUpdatingFactors, setIsUpdatingFactors] = useState(false);
 
   useEffect(() => {
     const handleLanguageChanged = () => {
@@ -338,14 +370,30 @@ export function MuscleRecoveryScreen({ onBack }: MuscleRecoveryScreenProps) {
   }, []);
 
   const handleUpdateFactors = async () => {
+    const user = JSON.parse(localStorage.getItem('appUser') || localStorage.getItem('user') || '{}');
+    if (!user.id) {
+      setError(copy.updateError);
+      return;
+    }
+
+    setIsUpdatingFactors(true);
     try {
-      const user = JSON.parse(localStorage.getItem('appUser') || localStorage.getItem('user') || '{}');
-      await api.updateRecoveryFactors(user.id, factors);
+      await api.updateRecoveryFactors(user.id, {
+        sleepHours: factors.sleepHours,
+        proteinIntake: factors.proteinIntake,
+        supplements: factors.supplements,
+        nutritionQuality: factors.nutrition_quality,
+        stressLevel: factors.stress_level,
+      });
+      await api.recalculateTodayRecovery(user.id);
       await loadRecovery();
+      setError('');
       setShowFactors(false);
     } catch (updateError) {
       console.error('Failed to update recovery factors:', updateError);
       setError(updateError instanceof Error ? updateError.message : copy.updateError);
+    } finally {
+      setIsUpdatingFactors(false);
     }
   };
 
@@ -365,8 +413,22 @@ export function MuscleRecoveryScreen({ onBack }: MuscleRecoveryScreenProps) {
     return 'text-red-500 bg-red-500/10';
   };
 
-  const formatSetUnits = (value: number | undefined) => Number(value || 0).toFixed(1);
-  const formatVolume = (value: number | undefined) => Math.round(Number(value || 0));
+  const formatRecoveryTime = (hoursRemaining: number | undefined) => {
+    const safeHours = Math.max(0, Number(hoursRemaining || 0));
+    if (safeHours <= 0.01) return copy.fullyRecovered;
+
+    const roundedHours = Math.ceil(safeHours);
+    const days = Math.floor(roundedHours / 24);
+    const hours = roundedHours % 24;
+
+    if (days > 0 && hours > 0) {
+      return `${copy.fullRecoveryIn} ${days}d ${hours}${copy.hourAbbr}`;
+    }
+    if (days > 0) {
+      return `${copy.fullRecoveryIn} ${days}d`;
+    }
+    return `${copy.fullRecoveryIn} ${hours}${copy.hourAbbr}`;
+  };
 
   const getMuscleImage = (muscleGroup: string) => getBodyPartImage(muscleGroup);
   const toLocalizedMuscle = (value: string) => {
@@ -458,8 +520,9 @@ export function MuscleRecoveryScreen({ onBack }: MuscleRecoveryScreenProps) {
                 </button>
                 <button 
                   onClick={handleUpdateFactors} 
-                  className="flex-1 bg-accent text-black font-bold py-3 rounded-xl hover:bg-accent/90 transition-colors">
-                  {copy.update}
+                  disabled={isUpdatingFactors}
+                  className="flex-1 bg-accent text-black font-bold py-3 rounded-xl hover:bg-accent/90 transition-colors disabled:cursor-not-allowed disabled:opacity-60">
+                  {isUpdatingFactors ? copy.updating : copy.update}
                 </button>
               </div>
             </div>
@@ -498,14 +561,8 @@ export function MuscleRecoveryScreen({ onBack }: MuscleRecoveryScreenProps) {
                       <p className="text-xs text-text-tertiary mt-0.5">
                         {copy.lastTrained} {getLastTrained(m.lastWorkout)}
                       </p>
-                      <p className="text-[11px] text-text-secondary mt-1 font-electrolize">
-                        {copy.todayLabel}: {formatSetUnits(m.completedTodaySetUnits)} / {formatSetUnits(m.plannedTodaySetUnits)} {copy.setsLabel}
-                      </p>
-                      <p className="text-[11px] text-text-secondary font-electrolize">
-                        {copy.weekLabel}: {formatSetUnits(m.completedWeekSetUnits)} / {formatSetUnits(m.plannedWeekSetUnits)} {copy.setsLabel}
-                      </p>
                       <p className="text-[11px] text-text-tertiary font-electrolize">
-                        {copy.remaining}: {Math.max(0, Math.round(Number(m.hoursRemaining || 0)))}{copy.hourAbbr} | {copy.volume}: {formatVolume(m.completedWeekVolume)}
+                        {formatRecoveryTime(m.hoursRemaining)}
                       </p>
                     </div>
                   </div>
@@ -541,14 +598,8 @@ export function MuscleRecoveryScreen({ onBack }: MuscleRecoveryScreenProps) {
                       <p className="text-xs text-text-tertiary mt-0.5">
                         {copy.lastTrained} {getLastTrained(m.lastWorkout)}
                       </p>
-                      <p className="text-[11px] text-text-secondary mt-1 font-electrolize">
-                        {copy.todayLabel}: {formatSetUnits(m.completedTodaySetUnits)} / {formatSetUnits(m.plannedTodaySetUnits)} {copy.setsLabel}
-                      </p>
-                      <p className="text-[11px] text-text-secondary font-electrolize">
-                        {copy.weekLabel}: {formatSetUnits(m.completedWeekSetUnits)} / {formatSetUnits(m.plannedWeekSetUnits)} {copy.setsLabel}
-                      </p>
                       <p className="text-[11px] text-text-tertiary font-electrolize">
-                        {copy.remaining}: {Math.max(0, Math.round(Number(m.hoursRemaining || 0)))}{copy.hourAbbr} | {copy.volume}: {formatVolume(m.completedWeekVolume)}
+                        {formatRecoveryTime(m.hoursRemaining)}
                       </p>
                     </div>
                   </div>
@@ -582,14 +633,8 @@ export function MuscleRecoveryScreen({ onBack }: MuscleRecoveryScreenProps) {
                     </div>
                     <div>
                       <h4 className="font-semibold text-white">{toLocalizedMuscle(m.name)}</h4>
-                      <p className="text-[11px] text-text-secondary mt-1 font-electrolize">
-                        {copy.todayLabel}: {formatSetUnits(m.completedTodaySetUnits)} / {formatSetUnits(m.plannedTodaySetUnits)} {copy.setsLabel}
-                      </p>
-                      <p className="text-[11px] text-text-secondary font-electrolize">
-                        {copy.weekLabel}: {formatSetUnits(m.completedWeekSetUnits)} / {formatSetUnits(m.plannedWeekSetUnits)} {copy.setsLabel}
-                      </p>
                       <p className="text-[11px] text-text-tertiary font-electrolize">
-                        {copy.remaining}: {Math.max(0, Math.round(Number(m.hoursRemaining || 0)))}{copy.hourAbbr} | {copy.volume}: {formatVolume(m.completedWeekVolume)}
+                        {formatRecoveryTime(m.hoursRemaining)}
                       </p>
                     </div>
                   </div>

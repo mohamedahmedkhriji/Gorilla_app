@@ -67,6 +67,7 @@ export function AIAnalysisScreen({ onComplete, onboardingData, userId }: AIAnaly
   const [progress, setProgress] = useState(0);
   const [completedSteps, setCompletedSteps] = useState<boolean[]>(() => checkpoints.map(() => false));
   const completedRef = useRef(false);
+  const saveStartedRef = useRef(false);
 
   const checkpointThresholds = useMemo(() => {
     const count = checkpoints.length;
@@ -74,6 +75,9 @@ export function AIAnalysisScreen({ onComplete, onboardingData, userId }: AIAnaly
   }, [checkpoints]);
 
   useEffect(() => {
+    if (saveStartedRef.current) return;
+    saveStartedRef.current = true;
+
     let cancelled = false;
 
     const saveOnboarding = async () => {
