@@ -6,7 +6,7 @@ param(
   [string]$StaticDir = "/var/www/repset",
   [string]$NginxSite = "repset",
   [string]$ClientUrl = "https://repset.org,https://www.repset.org,http://repset.org,http://www.repset.org",
-  [int]$NodeMaxOldSpaceSizeMb = 384,
+  [int]$NodeMaxOldSpaceSizeMb = 1536,
   [switch]$SkipNpmCi
 )
 
