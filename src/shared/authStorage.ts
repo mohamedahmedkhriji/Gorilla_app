@@ -188,8 +188,8 @@ const buildMinimalStoredUser = (user: StoredUser, userId: number | null): Stored
 
 const writeStoredUserPayload = (user: StoredUser) => {
   if (!hasWindow()) return;
-  window.localStorage.setItem(PRIMARY_USER_STORAGE_KEY, JSON.stringify(user));
   removeStorageKeys(LEGACY_USER_STORAGE_KEYS);
+  window.localStorage.setItem(PRIMARY_USER_STORAGE_KEY, JSON.stringify(user));
 };
 
 const syncStoredUser = (user: StoredUser, userId: number | null) => {
@@ -208,8 +208,8 @@ const syncStoredUser = (user: StoredUser, userId: number | null) => {
   }
 
   if (userId) {
-    window.localStorage.setItem(PRIMARY_USER_ID_STORAGE_KEY, String(userId));
     removeStorageKeys(LEGACY_USER_ID_STORAGE_KEYS);
+    window.localStorage.setItem(PRIMARY_USER_ID_STORAGE_KEY, String(userId));
     return;
   }
 
@@ -232,8 +232,8 @@ const syncStoredToken = (token: string | null) => {
   if (!hasWindow()) return;
 
   if (token) {
-    window.localStorage.setItem(PRIMARY_USER_TOKEN_STORAGE_KEY, token);
     removeStorageKeys(LEGACY_USER_TOKEN_STORAGE_KEYS);
+    window.localStorage.setItem(PRIMARY_USER_TOKEN_STORAGE_KEY, token);
     return;
   }
 
