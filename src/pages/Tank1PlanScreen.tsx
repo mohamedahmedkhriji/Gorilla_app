@@ -50,6 +50,192 @@ const TANK1_DAY_NAME_BY_LABEL: Record<string, string> = {
 
 const HEAVY_EXERCISE_PATTERN = /(squat|deadlift|barbell row|bench press|shoulder press|pull-up|pull up|close grip bench|chest supported row|t-bar row)/i;
 
+const PLAN_TEXT_TRANSLATIONS: Partial<Record<AppLanguage, Record<string, string>>> = {
+  ar: {
+    'Month 1 Plan': 'خطة الشهر الأول',
+    'Month 2 Plan': 'خطة الشهر الثاني',
+    'Block A (4-6 Weeks)': 'البلوك A (4-6 أسابيع)',
+    'Block B (4-6 Weeks)': 'البلوك B (4-6 أسابيع)',
+    Goal: 'الهدف',
+    'Intensity Techniques': 'تقنيات الشدة',
+    Split: 'التقسيمة',
+    Tempo: 'التمبو',
+    Rest: 'الراحة',
+    'Month 1 Progression': 'تدرج الشهر الأول',
+    'Month 2 Progression': 'تدرج الشهر الثاني',
+    'RepSet comment:': 'ملاحظة RepSet:',
+    'Technique:': 'التكنيك:',
+    'Exact pairing:': 'الاقتران الدقيق:',
+    'Day 1': 'اليوم 1',
+    'Day 2': 'اليوم 2',
+    'Day 4': 'اليوم 4',
+    'Day 5': 'اليوم 5',
+    'Day 6': 'اليوم 6',
+    'Chest + Triceps': 'الصدر + الترايسبس',
+    'Back + Biceps': 'الظهر + البايسبس',
+    Legs: 'الأرجل',
+    'Shoulders + Arms': 'الأكتاف + الذراعين',
+    'V-Shape Specialization': 'تخصص شكل V',
+    'Destroy mode.': 'وضع التدمير.',
+    'High pump plus stretch hypertrophy.': 'ضخ عالي مع تضخم بالتمدد.',
+    'Neural learning': 'تعلم عصبي',
+    'Stretch hypertrophy': 'تضخم بالتمدد',
+    'Base volume accumulation': 'بناء حجم أساسي',
+    'Technique mastery': 'إتقان التكنيك',
+    'New stimulus': 'تحفيز جديد',
+    'More stretch hypertrophy': 'تضخم أكبر بالتمدد',
+    'More machine precision': 'دقة أكبر على الأجهزة',
+    'Higher metabolic stress': 'إجهاد أيضي أعلى',
+    'Joint-friendly volume': 'حجم تدريب مناسب للمفاصل',
+    'Density training': 'تدريب كثافة',
+    'Week 1: None, learn control.': 'الأسبوع 1: بدون تقنيات شدة، فقط تعلّم التحكم.',
+    'Week 2: Introduce dropsets, supersets, and rest-pause work.': 'الأسبوع 2: إدخال الدروب سيت، السوبر سيت، والريست-بوز.',
+    'Week 3: Light techniques.': 'الأسبوع 3: تقنيات خفيفة.',
+    'Week 4: Aggressive techniques and intensity shock.': 'الأسبوع 4: تقنيات قوية وصدمة شدة.',
+    '3 second eccentric on the default working tempo.': '3 ثوانٍ في النزول كتمبو افتراضي.',
+    '3 second eccentric remains mandatory.': '3 ثوانٍ في النزول تظل إلزامية.',
+    'Hypertrophy work: 75 seconds': 'تمارين التضخم: 75 ثانية',
+    'Heavy work: 2 to 3 minutes': 'التمارين الثقيلة: من 2 إلى 3 دقائق',
+    'Hypertrophy work: 60 to 75 seconds': 'تمارين التضخم: من 60 إلى 75 ثانية',
+    'Heavy work: 2 minutes': 'التمارين الثقيلة: دقيقتان',
+    'Day 1 chest + triceps, Day 2 back + biceps, Day 3 recovery, Day 4 legs, Day 5 shoulders + arms, Day 6 weak point.': 'اليوم 1 صدر + ترايسبس، اليوم 2 ظهر + بايسبس، اليوم 3 استشفاء، اليوم 4 أرجل، اليوم 5 أكتاف + ذراعين، اليوم 6 نقطة ضعف.',
+    'Week 1: Learn movement, perfect tempo, and build mind-muscle connection.': 'الأسبوع 1: تعلم الحركة، أتقن التمبو، وابنِ اتصال العقل بالعضلة.',
+    'Week 2: Add intensity techniques, push closer to failure, and make a slight load increase.': 'الأسبوع 2: أضف تقنيات الشدة، اقترب أكثر من الفشل، وارفع الحمل قليلًا.',
+    'Week 3: Adaptation, technique precision, and volume accumulation.': 'الأسبوع 3: تكيّف، دقة في التكنيك، وتراكم في الحجم التدريبي.',
+    'Week 4: Intensity shock, high metabolic stress, and expanded fiber recruitment.': 'الأسبوع 4: صدمة شدة، إجهاد أيضي مرتفع، وتجنيد أكبر للألياف.',
+    'Focus muscles: Lats (width priority), side delts (width illusion), upper chest (frame balance), serratus and core tightening, rear delts (3D width).': 'العضلات المستهدفة: اللاتس لتوسيع الظهر، الأكتاف الجانبية لإحساس العرض، أعلى الصدر لتوازن الإطار، السيرatus وشد الكور، والأكتاف الخلفية لعرض ثلاثي الأبعاد.',
+    'Rest: 45 to 60 seconds.': 'الراحة: من 45 إلى 60 ثانية.',
+    'Tempo: 3 second eccentric.': 'التمبو: 3 ثوانٍ في النزول.',
+    Lats: 'اللاتس',
+    'Side Delts': 'الأكتاف الجانبية',
+    'Upper Chest': 'أعلى الصدر',
+    Core: 'الكور',
+    'Rear Delts': 'الأكتاف الخلفية',
+  },
+  it: {
+    'Month 1 Plan': 'Piano Mese 1',
+    'Month 2 Plan': 'Piano Mese 2',
+    'Block A (4-6 Weeks)': 'Blocco A (4-6 Settimane)',
+    'Block B (4-6 Weeks)': 'Blocco B (4-6 Settimane)',
+    Goal: 'Obiettivo',
+    'Intensity Techniques': 'Tecniche di intensita',
+    Split: 'Split',
+    Tempo: 'Tempo',
+    Rest: 'Recupero',
+    'Month 1 Progression': 'Progressione Mese 1',
+    'Month 2 Progression': 'Progressione Mese 2',
+    'RepSet comment:': 'Commento RepSet:',
+    'Technique:': 'Tecnica:',
+    'Exact pairing:': 'Abbinamento esatto:',
+    'Day 1': 'Giorno 1',
+    'Day 2': 'Giorno 2',
+    'Day 4': 'Giorno 4',
+    'Day 5': 'Giorno 5',
+    'Day 6': 'Giorno 6',
+    'Chest + Triceps': 'Petto + Tricipiti',
+    'Back + Biceps': 'Schiena + Bicipiti',
+    Legs: 'Gambe',
+    'Shoulders + Arms': 'Spalle + Braccia',
+    'V-Shape Specialization': 'Specializzazione V-Shape',
+    'Destroy mode.': 'Modalita distruzione.',
+    'High pump plus stretch hypertrophy.': 'Alto pump piu ipertrofia in allungamento.',
+    'Neural learning': 'Apprendimento neurale',
+    'Stretch hypertrophy': 'Ipertrofia in allungamento',
+    'Base volume accumulation': 'Accumulo del volume di base',
+    'Technique mastery': 'Padronanza della tecnica',
+    'New stimulus': 'Nuovo stimolo',
+    'More stretch hypertrophy': 'Piu ipertrofia in allungamento',
+    'More machine precision': 'Piu precisione con le macchine',
+    'Higher metabolic stress': 'Maggiore stress metabolico',
+    'Joint-friendly volume': 'Volume piu adatto alle articolazioni',
+    'Density training': 'Allenamento di densita',
+    'Week 1: None, learn control.': 'Settimana 1: nessuna tecnica, impara il controllo.',
+    'Week 2: Introduce dropsets, supersets, and rest-pause work.': 'Settimana 2: introduci dropset, superset e rest-pause.',
+    'Week 3: Light techniques.': 'Settimana 3: tecniche leggere.',
+    'Week 4: Aggressive techniques and intensity shock.': 'Settimana 4: tecniche aggressive e shock di intensita.',
+    '3 second eccentric on the default working tempo.': '3 secondi di eccentrica come tempo di lavoro standard.',
+    '3 second eccentric remains mandatory.': '3 secondi di eccentrica restano obbligatori.',
+    'Hypertrophy work: 75 seconds': 'Lavoro ipertrofia: 75 secondi',
+    'Heavy work: 2 to 3 minutes': 'Lavoro pesante: da 2 a 3 minuti',
+    'Hypertrophy work: 60 to 75 seconds': 'Lavoro ipertrofia: da 60 a 75 secondi',
+    'Heavy work: 2 minutes': 'Lavoro pesante: 2 minuti',
+    'Day 1 chest + triceps, Day 2 back + biceps, Day 3 recovery, Day 4 legs, Day 5 shoulders + arms, Day 6 weak point.': 'Giorno 1 petto + tricipiti, Giorno 2 schiena + bicipiti, Giorno 3 recupero, Giorno 4 gambe, Giorno 5 spalle + braccia, Giorno 6 punto debole.',
+    'Week 1: Learn movement, perfect tempo, and build mind-muscle connection.': 'Settimana 1: impara il movimento, perfeziona il tempo e costruisci la connessione mente-muscolo.',
+    'Week 2: Add intensity techniques, push closer to failure, and make a slight load increase.': 'Settimana 2: aggiungi tecniche di intensita, spingiti piu vicino al cedimento e aumenta leggermente il carico.',
+    'Week 3: Adaptation, technique precision, and volume accumulation.': 'Settimana 3: adattamento, precisione tecnica e accumulo di volume.',
+    'Week 4: Intensity shock, high metabolic stress, and expanded fiber recruitment.': 'Settimana 4: shock di intensita, alto stress metabolico e maggiore reclutamento delle fibre.',
+    'Focus muscles: Lats (width priority), side delts (width illusion), upper chest (frame balance), serratus and core tightening, rear delts (3D width).': 'Muscoli focus: dorsali (priorita larghezza), deltoidi laterali (illusione di larghezza), parte alta del petto (equilibrio della struttura), serrato e core piu stretti, deltoidi posteriori (larghezza 3D).',
+    'Rest: 45 to 60 seconds.': 'Recupero: da 45 a 60 secondi.',
+    'Tempo: 3 second eccentric.': 'Tempo: 3 secondi di eccentrica.',
+    Lats: 'Gran dorsali',
+    'Side Delts': 'Deltoidi laterali',
+    'Upper Chest': 'Parte alta del petto',
+    Core: 'Core',
+    'Rear Delts': 'Deltoidi posteriori',
+  },
+  de: {
+    'Month 1 Plan': 'Monat-1-Plan',
+    'Month 2 Plan': 'Monat-2-Plan',
+    'Block A (4-6 Weeks)': 'Block A (4-6 Wochen)',
+    'Block B (4-6 Weeks)': 'Block B (4-6 Wochen)',
+    Goal: 'Ziel',
+    'Intensity Techniques': 'Intensitaetstechniken',
+    Split: 'Split',
+    Tempo: 'Tempo',
+    Rest: 'Pause',
+    'Month 1 Progression': 'Monat-1-Fortschritt',
+    'Month 2 Progression': 'Monat-2-Fortschritt',
+    'RepSet comment:': 'RepSet-Kommentar:',
+    'Technique:': 'Technik:',
+    'Exact pairing:': 'Exakte Kombination:',
+    'Day 1': 'Tag 1',
+    'Day 2': 'Tag 2',
+    'Day 4': 'Tag 4',
+    'Day 5': 'Tag 5',
+    'Day 6': 'Tag 6',
+    'Chest + Triceps': 'Brust + Trizeps',
+    'Back + Biceps': 'Ruecken + Bizeps',
+    Legs: 'Beine',
+    'Shoulders + Arms': 'Schultern + Arme',
+    'V-Shape Specialization': 'V-Shape-Spezialisierung',
+    'Destroy mode.': 'Zerstoerungsmodus.',
+    'High pump plus stretch hypertrophy.': 'Hoher Pump plus Stretch-Hypertrophie.',
+    'Neural learning': 'Neuronales Lernen',
+    'Stretch hypertrophy': 'Stretch-Hypertrophie',
+    'Base volume accumulation': 'Grundlegender Volumenaufbau',
+    'Technique mastery': 'Technikbeherrschung',
+    'New stimulus': 'Neuer Reiz',
+    'More stretch hypertrophy': 'Mehr Stretch-Hypertrophie',
+    'More machine precision': 'Mehr Praezision an Maschinen',
+    'Higher metabolic stress': 'Hoeherer metabolischer Stress',
+    'Joint-friendly volume': 'Gelenkschonendes Volumen',
+    'Density training': 'Dichtetraining',
+    'Week 1: None, learn control.': 'Woche 1: keine Intensitaetstechniken, lerne Kontrolle.',
+    'Week 2: Introduce dropsets, supersets, and rest-pause work.': 'Woche 2: Fuehre Dropsets, Supersaetze und Rest-Pause ein.',
+    'Week 3: Light techniques.': 'Woche 3: leichte Techniken.',
+    'Week 4: Aggressive techniques and intensity shock.': 'Woche 4: aggressive Techniken und Intensitaetsschock.',
+    '3 second eccentric on the default working tempo.': '3 Sekunden exzentrisch als Standard-Arbeitstempo.',
+    '3 second eccentric remains mandatory.': '3 Sekunden exzentrisch bleiben Pflicht.',
+    'Hypertrophy work: 75 seconds': 'Hypertrophiearbeit: 75 Sekunden',
+    'Heavy work: 2 to 3 minutes': 'Schwere Arbeit: 2 bis 3 Minuten',
+    'Hypertrophy work: 60 to 75 seconds': 'Hypertrophiearbeit: 60 bis 75 Sekunden',
+    'Heavy work: 2 minutes': 'Schwere Arbeit: 2 Minuten',
+    'Day 1 chest + triceps, Day 2 back + biceps, Day 3 recovery, Day 4 legs, Day 5 shoulders + arms, Day 6 weak point.': 'Tag 1 Brust + Trizeps, Tag 2 Ruecken + Bizeps, Tag 3 Erholung, Tag 4 Beine, Tag 5 Schultern + Arme, Tag 6 Schwachstelle.',
+    'Week 1: Learn movement, perfect tempo, and build mind-muscle connection.': 'Woche 1: Lerne die Bewegung, perfektioniere das Tempo und baue die Mind-Muscle-Connection auf.',
+    'Week 2: Add intensity techniques, push closer to failure, and make a slight load increase.': 'Woche 2: Fuege Intensitaetstechniken hinzu, gehe naeher ans Muskelversagen und erhoehe das Gewicht leicht.',
+    'Week 3: Adaptation, technique precision, and volume accumulation.': 'Woche 3: Anpassung, Technikpraezision und Volumenaufbau.',
+    'Week 4: Intensity shock, high metabolic stress, and expanded fiber recruitment.': 'Woche 4: Intensitaetsschock, hoher metabolischer Stress und erweiterte Fasereinbindung.',
+    'Focus muscles: Lats (width priority), side delts (width illusion), upper chest (frame balance), serratus and core tightening, rear delts (3D width).': 'Fokusmuskeln: Lats (Breite zuerst), seitliche Delts (Breitenillusion), obere Brust (Rahmenbalance), Serratus und Core-Straffung, hintere Delts (3D-Breite).',
+    'Rest: 45 to 60 seconds.': 'Pause: 45 bis 60 Sekunden.',
+    'Tempo: 3 second eccentric.': 'Tempo: 3 Sekunden exzentrisch.',
+    Lats: 'Lats',
+    'Side Delts': 'Seitliche Delts',
+    'Upper Chest': 'Obere Brust',
+    Core: 'Core',
+    'Rear Delts': 'Hintere Delts',
+  },
+};
+
 const TANK1_PLAN_I18N: Record<AppLanguage, {
   title: string;
   badge: string;
@@ -99,36 +285,55 @@ const TANK1_PLAN_I18N: Record<AppLanguage, {
     success: 'تم حفظ Tank-1 كخطتك النشطة داخل صفحة خطتي.',
   },
   it: {
-    title: 'Tank-1 Plan',
-    badge: 'RepSet Template',
-    summary: 'Bodybuilding periodization template with RepSet comments, technique instructions, exact pairings, Month 1 progression, and Month 2 progression using the same split.',
-    usePlan: 'Use As My Plan',
-    usingPlan: 'Saving...',
-    activePlan: 'Active In My Plan',
-    modalTitle: 'Choose Tank-1 as your personal plan?',
-    modalBody: 'This will save Tank-1 as your active plan on the My Plan page.',
-    modalHint: 'You can still edit this plan later if you want to personalize it more.',
-    confirm: 'Yes, Use Tank-1',
-    cancel: 'Cancel',
-    noSession: 'No active user session found.',
-    saveFailed: 'Failed to save Tank-1 as your plan.',
-    success: 'Tank-1 is now saved as your active plan in My Plan.',
+    title: 'Piano Tank-1',
+    badge: 'Template RepSet',
+    summary: 'Template di periodizzazione bodybuilding con commenti RepSet, istruzioni tecniche, abbinamenti esatti, progressione del mese 1 e del mese 2 con la stessa split.',
+    usePlan: 'Usalo Come Mio Piano',
+    usingPlan: 'Salvataggio...',
+    activePlan: 'Attivo In My Plan',
+    modalTitle: 'Vuoi scegliere Tank-1 come piano personale?',
+    modalBody: 'Questo salvera Tank-1 come piano attivo nella pagina My Plan.',
+    modalHint: 'Potrai comunque modificare questo piano piu avanti se vorrai personalizzarlo meglio.',
+    confirm: 'Si, usa Tank-1',
+    cancel: 'Annulla',
+    noSession: 'Nessuna sessione utente attiva trovata.',
+    saveFailed: 'Impossibile salvare Tank-1 come tuo piano.',
+    success: 'Tank-1 ora e salvato come piano attivo in My Plan.',
   },
   de: {
-    title: 'Tank-1 Plan',
-    badge: 'RepSet Template',
-    summary: 'Bodybuilding periodization template with RepSet comments, technique instructions, exact pairings, Month 1 progression, and Month 2 progression using the same split.',
-    usePlan: 'Use As My Plan',
-    usingPlan: 'Saving...',
-    activePlan: 'Active In My Plan',
-    modalTitle: 'Choose Tank-1 as your personal plan?',
-    modalBody: 'This will save Tank-1 as your active plan on the My Plan page.',
-    modalHint: 'You can still edit this plan later if you want to personalize it more.',
-    confirm: 'Yes, Use Tank-1',
-    cancel: 'Cancel',
-    noSession: 'No active user session found.',
-    saveFailed: 'Failed to save Tank-1 as your plan.',
-    success: 'Tank-1 is now saved as your active plan in My Plan.',
+    title: 'Tank-1-Plan',
+    badge: 'RepSet-Vorlage',
+    summary: 'Bodybuilding-Periodisierungsvorlage mit RepSet-Kommentaren, Technikhinweisen, exakten Kombinationen sowie Monat-1- und Monat-2-Fortschritt bei gleicher Split-Struktur.',
+    usePlan: 'Als Meinen Plan Nutzen',
+    usingPlan: 'Speichern...',
+    activePlan: 'In My Plan Aktiv',
+    modalTitle: 'Moechtest du Tank-1 als deinen persoenlichen Plan waehlen?',
+    modalBody: 'Dadurch wird Tank-1 als aktiver Plan auf der Seite My Plan gespeichert.',
+    modalHint: 'Du kannst diesen Plan spaeter immer noch bearbeiten und weiter personalisieren.',
+    confirm: 'Ja, Tank-1 nutzen',
+    cancel: 'Abbrechen',
+    noSession: 'Keine aktive Benutzersitzung gefunden.',
+    saveFailed: 'Tank-1 konnte nicht als dein Plan gespeichert werden.',
+    success: 'Tank-1 ist jetzt als aktiver Plan in My Plan gespeichert.',
+  },
+};
+
+const TANK1_PAYLOAD_I18N: Record<AppLanguage, { planName: string; description: string }> = {
+  en: {
+    planName: 'Tank-1 Personal Plan',
+    description: 'Tank-1 template applied as an active personal plan.',
+  },
+  ar: {
+    planName: 'خطة Tank-1 الشخصية',
+    description: 'تم تطبيق قالب Tank-1 كخطة شخصية نشطة.',
+  },
+  it: {
+    planName: 'Piano Personale Tank-1',
+    description: 'Template Tank-1 applicato come piano personale attivo.',
+  },
+  de: {
+    planName: 'Tank-1 Persoenlicher Plan',
+    description: 'Tank-1-Vorlage als aktiver persoenlicher Plan angewendet.',
   },
 };
 
@@ -167,6 +372,10 @@ const parsePrescription = (exercise: Tank1Exercise) => {
   };
 };
 
+const localizePlanText = (value: string, language: AppLanguage) => (
+  PLAN_TEXT_TRANSLATIONS[language]?.[value] || value
+);
+
 const inferRestSeconds = (month: Tank1Month, day: Tank1Day, exercise: Tank1Exercise) => {
   if (day.dayLabel === 'Day 6') return 60;
   if (HEAVY_EXERCISE_PATTERN.test(exercise.name)) {
@@ -176,6 +385,7 @@ const inferRestSeconds = (month: Tank1Month, day: Tank1Day, exercise: Tank1Exerc
 };
 
 const buildTank1PlanPayload = (language: AppLanguage) => {
+  const payloadCopy = TANK1_PAYLOAD_I18N[language] || TANK1_PAYLOAD_I18N.en;
   const weekPlans = monthPlans.map((month) => ({
     weeklyWorkouts: month.days.map((day) => ({
       dayName: TANK1_DAY_NAME_BY_LABEL[day.dayLabel] || 'monday',
@@ -204,10 +414,8 @@ const buildTank1PlanPayload = (language: AppLanguage) => {
   }));
 
   return {
-    planName: language === 'ar' ? 'خطة Tank-1 الشخصية' : 'Tank-1 Personal Plan',
-    description: language === 'ar'
-      ? 'قالب Tank-1 المطبق كخطة شخصية نشطة.'
-      : 'Tank-1 template applied as an active personal plan.',
+    planName: payloadCopy.planName,
+    description: payloadCopy.description,
     cycleWeeks: 12,
     templateWeekCount: 2,
     selectedDays: Object.values(TANK1_DAY_NAME_BY_LABEL),
@@ -784,49 +992,49 @@ export function Tank1PlanScreen({ onBack }: Tank1PlanScreenProps) {
           <section key={month.title} className="space-y-4">
             <Card className="border border-white/12 bg-white/5 p-5">
               <div className="mb-2 inline-flex rounded-full bg-white/10 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-text-secondary">
-                {month.block}
+                {localizePlanText(month.block, language)}
               </div>
-              <h3 className="text-xl font-semibold text-white">{month.title}</h3>
-              <p className="mt-3 text-sm font-semibold text-text-primary">Goal</p>
+              <h3 className="text-xl font-semibold text-white">{localizePlanText(month.title, language)}</h3>
+              <p className="mt-3 text-sm font-semibold text-text-primary">{localizePlanText('Goal', language)}</p>
               <div className="mt-2 flex flex-wrap gap-2">
                 {month.goal.map((item) => (
                   <span
                     key={item}
                     className="rounded-full bg-white/8 px-3 py-1 text-xs text-text-secondary"
                   >
-                    {item}
+                    {localizePlanText(item, language)}
                   </span>
                 ))}
               </div>
 
               <div className="mt-4 grid gap-4 sm:grid-cols-2">
                 <div>
-                  <p className="text-sm font-semibold text-text-primary">Intensity Techniques</p>
+                  <p className="text-sm font-semibold text-text-primary">{localizePlanText('Intensity Techniques', language)}</p>
                   <div className="mt-2 space-y-2">
                     {month.intensity.map((item) => (
                       <p key={item} className="text-xs text-text-secondary">
-                        {item}
+                        {localizePlanText(item, language)}
                       </p>
                     ))}
                   </div>
                 </div>
                 <div>
-                  <p className="text-sm font-semibold text-text-primary">Split</p>
-                  <p className="mt-2 text-xs text-text-secondary">{month.split}</p>
+                  <p className="text-sm font-semibold text-text-primary">{localizePlanText('Split', language)}</p>
+                  <p className="mt-2 text-xs text-text-secondary">{localizePlanText(month.split, language)}</p>
                 </div>
               </div>
 
               <div className="mt-4 grid gap-4 sm:grid-cols-2">
                 <div>
-                  <p className="text-sm font-semibold text-text-primary">Tempo</p>
-                  <p className="mt-2 text-xs text-text-secondary">{month.tempo}</p>
+                  <p className="text-sm font-semibold text-text-primary">{localizePlanText('Tempo', language)}</p>
+                  <p className="mt-2 text-xs text-text-secondary">{localizePlanText(month.tempo, language)}</p>
                 </div>
                 <div>
-                  <p className="text-sm font-semibold text-text-primary">Rest</p>
+                  <p className="text-sm font-semibold text-text-primary">{localizePlanText('Rest', language)}</p>
                   <div className="mt-2 space-y-2">
                     {month.rest.map((item) => (
                       <p key={item} className="text-xs text-text-secondary">
-                        {item}
+                        {localizePlanText(item, language)}
                       </p>
                     ))}
                   </div>
@@ -834,11 +1042,11 @@ export function Tank1PlanScreen({ onBack }: Tank1PlanScreenProps) {
               </div>
 
               <div className="mt-4">
-                <p className="text-sm font-semibold text-text-primary">{month.progressionTitle}</p>
+                <p className="text-sm font-semibold text-text-primary">{localizePlanText(month.progressionTitle, language)}</p>
                 <div className="mt-2 space-y-2">
                   {month.progression.map((item) => (
                     <p key={item} className="text-xs text-text-secondary">
-                      {item}
+                      {localizePlanText(item, language)}
                     </p>
                   ))}
                 </div>
@@ -848,21 +1056,21 @@ export function Tank1PlanScreen({ onBack }: Tank1PlanScreenProps) {
             {month.days.map((day) => (
               <Card key={`${month.title}-${day.dayLabel}`} className="border border-white/12 bg-white/5 p-5">
                 <div className="mb-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-text-tertiary">
-                  {day.dayLabel}
+                  {localizePlanText(day.dayLabel, language)}
                 </div>
                 <div className="flex items-start justify-between gap-3">
-                  <h4 className="text-lg font-semibold text-white">{day.focus}</h4>
+                  <h4 className="text-lg font-semibold text-white">{localizePlanText(day.focus, language)}</h4>
                   {day.targetMuscles && day.targetMuscles.length > 0 && (
-                    <div className="flex shrink-0 items-center gap-2">
-                      {day.targetMuscles.slice(0, 4).map((muscle) => (
+                    <div className="grid shrink-0 grid-cols-3 gap-2">
+                      {day.targetMuscles.map((muscle) => (
                         <div
                           key={`${day.dayLabel}-${muscle}`}
                           className="h-10 w-10 overflow-hidden rounded-xl border border-white/10 bg-white/5"
-                          title={muscle}
+                          title={localizePlanText(muscle, language)}
                         >
                           <img
                             src={getBodyPartImage(muscle)}
-                            alt={muscle}
+                            alt={localizePlanText(muscle, language)}
                             className="h-full w-full object-cover"
                           />
                         </div>
@@ -871,13 +1079,13 @@ export function Tank1PlanScreen({ onBack }: Tank1PlanScreenProps) {
                   )}
                 </div>
                 {day.summary && (
-                  <p className="mt-2 text-sm text-text-secondary">{day.summary}</p>
+                  <p className="mt-2 text-sm text-text-secondary">{localizePlanText(day.summary, language)}</p>
                 )}
                 {day.details && day.details.length > 0 && (
                   <div className="mt-3 space-y-2">
                     {day.details.map((detail) => (
                       <p key={`${day.dayLabel}-${detail}`} className="text-xs text-text-secondary">
-                        {detail}
+                        {localizePlanText(detail, language)}
                       </p>
                     ))}
                   </div>
@@ -896,16 +1104,16 @@ export function Tank1PlanScreen({ onBack }: Tank1PlanScreenProps) {
                           </div>
                         </div>
                         <p className="mt-3 text-xs text-text-secondary">
-                          <span className="font-semibold text-text-primary">RepSet comment:</span> {exercise.comment}
+                          <span className="font-semibold text-text-primary">{localizePlanText('RepSet comment:', language)}</span> {localizePlanText(exercise.comment, language)}
                         </p>
                         {exercise.technique && (
                           <p className="mt-2 text-xs text-text-secondary">
-                            <span className="font-semibold text-text-primary">Technique:</span> {exercise.technique}
+                            <span className="font-semibold text-text-primary">{localizePlanText('Technique:', language)}</span> {localizePlanText(exercise.technique, language)}
                           </p>
                         )}
                         {exercise.pairing && (
                           <p className="mt-2 text-xs text-text-secondary">
-                            <span className="font-semibold text-text-primary">Exact pairing:</span> {exercise.pairing}
+                            <span className="font-semibold text-text-primary">{localizePlanText('Exact pairing:', language)}</span> {localizePlanText(exercise.pairing, language)}
                           </p>
                         )}
                       </div>
