@@ -37,6 +37,7 @@ interface WorkoutCardProps {
   detailLines?: string[];
   actionLabel?: string | null;
   progressCaption?: string;
+  progressDisplayLabel?: string | null;
 }
 
 const cleanWorkoutLabel = (value: string) =>
@@ -350,6 +351,7 @@ export function WorkoutCard({
   detailLines,
   actionLabel,
   progressCaption,
+  progressDisplayLabel,
 }: WorkoutCardProps) {
   const language = getActiveLanguage(getStoredLanguage());
   const copy = pickLanguage(language, {
@@ -412,7 +414,9 @@ export function WorkoutCard({
   const isResolvedRestDay = isRestDay || (looksLikeRestDay && resolvedExerciseCount === 0);
   const safeProgress = Math.max(0, Math.min(100, progress));
   const displayedProgress = isResolvedRestDay ? 100 : safeProgress;
-  const progressLabelSize = displayedProgress >= 100 ? '1.8rem' : undefined;
+  const resolvedProgressDisplayLabel = String(progressDisplayLabel || '').trim();
+  const hasProgressDisplayLabel = resolvedProgressDisplayLabel.length > 0;
+  const progressLabelSize = !hasProgressDisplayLabel && displayedProgress >= 100 ? '1.8rem' : undefined;
   const radius = 54;
   const circumference = 2 * Math.PI * radius;
   const strokeDashoffset = circumference - (displayedProgress / 100) * circumference;
@@ -567,10 +571,10 @@ export function WorkoutCard({
 
             <div className="absolute inset-0 grid place-items-center px-3 text-center">
               <span
-                className="max-w-full px-2 text-4xl text-text-primary leading-none font-electrolize"
-                style={{ fontSize: progressLabelSize }}
+                className={`max-w-full px-2 text-text-primary ${hasProgressDisplayLabel ? 'text-lg font-semibold uppercase tracking-[0.12em] leading-tight' : 'text-4xl leading-none font-electrolize'}`}
+                style={hasProgressDisplayLabel ? undefined : { fontSize: progressLabelSize }}
               >
-                {displayedProgress}%
+                {hasProgressDisplayLabel ? resolvedProgressDisplayLabel : `${displayedProgress}%`}
               </span>
             </div>
           </div>

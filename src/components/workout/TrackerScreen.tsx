@@ -642,7 +642,7 @@ export function TrackerScreen({
     <div className="flex-1 flex flex-col h-full bg-background pb-24">
       <div className="px-4 sm:px-6 pt-2">
         <Header
-          title={copy.title}
+          title={displayExerciseName || copy.title}
           onBack={onBack}
           backButtonCoachmarkTargetId="workout_tracker_back_button"
           titleCoachmarkTargetId="workout_tracker_title"

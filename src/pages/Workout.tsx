@@ -78,6 +78,11 @@ type WeekPlanWorkout = {
   dayOrder: number;
 };
 
+type RecoveryMuscleStatus = {
+  name: string;
+  score: number;
+};
+
 type ViewState = 'overview' | 'plan' | 'tracker' | 'video' | 'live' | 'summary' | 'presetPlans' | 'customPlanBuilder';
 
 type SummaryMuscle = {
@@ -703,6 +708,68 @@ const findNextWeekPlanWorkout = (workouts: WeekPlanWorkout[], currentWorkoutKey?
 const hasWorkoutExercises = (workout: WeekPlanWorkout | null | undefined) =>
   !!(workout && Array.isArray(workout.exercises) && workout.exercises.length > 0);
 
+const getWorkoutTargetMuscles = (workout: WeekPlanWorkout | null | undefined) => {
+  if (!workout || !Array.isArray(workout.exercises)) return [] as string[];
+
+  return Array.from(
+    new Set(
+      workout.exercises
+        .flatMap((exercise) => (
+          Array.isArray(exercise.targetMuscles) && exercise.targetMuscles.length
+            ? exercise.targetMuscles
+            : exercise.muscleGroup
+              ? [exercise.muscleGroup]
+              : inferMusclesFromExerciseName(exercise.exerciseName)
+        ))
+        .map((entry) => normalizeMuscleName(String(entry || '')))
+        .filter(Boolean),
+    ),
+  );
+};
+
+const pickRecommendedWorkoutByRecovery = (
+  workouts: WeekPlanWorkout[],
+  recoveryStatuses: RecoveryMuscleStatus[],
+  excludedWorkoutKey?: string | null,
+) => {
+  if (!Array.isArray(recoveryStatuses) || recoveryStatuses.length === 0) return null;
+
+  const recoveryByMuscle = new Map(
+    recoveryStatuses.map((entry) => [normalizeMuscleName(entry.name), Math.max(0, Math.min(100, Math.round(entry.score)))]),
+  );
+
+  const candidates = workouts
+    .filter((workout) => hasWorkoutExercises(workout) && workout.key !== excludedWorkoutKey)
+    .map((workout) => {
+      const targetMuscles = getWorkoutTargetMuscles(workout);
+      const scores = targetMuscles.map((muscle) => recoveryByMuscle.get(muscle) ?? 100);
+      const minScore = scores.length ? Math.min(...scores) : 100;
+      const averageScore = scores.length
+        ? scores.reduce((sum, value) => sum + value, 0) / scores.length
+        : 100;
+      const fullyRecovered = scores.every((score) => score >= 100);
+
+      return {
+        workout,
+        targetMuscles,
+        minScore,
+        averageScore,
+        fullyRecovered,
+      };
+    });
+
+  const fullyRecoveredCandidates = candidates.filter((candidate) => candidate.fullyRecovered);
+  if (!fullyRecoveredCandidates.length) return null;
+
+  fullyRecoveredCandidates.sort((left, right) => {
+    if (right.averageScore !== left.averageScore) return right.averageScore - left.averageScore;
+    if (right.targetMuscles.length !== left.targetMuscles.length) return right.targetMuscles.length - left.targetMuscles.length;
+    return left.workout.dayOrder - right.workout.dayOrder;
+  });
+
+  return fullyRecoveredCandidates[0]?.workout || null;
+};
+
 export function Workout({
   onBack,
   workoutDay = 'Push Day',
@@ -738,6 +805,7 @@ export function Workout({
   );
   const [userProgram, setUserProgram] = useState<any>(null);
   const [programProgress, setProgramProgress] = useState<any>(null);
+  const [recoveryStatuses, setRecoveryStatuses] = useState<RecoveryMuscleStatus[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [completedExercises, setCompletedExercises] = useState<string[]>([]);
@@ -979,9 +1047,13 @@ export function Workout({
     && selectedWeekWorkout.key === activeTodayWorkout.key
     && selectedWeekWorkout.key === scheduledTodayWorkout.key
   );
-  const recommendedNextWorkout = useMemo(
-    () => findNextWeekPlanWorkout(selectableWeekPlanWorkouts, todayWorkoutSelection?.workoutKey),
-    [todayWorkoutSelection?.workoutKey, selectableWeekPlanWorkouts],
+  const recommendedRecoveryWorkout = useMemo(
+    () => pickRecommendedWorkoutByRecovery(
+      selectableWeekPlanWorkouts,
+      recoveryStatuses,
+      todayWorkoutSelection?.workoutKey || null,
+    ),
+    [recoveryStatuses, selectableWeekPlanWorkouts, todayWorkoutSelection?.workoutKey],
   );
   const detailWorkoutName = isSelectedWorkoutPickedForToday
     ? currentWorkoutName
@@ -1146,6 +1218,49 @@ export function Workout({
     setTodayWorkoutSelection(readTodayWorkoutSelection(workoutStorageScope));
     setWorkoutAssignmentHistory(readWorkoutAssignmentHistory(workoutStorageScope));
   }, [workoutStorageScope]);
+
+  useEffect(() => {
+    if (!userId) {
+      setRecoveryStatuses([]);
+      return;
+    }
+
+    let cancelled = false;
+
+    const loadRecoveryStatuses = async () => {
+      try {
+        const data = await api.getRecoveryStatus(userId);
+        if (cancelled) return;
+
+        const normalized = Array.isArray(data?.recovery)
+          ? data.recovery
+            .map((item: any) => ({
+              name: normalizeMuscleName(String(item?.name || item?.muscle || '')),
+              score: Math.max(0, Math.min(100, Math.round(Number(item?.score || 0)))),
+            }))
+            .filter((item: RecoveryMuscleStatus) => item.name)
+          : [];
+        setRecoveryStatuses(normalized);
+      } catch (error) {
+        console.error('Failed to load recovery recommendation data:', error);
+        if (!cancelled) {
+          setRecoveryStatuses([]);
+        }
+      }
+    };
+
+    const handleRecoveryUpdated = () => {
+      void loadRecoveryStatuses();
+    };
+
+    void loadRecoveryStatuses();
+    window.addEventListener('recovery-updated', handleRecoveryUpdated);
+
+    return () => {
+      cancelled = true;
+      window.removeEventListener('recovery-updated', handleRecoveryUpdated);
+    };
+  }, [userId]);
 
   useEffect(() => {
     const handleTodayWorkoutSelectionUpdated = () => {
@@ -1359,6 +1474,55 @@ export function Workout({
     );
     const sets = Number(planned?.sets || 0);
     return Number.isFinite(sets) && sets > 0 ? Math.round(sets) : null;
+  };
+
+  const parseRepTarget = (value: unknown) => {
+    const text = String(value || '').trim();
+    if (!text) return 0;
+
+    const matches = text.match(/\d+/g) || [];
+    const values = matches
+      .map((entry) => Number(entry))
+      .filter((entry) => Number.isFinite(entry) && entry > 0);
+
+    if (!values.length) return 0;
+    if (values.length >= 2 && /[-/]/.test(text)) {
+      return Math.max(0, Math.round((values[0] + values[1]) / 2));
+    }
+
+    return Math.max(0, Math.round(values[0]));
+  };
+
+  const buildCompletedSetRowsForExercise = (exercise: TodayWorkoutExercise, existingRows: any[] = []) => {
+    const requestedSets = Number(exercise?.sets || 0);
+    const targetSetCount = Math.max(
+      1,
+      Number.isFinite(requestedSets) && requestedSets > 0 ? Math.round(requestedSets) : 1,
+      Array.isArray(existingRows) ? existingRows.length : 0,
+    );
+    const fallbackReps = parseRepTarget(exercise?.reps);
+    const fallbackWeight = Number(exercise?.targetWeight || 0);
+    const fallbackRest = Number(exercise?.rest || 0);
+
+    return Array.from({ length: targetSetCount }, (_, index) => {
+      const current = Array.isArray(existingRows) ? existingRows[index] || {} : {};
+      const setNumber = Number(current?.set || index + 1);
+      const reps = Number(current?.reps);
+      const weight = Number(current?.weight);
+      const duration = Number(current?.duration || 45);
+      const restTime = Number(current?.restTime || fallbackRest);
+
+      return {
+        set: Number.isFinite(setNumber) && setNumber > 0 ? Math.round(setNumber) : index + 1,
+        reps: Number.isFinite(reps) && reps >= 0 ? Math.round(reps) : fallbackReps,
+        weight: Number.isFinite(weight) && weight >= 0
+          ? Number(weight.toFixed(2))
+          : Number((Number.isFinite(fallbackWeight) && fallbackWeight > 0 ? fallbackWeight : 0).toFixed(2)),
+        completed: true,
+        duration: Number.isFinite(duration) && duration > 0 ? Math.round(duration) : 45,
+        restTime: Number.isFinite(restTime) && restTime >= 0 ? Math.round(restTime) : 0,
+      };
+    });
   };
 
   const loadWorkoutData = useCallback(async () => {
@@ -2134,6 +2298,72 @@ export function Workout({
     }
   };
 
+  const markSelectedWorkoutFullyDone = async () => {
+    if (!isSelectedWorkoutPickedForToday || !todayWorkoutSelection?.workoutKey) {
+      return {
+        completed: false,
+        reason: 'Pick this workout for today before marking it as fully done.',
+      };
+    }
+
+    const exercisesToComplete = todayExercises.filter((exercise) => String(exercise?.exerciseName || '').trim());
+    if (!exercisesToComplete.length) {
+      return {
+        completed: false,
+        reason: 'No exercises were found for this workout day.',
+      };
+    }
+
+    const nextExerciseSets: Record<string, any[]> = {
+      ...exerciseSets,
+    };
+    const nextCompletedExercises = Array.from(new Set(
+      exercisesToComplete.map((exercise) => String(exercise.exerciseName || '').trim()).filter(Boolean),
+    ));
+
+    exercisesToComplete.forEach((exercise) => {
+      const exerciseName = String(exercise.exerciseName || '').trim();
+      if (!exerciseName) return;
+      nextExerciseSets[exerciseName] = buildCompletedSetRowsForExercise(
+        exercise,
+        Array.isArray(exerciseSets[exerciseName]) ? exerciseSets[exerciseName] : [],
+      );
+    });
+
+    setExerciseSets(nextExerciseSets);
+    localStorage.setItem(workoutStorageKeys.exerciseSets, JSON.stringify(nextExerciseSets));
+
+    setCompletedExercises(nextCompletedExercises);
+    localStorage.setItem(workoutStorageKeys.completedExercises, JSON.stringify(nextCompletedExercises));
+
+    const nextSelection = markTodayWorkoutSelectionCompleted(workoutStorageScope, true);
+    setTodayWorkoutSelection(nextSelection);
+
+    localStorage.setItem(homeMetricStorageKeys.homeWorkoutProgress, '100');
+    window.dispatchEvent(new CustomEvent('workout-progress-updated'));
+    window.dispatchEvent(new CustomEvent('program-updated'));
+
+    const currentUserId = Number(userId || 0);
+    const todayKey = new Date().toDateString();
+    const finalizeKey = `recoveryFinalized:${currentUserId}:${todayKey}`;
+    if (currentUserId > 0) {
+      try {
+        await api.recalculateTodayRecovery(currentUserId);
+        localStorage.setItem(finalizeKey, 'true');
+      } catch (error) {
+        console.error('Failed to finalize recovery for fully done workout:', error);
+      }
+    }
+    localStorage.setItem('recoveryNeedsUpdate', 'true');
+    window.dispatchEvent(new CustomEvent('recovery-updated'));
+
+    const summaryKey = `${formatDateISO(new Date())}:${String(currentWorkoutName || '').trim().toLowerCase()}`;
+    setLastAutoSummaryKey(summaryKey);
+    await saveAndShowWorkoutSummary(nextExerciseSets, false);
+
+    return { completed: true };
+  };
+
   const markTodayWorkoutAsMissed = async () => {
     if (!userId) {
       return { missed: false, reason: 'User is not authenticated.' };
@@ -2208,21 +2438,12 @@ export function Workout({
             dayLabel: workout.dayLabel,
             workoutName: workout.workoutName,
             exerciseCount: workout.exercises.length,
-            targetMuscles: Array.from(
-              new Set(
-                workout.exercises
-                  .flatMap((exercise) => (
-                    Array.isArray(exercise.targetMuscles) && exercise.targetMuscles.length
-                      ? exercise.targetMuscles
-                      : exercise.muscleGroup
-                        ? [exercise.muscleGroup]
-                        : inferMusclesFromExerciseName(exercise.exerciseName)
-                  ))
-                  .map((entry) => normalizeMuscleName(String(entry || '')))
-                  .filter(Boolean),
-              ),
-            ).slice(0, 3),
+            exerciseNames: workout.exercises
+              .map((exercise) => String(exercise?.exerciseName || '').trim())
+              .filter(Boolean),
+            targetMuscles: getWorkoutTargetMuscles(workout).slice(0, 3),
             isToday: workout.isToday,
+            isRecommendedNext: workout.key === recommendedRecoveryWorkout?.key,
             isPickedForToday: workout.key === todayWorkoutSelection?.workoutKey,
             isCompletedToday: workout.key === todayWorkoutSelection?.workoutKey && !!todayWorkoutSelection?.completed,
           }))}
@@ -2233,10 +2454,10 @@ export function Workout({
           isTodayPlanLocked={hasStartedTodayWorkout}
           isPlanCompleted={isPlanCompleted}
           recommendedWorkout={
-            !isPlanCompleted && todayWorkoutSelection?.completed && recommendedNextWorkout
+            !isPlanCompleted && recommendedRecoveryWorkout
               ? {
-                  workoutName: recommendedNextWorkout.workoutName,
-                  dayLabel: recommendedNextWorkout.dayLabel,
+                  workoutName: recommendedRecoveryWorkout.workoutName,
+                  dayLabel: recommendedRecoveryWorkout.dayLabel,
                 }
               : null
           }
@@ -2358,6 +2579,7 @@ export function Workout({
             setView('video');
           }}
           onAddExercise={addExerciseToToday}
+          onMarkDayFullyDone={isSelectedWorkoutPickedForToday ? () => markSelectedWorkoutFullyDone() : undefined}
           onOpenLatestSummary={isSelectedWorkoutPickedForToday ? () => {
             void openLatestSummary();
           } : undefined}
@@ -2369,6 +2591,7 @@ export function Workout({
           todayExercises={detailExercises}
           loading={isSelectedWorkoutPickedForToday ? loading : false}
           allowEditing={isSelectedWorkoutPickedForToday}
+          isDayFullyDone={isSelectedWorkoutPickedForToday && !!todayWorkoutSelection?.completed}
         />
       </>
     );

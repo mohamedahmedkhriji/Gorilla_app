@@ -1,13 +1,13 @@
 import React, { useEffect, useMemo, useState, useCallback, useRef } from 'react';
 import { Header } from '../ui/Header';
 import { api } from '../../services/api';
-import { Bookmark, CalendarX2, Plus, Play, Search, Square, TriangleAlert, X } from 'lucide-react';
+import { Bookmark, CalendarX2, Check, Plus, Play, Search, Square, TriangleAlert, X } from 'lucide-react';
 import { getBodyPartImage } from '../../services/bodyPartTheme';
 import { resolveExerciseVideo } from '../../services/exerciseVideos';
 import { AppLanguage, getActiveLanguage, getStoredLanguage } from '../../services/language';
 import { formatWorkoutDayLabel, normalizeWorkoutDayKey } from '../../services/workoutDayLabel';
 import { stripExercisePrefix } from '../../services/exerciseName';
-import { translateExerciseName, translateProgramText } from '../../services/programI18n';
+import { translateProgramText } from '../../services/programI18n';
 
 interface WorkoutPlanScreenProps {
   onBack: () => void;
@@ -15,6 +15,7 @@ interface WorkoutPlanScreenProps {
   onPreviewExercise?: (exercise: string) => void;
   onAddExercise: (exercise: CatalogExercise) => Promise<{ added: boolean; reason?: string }> | { added: boolean; reason?: string };
   onMissDay?: () => Promise<{ missed: boolean; reason?: string }> | { missed: boolean; reason?: string };
+  onMarkDayFullyDone?: () => Promise<{ completed: boolean; reason?: string }> | { completed: boolean; reason?: string };
   onOpenLatestSummary?: () => void;
   hasLatestSummary?: boolean;
   workoutDay: string;
@@ -23,6 +24,7 @@ interface WorkoutPlanScreenProps {
   todayExercises: any[];
   loading: boolean;
   allowEditing?: boolean;
+  isDayFullyDone?: boolean;
 }
 
 type CatalogExercise = {
@@ -223,6 +225,8 @@ const WORKOUT_PLAN_I18N = {
     openLatestSummaryAria: 'Open latest workout summary',
     loadingWorkout: 'Loading workout...',
     workout: 'Workout',
+    todayWorkoutTitle: 'Today\'s Workout',
+    pickWorkoutTitle: 'Pick Your Workout',
     exerciseFallback: 'Exercise',
     generalMuscle: 'General',
     restDayLabel: 'Rest Day',
@@ -257,6 +261,16 @@ const WORKOUT_PLAN_I18N = {
     noExerciseGroups: 'No exercise groups available.',
     add: 'Add',
     addFail: 'Could not add exercise.',
+    markDoneAria: 'Mark this day as fully done',
+    markDone: 'Fully Done',
+    markDoneFail: 'Could not mark this day as fully done.',
+    markDoneTitle: 'Mark this day as fully done?',
+    markDoneDescription: (workoutName: string) =>
+      `This will save ${workoutName} as fully done and mark every exercise in this day as completed.`,
+    markDoneWeightNote: 'Before you confirm, make sure the saved sets use the real weight you trained with today.',
+    closeMarkDoneDialog: 'Close fully done dialog',
+    confirmMarkDone: 'Yes, Mark Fully Done',
+    markingDone: 'Saving...',
     missFail: 'Could not mark this workout as missed.',
     missTitle: "Miss today's workout?",
     missDescription: (workoutName: string) =>
@@ -273,6 +287,8 @@ const WORKOUT_PLAN_I18N = {
     openLatestSummaryAria: 'فتح ملخص آخر تمرين',
     loadingWorkout: 'جارٍ تحميل التمرين...',
     workout: 'التمرين',
+    todayWorkoutTitle: 'تمرين اليوم',
+    pickWorkoutTitle: 'اختر تمرينك لليوم',
     exerciseFallback: 'تمرين',
     generalMuscle: 'عام',
     restDayLabel: 'يوم راحة',
@@ -307,6 +323,16 @@ const WORKOUT_PLAN_I18N = {
     noExerciseGroups: 'لا توجد مجموعات تمارين متاحة.',
     add: 'إضافة',
     addFail: 'تعذر إضافة التمرين.',
+    markDoneAria: 'تعليم هذا اليوم كمكتمل',
+    markDone: 'اكتمل كليا',
+    markDoneFail: 'تعذر تعليم هذا اليوم كمكتمل.',
+    markDoneTitle: 'تعليم هذا اليوم كمكتمل؟',
+    markDoneDescription: (workoutName: string) =>
+      `سيتم حفظ ${workoutName} كيوم مكتمل بالكامل وتعليم جميع تمارين هذا اليوم كمكتملة.`,
+    markDoneWeightNote: 'تأكد قبل التأكيد من اختيار الوزن الصحيح الذي استخدمته اليوم.',
+    closeMarkDoneDialog: 'إغلاق نافذة الإكمال',
+    confirmMarkDone: 'نعم، علّمه كمكتمل',
+    markingDone: 'جارٍ الحفظ...',
     missFail: 'تعذر وضع هذا التمرين كمفقود.',
     missTitle: 'تفويت تمرين اليوم؟',
     missDescription: (workoutName: string) =>
@@ -393,6 +419,8 @@ const LOCALIZED_WORKOUT_PLAN_I18N: Record<AppLanguage, typeof WORKOUT_PLAN_I18N.
     openLatestSummaryAria: 'Apri l ultimo riepilogo allenamento',
     loadingWorkout: 'Caricamento allenamento...',
     workout: 'Allenamento',
+    todayWorkoutTitle: 'Allenamento di oggi',
+    pickWorkoutTitle: 'Scegli il workout di oggi',
     exerciseFallback: 'Esercizio',
     generalMuscle: 'Generale',
     restDayLabel: 'Giorno di riposo',
@@ -427,6 +455,16 @@ const LOCALIZED_WORKOUT_PLAN_I18N: Record<AppLanguage, typeof WORKOUT_PLAN_I18N.
     noExerciseGroups: 'Nessun gruppo esercizi disponibile.',
     add: 'Aggiungi',
     addFail: 'Impossibile aggiungere l esercizio.',
+    markDoneAria: 'Segna questo giorno come completato',
+    markDone: 'Completato',
+    markDoneFail: 'Impossibile segnare questo giorno come completato.',
+    markDoneTitle: 'Segnare questo giorno come completato?',
+    markDoneDescription: (workoutName: string) =>
+      `Questo salvera ${workoutName} come completato e segnera tutti gli esercizi del giorno come svolti.`,
+    markDoneWeightNote: 'Prima di confermare, assicurati che i set salvati usino il peso reale che hai usato oggi.',
+    closeMarkDoneDialog: 'Chiudi finestra completato',
+    confirmMarkDone: 'Si, Segna Come Completato',
+    markingDone: 'Salvataggio...',
     missFail: 'Impossibile segnare questo allenamento come saltato.',
     missTitle: 'Saltare l allenamento di oggi?',
     missDescription: (workoutName: string) =>
@@ -443,6 +481,8 @@ const LOCALIZED_WORKOUT_PLAN_I18N: Record<AppLanguage, typeof WORKOUT_PLAN_I18N.
     openLatestSummaryAria: 'Letzte Trainingszusammenfassung oeffnen',
     loadingWorkout: 'Training wird geladen...',
     workout: 'Workout',
+    todayWorkoutTitle: 'Heutiges Workout',
+    pickWorkoutTitle: 'Waehle dein Workout fuer heute',
     exerciseFallback: 'Uebung',
     generalMuscle: 'Allgemein',
     restDayLabel: 'Ruhetag',
@@ -477,6 +517,16 @@ const LOCALIZED_WORKOUT_PLAN_I18N: Record<AppLanguage, typeof WORKOUT_PLAN_I18N.
     noExerciseGroups: 'Keine Uebungsgruppen verfuegbar.',
     add: 'Hinzufuegen',
     addFail: 'Die Uebung konnte nicht hinzugefuegt werden.',
+    markDoneAria: 'Diesen Tag als vollstaendig erledigt markieren',
+    markDone: 'Ganz erledigt',
+    markDoneFail: 'Dieser Tag konnte nicht als erledigt markiert werden.',
+    markDoneTitle: 'Diesen Tag als vollstaendig erledigt markieren?',
+    markDoneDescription: (workoutName: string) =>
+      `Dadurch wird ${workoutName} als vollstaendig erledigt gespeichert und jede Uebung dieses Tages als abgeschlossen markiert.`,
+    markDoneWeightNote: 'Bevor du bestaetigst, stelle sicher, dass die gespeicherten Saetze das echte Gewicht von heute verwenden.',
+    closeMarkDoneDialog: 'Erledigt-Dialog schliessen',
+    confirmMarkDone: 'Ja, Vollstaendig Erledigen',
+    markingDone: 'Wird gespeichert...',
     missFail: 'Dieses Training konnte nicht als verpasst markiert werden.',
     missTitle: 'Heutiges Training ueberspringen?',
     missDescription: (workoutName: string) =>
@@ -600,6 +650,7 @@ export function WorkoutPlanScreen({
   onAddExercise,
   onPreviewExercise,
   onMissDay,
+  onMarkDayFullyDone,
   onOpenLatestSummary,
   hasLatestSummary = false,
   workoutDay,
@@ -608,6 +659,7 @@ export function WorkoutPlanScreen({
   todayExercises,
   loading,
   allowEditing = true,
+  isDayFullyDone = false,
 }: WorkoutPlanScreenProps) {
   const [language, setLanguage] = useState<AppLanguage>('en');
   const [catalog, setCatalog] = useState<CatalogExercise[]>([]);
@@ -619,11 +671,14 @@ export function WorkoutPlanScreen({
   const addModalScrollRef = useRef<HTMLDivElement | null>(null);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isMissModalOpen, setIsMissModalOpen] = useState(false);
+  const [isMarkDoneModalOpen, setIsMarkDoneModalOpen] = useState(false);
   const [isCardioModalOpen, setIsCardioModalOpen] = useState(false);
   const [addExerciseFeedback, setAddExerciseFeedback] = useState<string | null>(null);
   const [missDayFeedback, setMissDayFeedback] = useState<string | null>(null);
+  const [markDoneFeedback, setMarkDoneFeedback] = useState<string | null>(null);
   const [isSubmittingExercise, setIsSubmittingExercise] = useState(false);
   const [isSubmittingMissDay, setIsSubmittingMissDay] = useState(false);
+  const [isSubmittingMarkDone, setIsSubmittingMarkDone] = useState(false);
   const [lastWeights, setLastWeights] = useState<Record<string, number>>({});
   const [selectedCardioPresetId, setSelectedCardioPresetId] = useState<CardioPresetId>('incline_walk');
   const [cardioSeconds, setCardioSeconds] = useState(0);
@@ -880,8 +935,11 @@ export function WorkoutPlanScreen({
     return label.includes('rest') || label.includes('recovery') || label.includes('راحة') || label.includes('استشفاء');
   }, [workoutDay, workoutDayLabel]);
 
-  const headerTitleRaw = String(workoutDayLabel || workoutDay || copy.workout).trim() || copy.workout;
-  const headerTitle = toLocalizedDayLabel(headerTitleRaw);
+  const headerTitle = isRestDayView
+    ? copy.restDayLabel
+    : allowEditing
+      ? copy.todayWorkoutTitle
+      : copy.pickWorkoutTitle;
   const displayWorkoutName = toLocalizedDayLabel(String(workoutDay || copy.workout).trim() || copy.workout);
   const selectedCardioPreset = CARDIO_PRESETS.find((preset) => preset.id === selectedCardioPresetId) || CARDIO_PRESETS[0];
   const cardioTimerText = formatCardioClock(cardioSeconds);
@@ -897,6 +955,21 @@ export function WorkoutPlanScreen({
 
   const headerActions = (
     <div className="flex items-center gap-2">
+      {!isRestDayView && allowEditing && onMarkDayFullyDone && !isDayFullyDone && (
+        <button
+          type="button"
+          onClick={() => {
+            setMarkDoneFeedback(null);
+            setIsMarkDoneModalOpen(true);
+          }}
+          className="flex h-10 items-center gap-2 rounded-xl border border-emerald-500/20 bg-emerald-500/10 px-3 text-[11px] font-semibold uppercase tracking-[0.12em] text-emerald-200 transition-colors hover:border-emerald-400/30 hover:bg-emerald-500/15"
+          aria-label={copy.markDoneAria}
+        >
+          <Check size={15} />
+          <span className="hidden sm:inline">{copy.markDone}</span>
+        </button>
+      )}
+
       {!isRestDayView && onMissDay && (
         <button
           data-coachmark-target="workout_plan_miss_button"
@@ -994,6 +1067,23 @@ export function WorkoutPlanScreen({
       setIsMissModalOpen(false);
     } finally {
       setIsSubmittingMissDay(false);
+    }
+  };
+
+  const handleMarkDayFullyDone = async () => {
+    if (!onMarkDayFullyDone) return;
+
+    try {
+      setIsSubmittingMarkDone(true);
+      setMarkDoneFeedback(null);
+      const result = await onMarkDayFullyDone();
+      if (!result?.completed) {
+        setMarkDoneFeedback(result?.reason || copy.markDoneFail);
+        return;
+      }
+      setIsMarkDoneModalOpen(false);
+    } finally {
+      setIsSubmittingMarkDone(false);
     }
   };
 
@@ -1157,7 +1247,7 @@ export function WorkoutPlanScreen({
                   <div className="min-w-0 flex-1">
                     <div className="min-w-0">
                       <h4 className="truncate text-sm font-semibold text-white">
-                        {translateExerciseName(stripExercisePrefix(exercise.name), language)}
+                        {stripExercisePrefix(exercise.name)}
                       </h4>
                       <p className="mt-1 text-xs text-text-secondary">
                         {exercise.sets} {copy.setsLabel} - {exercise.reps || '--'} {copy.repsLabel} - {exercise.targetWeight ? `${exercise.targetWeight} ${copy.kgLabel}` : formatRestLabel(exercise.rest)}
@@ -1537,7 +1627,7 @@ export function WorkoutPlanScreen({
                                 </div>
                               </div>
                               <div className="truncate text-sm font-bold text-white">
-                                {translateExerciseName(stripExercisePrefix(exercise.name), language)}
+                                {stripExercisePrefix(exercise.name)}
                               </div>
                               <div className="mt-1 flex items-center justify-between gap-2">
                                 <div className="truncate text-[10px] uppercase tracking-wider text-text-secondary">
@@ -1608,6 +1698,76 @@ export function WorkoutPlanScreen({
                   </div>
                 </>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {isMarkDoneModalOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4"
+          onClick={() => setIsMarkDoneModalOpen(false)}
+        >
+          <div
+            className={`relative w-full max-w-md overflow-hidden rounded-[1.75rem] border border-white/10 bg-[linear-gradient(180deg,rgba(20,38,29,0.98),rgba(11,21,17,0.98))] p-6 shadow-[0_24px_80px_rgba(0,0,0,0.45)] ${isArabic ? 'text-right' : 'text-left'}`}
+            dir={isArabic ? 'rtl' : 'ltr'}
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="pointer-events-none absolute inset-x-0 top-0 h-28 bg-[radial-gradient(circle_at_top,rgba(16,185,129,0.18),transparent_70%)]" />
+
+            <div className="relative">
+              <div className={`flex items-start justify-between gap-4 ${isArabic ? 'flex-row-reverse' : ''}`}>
+                <div className="space-y-3">
+                  <div className="inline-flex h-12 w-12 items-center justify-center rounded-2xl border border-emerald-500/25 bg-emerald-500/12 text-emerald-200">
+                    <Check size={22} />
+                  </div>
+                  <div>
+                    <h3 className="text-xl font-semibold text-white">{copy.markDoneTitle}</h3>
+                    <p className="mt-2 text-sm leading-relaxed text-text-secondary">
+                      {copy.markDoneDescription(displayWorkoutName)}
+                    </p>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setIsMarkDoneModalOpen(false)}
+                  className="flex h-10 w-10 items-center justify-center rounded-full bg-white/5 text-text-secondary transition-colors hover:bg-white/10 hover:text-white"
+                  aria-label={copy.closeMarkDoneDialog}
+                >
+                  <X size={18} />
+                </button>
+              </div>
+
+              <div className="mt-5 rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm text-text-secondary">
+                {copy.markDoneWeightNote}
+              </div>
+
+              {markDoneFeedback && (
+                <div className="mt-4 rounded-2xl border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-sm text-rose-200">
+                  {markDoneFeedback}
+                </div>
+              )}
+
+              <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+                <button
+                  type="button"
+                  onClick={() => setIsMarkDoneModalOpen(false)}
+                  className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-text-primary transition-colors hover:bg-white/10"
+                >
+                  {copy.keepWorkout}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    void handleMarkDayFullyDone();
+                  }}
+                  disabled={isSubmittingMarkDone}
+                  className="rounded-2xl bg-emerald-500 px-4 py-3 text-sm font-semibold text-white transition-colors hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {isSubmittingMarkDone ? copy.markingDone : copy.confirmMarkDone}
+                </button>
+              </div>
             </div>
           </div>
         </div>

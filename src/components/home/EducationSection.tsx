@@ -2,7 +2,7 @@ import React from 'react';
 import { Card } from '../ui/Card';
 import {
   emojiBooksBg,
-  emojiComingSoon,
+  emojiBooks,
   emojiExercises,
   emojiExercisesBg,
   emojiRightArrow,
@@ -110,11 +110,21 @@ export function EducationSection({
           />
           <div className="relative z-10">
             <div className="w-10 h-10 rounded-2xl bg-accent/15 border border-accent/35 flex items-center justify-center text-accent mb-3">
-              <img src={emojiComingSoon} alt={copy.comingSoon} className="h-7 w-7 object-contain" />
+              <img src={emojiBooks} alt={copy.books} className="h-7 w-7 object-contain" />
             </div>
-            <div className="text-xl leading-none text-white mb-1">{copy.books}</div>
-            <div className="text-[11px] text-text-secondary uppercase tracking-[0.09em]">
-              {copy.comingSoon}
+            <div className="flex items-end justify-between gap-3">
+              <div>
+                <div className="text-xl leading-none text-white mb-1">{copy.books}</div>
+                <div className="text-[11px] text-text-secondary uppercase tracking-[0.09em]">
+                  {copy.browse}
+                </div>
+              </div>
+              <img
+                src={emojiRightArrow}
+                alt=""
+                aria-hidden="true"
+                className="mb-1 h-[18px] w-[18px] shrink-0 object-contain opacity-70"
+              />
             </div>
           </div>
         </Card>

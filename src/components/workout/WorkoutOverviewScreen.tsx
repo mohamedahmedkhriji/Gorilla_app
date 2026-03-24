@@ -13,8 +13,10 @@ type WorkoutOverviewCard = {
   dayLabel: string;
   workoutName: string;
   exerciseCount: number;
+  exerciseNames: string[];
   targetMuscles: string[];
   isToday: boolean;
+  isRecommendedNext?: boolean;
   isPickedForToday?: boolean;
   isCompletedToday?: boolean;
 };
@@ -124,7 +126,7 @@ const COPY = {
     loading: 'Loading your week plan...',
     empty: 'No workout plan was found for this week yet.',
     error: 'Could not load your week plan.',
-    todayBadge: 'Today',
+    recommendedNextBadge: 'Recommended Next Day',
     pickedBadge: 'Picked',
     completedBadge: 'Done',
     pickForToday: 'Pick for today',
@@ -135,6 +137,10 @@ const COPY = {
     planFinishedTitle: 'Plan completed',
     planFinishedBody: 'You finished all weeks in this plan. Create a new plan to keep training next weeks.',
     createNewPlan: 'Create New Plan',
+    exercisesIncluded: 'Exercises in this workout',
+    showExercises: 'Show exercises',
+    hideExercises: 'Hide exercises',
+    noExercises: 'No exercises added yet.',
     exerciseCount: (count: number) => `${count} ${count === 1 ? 'exercise' : 'exercises'}`,
   },
   ar: {
@@ -150,7 +156,7 @@ const COPY = {
     loading: 'جارٍ تحميل خطة الأسبوع...',
     empty: 'لا توجد خطة تمارين لهذا الأسبوع بعد.',
     error: 'تعذر تحميل خطة الأسبوع.',
-    todayBadge: 'اليوم',
+    recommendedNextBadge: 'المقترح لليوم التالي',
     pickedBadge: 'محفوظ',
     completedBadge: 'تم',
     pickForToday: 'اختره لليوم',
@@ -161,6 +167,10 @@ const COPY = {
     planFinishedTitle: 'اكتملت الخطة',
     planFinishedBody: 'أنهيت جميع أسابيع هذه الخطة. أنشئ خطة جديدة لتكمل التدريب في الأسابيع القادمة.',
     createNewPlan: 'أنشئ خطة جديدة',
+    exercisesIncluded: 'التمارين داخل هذا التمرين',
+    showExercises: 'أظهر التمارين',
+    hideExercises: 'أخفِ التمارين',
+    noExercises: 'لم يتم إضافة تمارين بعد.',
     exerciseCount: (count: number) => `${count} ${count === 1 ? 'تمرين' : 'تمارين'}`,
   },
 } as const;
@@ -180,7 +190,7 @@ const LOCALIZED_COPY: Record<AppLanguage, typeof COPY.en> = {
     loading: 'جارٍ تحميل خطة الأسبوع...',
     empty: 'لا توجد خطة تمارين لهذا الأسبوع بعد.',
     error: 'تعذر تحميل خطة الأسبوع.',
-    todayBadge: 'اليوم',
+    recommendedNextBadge: 'المقترح لليوم التالي',
     pickedBadge: 'محفوظ',
     completedBadge: 'تم',
     pickForToday: 'اختره لليوم',
@@ -191,6 +201,10 @@ const LOCALIZED_COPY: Record<AppLanguage, typeof COPY.en> = {
     planFinishedTitle: 'اكتملت الخطة',
     planFinishedBody: 'أنهيت جميع أسابيع هذه الخطة. أنشئ خطة جديدة لتكمل التدريب في الأسابيع القادمة.',
     createNewPlan: 'أنشئ خطة جديدة',
+    exercisesIncluded: 'التمارين داخل هذا التمرين',
+    showExercises: 'أظهر التمارين',
+    hideExercises: 'أخفِ التمارين',
+    noExercises: 'لم يتم إضافة تمارين بعد.',
     exerciseCount: (count: number) => `${count} ${count === 1 ? 'تمرين' : 'تمارين'}`,
   },
   it: {
@@ -206,7 +220,7 @@ const LOCALIZED_COPY: Record<AppLanguage, typeof COPY.en> = {
     loading: 'Caricamento del tuo piano settimanale...',
     empty: 'Nessun piano di allenamento trovato per questa settimana.',
     error: 'Impossibile caricare il tuo piano settimanale.',
-    todayBadge: 'Oggi',
+    recommendedNextBadge: 'Consigliato Per Il Prossimo Giorno',
     pickedBadge: 'Scelto',
     completedBadge: 'Fatto',
     pickForToday: 'Scegli per oggi',
@@ -217,6 +231,10 @@ const LOCALIZED_COPY: Record<AppLanguage, typeof COPY.en> = {
     planFinishedTitle: 'Piano completato',
     planFinishedBody: 'Hai finito tutte le settimane di questo piano. Crea un nuovo piano per continuare ad allenarti nelle prossime settimane.',
     createNewPlan: 'Crea Un Nuovo Piano',
+    exercisesIncluded: 'Esercizi in questo workout',
+    showExercises: 'Mostra esercizi',
+    hideExercises: 'Nascondi esercizi',
+    noExercises: 'Nessun esercizio aggiunto ancora.',
     exerciseCount: (count: number) => `${count} ${count === 1 ? 'esercizio' : 'esercizi'}`,
   },
   de: {
@@ -232,7 +250,7 @@ const LOCALIZED_COPY: Record<AppLanguage, typeof COPY.en> = {
     loading: 'Dein Wochenplan wird geladen...',
     empty: 'Fuer diese Woche wurde noch kein Trainingsplan gefunden.',
     error: 'Dein Wochenplan konnte nicht geladen werden.',
-    todayBadge: 'Heute',
+    recommendedNextBadge: 'Empfohlen Fuer Den Naechsten Tag',
     pickedBadge: 'Gewaehlt',
     completedBadge: 'Erledigt',
     pickForToday: 'Fuer heute waehlen',
@@ -243,6 +261,10 @@ const LOCALIZED_COPY: Record<AppLanguage, typeof COPY.en> = {
     planFinishedTitle: 'Plan abgeschlossen',
     planFinishedBody: 'Du hast alle Wochen dieses Plans abgeschlossen. Erstelle einen neuen Plan, um in den kommenden Wochen weiterzutrainieren.',
     createNewPlan: 'Neuen Plan Erstellen',
+    exercisesIncluded: 'Uebungen in diesem Workout',
+    showExercises: 'Uebungen zeigen',
+    hideExercises: 'Uebungen ausblenden',
+    noExercises: 'Noch keine Uebungen hinzugefuegt.',
     exerciseCount: (count: number) => `${count} ${count === 1 ? 'Uebung' : 'Uebungen'}`,
   },
 };
@@ -335,6 +357,7 @@ export function WorkoutOverviewScreen({
   error = null,
 }: WorkoutOverviewScreenProps) {
   const [language, setLanguage] = useState<AppLanguage>('en');
+  const [expandedWorkoutKey, setExpandedWorkoutKey] = useState<string | null>(null);
 
   useEffect(() => {
     setLanguage(getActiveLanguage());
@@ -368,10 +391,18 @@ export function WorkoutOverviewScreen({
     [workouts],
   );
 
+  useEffect(() => {
+    setExpandedWorkoutKey((current) => {
+      if (current && selectableWorkouts.some((workout) => workout.key === current)) {
+        return current;
+      }
+      return selectableWorkouts.find((workout) => workout.isPickedForToday)?.key || null;
+    });
+  }, [selectableWorkouts]);
+
   const cards = useMemo(
     () => selectableWorkouts.map((workout) => ({
       ...workout,
-      localizedDayLabel: localizeDay(workout.dayLabel),
       localizedMuscles: workout.targetMuscles.slice(0, 3).map((entry) => {
         const label = localizeMuscle(toTitleCase(entry));
         return {
@@ -506,6 +537,7 @@ export function WorkoutOverviewScreen({
             <div className="space-y-3">
               {cards.map((workout, index) => {
                 const isLockedForSelection = isTodayPlanLocked && hasTodaySelection && !workout.isPickedForToday;
+                const isExpanded = expandedWorkoutKey === workout.key;
 
                 return (
                 <div
@@ -520,8 +552,11 @@ export function WorkoutOverviewScreen({
                 >
                   <button
                     type="button"
-                    onClick={() => onSelectWorkout(workout.key)}
+                    onClick={() => {
+                      setExpandedWorkoutKey((current) => (current === workout.key ? null : workout.key));
+                    }}
                     className="w-full text-inherit"
+                    aria-expanded={isExpanded}
                   >
                     <div className={`flex items-start justify-between gap-3 ${isArabic ? 'flex-row-reverse' : ''}`}>
                       <div className={`flex items-start gap-3 min-w-0 ${isArabic ? 'flex-row-reverse' : ''}`}>
@@ -529,22 +564,19 @@ export function WorkoutOverviewScreen({
                           <Dumbbell size={18} />
                         </div>
                         <div className="min-w-0">
-                          <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-text-tertiary">
-                            {workout.localizedDayLabel}
-                          </div>
-                          <div className="mt-1 truncate text-base font-semibold text-white">
+                          <div className="truncate text-base font-semibold text-white">
                             {workout.workoutName}
                           </div>
-                          <div className="mt-2 text-xs text-text-secondary">
+                          <div className="mt-1 text-xs text-text-secondary">
                             {copy.exerciseCount(workout.exerciseCount)}
                           </div>
                         </div>
                       </div>
 
                       <div className={`flex items-center gap-2 ${isArabic ? 'flex-row-reverse' : ''}`}>
-                        {workout.isToday && (
-                          <span className="rounded-full bg-white/10 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-text-secondary">
-                            {copy.todayBadge}
+                        {workout.isRecommendedNext && !workout.isPickedForToday && (
+                          <span className="rounded-full bg-emerald-500/15 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-emerald-200">
+                            {copy.recommendedNextBadge}
                           </span>
                         )}
                         {workout.isPickedForToday && (
@@ -560,7 +592,11 @@ export function WorkoutOverviewScreen({
                           src={rightArrowIcon}
                           alt=""
                           aria-hidden="true"
-                          className={`mb-1 h-[18px] w-[18px] shrink-0 object-contain opacity-70 ${isArabic ? 'rotate-180' : ''}`}
+                          className={`mb-1 h-[18px] w-[18px] shrink-0 object-contain opacity-70 transition-transform ${
+                            isArabic
+                              ? (isExpanded ? '-rotate-90' : 'rotate-180')
+                              : (isExpanded ? 'rotate-90' : '')
+                          }`}
                         />
                       </div>
                     </div>
@@ -581,6 +617,33 @@ export function WorkoutOverviewScreen({
                           />
                         </div>
                       ))}
+                    </div>
+                  )}
+
+                  {isExpanded && (
+                    <div className="mt-4 rounded-2xl border border-white/10 bg-black/10 p-4">
+                      <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-text-tertiary">
+                        {copy.exercisesIncluded}
+                      </div>
+                      {workout.exerciseNames.length > 0 ? (
+                        <div className="mt-3 space-y-2">
+                          {workout.exerciseNames.map((exerciseName, exerciseIndex) => (
+                            <div
+                              key={`${workout.key}-${exerciseName}-${exerciseIndex}`}
+                              className={`flex items-center gap-2 text-sm text-text-secondary ${isArabic ? 'flex-row-reverse text-right' : ''}`}
+                            >
+                              <span className="inline-flex h-6 min-w-6 items-center justify-center rounded-full bg-accent/15 px-2 text-[11px] font-semibold text-accent">
+                                {exerciseIndex + 1}
+                              </span>
+                              <span className="min-w-0 flex-1 truncate">{exerciseName}</span>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="mt-3 text-sm text-text-secondary">
+                          {copy.noExercises}
+                        </div>
+                      )}
                     </div>
                   )}
 

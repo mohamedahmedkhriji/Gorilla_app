@@ -481,7 +481,6 @@ export function Home({
   const [programProgress, setProgramProgress] = useState<any>(null);
   const [isHomeLoading, setIsHomeLoading] = useState(true);
   const [showShopComingSoon, setShowShopComingSoon] = useState(false);
-  const [showBooksComingSoon, setShowBooksComingSoon] = useState(false);
   const [extraTodayExercises, setExtraTodayExercises] = useState<any[]>(
     () => loadTodayExtraExercises(workoutStorageKeys),
   );
@@ -557,6 +556,7 @@ export function Home({
         viewMyPlan: 'View My Plan',
         ready: 'Ready',
         done: 'Done',
+        fullyDone: 'Fully Done',
       },
       ar: {
         recoveryFirst: '\u0627\u0644\u062a\u0639\u0627\u0641\u064a \u0623\u0648\u0644\u0627',
@@ -569,6 +569,7 @@ export function Home({
         viewMyPlan: '\u0627\u0637\u0644\u0639 \u0639\u0644\u0649 \u062e\u0637\u062a\u064a',
         ready: '\u062c\u0627\u0647\u0632',
         done: '\u062a\u0645',
+        fullyDone: '\u0645\u0643\u062a\u0645\u0644 \u0643\u0644\u064a\u0627',
       },
       it: {
         recoveryFirst: 'Prima il recupero',
@@ -581,6 +582,7 @@ export function Home({
         viewMyPlan: 'Apri il mio piano',
         ready: 'Pronto',
         done: 'Fatto',
+        fullyDone: 'Completato',
       },
       de: {
         recoveryFirst: 'Erholung zuerst',
@@ -593,6 +595,7 @@ export function Home({
         viewMyPlan: 'Meinen Plan offnen',
         ready: 'Bereit',
         done: 'Fertig',
+        fullyDone: 'Ganz erledigt',
       },
     }),
     [language],
@@ -664,6 +667,11 @@ export function Home({
     : todayWorkoutSelection?.completed
       ? workoutCardCopy.done
       : workoutCardProgressCaption;
+  const workoutCardProgressDisplayLabel = shouldChooseWorkoutToday
+    ? null
+    : todayWorkoutSelection?.completed
+      ? workoutCardCopy.fullyDone
+      : null;
 
   const handleOpenWorkoutCard = () => {
     if (todayWorkoutSelection?.workoutKey) {
@@ -1075,7 +1083,7 @@ export function Home({
   }, [resetSignal]);
 
   useEffect(() => {
-    if (view !== 'main' || isHomeLoading || showShopComingSoon || showBooksComingSoon) return;
+    if (view !== 'main' || isHomeLoading || showShopComingSoon) return;
     if (hasTrackedHomeVisitRef.current) return;
 
     hasTrackedHomeVisitRef.current = true;
@@ -1083,13 +1091,12 @@ export function Home({
   }, [
     coachmarkStorageOptions,
     isHomeLoading,
-    showBooksComingSoon,
     showShopComingSoon,
     view,
   ]);
 
   useEffect(() => {
-    if (view !== 'main' || isHomeLoading || showShopComingSoon || showBooksComingSoon || isCoachmarkOpen) {
+    if (view !== 'main' || isHomeLoading || showShopComingSoon || isCoachmarkOpen) {
       return;
     }
 
@@ -1114,7 +1121,6 @@ export function Home({
     homeCoachmarkSteps,
     isCoachmarkOpen,
     isHomeLoading,
-    showBooksComingSoon,
     showShopComingSoon,
     view,
   ]);
@@ -1662,6 +1668,7 @@ export function Home({
             detailLines={workoutCardDetailLinesDisplay}
             actionLabel={workoutCardActionLabelDisplay}
             progressCaption={workoutCardProgressCaptionDisplay}
+            progressDisplayLabel={workoutCardProgressDisplayLabel}
           />
         </div>
 
@@ -1729,32 +1736,10 @@ export function Home({
           </div>
         )}
 
-        {showBooksComingSoon && (
-          <div
-            className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-6"
-            onClick={() => setShowBooksComingSoon(false)}
-          >
-            <div
-              className="w-full max-w-sm surface-glass border border-white/15 rounded-2xl p-5 text-center"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <h3 className="text-xl font-semibold text-white">{homeCopy.books}</h3>
-              <p className="text-sm text-text-secondary mt-2">{homeCopy.comingSoon}</p>
-              <button
-                type="button"
-                onClick={() => setShowBooksComingSoon(false)}
-                className="mt-4 w-full bg-accent text-black py-2.5 rounded-xl font-semibold hover:bg-accent/90 transition-colors"
-              >
-                {homeCopy.ok}
-              </button>
-            </div>
-          </div>
-        )}
-
         {/* Education */}
         <EducationSection
           onExercises={() => setView('exercises')}
-          onBooks={() => setShowBooksComingSoon(true)}
+          onBooks={() => setView('books')}
           exercisesCoachmarkTargetId="home_learning_exercises_card"
           booksCoachmarkTargetId="home_learning_books_card"
         />
