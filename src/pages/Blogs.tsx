@@ -1820,7 +1820,7 @@ export function Blogs({
           <button
             type="button"
             onClick={() => setActiveReelIndex(null)}
-            className="fixed top-4 right-4 z-[95] w-12 h-12 rounded-full bg-black/80 border-2 border-[#FFFFFF] hover:bg-black text-[#FFFFFF] shadow-[0_0_18px_rgba(0,0,0,0.55)] backdrop-blur-sm flex items-center justify-center"
+            className="fixed right-4 top-[calc(env(safe-area-inset-top)+1rem)] z-[95] h-12 w-12 rounded-full bg-black/80 border-2 border-[#FFFFFF] text-[#FFFFFF] shadow-[0_0_18px_rgba(0,0,0,0.55)] backdrop-blur-sm flex items-center justify-center hover:bg-black"
             aria-label={copy.closeFullScreen}
           >
             <X size={20} className="text-[#FFFFFF]" />
