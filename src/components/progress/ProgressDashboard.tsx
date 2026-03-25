@@ -144,6 +144,54 @@ const buildProgramDistribution = (programData: any): MuscleDistributionItem[] =>
     }));
 };
 
+const inferPlannedWorkoutsThisWeek = (progress: any, programData: any) => {
+  const normalizeWorkouts = (raw: unknown) => {
+    if (Array.isArray(raw)) return raw;
+    if (typeof raw !== 'string' || !raw.trim()) return [];
+    try {
+      const parsed = JSON.parse(raw);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  };
+
+  const programWorkouts = Array.isArray(programData?.currentWeekWorkouts)
+    ? programData.currentWeekWorkouts
+    : Array.isArray(programData?.workouts)
+      ? programData.workouts
+      : [];
+  const normalizedProgramWorkouts = normalizeWorkouts(programWorkouts);
+  if (normalizedProgramWorkouts.length > 0) {
+    return normalizedProgramWorkouts.length;
+  }
+
+  const progressWorkouts = Array.isArray(progress?.program?.currentWeekWorkouts)
+    ? progress.program.currentWeekWorkouts
+    : [];
+  if (progressWorkouts.length > 0) {
+    return progressWorkouts.length;
+  }
+
+  const selectedDays = Array.isArray(programData?.selectedDays)
+    ? programData.selectedDays.filter(Boolean)
+    : [];
+  if (selectedDays.length > 0) {
+    return selectedDays.length;
+  }
+
+  const programDaysPerWeek = Number(
+    programData?.daysPerWeek
+    ?? progress?.program?.daysPerWeek
+    ?? 0,
+  );
+  if (programDaysPerWeek > 0) {
+    return Math.round(programDaysPerWeek);
+  }
+
+  return Math.max(0, Number(progress?.summary?.workoutsPlannedThisWeek || 0));
+};
+
 const clampPercent = (value: number) => Math.max(0, Math.min(100, value));
 
 const getActiveSegments = (percent: number) =>
@@ -346,17 +394,23 @@ export function ProgressDashboard({ onViewReport, onViewStrengthScore }: Progres
     let workoutsPlannedThisWeek = 0;
     let workoutsMissedThisWeek = 0;
     let workoutsRemainingThisWeek = 0;
+    let activeProgramData: any = null;
 
     try {
       const progress = await api.getProgramProgress(userId);
+      try {
+        activeProgramData = await api.getUserProgram(userId);
+      } catch (programError) {
+        console.error('Failed to fetch active program for weekly plan stats:', programError);
+      }
       const weeklyRate = Number(progress?.summary?.weeklyCompletionRate || 0);
       consistency = Math.max(0, Math.min(100, weeklyRate));
       currentStreak = Number(progress?.summary?.workoutStreakDays || 0);
       totalWorkouts = Number(progress?.summary?.completedWorkouts || 0);
       workoutsCompletedThisWeek = Number(progress?.summary?.workoutsCompletedThisWeek || 0);
-      workoutsPlannedThisWeek = Number(progress?.summary?.workoutsPlannedThisWeek || 0);
+      workoutsPlannedThisWeek = inferPlannedWorkoutsThisWeek(progress, activeProgramData);
       workoutsMissedThisWeek = Number(progress?.summary?.workoutsMissedThisWeek || 0);
-      workoutsRemainingThisWeek = Number(progress?.summary?.workoutsRemainingThisWeek || 0);
+      workoutsRemainingThisWeek = Math.max(0, workoutsPlannedThisWeek - workoutsCompletedThisWeek - workoutsMissedThisWeek);
       const volumeLoadAllTime = Number(
         progress?.summary?.volumeLoadAllTime
         ?? progress?.summary?.volumeLoadSinceStart
@@ -374,7 +428,7 @@ export function ProgressDashboard({ onViewReport, onViewStrengthScore }: Progres
       if (top.length > 0) {
         setMuscleDistribution(normalizeDistributionItems(top));
       } else {
-        const programData = await api.getUserProgram(userId);
+        const programData = activeProgramData || await api.getUserProgram(userId);
         const programFallback = buildProgramDistribution(programData);
         if (programFallback.length > 0) {
           setMuscleDistribution(programFallback);

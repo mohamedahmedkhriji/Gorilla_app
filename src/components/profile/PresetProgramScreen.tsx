@@ -285,6 +285,19 @@ const mapAiWorkoutTypesToTemplate = (
   return recommendTemplateByDays(workoutDays);
 };
 
+const mapStoredSplitPreferenceToTemplate = (
+  splitPreference: unknown,
+  workoutDays: number,
+): ProgramTemplate['id'] | null => {
+  const normalized = String(splitPreference || '').trim().toLowerCase();
+  if (!normalized || normalized === 'auto' || normalized === 'custom') return null;
+  if (normalized === 'upper_lower' || normalized === 'full_body') return 'upperlower';
+  if (normalized === 'push_pull_legs' || normalized === 'hybrid') {
+    return workoutDays >= 6 ? 'ppl' : 'splitpush';
+  }
+  return null;
+};
+
 const readStoredUser = () => {
   try {
     return JSON.parse(localStorage.getItem('appUser') || localStorage.getItem('user') || '{}');
@@ -443,7 +456,13 @@ export function PresetProgramScreen({ onBack, onSaved, onBuildCustom }: PresetPr
           ?? 0,
         );
         const resolvedDays = clampWorkoutDays(fromProgram > 0 ? fromProgram : fromLocalUser);
-        let recommended = recommendTemplateByDays(resolvedDays);
+        const storedSplitRecommendation = mapStoredSplitPreferenceToTemplate(
+          user?.workoutSplitPreference
+          ?? user?.workout_split_preference
+          ?? '',
+          resolvedDays,
+        );
+        let recommended = storedSplitRecommendation || recommendTemplateByDays(resolvedDays);
         let recommendationMeta: typeof aiRecommendationMeta = {
           type: 'fallback',
           days: resolvedDays,
@@ -466,7 +485,9 @@ export function PresetProgramScreen({ onBack, onSaved, onBuildCustom }: PresetPr
             : [];
           const suggestedLevel = String(insights?.interpretation?.suggestedExperienceLevel || '').trim();
 
-          recommended = mapAiWorkoutTypesToTemplate(suggestedWorkoutTypes, resolvedDays);
+          if (!storedSplitRecommendation) {
+            recommended = mapAiWorkoutTypesToTemplate(suggestedWorkoutTypes, resolvedDays);
+          }
           recommendationMeta = suggestedWorkoutTypes.length
             ? {
               type: 'signals',
@@ -487,6 +508,7 @@ export function PresetProgramScreen({ onBack, onSaved, onBuildCustom }: PresetPr
         setWorkoutDays(resolvedDays);
         setAiRecommendationMeta(recommendationMeta);
         setRecommendedTemplateId(recommended);
+        setSelectedTemplateId((current) => current ?? recommended);
       } catch (fetchError) {
         console.error('Failed to infer workout-day recommendation:', fetchError);
       }

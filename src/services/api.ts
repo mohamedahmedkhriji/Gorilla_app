@@ -133,6 +133,21 @@ const createApiError = (
   return error;
 };
 
+const normalizeApiErrorMessage = (message: string, fallbackError: string) => {
+  const text = String(message || '').trim();
+  if (!text) return fallbackError;
+
+  if (/access denied for user .*using password:\s*no/i.test(text)) {
+    return 'Database authentication failed. Set DB_PASSWORD in .env and restart the backend.';
+  }
+
+  if (/connect econnrefused/i.test(text) && /mysql|127\.0\.0\.1|localhost/i.test(text)) {
+    return 'Database is offline. Check DB_HOST/DB_PORT and make sure MySQL is running.';
+  }
+
+  return text;
+};
+
 const parseApiResponse = async (res: Response, fallbackError = 'Request failed') => {
   const contentType = res.headers.get('content-type') || '';
   if (!contentType.includes('application/json')) {
@@ -147,7 +162,11 @@ const parseApiResponse = async (res: Response, fallbackError = 'Request failed')
 
   const data = await res.json();
   if (!res.ok) {
-    throw createApiError(data?.error || fallbackError, res.status, data);
+    throw createApiError(
+      normalizeApiErrorMessage(data?.error || fallbackError, fallbackError),
+      res.status,
+      data,
+    );
   }
   return data;
 };

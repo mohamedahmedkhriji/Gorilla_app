@@ -40,9 +40,9 @@ ANTHROPIC_MODEL=claude-3-7-sonnet-latest
 
 DB_HOST=localhost
 DB_USER=root
-DB_PASSWORD=
+DB_PASSWORD=your_mysql_password
 DB_NAME=gorella_fitness
-DB_PORT=3307
+DB_PORT=3306
 
 PORT=5001
 CLIENT_URL=http://localhost:5173
@@ -55,6 +55,7 @@ Notes:
 - `VITE_OPENAI_API_KEY` is used by client-side AI coach utilities.
 - `CLIENT_URL` is the allowed frontend origin for backend CORS.
 - `VITE_API_URL` is the frontend API base URL.
+- `DB_PASSWORD` must match your real MySQL password unless your local MySQL user is intentionally configured with no password.
 
 ## Setup
 
@@ -68,7 +69,7 @@ npm install
 
 ```bash
 # Option A: base schema
-mysql -u root -P 3307 < server/init_innodb.sql
+mysql -u root -p -P 3306 < server/init_innodb.sql
 
 # Option B: apply targeted migrations as needed
 npm run migrate:sql -- server/migrations/2026-02-26_exercise_catalog_upgrade.sql

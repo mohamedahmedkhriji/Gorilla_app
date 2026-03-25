@@ -3,7 +3,7 @@ import { Dumbbell } from 'lucide-react';
 import { Header } from '../ui/Header';
 import { AgendaSection } from '../home/AgendaSection';
 import { getBodyPartImage } from '../../services/bodyPartTheme';
-import { AppLanguage, getActiveLanguage, getStoredLanguage } from '../../services/language';
+import { AppLanguage, getActiveLanguage, getStoredLanguage, normalizeLocalizedValue } from '../../services/language';
 import type { WorkoutAssignmentHistoryEntry } from '../../services/todayWorkoutSelection';
 import { formatWorkoutDayLabel } from '../../services/workoutDayLabel';
 import rightArrowIcon from '../../../assets/emoji/right-arrow.png';
@@ -374,8 +374,15 @@ export function WorkoutOverviewScreen({
     };
   }, []);
 
-  const copy = LOCALIZED_COPY[language] || LOCALIZED_COPY.en;
+  const copy = useMemo(
+    () => normalizeLocalizedValue(LOCALIZED_COPY[language] || LOCALIZED_COPY.en),
+    [language],
+  );
   const isArabic = language === 'ar';
+  const localizedMuscleLabels = useMemo(
+    () => normalizeLocalizedValue(MUSCLE_LABELS[language] || {}),
+    [language],
+  );
 
   const localizeDay = (value: string) => {
     return formatWorkoutDayLabel(value, value, language);
@@ -383,7 +390,7 @@ export function WorkoutOverviewScreen({
 
   const localizeMuscle = (value: string) => {
     const normalized = String(value || '').trim().toLowerCase();
-    return MUSCLE_LABELS[language]?.[normalized] || value;
+    return localizedMuscleLabels[normalized] || value;
   };
 
   const selectableWorkouts = useMemo(
@@ -446,10 +453,6 @@ export function WorkoutOverviewScreen({
           <div
             className="absolute inset-0 bg-gradient-to-r from-background/65 via-background/45 to-background/25"
             data-coachmark-target="my_plan_current_day_gradient"
-            aria-hidden="true"
-          />
-          <div
-            className="absolute inset-0 bg-gradient-to-r from-background/65 via-background/45 to-background/25"
             aria-hidden="true"
           />
           <div className={`relative z-10 ${isArabic ? 'text-right' : 'text-left'}`}>
@@ -521,15 +524,17 @@ export function WorkoutOverviewScreen({
               <div className="mt-2 text-sm text-text-secondary">
                 {copy.planFinishedBody}
               </div>
-              <div className={`mt-4 flex ${isArabic ? 'justify-start' : 'justify-end'}`}>
-                <button
-                  type="button"
-                  onClick={onOpenNewPlanFlow}
-                  className="font-marker inline-flex min-w-[12rem] items-center justify-center rounded-full border border-accent/30 bg-accent px-4 py-2.5 text-xs font-semibold uppercase tracking-[0.12em] text-black transition-colors hover:bg-[#aee600]"
-                >
-                  {copy.createNewPlan}
-                </button>
-              </div>
+              {onOpenNewPlanFlow && (
+                <div className={`mt-4 flex ${isArabic ? 'justify-start' : 'justify-end'}`}>
+                  <button
+                    type="button"
+                    onClick={onOpenNewPlanFlow}
+                    className="font-marker inline-flex min-w-[12rem] items-center justify-center rounded-full border border-accent/30 bg-accent px-4 py-2.5 text-xs font-semibold uppercase tracking-[0.12em] text-black transition-colors hover:bg-[#aee600]"
+                  >
+                    {copy.createNewPlan}
+                  </button>
+                </div>
+              )}
             </div>
           )}
 
@@ -557,6 +562,7 @@ export function WorkoutOverviewScreen({
                     }}
                     className="w-full text-inherit"
                     aria-expanded={isExpanded}
+                    aria-label={isExpanded ? copy.hideExercises : copy.showExercises}
                   >
                     <div className={`flex items-start justify-between gap-3 ${isArabic ? 'flex-row-reverse' : ''}`}>
                       <div className={`flex items-start gap-3 min-w-0 ${isArabic ? 'flex-row-reverse' : ''}`}>

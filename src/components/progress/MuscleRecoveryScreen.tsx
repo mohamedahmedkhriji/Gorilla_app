@@ -1,9 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Header } from '../ui/Header';
 import { SlidersHorizontal, ChevronDown, X } from 'lucide-react';
 import { api } from '../../services/api';
 import { getBodyPartImage } from '../../services/bodyPartTheme';
-import { AppLanguage, getActiveLanguage, getStoredLanguage } from '../../services/language';
+import { AppLanguage, getActiveLanguage, getStoredLanguage, normalizeLocalizedValue } from '../../services/language';
 
 interface MuscleRecoveryScreenProps {
   onBack: () => void;
@@ -298,7 +298,7 @@ export function MuscleRecoveryScreen({ onBack }: MuscleRecoveryScreenProps) {
   };
   void legacyCopy;
   const copy = RECOVERY_I18N[language] || RECOVERY_I18N.en;
-  const [muscleRecoveries, setMuscleRecoveries] = useState<MuscleRecoveryItem[]>(DEFAULT_MUSCLES);
+  const [muscleRecoveries, setMuscleRecoveries] = useState<MuscleRecoveryItem[]>([]);
   const [showFactors, setShowFactors] = useState(false);
   const [factors, setFactors] = useState<RecoveryFactorsState>({
     sleepHours: '7',
@@ -311,6 +311,15 @@ export function MuscleRecoveryScreen({ onBack }: MuscleRecoveryScreenProps) {
   });
   const [error, setError] = useState('');
   const [isUpdatingFactors, setIsUpdatingFactors] = useState(false);
+  const localizedMuscleLabels = useMemo(() => normalizeLocalizedValue(
+    language === 'ar'
+      ? AR_MUSCLE_LABELS
+      : language === 'it'
+        ? IT_MUSCLE_LABELS
+        : language === 'de'
+          ? DE_MUSCLE_LABELS
+          : {},
+  ), [language]);
 
   useEffect(() => {
     const handleLanguageChanged = () => {
@@ -329,7 +338,7 @@ export function MuscleRecoveryScreen({ onBack }: MuscleRecoveryScreenProps) {
     try {
       const user = JSON.parse(localStorage.getItem('appUser') || localStorage.getItem('user') || '{}');
       if (!user.id) {
-        setMuscleRecoveries(DEFAULT_MUSCLES);
+        setMuscleRecoveries([]);
         return;
       }
 
@@ -339,6 +348,7 @@ export function MuscleRecoveryScreen({ onBack }: MuscleRecoveryScreenProps) {
       setError('');
     } catch (loadError) {
       console.error('Failed to load recovery status:', loadError);
+      setMuscleRecoveries([]);
       setError(loadError instanceof Error ? loadError.message : copy.loadError);
     }
   };
@@ -433,17 +443,30 @@ export function MuscleRecoveryScreen({ onBack }: MuscleRecoveryScreenProps) {
   const getMuscleImage = (muscleGroup: string) => getBodyPartImage(muscleGroup);
   const toLocalizedMuscle = (value: string) => {
     const key = String(value || '').trim().toLowerCase();
-    if (language === 'ar') return AR_MUSCLE_LABELS[key] || value;
-    if (language === 'it') return IT_MUSCLE_LABELS[key] || value;
-    if (language === 'de') return DE_MUSCLE_LABELS[key] || value;
-    return value;
+    return localizedMuscleLabels[key] || value;
   };
 
-  const readyMuscles = muscleRecoveries.filter((m) => m.score >= 90).sort((a, b) => a.score - b.score);
-  const almostReadyMuscles = muscleRecoveries
+  const visibleMuscles = muscleRecoveries.filter((m) => (
+    !!m.lastWorkout
+    || Number(m.hoursNeeded || 0) > 0
+    || Number(m.hoursElapsed || 0) > 0
+    || Number(m.plannedTodaySetUnits || 0) > 0
+    || Number(m.completedTodaySetUnits || 0) > 0
+    || Number(m.plannedWeekSetUnits || 0) > 0
+    || Number(m.completedWeekSetUnits || 0) > 0
+  ));
+  const readyMuscles = visibleMuscles.filter((m) => m.score >= 90).sort((a, b) => a.score - b.score);
+  const almostReadyMuscles = visibleMuscles
     .filter((m) => m.score >= 70 && m.score < 90)
     .sort((a, b) => a.score - b.score);
-  const damagedMuscles = muscleRecoveries.filter((m) => m.score < 70).sort((a, b) => a.score - b.score);
+  const damagedMuscles = visibleMuscles.filter((m) => m.score < 70).sort((a, b) => a.score - b.score);
+  const emptyStateMessage = language === 'ar'
+    ? 'أكمل يوم تدريب لعرض العضلات التي تم تدريبها ونسبة التعافي الخاصة بها.'
+    : language === 'it'
+      ? 'Completa una giornata di allenamento per vedere i muscoli allenati e la loro percentuale di recupero.'
+      : language === 'de'
+        ? 'Schliesse einen Trainingstag ab, um die trainierten Muskeln und ihre Erholungswerte zu sehen.'
+        : 'Complete a workout day to see the muscles you trained and their recovery percentages.';
   return (
     <div className="flex-1 flex flex-col h-full bg-background pb-24">
       <div className="px-4 sm:px-6 pt-2">
@@ -534,6 +557,12 @@ export function MuscleRecoveryScreen({ onBack }: MuscleRecoveryScreenProps) {
         {error && (
           <div className="rounded-xl border border-red-400/30 bg-red-500/10 px-3 py-2 text-sm text-red-300">
             {error}
+          </div>
+        )}
+
+        {!error && visibleMuscles.length === 0 && (
+          <div className="rounded-xl border border-white/10 bg-card/60 px-4 py-5 text-sm text-text-secondary">
+            {emptyStateMessage}
           </div>
         )}
 

@@ -1560,6 +1560,75 @@ const getProteinFactor = (proteinIntake) => {
   return 1.08;
 };
 
+const getSupplementFactor = (supplements) => {
+  const key = String(supplements || '').trim().toLowerCase();
+  if (key === 'full') return 0.93;
+  if (key === 'creatine') return 0.97;
+  return 1.0;
+};
+
+const normalizeRecoveryNutritionQuality = (value, fallback = 'optimal') => {
+  const key = String(value || '').trim().toLowerCase();
+  return ['optimal', 'suboptimal'].includes(key) ? key : fallback;
+};
+
+const normalizeRecoveryStressLevel = (value, fallback = 'low') => {
+  const key = String(value || '').trim().toLowerCase();
+  return ['low', 'moderate', 'high'].includes(key) ? key : fallback;
+};
+
+const normalizeRecoverySupplements = (value) => {
+  const key = String(value || '').trim().toLowerCase();
+  return ['none', 'creatine', 'full'].includes(key) ? key : 'none';
+};
+
+const normalizeRecoveryProteinIntake = (value) => {
+  if (value == null || value === '') return null;
+
+  if (typeof value === 'string') {
+    const key = value.trim().toLowerCase();
+    if (key === 'low') return 0.8;
+    if (key === 'medium') return 1.2;
+    if (key === 'high') return 1.8;
+
+    const parsed = Number(key);
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+  }
+
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+};
+
+const buildRecoveryFactorSnapshot = (raw = {}) => ({
+  sleepHours: Number(raw.sleep_hours ?? raw.sleepHours ?? 7) || 7,
+  nutritionQuality: normalizeRecoveryNutritionQuality(
+    raw.nutrition_quality ?? raw.nutritionQuality,
+    'optimal',
+  ),
+  stressLevel: normalizeRecoveryStressLevel(
+    raw.stress_level ?? raw.stressLevel,
+    'low',
+  ),
+  proteinIntake: normalizeRecoveryProteinIntake(
+    raw.protein_intake ?? raw.proteinIntake,
+  ),
+  supplements: normalizeRecoverySupplements(raw.supplements),
+});
+
+const getRecoveryFactorMultiplier = ({
+  sleepHours = 7,
+  nutritionQuality = 'optimal',
+  stressLevel = 'moderate',
+  proteinIntake = null,
+  supplements = 'none',
+}) => (
+  getSleepFactor(sleepHours)
+  * (NUTRITION_FACTORS[nutritionQuality] || 1.0)
+  * (STRESS_FACTORS[stressLevel] || 1.0)
+  * getProteinFactor(proteinIntake)
+  * getSupplementFactor(supplements)
+);
+
 const normalizeMuscleName = (muscle = '') => {
   const key = String(muscle).trim().toLowerCase();
   if (!key) return null;
@@ -1814,6 +1883,7 @@ const calculateRecoveryHours = ({
   nutritionQuality = 'optimal',
   stressLevel = 'moderate',
   proteinIntake = null,
+  supplements = 'none',
   loadMultiplier = 1,
 }) => {
   const canonicalMuscle = normalizeMuscleName(muscleGroup) || 'Chest';
@@ -1828,6 +1898,7 @@ const calculateRecoveryHours = ({
   hours *= NUTRITION_FACTORS[nutritionQuality] || 1.0;
   hours *= STRESS_FACTORS[stressLevel] || 1.0;
   hours *= getProteinFactor(proteinIntake);
+  hours *= getSupplementFactor(supplements);
   hours *= Number.isFinite(Number(loadMultiplier)) ? Number(loadMultiplier) : 1;
 
   return Number(Math.max(12, hours).toFixed(2));
@@ -2070,16 +2141,64 @@ const estimateRecoveryScoreFromFactors = ({
   nutritionQuality = 'optimal',
   stressLevel = 'moderate',
   proteinIntake = null,
+  supplements = 'none',
 }) => {
   const sleep = Number(sleepHours || 0);
   const protein = Number(proteinIntake || 0);
+  const supplementKey = normalizeRecoverySupplements(supplements);
 
   const sleepScore = sleep >= 8 ? 40 : sleep >= 7 ? 34 : sleep >= 6 ? 26 : 16;
   const nutritionScore = nutritionQuality === 'optimal' ? 28 : 18;
   const stressScore = stressLevel === 'low' ? 24 : stressLevel === 'moderate' ? 16 : 8;
   const proteinScore = protein >= 1.6 ? 8 : protein >= 1.0 ? 6 : 3;
+  const supplementsScore = supplementKey === 'full' ? 4 : supplementKey === 'creatine' ? 2 : 0;
 
-  return clampPercentage(Math.round(sleepScore + nutritionScore + stressScore + proteinScore));
+  return clampPercentage(Math.round(sleepScore + nutritionScore + stressScore + proteinScore + supplementsScore));
+};
+
+const recalculateRecoveryStatusHoursForFactors = async (userId, previousFactors, nextFactors) => {
+  const normalizedUserId = toNumber(userId, 0);
+  if (!normalizedUserId) return;
+
+  const previousMultiplier = getRecoveryFactorMultiplier(previousFactors);
+  const nextMultiplier = getRecoveryFactorMultiplier(nextFactors);
+  if (!Number.isFinite(previousMultiplier) || previousMultiplier <= 0 || !Number.isFinite(nextMultiplier) || nextMultiplier <= 0) {
+    return;
+  }
+
+  if (Math.abs(previousMultiplier - nextMultiplier) < 0.0001) {
+    return;
+  }
+
+  const [statusRows] = await pool.execute(
+    `SELECT id, hours_needed, last_worked
+     FROM muscle_recovery_status
+     WHERE user_id = ?`,
+    [normalizedUserId],
+  );
+
+  if (!Array.isArray(statusRows) || !statusRows.length) {
+    return;
+  }
+
+  await Promise.all(
+    statusRows.map((row) => {
+      const currentHoursNeeded = Number(row.hours_needed || 0);
+      const baseHoursNeeded = previousMultiplier > 0
+        ? currentHoursNeeded / previousMultiplier
+        : currentHoursNeeded;
+      const nextHoursNeeded = Number(Math.max(12, baseHoursNeeded * nextMultiplier).toFixed(2));
+      const dynamic = calculateDynamicRecovery(row.last_worked, nextHoursNeeded);
+      const overtrainingRisk = dynamic.score < 30 ? 1 : 0;
+
+      return pool.execute(
+        `UPDATE muscle_recovery_status
+         SET hours_needed = ?, recovery_percentage = ?, hours_elapsed = ?, overtraining_risk = ?
+         WHERE id = ?`,
+        [nextHoursNeeded, dynamic.score, dynamic.hoursElapsed, overtrainingRisk, row.id],
+      );
+    }),
+  );
 };
 
 const getMetricValue = (metrics, metricKey) => {
@@ -10279,7 +10398,8 @@ const rebuildTodayRecoveryStatusFromSets = async (userId) => {
         rf.sleep_hours,
         rf.nutrition_quality,
         rf.stress_level,
-        rf.protein_intake
+        rf.protein_intake,
+        rf.supplements
      FROM users u
      LEFT JOIN recovery_factors rf ON rf.user_id = u.id
      WHERE u.id = ?
@@ -10319,6 +10439,7 @@ const rebuildTodayRecoveryStatusFromSets = async (userId) => {
         nutritionQuality: factors.nutrition_quality || 'optimal',
         stressLevel: factors.stress_level || 'moderate',
         proteinIntake: factors.protein_intake ?? null,
+        supplements: factors.supplements || 'none',
         loadMultiplier,
       });
 
@@ -10349,7 +10470,7 @@ const rebuildTodayRecoveryStatusFromSets = async (userId) => {
          VALUES (?, ?, 0, ?, 0, ?)
          ON DUPLICATE KEY UPDATE
            recovery_percentage = 0,
-           hours_needed = GREATEST(hours_needed, VALUES(hours_needed)),
+           hours_needed = VALUES(hours_needed),
            hours_elapsed = 0,
            last_worked = VALUES(last_worked)`,
         [normalizedUserId, muscle, value.hoursNeeded, value.lastWorked],
@@ -10551,50 +10672,74 @@ router.post('/user/:userId/recovery', async (req, res) => {
     if (!userId || userId <= 0) {
       return res.status(400).json({ error: 'Invalid userId' });
     }
-    const { sleepHours, nutritionQuality, stressLevel, proteinIntake, supplements } = req.body;
+    const {
+      sleepHours,
+      nutritionQuality,
+      nutrition_quality,
+      stressLevel,
+      stress_level,
+      proteinIntake,
+      protein_intake,
+      supplements,
+    } = req.body || {};
 
-    let normalizedProteinIntake = proteinIntake;
-    if (typeof proteinIntake === 'string') {
-      if (proteinIntake === 'low') normalizedProteinIntake = 0.8;
-      else if (proteinIntake === 'medium') normalizedProteinIntake = 1.2;
-      else if (proteinIntake === 'high') normalizedProteinIntake = 1.8;
-      else normalizedProteinIntake = null;
-    }
+    const [existingFactorRows] = await pool.execute(
+      `SELECT sleep_hours, nutrition_quality, stress_level, protein_intake, supplements
+       FROM recovery_factors
+       WHERE user_id = ?
+       LIMIT 1`,
+      [userId],
+    );
 
-    const normalizedNutrition =
-      nutritionQuality && ['optimal', 'suboptimal'].includes(nutritionQuality)
-        ? nutritionQuality
-        : 'optimal';
-
-    const normalizedStress =
-      stressLevel && ['low', 'moderate', 'high'].includes(stressLevel)
-        ? stressLevel
-        : 'low';
+    const previousFactors = buildRecoveryFactorSnapshot(existingFactorRows[0] || {});
+    const normalizedSleepHours = Number(sleepHours || previousFactors.sleepHours || 7) || 7;
+    const normalizedProteinIntake = normalizeRecoveryProteinIntake(
+      proteinIntake ?? protein_intake,
+    );
+    const normalizedNutrition = normalizeRecoveryNutritionQuality(
+      nutritionQuality ?? nutrition_quality,
+      'optimal',
+    );
+    const normalizedStress = normalizeRecoveryStressLevel(
+      stressLevel ?? stress_level,
+      'low',
+    );
+    const normalizedSupplements = normalizeRecoverySupplements(supplements);
+    const nextFactors = buildRecoveryFactorSnapshot({
+      sleepHours: normalizedSleepHours,
+      nutritionQuality: normalizedNutrition,
+      stressLevel: normalizedStress,
+      proteinIntake: normalizedProteinIntake,
+      supplements: normalizedSupplements,
+    });
 
     await pool.execute(
       `INSERT INTO recovery_factors (user_id, sleep_hours, nutrition_quality, stress_level, protein_intake, supplements)
        VALUES (?, ?, ?, ?, ?, ?)
        ON DUPLICATE KEY UPDATE
        sleep_hours = VALUES(sleep_hours),
-       nutrition_quality = VALUES(nutrition_quality),
-       stress_level = VALUES(stress_level),
-       protein_intake = VALUES(protein_intake),
-       supplements = VALUES(supplements)`,
-      [userId, sleepHours || 7, normalizedNutrition, normalizedStress, normalizedProteinIntake, supplements || null]
+        nutrition_quality = VALUES(nutrition_quality),
+        stress_level = VALUES(stress_level),
+        protein_intake = VALUES(protein_intake),
+        supplements = VALUES(supplements)`,
+      [userId, normalizedSleepHours, normalizedNutrition, normalizedStress, normalizedProteinIntake, normalizedSupplements]
     );
 
+    await recalculateRecoveryStatusHoursForFactors(userId, previousFactors, nextFactors);
+
     const recoveryScore = estimateRecoveryScoreFromFactors({
-      sleepHours: sleepHours || 7,
+      sleepHours: normalizedSleepHours,
       nutritionQuality: normalizedNutrition,
       stressLevel: normalizedStress,
       proteinIntake: normalizedProteinIntake,
+      supplements: normalizedSupplements,
     });
 
     const [recoveryInsertResult] = await pool.execute(
       `INSERT INTO recovery_history
-         (user_id, overall_recovery_score, sleep_hours, nutrition_quality, stress_level)
-       VALUES (?, ?, ?, ?, ?)`,
-      [userId, recoveryScore, sleepHours || 7, normalizedNutrition, normalizedStress],
+          (user_id, overall_recovery_score, sleep_hours, nutrition_quality, stress_level)
+        VALUES (?, ?, ?, ?, ?)`,
+      [userId, recoveryScore, normalizedSleepHours, normalizedNutrition, normalizedStress],
     );
 
     try {
@@ -10676,7 +10821,8 @@ router.post('/workouts/:workoutId/recovery', async (req, res) => {
           rf.sleep_hours,
           rf.nutrition_quality,
           rf.stress_level,
-          rf.protein_intake
+          rf.protein_intake,
+          rf.supplements
        FROM users u
        LEFT JOIN recovery_factors rf ON rf.user_id = u.id
        WHERE u.id = ?
@@ -10706,6 +10852,7 @@ router.post('/workouts/:workoutId/recovery', async (req, res) => {
         nutritionQuality: factors.nutrition_quality || 'optimal',
         stressLevel: factors.stress_level || 'moderate',
         proteinIntake: factors.protein_intake ?? null,
+        supplements: factors.supplements || 'none',
       });
 
       await pool.execute(
@@ -10714,7 +10861,7 @@ router.post('/workouts/:workoutId/recovery', async (req, res) => {
          VALUES (?, ?, 0, ?, 0, ?)
          ON DUPLICATE KEY UPDATE
            recovery_percentage = 0,
-           hours_needed = GREATEST(hours_needed, VALUES(hours_needed)),
+           hours_needed = VALUES(hours_needed),
            hours_elapsed = 0,
            last_worked = VALUES(last_worked)`,
         [userId, muscle, recoveryHours, session.completed_at],
@@ -12330,7 +12477,8 @@ router.post('/workout-sets', authMutationRateLimit, requireAuth('user'), require
               rf.sleep_hours,
               rf.nutrition_quality,
               rf.stress_level,
-              rf.protein_intake
+              rf.protein_intake,
+              rf.supplements
            FROM users u
            LEFT JOIN recovery_factors rf ON rf.user_id = u.id
            WHERE u.id = ?
@@ -12359,6 +12507,7 @@ router.post('/workout-sets', authMutationRateLimit, requireAuth('user'), require
               nutritionQuality: factors.nutrition_quality || 'optimal',
               stressLevel: factors.stress_level || 'moderate',
               proteinIntake: factors.protein_intake ?? null,
+              supplements: factors.supplements || 'none',
               loadMultiplier,
             });
 
