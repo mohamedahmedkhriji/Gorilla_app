@@ -10542,6 +10542,119 @@ const rebuildTodayRecoveryStatusFromSets = async (userId) => {
     return { muscles: [] };
   }
 
+  const rebuildTodayRecoveryStatusFromLatestSession = async () => {
+    const columns = await getWorkoutSessionColumns();
+    if (!columns.size) {
+      return { muscles: [] };
+    }
+
+    const dateColumn = columns.has('completed_at')
+      ? 'completed_at'
+      : (columns.has('created_at') ? 'created_at' : null);
+    if (!dateColumn) {
+      return { muscles: [] };
+    }
+
+    let sessionSql = `SELECT * FROM workout_sessions WHERE user_id = ? AND DATE(${dateColumn}) = CURDATE()`;
+    if (columns.has('status')) {
+      sessionSql += ` AND LOWER(TRIM(status)) = 'completed'`;
+    }
+    sessionSql += ` ORDER BY ${dateColumn} DESC, id DESC LIMIT 1`;
+
+    const [sessionRows] = await pool.execute(sessionSql, [normalizedUserId]);
+    if (!sessionRows.length) {
+      return { muscles: [] };
+    }
+
+    const session = sessionRows[0];
+    const sessionMuscles = [
+      ...parseMuscleGroups(session.muscle_groups),
+      session.muscle_group,
+      ...parseSummaryJsonArray(session.exercises).flatMap((exercise) => (
+        Array.isArray(exercise?.targetMuscles)
+          ? exercise.targetMuscles
+          : Array.isArray(exercise?.target_muscles)
+            ? exercise.target_muscles
+            : []
+      )),
+    ];
+
+    const targetMuscles = [...new Set(
+      sessionMuscles
+        .map((value) => normalizeMuscleName(String(value || '')))
+        .filter(Boolean),
+    )];
+    if (!targetMuscles.length) {
+      return { muscles: [] };
+    }
+
+    const [factorRows] = await pool.execute(
+      `SELECT
+          u.age,
+          rf.sleep_hours,
+          rf.nutrition_quality,
+          rf.stress_level,
+          rf.protein_intake,
+          rf.supplements,
+          rf.soreness_level,
+          rf.energy_level,
+          rf.fatigue_level,
+          rf.mood_level,
+          rf.joint_pain_level,
+          rf.pump_score
+       FROM users u
+       LEFT JOIN recovery_factors rf ON rf.user_id = u.id
+       WHERE u.id = ?
+       LIMIT 1`,
+      [normalizedUserId],
+    );
+
+    const factors = factorRows[0] || {};
+    const intensity = normalizeSessionIntensity(session.intensity);
+    const volume = normalizeSessionVolume(session.volume);
+    const eccentricFocus = toBooleanFlag(session.eccentric_focus, false);
+    const lastWorked = session.completed_at || session.created_at || new Date();
+
+    const updates = await Promise.all(
+      targetMuscles.map(async (muscle) => {
+        const hoursNeeded = calculateRecoveryHours({
+          muscleGroup: muscle,
+          intensity,
+          volume,
+          eccentricFocus,
+          age: factors.age ?? null,
+          sleepHours: Number(factors.sleep_hours ?? 7),
+          nutritionQuality: factors.nutrition_quality || 'optimal',
+          stressLevel: factors.stress_level || 'moderate',
+          proteinIntake: factors.protein_intake ?? null,
+          supplements: factors.supplements || 'none',
+          sorenessLevel: Number(factors.soreness_level ?? 3),
+          energyLevel: Number(factors.energy_level ?? 6),
+          fatigueLevel: Number(factors.fatigue_level ?? 4),
+          moodLevel: Number(factors.mood_level ?? 6),
+          jointPainLevel: Number(factors.joint_pain_level ?? 0),
+          pumpScore: Number(factors.pump_score ?? 0),
+        });
+
+        await pool.execute(
+          `INSERT INTO muscle_recovery_status
+             (user_id, muscle_group, recovery_percentage, hours_needed, hours_elapsed, last_worked)
+           VALUES (?, ?, 0, ?, 0, ?)
+           ON DUPLICATE KEY UPDATE
+             recovery_percentage = 0,
+             hours_needed = VALUES(hours_needed),
+             hours_elapsed = 0,
+             last_worked = VALUES(last_worked)`,
+          [normalizedUserId, muscle, hoursNeeded, lastWorked],
+        );
+
+        return { muscle, hoursNeeded };
+      }),
+    );
+
+    return { muscles: updates };
+  };
+
   const [setRows] = await pool.execute(
     `SELECT
         id,
@@ -10555,7 +10668,7 @@ const rebuildTodayRecoveryStatusFromSets = async (userId) => {
   );
 
   if (!setRows.length) {
-    return { muscles: [] };
+    return rebuildTodayRecoveryStatusFromLatestSession();
   }
 
   const unresolvedNames = [
@@ -10632,7 +10745,7 @@ const rebuildTodayRecoveryStatusFromSets = async (userId) => {
   ];
 
   if (!catalogIds.length) {
-    return { muscles: [] };
+    return rebuildTodayRecoveryStatusFromLatestSession();
   }
 
   const recoveryContextByCatalogId = await getCatalogRecoveryContexts(catalogIds);
@@ -10744,6 +10857,10 @@ const rebuildTodayRecoveryStatusFromSets = async (userId) => {
   });
 
   await Promise.all(updates);
+
+  if (!byMuscle.size) {
+    return rebuildTodayRecoveryStatusFromLatestSession();
+  }
 
   return {
     muscles: Array.from(byMuscle.entries()).map(([muscle, value]) => ({

@@ -2048,8 +2048,10 @@ export function Workout({
   const saveAndShowWorkoutSummary = async (
     setsByExercise: Record<string, any[]>,
     openAfterSave: boolean,
+    options: { syncRecoveryAfterSave?: boolean } = {},
   ) => {
     if (!userId) return;
+    const syncRecoveryAfterSave = options.syncRecoveryAfterSave === true;
     setSummaryLoading(true);
     setSummaryError(null);
     try {
@@ -2073,6 +2075,7 @@ export function Workout({
         exercises: generated.exercises,
         summaryText,
       };
+      let didPersistWorkoutSession = false;
 
       try {
         await api.completeWorkoutDaySession({
@@ -2083,9 +2086,22 @@ export function Workout({
           muscles: payload.muscles,
           exercises: payload.exercises,
         });
+        didPersistWorkoutSession = true;
         window.dispatchEvent(new CustomEvent('gamification-updated'));
       } catch (sessionError) {
         console.error('Failed to finalize workout session:', sessionError);
+      }
+
+      if (syncRecoveryAfterSave && didPersistWorkoutSession) {
+        try {
+          await api.recalculateTodayRecovery(userId);
+          const finalizeKey = `recoveryFinalized:${userId}:${new Date().toDateString()}`;
+          localStorage.setItem(finalizeKey, 'true');
+          localStorage.setItem('recoveryNeedsUpdate', 'true');
+          window.dispatchEvent(new CustomEvent('recovery-updated'));
+        } catch (recoveryError) {
+          console.error('Failed to finalize recovery after saving workout session:', recoveryError);
+        }
       }
 
       const response = await api.saveWorkoutDaySummary(payload);
@@ -2349,23 +2365,9 @@ export function Workout({
     window.dispatchEvent(new CustomEvent('workout-progress-updated'));
     window.dispatchEvent(new CustomEvent('program-updated'));
 
-    const currentUserId = Number(userId || 0);
-    const todayKey = new Date().toDateString();
-    const finalizeKey = `recoveryFinalized:${currentUserId}:${todayKey}`;
-    if (currentUserId > 0) {
-      try {
-        await api.recalculateTodayRecovery(currentUserId);
-        localStorage.setItem(finalizeKey, 'true');
-      } catch (error) {
-        console.error('Failed to finalize recovery for fully done workout:', error);
-      }
-    }
-    localStorage.setItem('recoveryNeedsUpdate', 'true');
-    window.dispatchEvent(new CustomEvent('recovery-updated'));
-
     const summaryKey = `${formatDateISO(new Date())}:${String(currentWorkoutName || '').trim().toLowerCase()}`;
     setLastAutoSummaryKey(summaryKey);
-    await saveAndShowWorkoutSummary(nextExerciseSets, false);
+    await saveAndShowWorkoutSummary(nextExerciseSets, false, { syncRecoveryAfterSave: true });
 
     return { completed: true };
   };
