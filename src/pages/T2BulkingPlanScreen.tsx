@@ -1378,14 +1378,14 @@ export function T2BulkingPlanScreen({ onBack }: T2BulkingPlanScreenProps) {
 
       {isConfirmOpen && (
         <div
-          className="fixed inset-0 z-50 flex items-end justify-center overflow-y-auto bg-black/70 p-2 sm:items-center sm:p-4"
+          className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto overscroll-contain bg-black/70 px-2 pt-[calc(env(safe-area-inset-top,0px)+0.75rem)] pb-[calc(env(safe-area-inset-bottom,0px)+5.5rem)] sm:items-center sm:p-4"
           onClick={() => {
             if (!isApplying) setIsConfirmOpen(false);
           }}
         >
           <div
             dir={isArabic ? 'rtl' : 'ltr'}
-            className={`flex max-h-[min(88dvh,40rem)] w-full max-w-md flex-col overflow-hidden rounded-2xl border border-white/10 bg-card p-4 shadow-2xl sm:p-5 ${isArabic ? 'text-right' : 'text-left'}`}
+            className={`flex max-h-[min(calc(100dvh-8.5rem),36rem)] w-full max-w-sm flex-col overflow-hidden rounded-2xl border border-white/10 bg-card p-3.5 shadow-2xl sm:max-h-[min(88dvh,40rem)] sm:max-w-md sm:p-5 ${isArabic ? 'text-right' : 'text-left'}`}
             onClick={(event) => event.stopPropagation()}
           >
             <div className="min-h-0 flex-1 overflow-y-auto pr-1 pb-2 [scrollbar-gutter:stable] [-webkit-overflow-scrolling:touch]">
@@ -1492,7 +1492,7 @@ export function T2BulkingPlanScreen({ onBack }: T2BulkingPlanScreenProps) {
               </div>
             </div>
 
-            <div className="sticky bottom-0 mt-0 flex shrink-0 gap-3 border-t border-white/10 bg-card pt-2 pb-[max(env(safe-area-inset-bottom,0px),0px)]">
+            <div className="sticky bottom-0 mt-0 flex shrink-0 gap-3 border-t border-white/10 bg-card/95 pt-2 pb-1 backdrop-blur">
               <button
                 type="button"
                 onClick={() => setIsConfirmOpen(false)}
