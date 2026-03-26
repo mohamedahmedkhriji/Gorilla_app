@@ -250,6 +250,53 @@ const BACK_VIDEO_MANIFEST = [
   normalizedAliases: entry.aliases.map((alias) => normalizeExerciseVideoLookup(alias)),
 }));
 
+const CHEST_VIDEO_MANIFEST = [
+  {
+    bodyPart: 'chest',
+    fileName: 'Incline Smith Press.mp4',
+    priority: 96,
+    aliases: [
+      'incline smith press',
+      'smith incline press',
+      'incline smith machine press',
+      'smith machine incline press',
+    ],
+  },
+  {
+    bodyPart: 'chest',
+    fileName: 'Low-to-High Cable Fly.mp4',
+    priority: 95,
+    aliases: [
+      'low to high cable fly',
+      'low cable fly',
+      'low cable flyes',
+      'upper chest cable fly',
+      'upper chest cable flyes',
+    ],
+  },
+  {
+    bodyPart: 'chest',
+    fileName: 'Cable Fly.mp4',
+    priority: 94,
+    aliases: [
+      'cable fly',
+      'cable flyes',
+      'fst 7 cable fly',
+      'fst 7 cable flyes',
+      'fst-7 cable fly',
+      'fst-7 cable flyes',
+    ],
+  },
+].map((entry) => ({
+  ...entry,
+  normalizedAliases: entry.aliases.map((alias) => normalizeExerciseVideoLookup(alias)),
+}));
+
+const EXERCISE_VIDEO_MANIFEST = [
+  ...BACK_VIDEO_MANIFEST,
+  ...CHEST_VIDEO_MANIFEST,
+];
+
 const resolveBackVideoFallback = (normalizedName) => {
   if (normalizedName.includes('deadlift')) {
     return { fileName: 'Deadlift .mp4', bodyPart: 'back', matchType: 'fallback', priority: 40 };
@@ -296,6 +343,34 @@ const resolveBackVideoFallback = (normalizedName) => {
   };
 };
 
+const resolveChestVideoFallback = (normalizedName) => {
+  if (
+    normalizedName.includes('incline')
+    && normalizedName.includes('smith')
+    && normalizedName.includes('press')
+  ) {
+    return { fileName: 'Incline Smith Press.mp4', bodyPart: 'chest', matchType: 'fallback', priority: 42 };
+  }
+
+  if (
+    (normalizedName.includes('low') || normalizedName.includes('upper'))
+    && normalizedName.includes('fly')
+  ) {
+    return { fileName: 'Low-to-High Cable Fly.mp4', bodyPart: 'chest', matchType: 'fallback', priority: 40 };
+  }
+
+  if (normalizedName.includes('fly')) {
+    return { fileName: 'Cable Fly.mp4', bodyPart: 'chest', matchType: 'fallback', priority: 38 };
+  }
+
+  return {
+    fileName: null,
+    bodyPart: 'chest',
+    matchType: 'none',
+    priority: 0,
+  };
+};
+
 const resolveExerciseVideoManifest = ({ name, muscle, bodyPart } = {}) => {
   const normalizedName = normalizeExerciseVideoLookup(name);
   const bodyPartKey = inferExerciseVideoBodyPart(bodyPart || muscle);
@@ -309,7 +384,7 @@ const resolveExerciseVideoManifest = ({ name, muscle, bodyPart } = {}) => {
     };
   }
 
-  const aliasRule = BACK_VIDEO_MANIFEST.find((rule) => {
+  const aliasRule = EXERCISE_VIDEO_MANIFEST.find((rule) => {
     if (rule.bodyPart && bodyPartKey && rule.bodyPart !== bodyPartKey) return false;
     return rule.normalizedAliases.some((alias) => matchesLookup(normalizedName, alias));
   });
@@ -327,6 +402,10 @@ const resolveExerciseVideoManifest = ({ name, muscle, bodyPart } = {}) => {
     return resolveBackVideoFallback(normalizedName);
   }
 
+  if (bodyPartKey === 'chest') {
+    return resolveChestVideoFallback(normalizedName);
+  }
+
   return {
     fileName: null,
     bodyPart: bodyPartKey || null,
@@ -339,6 +418,8 @@ const hasExactExerciseVideoLink = (input) => resolveExerciseVideoManifest(input)
 
 export {
   BACK_VIDEO_MANIFEST,
+  CHEST_VIDEO_MANIFEST,
+  EXERCISE_VIDEO_MANIFEST,
   hasExactExerciseVideoLink,
   inferExerciseVideoBodyPart,
   normalizeExerciseVideoLookup,
