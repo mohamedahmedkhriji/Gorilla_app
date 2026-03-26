@@ -1689,8 +1689,8 @@ export const getUserPlanValidationHistory = async (conn, { userId, limit = 24 } 
      FROM plan_recommendation_outcomes
      WHERE user_id = ?
      ORDER BY period_end DESC, id DESC
-     LIMIT ?`,
-    [normalizedUserId, normalizedLimit],
+     LIMIT ${normalizedLimit}`,
+    [normalizedUserId],
   );
 
   return {

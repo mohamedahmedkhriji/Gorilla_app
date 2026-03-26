@@ -484,8 +484,8 @@ export const getUserInsightsHistory = async ({
      FROM user_insight_scores s
      WHERE ${scoreWhereParts.join(' AND ')}
      ORDER BY s.insight_date DESC, s.created_at DESC
-     LIMIT ?`,
-    [...scoreParams, normalizedLimit],
+     LIMIT ${normalizedLimit}`,
+    scoreParams,
   );
 
   const [snapshotRows] = await pool.query(
@@ -510,8 +510,8 @@ export const getUserInsightsHistory = async ({
      WHERE hs.user_id = ?
        AND hs.snapshot_date >= DATE_SUB(CURDATE(), INTERVAL ? DAY)
      ORDER BY hs.snapshot_date DESC, hs.created_at DESC
-     LIMIT ?`,
-    [normalizedUserId, normalizedDays, normalizedLimit],
+     LIMIT ${normalizedLimit}`,
+    [normalizedUserId, normalizedDays],
   );
 
   const trendMap = new Map();

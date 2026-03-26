@@ -4351,8 +4351,8 @@ const getUserProgressionDetails = async (userId, options = {}) => {
      FROM xp_transactions
      WHERE user_id = ?
      ORDER BY created_at DESC, id DESC
-     LIMIT ?`,
-    [normalizedUserId, xpTransactionsLimit],
+     LIMIT ${xpTransactionsLimit}`,
+    [normalizedUserId],
   );
 
   const xpTransactions = xpRows.map((row) => ({
@@ -13518,8 +13518,8 @@ router.get('/workout-summaries/:userId', requireAuth('user'), requireUserAccess(
        FROM workout_day_summaries
        WHERE user_id = ?
        ORDER BY summary_date DESC, updated_at DESC, id DESC
-       LIMIT ?`,
-      [userId, limit],
+       LIMIT ${limit}`,
+      [userId],
     );
 
     return res.json({
@@ -13589,8 +13589,8 @@ router.get('/exercises/catalog', async (req, res) => {
        FROM exercise_catalog ec
        WHERE ${whereParts.join(' AND ')}
        ORDER BY ec.canonical_name ASC
-       LIMIT ?`,
-      [...params, limit],
+       LIMIT ${limit}`,
+      params,
     );
 
     const normalized = rows.map((row) => {
@@ -13933,8 +13933,8 @@ router.get('/blogs', requireAuth('user', 'coach', 'gym_owner'), async (req, res)
 
     const [rows] = await pool.query(
       `SELECT
-         bp.id,
-         bp.user_id,
+          bp.id,
+          bp.user_id,
          bp.category,
          bp.description,
          bp.media_type,
@@ -13995,8 +13995,8 @@ router.get('/blogs', requireAuth('user', 'coach', 'gym_owner'), async (req, res)
         AND ul.user_id = ?
        ${whereClause}
        ORDER BY bp.created_at DESC, bp.id DESC
-       LIMIT ?`,
-      [...params, limit],
+       LIMIT ${limit}`,
+      params,
     );
 
     const posts = rows.map(mapBlogPostRow);
@@ -14599,8 +14599,8 @@ router.get('/blogs/:postId/comments', requireAuth('user', 'coach', 'gym_owner'),
          AND u.is_active = 1
          AND (u.banned_until IS NULL OR u.banned_until < NOW())
        ORDER BY c.created_at ASC, c.id ASC
-       LIMIT ?`,
-      [postId, limit],
+       LIMIT ${limit}`,
+      [postId],
     );
 
     return res.json({

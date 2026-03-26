@@ -97,6 +97,22 @@ const ensureIndexExists = async (tableName, indexName, createSql) => {
   }
 };
 
+const ensureColumnIsNullable = async (tableName, columnName, alterSql) => {
+  const [rows] = await pool.execute(
+    `SELECT is_nullable
+     FROM information_schema.columns
+     WHERE table_schema = DATABASE()
+       AND table_name = ?
+       AND column_name = ?
+     LIMIT 1`,
+    [tableName, columnName],
+  );
+
+  if (rows.length && String(rows[0].is_nullable || '').toUpperCase() !== 'YES') {
+    await pool.execute(alterSql);
+  }
+};
+
 const buildSlugUpdates = (rows, prefix) => {
   const usedSlugs = new Set();
   const updates = [];
@@ -227,10 +243,14 @@ const ensureAchievementInfrastructure = async () => {
   await ensureColumnExists('achievements', 'xp_reward', 'ALTER TABLE achievements ADD COLUMN xp_reward INT NOT NULL DEFAULT 0 AFTER description');
   await ensureColumnExists('achievements', 'reward_id', 'ALTER TABLE achievements ADD COLUMN reward_id BIGINT NULL AFTER xp_reward');
   await ensureColumnExists('achievements', 'created_at', 'ALTER TABLE achievements ADD COLUMN created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP AFTER reward_id');
+  await ensureColumnIsNullable('achievements', 'user_id', 'ALTER TABLE achievements MODIFY COLUMN user_id INT UNSIGNED NULL');
+  await ensureColumnIsNullable('achievements', 'achievement_key', 'ALTER TABLE achievements MODIFY COLUMN achievement_key VARCHAR(100) NULL');
+  await ensureColumnIsNullable('achievements', 'title', 'ALTER TABLE achievements MODIFY COLUMN title VARCHAR(255) NULL');
   await ensureColumnExists('achievement_rules', 'operator_symbol', 'ALTER TABLE achievement_rules ADD COLUMN operator_symbol ENUM(\'>=\', \'=\', \'<=\', \'>\', \'<\') NOT NULL DEFAULT \'>=\' AFTER condition_type');
   await ensureColumnExists('achievement_rules', 'timeframe_type', 'ALTER TABLE achievement_rules ADD COLUMN timeframe_type ENUM(\'lifetime\', \'daily\', \'weekly\', \'monthly\', \'program\', \'custom\') NOT NULL DEFAULT \'lifetime\' AFTER target_value');
   await ensureColumnExists('achievement_rules', 'timeframe_days', 'ALTER TABLE achievement_rules ADD COLUMN timeframe_days INT NULL AFTER timeframe_type');
   await ensureIndexExists('achievements', 'idx_achievements_reward', 'CREATE INDEX idx_achievements_reward ON achievements (reward_id)');
+  await ensureIndexExists('achievements', 'uq_achievements_slug', 'CREATE UNIQUE INDEX uq_achievements_slug ON achievements (slug)');
   await ensureIndexExists('achievement_rules', 'idx_achievement_rules_achievement', 'CREATE INDEX idx_achievement_rules_achievement ON achievement_rules (achievement_id)');
   await ensureIndexExists('achievement_rules', 'idx_achievement_rules_type', 'CREATE INDEX idx_achievement_rules_type ON achievement_rules (condition_type)');
   await ensureIndexExists('user_achievements', 'idx_user_achievements_user', 'CREATE INDEX idx_user_achievements_user ON user_achievements (user_id)');
