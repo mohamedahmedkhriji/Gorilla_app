@@ -6,6 +6,7 @@ import { stripExercisePrefix } from '../../services/exerciseName';
 import { resolveExerciseVideo } from '../../services/exerciseVideos';
 import { localizeCustomPlanName } from '../../services/programI18n';
 import { getOnboardingLanguage } from './onboardingI18n';
+import { playMediaSafely } from '../../shared/mediaPlayback';
 
 interface CustomPlanOnboardingScreenProps {
   onNext: () => void;
@@ -1258,7 +1259,7 @@ export function CustomPlanOnboardingScreen({
                                               event.stopPropagation();
                                               const video = event.currentTarget;
                                               video.currentTime = 0;
-                                              void video.play().catch(() => undefined);
+                                              void playMediaSafely(video);
                                             }}
                                           />
                                         ) : (

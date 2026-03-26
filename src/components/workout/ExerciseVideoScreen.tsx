@@ -5,6 +5,7 @@ import { getBodyPartImage } from '../../services/bodyPartTheme';
 import { resolveExerciseVideoUrl } from '../../services/exerciseVideos';
 import { AppLanguage, getActiveLanguage, getStoredLanguage } from '../../services/language';
 import { stripExercisePrefix } from '../../services/exerciseName';
+import { playMediaSafely } from '../../shared/mediaPlayback';
 
 interface ExerciseVideoScreenProps {
   onBack: () => void;
@@ -599,14 +600,16 @@ export function ExerciseVideoScreen({ onBack, exercise }: ExerciseVideoScreenPro
   };
 
   const togglePlay = () => {
-    if (videoRef.current) {
-      if (isPlaying) {
-        videoRef.current.pause();
-      } else {
-        videoRef.current.play();
-      }
-      setIsPlaying(!isPlaying);
+    const video = videoRef.current;
+    if (!video) return;
+
+    if (video.paused) {
+      void playMediaSafely(video);
+      return;
     }
+
+    video.pause();
+    setIsPlaying(false);
   };
 
   return (

@@ -26,6 +26,7 @@ import {
   patchCoachmarkProgress,
   readCoachmarkProgress,
 } from '../services/coachmarks';
+import { playMediaSafely } from '../shared/mediaPlayback';
 
 type PostCategory = 'Training' | 'Nutrition' | 'Recovery' | 'Mindset';
 type FeedCategory = 'All' | 'Women' | PostCategory;
@@ -1271,8 +1272,7 @@ export function Blogs({
       if (!video) return;
       if (activePostId && postId === activePostId) {
         video.muted = true;
-        const p = video.play();
-        if (p && typeof p.catch === 'function') p.catch(() => null);
+        void playMediaSafely(video);
       } else {
         video.pause();
       }
@@ -1846,8 +1846,7 @@ export function Blogs({
                     onClick={(event) => {
                       const video = event.currentTarget;
                       if (video.paused) {
-                        const p = video.play();
-                        if (p && typeof p.catch === 'function') p.catch(() => null);
+                        void playMediaSafely(video);
                       } else {
                         video.pause();
                       }
