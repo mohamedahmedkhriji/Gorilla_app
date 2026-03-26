@@ -1472,6 +1472,7 @@ const TRACKED_MUSCLES = [
   'Back',
   'Quadriceps',
   'Hamstrings',
+  'Glutes',
   'Shoulders',
   'Biceps',
   'Triceps',
@@ -1504,6 +1505,7 @@ const MUSCLE_WEIGHTS = {
   back: 1.2,
   quadriceps: 1.3,
   hamstrings: 1.2,
+  glutes: 1.15,
   shoulders: 1.0,
   biceps: 0.8,
   triceps: 0.8,
@@ -1599,6 +1601,19 @@ const normalizeRecoveryProteinIntake = (value) => {
   return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
 };
 
+const clampRecoverySignal = (value, fallback, min = 0, max = 10) => {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return fallback;
+  return Math.max(min, Math.min(max, Math.round(parsed)));
+};
+
+const normalizeRecoveryBodyweight = (value) => {
+  if (value == null || value === '') return null;
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed <= 0) return null;
+  return Number(parsed.toFixed(2));
+};
+
 const buildRecoveryFactorSnapshot = (raw = {}) => ({
   sleepHours: Number(raw.sleep_hours ?? raw.sleepHours ?? 7) || 7,
   nutritionQuality: normalizeRecoveryNutritionQuality(
@@ -1613,7 +1628,44 @@ const buildRecoveryFactorSnapshot = (raw = {}) => ({
     raw.protein_intake ?? raw.proteinIntake,
   ),
   supplements: normalizeRecoverySupplements(raw.supplements),
+  sorenessLevel: clampRecoverySignal(raw.soreness_level ?? raw.sorenessLevel ?? raw.soreness, 3),
+  energyLevel: clampRecoverySignal(raw.energy_level ?? raw.energyLevel ?? raw.energy, 6),
+  fatigueLevel: clampRecoverySignal(raw.fatigue_level ?? raw.fatigueLevel ?? raw.fatigue, 4),
+  moodLevel: clampRecoverySignal(raw.mood_level ?? raw.moodLevel ?? raw.mood, 6),
+  jointPainLevel: clampRecoverySignal(raw.joint_pain_level ?? raw.jointPainLevel ?? raw.jointPain, 0),
+  pumpScore: clampRecoverySignal(raw.pump_score ?? raw.pumpScore ?? raw.pump, 0),
+  bodyweightKg: normalizeRecoveryBodyweight(raw.latest_bodyweight_kg ?? raw.bodyweightKg),
+  latestCheckInSource: String(raw.latest_checkin_source ?? raw.source ?? '').trim() || null,
+  latestWorkoutName: String(raw.latest_workout_name ?? raw.workoutName ?? '').trim() || null,
+  latestSummaryDate: raw.latest_summary_date ?? raw.summaryDate ?? null,
 });
+
+const getSignalRecoveryFactor = ({
+  sorenessLevel = 3,
+  energyLevel = 6,
+  fatigueLevel = 4,
+  moodLevel = 6,
+  jointPainLevel = 0,
+  pumpScore = 0,
+}) => {
+  let factor = 1;
+  factor *= 1 + Math.max(0, sorenessLevel - 3) * 0.025;
+  factor *= 1 + Math.max(0, fatigueLevel - 4) * 0.03;
+  factor *= 1 + Math.max(0, 6 - energyLevel) * 0.025;
+  factor *= 1 + Math.max(0, 6 - moodLevel) * 0.012;
+  factor *= 1 + Math.max(0, jointPainLevel) * 0.035;
+
+  if (
+    pumpScore >= 8
+    && sorenessLevel <= 5
+    && fatigueLevel <= 6
+    && jointPainLevel <= 3
+  ) {
+    factor *= 0.98;
+  }
+
+  return Math.max(0.82, Math.min(1.8, Number(factor.toFixed(3))));
+};
 
 const getRecoveryFactorMultiplier = ({
   sleepHours = 7,
@@ -1621,12 +1673,26 @@ const getRecoveryFactorMultiplier = ({
   stressLevel = 'moderate',
   proteinIntake = null,
   supplements = 'none',
+  sorenessLevel = 3,
+  energyLevel = 6,
+  fatigueLevel = 4,
+  moodLevel = 6,
+  jointPainLevel = 0,
+  pumpScore = 0,
 }) => (
   getSleepFactor(sleepHours)
   * (NUTRITION_FACTORS[nutritionQuality] || 1.0)
   * (STRESS_FACTORS[stressLevel] || 1.0)
   * getProteinFactor(proteinIntake)
   * getSupplementFactor(supplements)
+  * getSignalRecoveryFactor({
+    sorenessLevel,
+    energyLevel,
+    fatigueLevel,
+    moodLevel,
+    jointPainLevel,
+    pumpScore,
+  })
 );
 
 const normalizeMuscleName = (muscle = '') => {
@@ -1655,7 +1721,7 @@ const normalizeMuscleName = (muscle = '') => {
     legs: 'Quadriceps',
     lats: 'Back',
     traps: 'Back',
-    glutes: 'Hamstrings',
+    glutes: 'Glutes',
   };
 
   return map[key] || (muscle.charAt(0).toUpperCase() + muscle.slice(1).toLowerCase());
@@ -1704,7 +1770,8 @@ const normalizeCatalogRecoveryMuscle = (muscle = '') => {
   if (/(chest|pector)/.test(key)) return 'Chest';
   if (/(lat|back|trap|rhomboid|erector|spine|middle back|lower back|upper back)/.test(key)) return 'Back';
   if (/(quad|quadricep|thigh|leg extension|front leg)/.test(key)) return 'Quadriceps';
-  if (/(hamstring|glute|adductor|abductor|hip|posterior chain)/.test(key)) return 'Hamstrings';
+  if (/(glute|hip thrust|glute bridge)/.test(key)) return 'Glutes';
+  if (/(hamstring|adductor|abductor|posterior chain)/.test(key)) return 'Hamstrings';
   if (/(shoulder|delt)/.test(key)) return 'Shoulders';
   if (/(bicep)/.test(key)) return 'Biceps';
   if (/(tricep)/.test(key)) return 'Triceps';
@@ -1744,8 +1811,9 @@ const inferMusclesFromExerciseName = (exerciseName = '') => {
   const matches = [];
   if (/bench|chest|fly|push-up|push up/.test(name)) matches.push('Chest', 'Triceps', 'Shoulders');
   if (/deadlift|row|pull-up|pull up|lat|pulldown|pullover/.test(name)) matches.push('Back', 'Biceps', 'Forearms');
-  if (/squat|leg press|lunge|split squat|step up/.test(name)) matches.push('Quadriceps', 'Hamstrings', 'Calves');
-  if (/romanian deadlift|rdl|leg curl|hamstring/.test(name)) matches.push('Hamstrings');
+  if (/hip thrust|glute bridge|kickback/.test(name)) matches.push('Glutes', 'Hamstrings');
+  if (/squat|leg press|lunge|split squat|step up/.test(name)) matches.push('Quadriceps', 'Hamstrings', 'Glutes', 'Calves');
+  if (/romanian deadlift|rdl|leg curl|hamstring/.test(name)) matches.push('Hamstrings', 'Glutes');
   if (/shoulder|overhead press|lateral raise|rear delt/.test(name)) matches.push('Shoulders', 'Triceps');
   if (/curl/.test(name)) matches.push('Biceps', 'Forearms');
   if (/tricep|triceps|dip/.test(name)) matches.push('Triceps');
@@ -1884,6 +1952,12 @@ const calculateRecoveryHours = ({
   stressLevel = 'moderate',
   proteinIntake = null,
   supplements = 'none',
+  sorenessLevel = 3,
+  energyLevel = 6,
+  fatigueLevel = 4,
+  moodLevel = 6,
+  jointPainLevel = 0,
+  pumpScore = 0,
   loadMultiplier = 1,
 }) => {
   const canonicalMuscle = normalizeMuscleName(muscleGroup) || 'Chest';
@@ -1899,9 +1973,37 @@ const calculateRecoveryHours = ({
   hours *= STRESS_FACTORS[stressLevel] || 1.0;
   hours *= getProteinFactor(proteinIntake);
   hours *= getSupplementFactor(supplements);
+  hours *= getSignalRecoveryFactor({
+    sorenessLevel,
+    energyLevel,
+    fatigueLevel,
+    moodLevel,
+    jointPainLevel,
+    pumpScore,
+  });
   hours *= Number.isFinite(Number(loadMultiplier)) ? Number(loadMultiplier) : 1;
 
   return Number(Math.max(12, hours).toFixed(2));
+};
+
+const combineMuscleRecoveryHours = ({
+  currentHoursNeeded = 0,
+  nextHoursNeeded = 0,
+  muscleGroup,
+  exposureCount = 1,
+}) => {
+  const current = Number(currentHoursNeeded || 0);
+  const next = Number(nextHoursNeeded || 0);
+  if (!current) return Number(next.toFixed(2));
+  if (!next) return Number(current.toFixed(2));
+
+  const canonicalMuscle = normalizeMuscleName(muscleGroup) || 'Chest';
+  const base = BASE_RECOVERY_TIMES[canonicalMuscle] || 48;
+  const accumulationFactor = exposureCount <= 1 ? 0.45 : exposureCount === 2 ? 0.35 : 0.25;
+  const combined = current + (next * accumulationFactor);
+  const cap = base * 2.75;
+
+  return Number(Math.min(cap, Math.max(current, combined)).toFixed(2));
 };
 
 const calculateDynamicRecovery = (lastWorked, hoursNeeded) => {
@@ -2142,6 +2244,12 @@ const estimateRecoveryScoreFromFactors = ({
   stressLevel = 'moderate',
   proteinIntake = null,
   supplements = 'none',
+  sorenessLevel = 3,
+  energyLevel = 6,
+  fatigueLevel = 4,
+  moodLevel = 6,
+  jointPainLevel = 0,
+  pumpScore = 0,
 }) => {
   const sleep = Number(sleepHours || 0);
   const protein = Number(proteinIntake || 0);
@@ -2152,8 +2260,23 @@ const estimateRecoveryScoreFromFactors = ({
   const stressScore = stressLevel === 'low' ? 24 : stressLevel === 'moderate' ? 16 : 8;
   const proteinScore = protein >= 1.6 ? 8 : protein >= 1.0 ? 6 : 3;
   const supplementsScore = supplementKey === 'full' ? 4 : supplementKey === 'creatine' ? 2 : 0;
+  const signalAdjustment = Math.round(
+    ((Number(energyLevel || 0) - 5) * 2.2)
+    + ((Number(moodLevel || 0) - 5) * 1.4)
+    - (Number(sorenessLevel || 0) * 1.5)
+    - (Number(fatigueLevel || 0) * 1.8)
+    - (Number(jointPainLevel || 0) * 2.2)
+    + (Number(pumpScore || 0) >= 7 ? (Number(pumpScore || 0) - 6) * 0.8 : 0)
+  );
 
-  return clampPercentage(Math.round(sleepScore + nutritionScore + stressScore + proteinScore + supplementsScore));
+  return clampPercentage(Math.round(
+    sleepScore
+    + nutritionScore
+    + stressScore
+    + proteinScore
+    + supplementsScore
+    + signalAdjustment
+  ));
 };
 
 const recalculateRecoveryStatusHoursForFactors = async (userId, previousFactors, nextFactors) => {
@@ -2199,6 +2322,127 @@ const recalculateRecoveryStatusHoursForFactors = async (userId, previousFactors,
       );
     }),
   );
+};
+
+const ensureRecoveryInfrastructure = async () => {
+  await pool.execute(
+    `CREATE TABLE IF NOT EXISTS recovery_factors (
+      user_id INT UNSIGNED PRIMARY KEY,
+      sleep_hours DECIMAL(4,1) NOT NULL DEFAULT 7.0,
+      nutrition_quality VARCHAR(20) NOT NULL DEFAULT 'optimal',
+      stress_level VARCHAR(20) NOT NULL DEFAULT 'low',
+      protein_intake DECIMAL(5,2) NULL,
+      supplements VARCHAR(20) NOT NULL DEFAULT 'none',
+      soreness_level TINYINT UNSIGNED NOT NULL DEFAULT 3,
+      energy_level TINYINT UNSIGNED NOT NULL DEFAULT 6,
+      fatigue_level TINYINT UNSIGNED NOT NULL DEFAULT 4,
+      mood_level TINYINT UNSIGNED NOT NULL DEFAULT 6,
+      joint_pain_level TINYINT UNSIGNED NOT NULL DEFAULT 0,
+      pump_score TINYINT UNSIGNED NOT NULL DEFAULT 0,
+      latest_bodyweight_kg DECIMAL(6,2) NULL,
+      latest_checkin_source VARCHAR(40) NULL,
+      latest_workout_name VARCHAR(120) NULL,
+      latest_summary_date DATE NULL,
+      updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      CONSTRAINT fk_recovery_factors_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    ) ENGINE=InnoDB`,
+  );
+
+  await pool.execute(
+    `CREATE TABLE IF NOT EXISTS muscle_recovery_status (
+      id BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
+      user_id INT UNSIGNED NOT NULL,
+      muscle_group VARCHAR(80) NOT NULL,
+      recovery_percentage DECIMAL(6,2) NOT NULL DEFAULT 100,
+      hours_needed DECIMAL(8,2) NOT NULL DEFAULT 0,
+      hours_elapsed DECIMAL(8,2) NOT NULL DEFAULT 0,
+      last_worked DATETIME NULL,
+      overtraining_risk TINYINT(1) NOT NULL DEFAULT 0,
+      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      UNIQUE KEY uk_muscle_recovery_status_user_muscle (user_id, muscle_group),
+      KEY idx_muscle_recovery_status_user (user_id),
+      CONSTRAINT fk_muscle_recovery_status_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    ) ENGINE=InnoDB`,
+  );
+
+  await pool.execute(
+    `CREATE TABLE IF NOT EXISTS recovery_history (
+      id BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
+      user_id INT UNSIGNED NOT NULL,
+      overall_recovery_score DECIMAL(6,2) NOT NULL DEFAULT 0,
+      sleep_hours DECIMAL(4,1) NOT NULL DEFAULT 7.0,
+      nutrition_quality VARCHAR(20) NOT NULL DEFAULT 'optimal',
+      stress_level VARCHAR(20) NOT NULL DEFAULT 'low',
+      soreness_level TINYINT UNSIGNED NULL,
+      energy_level TINYINT UNSIGNED NULL,
+      fatigue_level TINYINT UNSIGNED NULL,
+      mood_level TINYINT UNSIGNED NULL,
+      joint_pain_level TINYINT UNSIGNED NULL,
+      pump_score TINYINT UNSIGNED NULL,
+      bodyweight_kg DECIMAL(6,2) NULL,
+      source VARCHAR(40) NULL,
+      summary_date DATE NULL,
+      workout_name VARCHAR(120) NULL,
+      recorded_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      KEY idx_recovery_history_user_recorded (user_id, recorded_at),
+      CONSTRAINT fk_recovery_history_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    ) ENGINE=InnoDB`,
+  );
+
+  const ensureTableColumnExists = async (tableName, columnName, alterSql) => {
+    const [rows] = await pool.execute(
+      `SELECT COLUMN_NAME
+       FROM INFORMATION_SCHEMA.COLUMNS
+       WHERE TABLE_SCHEMA = DATABASE()
+         AND TABLE_NAME = ?
+         AND COLUMN_NAME = ?
+       LIMIT 1`,
+      [tableName, columnName],
+    );
+
+    if (!Array.isArray(rows) || !rows.length) {
+      await pool.execute(alterSql);
+    }
+  };
+
+  await ensureTableColumnExists('recovery_factors', 'soreness_level', 'ALTER TABLE recovery_factors ADD COLUMN soreness_level TINYINT UNSIGNED NOT NULL DEFAULT 3 AFTER supplements');
+  await ensureTableColumnExists('recovery_factors', 'energy_level', 'ALTER TABLE recovery_factors ADD COLUMN energy_level TINYINT UNSIGNED NOT NULL DEFAULT 6 AFTER soreness_level');
+  await ensureTableColumnExists('recovery_factors', 'fatigue_level', 'ALTER TABLE recovery_factors ADD COLUMN fatigue_level TINYINT UNSIGNED NOT NULL DEFAULT 4 AFTER energy_level');
+  await ensureTableColumnExists('recovery_factors', 'mood_level', 'ALTER TABLE recovery_factors ADD COLUMN mood_level TINYINT UNSIGNED NOT NULL DEFAULT 6 AFTER fatigue_level');
+  await ensureTableColumnExists('recovery_factors', 'joint_pain_level', 'ALTER TABLE recovery_factors ADD COLUMN joint_pain_level TINYINT UNSIGNED NOT NULL DEFAULT 0 AFTER mood_level');
+  await ensureTableColumnExists('recovery_factors', 'pump_score', 'ALTER TABLE recovery_factors ADD COLUMN pump_score TINYINT UNSIGNED NOT NULL DEFAULT 0 AFTER joint_pain_level');
+  await ensureTableColumnExists('recovery_factors', 'latest_bodyweight_kg', 'ALTER TABLE recovery_factors ADD COLUMN latest_bodyweight_kg DECIMAL(6,2) NULL AFTER pump_score');
+  await ensureTableColumnExists('recovery_factors', 'latest_checkin_source', 'ALTER TABLE recovery_factors ADD COLUMN latest_checkin_source VARCHAR(40) NULL AFTER latest_bodyweight_kg');
+  await ensureTableColumnExists('recovery_factors', 'latest_workout_name', 'ALTER TABLE recovery_factors ADD COLUMN latest_workout_name VARCHAR(120) NULL AFTER latest_checkin_source');
+  await ensureTableColumnExists('recovery_factors', 'latest_summary_date', 'ALTER TABLE recovery_factors ADD COLUMN latest_summary_date DATE NULL AFTER latest_workout_name');
+  await ensureTableColumnExists('recovery_factors', 'updated_at', 'ALTER TABLE recovery_factors ADD COLUMN updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP');
+
+  await ensureTableColumnExists('muscle_recovery_status', 'overtraining_risk', 'ALTER TABLE muscle_recovery_status ADD COLUMN overtraining_risk TINYINT(1) NOT NULL DEFAULT 0 AFTER last_worked');
+  await ensureTableColumnExists('muscle_recovery_status', 'created_at', 'ALTER TABLE muscle_recovery_status ADD COLUMN created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP');
+  await ensureTableColumnExists('muscle_recovery_status', 'updated_at', 'ALTER TABLE muscle_recovery_status ADD COLUMN updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP');
+
+  await ensureTableColumnExists('recovery_history', 'soreness_level', 'ALTER TABLE recovery_history ADD COLUMN soreness_level TINYINT UNSIGNED NULL AFTER stress_level');
+  await ensureTableColumnExists('recovery_history', 'energy_level', 'ALTER TABLE recovery_history ADD COLUMN energy_level TINYINT UNSIGNED NULL AFTER soreness_level');
+  await ensureTableColumnExists('recovery_history', 'fatigue_level', 'ALTER TABLE recovery_history ADD COLUMN fatigue_level TINYINT UNSIGNED NULL AFTER energy_level');
+  await ensureTableColumnExists('recovery_history', 'mood_level', 'ALTER TABLE recovery_history ADD COLUMN mood_level TINYINT UNSIGNED NULL AFTER fatigue_level');
+  await ensureTableColumnExists('recovery_history', 'joint_pain_level', 'ALTER TABLE recovery_history ADD COLUMN joint_pain_level TINYINT UNSIGNED NULL AFTER mood_level');
+  await ensureTableColumnExists('recovery_history', 'pump_score', 'ALTER TABLE recovery_history ADD COLUMN pump_score TINYINT UNSIGNED NULL AFTER joint_pain_level');
+  await ensureTableColumnExists('recovery_history', 'bodyweight_kg', 'ALTER TABLE recovery_history ADD COLUMN bodyweight_kg DECIMAL(6,2) NULL AFTER pump_score');
+  await ensureTableColumnExists('recovery_history', 'source', 'ALTER TABLE recovery_history ADD COLUMN source VARCHAR(40) NULL AFTER bodyweight_kg');
+  await ensureTableColumnExists('recovery_history', 'summary_date', 'ALTER TABLE recovery_history ADD COLUMN summary_date DATE NULL AFTER source');
+  await ensureTableColumnExists('recovery_history', 'workout_name', 'ALTER TABLE recovery_history ADD COLUMN workout_name VARCHAR(120) NULL AFTER summary_date');
+};
+
+let recoveryInfrastructurePromise;
+const ensureRecoveryInfrastructureOnce = async () => {
+  if (!recoveryInfrastructurePromise) {
+    recoveryInfrastructurePromise = ensureRecoveryInfrastructure().catch((error) => {
+      recoveryInfrastructurePromise = null;
+      throw error;
+    });
+  }
+  return recoveryInfrastructurePromise;
 };
 
 const getMetricValue = (metrics, metricKey) => {
@@ -10292,6 +10536,7 @@ const buildRecoveryPlanAndVolumeContext = async (userId) => {
 };
 
 const rebuildTodayRecoveryStatusFromSets = async (userId) => {
+  await ensureRecoveryInfrastructureOnce();
   const normalizedUserId = toNumber(userId);
   if (!normalizedUserId || normalizedUserId <= 0) {
     return { muscles: [] };
@@ -10399,7 +10644,14 @@ const rebuildTodayRecoveryStatusFromSets = async (userId) => {
         rf.nutrition_quality,
         rf.stress_level,
         rf.protein_intake,
-        rf.supplements
+        rf.supplements,
+        rf.soreness_level,
+        rf.energy_level,
+        rf.fatigue_level,
+        rf.mood_level,
+        rf.joint_pain_level,
+        rf.pump_score,
+        rf.latest_bodyweight_kg
      FROM users u
      LEFT JOIN recovery_factors rf ON rf.user_id = u.id
      WHERE u.id = ?
@@ -10440,6 +10692,12 @@ const rebuildTodayRecoveryStatusFromSets = async (userId) => {
         stressLevel: factors.stress_level || 'moderate',
         proteinIntake: factors.protein_intake ?? null,
         supplements: factors.supplements || 'none',
+        sorenessLevel: Number(factors.soreness_level ?? 3),
+        energyLevel: Number(factors.energy_level ?? 6),
+        fatigueLevel: Number(factors.fatigue_level ?? 4),
+        moodLevel: Number(factors.mood_level ?? 6),
+        jointPainLevel: Number(factors.joint_pain_level ?? 0),
+        pumpScore: Number(factors.pump_score ?? 0),
         loadMultiplier,
       });
 
@@ -10448,15 +10706,22 @@ const rebuildTodayRecoveryStatusFromSets = async (userId) => {
         byMuscle.set(muscleEntry.muscle, {
           hoursNeeded,
           lastWorked: exercise.lastLoggedAt,
+          exposureCount: 1,
         });
         return;
       }
 
       byMuscle.set(muscleEntry.muscle, {
-        hoursNeeded: Math.max(existing.hoursNeeded, hoursNeeded),
+        hoursNeeded: combineMuscleRecoveryHours({
+          currentHoursNeeded: existing.hoursNeeded,
+          nextHoursNeeded: hoursNeeded,
+          muscleGroup: muscleEntry.muscle,
+          exposureCount: Number(existing.exposureCount || 1),
+        }),
         lastWorked: new Date(exercise.lastLoggedAt).getTime() > new Date(existing.lastWorked).getTime()
           ? exercise.lastLoggedAt
           : existing.lastWorked,
+        exposureCount: Number(existing.exposureCount || 1) + 1,
       });
     });
   });
@@ -10490,6 +10755,7 @@ const rebuildTodayRecoveryStatusFromSets = async (userId) => {
 
 router.get('/user/:userId/recovery', async (req, res) => {
   try {
+    await ensureRecoveryInfrastructureOnce();
     const userId = toNumber(req.params.userId);
     if (!userId || userId <= 0) {
       return res.status(400).json({ error: 'Invalid userId' });
@@ -10510,7 +10776,17 @@ router.get('/user/:userId/recovery', async (req, res) => {
           rf.nutrition_quality,
           rf.stress_level,
           rf.protein_intake,
-          rf.supplements
+          rf.supplements,
+          rf.soreness_level,
+          rf.energy_level,
+          rf.fatigue_level,
+          rf.mood_level,
+          rf.joint_pain_level,
+          rf.pump_score,
+          rf.latest_bodyweight_kg,
+          rf.latest_checkin_source,
+          rf.latest_workout_name,
+          rf.latest_summary_date
        FROM users u
        LEFT JOIN recovery_factors rf ON rf.user_id = u.id
        WHERE u.id = ?
@@ -10635,10 +10911,18 @@ router.get('/user/:userId/recovery', async (req, res) => {
           ? (Number(dbFactors.protein_intake) >= 1.6 ? 'high' : Number(dbFactors.protein_intake) >= 1.0 ? 'medium' : 'low')
           : 'medium',
         supplements: dbFactors.supplements || 'none',
-        soreness: 3,
-        energy: 3,
+        soreness: clampRecoverySignal(dbFactors.soreness_level, 3),
+        energy: clampRecoverySignal(dbFactors.energy_level, 6),
+        fatigue: clampRecoverySignal(dbFactors.fatigue_level, 4),
+        mood: clampRecoverySignal(dbFactors.mood_level, 6),
+        jointPain: clampRecoverySignal(dbFactors.joint_pain_level, 0),
+        pumpScore: clampRecoverySignal(dbFactors.pump_score, 0),
+        bodyweightKg: normalizeRecoveryBodyweight(dbFactors.latest_bodyweight_kg),
         nutrition_quality: dbFactors.nutrition_quality || 'optimal',
         stress_level: dbFactors.stress_level || 'low',
+        latestCheckInSource: String(dbFactors.latest_checkin_source || '').trim() || null,
+        latestWorkoutName: String(dbFactors.latest_workout_name || '').trim() || null,
+        latestSummaryDate: dbFactors.latest_summary_date || null,
       },
       recovery,
       overallRecovery,
@@ -10668,6 +10952,7 @@ router.get('/user/:userId/recovery', async (req, res) => {
 
 router.post('/user/:userId/recovery', async (req, res) => {
   try {
+    await ensureRecoveryInfrastructureOnce();
     const userId = toNumber(req.params.userId);
     if (!userId || userId <= 0) {
       return res.status(400).json({ error: 'Invalid userId' });
@@ -10681,10 +10966,53 @@ router.post('/user/:userId/recovery', async (req, res) => {
       proteinIntake,
       protein_intake,
       supplements,
+      soreness,
+      sorenessLevel,
+      soreness_level,
+      energy,
+      energyLevel,
+      energy_level,
+      fatigue,
+      fatigueLevel,
+      fatigue_level,
+      mood,
+      moodLevel,
+      mood_level,
+      jointPain,
+      jointPainLevel,
+      joint_pain_level,
+      pumpScore,
+      pump_score,
+      bodyweightKg,
+      latest_bodyweight_kg,
+      source,
+      latestCheckInSource,
+      latest_checkin_source,
+      workoutName,
+      latestWorkoutName,
+      latest_workout_name,
+      summaryDate,
+      latestSummaryDate,
+      latest_summary_date,
     } = req.body || {};
 
     const [existingFactorRows] = await pool.execute(
-      `SELECT sleep_hours, nutrition_quality, stress_level, protein_intake, supplements
+      `SELECT
+          sleep_hours,
+          nutrition_quality,
+          stress_level,
+          protein_intake,
+          supplements,
+          soreness_level,
+          energy_level,
+          fatigue_level,
+          mood_level,
+          joint_pain_level,
+          pump_score,
+          latest_bodyweight_kg,
+          latest_checkin_source,
+          latest_workout_name,
+          latest_summary_date
        FROM recovery_factors
        WHERE user_id = ?
        LIMIT 1`,
@@ -10694,35 +11022,134 @@ router.post('/user/:userId/recovery', async (req, res) => {
     const previousFactors = buildRecoveryFactorSnapshot(existingFactorRows[0] || {});
     const normalizedSleepHours = Number(sleepHours || previousFactors.sleepHours || 7) || 7;
     const normalizedProteinIntake = normalizeRecoveryProteinIntake(
-      proteinIntake ?? protein_intake,
+      proteinIntake ?? protein_intake ?? previousFactors.proteinIntake,
     );
     const normalizedNutrition = normalizeRecoveryNutritionQuality(
-      nutritionQuality ?? nutrition_quality,
-      'optimal',
+      nutritionQuality ?? nutrition_quality ?? previousFactors.nutritionQuality,
+      previousFactors.nutritionQuality || 'optimal',
     );
     const normalizedStress = normalizeRecoveryStressLevel(
-      stressLevel ?? stress_level,
-      'low',
+      stressLevel ?? stress_level ?? previousFactors.stressLevel,
+      previousFactors.stressLevel || 'low',
     );
-    const normalizedSupplements = normalizeRecoverySupplements(supplements);
+    const normalizedSupplements = normalizeRecoverySupplements(
+      supplements ?? previousFactors.supplements,
+    );
+    const normalizedSorenessLevel = clampRecoverySignal(
+      sorenessLevel ?? soreness_level ?? soreness ?? previousFactors.sorenessLevel,
+      previousFactors.sorenessLevel,
+    );
+    const normalizedEnergyLevel = clampRecoverySignal(
+      energyLevel ?? energy_level ?? energy ?? previousFactors.energyLevel,
+      previousFactors.energyLevel,
+    );
+    const normalizedFatigueLevel = clampRecoverySignal(
+      fatigueLevel ?? fatigue_level ?? fatigue ?? previousFactors.fatigueLevel,
+      previousFactors.fatigueLevel,
+    );
+    const normalizedMoodLevel = clampRecoverySignal(
+      moodLevel ?? mood_level ?? mood ?? previousFactors.moodLevel,
+      previousFactors.moodLevel,
+    );
+    const normalizedJointPainLevel = clampRecoverySignal(
+      jointPainLevel ?? joint_pain_level ?? jointPain ?? previousFactors.jointPainLevel,
+      previousFactors.jointPainLevel,
+    );
+    const normalizedPumpScore = clampRecoverySignal(
+      pumpScore ?? pump_score ?? previousFactors.pumpScore,
+      previousFactors.pumpScore,
+    );
+    const normalizedBodyweightKg = normalizeRecoveryBodyweight(
+      bodyweightKg ?? latest_bodyweight_kg,
+    ) ?? previousFactors.bodyweightKg;
+    const explicitSource = String(
+      source ?? latestCheckInSource ?? latest_checkin_source ?? '',
+    ).trim().slice(0, 40) || null;
+    const normalizedCheckInSource = explicitSource || previousFactors.latestCheckInSource;
+    const explicitWorkoutName = String(
+      workoutName ?? latestWorkoutName ?? latest_workout_name ?? '',
+    ).trim().slice(0, 120) || null;
+    const normalizedWorkoutName = explicitWorkoutName || previousFactors.latestWorkoutName;
+    const rawSummaryDate = summaryDate ?? latestSummaryDate ?? latest_summary_date ?? null;
+    const normalizedSummaryDate = rawSummaryDate
+      ? (() => {
+          const parsed = new Date(rawSummaryDate);
+          return Number.isNaN(parsed.getTime()) ? previousFactors.latestSummaryDate : formatDateISO(parsed);
+        })()
+      : previousFactors.latestSummaryDate;
     const nextFactors = buildRecoveryFactorSnapshot({
+      ...previousFactors,
       sleepHours: normalizedSleepHours,
       nutritionQuality: normalizedNutrition,
       stressLevel: normalizedStress,
       proteinIntake: normalizedProteinIntake,
       supplements: normalizedSupplements,
+      sorenessLevel: normalizedSorenessLevel,
+      energyLevel: normalizedEnergyLevel,
+      fatigueLevel: normalizedFatigueLevel,
+      moodLevel: normalizedMoodLevel,
+      jointPainLevel: normalizedJointPainLevel,
+      pumpScore: normalizedPumpScore,
+      bodyweightKg: normalizedBodyweightKg,
+      latestCheckInSource: normalizedCheckInSource,
+      latestWorkoutName: normalizedWorkoutName,
+      latestSummaryDate: normalizedSummaryDate,
     });
 
     await pool.execute(
-      `INSERT INTO recovery_factors (user_id, sleep_hours, nutrition_quality, stress_level, protein_intake, supplements)
-       VALUES (?, ?, ?, ?, ?, ?)
+      `INSERT INTO recovery_factors (
+          user_id,
+          sleep_hours,
+          nutrition_quality,
+          stress_level,
+          protein_intake,
+          supplements,
+          soreness_level,
+          energy_level,
+          fatigue_level,
+          mood_level,
+          joint_pain_level,
+          pump_score,
+          latest_bodyweight_kg,
+          latest_checkin_source,
+          latest_workout_name,
+          latest_summary_date
+        )
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
        ON DUPLICATE KEY UPDATE
        sleep_hours = VALUES(sleep_hours),
         nutrition_quality = VALUES(nutrition_quality),
         stress_level = VALUES(stress_level),
         protein_intake = VALUES(protein_intake),
-        supplements = VALUES(supplements)`,
-      [userId, normalizedSleepHours, normalizedNutrition, normalizedStress, normalizedProteinIntake, normalizedSupplements]
+        supplements = VALUES(supplements),
+        soreness_level = VALUES(soreness_level),
+        energy_level = VALUES(energy_level),
+        fatigue_level = VALUES(fatigue_level),
+        mood_level = VALUES(mood_level),
+        joint_pain_level = VALUES(joint_pain_level),
+        pump_score = VALUES(pump_score),
+        latest_bodyweight_kg = VALUES(latest_bodyweight_kg),
+        latest_checkin_source = VALUES(latest_checkin_source),
+        latest_workout_name = VALUES(latest_workout_name),
+        latest_summary_date = VALUES(latest_summary_date)`,
+      [
+        userId,
+        normalizedSleepHours,
+        normalizedNutrition,
+        normalizedStress,
+        normalizedProteinIntake,
+        normalizedSupplements,
+        normalizedSorenessLevel,
+        normalizedEnergyLevel,
+        normalizedFatigueLevel,
+        normalizedMoodLevel,
+        normalizedJointPainLevel,
+        normalizedPumpScore,
+        normalizedBodyweightKg,
+        normalizedCheckInSource,
+        normalizedWorkoutName,
+        normalizedSummaryDate,
+      ],
     );
 
     await recalculateRecoveryStatusHoursForFactors(userId, previousFactors, nextFactors);
@@ -10733,13 +11160,51 @@ router.post('/user/:userId/recovery', async (req, res) => {
       stressLevel: normalizedStress,
       proteinIntake: normalizedProteinIntake,
       supplements: normalizedSupplements,
+      sorenessLevel: normalizedSorenessLevel,
+      energyLevel: normalizedEnergyLevel,
+      fatigueLevel: normalizedFatigueLevel,
+      moodLevel: normalizedMoodLevel,
+      jointPainLevel: normalizedJointPainLevel,
+      pumpScore: normalizedPumpScore,
     });
 
     const [recoveryInsertResult] = await pool.execute(
       `INSERT INTO recovery_history
-          (user_id, overall_recovery_score, sleep_hours, nutrition_quality, stress_level)
-        VALUES (?, ?, ?, ?, ?)`,
-      [userId, recoveryScore, normalizedSleepHours, normalizedNutrition, normalizedStress],
+          (
+            user_id,
+            overall_recovery_score,
+            sleep_hours,
+            nutrition_quality,
+            stress_level,
+            soreness_level,
+            energy_level,
+            fatigue_level,
+            mood_level,
+            joint_pain_level,
+            pump_score,
+            bodyweight_kg,
+            source,
+            summary_date,
+            workout_name
+          )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        userId,
+        recoveryScore,
+        normalizedSleepHours,
+        normalizedNutrition,
+        normalizedStress,
+        normalizedSorenessLevel,
+        normalizedEnergyLevel,
+        normalizedFatigueLevel,
+        normalizedMoodLevel,
+        normalizedJointPainLevel,
+        normalizedPumpScore,
+        normalizedBodyweightKg,
+        explicitSource || 'manual_recovery_update',
+        normalizedSummaryDate,
+        normalizedWorkoutName,
+      ],
     );
 
     try {
@@ -10770,6 +11235,7 @@ router.post('/user/:userId/recovery', async (req, res) => {
 
 router.post('/user/:userId/recovery/recalculate-today', async (req, res) => {
   try {
+    await ensureRecoveryInfrastructureOnce();
     const userId = toNumber(req.params.userId);
     if (!userId || userId <= 0) {
       return res.status(400).json({ error: 'Invalid userId' });
@@ -10798,6 +11264,7 @@ router.post('/user/:userId/recovery/recalculate-today', async (req, res) => {
 
 router.post('/workouts/:workoutId/recovery', async (req, res) => {
   try {
+    await ensureRecoveryInfrastructureOnce();
     const workoutId = toNumber(req.params.workoutId);
     const userId = toNumber(req.body.userId);
     if (!workoutId || workoutId <= 0 || !userId || userId <= 0) {
@@ -10822,7 +11289,13 @@ router.post('/workouts/:workoutId/recovery', async (req, res) => {
           rf.nutrition_quality,
           rf.stress_level,
           rf.protein_intake,
-          rf.supplements
+          rf.supplements,
+          rf.soreness_level,
+          rf.energy_level,
+          rf.fatigue_level,
+          rf.mood_level,
+          rf.joint_pain_level,
+          rf.pump_score
        FROM users u
        LEFT JOIN recovery_factors rf ON rf.user_id = u.id
        WHERE u.id = ?
@@ -10853,6 +11326,12 @@ router.post('/workouts/:workoutId/recovery', async (req, res) => {
         stressLevel: factors.stress_level || 'moderate',
         proteinIntake: factors.protein_intake ?? null,
         supplements: factors.supplements || 'none',
+        sorenessLevel: Number(factors.soreness_level ?? 3),
+        energyLevel: Number(factors.energy_level ?? 6),
+        fatigueLevel: Number(factors.fatigue_level ?? 4),
+        moodLevel: Number(factors.mood_level ?? 6),
+        jointPainLevel: Number(factors.joint_pain_level ?? 0),
+        pumpScore: Number(factors.pump_score ?? 0),
       });
 
       await pool.execute(
@@ -12467,6 +12946,7 @@ router.post('/workout-sets', authMutationRateLimit, requireAuth('user'), require
 
     // Optional recovery rebuild (used only when explicitly requested).
     if (completed && applyRecovery === true && resolvedCatalogId) {
+      await ensureRecoveryInfrastructureOnce();
       const recoveryContextByCatalogId = await getCatalogRecoveryContexts([resolvedCatalogId]);
       const context = recoveryContextByCatalogId.get(resolvedCatalogId);
 
@@ -12478,7 +12958,13 @@ router.post('/workout-sets', authMutationRateLimit, requireAuth('user'), require
               rf.nutrition_quality,
               rf.stress_level,
               rf.protein_intake,
-              rf.supplements
+              rf.supplements,
+              rf.soreness_level,
+              rf.energy_level,
+              rf.fatigue_level,
+              rf.mood_level,
+              rf.joint_pain_level,
+              rf.pump_score
            FROM users u
            LEFT JOIN recovery_factors rf ON rf.user_id = u.id
            WHERE u.id = ?
@@ -12488,7 +12974,8 @@ router.post('/workout-sets', authMutationRateLimit, requireAuth('user'), require
 
         const factors = factorRows[0] || {};
         const inferredIntensity = deriveIntensityFromRpe(rpe);
-        const inferredVolume = deriveVolumeFromSetCount(setNumber);
+        // This path applies recovery for a single logged set, so treat volume as a low one-set exposure.
+        const inferredVolume = 'low';
         const eccentricFocus = Number(context.profile.eccentricBiasScore || 1) >= 1.05;
 
         await Promise.all(
@@ -12508,7 +12995,29 @@ router.post('/workout-sets', authMutationRateLimit, requireAuth('user'), require
               stressLevel: factors.stress_level || 'moderate',
               proteinIntake: factors.protein_intake ?? null,
               supplements: factors.supplements || 'none',
+              sorenessLevel: Number(factors.soreness_level ?? 3),
+              energyLevel: Number(factors.energy_level ?? 6),
+              fatigueLevel: Number(factors.fatigue_level ?? 4),
+              moodLevel: Number(factors.mood_level ?? 6),
+              jointPainLevel: Number(factors.joint_pain_level ?? 0),
+              pumpScore: Number(factors.pump_score ?? 0),
               loadMultiplier,
+            });
+
+            const [existingStatusRows] = await pool.execute(
+              `SELECT hours_needed
+               FROM muscle_recovery_status
+               WHERE user_id = ? AND muscle_group = ?
+               LIMIT 1`,
+              [normalizedUserId, muscleEntry.muscle],
+            );
+
+            const existingHoursNeeded = Number(existingStatusRows[0]?.hours_needed || 0);
+            const combinedHoursNeeded = combineMuscleRecoveryHours({
+              currentHoursNeeded: existingHoursNeeded,
+              nextHoursNeeded: hoursNeeded,
+              muscleGroup: muscleEntry.muscle,
+              exposureCount: existingHoursNeeded > 0 ? 2 : 1,
             });
 
             await pool.execute(
@@ -12517,10 +13026,10 @@ router.post('/workout-sets', authMutationRateLimit, requireAuth('user'), require
                VALUES (?, ?, 0, ?, 0, NOW())
                 ON DUPLICATE KEY UPDATE
                   recovery_percentage = 0,
-                  hours_needed = GREATEST(hours_needed, VALUES(hours_needed)),
+                  hours_needed = VALUES(hours_needed),
                   hours_elapsed = 0,
                   last_worked = NOW()`,
-              [normalizedUserId, muscleEntry.muscle, hoursNeeded],
+              [normalizedUserId, muscleEntry.muscle, combinedHoursNeeded],
             );
           }),
         );

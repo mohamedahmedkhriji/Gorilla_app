@@ -6,9 +6,21 @@ module.exports = {
     'plugin:@typescript-eslint/recommended',
     'plugin:react-hooks/recommended',
   ],
-  ignorePatterns: ['dist', '.eslintrc.cjs'],
+  ignorePatterns: [
+    'dist',
+    'android/**/build/**',
+    'android/**/assets/**',
+    'tmp_*',
+    '.eslintrc.cjs',
+  ],
   parser: '@typescript-eslint/parser',
   plugins: ['react-refresh'],
+  overrides: [
+    {
+      files: ['server/**/*.js', 'scripts/**/*.mjs'],
+      env: { node: true },
+    },
+  ],
   rules: {
     'react-refresh/only-export-components': [
       'warn',

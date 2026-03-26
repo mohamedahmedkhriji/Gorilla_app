@@ -447,6 +447,19 @@ export function AgendaSection({
       + (currentDayElement.offsetWidth / 2);
   }, [days, todayKey]);
 
+  useEffect(() => {
+    if (!selectedDay) return;
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setSelectedDay(null);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [selectedDay]);
+
   return (
     <div className="space-y-3">
       <div className="flex items-end px-1">
@@ -559,144 +572,152 @@ export function AgendaSection({
 
       {selectedDay && (
         <div
-          className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-6"
+          className="fixed inset-0 z-50 overflow-y-auto bg-black/80 px-4 py-5 sm:flex sm:items-center sm:justify-center sm:p-6"
           onClick={() => setSelectedDay(null)}
         >
           <div
-            className="surface-glass rounded-2xl p-6 max-w-sm w-full border border-white/15"
+            role="dialog"
+            aria-modal="true"
+            className="surface-glass relative mx-auto flex w-full max-w-[21.5rem] flex-col overflow-hidden rounded-2xl border border-white/15 p-4 shadow-2xl sm:max-w-sm sm:p-5"
             onClick={(event) => event.stopPropagation()}
           >
-            <div className="flex justify-between items-start mb-4">
-              <div>
-                <h3 className="text-3xl leading-none text-white">
+            <div className="mb-4 flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <h3 className="text-2xl leading-none text-white sm:text-3xl">
                   {selectedDay.fullDate.toLocaleDateString(getLanguageLocale(language), { month: 'long', day: 'numeric' })}
                 </h3>
                 <p className="text-xs uppercase tracking-[0.1em] text-text-secondary mt-2">
                   {isArabic ? selectedDay.dayLabel : (selectedDay.dayLabel || '').toUpperCase()}
                 </p>
               </div>
-              <button onClick={() => setSelectedDay(null)} className="text-text-secondary hover:text-white">
+              <button
+                type="button"
+                onClick={() => setSelectedDay(null)}
+                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-white/10 bg-white/5 text-text-secondary transition-colors hover:text-white"
+                aria-label="Close day details"
+              >
                 <X size={20} />
               </button>
             </div>
 
-            <div className="mb-4 text-sm text-text-secondary">
-              {selectedDay.label === restLabel || selectedDay.status === 'recovery'
-                ? localizedCopy.recoveryDay
-                : selectedDay.label}
-            </div>
-
-            {selectedDay.status === 'missed' ? (
-              <div className="flex flex-col items-center justify-center py-8 text-center">
-                <div className="w-16 h-16 rounded-2xl bg-rose-500/12 border border-rose-500/30 flex items-center justify-center mb-4">
-                  <CalendarX2 size={30} className="text-rose-300" />
-                </div>
-                <h4 className="text-3xl leading-none text-white mb-2">{localizedCopy.missedDay}</h4>
-                <p className="text-sm text-text-secondary">
-                  {localizedCopy.missedBody}
-                </p>
+            <div className="max-h-[min(78vh,34rem)] overflow-y-auto pr-1">
+              <div className="mb-4 text-sm text-text-secondary">
+                {selectedDay.label === restLabel || selectedDay.status === 'recovery'
+                  ? localizedCopy.recoveryDay
+                  : selectedDay.label}
               </div>
-            ) : selectedDay.status === 'picked' ? (
-              <div className="space-y-4">
-                <div className="flex flex-col items-center justify-center py-2 text-center">
-                  <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-2xl border border-white/10 bg-white/5">
+
+              {selectedDay.status === 'missed' ? (
+                <div className="flex flex-col items-center justify-center py-6 text-center">
+                  <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl border border-rose-500/30 bg-rose-500/12">
+                    <CalendarX2 size={28} className="text-rose-300" />
+                  </div>
+                  <h4 className="mb-2 text-2xl leading-none text-white sm:text-3xl">{localizedCopy.missedDay}</h4>
+                  <p className="text-sm text-text-secondary">
+                    {localizedCopy.missedBody}
+                  </p>
+                </div>
+              ) : selectedDay.status === 'picked' ? (
+                <div className="space-y-4">
+                  <div className="flex flex-col items-center justify-center py-1 text-center">
+                    <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl border border-white/10 bg-white/5">
+                      <img
+                        src={doneDayIcon}
+                        alt="Done day"
+                        className="h-9 w-9 object-contain"
+                      />
+                    </div>
+                    <h4 className="mb-2 text-2xl leading-none text-white sm:text-3xl">
+                      {selectedDay.isPickedForToday ? localizedCopy.selectedForToday : localizedCopy.chosenForToday}
+                    </h4>
+                    <p className="text-sm text-text-secondary">
+                      {selectedDay.isPickedForToday
+                        ? (isTodayPlanLocked ? localizedCopy.selectedLockedBody : localizedCopy.selectedBody)
+                        : localizedCopy.assignedBody}
+                    </p>
+                  </div>
+
+                  {selectedDay.exercises.length > 0 && (
+                    <div className="space-y-2">
+                      <h4 className="mb-3 text-[11px] font-semibold uppercase tracking-[0.12em] text-text-secondary">{localizedCopy.exercises}</h4>
+                      {selectedDay.exercises.map((exercise, index) => {
+                        const isDone = selectedDay.status === 'done';
+                        return (
+                          <div key={index} className="flex items-center justify-between rounded-xl border border-white/10 bg-background p-3">
+                            <span className="pr-3 text-sm text-white">{stripExercisePrefix(exercise)}</span>
+                            {isDone && (
+                              <div className="flex h-5 w-5 items-center justify-center rounded-full bg-accent">
+                                <Check size={14} className="text-black" strokeWidth={3} />
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              ) : selectedDay.label === restLabel || selectedDay.status === 'recovery' || selectedDay.isRestDay ? (
+                <div className="flex flex-col items-center justify-center py-6 text-center">
+                  <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl border border-accent/35 bg-accent/12">
+                    <img
+                      src={highWeightIcon}
+                      alt="Recovery day"
+                      className="h-9 w-9 object-contain"
+                    />
+                  </div>
+                  <h4 className="mb-2 text-2xl leading-none text-white sm:text-3xl">
+                    {selectedDay.status === 'recovery' ? localizedCopy.pendingRecoveryDay : localizedCopy.recoveryDay}
+                  </h4>
+                  <p className="text-sm text-text-secondary">{localizedCopy.recoveryBody}</p>
+                </div>
+              ) : selectedDay.status !== 'done' ? (
+                <div className="flex flex-col items-center justify-center py-6 text-center">
+                  <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl border border-white/10 bg-white/5">
                     <img
                       src={doneDayIcon}
                       alt="Done day"
-                      className="h-10 w-10 object-contain"
+                      className="h-9 w-9 object-contain opacity-85"
                     />
                   </div>
-                  <h4 className="text-3xl leading-none text-white mb-2">
-                    {selectedDay.isPickedForToday ? localizedCopy.selectedForToday : localizedCopy.chosenForToday}
+                  <h4 className="mb-2 text-2xl leading-none text-white sm:text-3xl">
+                    {isTodayPlanLocked ? localizedCopy.planLockedTitle : localizedCopy.chooseFirstTitle}
                   </h4>
                   <p className="text-sm text-text-secondary">
-                    {selectedDay.isPickedForToday
-                      ? (isTodayPlanLocked ? localizedCopy.selectedLockedBody : localizedCopy.selectedBody)
-                      : localizedCopy.assignedBody}
+                    {isTodayPlanLocked ? localizedCopy.planLockedBody : localizedCopy.chooseFirstBody}
                   </p>
+                  {!!(selectedDay.workoutKey && onPickWorkoutForToday) && (
+                    <button
+                      type="button"
+                      disabled={isTodayPlanLocked}
+                      className={`mt-5 rounded-full px-5 py-2 text-sm font-semibold transition-transform duration-200 ${
+                        isTodayPlanLocked
+                          ? 'cursor-not-allowed border border-white/10 bg-white/5 text-text-tertiary'
+                          : 'bg-accent text-black hover:-translate-y-0.5'
+                      }`}
+                      onClick={() => {
+                        if (isTodayPlanLocked) return;
+                        onPickWorkoutForToday(selectedDay.workoutKey);
+                        setSelectedDay(null);
+                      }}
+                    >
+                      {isTodayPlanLocked ? localizedCopy.planLocked : localizedCopy.chooseForToday}
+                    </button>
+                  )}
                 </div>
-
-                {selectedDay.exercises.length > 0 && (
-                  <div className="space-y-2">
-                    <h4 className="text-[11px] font-semibold text-text-secondary uppercase tracking-[0.12em] mb-3">{localizedCopy.exercises}</h4>
-                    {selectedDay.exercises.map((exercise, index) => {
-                      const isDone = selectedDay.status === 'done';
-                      return (
-                        <div key={index} className="bg-background rounded-xl p-3 border border-white/10 flex items-center justify-between">
-                          <span className="text-white text-sm">{stripExercisePrefix(exercise)}</span>
-                          {isDone && (
-                            <div className="w-5 h-5 rounded-full bg-accent flex items-center justify-center">
-                              <Check size={14} className="text-black" strokeWidth={3} />
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-            ) : selectedDay.label === restLabel || selectedDay.status === 'recovery' || selectedDay.isRestDay ? (
-              <div className="flex flex-col items-center justify-center py-8 text-center">
-                <div className="w-16 h-16 rounded-2xl bg-accent/12 border border-accent/35 flex items-center justify-center mb-4">
-                  <img
-                    src={highWeightIcon}
-                    alt="Recovery day"
-                    className="h-10 w-10 object-contain"
-                  />
-                </div>
-                <h4 className="text-3xl leading-none text-white mb-2">
-                  {selectedDay.status === 'recovery' ? localizedCopy.pendingRecoveryDay : localizedCopy.recoveryDay}
-                </h4>
-                <p className="text-sm text-text-secondary">{localizedCopy.recoveryBody}</p>
-              </div>
-            ) : selectedDay.status !== 'done' ? (
-              <div className="flex flex-col items-center justify-center py-8 text-center">
-                <div className="w-16 h-16 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center mb-4">
-                  <img
-                    src={doneDayIcon}
-                    alt="Done day"
-                    className="h-10 w-10 object-contain opacity-85"
-                  />
-                </div>
-                <h4 className="text-3xl leading-none text-white mb-2">
-                  {isTodayPlanLocked ? localizedCopy.planLockedTitle : localizedCopy.chooseFirstTitle}
-                </h4>
-                <p className="text-sm text-text-secondary">
-                  {isTodayPlanLocked ? localizedCopy.planLockedBody : localizedCopy.chooseFirstBody}
-                </p>
-                {!!(selectedDay.workoutKey && onPickWorkoutForToday) && (
-                  <button
-                    type="button"
-                    disabled={isTodayPlanLocked}
-                    className={`mt-5 rounded-full px-5 py-2 text-sm font-semibold transition-transform duration-200 ${
-                      isTodayPlanLocked
-                        ? 'cursor-not-allowed border border-white/10 bg-white/5 text-text-tertiary'
-                        : 'bg-accent text-black hover:-translate-y-0.5'
-                    }`}
-                    onClick={() => {
-                      if (isTodayPlanLocked) return;
-                      onPickWorkoutForToday(selectedDay.workoutKey);
-                      setSelectedDay(null);
-                    }}
-                  >
-                    {isTodayPlanLocked ? localizedCopy.planLocked : localizedCopy.chooseForToday}
-                  </button>
-                )}
-              </div>
-            ) : (
-              <div className="space-y-2">
-                <h4 className="text-[11px] font-semibold text-text-secondary uppercase tracking-[0.12em] mb-3">{localizedCopy.exercises}</h4>
-                {selectedDay.exercises.map((exercise, index) => (
-                  <div key={index} className="bg-background rounded-xl p-3 border border-white/10 flex items-center justify-between">
-                    <span className="text-white text-sm">{stripExercisePrefix(exercise)}</span>
-                    <div className="w-5 h-5 rounded-full bg-accent flex items-center justify-center">
-                      <Check size={14} className="text-black" strokeWidth={3} />
+              ) : (
+                <div className="space-y-2">
+                  <h4 className="mb-3 text-[11px] font-semibold uppercase tracking-[0.12em] text-text-secondary">{localizedCopy.exercises}</h4>
+                  {selectedDay.exercises.map((exercise, index) => (
+                    <div key={index} className="flex items-center justify-between rounded-xl border border-white/10 bg-background p-3">
+                      <span className="pr-3 text-sm text-white">{stripExercisePrefix(exercise)}</span>
+                      <div className="flex h-5 w-5 items-center justify-center rounded-full bg-accent">
+                        <Check size={14} className="text-black" strokeWidth={3} />
+                      </div>
                     </div>
-                  </div>
-                ))}
-              </div>
-            )}
-
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
         </div>
       )}

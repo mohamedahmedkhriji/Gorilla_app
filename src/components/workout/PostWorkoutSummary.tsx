@@ -54,6 +54,7 @@ interface PostWorkoutSummaryProps {
   onShare?: (summary: WorkoutDaySummaryData) => Promise<void> | void;
   onPostToBlog?: (summary: WorkoutDaySummaryData) => Promise<void> | void;
   blogPosted?: boolean;
+  topContent?: React.ReactNode;
 }
 
 const formatDuration = (seconds: number) => {
@@ -212,6 +213,7 @@ export function PostWorkoutSummary({
   onShare,
   onPostToBlog,
   blogPosted = false,
+  topContent = null,
 }: PostWorkoutSummaryProps) {
   const [language, setLanguage] = useState<AppLanguage>('en');
   const [sharePending, setSharePending] = useState(false);
@@ -373,6 +375,11 @@ export function PostWorkoutSummary({
 
       <div className="px-4 sm:px-6 mt-4 flex-1 overflow-y-auto">
         <div className="mx-auto w-full max-w-xl">
+          {topContent && (
+            <div className="mb-4">
+              {topContent}
+            </div>
+          )}
           <div className={`mb-3 flex items-center justify-between ${isArabic ? 'flex-row-reverse' : ''}`}>
             <h2 className="text-2xl font-semibold text-white">{copy.exercises}</h2>
             <span className="text-sm text-text-secondary">{summary.exercises.length}</span>

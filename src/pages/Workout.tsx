@@ -3,6 +3,7 @@ import { CoachmarkOverlay, type CoachmarkStep } from '../components/coachmarks/C
 import { WorkoutOverviewScreen } from '../components/workout/WorkoutOverviewScreen';
 import { LiveWorkoutScreen } from '../components/workout/LiveWorkoutScreen';
 import { PostWorkoutSummary, type WorkoutDaySummaryData } from '../components/workout/PostWorkoutSummary';
+import { T2PostWorkoutCheckInCard } from '../components/workout/T2PostWorkoutCheckInCard';
 import { ExerciseVideoScreen } from '../components/workout/ExerciseVideoScreen';
 import { WorkoutPlanScreen } from '../components/workout/WorkoutPlanScreen';
 import { TrackerScreen } from '../components/workout/TrackerScreen';
@@ -32,6 +33,7 @@ import {
   type WorkoutAssignmentHistoryEntry,
 } from '../services/todayWorkoutSelection';
 import { OPEN_PICKED_WORKOUT_PLAN } from '../services/workoutNavigation';
+import { getActiveT2PremiumConfig } from '../services/premiumPlan';
 import { useScrollToTopOnChange } from '../shared/scroll';
 
 interface WorkoutProps {
@@ -853,6 +855,10 @@ export function Workout({
     );
 
   const isArabic = language === 'ar';
+  const activeT2PremiumConfig = useMemo(
+    () => getActiveT2PremiumConfig(userProgram),
+    [userProgram],
+  );
   const renewalCopy = useMemo(
     () => ({
       modalTitle: isArabic ? 'أنشئ خطة تمريني' : 'Create My Workout Plan',
@@ -2685,6 +2691,12 @@ export function Workout({
         onShare={shareSummary}
         onPostToBlog={postSummaryToBlog}
         blogPosted={hasSummaryBeenPostedToBlog(summary)}
+        topContent={activeT2PremiumConfig && summary ? (
+          <T2PostWorkoutCheckInCard
+            summary={summary}
+            userId={userId}
+          />
+        ) : null}
       />
     );
   }

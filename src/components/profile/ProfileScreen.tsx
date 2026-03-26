@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { User, Camera, Dumbbell, FileText, LogOut, X } from 'lucide-react';
 import { api } from '../../services/api';
 import { getStoredAppUser, getStoredUserId, persistStoredUser } from '../../shared/authStorage';
@@ -201,6 +201,7 @@ export function ProfileScreen({ onNavigate, onLogout }: ProfileScreenProps) {
   const [coachesLoading, setCoachesLoading] = useState(false);
   const [coachRequestingId, setCoachRequestingId] = useState<number | null>(null);
   const [language, setLanguage] = useState<AppLanguage>('en');
+  const avatarInputRef = useRef<HTMLInputElement | null>(null);
   const createdAt = user?.created_at || user?.createdAt;
   const copy = PROFILE_I18N[language] || PROFILE_I18N.en;
 
@@ -389,6 +390,17 @@ export function ProfileScreen({ onNavigate, onLogout }: ProfileScreenProps) {
     } else if (file && !userId) {
       alert(copy.noSession);
     }
+
+    event.target.value = '';
+  };
+
+  const handleAvatarButtonClick = () => {
+    if (profilePicture) {
+      setIsPreviewOpen(true);
+      return;
+    }
+
+    avatarInputRef.current?.click();
   };
 
   const handlePlanChoice = (choice: 'alone' | 'coach') => {
@@ -459,9 +471,8 @@ export function ProfileScreen({ onNavigate, onLogout }: ProfileScreenProps) {
             <button
               type="button"
               className="w-full h-full"
-              onClick={() => {
-                if (profilePicture) setIsPreviewOpen(true);
-              }}
+              aria-label={profilePicture ? copy.profilePreviewAlt : copy.profileAlt}
+              onClick={handleAvatarButtonClick}
             >
               {profilePicture ? (
                 <img
@@ -480,6 +491,7 @@ export function ProfileScreen({ onNavigate, onLogout }: ProfileScreenProps) {
           >
             <Camera size={12} className="text-white" />
             <input
+              ref={avatarInputRef}
               type="file"
               accept="image/*"
               onChange={handleImageUpload}

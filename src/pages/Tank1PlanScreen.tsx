@@ -5,6 +5,8 @@ import { Card } from '../components/ui/Card';
 import { getBodyPartImage } from '../services/bodyPartTheme';
 import { api } from '../services/api';
 import { AppLanguage, getActiveLanguage, getStoredLanguage } from '../services/language';
+import { recordBookApplied } from '../services/bookUsage';
+import { getAssignedBookPlan, getPlanSwitchPrompt } from '../services/bookPlanSelection';
 
 interface Tank1PlanScreenProps {
   onBack: () => void;
@@ -888,19 +890,46 @@ export function Tank1PlanScreen({ onBack }: Tank1PlanScreenProps) {
   const [isApplying, setIsApplying] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const [assignedPlan, setAssignedPlan] = useState(() => getAssignedBookPlan());
   const copy = useMemo(() => TANK1_PLAN_I18N[language] || TANK1_PLAN_I18N.en, [language]);
   const isArabic = language === 'ar';
+  const isCurrentPlanActive = assignedPlan.id === 'tank-1';
+  const modalCopy = useMemo(() => {
+    if (assignedPlan.id && assignedPlan.id !== 'tank-1') {
+      return getPlanSwitchPrompt({
+        language,
+        currentPlanName: assignedPlan.name || 'your current plan',
+        nextPlanName: 'Tank-1',
+      });
+    }
+
+    return {
+      title: copy.modalTitle,
+      body: copy.modalBody,
+      hint: copy.modalHint,
+    };
+  }, [assignedPlan.id, assignedPlan.name, copy.modalBody, copy.modalHint, copy.modalTitle, language]);
 
   useEffect(() => {
+    const syncAssignedPlan = () => {
+      setAssignedPlan(getAssignedBookPlan());
+    };
     const handleLanguageChanged = () => {
       setLanguage(getStoredLanguage());
     };
+    const handleStorage = () => {
+      handleLanguageChanged();
+      syncAssignedPlan();
+    };
 
     window.addEventListener('app-language-changed', handleLanguageChanged);
-    window.addEventListener('storage', handleLanguageChanged);
+    window.addEventListener('program-updated', syncAssignedPlan);
+    window.addEventListener('storage', handleStorage);
+    syncAssignedPlan();
     return () => {
       window.removeEventListener('app-language-changed', handleLanguageChanged);
-      window.removeEventListener('storage', handleLanguageChanged);
+      window.removeEventListener('program-updated', syncAssignedPlan);
+      window.removeEventListener('storage', handleStorage);
     };
   }, []);
 
@@ -930,6 +959,8 @@ export function Tank1PlanScreen({ onBack }: Tank1PlanScreenProps) {
           templateWeekPlans: payload.weekPlans,
           repeatedWeekPlans: payload.weekPlans,
         }));
+        setAssignedPlan({ id: 'tank-1', name: payload.planName });
+        recordBookApplied('tank-1', userId);
         window.dispatchEvent(new CustomEvent('program-updated'));
       }
 
@@ -952,15 +983,17 @@ export function Tank1PlanScreen({ onBack }: Tank1PlanScreenProps) {
           rightElement={(
             <button
               type="button"
-              onClick={() => setIsConfirmOpen(true)}
-              disabled={isApplying}
+              onClick={() => {
+                if (!isCurrentPlanActive) setIsConfirmOpen(true);
+              }}
+              disabled={isApplying || isCurrentPlanActive}
               className={`rounded-xl px-3 py-2 text-xs font-semibold uppercase tracking-[0.12em] transition-colors ${
-                success
-                  ? 'bg-emerald-500/15 text-emerald-200'
+                isCurrentPlanActive
+                  ? 'cursor-not-allowed bg-emerald-500/15 text-emerald-200'
                   : 'bg-accent/15 text-accent hover:bg-accent/20'
               } ${isApplying ? 'cursor-wait opacity-70' : ''}`}
             >
-              {isApplying ? copy.usingPlan : (success ? copy.activePlan : copy.usePlan)}
+              {isApplying ? copy.usingPlan : (isCurrentPlanActive ? copy.activePlan : copy.usePlan)}
             </button>
           )}
         />
@@ -1143,13 +1176,13 @@ export function Tank1PlanScreen({ onBack }: Tank1PlanScreenProps) {
                 {success ? <Check size={18} /> : <Sparkles size={18} />}
               </div>
               <div>
-                <h3 className="text-lg font-semibold text-white">{copy.modalTitle}</h3>
-                <p className="mt-1 text-sm text-text-secondary">{copy.modalBody}</p>
+                <h3 className="text-lg font-semibold text-white">{modalCopy.title}</h3>
+                <p className="mt-1 text-sm text-text-secondary">{modalCopy.body}</p>
               </div>
             </div>
 
             <div className="rounded-xl border border-white/10 bg-black/10 px-4 py-3 text-sm text-text-secondary">
-              {copy.modalHint}
+              {modalCopy.hint}
             </div>
 
             <div className="mt-4 flex gap-3">

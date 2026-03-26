@@ -33,6 +33,7 @@ const DEFAULT_MUSCLES: MuscleRecoveryItem[] = [
   { muscle: 'back', name: 'Back', score: 100, lastWorkout: null },
   { muscle: 'quadriceps', name: 'Quadriceps', score: 100, lastWorkout: null },
   { muscle: 'hamstrings', name: 'Hamstrings', score: 100, lastWorkout: null },
+  { muscle: 'glutes', name: 'Glutes', score: 100, lastWorkout: null },
   { muscle: 'shoulders', name: 'Shoulders', score: 100, lastWorkout: null },
   { muscle: 'biceps', name: 'Biceps', score: 100, lastWorkout: null },
   { muscle: 'triceps', name: 'Triceps', score: 100, lastWorkout: null },
@@ -42,6 +43,7 @@ const DEFAULT_MUSCLES: MuscleRecoveryItem[] = [
 ];
 
 const AR_MUSCLE_LABELS: Record<string, string> = {
+  glutes: '\u0627\u0644\u0623\u0644\u064a\u0629',
   chest: 'الصدر',
   back: 'الظهر',
   quadriceps: 'الرباعية',
@@ -55,6 +57,7 @@ const AR_MUSCLE_LABELS: Record<string, string> = {
 };
 
 const IT_MUSCLE_LABELS: Record<string, string> = {
+  glutes: 'Glutei',
   chest: 'Petto',
   back: 'Schiena',
   quadriceps: 'Quadricipiti',
@@ -68,6 +71,7 @@ const IT_MUSCLE_LABELS: Record<string, string> = {
 };
 
 const DE_MUSCLE_LABELS: Record<string, string> = {
+  glutes: 'Gesaess',
   chest: 'Brust',
   back: 'Ruecken',
   quadriceps: 'Quadrizeps',
@@ -101,6 +105,17 @@ const RECOVERY_I18N = {
     sleepHours: 'Sleep Hours',
     protein: 'Protein Intake',
     supplements: 'Supplements',
+    soreness: 'Muscle soreness',
+    energy: 'Energy',
+    fatigue: 'Fatigue',
+    mood: 'Mood',
+    jointPain: 'Joint pain',
+    signalLow: 'Low',
+    signalBalanced: 'Balanced',
+    signalHigh: 'High',
+    nonePain: 'None',
+    mildPain: 'Mild',
+    sharpPain: 'High',
     cancel: 'Cancel',
     update: 'Update',
     low: 'Low (<0.8g/kg)',
@@ -135,6 +150,17 @@ const RECOVERY_I18N = {
     sleepHours: '\u0633\u0627\u0639\u0627\u062a \u0627\u0644\u0646\u0648\u0645',
     protein: '\u062a\u0646\u0627\u0648\u0644 \u0627\u0644\u0628\u0631\u0648\u062a\u064a\u0646',
     supplements: '\u0627\u0644\u0645\u0643\u0645\u0644\u0627\u062a',
+    soreness: '\u0627\u0644\u0623\u0644\u0645 \u0627\u0644\u0639\u0636\u0644\u064a',
+    energy: '\u0627\u0644\u0637\u0627\u0642\u0629',
+    fatigue: '\u0627\u0644\u0625\u062c\u0647\u0627\u062f',
+    mood: '\u0627\u0644\u0645\u0632\u0627\u062c',
+    jointPain: '\u0623\u0644\u0645 \u0627\u0644\u0645\u0641\u0627\u0635\u0644',
+    signalLow: '\u0645\u0646\u062e\u0641\u0636',
+    signalBalanced: '\u0645\u062a\u0648\u0627\u0632\u0646',
+    signalHigh: '\u0645\u0631\u062a\u0641\u0639',
+    nonePain: '\u0644\u0627 \u064a\u0648\u062c\u062f',
+    mildPain: '\u062e\u0641\u064a\u0641',
+    sharpPain: '\u0645\u0631\u062a\u0641\u0639',
     cancel: '\u0625\u0644\u063a\u0627\u0621',
     update: '\u062a\u062d\u062f\u064a\u062b',
     low: '\u0645\u0646\u062e\u0641\u0636 (\u0623\u0642\u0644 \u0645\u0646 0.8\u063a/\u0643\u063a)',
@@ -169,6 +195,17 @@ const RECOVERY_I18N = {
     sleepHours: 'Ore di sonno',
     protein: 'Assunzione proteica',
     supplements: 'Integratori',
+    soreness: 'Indolenzimento muscolare',
+    energy: 'Energia',
+    fatigue: 'Fatica',
+    mood: 'Umore',
+    jointPain: 'Dolore articolare',
+    signalLow: 'Basso',
+    signalBalanced: 'Bilanciato',
+    signalHigh: 'Alto',
+    nonePain: 'Nessuno',
+    mildPain: 'Lieve',
+    sharpPain: 'Alto',
     cancel: 'Annulla',
     update: 'Aggiorna',
     low: 'Basso (<0.8g/kg)',
@@ -203,6 +240,17 @@ const RECOVERY_I18N = {
     sleepHours: 'Schlafstunden',
     protein: 'Proteinzufuhr',
     supplements: 'Supplemente',
+    soreness: 'Muskelkater',
+    energy: 'Energie',
+    fatigue: 'Ermuedung',
+    mood: 'Stimmung',
+    jointPain: 'Gelenkschmerz',
+    signalLow: 'Niedrig',
+    signalBalanced: 'Stabil',
+    signalHigh: 'Hoch',
+    nonePain: 'Kein',
+    mildPain: 'Leicht',
+    sharpPain: 'Hoch',
     cancel: 'Abbrechen',
     update: 'Aktualisieren',
     low: 'Niedrig (<0.8g/kg)',
@@ -225,6 +273,9 @@ type RecoveryFactorsState = {
   supplements: string;
   soreness: number;
   energy: number;
+  fatigue: number;
+  mood: number;
+  jointPain: number;
   nutrition_quality?: string;
   stress_level?: string;
 };
@@ -305,7 +356,10 @@ export function MuscleRecoveryScreen({ onBack }: MuscleRecoveryScreenProps) {
     proteinIntake: 'medium',
     supplements: 'none',
     soreness: 3,
-    energy: 3,
+    energy: 6,
+    fatigue: 4,
+    mood: 6,
+    jointPain: 0,
     nutrition_quality: 'optimal',
     stress_level: 'low',
   });
@@ -394,6 +448,11 @@ export function MuscleRecoveryScreen({ onBack }: MuscleRecoveryScreenProps) {
         supplements: factors.supplements,
         nutritionQuality: factors.nutrition_quality,
         stressLevel: factors.stress_level,
+        sorenessLevel: factors.soreness,
+        energyLevel: factors.energy,
+        fatigueLevel: factors.fatigue,
+        moodLevel: factors.mood,
+        jointPainLevel: factors.jointPain,
       });
       await api.recalculateTodayRecovery(user.id);
       await loadRecovery();
@@ -406,6 +465,48 @@ export function MuscleRecoveryScreen({ onBack }: MuscleRecoveryScreenProps) {
       setIsUpdatingFactors(false);
     }
   };
+
+  const standardSignalOptions = useMemo(() => ([
+    { label: copy.signalLow, value: 3 },
+    { label: copy.signalBalanced, value: 6 },
+    { label: copy.signalHigh, value: 8 },
+  ]), [copy.signalBalanced, copy.signalHigh, copy.signalLow]);
+
+  const painSignalOptions = useMemo(() => ([
+    { label: copy.nonePain, value: 0 },
+    { label: copy.mildPain, value: 4 },
+    { label: copy.sharpPain, value: 8 },
+  ]), [copy.mildPain, copy.nonePain, copy.sharpPain]);
+
+  const renderFactorChipRow = (
+    title: string,
+    value: number,
+    options: Array<{ label: string; value: number }>,
+    onChange: (next: number) => void,
+  ) => (
+    <div>
+      <div className="mb-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-text-tertiary">{title}</div>
+      <div className="grid grid-cols-3 gap-2">
+        {options.map((option) => {
+          const active = value === option.value;
+          return (
+            <button
+              key={`${title}-${option.value}`}
+              type="button"
+              onClick={() => onChange(option.value)}
+              className={`rounded-xl border px-3 py-2 text-xs font-semibold transition-colors ${
+                active
+                  ? 'border-accent/35 bg-accent/15 text-accent'
+                  : 'border-white/10 bg-white/5 text-text-secondary hover:border-accent/25'
+              }`}
+            >
+              {option.label}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
 
   const getLastTrained = (date: string | null) => {
     if (!date) return copy.notTrained;
@@ -482,71 +583,91 @@ export function MuscleRecoveryScreen({ onBack }: MuscleRecoveryScreenProps) {
       </div>
 
       {showFactors && (
-        <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-6">
-          <div className="bg-card rounded-2xl p-6 max-w-sm w-full border border-white/10 relative">
-            <button 
-              onClick={() => setShowFactors(false)}
-              className="absolute top-4 right-4 text-text-secondary hover:text-white transition-colors">
-              <X size={24} />
-            </button>
-            <h3 className="text-xl font-bold text-white mb-6">{copy.factorsTitle}</h3>
-            
-            <div className="space-y-5">
-              <div>
-                <label className="text-sm text-text-secondary mb-2 block">{copy.sleepHours}</label>
-                <input 
-                  type="number" 
-                  min="0" 
-                  max="12" 
-                  step="0.5"
-                  value={factors.sleepHours} 
-                  onChange={e => setFactors({...factors, sleepHours: e.target.value})} 
-                  className="w-full bg-background rounded-xl px-4 py-3 text-white border border-white/10 focus:outline-none focus:border-accent/50" 
-                />
+        <div className="fixed inset-0 z-50 bg-black/80 p-4 sm:p-6">
+          <div className="flex min-h-full items-center justify-center">
+            <div className={`relative flex max-h-[90dvh] w-full max-w-md flex-col overflow-hidden rounded-2xl border border-white/10 bg-card ${isArabic ? 'text-right' : 'text-left'}`}>
+              <button
+                onClick={() => setShowFactors(false)}
+                className="absolute right-4 top-4 z-10 text-text-secondary transition-colors hover:text-white"
+              >
+                <X size={24} />
+              </button>
+
+              <div className="border-b border-white/10 px-5 py-5 pr-14">
+                <h3 className="text-xl font-bold text-white">{copy.factorsTitle}</h3>
               </div>
-              
-              <div>
-                <label className="text-sm text-text-secondary mb-2 block">{copy.protein}</label>
-                <div className="relative">
-                  <select 
-                    value={factors.proteinIntake} 
-                    onChange={e => setFactors({...factors, proteinIntake: e.target.value})} 
-                    className="w-full bg-background rounded-xl px-4 py-3 text-white border border-white/10 focus:outline-none focus:border-accent/50 appearance-none cursor-pointer pr-10">
-                    <option value="low">{copy.low}</option>
-                    <option value="medium">{copy.medium}</option>
-                    <option value="high">{copy.high}</option>
-                  </select>
-                  <ChevronDown size={20} className="absolute right-3 top-1/2 -translate-y-1/2 text-text-secondary pointer-events-none" />
+
+              <div className="flex-1 overflow-y-auto px-5 py-5">
+                <div className="space-y-5">
+                  <div>
+                    <label className="mb-2 block text-sm text-text-secondary">{copy.sleepHours}</label>
+                    <input
+                      type="number"
+                      min="0"
+                      max="12"
+                      step="0.5"
+                      value={factors.sleepHours}
+                      onChange={(event) => setFactors({ ...factors, sleepHours: event.target.value })}
+                      className="w-full rounded-xl border border-white/10 bg-background px-4 py-3 text-white focus:outline-none focus:border-accent/50"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="mb-2 block text-sm text-text-secondary">{copy.protein}</label>
+                    <div className="relative">
+                      <select
+                        value={factors.proteinIntake}
+                        onChange={(event) => setFactors({ ...factors, proteinIntake: event.target.value })}
+                        className="w-full cursor-pointer appearance-none rounded-xl border border-white/10 bg-background px-4 py-3 pr-10 text-white focus:outline-none focus:border-accent/50"
+                      >
+                        <option value="low">{copy.low}</option>
+                        <option value="medium">{copy.medium}</option>
+                        <option value="high">{copy.high}</option>
+                      </select>
+                      <ChevronDown size={20} className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-text-secondary" />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="mb-2 block text-sm text-text-secondary">{copy.supplements}</label>
+                    <div className="relative">
+                      <select
+                        value={factors.supplements}
+                        onChange={(event) => setFactors({ ...factors, supplements: event.target.value })}
+                        className="w-full cursor-pointer appearance-none rounded-xl border border-white/10 bg-background px-4 py-3 pr-10 text-white focus:outline-none focus:border-accent/50"
+                      >
+                        <option value="none">{copy.none}</option>
+                        <option value="creatine">{copy.creatine}</option>
+                        <option value="full">{copy.full}</option>
+                      </select>
+                      <ChevronDown size={20} className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-text-secondary" />
+                    </div>
+                  </div>
+
+                  {renderFactorChipRow(copy.soreness, factors.soreness, standardSignalOptions, (next) => setFactors({ ...factors, soreness: next }))}
+                  {renderFactorChipRow(copy.energy, factors.energy, standardSignalOptions, (next) => setFactors({ ...factors, energy: next }))}
+                  {renderFactorChipRow(copy.fatigue, factors.fatigue, standardSignalOptions, (next) => setFactors({ ...factors, fatigue: next }))}
+                  {renderFactorChipRow(copy.mood, factors.mood, standardSignalOptions, (next) => setFactors({ ...factors, mood: next }))}
+                  {renderFactorChipRow(copy.jointPain, factors.jointPain, painSignalOptions, (next) => setFactors({ ...factors, jointPain: next }))}
                 </div>
               </div>
-              
-              <div>
-                <label className="text-sm text-text-secondary mb-2 block">{copy.supplements}</label>
-                <div className="relative">
-                  <select 
-                    value={factors.supplements} 
-                    onChange={e => setFactors({...factors, supplements: e.target.value})} 
-                    className="w-full bg-background rounded-xl px-4 py-3 text-white border border-white/10 focus:outline-none focus:border-accent/50 appearance-none cursor-pointer pr-10">
-                    <option value="none">{copy.none}</option>
-                    <option value="creatine">{copy.creatine}</option>
-                    <option value="full">{copy.full}</option>
-                  </select>
-                  <ChevronDown size={20} className="absolute right-3 top-1/2 -translate-y-1/2 text-text-secondary pointer-events-none" />
+
+              <div className="border-t border-white/10 px-5 py-4">
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => setShowFactors(false)}
+                    className="flex-1 rounded-xl bg-white/5 py-3 font-bold text-white transition-colors hover:bg-white/10"
+                  >
+                    {copy.cancel}
+                  </button>
+                  <button
+                    onClick={handleUpdateFactors}
+                    disabled={isUpdatingFactors}
+                    className="flex-1 rounded-xl bg-accent py-3 font-bold text-black transition-colors hover:bg-accent/90 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {isUpdatingFactors ? copy.updating : copy.update}
+                  </button>
                 </div>
-              </div>
-              
-              <div className="flex gap-3 pt-2">
-                <button 
-                  onClick={() => setShowFactors(false)}
-                  className="flex-1 bg-white/5 text-white font-bold py-3 rounded-xl hover:bg-white/10 transition-colors">
-                  {copy.cancel}
-                </button>
-                <button 
-                  onClick={handleUpdateFactors} 
-                  disabled={isUpdatingFactors}
-                  className="flex-1 bg-accent text-black font-bold py-3 rounded-xl hover:bg-accent/90 transition-colors disabled:cursor-not-allowed disabled:opacity-60">
-                  {isUpdatingFactors ? copy.updating : copy.update}
-                </button>
               </div>
             </div>
           </div>

@@ -85,7 +85,7 @@ export const Notifications: React.FC<NotificationsProps> = ({
         created_at: String(raw?.created_at || raw?.createdAt || ''),
         unread: typeof raw?.unread === 'boolean'
           ? raw.unread
-          : !Boolean(raw?.is_read),
+          : !raw?.is_read,
         data: raw?.data,
       }))
       .filter((item) => item.id > 0)
