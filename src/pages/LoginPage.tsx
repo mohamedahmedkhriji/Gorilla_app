@@ -3,9 +3,10 @@ import { Dumbbell, Mail, Lock, Eye, EyeOff, Sparkles, ShieldCheck, Zap, Download
 import { api } from '../services/api';
 import { persistStoredUserSession } from '../shared/authStorage';
 import { AppLanguage, getActiveLanguage, getStoredLanguage, pickLanguage } from '../services/language';
+import { LoginTransitionOverlay } from '../components/ui/LoginTransitionOverlay';
 
 interface LoginPageProps {
-  onLoginSuccess: () => void;
+  onLoginSuccess: () => void | Promise<void>;
 }
 
 type InstallPromptEvent = Event & {
@@ -44,6 +45,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
       password: 'Password',
       passwordPlaceholder: 'Enter your password',
       loggingIn: 'Logging In...',
+      loadingSubtitle: 'Preparing your dashboard and loading your plan.',
       login: 'Login',
       needAccount: 'Need an account?',
       contactCoach: 'Contact your coach',
@@ -64,6 +66,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
       password: '\u0643\u0644\u0645\u0629 \u0627\u0644\u0645\u0631\u0648\u0631',
       passwordPlaceholder: '\u0623\u062f\u062e\u0644 \u0643\u0644\u0645\u0629 \u0627\u0644\u0645\u0631\u0648\u0631',
       loggingIn: '\u062c\u0627\u0631\u064d \u062a\u0633\u062c\u064a\u0644 \u0627\u0644\u062f\u062e\u0648\u0644...',
+      loadingSubtitle: '\u0646\u0642\u0648\u0645 \u0628\u062a\u062c\u0647\u064a\u0632 \u0644\u0648\u062d\u062a\u0643 \u0648\u062e\u0637\u062a\u0643 \u0627\u0644\u062a\u062f\u0631\u064a\u0628\u064a\u0629.',
       login: '\u062a\u0633\u062c\u064a\u0644 \u0627\u0644\u062f\u062e\u0648\u0644',
       needAccount: '\u062a\u062d\u062a\u0627\u062c \u0625\u0644\u0649 \u062d\u0633\u0627\u0628\u061f',
       contactCoach: '\u062a\u0648\u0627\u0635\u0644 \u0645\u0639 \u0645\u062f\u0631\u0628\u0643',
@@ -84,6 +87,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
       password: 'Password',
       passwordPlaceholder: 'Inserisci la tua password',
       loggingIn: 'Accesso in corso...',
+      loadingSubtitle: 'Stiamo preparando la tua dashboard e il tuo piano.',
       login: 'Accedi',
       needAccount: 'Hai bisogno di un account?',
       contactCoach: 'Contatta il tuo coach',
@@ -104,6 +108,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
       password: 'Passwort',
       passwordPlaceholder: 'Gib dein Passwort ein',
       loggingIn: 'Anmeldung lauft...',
+      loadingSubtitle: 'Dein Dashboard und dein Plan werden vorbereitet.',
       login: 'Anmelden',
       needAccount: 'Brauchst du ein Konto?',
       contactCoach: 'Kontaktiere deinen Coach',
@@ -158,6 +163,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
     e.preventDefault();
     setError('');
     setLoading(true);
+    let loginSucceeded = false;
 
     try {
       const result = await api.login(email, password, 'user');
@@ -167,11 +173,19 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
       }
 
       persistStoredUserSession({ user: result.user, token: result.token });
-      onLoginSuccess();
+      await new Promise<void>((resolve) => {
+        window.requestAnimationFrame(() => {
+          window.requestAnimationFrame(() => resolve());
+        });
+      });
+      await Promise.resolve(onLoginSuccess());
+      loginSucceeded = true;
     } catch (err: any) {
       setError(err.message || copy.loginFailed);
     } finally {
-      setLoading(false);
+      if (!loginSucceeded) {
+        setLoading(false);
+      }
     }
   };
 
@@ -187,6 +201,13 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
 
   return (
     <div className="min-h-screen px-4 py-8 flex items-center justify-center">
+      {loading ? (
+        <LoginTransitionOverlay
+          title={copy.loggingIn}
+          subtitle={copy.loadingSubtitle}
+        />
+      ) : null}
+
       <div className="relative w-full max-w-5xl grid gap-5 md:grid-cols-[1.08fr_0.92fr]">
         <section className="hidden md:flex flex-col justify-between rounded-3xl surface-card p-8 border border-white/12">
           <div>
