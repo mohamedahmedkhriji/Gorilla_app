@@ -9,6 +9,8 @@ const normalizeExerciseVideoLookup = (value) =>
     .replace(/\bpushdown\b/g, 'push down')
     .replace(/\bpress\s*down\b/g, 'push down')
     .replace(/\bpressdown\b/g, 'push down')
+    .replace(/\bdb\b/g, 'dumbbell')
+    .replace(/\bbb\b/g, 'barbell')
     .replace(/\bsit\s*up\b/g, 'sit up')
     .replace(/\bsitup\b/g, 'sit up')
     .replace(/\bpull[\s-]*downs?\b/g, 'pulldown')
@@ -253,19 +255,76 @@ const BACK_VIDEO_MANIFEST = [
 const CHEST_VIDEO_MANIFEST = [
   {
     bodyPart: 'chest',
+    fileName: 'bech press upper smith machine.mp4',
+    priority: 98,
+    aliases: [
+      'incline smith machine press',
+      'smith machine incline press',
+      'incline machine press',
+      'incline upper chest press',
+      'upper chest machine press',
+      'upper smith machine press',
+    ],
+  },
+  {
+    bodyPart: 'chest',
+    fileName: 'incline bench press dumbbell.mp4',
+    priority: 97,
+    aliases: [
+      'incline dumbbell press',
+      'incline dumbbell bench press',
+      'incline bench press dumbbell',
+      'incline db press',
+      'incline db bench press',
+      'upper chest dumbbell press',
+    ],
+  },
+  {
+    bodyPart: 'chest',
     fileName: 'Incline Smith Press.mp4',
     priority: 96,
     aliases: [
       'incline smith press',
       'smith incline press',
-      'incline smith machine press',
-      'smith machine incline press',
+      'upper smith press',
+      'incline barbell press',
+      'barbell incline press',
+    ],
+  },
+  {
+    bodyPart: 'chest',
+    fileName: 'Incline Fly upper chest .mp4',
+    priority: 95,
+    aliases: [
+      'incline upper chest fly',
+      'incline fly upper chest',
+      'upper chest incline fly',
+    ],
+  },
+  {
+    bodyPart: 'chest',
+    fileName: 'Incline Fly  lower chest .mp4',
+    priority: 95,
+    aliases: [
+      'incline lower chest fly',
+      'incline fly lower chest',
+      'lower chest incline fly',
+    ],
+  },
+  {
+    bodyPart: 'chest',
+    fileName: 'Incline Fly chest .mp4',
+    priority: 94,
+    aliases: [
+      'incline fly',
+      'incline chest fly',
+      'incline pec fly',
     ],
   },
   {
     bodyPart: 'chest',
     fileName: 'Low-to-High Cable Fly.mp4',
-    priority: 95,
+    priority: 93,
     aliases: [
       'low to high cable fly',
       'low cable fly',
@@ -277,7 +336,7 @@ const CHEST_VIDEO_MANIFEST = [
   {
     bodyPart: 'chest',
     fileName: 'Cable Fly.mp4',
-    priority: 94,
+    priority: 92,
     aliases: [
       'cable fly',
       'cable flyes',
@@ -346,10 +405,62 @@ const resolveBackVideoFallback = (normalizedName) => {
 const resolveChestVideoFallback = (normalizedName) => {
   if (
     normalizedName.includes('incline')
+    && normalizedName.includes('dumbbell')
+    && normalizedName.includes('press')
+  ) {
+    return { fileName: 'incline bench press dumbbell.mp4', bodyPart: 'chest', matchType: 'fallback', priority: 44 };
+  }
+
+  if (
+    normalizedName.includes('incline')
+    && normalizedName.includes('smith')
+    && normalizedName.includes('machine')
+    && normalizedName.includes('press')
+  ) {
+    return { fileName: 'bech press upper smith machine.mp4', bodyPart: 'chest', matchType: 'fallback', priority: 43 };
+  }
+
+  if (
+    normalizedName.includes('incline')
     && normalizedName.includes('smith')
     && normalizedName.includes('press')
   ) {
     return { fileName: 'Incline Smith Press.mp4', bodyPart: 'chest', matchType: 'fallback', priority: 42 };
+  }
+
+  if (
+    normalizedName.includes('incline')
+    && normalizedName.includes('machine')
+    && normalizedName.includes('press')
+  ) {
+    return { fileName: 'bech press upper smith machine.mp4', bodyPart: 'chest', matchType: 'fallback', priority: 41 };
+  }
+
+  if (
+    normalizedName.includes('incline')
+    && normalizedName.includes('barbell')
+    && normalizedName.includes('press')
+  ) {
+    return { fileName: 'Incline Smith Press.mp4', bodyPart: 'chest', matchType: 'fallback', priority: 40 };
+  }
+
+  if (
+    normalizedName.includes('incline')
+    && normalizedName.includes('upper')
+    && normalizedName.includes('chest')
+    && normalizedName.includes('press')
+  ) {
+    return { fileName: 'bech press upper smith machine.mp4', bodyPart: 'chest', matchType: 'fallback', priority: 40 };
+  }
+
+  if (normalizedName.includes('incline') && normalizedName.includes('fly')) {
+    if (normalizedName.includes('upper')) {
+      return { fileName: 'Incline Fly upper chest .mp4', bodyPart: 'chest', matchType: 'fallback', priority: 41 };
+    }
+    if (normalizedName.includes('lower')) {
+      return { fileName: 'Incline Fly  lower chest .mp4', bodyPart: 'chest', matchType: 'fallback', priority: 41 };
+    }
+    return { fileName: 'Incline Fly chest .mp4', bodyPart: 'chest', matchType: 'fallback', priority: 40 };
   }
 
   if (
