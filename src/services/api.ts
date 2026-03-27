@@ -199,6 +199,33 @@ const withOfflineReadFallback = async <T>(
   }
 };
 
+const waitForMs = (ms: number) =>
+  new Promise<void>((resolve) => {
+    globalThis.setTimeout(resolve, ms);
+  });
+
+const withTransientReadRetry = async <T>(
+  fetcher: () => Promise<T>,
+  attempts = 2,
+) => {
+  let lastError: unknown;
+
+  for (let attempt = 0; attempt < attempts; attempt += 1) {
+    try {
+      return await fetcher();
+    } catch (error) {
+      lastError = error;
+      const shouldRetry = isOfflineApiError(error) && attempt < attempts - 1;
+      if (!shouldRetry) {
+        throw error;
+      }
+      await waitForMs(250 * (attempt + 1));
+    }
+  }
+
+  throw lastError;
+};
+
 export const api = {
   login: async (email: string, password: string, role: string) => {
     const res = await fetchWithContext(`${API_URL}/auth/login`, {
@@ -420,8 +447,10 @@ export const api = {
     const params = new URLSearchParams();
     if (status) params.set('status', status);
     const query = params.toString();
-    const res = await fetch(`${API_URL}/coach/${coachId}/program-requests${query ? `?${query}` : ''}`);
-    return parseApiResponse(res, 'Failed to load coach program requests');
+    return withTransientReadRetry(async () => {
+      const res = await fetchWithTimeout(`${API_URL}/coach/${coachId}/program-requests${query ? `?${query}` : ''}`, undefined, 10000);
+      return parseApiResponse(res, 'Failed to load coach program requests');
+    });
   },
 
   approveCoachProgramChangeRequest: async (coachId: number, requestId: number, reason = '') => {
@@ -996,8 +1025,10 @@ export const api = {
   },
 
   getNotifications: async (userId: number) => {
-    const res = await fetch(`${API_URL}/notifications/${userId}`);
-    return parseApiResponse(res, 'Failed to fetch notifications');
+    return withTransientReadRetry(async () => {
+      const res = await fetchWithTimeout(`${API_URL}/notifications/${userId}`, undefined, 10000);
+      return parseApiResponse(res, 'Failed to fetch notifications');
+    });
   },
 
   markNotificationRead: async (notificationId: number) => {
@@ -1060,27 +1091,31 @@ export const api = {
   },
 
   getMessages: async (userId: number, coachId: number) => {
-    const res = await fetch(`${API_URL}/messages/${userId}/${coachId}`);
-    return res.json();
+    return withTransientReadRetry(async () => {
+      const res = await fetchWithTimeout(`${API_URL}/messages/${userId}/${coachId}`, undefined, 10000);
+      return parseApiResponse(res, 'Failed to fetch messages');
+    });
   },
 
   markMessagesAsRead: async (coachId: number, userId: number) => {
     const res = await fetch(`${API_URL}/messages/read/${coachId}/${userId}`, {
       method: 'PUT'
     });
-    return res.json();
+    return parseApiResponse(res, 'Failed to mark coach messages as read');
   },
 
   markUserMessagesAsRead: async (userId: number, coachId: number) => {
     const res = await fetch(`${API_URL}/messages/read-user/${userId}/${coachId}`, {
       method: 'PUT'
     });
-    return res.json();
+    return parseApiResponse(res, 'Failed to mark user messages as read');
   },
 
   getAllUsers: async () => {
-    const res = await fetch(`${API_URL}/users`);
-    return res.json();
+    return withTransientReadRetry(async () => {
+      const res = await fetchWithTimeout(`${API_URL}/users`, undefined, 10000);
+      return parseApiResponse(res, 'Failed to fetch users');
+    });
   },
 
   getUserSessionStatus: async (userId: number | string) => {
@@ -1106,8 +1141,10 @@ export const api = {
     const params = new URLSearchParams();
     if (startDate) params.set('startDate', startDate);
     if (endDate) params.set('endDate', endDate);
-    const res = await fetch(`${API_URL}/coaches/${coachId}/schedule?${params.toString()}`);
-    return res.json();
+    return withTransientReadRetry(async () => {
+      const res = await fetchWithTimeout(`${API_URL}/coaches/${coachId}/schedule?${params.toString()}`, undefined, 10000);
+      return parseApiResponse(res, 'Failed to fetch coach schedule');
+    });
   },
 
   banUser: async (

@@ -9,6 +9,7 @@ import { BrandLogo } from '../../components/ui/BrandLogo';
 import { WorkspacePlaceholderScreen } from '../../components/workspace/WorkspacePlaceholderScreen';
 import { getWorkspacePage } from '../../config/workspacePages';
 import { api } from '../../services/api';
+import { isOfflineApiError } from '../../services/offlineCache';
 import { socketService } from '../../services/socket';
 import { useScrollToTopOnChange } from '../../shared/scroll';
 import { clearStoredAdminSession, persistStoredAdminUser } from '../../shared/adminAuthStorage';
@@ -83,6 +84,30 @@ const toClientRank = (rankValue: unknown, pointsValue: unknown): ClientRank => {
   return 'bronze';
 };
 
+const mapWithConcurrency = async <T, R>(
+  items: T[],
+  limit: number,
+  mapper: (item: T, index: number) => Promise<R>,
+) => {
+  if (!items.length) return [] as R[];
+
+  const results = new Array<R>(items.length);
+  let nextIndex = 0;
+  const workerCount = Math.max(1, Math.min(limit, items.length));
+
+  const worker = async () => {
+    while (true) {
+      const currentIndex = nextIndex;
+      nextIndex += 1;
+      if (currentIndex >= items.length) return;
+      results[currentIndex] = await mapper(items[currentIndex], currentIndex);
+    }
+  };
+
+  await Promise.all(Array.from({ length: workerCount }, () => worker()));
+  return results;
+};
+
 export const CoachDashboard: React.FC<CoachDashboardProps> = ({ onLogout }) => {
   const [view, setView] = useState<'dashboard' | 'schedule' | 'clients' | 'activity' | 'notifications' | 'adduser' | 'planrequests' | 'programbuilder'>('dashboard');
   const [dashboardSection, setDashboardSection] = useState<'overview' | 'messages'>('overview');
@@ -115,6 +140,7 @@ export const CoachDashboard: React.FC<CoachDashboardProps> = ({ onLogout }) => {
   const selectedClientRef = useRef<Client | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const typingTimeoutRef = useRef<number | null>(null);
+  const loadClientsTaskRef = useRef<Promise<Client[]> | null>(null);
 
   const formatDateKey = (date: Date) => date.toLocaleDateString('en-CA');
   const getWeekRange = (date: Date) => {
@@ -301,7 +327,7 @@ export const CoachDashboard: React.FC<CoachDashboardProps> = ({ onLogout }) => {
     void refreshPending();
     const timer = window.setInterval(() => {
       void refreshPending();
-    }, 10000);
+    }, 30000);
 
     return () => {
       cancelled = true;
@@ -335,7 +361,7 @@ export const CoachDashboard: React.FC<CoachDashboardProps> = ({ onLogout }) => {
           sessionsThisWeek: weekSessions.length,
         });
       } catch (error) {
-        if (!cancelled) {
+        if (!cancelled && !isOfflineApiError(error)) {
           setScheduleStats((prev) => ({ ...prev, activeToday: 0, sessionsThisWeek: 0 }));
         }
       }
@@ -344,7 +370,7 @@ export const CoachDashboard: React.FC<CoachDashboardProps> = ({ onLogout }) => {
     void refreshScheduleStats();
     const timer = window.setInterval(() => {
       void refreshScheduleStats();
-    }, 30000);
+    }, 45000);
 
     return () => {
       cancelled = true;
@@ -365,14 +391,14 @@ export const CoachDashboard: React.FC<CoachDashboardProps> = ({ onLogout }) => {
           : 0;
         setNotificationsCount(unread);
       } catch (error) {
-        if (!cancelled) setNotificationsCount(0);
+        if (!cancelled && !isOfflineApiError(error)) setNotificationsCount(0);
       }
     };
 
     void refreshNotificationsCount();
     const timer = window.setInterval(() => {
       void refreshNotificationsCount();
-    }, 10000);
+    }, 30000);
 
     return () => {
       cancelled = true;
@@ -425,67 +451,97 @@ export const CoachDashboard: React.FC<CoachDashboardProps> = ({ onLogout }) => {
   };
 
   const loadClients = async (): Promise<Client[]> => {
-    try {
-      setNetworkError('');
-      const coach = JSON.parse(localStorage.getItem('coach') || '{}');
-      const coachId = Number(coach?.id || 0);
+    if (loadClientsTaskRef.current) {
+      return loadClientsTaskRef.current;
+    }
 
-      type RawUser = {
-        id: number | string;
-        name?: string | null;
-        coach_id?: number | string | null;
-        profile_picture?: string | null;
-        age?: number | string | null;
-        rank?: string | null;
-        total_points?: number | string | null;
-      };
+    const task = (async () => {
+      try {
+        setNetworkError('');
+        const coach = JSON.parse(localStorage.getItem('coach') || '{}');
+        const coachId = Number(coach?.id || 0);
 
-      const allUsersPayload = await api.getAllUsers();
-      const allUsers = Array.isArray(allUsersPayload) ? (allUsersPayload as RawUser[]) : [];
-      const visibleUsers = allUsers.filter((user) => {
-        const userId = Number(user?.id || 0);
-        if (!Number.isFinite(userId) || userId <= 0) return false;
-        if (!coachId) return true;
-        return Number(user?.coach_id || 0) === coachId;
-      });
+        type RawUser = {
+          id: number | string;
+          name?: string | null;
+          coach_id?: number | string | null;
+          profile_picture?: string | null;
+          age?: number | string | null;
+          rank?: string | null;
+          total_points?: number | string | null;
+        };
 
-      const clientsWithLastMessage = await Promise.all(
-        visibleUsers.map(async (user) => {
+        const allUsersPayload = await api.getAllUsers();
+        const allUsers = Array.isArray(allUsersPayload) ? (allUsersPayload as RawUser[]) : [];
+        const visibleUsers = allUsers.filter((user) => {
+          const userId = Number(user?.id || 0);
+          if (!Number.isFinite(userId) || userId <= 0) return false;
+          if (!coachId) return true;
+          return Number(user?.coach_id || 0) === coachId;
+        });
+
+        const clientsWithLastMessage = await mapWithConcurrency(visibleUsers, 4, async (user) => {
           const userId = Number(user.id || 0);
-          const rawMessages = coachId ? await api.getMessages(userId, coachId) : [];
-          const messages = Array.isArray(rawMessages) ? rawMessages : [];
-          const lastMsg = messages[messages.length - 1];
-          const unreadCount = messages.filter((message: any) => message.sender_type === 'user' && !message.read).length;
-          const lastMessageAt = lastMsg?.created_at ? new Date(lastMsg.created_at).getTime() : 0;
           const safeName = String(user.name || `User ${userId}`).trim() || `User ${userId}`;
 
-          const client: Client = {
-            id: String(userId),
-            name: safeName,
-            age: toClientAge(user.age),
-            avatar: toClientAvatar(safeName),
-            rank: toClientRank(user.rank, user.total_points),
-            profilePicture: typeof user.profile_picture === 'string' ? user.profile_picture : null,
-            lastMessage: String(lastMsg?.message || ''),
-            unread: unreadCount,
-            lastActive: lastMessageAt
-              ? new Date(lastMessageAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-              : 'Online',
-          };
+          try {
+            const rawMessages = coachId ? await api.getMessages(userId, coachId) : [];
+            const messages = Array.isArray(rawMessages) ? rawMessages : [];
+            const lastMsg = messages[messages.length - 1];
+            const unreadCount = messages.filter((message: any) => message.sender_type === 'user' && !message.read).length;
+            const lastMessageAt = lastMsg?.created_at ? new Date(lastMsg.created_at).getTime() : 0;
 
-          return { client, lastMessageAt };
-        }),
-      );
+            const client: Client = {
+              id: String(userId),
+              name: safeName,
+              age: toClientAge(user.age),
+              avatar: toClientAvatar(safeName),
+              rank: toClientRank(user.rank, user.total_points),
+              profilePicture: typeof user.profile_picture === 'string' ? user.profile_picture : null,
+              lastMessage: String(lastMsg?.message || ''),
+              unread: unreadCount,
+              lastActive: lastMessageAt
+                ? new Date(lastMessageAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+                : 'Online',
+            };
 
-      clientsWithLastMessage.sort((a, b) => b.lastMessageAt - a.lastMessageAt);
-      const normalizedClients = clientsWithLastMessage.map(({ client }) => client);
-      setClients(normalizedClients);
-      return normalizedClients;
-    } catch (error) {
-      console.error('Failed to load clients:', error);
-      setNetworkError('Server connection lost. Please make sure backend is running on port 5001.');
-      return [];
-    }
+            return { client, lastMessageAt };
+          } catch (error) {
+            console.error(`Failed to load conversation summary for user ${userId}:`, error);
+            const client: Client = {
+              id: String(userId),
+              name: safeName,
+              age: toClientAge(user.age),
+              avatar: toClientAvatar(safeName),
+              rank: toClientRank(user.rank, user.total_points),
+              profilePicture: typeof user.profile_picture === 'string' ? user.profile_picture : null,
+              lastMessage: '',
+              unread: 0,
+              lastActive: 'Online',
+            };
+
+            return { client, lastMessageAt: 0 };
+          }
+        });
+
+        clientsWithLastMessage.sort((a, b) => b.lastMessageAt - a.lastMessageAt);
+        const normalizedClients = clientsWithLastMessage.map(({ client }) => client);
+        setClients(normalizedClients);
+        return normalizedClients;
+      } catch (error) {
+        console.error('Failed to load clients:', error);
+        const message = isOfflineApiError(error)
+          ? 'Connection interrupted while refreshing the dashboard. Retrying...'
+          : 'Failed to load clients. Please try again.';
+        setNetworkError(message);
+        return [];
+      } finally {
+        loadClientsTaskRef.current = null;
+      }
+    })();
+
+    loadClientsTaskRef.current = task;
+    return task;
   };
 
   const handleRemoveClient = async (clientId: string) => {
@@ -518,6 +574,7 @@ export const CoachDashboard: React.FC<CoachDashboardProps> = ({ onLogout }) => {
       const pendingCount = Number(response?.pendingCount || requests.length || 0);
       setPendingProgramRequestsCount(pendingCount);
     } catch (error) {
+      if (isOfflineApiError(error)) return;
       console.error('Failed to load pending program requests count:', error);
     }
   };
