@@ -143,19 +143,6 @@ export const CoachDashboard: React.FC<CoachDashboardProps> = ({ onLogout }) => {
   const loadClientsTaskRef = useRef<Promise<Client[]> | null>(null);
 
   const formatDateKey = (date: Date) => date.toLocaleDateString('en-CA');
-  const getWeekRange = (date: Date) => {
-    const copy = new Date(date);
-    const day = copy.getDay();
-    const diffToMonday = day === 0 ? -6 : 1 - day;
-    const start = new Date(copy);
-    start.setDate(copy.getDate() + diffToMonday);
-    start.setHours(0, 0, 0, 0);
-    const end = new Date(start);
-    end.setDate(start.getDate() + 6);
-    end.setHours(23, 59, 59, 999);
-    return { start, end };
-  };
-
   useScrollToTopOnChange([view]);
 
   const formatDayLabel = (rawDay: string | undefined, fallbackIndex: number) => {
@@ -336,47 +323,47 @@ export const CoachDashboard: React.FC<CoachDashboardProps> = ({ onLogout }) => {
   }, [coachId, view]);
 
   useEffect(() => {
-    if (!coachId) return;
+    if (!coachId || view !== 'dashboard' || dashboardSection !== 'overview') return;
     let cancelled = false;
 
     const refreshScheduleStats = async () => {
       try {
         const today = new Date();
         const todayKey = formatDateKey(today);
-        const { start, end } = getWeekRange(today);
-        const weekStart = formatDateKey(start);
-        const weekEnd = formatDateKey(end);
-
-        const [todayResponse, weekResponse] = await Promise.all([
-          api.getCoachSchedule(coachId, todayKey, todayKey),
-          api.getCoachSchedule(coachId, weekStart, weekEnd),
-        ]);
+        const summary = await api.getCoachScheduleSummary(coachId, todayKey);
 
         if (cancelled) return;
-        const todaySessions = Array.isArray(todayResponse?.sessions) ? todayResponse.sessions : [];
-        const weekSessions = Array.isArray(weekResponse?.sessions) ? weekResponse.sessions : [];
 
         setScheduleStats({
-          activeToday: todaySessions.length,
-          sessionsThisWeek: weekSessions.length,
+          activeToday: Number(summary?.activeToday || 0),
+          sessionsThisWeek: Number(summary?.sessionsThisWeek || 0),
         });
       } catch (error) {
         if (!cancelled && !isOfflineApiError(error)) {
-          setScheduleStats((prev) => ({ ...prev, activeToday: 0, sessionsThisWeek: 0 }));
+          console.error('Failed to refresh schedule stats:', error);
         }
       }
     };
 
     void refreshScheduleStats();
-    const timer = window.setInterval(() => {
+    const handleWindowFocus = () => {
       void refreshScheduleStats();
-    }, 45000);
+    };
+    const handleVisibilityChange = () => {
+      if (!document.hidden) {
+        void refreshScheduleStats();
+      }
+    };
+
+    window.addEventListener('focus', handleWindowFocus);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
 
     return () => {
       cancelled = true;
-      window.clearInterval(timer);
+      window.removeEventListener('focus', handleWindowFocus);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
-  }, [coachId]);
+  }, [coachId, dashboardSection, view]);
 
   useEffect(() => {
     if (!coachId) return;

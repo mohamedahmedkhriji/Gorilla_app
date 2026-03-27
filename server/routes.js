@@ -6162,6 +6162,76 @@ router.post('/users/:userId/ban', authMutationRateLimit, requireAuth('coach', 'g
   }
 });
 
+router.get('/coaches/:coachId/schedule-summary', requireAuth('coach', 'gym_owner'), requireCoachScope('coachId'), async (req, res) => {
+  try {
+    const coachId = toPositiveInteger(req.params.coachId);
+    if (!coachId) {
+      return res.status(400).json({ error: 'coachId must be a positive integer' });
+    }
+
+    const referenceDate = toSummaryDate(req.query?.date);
+    if (!referenceDate) {
+      return res.status(400).json({ error: 'Invalid date' });
+    }
+
+    const columns = await getWorkoutSessionColumns();
+    const dateColumnCandidates = [
+      'scheduled_for',
+      'scheduled_at',
+      'scheduled_date',
+      'session_date',
+      'start_time',
+      'starts_at',
+      'scheduled_on',
+      'completed_at',
+      'created_at',
+    ];
+
+    const dateColumn = dateColumnCandidates.find((col) => columns.has(col)) || null;
+    if (!dateColumn) {
+      return res.status(500).json({ error: 'No session date column found in workout_sessions' });
+    }
+
+    const reference = new Date(`${referenceDate}T12:00:00`);
+    const day = reference.getDay();
+    const diffToMonday = day === 0 ? -6 : 1 - day;
+    const weekStartDate = new Date(reference);
+    weekStartDate.setDate(reference.getDate() + diffToMonday);
+    weekStartDate.setHours(0, 0, 0, 0);
+    const weekEndDate = new Date(weekStartDate);
+    weekEndDate.setDate(weekStartDate.getDate() + 6);
+    weekEndDate.setHours(23, 59, 59, 999);
+
+    const weekStart = formatDateISO(weekStartDate);
+    const weekEnd = formatDateISO(weekEndDate);
+    const dateExpr = `DATE(ws.${dateColumn})`;
+
+    const [rows] = await pool.execute(
+      `SELECT
+         COALESCE(SUM(CASE WHEN ${dateExpr} = ? THEN 1 ELSE 0 END), 0) AS active_today,
+         COALESCE(SUM(CASE WHEN ${dateExpr} BETWEEN ? AND ? THEN 1 ELSE 0 END), 0) AS sessions_this_week
+       FROM workout_sessions ws
+       INNER JOIN users u ON u.id = ws.user_id
+       WHERE u.role = 'user'
+         AND u.is_active = 1
+         AND (u.banned_until IS NULL OR u.banned_until < NOW())
+         AND u.coach_id = ?`,
+      [referenceDate, weekStart, weekEnd, coachId],
+    );
+
+    const row = Array.isArray(rows) && rows.length ? rows[0] : {};
+    return res.json({
+      activeToday: Number(row.active_today || 0),
+      sessionsThisWeek: Number(row.sessions_this_week || 0),
+      referenceDate,
+      weekStart,
+      weekEnd,
+    });
+  } catch (error) {
+    return res.status(500).json({ error: error.message || 'Failed to load coach schedule summary' });
+  }
+});
+
 router.get('/coaches/:coachId/schedule', requireAuth('coach', 'gym_owner'), requireCoachScope('coachId'), async (req, res) => {
   try {
     const coachId = toPositiveInteger(req.params.coachId);

@@ -1147,6 +1147,15 @@ export const api = {
     });
   },
 
+  getCoachScheduleSummary: async (coachId: number | string, date?: string) => {
+    const params = new URLSearchParams();
+    if (date) params.set('date', date);
+    const query = params.toString();
+    const url = `${API_URL}/coaches/${coachId}/schedule-summary${query ? `?${query}` : ''}`;
+    const res = await fetchWithTimeout(url, undefined, 8000);
+    return parseApiResponse(res, 'Failed to fetch coach schedule summary');
+  },
+
   banUser: async (
     userId: number | string,
     payload: { days: number; reason: string; coachId?: number | string },
