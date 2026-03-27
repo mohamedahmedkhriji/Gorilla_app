@@ -876,7 +876,7 @@ export const CoachDashboard: React.FC<CoachDashboardProps> = ({ onLogout }) => {
   if (view === 'schedule') {
     return (
       <>
-        <CoachSchedule onBack={() => setView('dashboard')} />
+        <CoachSchedule onBack={() => setView('dashboard')} coachId={coachId} />
         {mobileNav}
       </>
     );
@@ -902,7 +902,7 @@ export const CoachDashboard: React.FC<CoachDashboardProps> = ({ onLogout }) => {
   if (view === 'activity') {
     return (
       <>
-        <TodaysActivity onBack={() => setView('dashboard')} />
+        <TodaysActivity onBack={() => setView('dashboard')} coachId={coachId} />
         {mobileNav}
       </>
     );

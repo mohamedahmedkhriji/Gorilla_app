@@ -1156,6 +1156,45 @@ export const api = {
     return parseApiResponse(res, 'Failed to fetch coach schedule summary');
   },
 
+  getCoachSessionDetails: async (
+    coachId: number | string,
+    userId: number | string,
+    params: {
+      date: string;
+      sessionId?: string | number | null;
+      workoutName?: string | null;
+    },
+  ) => {
+    const search = new URLSearchParams();
+    search.set('date', params.date);
+    if (params.sessionId) search.set('sessionId', String(params.sessionId));
+    if (params.workoutName) search.set('workoutName', String(params.workoutName));
+    const res = await fetchWithTimeout(
+      `${API_URL}/coaches/${coachId}/users/${userId}/session-details?${search.toString()}`,
+      undefined,
+      10000,
+    );
+    return parseApiResponse(res, 'Failed to fetch coach session details');
+  },
+
+  sendCoachSessionNote: async (
+    coachId: number | string,
+    userId: number | string,
+    payload: {
+      sessionDate: string;
+      sessionId?: string | number | null;
+      workoutName?: string | null;
+      note: string;
+    },
+  ) => {
+    const res = await fetch(`${API_URL}/coaches/${coachId}/users/${userId}/session-notes`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    return parseApiResponse(res, 'Failed to send coach session note');
+  },
+
   banUser: async (
     userId: number | string,
     payload: { days: number; reason: string; coachId?: number | string },

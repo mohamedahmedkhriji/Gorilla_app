@@ -4,16 +4,17 @@ import { api } from '../../services/api';
 
 interface TodaysActivityProps {
   onBack: () => void;
+  coachId?: number | null;
 }
 
-export const TodaysActivity: React.FC<TodaysActivityProps> = ({ onBack }) => {
+export const TodaysActivity: React.FC<TodaysActivityProps> = ({ onBack, coachId }) => {
   const [activities, setActivities] = useState<Array<{
     id: string;
     name: string;
     avatar: string;
     workout: string;
     time: string;
-    status: 'completed' | 'in-progress' | 'scheduled';
+    status: 'completed' | 'in-progress' | 'scheduled' | 'missed' | 'cancelled';
   }>>([]);
   const [loading, setLoading] = useState(false);
   const [loadError, setLoadError] = useState('');
@@ -26,13 +27,16 @@ export const TodaysActivity: React.FC<TodaysActivityProps> = ({ onBack }) => {
     .map((part) => part[0]?.toUpperCase())
     .join('') || 'U';
 
-  const normalizeStatus = (rawStatus: string | null | undefined, dateKey: string) => {
+  const normalizeStatus = (rawStatus: string | null | undefined) => {
     const key = String(rawStatus || '').toLowerCase();
     if (key.includes('progress')) return 'in-progress';
     if (key.includes('complete')) return 'completed';
+    if (key.includes('miss')) return 'missed';
+    if (key.includes('cancel')) return 'cancelled';
     if (key.includes('pending')) return 'scheduled';
     if (key.includes('confirm')) return 'scheduled';
-    return dateKey < formatDateKey(new Date()) ? 'completed' : 'scheduled';
+    if (key.includes('pick')) return 'scheduled';
+    return 'scheduled';
   };
 
   const formatWorkoutLabel = (workoutName?: string | null, muscleGroup?: string | null) => {
@@ -59,7 +63,7 @@ export const TodaysActivity: React.FC<TodaysActivityProps> = ({ onBack }) => {
   };
 
   const formatTimeLabel = (timeValue?: string | null) => {
-    if (!timeValue) return '—';
+    if (!timeValue) return '--';
     const clean = String(timeValue).slice(0, 5);
     const [hourRaw, minuteRaw] = clean.split(':');
     const hour = Number(hourRaw);
@@ -76,24 +80,19 @@ export const TodaysActivity: React.FC<TodaysActivityProps> = ({ onBack }) => {
         setLoading(true);
         setLoadError('');
         const coach = JSON.parse(localStorage.getItem('coach') || '{}');
-        const coachId = Number(coach?.id || localStorage.getItem('coachId') || 0);
-        if (!coachId) {
+        const resolvedCoachId = Number(coachId || coach?.id || localStorage.getItem('coachId') || 0);
+        if (!resolvedCoachId) {
           setActivities([]);
           return;
         }
 
         const todayKey = formatDateKey(new Date());
-        const response = await api.getCoachSchedule(coachId, todayKey, todayKey);
+        const response = await api.getCoachSchedule(resolvedCoachId, todayKey, todayKey);
         const rawSessions = Array.isArray(response?.sessions) ? response.sessions : [];
 
         const mapped = rawSessions.map((session: any) => {
-          const sessionDate = typeof session.session_date === 'string'
-            ? session.session_date.slice(0, 10)
-            : session.session_date
-              ? formatDateKey(new Date(session.session_date))
-              : todayKey;
           const name = String(session.client_name || 'Client');
-          const status = normalizeStatus(session.status, sessionDate);
+          const status = normalizeStatus(session.status);
 
           return {
             id: String(session.id),
@@ -114,8 +113,8 @@ export const TodaysActivity: React.FC<TodaysActivityProps> = ({ onBack }) => {
       }
     };
 
-    loadToday();
-  }, []);
+    void loadToday();
+  }, [coachId]);
 
   const activeCountLabel = useMemo(() => {
     if (loading) return 'Loading...';
@@ -147,7 +146,7 @@ export const TodaysActivity: React.FC<TodaysActivityProps> = ({ onBack }) => {
             No sessions scheduled for today.
           </div>
         ) : (
-          activities.map(activity => (
+          activities.map((activity) => (
             <div key={activity.id} className="bg-white rounded-lg border border-slate-200 p-4 hover:bg-slate-50 transition-colors">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
@@ -167,11 +166,21 @@ export const TodaysActivity: React.FC<TodaysActivityProps> = ({ onBack }) => {
                   <span className={`text-xs px-3 py-1 rounded-full ${
                     activity.status === 'completed'
                       ? 'bg-green-500/15 text-green-700'
-                      : activity.status === 'in-progress'
-                        ? 'bg-yellow-500/15 text-yellow-700'
-                        : 'bg-blue-500/15 text-blue-700'
+                      : activity.status === 'missed' || activity.status === 'cancelled'
+                        ? 'bg-rose-500/15 text-rose-700'
+                        : activity.status === 'in-progress'
+                          ? 'bg-yellow-500/15 text-yellow-700'
+                          : 'bg-blue-500/15 text-blue-700'
                   }`}>
-                    {activity.status === 'completed' ? 'Completed' : activity.status === 'in-progress' ? 'In Progress' : 'Scheduled'}
+                    {activity.status === 'completed'
+                      ? 'Completed'
+                      : activity.status === 'missed'
+                        ? 'Missed'
+                        : activity.status === 'cancelled'
+                          ? 'Cancelled'
+                          : activity.status === 'in-progress'
+                            ? 'In Progress'
+                            : 'Scheduled'}
                   </span>
                 </div>
               </div>
@@ -182,4 +191,3 @@ export const TodaysActivity: React.FC<TodaysActivityProps> = ({ onBack }) => {
     </div>
   );
 };
-

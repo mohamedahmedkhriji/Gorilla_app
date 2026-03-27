@@ -5,20 +5,22 @@ import { api } from '../../services/api';
 
 interface Session {
   id: string;
+  userId: number;
   clientName: string;
   clientAvatar: string;
   time: string;
   duration: number;
   type: string;
-  status: 'picked' | 'confirmed' | 'pending' | 'completed';
+  status: 'picked' | 'confirmed' | 'pending' | 'completed' | 'missed' | 'cancelled';
   date: string;
 }
 
 interface CoachScheduleProps {
   onBack: () => void;
+  coachId?: number | null;
 }
 
-export const CoachSchedule: React.FC<CoachScheduleProps> = ({ onBack }) => {
+export const CoachSchedule: React.FC<CoachScheduleProps> = ({ onBack, coachId }) => {
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [draggedSession, setDraggedSession] = useState<Session | null>(null);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
@@ -36,13 +38,14 @@ export const CoachSchedule: React.FC<CoachScheduleProps> = ({ onBack }) => {
   const scrollContainerRef = React.useRef<HTMLDivElement>(null);
 
   const formatDateKey = (date: Date) => date.toLocaleDateString('en-CA');
-  const normalizeStatus = (rawStatus: string | null | undefined, dateKey: string) => {
+  const normalizeStatus = (rawStatus: string | null | undefined): Session['status'] => {
     const key = String(rawStatus || '').toLowerCase();
     if (key.includes('complete')) return 'completed';
     if (key.includes('pick')) return 'picked';
     if (key.includes('pending')) return 'pending';
-    if (key) return 'confirmed';
-    return dateKey < formatDateKey(new Date()) ? 'completed' : 'confirmed';
+    if (key.includes('miss')) return 'missed';
+    if (key.includes('cancel')) return 'cancelled';
+    return 'confirmed';
   };
 
   React.useEffect(() => {
@@ -70,8 +73,8 @@ export const CoachSchedule: React.FC<CoachScheduleProps> = ({ onBack }) => {
         setLoading(true);
         setLoadError('');
         const coach = JSON.parse(localStorage.getItem('coach') || '{}');
-        const coachId = Number(coach?.id || localStorage.getItem('coachId') || 0);
-        if (!coachId) {
+        const resolvedCoachId = Number(coachId || coach?.id || localStorage.getItem('coachId') || 0);
+        if (!resolvedCoachId) {
           setSessions([]);
           return;
         }
@@ -82,7 +85,7 @@ export const CoachSchedule: React.FC<CoachScheduleProps> = ({ onBack }) => {
         const startDate = formatDateKey(start);
         const endDate = formatDateKey(end);
 
-        const response = await api.getCoachSchedule(coachId, startDate, endDate);
+        const response = await api.getCoachSchedule(resolvedCoachId, startDate, endDate);
         const rawSessions = Array.isArray(response?.sessions) ? response.sessions : [];
 
         const mappedSessions = rawSessions.map((session: any) => {
@@ -94,10 +97,11 @@ export const CoachSchedule: React.FC<CoachScheduleProps> = ({ onBack }) => {
                 : startDate;
           const timeRaw = session.session_time ? String(session.session_time) : '08:00';
           const time = timeRaw.length >= 5 ? timeRaw.slice(0, 5) : timeRaw;
-          const status = normalizeStatus(session.status, sessionDate);
+          const status = normalizeStatus(session.status);
 
           return {
             id: String(session.id),
+            userId: Number(session.user_id || 0),
             clientName: String(session.client_name || 'Client'),
             clientAvatar: String(session.client_name || 'C').trim().slice(0, 2).toUpperCase(),
             time,
@@ -118,7 +122,7 @@ export const CoachSchedule: React.FC<CoachScheduleProps> = ({ onBack }) => {
     };
 
     loadSchedule();
-  }, [selectedMonth]);
+  }, [coachId, selectedMonth]);
 
   const get30Days = () => {
     const year = new Date().getFullYear();
@@ -131,18 +135,19 @@ export const CoachSchedule: React.FC<CoachScheduleProps> = ({ onBack }) => {
   const selectedDateKey = formatDateKey(selectedDate);
   const sessionsForDay = sessions.filter((session) => session.date === selectedDateKey);
   const activityByDate = React.useMemo(() => {
-    const summary = new Map<string, { picked: number; completed: number }>();
+    const summary = new Map<string, { picked: number; completed: number; missed: number }>();
 
     sessions.forEach((session) => {
-      const existing = summary.get(session.date) || { picked: 0, completed: 0 };
+      const existing = summary.get(session.date) || { picked: 0, completed: 0, missed: 0 };
       if (session.status === 'picked') existing.picked += 1;
       if (session.status === 'completed') existing.completed += 1;
+      if (session.status === 'missed' || session.status === 'cancelled') existing.missed += 1;
       summary.set(session.date, existing);
     });
 
     return summary;
   }, [sessions]);
-  const selectedDayActivity = activityByDate.get(selectedDateKey) || { picked: 0, completed: 0 };
+  const selectedDayActivity = activityByDate.get(selectedDateKey) || { picked: 0, completed: 0, missed: 0 };
   const getSessionsForTime = (hour: number) => sessionsForDay.filter((session) => parseInt(session.time.split(':')[0], 10) === hour);
 
   const handleDrop = (hour: number) => {
@@ -216,7 +221,7 @@ export const CoachSchedule: React.FC<CoachScheduleProps> = ({ onBack }) => {
               >
                 {(() => {
                   const dayKey = formatDateKey(day);
-                  const dayActivity = activityByDate.get(dayKey) || { picked: 0, completed: 0 };
+                  const dayActivity = activityByDate.get(dayKey) || { picked: 0, completed: 0, missed: 0 };
 
                   return (
                     <>
@@ -236,6 +241,12 @@ export const CoachSchedule: React.FC<CoachScheduleProps> = ({ onBack }) => {
                             title={`${dayActivity.completed} completed workout${dayActivity.completed === 1 ? '' : 's'}`}
                           />
                         )}
+                        {dayActivity.missed > 0 && (
+                          <span
+                            className="h-1.5 w-1.5 rounded-full bg-rose-500"
+                            title={`${dayActivity.missed} missed workout${dayActivity.missed === 1 ? '' : 's'}`}
+                          />
+                        )}
                       </div>
                     </>
                   );
@@ -253,7 +264,7 @@ export const CoachSchedule: React.FC<CoachScheduleProps> = ({ onBack }) => {
             <div className="text-sm text-slate-500">{sessionsForDay.length} items</div>
           </div>
 
-          {(selectedDayActivity.picked > 0 || selectedDayActivity.completed > 0) && (
+          {(selectedDayActivity.picked > 0 || selectedDayActivity.completed > 0 || selectedDayActivity.missed > 0) && (
             <div className="mb-4 flex flex-wrap gap-2">
               {selectedDayActivity.picked > 0 && (
                 <span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-700">
@@ -263,6 +274,11 @@ export const CoachSchedule: React.FC<CoachScheduleProps> = ({ onBack }) => {
               {selectedDayActivity.completed > 0 && (
                 <span className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-700">
                   {selectedDayActivity.completed} completed
+                </span>
+              )}
+              {selectedDayActivity.missed > 0 && (
+                <span className="rounded-full bg-rose-100 px-3 py-1 text-xs font-semibold text-rose-700">
+                  {selectedDayActivity.missed} missed
                 </span>
               )}
             </div>
@@ -275,7 +291,11 @@ export const CoachSchedule: React.FC<CoachScheduleProps> = ({ onBack }) => {
           ) : sessionsForDay.length === 0 ? (
             <div className="py-12 text-center">
               <Calendar size={48} className="mx-auto mb-4 text-slate-300" />
-              <p className="text-slate-500">No workout activity for this day</p>
+              <p className="text-slate-500">
+                {sessions.length > 0
+                  ? 'No sessions on this day. Pick another date with a dot.'
+                  : 'No workout activity found for this month.'}
+              </p>
             </div>
           ) : (
             <div className="space-y-2">
@@ -306,6 +326,8 @@ export const CoachSchedule: React.FC<CoachScheduleProps> = ({ onBack }) => {
                               className={`cursor-pointer rounded-2xl border-l-4 p-3 transition-opacity hover:opacity-85 ${
                                 session.status === 'picked'
                                   ? 'border-amber-500 bg-amber-500/10'
+                                  : session.status === 'missed' || session.status === 'cancelled'
+                                  ? 'border-rose-500 bg-rose-500/10'
                                   : session.status === 'confirmed'
                                   ? 'border-[#10b981] bg-[#10b981]/10'
                                   : session.status === 'pending'
@@ -331,6 +353,8 @@ export const CoachSchedule: React.FC<CoachScheduleProps> = ({ onBack }) => {
                                   <div className={`mt-1 rounded px-2 py-0.5 text-xs ${
                                     session.status === 'picked'
                                       ? 'bg-amber-500/15 text-amber-700'
+                                      : session.status === 'missed' || session.status === 'cancelled'
+                                      ? 'bg-rose-500/15 text-rose-700'
                                       : session.status === 'confirmed'
                                       ? 'bg-green-500/15 text-green-700'
                                       : session.status === 'pending'
@@ -359,6 +383,7 @@ export const CoachSchedule: React.FC<CoachScheduleProps> = ({ onBack }) => {
       {showDetailsModal && selectedSession && (
         <SessionDetailsModal
           session={selectedSession}
+          coachId={coachId}
           onClose={() => {
             setShowDetailsModal(false);
             setSelectedSession(null);

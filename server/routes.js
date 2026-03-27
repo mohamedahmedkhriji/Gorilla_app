@@ -2774,6 +2774,7 @@ const CHALLENGE_NOTIFICATION_TYPES = [
   'blog_comment',
   'friend_challenge_invite',
   'friend_challenge_response',
+  'coach_session_note',
 ];
 
 let challengeNotificationTypesPromise;
@@ -2825,6 +2826,37 @@ const ensureChallengeNotificationTypesOnce = async () => {
     });
   }
   return challengeNotificationTypesPromise;
+};
+
+let coachSessionNotesInfrastructurePromise;
+const ensureCoachSessionNotesInfrastructure = async () => {
+  if (!coachSessionNotesInfrastructurePromise) {
+    coachSessionNotesInfrastructurePromise = (async () => {
+      await pool.execute(
+        `CREATE TABLE IF NOT EXISTS coach_session_notes (
+          id BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
+          coach_id INT UNSIGNED NOT NULL,
+          user_id INT UNSIGNED NOT NULL,
+          workout_session_id BIGINT UNSIGNED NULL,
+          session_date DATE NOT NULL,
+          workout_name VARCHAR(120) NULL,
+          note_text TEXT NOT NULL,
+          created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+          UNIQUE KEY uk_coach_session_notes (coach_id, user_id, session_date),
+          KEY idx_coach_session_notes_user_date (user_id, session_date),
+          KEY idx_coach_session_notes_session (workout_session_id),
+          CONSTRAINT fk_coach_session_notes_coach FOREIGN KEY (coach_id) REFERENCES users(id) ON DELETE CASCADE ON UPDATE CASCADE,
+          CONSTRAINT fk_coach_session_notes_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE ON UPDATE CASCADE
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+      );
+    })().catch((error) => {
+      coachSessionNotesInfrastructurePromise = null;
+      throw error;
+    });
+  }
+
+  return coachSessionNotesInfrastructurePromise;
 };
 
 const ensureGamificationInfrastructure = async () => {
@@ -6162,6 +6194,869 @@ router.post('/users/:userId/ban', authMutationRateLimit, requireAuth('coach', 'g
   }
 });
 
+const normalizeCoachScheduleStatus = (rawStatus, fallbackStatus = 'confirmed') => {
+  const key = String(rawStatus || '').trim().toLowerCase();
+  if (key.includes('complete')) return 'completed';
+  if (key.includes('pick')) return 'picked';
+  if (key.includes('pending')) return 'pending';
+  if (key.includes('miss')) return 'missed';
+  if (key.includes('cancel')) return 'cancelled';
+  if (key.includes('confirm')) return 'confirmed';
+  return fallbackStatus;
+};
+
+const getCurrentWeekForReferenceDate = (startDate, cycleWeeks, referenceDate) => {
+  const startKey = formatDateISO(startDate);
+  const referenceKey = formatDateISO(referenceDate);
+  const start = new Date(`${startKey}T12:00:00`);
+  const reference = new Date(`${referenceKey}T12:00:00`);
+
+  if (Number.isNaN(start.getTime()) || Number.isNaN(reference.getTime())) {
+    return 1;
+  }
+
+  if (reference < start) {
+    return 0;
+  }
+
+  const msPerWeek = 7 * 24 * 60 * 60 * 1000;
+  const rawWeek = Math.max(1, Math.floor((reference - start) / msPerWeek) + 1);
+  const maxWeeks = Math.max(1, Number(cycleWeeks || 1));
+  return Math.min(rawWeek, maxWeeks);
+};
+
+const takeMatchingLoggedSession = (sessions, assignmentId, plannedWorkoutName) => {
+  if (!Array.isArray(sessions) || !sessions.length) return null;
+
+  const normalizedAssignmentId = toNumber(assignmentId, null);
+  const normalizedWorkoutName = String(plannedWorkoutName || '').trim().toLowerCase();
+  let matchIndex = -1;
+
+  if (normalizedAssignmentId) {
+    matchIndex = sessions.findIndex((session) => toNumber(session.program_assignment_id, null) === normalizedAssignmentId);
+  }
+
+  if (matchIndex < 0 && normalizedWorkoutName) {
+    matchIndex = sessions.findIndex((session) => String(session.workout_name || '').trim().toLowerCase() === normalizedWorkoutName);
+  }
+
+  if (matchIndex < 0) {
+    matchIndex = 0;
+  }
+
+  const [matchedSession] = sessions.splice(matchIndex, 1);
+  return matchedSession || null;
+};
+
+const getCoachScheduleSortKey = (session) => {
+  const dateKey = String(session?.session_date || '').trim() || '9999-12-31';
+  const timeKey = String(session?.session_time || '').trim() || '08:00:00';
+  const clientKey = String(session?.client_name || '').trim().toLowerCase();
+  return `${dateKey}|${timeKey}|${clientKey}|${String(session?.id || '')}`;
+};
+
+const COACH_SCHEDULE_DATE_COLUMN_CANDIDATES = [
+  'scheduled_for',
+  'scheduled_at',
+  'scheduled_date',
+  'session_date',
+  'start_time',
+  'starts_at',
+  'scheduled_on',
+  'completed_at',
+  'created_at',
+];
+const COACH_SCHEDULE_TIME_COLUMN_CANDIDATES = ['scheduled_time', 'session_time', 'start_time', 'starts_at'];
+const COACH_SCHEDULE_WORKOUT_NAME_CANDIDATES = ['workout_name', 'session_name', 'name', 'title'];
+const COACH_SCHEDULE_DURATION_CANDIDATES = ['duration_minutes', 'session_duration_minutes', 'duration'];
+
+const getCoachScheduleSessionColumnConfig = async () => {
+  const columns = await getWorkoutSessionColumns();
+  return {
+    columns,
+    dateColumn: COACH_SCHEDULE_DATE_COLUMN_CANDIDATES.find((column) => columns.has(column)) || null,
+    timeColumn: COACH_SCHEDULE_TIME_COLUMN_CANDIDATES.find((column) => columns.has(column)) || null,
+    workoutNameColumn: COACH_SCHEDULE_WORKOUT_NAME_CANDIDATES.find((column) => columns.has(column)) || null,
+    durationColumn: COACH_SCHEDULE_DURATION_CANDIDATES.find((column) => columns.has(column)) || null,
+    statusColumn: columns.has('status') ? 'status' : null,
+    exercisesColumn: columns.has('exercises') ? 'exercises' : null,
+    hasMuscleGroup: columns.has('muscle_group'),
+    hasProgramAssignmentId: columns.has('program_assignment_id'),
+    hasCompletedAt: columns.has('completed_at'),
+    hasCreatedAt: columns.has('created_at'),
+  };
+};
+
+const mapCoachPlannedExerciseRow = (row) => {
+  const targetMuscles = parseMuscleGroups(row.muscle_group_snapshot);
+  const plannedSets = Number(row.target_sets || 0);
+  const plannedWeightRaw = row.target_weight == null ? null : Number(row.target_weight);
+
+  return {
+    id: toNumber(row.workout_exercise_id, null),
+    name: String(row.exercise_name_snapshot || '').trim() || 'Exercise',
+    plannedSets: Number.isFinite(plannedSets) && plannedSets > 0 ? plannedSets : null,
+    plannedReps: String(row.target_reps || '').trim(),
+    plannedWeight: Number.isFinite(plannedWeightRaw) ? plannedWeightRaw : null,
+    completedSets: 0,
+    totalReps: 0,
+    topWeight: 0,
+    targetMuscles,
+    notes: String(row.notes || '').trim(),
+    sets: [],
+  };
+};
+
+const buildCoachCompletedExercisesFromSummary = (summaryExercises = []) => (
+  (Array.isArray(summaryExercises) ? summaryExercises : [])
+    .map((exercise, index) => {
+      const name = String(exercise?.name || exercise?.exerciseName || '').trim();
+      if (!name) return null;
+
+      const sets = (Array.isArray(exercise?.sets) ? exercise.sets : [])
+        .map((setEntry, setIndex) => {
+          const setNumber = Number(setEntry?.set || setEntry?.setNumber || setIndex + 1);
+          const reps = Number(setEntry?.reps || 0);
+          const weight = Number(setEntry?.weight || 0);
+          return {
+            setNumber: Number.isFinite(setNumber) && setNumber > 0 ? setNumber : setIndex + 1,
+            reps: Number.isFinite(reps) ? reps : 0,
+            weight: Number.isFinite(weight) ? weight : 0,
+            notes: String(setEntry?.notes || '').trim(),
+          };
+        });
+
+      const totalReps = Number(exercise?.totalReps || exercise?.total_reps || sets.reduce((sum, setEntry) => sum + Number(setEntry.reps || 0), 0));
+      const topWeight = Number(exercise?.topWeight || exercise?.top_weight || sets.reduce((max, setEntry) => Math.max(max, Number(setEntry.weight || 0)), 0));
+      const targetMuscles = [...new Set(
+        [
+          ...(Array.isArray(exercise?.targetMuscles) ? exercise.targetMuscles : []),
+          ...(Array.isArray(exercise?.target_muscles) ? exercise.target_muscles : []),
+        ]
+          .map((value) => normalizeMuscleName(String(value || '')))
+          .filter(Boolean),
+      )];
+
+      return {
+        id: index + 1,
+        name,
+        plannedSets: null,
+        plannedReps: '',
+        plannedWeight: null,
+        completedSets: Number(exercise?.totalSets || exercise?.total_sets || sets.length || 0),
+        totalReps: Number.isFinite(totalReps) ? totalReps : 0,
+        topWeight: Number.isFinite(topWeight) ? topWeight : 0,
+        targetMuscles,
+        notes: '',
+        sets,
+      };
+    })
+    .filter(Boolean)
+);
+
+const buildCoachCompletedExercisesFromSetRows = (rows = []) => {
+  const grouped = new Map();
+
+  (Array.isArray(rows) ? rows : []).forEach((row) => {
+    const name = String(row.exercise_name || '').trim();
+    if (!name) return;
+
+    if (!grouped.has(name)) {
+      grouped.set(name, {
+        id: toNumber(row.workout_exercise_id, null),
+        name,
+        plannedSets: null,
+        plannedReps: '',
+        plannedWeight: null,
+        completedSets: 0,
+        totalReps: 0,
+        topWeight: 0,
+        targetMuscles: [],
+        notes: '',
+        sets: [],
+      });
+    }
+
+    const entry = grouped.get(name);
+    const reps = Number(row.reps || 0);
+    const weight = Number(row.weight || 0);
+    entry.sets.push({
+      setNumber: Number(row.set_number || entry.sets.length + 1),
+      reps: Number.isFinite(reps) ? reps : 0,
+      weight: Number.isFinite(weight) ? weight : 0,
+      notes: String(row.notes || '').trim(),
+    });
+    entry.completedSets += 1;
+    entry.totalReps += Number.isFinite(reps) ? reps : 0;
+    entry.topWeight = Math.max(entry.topWeight, Number.isFinite(weight) ? weight : 0);
+  });
+
+  return [...grouped.values()];
+};
+
+const mergeCoachExerciseDetails = (completedExercises = [], plannedExercises = []) => {
+  const completedList = Array.isArray(completedExercises) ? completedExercises : [];
+  const plannedList = Array.isArray(plannedExercises) ? plannedExercises : [];
+
+  if (!completedList.length) {
+    return plannedList;
+  }
+
+  const plannedByName = new Map(
+    plannedList.map((exercise) => [
+      normalizeExerciseLookupName(exercise?.name),
+      exercise,
+    ]),
+  );
+
+  return completedList.map((exercise) => {
+    const planned = plannedByName.get(normalizeExerciseLookupName(exercise?.name)) || null;
+    const targetMuscles = [...new Set(
+      [
+        ...(Array.isArray(exercise?.targetMuscles) ? exercise.targetMuscles : []),
+        ...(Array.isArray(planned?.targetMuscles) ? planned.targetMuscles : []),
+      ]
+        .map((value) => normalizeMuscleName(String(value || '')))
+        .filter(Boolean),
+    )];
+
+    return {
+      ...exercise,
+      plannedSets: planned?.plannedSets ?? null,
+      plannedReps: planned?.plannedReps ?? '',
+      plannedWeight: planned?.plannedWeight ?? null,
+      targetMuscles,
+      notes: exercise?.notes || planned?.notes || '',
+    };
+  });
+};
+
+const loadCoachPlannedWorkoutForDate = async ({ userId, sessionDate }) => {
+  const normalizedUserId = toPositiveInteger(userId);
+  const normalizedDate = toSummaryDate(sessionDate);
+  if (!normalizedUserId || !normalizedDate) {
+    return {
+      assignment: null,
+      plannedWorkout: null,
+      plannedExercises: [],
+    };
+  }
+
+  const [assignmentRows] = await pool.execute(
+    `SELECT
+        pa.id AS assignment_id,
+        pa.program_id,
+        DATE_FORMAT(pa.start_date, '%Y-%m-%d') AS start_date,
+        p.days_per_week,
+        p.cycle_weeks
+     FROM program_assignments pa
+     INNER JOIN programs p ON p.id = pa.program_id
+     WHERE pa.user_id = ?
+       AND pa.status = 'active'
+     ORDER BY pa.created_at DESC, pa.id DESC
+     LIMIT 1`,
+    [normalizedUserId],
+  );
+
+  const assignment = assignmentRows[0] || null;
+  if (!assignment?.program_id) {
+    return {
+      assignment: null,
+      plannedWorkout: null,
+      plannedExercises: [],
+    };
+  }
+
+  const [workoutRows] = await pool.execute(
+    `SELECT id, workout_name, workout_type, day_order, day_name, estimated_duration_minutes, notes
+     FROM workouts
+     WHERE program_id = ?
+     ORDER BY day_order ASC, id ASC`,
+    [assignment.program_id],
+  );
+
+  const workoutsPerWeek = Math.max(1, Number(assignment.days_per_week || 1));
+  const workoutsByWeek = new Map();
+  (Array.isArray(workoutRows) ? workoutRows : []).forEach((row) => {
+    const dayOrder = Math.max(1, Number(row.day_order || 1));
+    const weekNumber = Math.max(1, Math.ceil(dayOrder / workoutsPerWeek));
+    if (!workoutsByWeek.has(weekNumber)) {
+      workoutsByWeek.set(weekNumber, []);
+    }
+    workoutsByWeek.get(weekNumber).push(row);
+  });
+
+  const weekNumber = getCurrentWeekForReferenceDate(assignment.start_date || normalizedDate, assignment.cycle_weeks, normalizedDate);
+  if (!weekNumber) {
+    return {
+      assignment,
+      plannedWorkout: null,
+      plannedExercises: [],
+    };
+  }
+
+  const normalizedWeekWorkouts = normalizeProgramWorkouts(workoutsByWeek.get(weekNumber) || [], assignment.days_per_week);
+  const weekday = new Date(`${normalizedDate}T12:00:00`).toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase();
+  const plannedWorkout = normalizedWeekWorkouts.find((workout) => String(workout.day_name || '').trim().toLowerCase() === weekday) || null;
+
+  if (!plannedWorkout?.id) {
+    return {
+      assignment,
+      plannedWorkout: null,
+      plannedExercises: [],
+    };
+  }
+
+  const [exerciseRows] = await pool.execute(
+    `SELECT
+        we.id AS workout_exercise_id,
+        we.workout_id,
+        we.order_index,
+        we.exercise_name_snapshot,
+        we.muscle_group_snapshot,
+        we.target_sets,
+        we.target_reps,
+        we.target_weight,
+        we.notes
+     FROM workout_exercises we
+     WHERE we.workout_id = ?
+     ORDER BY we.order_index ASC, we.id ASC`,
+    [plannedWorkout.id],
+  );
+
+  return {
+    assignment,
+    plannedWorkout,
+    plannedExercises: (Array.isArray(exerciseRows) ? exerciseRows : []).map(mapCoachPlannedExerciseRow),
+  };
+};
+
+const loadCoachSessionDraftNote = async ({ coachId, userId, sessionDate }) => {
+  await ensureCoachSessionNotesInfrastructure();
+
+  const normalizedCoachId = toPositiveInteger(coachId);
+  const normalizedUserId = toPositiveInteger(userId);
+  const normalizedDate = toSummaryDate(sessionDate);
+  if (!normalizedCoachId || !normalizedUserId || !normalizedDate) {
+    return null;
+  }
+
+  const [rows] = await pool.execute(
+    `SELECT id, coach_id, user_id, workout_session_id, session_date, workout_name, note_text, created_at, updated_at
+     FROM coach_session_notes
+     WHERE coach_id = ? AND user_id = ? AND session_date = ?
+     LIMIT 1`,
+    [normalizedCoachId, normalizedUserId, normalizedDate],
+  );
+
+  const row = rows[0] || null;
+  if (!row) return null;
+
+  return {
+    id: toNumber(row.id, null),
+    coachId: toNumber(row.coach_id, null),
+    userId: toNumber(row.user_id, null),
+    workoutSessionId: toNumber(row.workout_session_id, null),
+    sessionDate: row.session_date ? formatDateISO(row.session_date) : normalizedDate,
+    workoutName: String(row.workout_name || '').trim(),
+    text: String(row.note_text || '').trim(),
+    createdAt: toIsoTimestamp(row.created_at),
+    updatedAt: toIsoTimestamp(row.updated_at),
+  };
+};
+
+const loadCoachSessionDetails = async ({ coachId, userId, sessionDate, sessionId = null, fallbackWorkoutName = '' }) => {
+  const normalizedCoachId = toPositiveInteger(coachId);
+  const normalizedUserId = toPositiveInteger(userId);
+  const normalizedDate = toSummaryDate(sessionDate);
+  const normalizedSessionId = toPositiveInteger(sessionId);
+
+  if (!normalizedCoachId || !normalizedUserId || !normalizedDate) {
+    throw new Error('coachId, userId, and sessionDate are required');
+  }
+
+  const sessionConfig = await getCoachScheduleSessionColumnConfig();
+  const {
+    columns,
+    dateColumn,
+    timeColumn,
+    workoutNameColumn,
+    durationColumn,
+    statusColumn,
+    exercisesColumn,
+    hasProgramAssignmentId,
+    hasCompletedAt,
+    hasCreatedAt,
+  } = sessionConfig;
+
+  let sessionRow = null;
+  if (dateColumn) {
+    const selectColumns = [
+      'ws.id',
+      'ws.user_id',
+      `DATE_FORMAT(ws.${dateColumn}, '%Y-%m-%d') AS session_date`,
+      timeColumn ? `TIME_FORMAT(ws.${timeColumn}, '%H:%i:%s') AS session_time` : 'NULL AS session_time',
+      workoutNameColumn ? `ws.${workoutNameColumn} AS workout_name` : 'NULL AS workout_name',
+      durationColumn ? `ws.${durationColumn} AS duration_minutes` : 'NULL AS duration_minutes',
+      statusColumn ? `ws.${statusColumn} AS status` : 'NULL AS status',
+      hasProgramAssignmentId ? 'ws.program_assignment_id' : 'NULL AS program_assignment_id',
+      exercisesColumn ? `ws.${exercisesColumn} AS exercises_json` : 'NULL AS exercises_json',
+      hasCompletedAt ? 'ws.completed_at' : 'NULL AS completed_at',
+      hasCreatedAt ? 'ws.created_at' : 'NULL AS created_at',
+    ];
+
+    let sql = `SELECT ${selectColumns.join(', ')} FROM workout_sessions ws WHERE ws.user_id = ?`;
+    const params = [normalizedUserId];
+
+    if (normalizedSessionId) {
+      sql += ' AND ws.id = ?';
+      params.push(normalizedSessionId);
+    } else {
+      sql += ` AND DATE(ws.${dateColumn}) = ?`;
+      params.push(normalizedDate);
+    }
+
+    sql += ` ORDER BY ${dateColumn} DESC, ws.id DESC LIMIT 1`;
+    const [sessionRows] = await pool.execute(sql, params);
+    sessionRow = sessionRows[0] || null;
+  }
+
+  const [summaryRows] = await pool.execute(
+    `SELECT
+        id,
+        user_id,
+        summary_date,
+        workout_name,
+        duration_seconds,
+        estimated_calories,
+        total_volume,
+        records_count,
+        muscles_json,
+        exercises_json,
+        summary_text,
+        created_at,
+        updated_at
+     FROM workout_day_summaries
+     WHERE user_id = ? AND summary_date = ?
+     ORDER BY updated_at DESC, id DESC
+     LIMIT 1`,
+    [normalizedUserId, normalizedDate],
+  );
+
+  const summary = summaryRows.length ? mapWorkoutDaySummaryRow(summaryRows[0]) : null;
+
+  let setRows = [];
+  if (normalizedSessionId) {
+    const [linkedSetRows] = await pool.execute(
+      `SELECT id, workout_exercise_id, exercise_name, set_number, weight, reps, notes, created_at
+       FROM workout_sets
+       WHERE user_id = ?
+         AND completed = 1
+         AND session_id = ?
+       ORDER BY created_at ASC, id ASC`,
+      [normalizedUserId, normalizedSessionId],
+    );
+    setRows = Array.isArray(linkedSetRows) ? linkedSetRows : [];
+  }
+
+  if (!setRows.length) {
+    const [datedSetRows] = await pool.execute(
+      `SELECT id, workout_exercise_id, exercise_name, set_number, weight, reps, notes, created_at
+       FROM workout_sets
+       WHERE user_id = ?
+         AND completed = 1
+         AND DATE(created_at) = ?
+       ORDER BY created_at ASC, id ASC`,
+      [normalizedUserId, normalizedDate],
+    );
+    setRows = Array.isArray(datedSetRows) ? datedSetRows : [];
+  }
+
+  const plannedSession = await loadCoachPlannedWorkoutForDate({
+    userId: normalizedUserId,
+    sessionDate: normalizedDate,
+  });
+  const note = await loadCoachSessionDraftNote({
+    coachId: normalizedCoachId,
+    userId: normalizedUserId,
+    sessionDate: normalizedDate,
+  });
+
+  let completedExercises = [];
+  if (summary?.exercises?.length) {
+    completedExercises = buildCoachCompletedExercisesFromSummary(summary.exercises);
+  } else if (setRows.length) {
+    completedExercises = buildCoachCompletedExercisesFromSetRows(setRows);
+  } else if (sessionRow?.exercises_json) {
+    completedExercises = buildCoachCompletedExercisesFromSummary(parseSummaryJsonArray(sessionRow.exercises_json));
+  }
+
+  const plannedExercises = Array.isArray(plannedSession?.plannedExercises) ? plannedSession.plannedExercises : [];
+  const exercises = completedExercises.length
+    ? mergeCoachExerciseDetails(completedExercises, plannedExercises)
+    : plannedExercises;
+
+  const resolvedWorkoutName = String(
+    sessionRow?.workout_name
+      || summary?.workoutName
+      || plannedSession?.plannedWorkout?.workout_name
+      || fallbackWorkoutName
+      || 'Workout',
+  ).trim() || 'Workout';
+  const fallbackStatus = dateColumn === 'completed_at' ? 'completed' : 'confirmed';
+  const resolvedStatus = completedExercises.length
+    ? 'completed'
+    : normalizeCoachScheduleStatus(sessionRow?.status, fallbackStatus);
+
+  return {
+    session: {
+      id: normalizedSessionId || toNumber(sessionRow?.id, null),
+      userId: normalizedUserId,
+      sessionDate: normalizedDate,
+      sessionTime: sessionRow?.session_time ? String(sessionRow.session_time).slice(0, 5) : null,
+      durationMinutes:
+        Number(sessionRow?.duration_minutes || 0)
+        || Number(plannedSession?.plannedWorkout?.estimated_duration_minutes || 0)
+        || (summary?.durationSeconds ? Math.max(1, Math.round(Number(summary.durationSeconds || 0) / 60)) : 0)
+        || 60,
+      workoutName: resolvedWorkoutName,
+      status: resolvedStatus,
+      summaryText: String(summary?.summaryText || '').trim(),
+      completedAt: toIsoTimestamp(sessionRow?.completed_at || sessionRow?.created_at || null),
+      plannedWorkoutId: toNumber(plannedSession?.plannedWorkout?.id, null),
+      programAssignmentId: toNumber(sessionRow?.program_assignment_id, null) || toNumber(plannedSession?.assignment?.assignment_id, null),
+    },
+    exerciseSource: completedExercises.length ? 'completed' : (plannedExercises.length ? 'planned' : 'empty'),
+    exercises,
+    note,
+  };
+};
+
+const loadMissedProgramDaysForUsers = async ({ userIds = [], dateFrom = null, dateTo = null } = {}) => {
+  const normalizedUserIds = [...new Set(
+    (Array.isArray(userIds) ? userIds : [])
+      .map((value) => toNumber(value, null))
+      .filter((value) => Number.isInteger(value) && value > 0),
+  )];
+  if (!normalizedUserIds.length) return [];
+
+  const placeholders = normalizedUserIds.map(() => '?').join(', ');
+  const whereParts = [`user_id IN (${placeholders})`];
+  const params = [...normalizedUserIds];
+
+  if (dateFrom) {
+    whereParts.push('missed_date >= ?');
+    params.push(String(dateFrom).slice(0, 10));
+  }
+
+  if (dateTo) {
+    whereParts.push('missed_date <= ?');
+    params.push(String(dateTo).slice(0, 10));
+  }
+
+  try {
+    const [rows] = await pool.query(
+      `SELECT id, user_id, program_assignment_id, workout_id, DATE_FORMAT(missed_date, '%Y-%m-%d') AS missed_date, workout_name
+       FROM missed_program_days
+       WHERE ${whereParts.join(' AND ')}
+       ORDER BY missed_date ASC, id ASC`,
+      params,
+    );
+    return Array.isArray(rows) ? rows : [];
+  } catch (error) {
+    if (isMissedProgramDaysUnavailableError(error)) {
+      return [];
+    }
+    throw error;
+  }
+};
+
+const loadCoachScheduleSessions = async ({ coachId, startDate, endDate }) => {
+  const normalizedCoachId = toPositiveInteger(coachId);
+  if (!normalizedCoachId) return [];
+
+  const normalizedStartDate = toSummaryDate(startDate);
+  const normalizedEndDate = toSummaryDate(endDate);
+  const [rangeStart, rangeEnd] = normalizedStartDate <= normalizedEndDate
+    ? [normalizedStartDate, normalizedEndDate]
+    : [normalizedEndDate, normalizedStartDate];
+
+  const profileImageColumn = await getProfileImageColumn();
+  const avatarSelect = profileImageColumn
+    ? `COALESCE(u.${profileImageColumn}, '') AS avatar_url`
+    : `'' AS avatar_url`;
+  const [clientRows] = await pool.execute(
+    `SELECT u.id AS user_id, u.name AS client_name, ${avatarSelect}
+     FROM users u
+     WHERE u.role = 'user'
+       AND u.is_active = 1
+       AND (u.banned_until IS NULL OR u.banned_until < NOW())
+       AND u.coach_id = ?
+     ORDER BY u.name ASC, u.id ASC`,
+    [normalizedCoachId],
+  );
+
+  if (!Array.isArray(clientRows) || !clientRows.length) {
+    return [];
+  }
+
+  const clientsByUserId = new Map(
+    clientRows.map((row) => [
+      Number(row.user_id),
+      {
+        user_id: Number(row.user_id),
+        client_name: String(row.client_name || '').trim() || 'Client',
+        avatar_url: String(row.avatar_url || ''),
+      },
+    ]),
+  );
+  const userIds = [...clientsByUserId.keys()];
+  const userPlaceholders = userIds.map(() => '?').join(', ');
+
+  const [assignmentRows] = await pool.query(
+    `SELECT
+        pa.id AS assignment_id,
+        pa.user_id,
+        pa.program_id,
+        DATE_FORMAT(pa.start_date, '%Y-%m-%d') AS start_date,
+        pa.created_at,
+        p.days_per_week,
+        p.cycle_weeks
+      FROM program_assignments pa
+      INNER JOIN programs p ON p.id = pa.program_id
+      WHERE pa.status = 'active'
+        AND pa.user_id IN (${userPlaceholders})
+      ORDER BY pa.user_id ASC, pa.created_at DESC, pa.id DESC`,
+    userIds,
+  );
+
+  const latestAssignmentByUserId = new Map();
+  (Array.isArray(assignmentRows) ? assignmentRows : []).forEach((row) => {
+    const userId = Number(row.user_id || 0);
+    if (!userId || latestAssignmentByUserId.has(userId)) return;
+    latestAssignmentByUserId.set(userId, {
+      assignment_id: Number(row.assignment_id || 0) || null,
+      user_id: userId,
+      program_id: Number(row.program_id || 0) || null,
+      start_date: row.start_date ? String(row.start_date).slice(0, 10) : null,
+      days_per_week: Number(row.days_per_week || 0) || 0,
+      cycle_weeks: Number(row.cycle_weeks || 0) || 0,
+    });
+  });
+
+  const programIds = [...new Set(
+    [...latestAssignmentByUserId.values()]
+      .map((assignment) => Number(assignment.program_id || 0))
+      .filter((programId) => programId > 0),
+  )];
+  const workoutsByProgramId = new Map();
+
+  if (programIds.length) {
+    const programPlaceholders = programIds.map(() => '?').join(', ');
+    const [workoutRows] = await pool.query(
+      `SELECT id, program_id, workout_name, workout_type, day_order, day_name, estimated_duration_minutes, notes
+       FROM workouts
+       WHERE program_id IN (${programPlaceholders})
+       ORDER BY program_id ASC, day_order ASC, id ASC`,
+      programIds,
+    );
+
+    (Array.isArray(workoutRows) ? workoutRows : []).forEach((row) => {
+      const programId = Number(row.program_id || 0);
+      if (!programId) return;
+      if (!workoutsByProgramId.has(programId)) {
+        workoutsByProgramId.set(programId, []);
+      }
+      workoutsByProgramId.get(programId).push(row);
+    });
+  }
+
+  const missedRows = await loadMissedProgramDaysForUsers({
+    userIds,
+    dateFrom: rangeStart,
+    dateTo: rangeEnd,
+  });
+  const missedByUserDate = new Map();
+  missedRows.forEach((row) => {
+    const userId = Number(row.user_id || 0);
+    if (!userId) return;
+    const dateKey = row.missed_date ? String(row.missed_date).slice(0, 10) : null;
+    if (!dateKey) return;
+    missedByUserDate.set(`${userId}:${dateKey}`, row);
+  });
+
+  const {
+    dateColumn,
+    timeColumn,
+    workoutNameColumn,
+    durationColumn,
+    statusColumn,
+    hasMuscleGroup,
+    hasProgramAssignmentId,
+  } = await getCoachScheduleSessionColumnConfig();
+
+  const sessionRowsByUserDate = new Map();
+  if (dateColumn) {
+    const dateExpr = `DATE(ws.${dateColumn})`;
+    const dateSelectExpr = `DATE_FORMAT(ws.${dateColumn}, '%Y-%m-%d')`;
+    const timeSelectExpr = timeColumn ? `TIME_FORMAT(ws.${timeColumn}, '%H:%i:%s')` : 'NULL';
+    const selectColumns = [
+      'ws.id',
+      'ws.user_id',
+      `${dateSelectExpr} AS session_date`,
+      `${timeSelectExpr} AS session_time`,
+      hasProgramAssignmentId ? 'ws.program_assignment_id' : 'NULL AS program_assignment_id',
+      workoutNameColumn ? `ws.${workoutNameColumn} AS workout_name` : 'NULL AS workout_name',
+      hasMuscleGroup ? 'ws.muscle_group AS muscle_group' : 'NULL AS muscle_group',
+      durationColumn ? `ws.${durationColumn} AS duration_minutes` : 'NULL AS duration_minutes',
+      statusColumn ? `ws.${statusColumn} AS status` : 'NULL AS status',
+    ];
+
+    const [sessionRows] = await pool.query(
+      `SELECT ${selectColumns.join(', ')}
+       FROM workout_sessions ws
+       WHERE ws.user_id IN (${userPlaceholders})
+         AND ${dateExpr} BETWEEN ? AND ?
+       ORDER BY session_date ASC, ws.id DESC`,
+      [...userIds, rangeStart, rangeEnd],
+    );
+
+    (Array.isArray(sessionRows) ? sessionRows : []).forEach((row) => {
+      const userId = Number(row.user_id || 0);
+      if (!userId) return;
+      const sessionDate = row.session_date ? String(row.session_date).slice(0, 10) : null;
+      if (!sessionDate) return;
+
+      const fallbackStatus = dateColumn === 'completed_at' ? 'completed' : 'confirmed';
+      const normalizedRow = {
+        id: String(row.id),
+        user_id: userId,
+        session_date: sessionDate,
+        session_time: row.session_time ? String(row.session_time).slice(0, 8) : null,
+        program_assignment_id: toNumber(row.program_assignment_id, null),
+        workout_name: row.workout_name ? String(row.workout_name).trim() : '',
+        muscle_group: row.muscle_group ? String(row.muscle_group).trim() : '',
+        duration_minutes: Number(row.duration_minutes || 0) || null,
+        status: normalizeCoachScheduleStatus(row.status, fallbackStatus),
+      };
+
+      const key = `${userId}:${sessionDate}`;
+      if (!sessionRowsByUserDate.has(key)) {
+        sessionRowsByUserDate.set(key, []);
+      }
+      sessionRowsByUserDate.get(key).push(normalizedRow);
+    });
+  }
+
+  const scheduledSessions = [];
+  const rangeCursorStart = new Date(`${rangeStart}T12:00:00`);
+  const rangeCursorEnd = new Date(`${rangeEnd}T12:00:00`);
+
+  clientsByUserId.forEach((client, userId) => {
+    const assignment = latestAssignmentByUserId.get(userId) || null;
+    if (assignment?.program_id) {
+      const workouts = workoutsByProgramId.get(Number(assignment.program_id || 0)) || [];
+      const workoutsPerWeek = Math.max(1, Number(assignment.days_per_week || 1));
+      const workoutsByWeek = new Map();
+
+      workouts.forEach((workout) => {
+        const dayOrder = Math.max(1, Number(workout.day_order || 1));
+        const weekNumber = Math.max(1, Math.ceil(dayOrder / workoutsPerWeek));
+        if (!workoutsByWeek.has(weekNumber)) {
+          workoutsByWeek.set(weekNumber, []);
+        }
+        workoutsByWeek.get(weekNumber).push(workout);
+      });
+
+      const normalizedWorkoutsByWeek = new Map();
+      workoutsByWeek.forEach((weekWorkouts, weekNumber) => {
+        normalizedWorkoutsByWeek.set(weekNumber, normalizeProgramWorkouts(weekWorkouts, assignment.days_per_week));
+      });
+
+      const assignmentStartDate = assignment.start_date
+        ? new Date(`${assignment.start_date}T12:00:00`)
+        : null;
+
+      for (const cursor = new Date(rangeCursorStart); cursor <= rangeCursorEnd; cursor.setDate(cursor.getDate() + 1)) {
+        if (assignmentStartDate && cursor < assignmentStartDate) {
+          continue;
+        }
+
+        const dateKey = formatDateISO(cursor);
+        const weekNumber = getCurrentWeekForReferenceDate(assignment.start_date || dateKey, assignment.cycle_weeks, dateKey);
+        if (!weekNumber) {
+          continue;
+        }
+
+        const weekWorkouts = normalizedWorkoutsByWeek.get(weekNumber) || [];
+        const weekday = cursor.toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase();
+        const plannedWorkout = weekWorkouts.find((workout) => String(workout.day_name || '').trim().toLowerCase() === weekday) || null;
+        if (!plannedWorkout) {
+          continue;
+        }
+
+        const sessionsForDate = sessionRowsByUserDate.get(`${userId}:${dateKey}`) || [];
+        const matchedSession = takeMatchingLoggedSession(
+          sessionsForDate,
+          assignment.assignment_id,
+          plannedWorkout.workout_name,
+        );
+        const missedSession = missedByUserDate.get(`${userId}:${dateKey}`) || null;
+
+        scheduledSessions.push({
+          id: matchedSession?.id || `planned-${assignment.assignment_id || userId}-${plannedWorkout.id || dateKey}-${dateKey}`,
+          user_id: userId,
+          client_name: client.client_name,
+          avatar_url: client.avatar_url,
+          session_date: dateKey,
+          session_time: matchedSession?.session_time || null,
+          workout_name:
+            matchedSession?.workout_name
+            || String(plannedWorkout.workout_name || '').trim()
+            || String(plannedWorkout.day_name || '').trim()
+            || 'Workout',
+          muscle_group: matchedSession?.muscle_group || '',
+          duration_minutes:
+            matchedSession?.duration_minutes
+            || (Number(plannedWorkout.estimated_duration_minutes || 0) || 60),
+          status: matchedSession?.status || (missedSession ? 'missed' : 'confirmed'),
+        });
+      }
+    }
+
+    sessionRowsByUserDate.forEach((leftoverSessions, key) => {
+      if (!key.startsWith(`${userId}:`) || !Array.isArray(leftoverSessions) || !leftoverSessions.length) {
+        return;
+      }
+
+      leftoverSessions.forEach((session) => {
+        scheduledSessions.push({
+          id: session.id,
+          user_id: userId,
+          client_name: client.client_name,
+          avatar_url: client.avatar_url,
+          session_date: session.session_date,
+          session_time: session.session_time,
+          workout_name: session.workout_name || session.muscle_group || 'Workout',
+          muscle_group: session.muscle_group || '',
+          duration_minutes: session.duration_minutes || 60,
+          status: session.status,
+        });
+      });
+
+      sessionRowsByUserDate.set(key, []);
+    });
+  });
+
+  return scheduledSessions.sort((left, right) => {
+    const leftKey = getCoachScheduleSortKey(left);
+    const rightKey = getCoachScheduleSortKey(right);
+    if (leftKey < rightKey) return -1;
+    if (leftKey > rightKey) return 1;
+    return 0;
+  });
+};
+
 router.get('/coaches/:coachId/schedule-summary', requireAuth('coach', 'gym_owner'), requireCoachScope('coachId'), async (req, res) => {
   try {
     const coachId = toPositiveInteger(req.params.coachId);
@@ -6172,24 +7067,6 @@ router.get('/coaches/:coachId/schedule-summary', requireAuth('coach', 'gym_owner
     const referenceDate = toSummaryDate(req.query?.date);
     if (!referenceDate) {
       return res.status(400).json({ error: 'Invalid date' });
-    }
-
-    const columns = await getWorkoutSessionColumns();
-    const dateColumnCandidates = [
-      'scheduled_for',
-      'scheduled_at',
-      'scheduled_date',
-      'session_date',
-      'start_time',
-      'starts_at',
-      'scheduled_on',
-      'completed_at',
-      'created_at',
-    ];
-
-    const dateColumn = dateColumnCandidates.find((col) => columns.has(col)) || null;
-    if (!dateColumn) {
-      return res.status(500).json({ error: 'No session date column found in workout_sessions' });
     }
 
     const reference = new Date(`${referenceDate}T12:00:00`);
@@ -6204,25 +7081,16 @@ router.get('/coaches/:coachId/schedule-summary', requireAuth('coach', 'gym_owner
 
     const weekStart = formatDateISO(weekStartDate);
     const weekEnd = formatDateISO(weekEndDate);
-    const dateExpr = `DATE(ws.${dateColumn})`;
+    const sessions = await loadCoachScheduleSessions({
+      coachId,
+      startDate: weekStart,
+      endDate: weekEnd,
+    });
 
-    const [rows] = await pool.execute(
-      `SELECT
-         COALESCE(SUM(CASE WHEN ${dateExpr} = ? THEN 1 ELSE 0 END), 0) AS active_today,
-         COALESCE(SUM(CASE WHEN ${dateExpr} BETWEEN ? AND ? THEN 1 ELSE 0 END), 0) AS sessions_this_week
-       FROM workout_sessions ws
-       INNER JOIN users u ON u.id = ws.user_id
-       WHERE u.role = 'user'
-         AND u.is_active = 1
-         AND (u.banned_until IS NULL OR u.banned_until < NOW())
-         AND u.coach_id = ?`,
-      [referenceDate, weekStart, weekEnd, coachId],
-    );
-
-    const row = Array.isArray(rows) && rows.length ? rows[0] : {};
+    const activeToday = sessions.filter((session) => session.session_date === referenceDate).length;
     return res.json({
-      activeToday: Number(row.active_today || 0),
-      sessionsThisWeek: Number(row.sessions_this_week || 0),
+      activeToday,
+      sessionsThisWeek: sessions.length,
       referenceDate,
       weekStart,
       weekEnd,
@@ -6241,94 +7109,161 @@ router.get('/coaches/:coachId/schedule', requireAuth('coach', 'gym_owner'), requ
 
     const startDate = toSummaryDate(req.query?.startDate);
     const endDate = toSummaryDate(req.query?.endDate);
+    const sessions = await loadCoachScheduleSessions({
+      coachId,
+      startDate,
+      endDate,
+    });
 
-    const columns = await getWorkoutSessionColumns();
-    const dateColumnCandidates = [
-      'scheduled_for',
-      'scheduled_at',
-      'scheduled_date',
-      'session_date',
-      'start_time',
-      'starts_at',
-      'scheduled_on',
-      'completed_at',
-      'created_at',
-    ];
-    const timeColumnCandidates = ['scheduled_time', 'session_time', 'start_time', 'starts_at'];
-    const workoutNameCandidates = ['workout_name', 'session_name', 'name', 'title'];
-    const durationCandidates = ['duration_minutes', 'session_duration_minutes', 'duration'];
-
-    const dateColumn = dateColumnCandidates.find((col) => columns.has(col)) || null;
-    if (!dateColumn) {
-      return res.status(500).json({ error: 'No session date column found in workout_sessions' });
-    }
-
-    const timeColumn = timeColumnCandidates.find((col) => columns.has(col)) || null;
-    const workoutNameColumn = workoutNameCandidates.find((col) => columns.has(col)) || null;
-    const durationColumn = durationCandidates.find((col) => columns.has(col)) || null;
-    const statusColumn = columns.has('status') ? 'status' : null;
-    const hasMuscleGroup = columns.has('muscle_group');
-
-    const dateExpr = `DATE(ws.${dateColumn})`;
-    const timeExpr = timeColumn ? `TIME(ws.${timeColumn})` : `TIME(ws.${dateColumn})`;
-    const selectColumns = [
-      'ws.id',
-      'ws.user_id',
-      'u.name AS client_name',
-      `${dateExpr} AS session_date`,
-      `${timeExpr} AS session_time`,
-    ];
-
-    if (workoutNameColumn) {
-      selectColumns.push(`ws.${workoutNameColumn} AS workout_name`);
-    }
-    if (hasMuscleGroup) {
-      selectColumns.push('ws.muscle_group AS muscle_group');
-    }
-    if (durationColumn) {
-      selectColumns.push(`ws.${durationColumn} AS duration_minutes`);
-    } else {
-      selectColumns.push('NULL AS duration_minutes');
-    }
-    if (statusColumn) {
-      selectColumns.push(`ws.${statusColumn} AS status`);
-    } else {
-      selectColumns.push('NULL AS status');
-    }
-
-    const profileImageColumn = await getProfileImageColumn();
-    const avatarSelect = profileImageColumn ? `COALESCE(u.${profileImageColumn}, '') AS avatar_url` : `'' AS avatar_url`;
-    selectColumns.push(`${avatarSelect}`);
-
-    const whereParts = ['u.role = "user"', 'u.is_active = 1', '(u.banned_until IS NULL OR u.banned_until < NOW())', 'u.coach_id = ?'];
-    const params = [coachId];
-
-    if (startDate && endDate) {
-      whereParts.push(`${dateExpr} BETWEEN ? AND ?`);
-      params.push(startDate, endDate);
-    } else if (startDate) {
-      whereParts.push(`${dateExpr} >= ?`);
-      params.push(startDate);
-    } else if (endDate) {
-      whereParts.push(`${dateExpr} <= ?`);
-      params.push(endDate);
-    }
-
-    const whereClause = whereParts.length ? `WHERE ${whereParts.join(' AND ')}` : '';
-    const [rows] = await pool.execute(
-      `SELECT ${selectColumns.join(', ')}
-       FROM workout_sessions ws
-       INNER JOIN users u ON u.id = ws.user_id
-       ${whereClause}
-       ORDER BY session_date ASC, session_time ASC, ws.id ASC`,
-      params,
-    );
-
-    return res.json({ sessions: rows });
+    return res.json({ sessions });
   } catch (error) {
     return res.status(500).json({ error: error.message || 'Failed to load coach schedule' });
   }
 });
+
+router.get(
+  '/coaches/:coachId/users/:userId/session-details',
+  requireAuth('coach', 'gym_owner'),
+  requireCoachScope('coachId'),
+  requireUserAccess('userId', { allowAssignedCoach: true, allowGymOwner: true }),
+  async (req, res) => {
+    try {
+      const coachId = toPositiveInteger(req.params.coachId);
+      const userId = toPositiveInteger(req.params.userId);
+      const sessionDate = toSummaryDate(req.query?.date);
+      const sessionId = String(req.query?.sessionId || '').trim();
+      const workoutName = String(req.query?.workoutName || '').trim();
+
+      if (!coachId) {
+        return res.status(400).json({ error: 'coachId must be a positive integer' });
+      }
+
+      if (!userId) {
+        return res.status(400).json({ error: 'userId must be a positive integer' });
+      }
+
+      if (!sessionDate) {
+        return res.status(400).json({ error: 'date is required' });
+      }
+
+      const details = await loadCoachSessionDetails({
+        coachId,
+        userId,
+        sessionDate,
+        sessionId,
+        fallbackWorkoutName: workoutName,
+      });
+
+      return res.json(details);
+    } catch (error) {
+      return res.status(500).json({ error: error.message || 'Failed to load coach session details' });
+    }
+  },
+);
+
+router.post(
+  '/coaches/:coachId/users/:userId/session-notes',
+  authMutationRateLimit,
+  requireAuth('coach', 'gym_owner'),
+  requireCoachScope('coachId'),
+  requireUserAccess('userId', { allowAssignedCoach: true, allowGymOwner: true }),
+  async (req, res) => {
+    try {
+      const coachId = toPositiveInteger(req.params.coachId);
+      const userId = toPositiveInteger(req.params.userId);
+      const sessionDate = toSummaryDate(req.body?.sessionDate);
+      const sessionId = String(req.body?.sessionId || '').trim();
+      const noteText = String(req.body?.note || '').trim();
+      const fallbackWorkoutName = String(req.body?.workoutName || '').trim();
+
+      if (!coachId) {
+        return res.status(400).json({ error: 'coachId must be a positive integer' });
+      }
+
+      if (!userId) {
+        return res.status(400).json({ error: 'userId must be a positive integer' });
+      }
+
+      if (!sessionDate) {
+        return res.status(400).json({ error: 'sessionDate is required' });
+      }
+
+      if (!noteText) {
+        return res.status(400).json({ error: 'note is required' });
+      }
+
+      const truncatedNote = noteText.slice(0, 4000);
+      await ensureChallengeNotificationTypesOnce();
+      await ensureCoachSessionNotesInfrastructure();
+
+      const details = await loadCoachSessionDetails({
+        coachId,
+        userId,
+        sessionDate,
+        sessionId,
+        fallbackWorkoutName,
+      });
+
+      const actualSessionId = toPositiveInteger(details?.session?.id);
+      const workoutName = String(details?.session?.workoutName || fallbackWorkoutName || 'Workout').trim() || 'Workout';
+
+      const [coachRows] = await pool.execute(
+        `SELECT id, name
+         FROM users
+         WHERE id = ?
+         LIMIT 1`,
+        [coachId],
+      );
+      const coachName = String(coachRows[0]?.name || 'Your coach').trim() || 'Your coach';
+
+      await pool.execute(
+        `INSERT INTO coach_session_notes (coach_id, user_id, workout_session_id, session_date, workout_name, note_text)
+         VALUES (?, ?, ?, ?, ?, ?)
+         ON DUPLICATE KEY UPDATE
+           workout_session_id = VALUES(workout_session_id),
+           workout_name = VALUES(workout_name),
+           note_text = VALUES(note_text),
+           updated_at = CURRENT_TIMESTAMP`,
+        [
+          coachId,
+          userId,
+          actualSessionId || null,
+          sessionDate,
+          workoutName,
+          truncatedNote,
+        ],
+      );
+
+      await pool.execute(
+        `INSERT INTO notifications (user_id, type, title, message, data)
+         VALUES (?, 'coach_session_note', ?, ?, JSON_OBJECT('coachId', ?, 'coachName', ?, 'sessionDate', ?, 'sessionId', ?, 'workoutName', ?))`,
+        [
+          userId,
+          'Coach session note',
+          truncatedNote,
+          coachId,
+          coachName,
+          sessionDate,
+          actualSessionId || null,
+          workoutName,
+        ],
+      );
+
+      const note = await loadCoachSessionDraftNote({
+        coachId,
+        userId,
+        sessionDate,
+      });
+
+      return res.json({
+        success: true,
+        note,
+      });
+    } catch (error) {
+      return res.status(500).json({ error: error.message || 'Failed to send coach session note' });
+    }
+  },
+);
 
 // =========================
 // USER ONBOARDING / PROFILE
