@@ -37,6 +37,7 @@ type ApiLikeError = Error & {
 
 const iconByType: Record<string, { icon: React.ComponentType<{ size?: number; className?: string }>; color: string; bg: string }> = {
   message: { icon: MessageSquare, color: 'text-blue-500', bg: 'bg-blue-500/10' },
+  coach_message: { icon: Bell, color: 'text-emerald-600', bg: 'bg-emerald-500/10' },
   coach_session_note: { icon: Bell, color: 'text-emerald-600', bg: 'bg-emerald-500/10' },
   friend_request: { icon: Dumbbell, color: 'text-accent', bg: 'bg-accent/10' },
   friend_accept: { icon: Trophy, color: 'text-green-500', bg: 'bg-green-500/10' },

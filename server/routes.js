@@ -7232,7 +7232,7 @@ router.post(
 
       await pool.execute(
         `INSERT INTO notifications (user_id, type, title, message, data)
-         VALUES (?, 'coach_session_note', ?, ?, JSON_OBJECT('coachId', ?, 'coachName', ?, 'sessionDate', ?, 'sessionId', ?, 'workoutName', ?))`,
+         VALUES (?, 'coach_message', ?, ?, JSON_OBJECT('coachId', ?, 'coachName', ?, 'sessionDate', ?, 'sessionId', ?, 'workoutName', ?))`,
         [
           userId,
           'Coach session note',

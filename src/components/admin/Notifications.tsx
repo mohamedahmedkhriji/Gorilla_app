@@ -23,6 +23,7 @@ interface CoachNotification {
 
 const iconByType: Record<string, { icon: React.ComponentType<{ size?: number; className?: string }>; color: string }> = {
   message: { icon: MessageSquare, color: 'text-blue-500' },
+  coach_message: { icon: Bell, color: 'text-emerald-600' },
   coach_session_note: { icon: Bell, color: 'text-emerald-600' },
   session: { icon: Calendar, color: 'text-purple-500' },
   achievement: { icon: TrendingUp, color: 'text-green-500' },
