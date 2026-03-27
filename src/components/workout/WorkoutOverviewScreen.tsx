@@ -25,6 +25,7 @@ type WorkoutOverviewCard = {
   isRecommendedNext?: boolean;
   isPickedForToday?: boolean;
   isCompletedToday?: boolean;
+  isCompleted?: boolean;
 };
 
 interface WorkoutOverviewScreenProps {
@@ -446,6 +447,35 @@ export function WorkoutOverviewScreen({
     () => workouts.filter((workout) => Number(workout.exerciseCount || 0) > 0),
     [workouts],
   );
+  const latestAssignmentByWorkoutKey = useMemo(() => {
+    const entries = Array.isArray(assignmentHistory) ? assignmentHistory : [];
+    const latestByKey = new Map<string, WorkoutAssignmentHistoryEntry>();
+
+    entries.forEach((entry) => {
+      const workoutKey = String(entry?.workoutKey || '').trim();
+      if (!workoutKey) return;
+
+      const previousEntry = latestByKey.get(workoutKey);
+      if (!previousEntry) {
+        latestByKey.set(workoutKey, entry);
+        return;
+      }
+
+      const nextDateKey = String(entry?.dateKey || '').trim();
+      const previousDateKey = String(previousEntry?.dateKey || '').trim();
+      const nextCompletedAt = String(entry?.completedAt || '').trim();
+      const previousCompletedAt = String(previousEntry?.completedAt || '').trim();
+
+      if (
+        nextDateKey > previousDateKey
+        || (nextDateKey === previousDateKey && nextCompletedAt > previousCompletedAt)
+      ) {
+        latestByKey.set(workoutKey, entry);
+      }
+    });
+
+    return latestByKey;
+  }, [assignmentHistory]);
   const premiumConfig = useMemo(() => getActiveT2PremiumConfig(userProgram), [userProgram]);
   const pickedWorkoutKey = useMemo(
     () => selectableWorkouts.find((workout) => workout.isPickedForToday)?.key || '',
@@ -475,6 +505,7 @@ export function WorkoutOverviewScreen({
   const cards = useMemo(
     () => selectableWorkouts.map((workout) => ({
       ...workout,
+      isCompleted: workout.isCompletedToday || Boolean(latestAssignmentByWorkoutKey.get(workout.key)?.completed),
       premiumMeta: premiumConfig
         ? buildT2PremiumCardMeta({
             language,
@@ -492,7 +523,7 @@ export function WorkoutOverviewScreen({
         };
       }),
     })),
-    [language, localizeMuscle, premiumConfig, selectableWorkouts],
+    [language, latestAssignmentByWorkoutKey, localizeMuscle, premiumConfig, selectableWorkouts],
   );
   const recommendedWorkoutKey = useMemo(
     () => cards.find((workout) => workout.isRecommendedNext)?.key || null,
@@ -699,6 +730,7 @@ export function WorkoutOverviewScreen({
           {!loading && !error && !isPlanCompleted && cards.length > 0 && (
             <div className="space-y-3">
               {cards.map((workout, index) => {
+                const isCompleted = !!workout.isCompleted;
                 const isLockedForSelection = isTodayPlanLocked && hasTodaySelection && !workout.isPickedForToday;
                 const isExpanded = expandedWorkoutKey === workout.key;
 
@@ -707,7 +739,9 @@ export function WorkoutOverviewScreen({
                   key={workout.key}
                   data-coachmark-target={index === 0 ? 'my_plan_first_week_card' : undefined}
                   className={`w-full rounded-[1.6rem] border p-4 transition-colors ${
-                    workout.isPickedForToday
+                    isCompleted
+                      ? 'border-emerald-500/25 bg-emerald-500/[0.07] hover:border-emerald-400/35'
+                      : workout.isPickedForToday
                       ? 'border-accent/35 bg-accent/8 shadow-[0_14px_32px_rgba(191,255,0,0.08)]'
                       : workout.isRecommendedNext && premiumConfig
                         ? 'border-emerald-500/25 bg-emerald-500/[0.07] hover:border-emerald-400/35'
@@ -757,18 +791,18 @@ export function WorkoutOverviewScreen({
                       </div>
 
                       <div className={`flex items-center gap-2 ${isArabic ? 'flex-row-reverse' : ''}`}>
-                        {workout.isRecommendedNext && !workout.isPickedForToday && (
+                        {workout.isRecommendedNext && !workout.isPickedForToday && !isCompleted && (
                           <span className="rounded-full bg-emerald-500/15 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-emerald-200">
                             {copy.recommendedNextBadge}
                           </span>
                         )}
-                        {workout.isPickedForToday && (
+                        {(isCompleted || workout.isPickedForToday) && (
                           <span className={`rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] ${
-                            workout.isCompletedToday
+                            isCompleted
                               ? 'bg-emerald-500/15 text-emerald-200'
                               : 'bg-accent/15 text-accent'
                           }`}>
-                            {workout.isCompletedToday ? copy.completedBadge : copy.pickedBadge}
+                            {isCompleted ? copy.completedBadge : copy.pickedBadge}
                           </span>
                         )}
                         <img
@@ -835,20 +869,20 @@ export function WorkoutOverviewScreen({
                       type="button"
                       data-coachmark-target={index === 0 ? 'my_plan_first_action_button' : undefined}
                       onClick={() => {
-                        if (workout.isCompletedToday || isLockedForSelection) {
+                        if (isCompleted || isLockedForSelection) {
                           return;
                         }
 
-                        if (workout.isPickedForToday && !workout.isCompletedToday) {
+                        if (workout.isPickedForToday) {
                           onSelectWorkout(workout.key);
                           return;
                         }
 
                         onPickWorkoutForToday(workout.key);
                       }}
-                      disabled={!!workout.isCompletedToday || isLockedForSelection}
+                      disabled={isCompleted || isLockedForSelection}
                       className={`font-marker inline-flex min-w-[10.5rem] items-center justify-center rounded-full border px-4 py-2 text-xs font-semibold uppercase tracking-[0.12em] transition-colors ${
-                        workout.isCompletedToday
+                        isCompleted
                           ? 'cursor-default border-emerald-500/25 bg-emerald-500/10 text-emerald-200'
                           : isLockedForSelection
                             ? 'cursor-not-allowed border-white/10 bg-white/5 text-text-tertiary'
@@ -857,8 +891,8 @@ export function WorkoutOverviewScreen({
                           : 'border-accent/30 bg-accent/20 text-text-primary hover:bg-accent/25'
                       }`}
                     >
-                      {workout.isCompletedToday
-                        ? copy.completedForToday
+                      {isCompleted
+                        ? (workout.isCompletedToday ? copy.completedForToday : copy.completedBadge)
                         : workout.isPickedForToday
                           ? copy.startMyWorkout
                           : isLockedForSelection

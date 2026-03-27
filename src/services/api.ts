@@ -1,5 +1,11 @@
 import { getStoredUserAuthToken } from '../shared/authStorage';
 import { getStoredAdminAuthToken } from '../shared/adminAuthStorage';
+import {
+  isOfflineApiError,
+  offlineCacheKeys,
+  readOfflineCacheEntry,
+  writeOfflineCache,
+} from './offlineCache';
 
 const DEFAULT_API_ORIGIN =
   typeof window !== 'undefined'
@@ -171,6 +177,28 @@ const parseApiResponse = async (res: Response, fallbackError = 'Request failed')
   return data;
 };
 
+const withOfflineReadFallback = async <T>(
+  cacheKey: string | null,
+  fetcher: () => Promise<T>,
+) => {
+  try {
+    const data = await fetcher();
+    if (cacheKey) {
+      writeOfflineCache(cacheKey, data);
+    }
+    return data;
+  } catch (error) {
+    if (cacheKey && isOfflineApiError(error)) {
+      const cachedEntry = readOfflineCacheEntry<T>(cacheKey);
+      if (cachedEntry) {
+        return cachedEntry.value;
+      }
+    }
+
+    throw error;
+  }
+};
+
 export const api = {
   login: async (email: string, password: string, role: string) => {
     const res = await fetchWithContext(`${API_URL}/auth/login`, {
@@ -264,8 +292,24 @@ export const api = {
   },
 
   getUserProgram: async (userId: number) => {
-    const res = await fetch(`${API_URL}/user/${userId}/program`);
-    return res.json();
+    const cacheKey = offlineCacheKeys.userProgram(userId);
+
+    try {
+      const res = await fetch(`${API_URL}/user/${userId}/program`);
+      const data = await res.json();
+      if (res.ok) {
+        writeOfflineCache(cacheKey, data);
+      }
+      return data;
+    } catch (error) {
+      if (isOfflineApiError(error)) {
+        const cachedEntry = readOfflineCacheEntry<any>(cacheKey);
+        if (cachedEntry) {
+          return cachedEntry.value;
+        }
+      }
+      throw error;
+    }
   },
 
   markTodayWorkoutMissed: async (userId: number) => {
@@ -293,8 +337,13 @@ export const api = {
   },
 
   getProgramProgress: async (userId: number) => {
-    const res = await fetch(`${API_URL}/user/${userId}/program-progress`);
-    return parseApiResponse(res, 'Failed to fetch program progress');
+    return withOfflineReadFallback(
+      offlineCacheKeys.programProgress(userId),
+      async () => {
+        const res = await fetch(`${API_URL}/user/${userId}/program-progress`);
+        return parseApiResponse(res, 'Failed to fetch program progress');
+      },
+    );
   },
 
   generatePersonalizedProgram: async (userId: number, payload: any = {}) => {
@@ -432,13 +481,30 @@ export const api = {
     targetWaterMl?: number;
     goal?: string;
     forceRefresh?: boolean;
+    userId?: number;
   }) => {
-    const res = await fetch(`${API_URL}/nutrition/daily-plan`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(input),
-    });
-    return parseApiResponse(res, 'Failed to generate daily nutrition plan');
+    const cacheKey = input.userId
+      ? offlineCacheKeys.dailyNutritionPlan(input.userId, {
+          targetCalories: input.targetCalories,
+          targetProtein: input.targetProtein,
+          targetCarbs: input.targetCarbs,
+          targetFat: input.targetFat,
+          targetWaterMl: input.targetWaterMl,
+          goal: input.goal,
+        })
+      : null;
+
+    return withOfflineReadFallback(
+      cacheKey,
+      async () => {
+        const res = await fetch(`${API_URL}/nutrition/daily-plan`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(input),
+        });
+        return parseApiResponse(res, 'Failed to generate daily nutrition plan');
+      },
+    );
   },
 
   getBlogsFeed: async (
@@ -457,8 +523,13 @@ export const api = {
     if (options.cursorId) params.set('cursorId', String(options.cursorId));
     if (options.authorId) params.set('authorId', String(options.authorId));
 
-    const res = await fetch(`${API_URL}/blogs?${params.toString()}`);
-    return parseApiResponse(res, 'Failed to fetch blogs feed');
+    return withOfflineReadFallback(
+      offlineCacheKeys.blogsFeed(userId, options),
+      async () => {
+        const res = await fetch(`${API_URL}/blogs?${params.toString()}`);
+        return parseApiResponse(res, 'Failed to fetch blogs feed');
+      },
+    );
   },
 
   createBlogPost: async (input: {
@@ -547,8 +618,13 @@ export const api = {
     const params = new URLSearchParams();
     params.set('limit', String(limit));
 
-    const res = await fetch(`${API_URL}/blogs/${postId}/comments?${params.toString()}`);
-    return parseApiResponse(res, 'Failed to fetch blog comments');
+    return withOfflineReadFallback(
+      offlineCacheKeys.blogComments(postId, limit),
+      async () => {
+        const res = await fetch(`${API_URL}/blogs/${postId}/comments?${params.toString()}`);
+        return parseApiResponse(res, 'Failed to fetch blog comments');
+      },
+    );
   },
 
   addBlogComment: async (
@@ -617,84 +693,119 @@ export const api = {
   },
 
   getStrengthProgress: async (userId: number, weeks = 8) => {
-    const res = await fetch(`${API_URL}/progress/strength/${userId}?weeks=${weeks}`);
-    const contentType = res.headers.get('content-type') || '';
-    if (!contentType.includes('application/json')) {
-      const text = await res.text();
-      throw new Error(`Strength API returned non-JSON response (status ${res.status}): ${text.slice(0, 120)}`);
-    }
-    const data = await res.json();
-    if (!res.ok) {
-      throw new Error(data?.error || `Strength API request failed (${res.status})`);
-    }
-    return data;
+    return withOfflineReadFallback(
+      offlineCacheKeys.strengthProgress(userId, weeks),
+      async () => {
+        const res = await fetch(`${API_URL}/progress/strength/${userId}?weeks=${weeks}`);
+        const contentType = res.headers.get('content-type') || '';
+        if (!contentType.includes('application/json')) {
+          const text = await res.text();
+          throw new Error(`Strength API returned non-JSON response (status ${res.status}): ${text.slice(0, 120)}`);
+        }
+        const data = await res.json();
+        if (!res.ok) {
+          throw new Error(data?.error || `Strength API request failed (${res.status})`);
+        }
+        return data;
+      },
+    );
   },
 
   getStrengthScore: async (userId: number, range: 'month' | '6months' | 'year' | 'all' = '6months') => {
     const params = new URLSearchParams({ range });
-    const res = await fetch(`${API_URL}/progress/strength-score/${userId}?${params.toString()}`);
-    return parseApiResponse(res, 'Failed to load strength score');
+    return withOfflineReadFallback(
+      offlineCacheKeys.strengthScore(userId, range),
+      async () => {
+        const res = await fetch(`${API_URL}/progress/strength-score/${userId}?${params.toString()}`);
+        return parseApiResponse(res, 'Failed to load strength score');
+      },
+    );
   },
 
   getMuscleDistribution: async (userId: number, days = 30) => {
-    const res = await fetch(`${API_URL}/progress/muscle-distribution/${userId}?days=${days}`);
-    const contentType = res.headers.get('content-type') || '';
-    if (!contentType.includes('application/json')) {
-      const text = await res.text();
-      throw new Error(`Muscle API returned non-JSON response (status ${res.status}): ${text.slice(0, 120)}`);
-    }
-    const data = await res.json();
-    if (!res.ok) {
-      throw new Error(data?.error || `Muscle API request failed (${res.status})`);
-    }
-    return data;
+    return withOfflineReadFallback(
+      offlineCacheKeys.muscleDistribution(userId, days),
+      async () => {
+        const res = await fetch(`${API_URL}/progress/muscle-distribution/${userId}?days=${days}`);
+        const contentType = res.headers.get('content-type') || '';
+        if (!contentType.includes('application/json')) {
+          const text = await res.text();
+          throw new Error(`Muscle API returned non-JSON response (status ${res.status}): ${text.slice(0, 120)}`);
+        }
+        const data = await res.json();
+        if (!res.ok) {
+          throw new Error(data?.error || `Muscle API request failed (${res.status})`);
+        }
+        return data;
+      },
+    );
   },
 
   getPlanMuscleDistribution: async (userId: number) => {
-    const res = await fetch(`${API_URL}/progress/plan-muscle-distribution/${userId}`);
-    const contentType = res.headers.get('content-type') || '';
-    if (!contentType.includes('application/json')) {
-      const text = await res.text();
-      throw new Error(`Plan muscle API returned non-JSON response (status ${res.status}): ${text.slice(0, 120)}`);
-    }
-    const data = await res.json();
-    if (!res.ok) {
-      throw new Error(data?.error || `Plan muscle API request failed (${res.status})`);
-    }
-    return data;
+    return withOfflineReadFallback(
+      offlineCacheKeys.planMuscleDistribution(userId),
+      async () => {
+        const res = await fetch(`${API_URL}/progress/plan-muscle-distribution/${userId}`);
+        const contentType = res.headers.get('content-type') || '';
+        if (!contentType.includes('application/json')) {
+          const text = await res.text();
+          throw new Error(`Plan muscle API returned non-JSON response (status ${res.status}): ${text.slice(0, 120)}`);
+        }
+        const data = await res.json();
+        if (!res.ok) {
+          throw new Error(data?.error || `Plan muscle API request failed (${res.status})`);
+        }
+        return data;
+      },
+    );
   },
 
   getBiWeeklyReport: async (userId: number) => {
-    const res = await fetch(`${API_URL}/progress/bi-weekly-report/${userId}`);
-    const contentType = res.headers.get('content-type') || '';
-    if (!contentType.includes('application/json')) {
-      const text = await res.text();
-      throw new Error(`Bi-weekly API returned non-JSON response (status ${res.status}): ${text.slice(0, 120)}`);
-    }
-    const data = await res.json();
-    if (!res.ok) {
-      throw new Error(data?.error || `Bi-weekly API request failed (${res.status})`);
-    }
-    return data;
+    return withOfflineReadFallback(
+      offlineCacheKeys.biWeeklyReport(userId),
+      async () => {
+        const res = await fetch(`${API_URL}/progress/bi-weekly-report/${userId}`);
+        const contentType = res.headers.get('content-type') || '';
+        if (!contentType.includes('application/json')) {
+          const text = await res.text();
+          throw new Error(`Bi-weekly API returned non-JSON response (status ${res.status}): ${text.slice(0, 120)}`);
+        }
+        const data = await res.json();
+        if (!res.ok) {
+          throw new Error(data?.error || `Bi-weekly API request failed (${res.status})`);
+        }
+        return data;
+      },
+    );
   },
 
   getOverloadPlan: async (userId: number) => {
-    const res = await fetch(`${API_URL}/progress/overload/${userId}`);
-    const contentType = res.headers.get('content-type') || '';
-    if (!contentType.includes('application/json')) {
-      const text = await res.text();
-      throw new Error(`Overload API returned non-JSON response (status ${res.status}): ${text.slice(0, 120)}`);
-    }
-    const data = await res.json();
-    if (!res.ok) {
-      throw new Error(data?.error || `Overload API request failed (${res.status})`);
-    }
-    return data;
+    return withOfflineReadFallback(
+      offlineCacheKeys.overloadPlan(userId),
+      async () => {
+        const res = await fetch(`${API_URL}/progress/overload/${userId}`);
+        const contentType = res.headers.get('content-type') || '';
+        if (!contentType.includes('application/json')) {
+          const text = await res.text();
+          throw new Error(`Overload API returned non-JSON response (status ${res.status}): ${text.slice(0, 120)}`);
+        }
+        const data = await res.json();
+        if (!res.ok) {
+          throw new Error(data?.error || `Overload API request failed (${res.status})`);
+        }
+        return data;
+      },
+    );
   },
 
   getRecoveryStatus: async (userId: number) => {
-    const res = await fetch(`${API_URL}/user/${userId}/recovery`);
-    return parseApiResponse(res, 'Failed to fetch recovery status');
+    return withOfflineReadFallback(
+      offlineCacheKeys.recoveryStatus(userId),
+      async () => {
+        const res = await fetch(`${API_URL}/user/${userId}/recovery`);
+        return parseApiResponse(res, 'Failed to fetch recovery status');
+      },
+    );
   },
 
   updateRecoveryFactors: async (userId: number, data: any) => {
@@ -1096,37 +1207,67 @@ export const api = {
   },
 
   getUserMissions: async (userId: number) => {
-    const res = await fetch(`${API_URL}/missions/${userId}`);
-    return parseApiResponse(res, 'Failed to fetch missions');
+    return withOfflineReadFallback(
+      offlineCacheKeys.userMissions(userId),
+      async () => {
+        const res = await fetch(`${API_URL}/missions/${userId}`);
+        return parseApiResponse(res, 'Failed to fetch missions');
+      },
+    );
   },
 
   getMissionHistory: async (userId: number) => {
-    const res = await fetch(`${API_URL}/missions/${userId}/history`);
-    return parseApiResponse(res, 'Failed to fetch mission history');
+    return withOfflineReadFallback(
+      offlineCacheKeys.missionHistory(userId),
+      async () => {
+        const res = await fetch(`${API_URL}/missions/${userId}/history`);
+        return parseApiResponse(res, 'Failed to fetch mission history');
+      },
+    );
   },
 
   getUserChallenges: async (userId: number) => {
-    const res = await fetch(`${API_URL}/challenges/${userId}`);
-    return parseApiResponse(res, 'Failed to fetch challenges');
+    return withOfflineReadFallback(
+      offlineCacheKeys.userChallenges(userId),
+      async () => {
+        const res = await fetch(`${API_URL}/challenges/${userId}`);
+        return parseApiResponse(res, 'Failed to fetch challenges');
+      },
+    );
   },
 
   getChallengeHistory: async (userId: number) => {
-    const res = await fetch(`${API_URL}/challenges/${userId}/history`);
-    return parseApiResponse(res, 'Failed to fetch challenge history');
+    return withOfflineReadFallback(
+      offlineCacheKeys.challengeHistory(userId),
+      async () => {
+        const res = await fetch(`${API_URL}/challenges/${userId}/history`);
+        return parseApiResponse(res, 'Failed to fetch challenge history');
+      },
+    );
   },
 
   getGamificationSummary: async (userId: number) => {
-    const res = await fetch(`${API_URL}/gamification/${userId}/summary`);
-    return parseApiResponse(res, 'Failed to fetch gamification summary');
+    return withOfflineReadFallback(
+      offlineCacheKeys.gamificationSummary(userId),
+      async () => {
+        const res = await fetch(`${API_URL}/gamification/${userId}/summary`);
+        return parseApiResponse(res, 'Failed to fetch gamification summary');
+      },
+    );
   },
 
   getLeaderboard: async (userId: number, period: 'monthly' | 'alltime' = 'alltime') => {
-    const res = await fetch(`${API_URL}/leaderboard/${userId}?period=${period}`);
-    const data = await res.json();
-    if (!res.ok) {
-      throw new Error(data?.error || 'Failed to fetch leaderboard');
-    }
-    return data;
+    return withOfflineReadFallback(
+      offlineCacheKeys.leaderboard(userId, period),
+      async () => {
+        const res = await fetch(`${API_URL}/leaderboard/${userId}?period=${period}`);
+        const data = await res.json();
+        if (!res.ok) {
+          throw new Error(data?.error || 'Failed to fetch leaderboard');
+        }
+        return data;
+      },
+    );
   },
 
   updateProfilePicture: async (userId: number, profilePicture: string) => {
@@ -1152,12 +1293,17 @@ export const api = {
   },
 
   getProfileDetails: async (userId: number) => {
-    const res = await fetch(`${API_URL}/profile/${userId}/details`);
-    const data = await res.json();
-    if (!res.ok) {
-      throw new Error(data?.error || 'Failed to fetch profile details');
-    }
-    return data;
+    return withOfflineReadFallback(
+      offlineCacheKeys.profileDetails(userId),
+      async () => {
+        const res = await fetch(`${API_URL}/profile/${userId}/details`);
+        const data = await res.json();
+        if (!res.ok) {
+          throw new Error(data?.error || 'Failed to fetch profile details');
+        }
+        return data;
+      },
+    );
   },
 
   updateProfileDetails: async (userId: number, payload: any) => {
@@ -1190,20 +1336,25 @@ export const api = {
   },
 
   getProfileStats: async (userId: number) => {
-    const res = await fetch(`${API_URL}/profile/${userId}/stats`);
-    const contentType = res.headers.get('content-type') || '';
-    if (!contentType.includes('application/json')) {
-      if (res.status === 404) {
-        return { completedExercises: 0, firstCompletedAt: null, rankPosition: 0, totalMembers: 0 };
-      }
-      const text = await res.text();
-      throw new Error(`Profile stats API returned non-JSON response (status ${res.status}): ${text.slice(0, 120)}`);
-    }
-    const data = await res.json();
-    if (!res.ok) {
-      throw new Error(data?.error || 'Failed to fetch profile stats');
-    }
-    return data;
+    return withOfflineReadFallback(
+      offlineCacheKeys.profileStats(userId),
+      async () => {
+        const res = await fetch(`${API_URL}/profile/${userId}/stats`);
+        const contentType = res.headers.get('content-type') || '';
+        if (!contentType.includes('application/json')) {
+          if (res.status === 404) {
+            return { completedExercises: 0, firstCompletedAt: null, rankPosition: 0, totalMembers: 0 };
+          }
+          const text = await res.text();
+          throw new Error(`Profile stats API returned non-JSON response (status ${res.status}): ${text.slice(0, 120)}`);
+        }
+        const data = await res.json();
+        if (!res.ok) {
+          throw new Error(data?.error || 'Failed to fetch profile stats');
+        }
+        return data;
+      },
+    );
   },
 
   chatCompletions: async (payload: {

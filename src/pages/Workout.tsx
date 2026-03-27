@@ -32,6 +32,7 @@ import {
   type TodayWorkoutSelection,
   type WorkoutAssignmentHistoryEntry,
 } from '../services/todayWorkoutSelection';
+import { offlineCacheKeys, readOfflineCacheValue } from '../services/offlineCache';
 import { OPEN_PICKED_WORKOUT_PLAN } from '../services/workoutNavigation';
 import { getActiveT2PremiumConfig } from '../services/premiumPlan';
 import { useScrollToTopOnChange } from '../shared/scroll';
@@ -1550,6 +1551,112 @@ export function Workout({
         return;
       }
 
+      const hydrateWorkoutSnapshot = (program: any, progress: any) => {
+        const nextProgramProgress = progress && typeof progress === 'object' ? progress : null;
+        const nextWeekPlanWorkouts = buildWeekPlanWorkouts(program);
+        const nextSelectableWorkouts = nextWeekPlanWorkouts.filter(hasWorkoutExercises);
+        const storedSelection = readTodayWorkoutSelection(workoutStorageScope);
+        const nextSelectedWorkout = storedSelection
+          ? nextWeekPlanWorkouts.find((workout) => workout.key === storedSelection.workoutKey) || null
+          : null;
+        const normalizedSelection = hasWorkoutExercises(nextSelectedWorkout) ? storedSelection : null;
+        setUserProgram({
+          ...(program || {}),
+          workouts: Array.isArray(program?.currentWeekWorkouts)
+            ? program.currentWeekWorkouts
+            : Array.isArray(program?.workouts)
+              ? program.workouts
+              : [],
+        });
+        setProgramProgress(nextProgramProgress);
+
+        setWeekPlanWorkouts(nextWeekPlanWorkouts);
+        const nextPlanSummary = nextProgramProgress?.summary;
+        const nextPlanCompleted = Boolean(
+          nextProgramProgress?.hasActiveProgram
+          && Number(nextPlanSummary?.totalWeeks || program?.totalWeeks || 0) > 0
+          && (
+            (Number(nextPlanSummary?.plannedWorkouts || 0) > 0
+              && Number(nextPlanSummary?.completedWorkouts || 0) >= Number(nextPlanSummary?.plannedWorkouts || 0))
+            || Number(nextPlanSummary?.calendarDaysLeft ?? -1) === 0
+          )
+        );
+
+        if (nextPlanCompleted) {
+          clearTodayWorkoutSelection(workoutStorageScope);
+          clearLocalWorkoutState(workoutStorageScope);
+          setTodayWorkoutSelection(null);
+          setWorkoutAssignmentHistory(readWorkoutAssignmentHistory(workoutStorageScope));
+          setSelectedWorkoutKey('');
+          setTodayExercises([]);
+          setCompletedExercises([]);
+          setExerciseSets({});
+          setCurrentWorkoutName(renewalCopy.completedTitle);
+          setCurrentWorkoutDayLabel(renewalCopy.completedSubtitle);
+          localStorage.setItem(homeMetricStorageKeys.homeWorkoutProgress, '0');
+          localStorage.setItem(workoutStorageKeys.exerciseCount, '0');
+          localStorage.removeItem(workoutStorageKeys.exerciseSnapshot);
+          setView('overview');
+          return;
+        }
+
+        if (storedSelection && !hasWorkoutExercises(nextSelectedWorkout)) {
+          clearTodayWorkoutSelection(workoutStorageScope);
+        }
+        setTodayWorkoutSelection(normalizedSelection);
+        setWorkoutAssignmentHistory(readWorkoutAssignmentHistory(workoutStorageScope));
+        setSelectedWorkoutKey((currentKey) => {
+          if (currentKey && nextSelectableWorkouts.some((workout) => workout.key === currentKey)) {
+            return currentKey;
+          }
+          return normalizedSelection?.workoutKey
+            || nextSelectableWorkouts.find((workout) => workout.isToday)?.key
+            || nextSelectableWorkouts[0]?.key
+            || '';
+        });
+
+        if (!normalizedSelection || !hasWorkoutExercises(nextSelectedWorkout)) {
+          clearLocalWorkoutState(workoutStorageScope);
+          setTodayExercises([]);
+          setCompletedExercises([]);
+          setExerciseSets({});
+          setCurrentWorkoutName('Rest Day');
+          setCurrentWorkoutDayLabel(
+            formatWorkoutDayLabel(new Date().toLocaleDateString('en-US', { weekday: 'long' }), 'Today'),
+          );
+          localStorage.setItem(homeMetricStorageKeys.homeWorkoutProgress, '0');
+          localStorage.setItem(workoutStorageKeys.exerciseCount, '0');
+          localStorage.removeItem(workoutStorageKeys.exerciseSnapshot);
+          return;
+        }
+
+        const storedState = loadLocalWorkoutState(workoutStorageScope);
+        setCompletedExercises(storedState.completedExercises);
+        setExerciseSets(storedState.exerciseSets);
+        const normalizedExtras = Array.isArray(storedState.extraExercises)
+          ? storedState.extraExercises.map((ex: any) => normalizeWorkoutExerciseEntry(ex, true))
+          : [];
+        const normalizedSnapshot = Array.isArray(storedState.exerciseSnapshot)
+          ? storedState.exerciseSnapshot.map((ex: any) => normalizeWorkoutExerciseEntry(ex, Boolean(ex?.isExtra)))
+          : [];
+
+        syncTodayExercises(
+          storedState.hasExerciseSnapshot
+            ? normalizedSnapshot
+            : [...(nextSelectedWorkout.exercises || []), ...normalizedExtras],
+        );
+        setCurrentWorkoutDayLabel(String(nextSelectedWorkout.dayLabel || workoutDay).trim() || 'Workout');
+        setCurrentWorkoutName(
+          String(nextSelectedWorkout.workoutName || workoutDay).trim() || 'Workout',
+        );
+      };
+
+      const cachedProgram = readOfflineCacheValue<any>(offlineCacheKeys.userProgram(userId));
+      const cachedProgress = readOfflineCacheValue<any>(offlineCacheKeys.programProgress(userId));
+      if (cachedProgram) {
+        hydrateWorkoutSnapshot(cachedProgram, cachedProgress);
+      }
+
       const [program, progress] = await Promise.all([
         api.getUserProgram(userId),
         api.getProgramProgress(userId).catch((progressError) => {
@@ -1557,106 +1664,13 @@ export function Workout({
           return null;
         }),
       ]);
-      const nextProgramProgress = progress && typeof progress === 'object' ? progress : null;
-      const nextWeekPlanWorkouts = buildWeekPlanWorkouts(program);
-      const nextSelectableWorkouts = nextWeekPlanWorkouts.filter(hasWorkoutExercises);
-      const storedSelection = readTodayWorkoutSelection(workoutStorageScope);
-      const nextSelectedWorkout = storedSelection
-        ? nextWeekPlanWorkouts.find((workout) => workout.key === storedSelection.workoutKey) || null
-        : null;
-      const normalizedSelection = hasWorkoutExercises(nextSelectedWorkout) ? storedSelection : null;
-      setUserProgram({
-        ...(program || {}),
-        workouts: Array.isArray(program?.currentWeekWorkouts)
-          ? program.currentWeekWorkouts
-          : Array.isArray(program?.workouts)
-            ? program.workouts
-            : [],
-      });
-      setProgramProgress(nextProgramProgress);
-
-      setWeekPlanWorkouts(nextWeekPlanWorkouts);
-      const nextPlanSummary = nextProgramProgress?.summary;
-      const nextPlanCompleted = Boolean(
-        nextProgramProgress?.hasActiveProgram
-        && Number(nextPlanSummary?.totalWeeks || program?.totalWeeks || 0) > 0
-        && (
-          (Number(nextPlanSummary?.plannedWorkouts || 0) > 0
-            && Number(nextPlanSummary?.completedWorkouts || 0) >= Number(nextPlanSummary?.plannedWorkouts || 0))
-          || Number(nextPlanSummary?.calendarDaysLeft ?? -1) === 0
-        )
-      );
-
-      if (nextPlanCompleted) {
-        clearTodayWorkoutSelection(workoutStorageScope);
-        clearLocalWorkoutState(workoutStorageScope);
-        setTodayWorkoutSelection(null);
-        setWorkoutAssignmentHistory(readWorkoutAssignmentHistory(workoutStorageScope));
-        setSelectedWorkoutKey('');
-        setTodayExercises([]);
-        setCompletedExercises([]);
-        setExerciseSets({});
-        setCurrentWorkoutName(renewalCopy.completedTitle);
-        setCurrentWorkoutDayLabel(renewalCopy.completedSubtitle);
-        localStorage.setItem(homeMetricStorageKeys.homeWorkoutProgress, '0');
-        localStorage.setItem(workoutStorageKeys.exerciseCount, '0');
-        localStorage.removeItem(workoutStorageKeys.exerciseSnapshot);
-        setView('overview');
-        return;
-      }
-
-      if (storedSelection && !hasWorkoutExercises(nextSelectedWorkout)) {
-        clearTodayWorkoutSelection(workoutStorageScope);
-      }
-      setTodayWorkoutSelection(normalizedSelection);
-      setWorkoutAssignmentHistory(readWorkoutAssignmentHistory(workoutStorageScope));
-      setSelectedWorkoutKey((currentKey) => {
-        if (currentKey && nextSelectableWorkouts.some((workout) => workout.key === currentKey)) {
-          return currentKey;
-        }
-        return normalizedSelection?.workoutKey
-          || nextSelectableWorkouts.find((workout) => workout.isToday)?.key
-          || nextSelectableWorkouts[0]?.key
-          || '';
-      });
-
-      if (!normalizedSelection || !hasWorkoutExercises(nextSelectedWorkout)) {
-        clearLocalWorkoutState(workoutStorageScope);
-        setTodayExercises([]);
-        setCompletedExercises([]);
-        setExerciseSets({});
-        setCurrentWorkoutName('Rest Day');
-        setCurrentWorkoutDayLabel(
-          formatWorkoutDayLabel(new Date().toLocaleDateString('en-US', { weekday: 'long' }), 'Today'),
-        );
-        localStorage.setItem(homeMetricStorageKeys.homeWorkoutProgress, '0');
-        localStorage.setItem(workoutStorageKeys.exerciseCount, '0');
-        localStorage.removeItem(workoutStorageKeys.exerciseSnapshot);
-        return;
-      }
-
-      const storedState = loadLocalWorkoutState(workoutStorageScope);
-      setCompletedExercises(storedState.completedExercises);
-      setExerciseSets(storedState.exerciseSets);
-      const normalizedExtras = Array.isArray(storedState.extraExercises)
-        ? storedState.extraExercises.map((ex: any) => normalizeWorkoutExerciseEntry(ex, true))
-        : [];
-      const normalizedSnapshot = Array.isArray(storedState.exerciseSnapshot)
-        ? storedState.exerciseSnapshot.map((ex: any) => normalizeWorkoutExerciseEntry(ex, Boolean(ex?.isExtra)))
-        : [];
-
-      syncTodayExercises(
-        storedState.hasExerciseSnapshot
-          ? normalizedSnapshot
-          : [...(nextSelectedWorkout.exercises || []), ...normalizedExtras],
-      );
-      setCurrentWorkoutDayLabel(String(nextSelectedWorkout.dayLabel || workoutDay).trim() || 'Workout');
-      setCurrentWorkoutName(
-        String(nextSelectedWorkout.workoutName || workoutDay).trim() || 'Workout',
-      );
+      hydrateWorkoutSnapshot(program, progress);
     } catch (error) {
       console.error('Failed to fetch today workout:', error);
       setLoadError(error instanceof Error ? error.message : 'Failed to load workout plan.');
+      if (readOfflineCacheValue<any>(offlineCacheKeys.userProgram(userId))) {
+        return;
+      }
       setTodayExercises([]);
       setWeekPlanWorkouts([]);
       setSelectedWorkoutKey('');

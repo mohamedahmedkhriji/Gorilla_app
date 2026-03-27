@@ -4,6 +4,7 @@ import { Header } from '../ui/Header';
 import { Card } from '../ui/Card';
 import { LeaderboardScreen } from './LeaderboardScreen';
 import { api } from '../../services/api';
+import { offlineCacheKeys, readOfflineCacheValue } from '../../services/offlineCache';
 import { getRankBadgeImage } from '../../services/rankTheme';
 import { AppLanguage, getActiveLanguage, getLanguageLocale, pickLanguage } from '../../services/language';
 import {
@@ -291,6 +292,30 @@ export function RankingsRewardsScreen({ onBack }: RankingsRewardsScreenProps) {
   const userId = parseInt(String(appUser?.id || localStorage.getItem('appUserId') || localStorage.getItem('userId') || '0'), 10);
 
   useEffect(() => {
+    if (userId > 0) {
+      const cachedMissions = readOfflineCacheValue<MissionItem[]>(offlineCacheKeys.userMissions(userId));
+      const cachedMissionHistory = readOfflineCacheValue<any[]>(offlineCacheKeys.missionHistory(userId));
+      const cachedChallenges = readOfflineCacheValue<any>(offlineCacheKeys.userChallenges(userId));
+      const cachedChallengeHistory = readOfflineCacheValue<any[]>(offlineCacheKeys.challengeHistory(userId));
+      const cachedSummary = readOfflineCacheValue<any>(offlineCacheKeys.gamificationSummary(userId));
+
+      if (Array.isArray(cachedMissions)) setMissions(cachedMissions);
+      if (Array.isArray(cachedMissionHistory)) setMissionHistory(cachedMissionHistory);
+      if (cachedChallenges && Array.isArray(cachedChallenges.daily)) setDailyChallenges(cachedChallenges.daily);
+      if (cachedChallenges && Array.isArray(cachedChallenges.weekly)) setWeeklyChallenges(cachedChallenges.weekly);
+      if (Array.isArray(cachedChallengeHistory)) setChallengeHistory(cachedChallengeHistory);
+      if (cachedSummary && !cachedSummary.error) {
+        setSummary({
+          totalPoints: Number(cachedSummary.totalPoints || 0),
+          rank: String(cachedSummary.rank || 'Bronze'),
+          nextRank: cachedSummary.nextRank || null,
+        });
+      }
+      if (cachedMissions || cachedMissionHistory || cachedChallenges || cachedChallengeHistory || cachedSummary) {
+        setLoading(false);
+      }
+    }
+
     const fetchGamification = async () => {
       if (!userId || userId <= 0) {
         setLoading(false);

@@ -16,6 +16,7 @@ import { Card } from '../components/ui/Card';
 import { api } from '../services/api';
 import { getNutritionInputsOverride, NUTRITION_INPUTS_UPDATED_EVENT } from '../services/nutritionOverrides';
 import { AppLanguage, getActiveLanguage, getStoredLanguage } from '../services/language';
+import { offlineCacheKeys, readOfflineCacheValue } from '../services/offlineCache';
 
 interface MyNutritionProps {
   onBack: () => void;
@@ -426,6 +427,79 @@ export function MyNutrition({ onBack }: MyNutritionProps) {
   useEffect(() => {
     let cancelled = false;
 
+    const buildNutritionContext = (profile: any, program: any) => {
+      const persistedOverride = getNutritionInputsOverride(userId);
+      const age = Number((persistedOverride?.age ?? profile?.age) || 0);
+      const weightKg = Number((persistedOverride?.weightKg ?? profile?.weightKg) || 0);
+      const heightCm = Number((persistedOverride?.heightCm ?? profile?.heightCm) || 0);
+
+      if (!(age > 0 && weightKg > 0 && heightCm > 0)) {
+        return null;
+      }
+
+      const sex: 'male' | 'female' = persistedOverride?.sex
+        || (String(profile?.gender || '').toLowerCase() === 'female' ? 'female' : 'male');
+      const goalRaw = String(persistedOverride?.goal || profile?.fitnessGoal || program?.goal || 'general_fitness');
+      const daysPerWeek = Math.max(1, Math.min(
+        7,
+        Number(
+          persistedOverride?.daysPerWeek
+          ?? program?.daysPerWeek
+          ?? (Array.isArray(program?.currentWeekWorkouts) ? program.currentWeekWorkouts.length : 0)
+          ?? 4,
+        ),
+      ));
+      const activity = inferActivityLevel(daysPerWeek);
+      const sexConstant = sex === 'female' ? -161 : 5;
+      const bmr = Math.round((10 * weightKg) + (6.25 * heightCm) - (5 * age) + sexConstant);
+      const computedTdee = Math.round(bmr * ACTIVITY_FACTORS[activity]);
+      const proteinMultiplier = getProteinMultiplier(goalRaw);
+      const caloriesDelta = getCaloriesDelta(goalRaw);
+      const targetCalories = Math.max(1200, Math.round(computedTdee + caloriesDelta));
+      const targetProtein = Math.max(60, Math.round(weightKg * proteinMultiplier));
+      const targetFat = Math.max(40, Math.round((targetCalories * 0.27) / 9));
+      const targetCarbs = Math.max(50, Math.round((targetCalories - (targetProtein * 4) - (targetFat * 9)) / 4));
+      const waterLiters = clamp(
+        (weightKg * 0.035) + getWaterActivityBonusLiters(activity) + getWaterGoalBonusLiters(goalRaw),
+        1.8,
+        6.0,
+      );
+      const targetWaterMl = Math.round(waterLiters * 1000);
+
+      return {
+        goalRaw,
+        computedTdee,
+        request: {
+          userId,
+          targetCalories,
+          targetProtein,
+          targetCarbs,
+          targetFat,
+          targetWaterMl,
+          goal: goalRaw,
+        },
+      };
+    };
+
+    if (userId) {
+      const cachedProfile = readOfflineCacheValue<any>(offlineCacheKeys.profileDetails(userId));
+      const cachedProgram = readOfflineCacheValue<any>(offlineCacheKeys.userProgram(userId));
+      const cachedContext = buildNutritionContext(cachedProfile, cachedProgram);
+      if (cachedContext) {
+        const cachedPlan = readOfflineCacheValue<NutritionPlanResponse>(
+          offlineCacheKeys.dailyNutritionPlan(userId, cachedContext.request),
+        );
+        if (cachedPlan) {
+          setPlan(cachedPlan);
+          setGoalLabel(formatGoalLabel(cachedContext.goalRaw));
+          setGoalKey(cachedContext.goalRaw);
+          setTdee(cachedContext.computedTdee);
+          setError('');
+          setLoading(false);
+        }
+      }
+    }
+
     const loadNutrition = async () => {
       setLoading(true);
       setError('');
@@ -444,61 +518,21 @@ export function MyNutrition({ onBack }: MyNutritionProps) {
 
         if (cancelled) return;
 
-        const persistedOverride = getNutritionInputsOverride(userId);
-        const age = Number((persistedOverride?.age ?? profile?.age) || 0);
-        const weightKg = Number((persistedOverride?.weightKg ?? profile?.weightKg) || 0);
-        const heightCm = Number((persistedOverride?.heightCm ?? profile?.heightCm) || 0);
-
-        if (!(age > 0 && weightKg > 0 && heightCm > 0)) {
+        const nutritionContext = buildNutritionContext(profile, program);
+        if (!nutritionContext) {
           setError(copy.missingProfile);
           setPlan(null);
           setLoading(false);
           return;
         }
 
-        const sex: 'male' | 'female' = persistedOverride?.sex
-          || (String(profile?.gender || '').toLowerCase() === 'female' ? 'female' : 'male');
-        const goalRaw = String(persistedOverride?.goal || profile?.fitnessGoal || program?.goal || 'general_fitness');
-        const daysPerWeek = Math.max(1, Math.min(
-          7,
-          Number(
-            persistedOverride?.daysPerWeek
-            ?? program?.daysPerWeek
-            ?? (Array.isArray(program?.currentWeekWorkouts) ? program.currentWeekWorkouts.length : 0)
-            ?? 4,
-          ),
-        ));
-        const activity = inferActivityLevel(daysPerWeek);
-        const sexConstant = sex === 'female' ? -161 : 5;
-        const bmr = Math.round((10 * weightKg) + (6.25 * heightCm) - (5 * age) + sexConstant);
-        const computedTdee = Math.round(bmr * ACTIVITY_FACTORS[activity]);
-        const proteinMultiplier = getProteinMultiplier(goalRaw);
-        const caloriesDelta = getCaloriesDelta(goalRaw);
-        const targetCalories = Math.max(1200, Math.round(computedTdee + caloriesDelta));
-        const targetProtein = Math.max(60, Math.round(weightKg * proteinMultiplier));
-        const targetFat = Math.max(40, Math.round((targetCalories * 0.27) / 9));
-        const targetCarbs = Math.max(50, Math.round((targetCalories - (targetProtein * 4) - (targetFat * 9)) / 4));
-        const waterLiters = clamp(
-          (weightKg * 0.035) + getWaterActivityBonusLiters(activity) + getWaterGoalBonusLiters(goalRaw),
-          1.8,
-          6.0,
-        );
-        const targetWaterMl = Math.round(waterLiters * 1000);
-
-        const dailyPlan = await api.getDailyNutritionPlan({
-          targetCalories,
-          targetProtein,
-          targetCarbs,
-          targetFat,
-          targetWaterMl,
-          goal: goalRaw,
-        });
+        const dailyPlan = await api.getDailyNutritionPlan(nutritionContext.request);
 
         if (cancelled) return;
         setPlan(dailyPlan as NutritionPlanResponse);
-        setGoalLabel(formatGoalLabel(goalRaw));
-        setGoalKey(goalRaw);
-        setTdee(computedTdee);
+        setGoalLabel(formatGoalLabel(nutritionContext.goalRaw));
+        setGoalKey(nutritionContext.goalRaw);
+        setTdee(nutritionContext.computedTdee);
       } catch (loadError: unknown) {
         const message = loadError instanceof Error ? loadError.message : copy.loadFailed;
         if (!cancelled) {

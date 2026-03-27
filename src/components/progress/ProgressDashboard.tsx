@@ -7,6 +7,7 @@ import { api } from '../../services/api';
 import { emojiFire, emojiRightArrow } from '../../services/emojiTheme';
 import { getBodyPartImage } from '../../services/bodyPartTheme';
 import { AppLanguage, getActiveLanguage, getStoredLanguage } from '../../services/language';
+import { offlineCacheKeys, readOfflineCacheValue } from '../../services/offlineCache';
 import { buildT2PremiumProgressInsight, getActiveT2PremiumConfig } from '../../services/premiumPlan';
 import { getLatestT2WorkoutCheckIn, T2_CHECKIN_UPDATED_EVENT } from '../../services/t2CheckIn';
 interface ProgressDashboardProps {
@@ -388,6 +389,68 @@ export function ProgressDashboard({ onViewReport, onViewStrengthScore }: Progres
       setMuscleDistribution([]);
       setActiveProgramData(null);
       return;
+    }
+
+    const applySnapshot = (progress: any, programData: any, planDistributionData?: any, historyDistributionData?: any) => {
+      const weeklyRate = Number(progress?.summary?.weeklyCompletionRate || 0);
+      const workoutsPlannedThisWeek = inferPlannedWorkoutsThisWeek(progress, programData);
+      const workoutsCompletedThisWeek = Number(progress?.summary?.workoutsCompletedThisWeek || 0);
+      const workoutsMissedThisWeek = Number(progress?.summary?.workoutsMissedThisWeek || 0);
+      const volumeLoadAllTime = Number(
+        progress?.summary?.volumeLoadAllTime
+        ?? progress?.summary?.volumeLoadSinceStart
+        ?? progress?.summary?.volumeLoadLast30Days
+        ?? 0,
+      );
+
+      setStats({
+        totalWorkouts: Number(progress?.summary?.completedWorkouts || 0),
+        totalVolume: Math.round((volumeLoadAllTime / 1000) * 10) / 10,
+        consistency: Math.max(0, Math.min(100, weeklyRate)),
+        currentStreak: Number(progress?.summary?.workoutStreakDays || 0),
+        workoutsCompletedThisWeek,
+        workoutsPlannedThisWeek,
+        workoutsMissedThisWeek,
+        workoutsRemainingThisWeek: Math.max(0, workoutsPlannedThisWeek - workoutsCompletedThisWeek - workoutsMissedThisWeek),
+      });
+      setActiveProgramData(programData || null);
+
+      const topPlanDistribution = Array.isArray(planDistributionData?.distribution)
+        ? planDistributionData.distribution.slice(0, 3)
+        : [];
+      if (topPlanDistribution.length > 0) {
+        setMuscleDistribution(normalizeDistributionItems(topPlanDistribution));
+        return;
+      }
+
+      const programFallback = buildProgramDistribution(programData);
+      if (programFallback.length > 0) {
+        setMuscleDistribution(programFallback);
+        return;
+      }
+
+      const topHistoryDistribution = Array.isArray(historyDistributionData?.distribution)
+        ? historyDistributionData.distribution.slice(0, 3)
+        : [];
+      if (topHistoryDistribution.length > 0) {
+        setMuscleDistribution(normalizeDistributionItems(topHistoryDistribution));
+        return;
+      }
+
+      setMuscleDistribution([]);
+    };
+
+    const cachedProgress = readOfflineCacheValue<any>(offlineCacheKeys.programProgress(userId));
+    const cachedProgramData = readOfflineCacheValue<any>(offlineCacheKeys.userProgram(userId));
+    const cachedPlanDistribution = readOfflineCacheValue<any>(offlineCacheKeys.planMuscleDistribution(userId));
+    const cachedHistoryDistribution = readOfflineCacheValue<any>(offlineCacheKeys.muscleDistribution(userId, 30));
+    if (cachedProgress || cachedProgramData || cachedPlanDistribution || cachedHistoryDistribution) {
+      applySnapshot(
+        cachedProgress || {},
+        cachedProgramData || null,
+        cachedPlanDistribution,
+        cachedHistoryDistribution,
+      );
     }
 
     let consistency = 0;

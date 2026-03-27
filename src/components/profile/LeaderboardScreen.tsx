@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Header } from '../ui/Header';
 import { Trophy, Medal, Award, UserRound } from 'lucide-react';
 import { api } from '../../services/api';
+import { offlineCacheKeys, readOfflineCacheValue } from '../../services/offlineCache';
 import { rankTopScoreIcon } from '../../services/rankTheme';
 import { getActiveLanguage, getStoredLanguage, pickLanguage } from '../../services/language';
 
@@ -102,7 +103,31 @@ export function LeaderboardScreen({ onBack }: LeaderboardScreenProps) {
   const currentUser = JSON.parse(localStorage.getItem('appUser') || localStorage.getItem('user') || '{}');
   const currentUserId = String(currentUser?.id || '');
 
+  const mapLeaderboardRows = (result: any) =>
+    Array.isArray(result?.leaderboard)
+      ? result.leaderboard.map((row: LeaderboardApiRow) => {
+          const points = Number(row?.points || 0);
+          return {
+            id: String(row?.id || ''),
+            name: row?.name || copy.fallbackUser,
+            points,
+            rank: Number(row?.rank || 0),
+            level: getLevelFromPoints(points),
+            profilePicture: isValidImageDataUrl(row?.profile_picture) ? row.profile_picture : null,
+          };
+        })
+      : [];
+
   useEffect(() => {
+    if (currentUser?.id) {
+      const cachedLeaderboard = readOfflineCacheValue<any>(
+        offlineCacheKeys.leaderboard(Number(currentUser.id), tab),
+      );
+      if (cachedLeaderboard) {
+        setLeaderboard(mapLeaderboardRows(cachedLeaderboard));
+      }
+    }
+
     const fetchLeaderboard = async () => {
       if (!currentUser?.id) {
         setLeaderboard([]);
@@ -113,20 +138,7 @@ export function LeaderboardScreen({ onBack }: LeaderboardScreenProps) {
       setError(null);
       try {
         const result = await api.getLeaderboard(Number(currentUser.id), tab);
-        const normalized = Array.isArray(result?.leaderboard)
-          ? result.leaderboard.map((row: LeaderboardApiRow) => {
-              const points = Number(row?.points || 0);
-              return {
-                id: String(row?.id || ''),
-                name: row?.name || copy.fallbackUser,
-                points,
-                rank: Number(row?.rank || 0),
-                level: getLevelFromPoints(points),
-                profilePicture: isValidImageDataUrl(row?.profile_picture) ? row.profile_picture : null,
-              };
-            })
-          : [];
-        setLeaderboard(normalized);
+        setLeaderboard(mapLeaderboardRows(result));
       } catch (err) {
         console.error('Failed to load leaderboard:', err);
         setError(copy.loadError);

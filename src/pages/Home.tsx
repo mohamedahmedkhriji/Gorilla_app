@@ -39,6 +39,7 @@ import {
   TODAY_WORKOUT_SELECTION_UPDATED_EVENT,
   type TodayWorkoutSelection,
 } from '../services/todayWorkoutSelection';
+import { offlineCacheKeys, readOfflineCacheValue } from '../services/offlineCache';
 import { OPEN_PICKED_WORKOUT_PLAN } from '../services/workoutNavigation';
 import { useScrollToTopOnChange } from '../shared/scroll';
 interface HomeProps {
@@ -1131,6 +1132,58 @@ export function Home({
     
     setGreeting(userName);
 
+    const applyProgramSnapshot = (programData: any) => {
+      const weeklyWorkouts = Array.isArray(programData?.currentWeekWorkouts)
+        ? programData.currentWeekWorkouts
+        : Array.isArray(programData?.workouts)
+          ? programData.workouts
+          : [];
+      const normalizedWeekPlan = buildWeekPlanWorkoutChoices(weeklyWorkouts);
+      const storedSelection = readTodayWorkoutSelection(workoutStorageScope);
+      const matchedSelection = storedSelection
+        ? normalizedWeekPlan.find((workout) => workout.key === storedSelection.workoutKey) || null
+        : null;
+
+      setUserProgram({ ...(programData || {}), workouts: weeklyWorkouts });
+      setWeekPlanWorkouts(normalizedWeekPlan);
+      if (storedSelection && !matchedSelection) {
+        clearTodayWorkoutSelection(workoutStorageScope);
+      }
+      setTodayWorkoutSelection(matchedSelection ? storedSelection : null);
+    };
+
+    const applyRecoverySnapshot = (data: any) => {
+      if (typeof data?.overallRecovery === 'number') {
+        updateRecovery(data.overallRecovery);
+        return;
+      }
+
+      if (Array.isArray(data?.recovery) && data.recovery.length > 0) {
+        const avg = data.recovery.reduce((sum: number, entry: any) => sum + (Number(entry.score) || 0), 0) / data.recovery.length;
+        updateRecovery(avg);
+        return;
+      }
+
+      updateRecovery(100);
+    };
+
+    if (currentUserId) {
+      const cachedProgram = readOfflineCacheValue<any>(offlineCacheKeys.userProgram(currentUserId));
+      if (cachedProgram) {
+        applyProgramSnapshot(cachedProgram);
+      }
+
+      const cachedProgress = readOfflineCacheValue<any>(offlineCacheKeys.programProgress(currentUserId));
+      if (cachedProgress?.summary) {
+        setProgramProgress(cachedProgress.summary || null);
+      }
+
+      const cachedRecovery = readOfflineCacheValue<any>(offlineCacheKeys.recoveryStatus(currentUserId));
+      if (cachedRecovery) {
+        applyRecoverySnapshot(cachedRecovery);
+      }
+    }
+
     // Fetch user program
     const fetchProgram = async () => {
       setExtraTodayExercises(loadTodayExtraExercises(workoutStorageKeys));
@@ -1153,23 +1206,7 @@ export function Home({
 
       try {
         const programData = await api.getUserProgram(currentUserId);
-        const weeklyWorkouts = Array.isArray(programData?.currentWeekWorkouts)
-          ? programData.currentWeekWorkouts
-          : Array.isArray(programData?.workouts)
-            ? programData.workouts
-            : [];
-        const normalizedWeekPlan = buildWeekPlanWorkoutChoices(weeklyWorkouts);
-        const storedSelection = readTodayWorkoutSelection(workoutStorageScope);
-        const matchedSelection = storedSelection
-          ? normalizedWeekPlan.find((workout) => workout.key === storedSelection.workoutKey) || null
-          : null;
-
-        setUserProgram({ ...(programData || {}), workouts: weeklyWorkouts });
-        setWeekPlanWorkouts(normalizedWeekPlan);
-        if (storedSelection && !matchedSelection) {
-          clearTodayWorkoutSelection(workoutStorageScope);
-        }
-        setTodayWorkoutSelection(matchedSelection ? storedSelection : null);
+        applyProgramSnapshot(programData);
       } catch (error) {
         console.error('Failed to fetch user program:', error);
         setUserProgram({ workouts: [] });
@@ -1197,18 +1234,7 @@ export function Home({
 
       try {
         const data = await api.getRecoveryStatus(user.id);
-        if (typeof data?.overallRecovery === 'number') {
-          updateRecovery(data.overallRecovery);
-          return;
-        }
-
-        if (Array.isArray(data?.recovery) && data.recovery.length > 0) {
-          const avg = data.recovery.reduce((sum: number, m: any) => sum + (Number(m.score) || 0), 0) / data.recovery.length;
-          updateRecovery(avg);
-          return;
-        }
-
-        updateRecovery(100);
+        applyRecoverySnapshot(data);
       } catch (error) {
         console.error('Failed to fetch recovery status:', error);
       }

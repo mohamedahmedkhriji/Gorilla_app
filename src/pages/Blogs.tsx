@@ -19,6 +19,7 @@ import { CoachmarkOverlay, type CoachmarkStep } from '../components/coachmarks/C
 import { Header } from '../components/ui/Header';
 import { getStoredAppUser, getStoredUserId } from '../shared/authStorage';
 import { AppLanguage, getActiveLanguage, getStoredLanguage } from '../services/language';
+import { offlineCacheKeys, readOfflineCacheValue } from '../services/offlineCache';
 import {
   BLOGS_COACHMARK_TOUR_ID,
   BLOGS_COACHMARK_VERSION,
@@ -987,6 +988,27 @@ export function Blogs({
       setLoadingMore(false);
     }
   }, [copy.errorLoadMore, hasMore, loadFeedChunk, loadingMore, nextCursor, userId]);
+
+  useEffect(() => {
+    if (!userId) return;
+
+    const cachedFeed = readOfflineCacheValue<any>(
+      offlineCacheKeys.blogsFeed(userId, { limit: FEED_PAGE_LIMIT }),
+    );
+    if (!cachedFeed) return;
+
+    const hiddenIds = readHiddenPostIds();
+    const nextPosts = Array.isArray(cachedFeed?.posts)
+      ? cachedFeed.posts.map(mapPost).filter((post: Post) => !hiddenIds.has(post.id))
+      : [];
+    const parsedCursor = parseFeedCursor(cachedFeed?.nextCursor);
+
+    setPosts(nextPosts);
+    setNextCursor(parsedCursor);
+    setHasMore(Boolean(cachedFeed?.hasMore) && Boolean(parsedCursor));
+    setError('');
+    setLoading(false);
+  }, [readHiddenPostIds, userId]);
 
   useEffect(() => {
     void loadInitialFeed('initial');

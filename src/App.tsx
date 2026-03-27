@@ -14,6 +14,7 @@ import { OPEN_PICKED_WORKOUT_PLAN } from './services/workoutNavigation';
 import { useScrollToTopOnChange } from './shared/scroll';
 import { clearStoredUserSession, getStoredAppUser, getStoredUserId, getStoredUserAuthToken, persistStoredUserSession } from './shared/authStorage';
 import { api } from './services/api';
+import { isOfflineApiError } from './services/offlineCache';
 import {
   APP_COACHMARK_TOUR_ID,
   APP_COACHMARK_VERSION,
@@ -87,12 +88,20 @@ export function App() {
           setIsLoggedIn(true);
           setHasOnboarded(Boolean(sessionUser.onboarding_completed));
         }
-      } catch {
-        clearStoredUserSession();
-        if (!cancelled) {
-          setIsLoggedIn(false);
-          setHasOnboarded(false);
-          setShowLogin(false);
+      } catch (error) {
+        if (isOfflineApiError(error) && user && userId && token && user.role === 'user') {
+          if (!cancelled) {
+            setIsLoggedIn(true);
+            setHasOnboarded(Boolean(user.onboarding_completed));
+            setShowLogin(false);
+          }
+        } else {
+          clearStoredUserSession();
+          if (!cancelled) {
+            setIsLoggedIn(false);
+            setHasOnboarded(false);
+            setShowLogin(false);
+          }
         }
       } finally {
         if (!cancelled) {
