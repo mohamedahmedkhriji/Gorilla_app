@@ -242,6 +242,7 @@ export const CustomerProfileModal: React.FC<CustomerProfileModalProps> = ({ clie
 
   const [profileDetails, setProfileDetails] = useState<any>(null);
   const [profileStats, setProfileStats] = useState<any>(null);
+  const [profilePicture, setProfilePicture] = useState<string | null>(client.profilePicture || null);
   const [programData, setProgramData] = useState<any>(null);
   const [programProgress, setProgramProgress] = useState<any>(null);
   const [missions, setMissions] = useState<any[]>([]);
@@ -286,6 +287,7 @@ export const CustomerProfileModal: React.FC<CustomerProfileModalProps> = ({ clie
     setAiCoachPrompt('');
     setAiDraftTemplateId(null);
     setAssigningTemplateId(null);
+    setProfilePicture(client.profilePicture || null);
   }, [userId]);
 
   useEffect(() => {
@@ -303,6 +305,7 @@ export const CustomerProfileModal: React.FC<CustomerProfileModalProps> = ({ clie
       const results = await Promise.allSettled([
         api.getProfileDetails(userId),
         api.getProfileStats(userId),
+        api.getProfilePicture(userId),
         api.getUserProgram(userId),
         api.getProgramProgress(userId),
         api.getUserMissions(userId),
@@ -326,14 +329,15 @@ export const CustomerProfileModal: React.FC<CustomerProfileModalProps> = ({ clie
 
       if (results[0].status === 'fulfilled') setProfileDetails(results[0].value);
       if (results[1].status === 'fulfilled') setProfileStats(results[1].value);
-      if (results[2].status === 'fulfilled') setProgramData(results[2].value);
-      if (results[3].status === 'fulfilled') setProgramProgress(results[3].value);
-      if (results[4].status === 'fulfilled') setMissions(Array.isArray(results[4].value) ? results[4].value : []);
-      if (results[5].status === 'fulfilled') setGamificationSummary(results[5].value);
-      if (results[6].status === 'fulfilled') setRecentActivity(results[6].value);
-      if (results[7].status === 'fulfilled') setOverloadPlan(results[7].value);
-      if (results[8].status === 'fulfilled') setStrengthProgress(results[8].value);
-      if (results[9].status === 'fulfilled') setInsightsHistory(results[9].value);
+      if (results[2].status === 'fulfilled') setProfilePicture(String(results[2].value?.profilePicture || '').trim() || null);
+      if (results[3].status === 'fulfilled') setProgramData(results[3].value);
+      if (results[4].status === 'fulfilled') setProgramProgress(results[4].value);
+      if (results[5].status === 'fulfilled') setMissions(Array.isArray(results[5].value) ? results[5].value : []);
+      if (results[6].status === 'fulfilled') setGamificationSummary(results[6].value);
+      if (results[7].status === 'fulfilled') setRecentActivity(results[7].value);
+      if (results[8].status === 'fulfilled') setOverloadPlan(results[8].value);
+      if (results[9].status === 'fulfilled') setStrengthProgress(results[9].value);
+      if (results[10].status === 'fulfilled') setInsightsHistory(results[10].value);
 
       setLoading(false);
     };
@@ -487,6 +491,7 @@ export const CustomerProfileModal: React.FC<CustomerProfileModalProps> = ({ clie
     ? overloadPlan.recommendations.slice(0, 3)
     : [];
   const strengthSummary = strengthProgress?.summary || null;
+  const resolvedProfilePicture = String(profilePicture || client.profilePicture || '').trim() || null;
   const readyTemplateById = useMemo(() => {
     const map = new Map<ReadyTemplateId, ReadyPlanTemplate>();
     READY_PLAN_TEMPLATES.forEach((template) => {
@@ -843,9 +848,9 @@ export const CustomerProfileModal: React.FC<CustomerProfileModalProps> = ({ clie
             <div className="flex justify-center mb-6">
               <div className={`relative w-full max-w-[240px] rounded-[28px] flex flex-col items-center px-6 pb-8 pt-8 border-2 ${style.bg} ${style.border} ${style.glow}`}>
                 <div className="w-24 h-24 rounded-3xl overflow-hidden border-2 border-white bg-white/20 flex items-center justify-center">
-                  {client.profilePicture ? (
+                  {resolvedProfilePicture ? (
                     <img
-                      src={client.profilePicture}
+                      src={resolvedProfilePicture}
                       alt={`${client.name} profile`}
                       className="w-full h-full object-cover"
                     />

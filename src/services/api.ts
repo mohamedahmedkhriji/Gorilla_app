@@ -296,7 +296,7 @@ export const api = {
 
     try {
       const res = await fetch(`${API_URL}/user/${userId}/program`);
-      const data = await res.json();
+      const data = await parseApiResponse(res, 'Failed to fetch user program');
       if (res.ok) {
         writeOfflineCache(cacheKey, data);
       }
@@ -318,6 +318,32 @@ export const api = {
       headers: { 'Content-Type': 'application/json' },
     });
     return parseApiResponse(res, 'Failed to mark today as missed');
+  },
+
+  syncPickedTodayWorkout: async (
+    userId: number,
+    payload: {
+      workoutName?: string;
+      dayLabel?: string;
+      durationMinutes?: number;
+      muscleGroups?: string[];
+      muscleGroup?: string | null;
+      exercises?: Array<{
+        exerciseName?: string;
+        targetMuscles?: string[];
+        muscleGroup?: string | null;
+        sets?: number;
+        reps?: string;
+      }>;
+      programAssignmentId?: number;
+    } = {},
+  ) => {
+    const res = await fetch(`${API_URL}/user/${userId}/program/today-workout/pick`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    return parseApiResponse(res, 'Failed to sync picked workout');
   },
 
   addExerciseToTodayWorkout: async (userId: number, payload: any = {}) => {

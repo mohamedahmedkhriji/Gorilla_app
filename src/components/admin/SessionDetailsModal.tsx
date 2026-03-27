@@ -108,7 +108,9 @@ export const SessionDetailsModal: React.FC<SessionDetailsModalProps> = ({ sessio
                 <div className="flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3">
                   <span className="text-slate-500">Status</span>
                   <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${
-                    session.status === 'confirmed'
+                    session.status === 'picked'
+                      ? 'bg-amber-500/15 text-amber-700'
+                      : session.status === 'confirmed'
                       ? 'bg-green-500/15 text-green-700'
                       : session.status === 'pending'
                         ? 'bg-amber-500/15 text-amber-700'

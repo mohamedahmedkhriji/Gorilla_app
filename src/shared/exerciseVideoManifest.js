@@ -56,12 +56,12 @@ const normalizeExerciseVideoLookup = (value) =>
 const inferExerciseVideoBodyPart = (value) => {
   const text = normalizeExerciseVideoLookup(value);
   if (!text) return '';
-  if (/(back|lat|lats|trap|traps|rhomboid|erector|teres)/.test(text)) return 'back';
-  if (/(chest|pector|pec)/.test(text)) return 'chest';
-  if (/(leg|quad|hamstring|glute|calf|thigh)/.test(text)) return 'legs';
-  if (/(shoulder|delt)/.test(text)) return 'shoulders';
-  if (/(bicep|tricep|forearm|arm)/.test(text)) return 'arms';
-  if (/(abs|abdom|core|oblique)/.test(text)) return 'abs';
+  if (/(abs|abdom|core|oblique|crunch|sit up|leg raise|leg lift|knee raise|plank|twist|vacuum|hollow|v up|vup|dead bug)/.test(text)) return 'abs';
+  if (/(shoulder|delt|lateral raise|(?:^| )lateral(?: |$)|front raise|rear delt|face pull|shoulder press|overhead press|arnold press)/.test(` ${text} `)) return 'shoulders';
+  if (/(back|\blat\b|\blats\b|trap|traps|rhomboid|erector|teres|pulldown|pullup|chinup|row|deadlift|shrug|pullover|rack pull)/.test(text)) return 'back';
+  if (/(chest|pector|\bpec\b|bench press|chest press|incline press|push up|pushup|fly|crossovers|pec deck|guillotine press|dip|hammer strength press|machine press)/.test(text)) return 'chest';
+  if (/(leg press|leg extension|leg curl|leg|quad|hamstring|glute|calf|thigh|squat|lunge|hip thrust|split squat)/.test(text)) return 'legs';
+  if (/(bicep|tricep|forearm|arm|curl|push down|skull crusher|kick back|french press)/.test(text)) return 'arms';
   return '';
 };
 
@@ -351,9 +351,375 @@ const CHEST_VIDEO_MANIFEST = [
   normalizedAliases: entry.aliases.map((alias) => normalizeExerciseVideoLookup(alias)),
 }));
 
+const ABS_VIDEO_MANIFEST = [
+  {
+    bodyPart: 'abs',
+    fileName: 'leg raises.mp4',
+    priority: 96,
+    aliases: [
+      'leg raise',
+      'leg raises',
+      'hanging leg raise',
+      'hanging leg raises',
+      'captains chair leg raise',
+      'captain s chair leg raise',
+      'lying leg raise',
+      'lying leg raises',
+      'reverse leg raise',
+    ],
+  },
+  {
+    bodyPart: 'abs',
+    fileName: 'Weighted Leg Lift on Elbows (Dumbbell Between Feet).mp4',
+    priority: 95,
+    aliases: [
+      'weighted leg lift',
+      'weighted leg raise',
+      'weighted hanging leg raise',
+      'weighted hanging leg raises',
+      'hanging knee raise',
+      'hanging knee raises',
+      'knee raise',
+      'knee raises',
+    ],
+  },
+  {
+    bodyPart: 'abs',
+    fileName: 'Cable Crunch (Kneeling).mp4',
+    priority: 94,
+    aliases: [
+      'cable crunch',
+      'kneeling cable crunch',
+      'rope crunch',
+      'standing cable crunch',
+    ],
+  },
+  {
+    bodyPart: 'abs',
+    fileName: 'crunch reach.mp4',
+    priority: 92,
+    aliases: [
+      'crunch reach',
+      'reach crunch',
+    ],
+  },
+  {
+    bodyPart: 'abs',
+    fileName: 'russian twists.mp4',
+    priority: 91,
+    aliases: [
+      'russian twist',
+      'russian twists',
+    ],
+  },
+  {
+    bodyPart: 'abs',
+    fileName: 'side crunches.mp4',
+    priority: 90,
+    aliases: [
+      'side crunch',
+      'side crunches',
+      'oblique crunch',
+      'oblique crunches',
+      'bicycle crunch',
+      'bicycle crunches',
+    ],
+  },
+  {
+    bodyPart: 'abs',
+    fileName: 'sit-up.mp4',
+    priority: 89,
+    aliases: [
+      'sit up',
+      'sit ups',
+      'crunch',
+      'crunches',
+      'sit up hold',
+    ],
+  },
+  {
+    bodyPart: 'abs',
+    fileName: 'Plank .mp4',
+    priority: 88,
+    aliases: [
+      'plank',
+      'front plank',
+      'elbow plank',
+      'forearm plank',
+    ],
+  },
+].map((entry) => ({
+  ...entry,
+  normalizedAliases: entry.aliases.map((alias) => normalizeExerciseVideoLookup(alias)),
+}));
+
+const TEMPLATE_VIDEO_MANIFEST = [
+  {
+    bodyPart: 'abs',
+    fileName: 'Plank .mp4',
+    priority: 99,
+    aliases: [
+      'abs circuit',
+      'vacuum',
+    ],
+  },
+  {
+    bodyPart: 'back',
+    fileName: 'Front Pulldown (Back).mp4',
+    priority: 99,
+    aliases: [
+      'single arm pulldown',
+      'single arm lat pulldown',
+    ],
+  },
+  {
+    bodyPart: 'back',
+    fileName: 'Cable Row Grip Mid Lats & Lower Lats.mp4',
+    priority: 98,
+    aliases: [
+      'machine row',
+    ],
+  },
+  {
+    bodyPart: 'back',
+    fileName: 'Cable Pullover.mp4',
+    priority: 98,
+    aliases: [
+      'fst 7 machine pullover',
+      'fst-7 machine pullover',
+      'fst 7 straight arm',
+      'fst-7 straight arm',
+    ],
+  },
+  {
+    bodyPart: 'back',
+    fileName: 'Deadlift .mp4',
+    priority: 97,
+    aliases: [
+      'rack pull',
+    ],
+  },
+  {
+    bodyPart: 'chest',
+    fileName: 'incline bench press dumbbell.mp4',
+    priority: 99,
+    aliases: [
+      'incline db',
+      'incline db press',
+    ],
+  },
+  {
+    bodyPart: 'chest',
+    fileName: 'Smith Machine Flat Bench Press.mp4',
+    priority: 98,
+    aliases: [
+      'machine chest press',
+      'machine press',
+      'hammer strength press',
+    ],
+  },
+  {
+    bodyPart: 'chest',
+    fileName: 'Pec Deck.mp4',
+    priority: 98,
+    aliases: [
+      'chest fly machine',
+      'fst 7 pec deck',
+      'fst-7 pec deck',
+    ],
+  },
+  {
+    bodyPart: 'chest',
+    fileName: 'Dips.mp4',
+    priority: 97,
+    aliases: [
+      'weighted dips',
+    ],
+  },
+  {
+    bodyPart: 'shoulders',
+    fileName: 'Cable Lateral Raise.mp4',
+    priority: 99,
+    aliases: [
+      'cable lateral',
+      'cable lateral raise',
+      'fst 7 cable lateral',
+      'fst-7 cable lateral',
+    ],
+  },
+  {
+    bodyPart: 'shoulders',
+    fileName: 'DB LATERAL RAISE.mp4',
+    priority: 98,
+    aliases: [
+      'lateral raise',
+      'side lateral raise',
+      'fst 7 lateral',
+      'fst-7 lateral',
+      'lateral raise dropset',
+    ],
+  },
+  {
+    bodyPart: 'shoulders',
+    fileName: 'DUMBBELL PRESS.mp4',
+    priority: 97,
+    aliases: [
+      'seated db press',
+    ],
+  },
+  {
+    bodyPart: 'shoulders',
+    fileName: 'Seated Machine Shoulder Press.mp4',
+    priority: 97,
+    aliases: [
+      'machine shoulder press',
+      'seated shoulder press',
+    ],
+  },
+  {
+    bodyPart: 'shoulders',
+    fileName: 'Rear Delt.mp4',
+    priority: 97,
+    aliases: [
+      'rear delt',
+      'rear delt machine',
+    ],
+  },
+  {
+    bodyPart: 'shoulders',
+    fileName: 'Seated Face Pull.mp4',
+    priority: 96,
+    aliases: [
+      'face pull',
+    ],
+  },
+  {
+    bodyPart: 'legs',
+    fileName: 'Hack Squat QUADS.mp4',
+    priority: 99,
+    aliases: [
+      'hack squat',
+    ],
+  },
+  {
+    bodyPart: 'legs',
+    fileName: 'Barbell Hip Thrust.mp4',
+    priority: 98,
+    aliases: [
+      'hip thrust',
+    ],
+  },
+  {
+    bodyPart: 'legs',
+    fileName: 'Leg Extension toes up.mp4',
+    priority: 98,
+    aliases: [
+      'leg extension',
+      'fst 7 extension',
+      'fst-7 extension',
+    ],
+  },
+  {
+    bodyPart: 'legs',
+    fileName: 'Leg Press (Feet Shoulder-Width).mp4',
+    priority: 98,
+    aliases: [
+      'leg press',
+    ],
+  },
+  {
+    bodyPart: 'legs',
+    fileName: 'Lying Leg Curl Machine.mp4',
+    priority: 97,
+    aliases: [
+      'lying curl',
+      'lying leg curl',
+      'seated curl',
+      'seated leg curl',
+    ],
+  },
+  {
+    bodyPart: 'legs',
+    fileName: 'Standing Calf Raise (Calves).mp4',
+    priority: 96,
+    aliases: [
+      'seated calf raise',
+    ],
+  },
+  {
+    bodyPart: 'legs',
+    fileName: 'WALKING LUNGE.mp4',
+    priority: 96,
+    aliases: [
+      'walking lunge',
+      'walking lunges',
+    ],
+  },
+  {
+    bodyPart: 'legs',
+    fileName: 'Barbell Back Squat.mp4',
+    priority: 96,
+    aliases: [
+      'back squat',
+      'front squat',
+    ],
+  },
+  {
+    bodyPart: 'arms',
+    fileName: 'EZ Bar Curl.mp4',
+    priority: 98,
+    aliases: [
+      'ez curl',
+      'fst 7 curl',
+      'fst-7 curl',
+    ],
+  },
+  {
+    bodyPart: 'arms',
+    fileName: 'Hammer Curl.mp4',
+    priority: 97,
+    aliases: [
+      'hammer curl',
+    ],
+  },
+  {
+    bodyPart: 'arms',
+    fileName: 'Incline Curl.mp4',
+    priority: 97,
+    aliases: [
+      'incline db curl',
+    ],
+  },
+  {
+    bodyPart: 'arms',
+    fileName: 'Standard Cable Curl.mp4',
+    priority: 96,
+    aliases: [
+      'cable curl pushdown superset',
+      'cable curl and pushdown superset',
+    ],
+  },
+  {
+    bodyPart: 'arms',
+    fileName: 'Triceps Pressdown (Rope).mp4',
+    priority: 96,
+    aliases: [
+      'rope pushdown',
+      'triceps rope',
+      'fst 7 rope pushdown',
+      'fst-7 rope pushdown',
+    ],
+  },
+].map((entry) => ({
+  ...entry,
+  normalizedAliases: entry.aliases.map((alias) => normalizeExerciseVideoLookup(alias)),
+}));
+
 const EXERCISE_VIDEO_MANIFEST = [
   ...BACK_VIDEO_MANIFEST,
   ...CHEST_VIDEO_MANIFEST,
+  ...ABS_VIDEO_MANIFEST,
+  ...TEMPLATE_VIDEO_MANIFEST,
 ];
 
 const resolveBackVideoFallback = (normalizedName) => {
@@ -482,9 +848,80 @@ const resolveChestVideoFallback = (normalizedName) => {
   };
 };
 
+const resolveAbsVideoFallback = (normalizedName) => {
+  if (normalizedName.includes('vacuum')) {
+    return { fileName: 'Plank .mp4', bodyPart: 'abs', matchType: 'fallback', priority: 46 };
+  }
+
+  if (
+    normalizedName.includes('weighted')
+    && (normalizedName.includes('leg raise') || normalizedName.includes('leg lift') || normalizedName.includes('knee raise'))
+  ) {
+    return { fileName: 'Weighted Leg Lift on Elbows (Dumbbell Between Feet).mp4', bodyPart: 'abs', matchType: 'fallback', priority: 45 };
+  }
+
+  if (
+    normalizedName.includes('leg raise')
+    || normalizedName.includes('leg lift')
+    || normalizedName.includes('knee raise')
+  ) {
+    return { fileName: 'leg raises.mp4', bodyPart: 'abs', matchType: 'fallback', priority: 44 };
+  }
+
+  if (
+    normalizedName.includes('cable')
+    && normalizedName.includes('crunch')
+  ) {
+    return { fileName: 'Cable Crunch (Kneeling).mp4', bodyPart: 'abs', matchType: 'fallback', priority: 43 };
+  }
+
+  if (
+    normalizedName.includes('russian')
+    || normalizedName.includes('twist')
+  ) {
+    return { fileName: 'russian twists.mp4', bodyPart: 'abs', matchType: 'fallback', priority: 42 };
+  }
+
+  if (
+    normalizedName.includes('oblique')
+    || normalizedName.includes('side crunch')
+    || normalizedName.includes('bicycle')
+  ) {
+    return { fileName: 'side crunches.mp4', bodyPart: 'abs', matchType: 'fallback', priority: 41 };
+  }
+
+  if (
+    normalizedName.includes('crunch reach')
+    || (normalizedName.includes('crunch') && normalizedName.includes('reach'))
+  ) {
+    return { fileName: 'crunch reach.mp4', bodyPart: 'abs', matchType: 'fallback', priority: 40 };
+  }
+
+  if (
+    normalizedName.includes('plank')
+    || normalizedName.includes('hollow')
+  ) {
+    return { fileName: 'Plank .mp4', bodyPart: 'abs', matchType: 'fallback', priority: 39 };
+  }
+
+  if (
+    normalizedName.includes('sit up')
+    || normalizedName.includes('crunch')
+  ) {
+    return { fileName: 'sit-up.mp4', bodyPart: 'abs', matchType: 'fallback', priority: 38 };
+  }
+
+  return {
+    fileName: null,
+    bodyPart: 'abs',
+    matchType: 'none',
+    priority: 0,
+  };
+};
+
 const resolveExerciseVideoManifest = ({ name, muscle, bodyPart } = {}) => {
   const normalizedName = normalizeExerciseVideoLookup(name);
-  const bodyPartKey = inferExerciseVideoBodyPart(bodyPart || muscle);
+  const bodyPartKey = inferExerciseVideoBodyPart(name) || inferExerciseVideoBodyPart(bodyPart || muscle);
 
   if (!normalizedName) {
     return {
@@ -496,7 +933,6 @@ const resolveExerciseVideoManifest = ({ name, muscle, bodyPart } = {}) => {
   }
 
   const aliasRule = EXERCISE_VIDEO_MANIFEST.find((rule) => {
-    if (rule.bodyPart && bodyPartKey && rule.bodyPart !== bodyPartKey) return false;
     return rule.normalizedAliases.some((alias) => matchesLookup(normalizedName, alias));
   });
 
@@ -517,6 +953,10 @@ const resolveExerciseVideoManifest = ({ name, muscle, bodyPart } = {}) => {
     return resolveChestVideoFallback(normalizedName);
   }
 
+  if (bodyPartKey === 'abs') {
+    return resolveAbsVideoFallback(normalizedName);
+  }
+
   return {
     fileName: null,
     bodyPart: bodyPartKey || null,
@@ -528,6 +968,7 @@ const resolveExerciseVideoManifest = ({ name, muscle, bodyPart } = {}) => {
 const hasExactExerciseVideoLink = (input) => resolveExerciseVideoManifest(input).matchType === 'alias';
 
 export {
+  ABS_VIDEO_MANIFEST,
   BACK_VIDEO_MANIFEST,
   CHEST_VIDEO_MANIFEST,
   EXERCISE_VIDEO_MANIFEST,

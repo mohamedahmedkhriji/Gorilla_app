@@ -1,3 +1,4 @@
+import genericCardioVideoUrl from '../../assets/intro.mp4';
 import {
   inferExerciseVideoBodyPart,
   normalizeExerciseVideoLookup,
@@ -32,6 +33,15 @@ export type ExerciseVideoMatch = {
   assetName: string | null;
   bodyPart: string | null;
   matchType: 'alias' | 'filename' | 'fallback' | 'none';
+};
+
+const DIRECT_VIDEO_OVERRIDES: Record<string, ExerciseVideoMatch> = {
+  'liss cardio': {
+    url: genericCardioVideoUrl,
+    assetName: 'intro.mp4',
+    bodyPart: null,
+    matchType: 'alias',
+  },
 };
 
 const videoModules = import.meta.glob('../../assets/Workout/body part/**/*.mp4', {
@@ -93,14 +103,14 @@ const simplifyLookup = (value: string) => {
 const inferSpecificVideoTarget = (value: string) => {
   const text = normalizeExerciseVideoLookup(value);
   if (!text) return '';
-  if (/(bicep|biceps|curl)/.test(text)) return 'biceps';
-  if (/(tricep|triceps|push down|press down|kick back|skull crusher|overhead extension)/.test(text)) return 'triceps';
+  if (/(bicep|biceps|\bcurl\b|preacher|scott|hammer curl|incline curl)/.test(text)) return 'biceps';
+  if (/(tricep|triceps|push down|press down|kick back|skull crusher|overhead extension|rope pushdown|french press)/.test(text)) return 'triceps';
   if (/(calf|calves)/.test(text)) return 'calves';
-  if (/(abs|abdom|core|oblique|crunch|sit up|leg raise|plank|twist)/.test(text)) return 'abs';
-  if (/(shoulder|delt|delts|arnold press|lateral raise|front raise|rear delt)/.test(text)) return 'shoulders';
-  if (/(back|lat|trap|traps|rhomboid|erector|pulldown|pull up|pullup|chin up|chinup|row|deadlift|shrug|pullover)/.test(text)) return 'back';
-  if (/(chest|pector|pec|bench press|push up|pushup|fly|crossovers|pec deck|guillotine press|dip)/.test(text)) return 'chest';
-  if (/(leg|quad|quadricep|hamstring|glute|thigh|squat|lunge|press)/.test(text)) return 'legs';
+  if (/(abs|abdom|core|oblique|crunch|sit up|leg raise|leg lift|knee raise|plank|twist|vacuum|hollow|v up|vup|dead bug)/.test(text)) return 'abs';
+  if (/(shoulder|delt|delts|arnold press|lateral raise|(?:^| )lateral(?: |$)|front raise|rear delt|face pull|shoulder press|overhead press|seated dumbbell press|seated shoulder press)/.test(` ${text} `)) return 'shoulders';
+  if (/(back|\blat\b|\blats\b|trap|traps|rhomboid|erector|pulldown|pull up|pullup|chin up|chinup|row|deadlift|shrug|pullover|rack pull)/.test(text)) return 'back';
+  if (/(chest|pector|\bpec\b|bench press|chest press|incline press|push up|pushup|fly|crossovers|pec deck|guillotine press|dip|hammer strength press|machine press)/.test(text)) return 'chest';
+  if (/(leg press|leg extension|leg curl|leg|quad|quadricep|hamstring|glute|thigh|squat|lunge|hip thrust|split squat|calf raise)/.test(text)) return 'legs';
   return '';
 };
 
@@ -109,9 +119,9 @@ const resolveInputVideoTarget = ({
   muscle,
   bodyPart,
 }: ExerciseVideoLookupInput) => (
-  inferSpecificVideoTarget(String(muscle || ''))
+  inferSpecificVideoTarget(String(name || ''))
+  || inferSpecificVideoTarget(String(muscle || ''))
   || inferSpecificVideoTarget(String(bodyPart || ''))
-  || inferSpecificVideoTarget(String(name || ''))
 );
 
 const doesAssetMatchTarget = (
@@ -197,7 +207,7 @@ export const resolveExerciseVideo = ({
   bodyPart,
 }: ExerciseVideoLookupInput): ExerciseVideoMatch => {
   const normalizedName = normalizeExerciseVideoLookup(name);
-  const bodyPartKey = inferExerciseVideoBodyPart(bodyPart || muscle);
+  const bodyPartKey = inferExerciseVideoBodyPart(name) || inferExerciseVideoBodyPart(bodyPart || muscle);
   const specificTarget = resolveInputVideoTarget({ name, muscle, bodyPart });
 
   if (!normalizedName) {
@@ -209,10 +219,13 @@ export const resolveExerciseVideo = ({
     };
   }
 
+  const directOverride = DIRECT_VIDEO_OVERRIDES[normalizedName];
+  if (directOverride) return directOverride;
+
   const manifestMatch = resolveExerciseVideoManifest({ name, muscle, bodyPart });
   if (manifestMatch.matchType === 'alias' && manifestMatch.fileName) {
     const aliasAsset = findAssetByFileName(manifestMatch.fileName);
-    if (aliasAsset && doesAssetMatchTarget(aliasAsset, specificTarget, bodyPartKey)) {
+    if (aliasAsset) {
       return toMatch(aliasAsset, 'alias');
     }
   }

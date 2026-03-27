@@ -10,7 +10,7 @@ interface Session {
   time: string;
   duration: number;
   type: string;
-  status: 'confirmed' | 'pending' | 'completed';
+  status: 'picked' | 'confirmed' | 'pending' | 'completed';
   date: string;
 }
 
@@ -39,6 +39,7 @@ export const CoachSchedule: React.FC<CoachScheduleProps> = ({ onBack }) => {
   const normalizeStatus = (rawStatus: string | null | undefined, dateKey: string) => {
     const key = String(rawStatus || '').toLowerCase();
     if (key.includes('complete')) return 'completed';
+    if (key.includes('pick')) return 'picked';
     if (key.includes('pending')) return 'pending';
     if (key) return 'confirmed';
     return dateKey < formatDateKey(new Date()) ? 'completed' : 'confirmed';
@@ -129,6 +130,19 @@ export const CoachSchedule: React.FC<CoachScheduleProps> = ({ onBack }) => {
   const isSelected = (date: Date) => date.toDateString() === selectedDate.toDateString();
   const selectedDateKey = formatDateKey(selectedDate);
   const sessionsForDay = sessions.filter((session) => session.date === selectedDateKey);
+  const activityByDate = React.useMemo(() => {
+    const summary = new Map<string, { picked: number; completed: number }>();
+
+    sessions.forEach((session) => {
+      const existing = summary.get(session.date) || { picked: 0, completed: 0 };
+      if (session.status === 'picked') existing.picked += 1;
+      if (session.status === 'completed') existing.completed += 1;
+      summary.set(session.date, existing);
+    });
+
+    return summary;
+  }, [sessions]);
+  const selectedDayActivity = activityByDate.get(selectedDateKey) || { picked: 0, completed: 0 };
   const getSessionsForTime = (hour: number) => sessionsForDay.filter((session) => parseInt(session.time.split(':')[0], 10) === hour);
 
   const handleDrop = (hour: number) => {
@@ -200,9 +214,32 @@ export const CoachSchedule: React.FC<CoachScheduleProps> = ({ onBack }) => {
                       : 'border border-slate-200 bg-slate-50 hover:bg-slate-100'
                 }`}
               >
-                <div className="text-xs text-slate-500">{daysOfWeek[day.getDay()]}</div>
-                <div className="text-lg font-bold">{day.getDate()}</div>
-                <div className="text-xs text-slate-500">{monthNames[day.getMonth()]}</div>
+                {(() => {
+                  const dayKey = formatDateKey(day);
+                  const dayActivity = activityByDate.get(dayKey) || { picked: 0, completed: 0 };
+
+                  return (
+                    <>
+                      <div className="text-xs text-slate-500">{daysOfWeek[day.getDay()]}</div>
+                      <div className="text-lg font-bold">{day.getDate()}</div>
+                      <div className="text-xs text-slate-500">{monthNames[day.getMonth()]}</div>
+                      <div className="mt-1 flex min-h-[10px] items-center justify-center gap-1">
+                        {dayActivity.picked > 0 && (
+                          <span
+                            className="h-1.5 w-1.5 rounded-full bg-amber-400"
+                            title={`${dayActivity.picked} picked workout${dayActivity.picked === 1 ? '' : 's'}`}
+                          />
+                        )}
+                        {dayActivity.completed > 0 && (
+                          <span
+                            className="h-1.5 w-1.5 rounded-full bg-emerald-500"
+                            title={`${dayActivity.completed} completed workout${dayActivity.completed === 1 ? '' : 's'}`}
+                          />
+                        )}
+                      </div>
+                    </>
+                  );
+                })()}
               </button>
             ))}
           </div>
@@ -213,8 +250,23 @@ export const CoachSchedule: React.FC<CoachScheduleProps> = ({ onBack }) => {
             <h2 className="font-semibold">
               {selectedDate.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
             </h2>
-            <div className="text-sm text-slate-500">{sessionsForDay.length} sessions</div>
+            <div className="text-sm text-slate-500">{sessionsForDay.length} items</div>
           </div>
+
+          {(selectedDayActivity.picked > 0 || selectedDayActivity.completed > 0) && (
+            <div className="mb-4 flex flex-wrap gap-2">
+              {selectedDayActivity.picked > 0 && (
+                <span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-700">
+                  {selectedDayActivity.picked} picked
+                </span>
+              )}
+              {selectedDayActivity.completed > 0 && (
+                <span className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-700">
+                  {selectedDayActivity.completed} completed
+                </span>
+              )}
+            </div>
+          )}
 
           {loading ? (
             <div className="py-10 text-center text-sm text-slate-500">Loading schedule...</div>
@@ -223,7 +275,7 @@ export const CoachSchedule: React.FC<CoachScheduleProps> = ({ onBack }) => {
           ) : sessionsForDay.length === 0 ? (
             <div className="py-12 text-center">
               <Calendar size={48} className="mx-auto mb-4 text-slate-300" />
-              <p className="text-slate-500">No sessions scheduled</p>
+              <p className="text-slate-500">No workout activity for this day</p>
             </div>
           ) : (
             <div className="space-y-2">
@@ -252,7 +304,9 @@ export const CoachSchedule: React.FC<CoachScheduleProps> = ({ onBack }) => {
                                 setShowDetailsModal(true);
                               }}
                               className={`cursor-pointer rounded-2xl border-l-4 p-3 transition-opacity hover:opacity-85 ${
-                                session.status === 'confirmed'
+                                session.status === 'picked'
+                                  ? 'border-amber-500 bg-amber-500/10'
+                                  : session.status === 'confirmed'
                                   ? 'border-[#10b981] bg-[#10b981]/10'
                                   : session.status === 'pending'
                                     ? 'border-yellow-500 bg-yellow-500/10'
@@ -275,7 +329,9 @@ export const CoachSchedule: React.FC<CoachScheduleProps> = ({ onBack }) => {
                                     {session.duration} min
                                   </div>
                                   <div className={`mt-1 rounded px-2 py-0.5 text-xs ${
-                                    session.status === 'confirmed'
+                                    session.status === 'picked'
+                                      ? 'bg-amber-500/15 text-amber-700'
+                                      : session.status === 'confirmed'
                                       ? 'bg-green-500/15 text-green-700'
                                       : session.status === 'pending'
                                         ? 'bg-yellow-500/15 text-yellow-700'

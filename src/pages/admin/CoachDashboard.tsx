@@ -674,6 +674,13 @@ export const CoachDashboard: React.FC<CoachDashboardProps> = ({ onLogout }) => {
     await handleClientSelect(targetClient);
   };
 
+  const handleBackToDashboardOverview = () => {
+    setSelectedClient(null);
+    setDashboardSection('overview');
+    setIsClientTyping(false);
+    setInputText('');
+  };
+
   const stats = {
     totalClients: clients.length,
     activeToday: scheduleStats.activeToday,
@@ -1271,18 +1278,6 @@ export const CoachDashboard: React.FC<CoachDashboardProps> = ({ onLogout }) => {
                       <UserPlus size={18} />
                       Add Athlete
                     </button>
-                    <button
-                      type="button"
-                      onClick={() => setView('planrequests')}
-                      className={`inline-flex items-center gap-2 rounded-2xl px-4 py-3 text-sm font-semibold transition-colors ${
-                        isLightTheme
-                          ? 'border border-slate-200 bg-white text-slate-800 hover:bg-slate-50'
-                          : 'border border-white/10 bg-white/5 text-white hover:bg-white/10'
-                      }`}
-                    >
-                      <ClipboardList size={18} />
-                      Review Plans
-                    </button>
                   </div>
                 </div>
               </div>
@@ -1342,6 +1337,21 @@ export const CoachDashboard: React.FC<CoachDashboardProps> = ({ onLogout }) => {
 
       <div className={`grid grid-cols-1 gap-3 p-3 pb-0 md:gap-4 md:p-4 lg:pb-4 lg:grid-cols-3 lg:h-[calc(100vh-250px)] ${dashboardSection === 'messages' ? 'block' : 'hidden lg:grid'}`}>
         <div className={`overflow-y-auto rounded-[32px] p-3 md:p-4 h-[calc(100dvh-84px)] lg:h-full ${selectedClient ? 'hidden lg:block' : 'block'} ${isLightTheme ? 'bg-white border border-slate-200 shadow-[0_10px_24px_rgba(15,23,42,0.05)]' : 'bg-[#f7f3ef] text-[#161616] border border-[#eadfd4] shadow-[0_18px_40px_rgba(0,0,0,0.18)]'}`}>
+          {dashboardSection === 'messages' && (
+            <button
+              type="button"
+              onClick={handleBackToDashboardOverview}
+              className={`mb-3 inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold transition-colors ${
+                isLightTheme
+                  ? 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                  : 'bg-white text-[#3a342f] hover:bg-[#f6efe8]'
+              }`}
+              aria-label="Go back to dashboard overview"
+            >
+              <ArrowLeft size={16} />
+              <span>Back to dashboard</span>
+            </button>
+          )}
 
           <div className={`mb-3 flex items-center gap-3 rounded-full px-4 py-3 ${isLightTheme ? 'bg-slate-100 text-slate-500' : 'bg-white text-[#7a756e] shadow-[inset_0_1px_0_rgba(255,255,255,0.8)]'}`}>
             <Search size={16} />

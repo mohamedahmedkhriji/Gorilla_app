@@ -2109,6 +2109,64 @@ const getWorkoutSessionColumns = async () => {
   return workoutSessionColumnsCache;
 };
 
+const resetWorkoutSessionColumnsCache = () => {
+  workoutSessionColumnsCache = undefined;
+};
+
+const getWorkoutSessionColumnMetadata = async (columnName) => {
+  const [rows] = await pool.execute(
+    `SELECT COLUMN_NAME, COLUMN_TYPE, IS_NULLABLE, COLUMN_DEFAULT
+     FROM INFORMATION_SCHEMA.COLUMNS
+     WHERE TABLE_SCHEMA = DATABASE()
+       AND TABLE_NAME = 'workout_sessions'
+       AND COLUMN_NAME = ?
+     LIMIT 1`,
+    [columnName],
+  );
+
+  return Array.isArray(rows) && rows.length ? rows[0] : null;
+};
+
+const ensureWorkoutSessionScheduleInfrastructure = async () => {
+  const statusColumn = await getWorkoutSessionColumnMetadata('status');
+  if (!statusColumn) {
+    await pool.execute(
+      `ALTER TABLE workout_sessions
+       ADD COLUMN status ENUM('picked','pending','confirmed','completed','missed','cancelled') NOT NULL DEFAULT 'confirmed'`,
+    );
+    resetWorkoutSessionColumnsCache();
+  } else {
+    const columnType = String(statusColumn.COLUMN_TYPE || statusColumn.column_type || '').toLowerCase();
+    const enumMatches = [...columnType.matchAll(/'([^']+)'/g)];
+    const existingValues = enumMatches
+      .map((match) => String(match[1] || '').trim().toLowerCase())
+      .filter(Boolean);
+
+    if (existingValues.length && !existingValues.includes('picked')) {
+      const mergedValues = [...new Set(['picked', ...existingValues])];
+      const defaultValueRaw = String(statusColumn.COLUMN_DEFAULT || statusColumn.column_default || '').trim().toLowerCase();
+      const defaultValue = mergedValues.includes(defaultValueRaw)
+        ? defaultValueRaw
+        : (mergedValues.includes('confirmed') ? 'confirmed' : mergedValues[0]);
+
+      await pool.execute(
+        `ALTER TABLE workout_sessions
+         MODIFY COLUMN status ENUM(${mergedValues.map((value) => `'${value}'`).join(', ')}) NOT NULL DEFAULT '${defaultValue}'`,
+      );
+      resetWorkoutSessionColumnsCache();
+    }
+  }
+
+  const workoutNameColumn = await getWorkoutSessionColumnMetadata('workout_name');
+  if (!workoutNameColumn) {
+    await pool.execute(
+      `ALTER TABLE workout_sessions
+       ADD COLUMN workout_name VARCHAR(120) NULL`,
+    );
+    resetWorkoutSessionColumnsCache();
+  }
+};
+
 const normalizeSplitPreference = (value) => {
   const key = String(value || '').trim().toLowerCase().replace(/\s+/g, '_');
   if (['auto', 'full_body', 'upper_lower', 'push_pull_legs', 'hybrid', 'custom'].includes(key)) {
@@ -6747,7 +6805,32 @@ router.post('/user/onboarding', authMutationRateLimit, requireAuth('user'), asyn
   }
 });
 
-router.use('/user/:userId', requireAuth('user'), requireUserAccess('userId', { allowSelf: true }));
+const isCoachReadableUserRoute = (req) => {
+  const normalizedUserId = String(req.params?.userId || '').trim();
+  if (!normalizedUserId) return false;
+
+  const normalizedPath = String(req.originalUrl || '')
+    .split('?')[0]
+    .replace(/^\/api/i, '');
+
+  return req.method === 'GET' && [
+    `/user/${normalizedUserId}/program`,
+    `/user/${normalizedUserId}/program-progress`,
+    `/user/${normalizedUserId}/recent-activity`,
+  ].includes(normalizedPath);
+};
+
+router.use('/user/:userId', (req, res, next) => {
+  const allowCoachClientRead = isCoachReadableUserRoute(req);
+  const authGate = requireAuth(...(allowCoachClientRead ? ['user', 'coach', 'gym_owner'] : ['user']));
+  const accessGate = requireUserAccess('userId', {
+    allowSelf: true,
+    allowAssignedCoach: allowCoachClientRead,
+    allowGymOwner: allowCoachClientRead,
+  });
+
+  return authGate(req, res, () => accessGate(req, res, next));
+});
 
 router.post('/user/:userId/program/generate-personalized', authMutationRateLimit, async (req, res) => {
   let conn;
@@ -9727,6 +9810,134 @@ router.post('/user/:userId/program/today-workout/miss', async (req, res) => {
   }
 });
 
+router.post('/user/:userId/program/today-workout/pick', authMutationRateLimit, async (req, res) => {
+  try {
+    const userId = toNumber(req.params.userId, 0);
+    if (!userId) {
+      return res.status(400).json({ error: 'Invalid userId' });
+    }
+
+    await ensureWorkoutSessionScheduleInfrastructure();
+    const columns = await getWorkoutSessionColumns();
+    const dateColumn = columns.has('completed_at')
+      ? 'completed_at'
+      : (columns.has('created_at') ? 'created_at' : null);
+
+    if (!dateColumn) {
+      return res.status(500).json({ error: 'No session date column found in workout_sessions' });
+    }
+
+    const dateKey = formatDateISO(new Date());
+    const workoutName = String(req.body?.workoutName || req.body?.dayLabel || '').trim() || 'Workout';
+    const muscleGroups = parseMuscleGroups(req.body?.muscleGroups);
+    const primaryMuscle = muscleGroups[0] || normalizeMuscleName(String(req.body?.muscleGroup || '')) || 'Chest';
+    const exercises = Array.isArray(req.body?.exercises) ? req.body.exercises.slice(0, 60) : [];
+    const durationMinutes = Math.max(15, Math.min(180, Math.round(Number(req.body?.durationMinutes || req.body?.estimatedDurationMinutes || 60) || 60)));
+
+    let programAssignmentId = toNumber(req.body?.programAssignmentId, null);
+    if ((!programAssignmentId || programAssignmentId <= 0) && columns.has('program_assignment_id')) {
+      programAssignmentId = await resolveActiveProgramAssignmentId(userId);
+    }
+
+    const [completedRows] = await pool.execute(
+      `SELECT id
+       FROM workout_sessions
+       WHERE user_id = ?
+         ${columns.has('status') ? `AND LOWER(TRIM(status)) = 'completed'` : ''}
+         AND DATE(${dateColumn}) = ?
+       ORDER BY id DESC
+       LIMIT 1`,
+      [userId, dateKey],
+    );
+
+    if (Array.isArray(completedRows) && completedRows.length > 0) {
+      return res.json({
+        success: true,
+        skipped: true,
+        reason: 'already_completed',
+        sessionId: Number(completedRows[0]?.id || 0) || null,
+      });
+    }
+
+    let existingSql = `SELECT id FROM workout_sessions WHERE user_id = ? AND DATE(${dateColumn}) = ?`;
+    const existingParams = [userId, dateKey];
+
+    if (columns.has('status')) {
+      existingSql += ` AND LOWER(TRIM(status)) <> 'completed'`;
+    }
+    if (columns.has('program_assignment_id') && Number.isInteger(programAssignmentId) && programAssignmentId > 0) {
+      existingSql += ' AND program_assignment_id = ?';
+      existingParams.push(programAssignmentId);
+    }
+    existingSql += ' ORDER BY id DESC LIMIT 1';
+
+    const [existingRows] = await pool.execute(existingSql, existingParams);
+    const existingId = toNumber(existingRows[0]?.id, null);
+
+    const writeEntries = [];
+    const pushWrite = (column, value) => {
+      if (!columns.has(column) || value === undefined) return;
+      writeEntries.push([column, value]);
+    };
+
+    pushWrite('status', 'picked');
+    pushWrite('program_assignment_id', Number.isInteger(programAssignmentId) && programAssignmentId > 0 ? programAssignmentId : undefined);
+    pushWrite('workout_name', workoutName);
+    pushWrite('muscle_groups', JSON.stringify(muscleGroups));
+    pushWrite('muscle_group', primaryMuscle);
+    pushWrite('intensity', 'moderate');
+    pushWrite('volume', 'moderate');
+    pushWrite('eccentric_focus', 0);
+    pushWrite('duration_minutes', durationMinutes);
+    pushWrite('exercises', JSON.stringify(exercises));
+
+    if (Number.isInteger(existingId) && existingId > 0) {
+      const updateColumns = writeEntries.map(([column]) => `${column} = ?`);
+      const updateValues = writeEntries.map(([, value]) => value);
+
+      if (columns.has('updated_at')) {
+        updateColumns.push('updated_at = CURRENT_TIMESTAMP');
+      }
+
+      if (updateColumns.length > 0) {
+        await pool.execute(
+          `UPDATE workout_sessions SET ${updateColumns.join(', ')} WHERE id = ? LIMIT 1`,
+          [...updateValues, existingId],
+        );
+      }
+
+      return res.json({
+        success: true,
+        sessionId: existingId,
+        created: false,
+        status: 'picked',
+      });
+    }
+
+    const insertColumns = ['user_id'];
+    const insertValues = [userId];
+    writeEntries.forEach(([column, value]) => {
+      insertColumns.push(column);
+      insertValues.push(value);
+    });
+
+    const placeholders = insertColumns.map(() => '?').join(', ');
+    const [insertResult] = await pool.execute(
+      `INSERT INTO workout_sessions (${insertColumns.join(', ')}) VALUES (${placeholders})`,
+      insertValues,
+    );
+
+    return res.json({
+      success: true,
+      sessionId: Number(insertResult?.insertId || 0) || null,
+      created: true,
+      status: 'picked',
+    });
+  } catch (error) {
+    return res.status(500).json({ error: error?.message || 'Failed to save picked workout' });
+  }
+});
+
 router.post('/user/:userId/program/today-workout/exercises', async (req, res) => {
   const userId = toNumber(req.params.userId, 0);
   if (!userId) {
@@ -11675,7 +11886,11 @@ router.put('/notification-settings/:userId', authMutationRateLimit, requireAuth(
 // MISSIONS
 // =========================
 
-router.get('/missions/:userId', requireAuth('user'), requireUserAccess('userId', { allowSelf: true }), async (req, res) => {
+router.get('/missions/:userId', requireAuth('user', 'coach', 'gym_owner'), requireUserAccess('userId', {
+  allowSelf: true,
+  allowAssignedCoach: true,
+  allowGymOwner: true,
+}), async (req, res) => {
   try {
     const userId = toNumber(req.params.userId);
     if (!userId || userId <= 0) {
@@ -11690,7 +11905,11 @@ router.get('/missions/:userId', requireAuth('user'), requireUserAccess('userId',
   }
 });
 
-router.get('/missions/:userId/history', requireAuth('user'), requireUserAccess('userId', { allowSelf: true }), async (req, res) => {
+router.get('/missions/:userId/history', requireAuth('user', 'coach', 'gym_owner'), requireUserAccess('userId', {
+  allowSelf: true,
+  allowAssignedCoach: true,
+  allowGymOwner: true,
+}), async (req, res) => {
   try {
     const userId = toNumber(req.params.userId);
     if (!userId || userId <= 0) {
@@ -11773,7 +11992,11 @@ router.get('/challenges/:userId/history', requireAuth('user'), requireUserAccess
   }
 });
 
-router.get('/gamification/:userId/summary', requireAuth('user'), requireUserAccess('userId', { allowSelf: true }), async (req, res) => {
+router.get('/gamification/:userId/summary', requireAuth('user', 'coach', 'gym_owner'), requireUserAccess('userId', {
+  allowSelf: true,
+  allowAssignedCoach: true,
+  allowGymOwner: true,
+}), async (req, res) => {
   try {
     const userId = toNumber(req.params.userId);
     if (!userId || userId <= 0) {
@@ -11815,7 +12038,11 @@ router.get('/gamification/:userId/summary', requireAuth('user'), requireUserAcce
   }
 });
 
-router.get('/gamification/:userId/progression', requireAuth('user'), requireUserAccess('userId', { allowSelf: true }), async (req, res) => {
+router.get('/gamification/:userId/progression', requireAuth('user', 'coach', 'gym_owner'), requireUserAccess('userId', {
+  allowSelf: true,
+  allowAssignedCoach: true,
+  allowGymOwner: true,
+}), async (req, res) => {
   try {
     const userId = toNumber(req.params.userId);
     if (!userId || userId <= 0) {
@@ -11876,7 +12103,11 @@ router.get('/gamification/:userId/progression', requireAuth('user'), requireUser
   }
 });
 
-router.get('/gamification/:userId/debug-metrics', requireAuth('user'), requireUserAccess('userId', { allowSelf: true }), async (req, res) => {
+router.get('/gamification/:userId/debug-metrics', requireAuth('user', 'coach', 'gym_owner'), requireUserAccess('userId', {
+  allowSelf: true,
+  allowAssignedCoach: true,
+  allowGymOwner: true,
+}), async (req, res) => {
   try {
     const userId = toNumber(req.params.userId);
     if (!userId || userId <= 0) {
@@ -11894,7 +12125,11 @@ router.get('/gamification/:userId/debug-metrics', requireAuth('user'), requireUs
 // WORKOUT SETS / HISTORY
 // =========================
 
-router.get('/progress/strength/:userId', requireAuth('user'), requireUserAccess('userId', { allowSelf: true }), async (req, res) => {
+router.get('/progress/strength/:userId', requireAuth('user', 'coach', 'gym_owner'), requireUserAccess('userId', {
+  allowSelf: true,
+  allowAssignedCoach: true,
+  allowGymOwner: true,
+}), async (req, res) => {
   try {
     const userId = Number(req.params.userId);
     if (!Number.isFinite(userId) || userId <= 0) {
@@ -12010,7 +12245,11 @@ const formatStrengthHistoryLabel = (bucketKey, rangeKey) => {
   return parsed.toLocaleDateString('en-US', { month: 'short' });
 };
 
-router.get('/progress/strength-score/:userId', requireAuth('user'), requireUserAccess('userId', { allowSelf: true }), async (req, res) => {
+router.get('/progress/strength-score/:userId', requireAuth('user', 'coach', 'gym_owner'), requireUserAccess('userId', {
+  allowSelf: true,
+  allowAssignedCoach: true,
+  allowGymOwner: true,
+}), async (req, res) => {
   try {
     const userId = Number(req.params.userId);
     if (!Number.isFinite(userId) || userId <= 0) {
@@ -12144,7 +12383,11 @@ router.get('/progress/strength-score/:userId', requireAuth('user'), requireUserA
   }
 });
 
-router.get('/progress/plan-muscle-distribution/:userId', requireAuth('user'), requireUserAccess('userId', { allowSelf: true }), async (req, res) => {
+router.get('/progress/plan-muscle-distribution/:userId', requireAuth('user', 'coach', 'gym_owner'), requireUserAccess('userId', {
+  allowSelf: true,
+  allowAssignedCoach: true,
+  allowGymOwner: true,
+}), async (req, res) => {
   try {
     const userId = Number(req.params.userId);
     if (!Number.isFinite(userId) || userId <= 0) {
@@ -12279,7 +12522,11 @@ router.get('/progress/plan-muscle-distribution/:userId', requireAuth('user'), re
   }
 });
 
-router.get('/progress/muscle-distribution/:userId', requireAuth('user'), requireUserAccess('userId', { allowSelf: true }), async (req, res) => {
+router.get('/progress/muscle-distribution/:userId', requireAuth('user', 'coach', 'gym_owner'), requireUserAccess('userId', {
+  allowSelf: true,
+  allowAssignedCoach: true,
+  allowGymOwner: true,
+}), async (req, res) => {
   try {
     const userId = Number(req.params.userId);
     if (!Number.isFinite(userId) || userId <= 0) {
@@ -12347,7 +12594,11 @@ router.get('/progress/muscle-distribution/:userId', requireAuth('user'), require
   }
 });
 
-router.get('/progress/bi-weekly-report/:userId', requireAuth('user'), requireUserAccess('userId', { allowSelf: true }), async (req, res) => {
+router.get('/progress/bi-weekly-report/:userId', requireAuth('user', 'coach', 'gym_owner'), requireUserAccess('userId', {
+  allowSelf: true,
+  allowAssignedCoach: true,
+  allowGymOwner: true,
+}), async (req, res) => {
   try {
     const userId = Number(req.params.userId);
     if (!Number.isFinite(userId) || userId <= 0) {
@@ -12627,7 +12878,11 @@ router.get('/progress/bi-weekly-report/:userId', requireAuth('user'), requireUse
   }
 });
 
-router.get('/progress/overload/:userId', requireAuth('user'), requireUserAccess('userId', { allowSelf: true }), async (req, res) => {
+router.get('/progress/overload/:userId', requireAuth('user', 'coach', 'gym_owner'), requireUserAccess('userId', {
+  allowSelf: true,
+  allowAssignedCoach: true,
+  allowGymOwner: true,
+}), async (req, res) => {
   try {
     const userId = Number(req.params.userId);
     if (!Number.isFinite(userId) || userId <= 0) {
@@ -15001,7 +15256,11 @@ router.post('/insights/user-analysis/save', authMutationRateLimit, requireAuth('
   }
 });
 
-router.get('/insights/user/:userId/history', requireAuth('user'), requireUserAccess('userId', { allowSelf: true }), async (req, res) => {
+router.get('/insights/user/:userId/history', requireAuth('user', 'coach', 'gym_owner'), requireUserAccess('userId', {
+  allowSelf: true,
+  allowAssignedCoach: true,
+  allowGymOwner: true,
+}), async (req, res) => {
   try {
     const userId = Number(req.params?.userId);
     if (!Number.isInteger(userId) || userId <= 0) {
