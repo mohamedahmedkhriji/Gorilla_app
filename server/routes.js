@@ -6781,12 +6781,8 @@ const loadCoachScheduleSessions = async ({ coachId, startDate, endDate }) => {
     ? [normalizedStartDate, normalizedEndDate]
     : [normalizedEndDate, normalizedStartDate];
 
-  const profileImageColumn = await getProfileImageColumn();
-  const avatarSelect = profileImageColumn
-    ? `COALESCE(u.${profileImageColumn}, '') AS avatar_url`
-    : `'' AS avatar_url`;
   const [clientRows] = await pool.execute(
-    `SELECT u.id AS user_id, u.name AS client_name, ${avatarSelect}
+    `SELECT u.id AS user_id, u.name AS client_name, '' AS avatar_url
      FROM users u
      WHERE u.role = 'user'
        AND u.is_active = 1
