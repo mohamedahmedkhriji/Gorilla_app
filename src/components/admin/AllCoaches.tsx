@@ -224,6 +224,7 @@ export const AllCoaches: React.FC<AllCoachesProps> = ({ onBack }) => {
                 <label className="block text-sm text-gray-400 mb-2">Coach Name *</label>
                 <input
                   type="text"
+                  autoComplete="name"
                   required
                   value={formData.name}
                   onChange={(e) => setFormData({...formData, name: e.target.value})}
@@ -236,6 +237,11 @@ export const AllCoaches: React.FC<AllCoachesProps> = ({ onBack }) => {
                   <label className="block text-sm text-gray-400 mb-2">Email *</label>
                   <input
                     type="email"
+                    inputMode="email"
+                    autoComplete="email"
+                    autoCapitalize="none"
+                    autoCorrect="off"
+                    spellCheck={false}
                     required
                     value={formData.email}
                     onChange={(e) => setFormData({...formData, email: e.target.value})}
@@ -246,6 +252,7 @@ export const AllCoaches: React.FC<AllCoachesProps> = ({ onBack }) => {
                   <label className="block text-sm text-gray-400 mb-2">Phone *</label>
                   <input
                     type="tel"
+                    autoComplete="tel"
                     required
                     value={formData.phone}
                     onChange={(e) => setFormData({...formData, phone: e.target.value})}
@@ -316,6 +323,7 @@ export const AllCoaches: React.FC<AllCoachesProps> = ({ onBack }) => {
                 <label className="block text-sm text-gray-400 mb-2">Coach Name *</label>
                 <input
                   type="text"
+                  autoComplete="name"
                   required
                   value={formData.name}
                   onChange={(e) => setFormData({...formData, name: e.target.value})}
@@ -328,6 +336,11 @@ export const AllCoaches: React.FC<AllCoachesProps> = ({ onBack }) => {
                   <label className="block text-sm text-gray-400 mb-2">Email *</label>
                   <input
                     type="email"
+                    inputMode="email"
+                    autoComplete="email"
+                    autoCapitalize="none"
+                    autoCorrect="off"
+                    spellCheck={false}
                     required
                     value={formData.email}
                     onChange={(e) => setFormData({...formData, email: e.target.value})}
@@ -338,6 +351,7 @@ export const AllCoaches: React.FC<AllCoachesProps> = ({ onBack }) => {
                   <label className="block text-sm text-gray-400 mb-2">Phone *</label>
                   <input
                     type="tel"
+                    autoComplete="tel"
                     required
                     value={formData.phone}
                     onChange={(e) => setFormData({...formData, phone: e.target.value})}

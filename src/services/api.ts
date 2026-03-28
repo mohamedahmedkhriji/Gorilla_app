@@ -143,6 +143,18 @@ const normalizeApiErrorMessage = (message: string, fallbackError: string) => {
   const text = String(message || '').trim();
   if (!text) return fallbackError;
 
+  if (/^email already exists$/i.test(text)) {
+    return 'A user with this email already exists.';
+  }
+
+  if (/^coach email already exists$/i.test(text)) {
+    return 'A coach with this email already exists.';
+  }
+
+  if (/^gym email already exists$/i.test(text)) {
+    return 'A gym with this email already exists.';
+  }
+
   if (/access denied for user .*using password:\s*no/i.test(text)) {
     return 'Database authentication failed. Set DB_PASSWORD in .env and restart the backend.';
   }
@@ -247,11 +259,7 @@ export const api = {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data)
     });
-    const body = await res.json();
-    if (!res.ok || body?.error) {
-      throw new Error(body?.error || 'Failed to create user');
-    }
-    return body;
+    return parseApiResponse(res, 'Failed to create user');
   },
 
   getAllGyms: async () => {
@@ -279,7 +287,7 @@ export const api = {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data)
     });
-    return res.json();
+    return parseApiResponse(res, 'Failed to create coach');
   },
 
   saveOnboarding: async (userId: number, data: any) => {

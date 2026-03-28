@@ -91,6 +91,11 @@ export const AddUser: React.FC<AddUserProps> = ({ onBack, onSuccess }) => {
               <label className="block text-sm text-slate-500 mb-2">User Email *</label>
               <input
                 type="email"
+                inputMode="email"
+                autoComplete="email"
+                autoCapitalize="none"
+                autoCorrect="off"
+                spellCheck={false}
                 required
                 value={formData.email}
                 onChange={(e) => setFormData({...formData, email: e.target.value})}
