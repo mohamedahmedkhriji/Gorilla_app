@@ -981,6 +981,11 @@ export function SettingsScreen({ onBack, onOpenGym, onOpenHomeTour }: SettingsSc
                   <div className="relative">
                     <input
                       type={showPassword[fieldKey] ? 'text' : 'password'}
+                      autoComplete={
+                        fieldKey === 'oldPassword'
+                          ? 'current-password'
+                          : 'new-password'
+                      }
                       value={passwordFields[fieldKey]}
                       onChange={(e) => setPasswordFields((prev) => ({ ...prev, [fieldKey]: e.target.value }))}
                       className="w-full bg-background border border-white/10 rounded-xl px-3 py-2.5 pr-10 text-white text-sm outline-none focus:border-accent/60"

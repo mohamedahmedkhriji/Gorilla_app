@@ -104,6 +104,7 @@ export const AddUser: React.FC<AddUserProps> = ({ onBack, onSuccess }) => {
               <div className="relative">
                 <input
                   type={showPassword ? 'text' : 'password'}
+                  autoComplete="new-password"
                   required
                   minLength={6}
                   value={formData.password}
@@ -127,6 +128,7 @@ export const AddUser: React.FC<AddUserProps> = ({ onBack, onSuccess }) => {
               <div className="relative">
                 <input
                   type={showConfirmPassword ? 'text' : 'password'}
+                  autoComplete="new-password"
                   required
                   minLength={6}
                   value={formData.confirmPassword}

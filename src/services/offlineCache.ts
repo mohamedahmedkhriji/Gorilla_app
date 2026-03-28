@@ -4,9 +4,24 @@ type OfflineCacheEntry<T> = {
 };
 
 const OFFLINE_CACHE_PREFIX = 'offlineCache:v1:';
+const OFFLINE_CACHE_MAX_ENTRY_BYTES = 250_000;
+const OFFLINE_CACHE_EVICTION_BATCH_SIZE = 8;
+const warnedOfflineCacheKeys = new Set<string>();
 
 const hasWindow = () =>
   typeof window !== 'undefined' && typeof window.localStorage !== 'undefined';
+
+const isQuotaExceededError = (error: unknown) => {
+  if (!error || typeof error !== 'object') return false;
+  const name = String((error as { name?: unknown }).name || '');
+  const code = Number((error as { code?: unknown }).code || 0);
+  return (
+    name === 'QuotaExceededError'
+    || name === 'NS_ERROR_DOM_QUOTA_REACHED'
+    || code === 22
+    || code === 1014
+  );
+};
 
 const stableSerialize = (value: unknown): string => {
   if (value == null) return 'null';
@@ -73,18 +88,93 @@ export const readOfflineCacheEntry = <T>(key: string): OfflineCacheEntry<T> | nu
 export const readOfflineCacheValue = <T>(key: string): T | null =>
   readOfflineCacheEntry<T>(key)?.value ?? null;
 
+const getOfflineCacheStorageKeys = () => {
+  if (!hasWindow()) return [];
+
+  const keys: string[] = [];
+  for (let index = 0; index < window.localStorage.length; index += 1) {
+    const key = window.localStorage.key(index);
+    if (key?.startsWith(OFFLINE_CACHE_PREFIX)) {
+      keys.push(key);
+    }
+  }
+
+  return keys;
+};
+
+const getOfflineCacheUpdatedAt = (key: string) => {
+  const entry = readOfflineCacheEntry<unknown>(key);
+  const timestamp = new Date(String(entry?.updatedAt || '')).getTime();
+  return Number.isFinite(timestamp) ? timestamp : 0;
+};
+
+const evictOldestOfflineCacheEntries = (excludeKey: string, count = OFFLINE_CACHE_EVICTION_BATCH_SIZE) => {
+  if (!hasWindow()) return 0;
+
+  const keys = getOfflineCacheStorageKeys()
+    .filter((key) => key !== excludeKey)
+    .sort((a, b) => getOfflineCacheUpdatedAt(a) - getOfflineCacheUpdatedAt(b));
+
+  let removed = 0;
+  for (const key of keys.slice(0, count)) {
+    try {
+      window.localStorage.removeItem(key);
+      removed += 1;
+    } catch {
+      // Ignore eviction failures and continue trying other keys.
+    }
+  }
+
+  return removed;
+};
+
 export const writeOfflineCache = <T>(key: string, value: T) => {
   if (!hasWindow()) return;
 
+  const payload: OfflineCacheEntry<T> = {
+    updatedAt: new Date().toISOString(),
+    value,
+  };
+
+  let serialized = '';
   try {
-    const payload: OfflineCacheEntry<T> = {
-      updatedAt: new Date().toISOString(),
-      value,
-    };
-    window.localStorage.setItem(key, JSON.stringify(payload));
+    serialized = JSON.stringify(payload);
   } catch (error) {
-    // Preserve runtime behavior if the browser quota is exhausted.
-    console.warn('Failed to write offline cache entry:', error);
+    console.warn('Failed to serialize offline cache entry:', error);
+    return;
+  }
+
+  if (serialized.length > OFFLINE_CACHE_MAX_ENTRY_BYTES) {
+    removeOfflineCache(key);
+    if (!warnedOfflineCacheKeys.has(key)) {
+      warnedOfflineCacheKeys.add(key);
+      console.warn(`Skipped offline cache entry because it is too large: ${key}`);
+    }
+    return;
+  }
+
+  try {
+    window.localStorage.setItem(key, serialized);
+    warnedOfflineCacheKeys.delete(key);
+    return;
+  } catch (error) {
+    if (!isQuotaExceededError(error)) {
+      console.warn('Failed to write offline cache entry:', error);
+      return;
+    }
+  }
+
+  evictOldestOfflineCacheEntries(key);
+
+  try {
+    window.localStorage.setItem(key, serialized);
+    warnedOfflineCacheKeys.delete(key);
+  } catch (error) {
+    removeOfflineCache(key);
+    if (!warnedOfflineCacheKeys.has(key)) {
+      warnedOfflineCacheKeys.add(key);
+      console.warn('Failed to write offline cache entry:', error);
+    }
   }
 };
 

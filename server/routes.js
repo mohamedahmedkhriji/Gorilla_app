@@ -3378,10 +3378,12 @@ const collectUserGamificationMetrics = async (userId, baseDate = new Date()) => 
     [recoveryDateRows],
   ] = await Promise.all([
     pool.execute(
+      // Count completed workout progress by finished session when available,
+      // otherwise fall back to one workout day per calendar date.
       `SELECT COUNT(
           DISTINCT COALESCE(
             CONCAT('session:', session_id),
-            CONCAT('day_exercise:', DATE(created_at), '|', LOWER(TRIM(exercise_name)))
+            CONCAT('day:', DATE(created_at))
           )
         ) AS c
        FROM workout_sets

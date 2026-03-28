@@ -273,6 +273,7 @@ export const AllCoaches: React.FC<AllCoachesProps> = ({ onBack }) => {
                 <label className="block text-sm text-gray-400 mb-2">Password *</label>
                 <input
                   type="password"
+                  autoComplete="new-password"
                   required
                   value={formData.password}
                   onChange={(e) => setFormData({...formData, password: e.target.value})}

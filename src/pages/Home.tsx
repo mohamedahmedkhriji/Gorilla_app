@@ -1502,9 +1502,35 @@ export function Home({
       }
     };
 
-    calculateProgress();
-    const interval = setInterval(calculateProgress, 1000);
-    return () => clearInterval(interval);
+    const refreshProgress = () => {
+      void calculateProgress();
+    };
+
+    const handleVisibilityChange = () => {
+      if (!document.hidden) {
+        refreshProgress();
+      }
+    };
+
+    refreshProgress();
+    window.addEventListener('focus', refreshProgress);
+    window.addEventListener('storage', refreshProgress);
+    window.addEventListener('gamification-updated', refreshProgress);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    const interval = window.setInterval(() => {
+      if (!document.hidden) {
+        refreshProgress();
+      }
+    }, 15000);
+
+    return () => {
+      window.removeEventListener('focus', refreshProgress);
+      window.removeEventListener('storage', refreshProgress);
+      window.removeEventListener('gamification-updated', refreshProgress);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.clearInterval(interval);
+    };
   }, [todayWorkoutData, todayWorkout, currentUserId]);
   if (view === 'nutrition') {
     return <MyNutrition onBack={() => setView('main')} />;
