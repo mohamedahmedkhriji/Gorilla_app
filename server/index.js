@@ -12,6 +12,7 @@ import {
   getRoleSocketType,
   verifyAuthToken,
 } from './auth.js';
+import { startExpiredBannedUserCleanup } from './services/userStatusService.js';
 
 dotenv.config();
 
@@ -38,6 +39,7 @@ const isAllowedOrigin = (origin) => {
 };
 
 const server = http.createServer(app);
+let expiredBannedUserCleanup = null;
 const corsOptions = {
   origin: (origin, callback) => {
     callback(null, isAllowedOrigin(origin));
@@ -341,6 +343,15 @@ server.on('error', (error) => {
   })();
 });
 
+process.on('SIGINT', () => {
+  expiredBannedUserCleanup?.stop();
+});
+
+process.on('SIGTERM', () => {
+  expiredBannedUserCleanup?.stop();
+});
+
 server.listen(PORT, () => {
+  expiredBannedUserCleanup = startExpiredBannedUserCleanup();
   console.log(`Server running on port ${PORT}`);
 });

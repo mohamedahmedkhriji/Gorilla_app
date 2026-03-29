@@ -28,6 +28,7 @@ import {
   saveUserAnalysisInsightsForUser,
 } from './services/insightPersistence.js';
 import { generateDailyNutritionPlan } from './services/nutritionPlanner.js';
+import { buildActiveUserStateClause, buildVisibleUserClause } from './services/userStatusService.js';
 import { resolveExerciseVideoManifest } from '../src/shared/exerciseVideoManifest.js';
 import {
   buildCustomProgramPayloadFromClaudePlan,
@@ -5990,16 +5991,12 @@ router.post('/coaches', authMutationRateLimit, requireAuth('gym_owner'), async (
 router.get('/users', requireAuth('coach', 'gym_owner'), async (req, res) => {
   try {
     const authUser = req.authUser;
-    await pool.execute(
-      'UPDATE users SET is_active = 0 WHERE is_active = 1 AND ban_delete_at IS NOT NULL AND ban_delete_at <= NOW()'
-    );
-
     const profileImageColumn = await getProfileImageColumn();
     if (!profileImageColumn) {
       return res.status(500).json({ error: 'No profile image column found on users table' });
     }
 
-    const filters = ["role = 'user'", 'is_active = 1'];
+    const filters = ["role = 'user'", buildActiveUserStateClause()];
     const params = [];
 
     if (String(authUser?.role || '') === 'coach') {
@@ -15159,8 +15156,7 @@ const fetchBlogPostById = async (postId, viewerUserId = 0) => {
         FROM blog_post_comments c2
         INNER JOIN users cu ON cu.id = c2.user_id
         WHERE c2.post_id = bp.id
-          AND cu.is_active = 1
-          AND (cu.banned_until IS NULL OR cu.banned_until < NOW())
+          AND ${buildVisibleUserClause('cu')}
         ORDER BY c2.created_at DESC, c2.id DESC
         LIMIT 1) AS latest_comment_avatar_url`
     : `'' AS latest_comment_avatar_url`;
@@ -15213,24 +15209,22 @@ const fetchBlogPostById = async (postId, viewerUserId = 0) => {
        FROM blog_post_views
        GROUP BY post_id
      ) v ON v.post_id = bp.id
-     LEFT JOIN (
-       SELECT c.post_id, COUNT(*) AS comment_count
-       FROM blog_post_comments c
-       INNER JOIN users cu ON cu.id = c.user_id
-       WHERE cu.is_active = 1
-         AND (cu.banned_until IS NULL OR cu.banned_until < NOW())
-       GROUP BY c.post_id
-     ) c ON c.post_id = bp.id
+      LEFT JOIN (
+        SELECT c.post_id, COUNT(*) AS comment_count
+        FROM blog_post_comments c
+        INNER JOIN users cu ON cu.id = c.user_id
+        WHERE ${buildVisibleUserClause('cu')}
+        GROUP BY c.post_id
+      ) c ON c.post_id = bp.id
      LEFT JOIN blog_post_reactions ur
        ON ur.post_id = bp.id
       AND ur.user_id = ?
-     LEFT JOIN blog_post_likes ul
-       ON ul.post_id = bp.id
-      AND ul.user_id = ?
-     WHERE bp.id = ?
-       AND u.is_active = 1
-       AND (u.banned_until IS NULL OR u.banned_until < NOW())
-     LIMIT 1`,
+      LEFT JOIN blog_post_likes ul
+        ON ul.post_id = bp.id
+       AND ul.user_id = ?
+      WHERE bp.id = ?
+        AND ${buildVisibleUserClause('u')}
+      LIMIT 1`,
     [safeViewerUserId, safeViewerUserId, postId],
   );
 
@@ -15241,10 +15235,6 @@ const fetchBlogPostById = async (postId, viewerUserId = 0) => {
 router.get('/blogs', requireAuth('user', 'coach', 'gym_owner'), async (req, res) => {
   try {
     const authUser = req.authUser;
-    await pool.execute(
-      'UPDATE users SET is_active = 0 WHERE is_active = 1 AND ban_delete_at IS NOT NULL AND ban_delete_at <= NOW()'
-    );
-
     const viewerUserId = Number(authUser?.id || 0) || 0;
     const authorId = toPositiveInteger(req.query.authorId);
     const limit = clampBlogLimit(req.query.limit, 20, 60);
@@ -15262,8 +15252,7 @@ router.get('/blogs', requireAuth('user', 'coach', 'gym_owner'), async (req, res)
           FROM blog_post_comments c2
           INNER JOIN users cu ON cu.id = c2.user_id
           WHERE c2.post_id = bp.id
-            AND cu.is_active = 1
-            AND (cu.banned_until IS NULL OR cu.banned_until < NOW())
+            AND ${buildVisibleUserClause('cu')}
           ORDER BY c2.created_at DESC, c2.id DESC
           LIMIT 1) AS latest_comment_avatar_url`
       : `'' AS latest_comment_avatar_url`;
@@ -15283,8 +15272,7 @@ router.get('/blogs', requireAuth('user', 'coach', 'gym_owner'), async (req, res)
     const params = [viewerUserId, viewerUserId];
     const whereParts = [];
 
-    whereParts.push('u.is_active = 1');
-    whereParts.push('(u.banned_until IS NULL OR u.banned_until < NOW())');
+    whereParts.push(buildVisibleUserClause('u'));
 
     if (!viewerIsFemale) {
       whereParts.push('(COALESCE(bp.women_only, 0) = 0 OR bp.user_id = ?)');
@@ -15354,14 +15342,13 @@ router.get('/blogs', requireAuth('user', 'coach', 'gym_owner'), async (req, res)
          FROM blog_post_views
          GROUP BY post_id
        ) v ON v.post_id = bp.id
-       LEFT JOIN (
-         SELECT c.post_id, COUNT(*) AS comment_count
-         FROM blog_post_comments c
-         INNER JOIN users cu ON cu.id = c.user_id
-         WHERE cu.is_active = 1
-           AND (cu.banned_until IS NULL OR cu.banned_until < NOW())
-         GROUP BY c.post_id
-       ) c ON c.post_id = bp.id
+        LEFT JOIN (
+          SELECT c.post_id, COUNT(*) AS comment_count
+          FROM blog_post_comments c
+          INNER JOIN users cu ON cu.id = c.user_id
+          WHERE ${buildVisibleUserClause('cu')}
+          GROUP BY c.post_id
+        ) c ON c.post_id = bp.id
        LEFT JOIN blog_post_reactions ur
          ON ur.post_id = bp.id
         AND ur.user_id = ?
@@ -15428,11 +15415,23 @@ router.post('/blogs', authMutationRateLimit, requireAuth('user'), requireUserAcc
     const mediaAlt = mediaAltRaw.slice(0, 255) || 'User uploaded media';
     const womenOnly = Boolean(req.body?.womenOnly);
 
-    const [existingUsers] = await pool.execute('SELECT id, gender, banned_until, is_active FROM users WHERE id = ? LIMIT 1', [userId]);
+    const [existingUsers] = await pool.execute(
+      `SELECT
+          id,
+          gender,
+          banned_until,
+          is_active,
+          ban_delete_at,
+          CASE WHEN ${buildActiveUserStateClause()} THEN 1 ELSE 0 END AS has_active_account
+       FROM users
+       WHERE id = ?
+       LIMIT 1`,
+      [userId],
+    );
     if (!existingUsers.length) {
       return res.status(404).json({ error: 'User not found' });
     }
-    if (Number(existingUsers[0]?.is_active || 0) === 0) {
+    if (Number(existingUsers[0]?.has_active_account || 0) === 0) {
       return res.status(403).json({ error: 'Account is inactive' });
     }
     const bannedUntil = existingUsers[0]?.banned_until ? new Date(existingUsers[0].banned_until) : null;
@@ -15968,13 +15967,12 @@ router.get('/blogs/:postId/comments', requireAuth('user', 'coach', 'gym_owner'),
          c.created_at,
          u.name AS author_name,
          ${avatarSelect}
-       FROM blog_post_comments c
-       INNER JOIN users u ON u.id = c.user_id
-       WHERE c.post_id = ?
-         AND u.is_active = 1
-         AND (u.banned_until IS NULL OR u.banned_until < NOW())
-       ORDER BY c.created_at ASC, c.id ASC
-       LIMIT ${limit}`,
+        FROM blog_post_comments c
+        INNER JOIN users u ON u.id = c.user_id
+        WHERE c.post_id = ?
+          AND ${buildVisibleUserClause('u')}
+        ORDER BY c.created_at ASC, c.id ASC
+        LIMIT ${limit}`,
       [postId],
     );
 
@@ -16006,11 +16004,21 @@ router.post('/blogs/:postId/comments', authMutationRateLimit, requireAuth('user'
       return res.status(400).json({ error: 'Comment is too long (max 1000 chars)' });
     }
 
-    const [userRows] = await pool.execute('SELECT banned_until, is_active FROM users WHERE id = ? LIMIT 1', [userId]);
+    const [userRows] = await pool.execute(
+      `SELECT
+          banned_until,
+          is_active,
+          ban_delete_at,
+          CASE WHEN ${buildActiveUserStateClause()} THEN 1 ELSE 0 END AS has_active_account
+       FROM users
+       WHERE id = ?
+       LIMIT 1`,
+      [userId],
+    );
     if (!userRows.length) {
       return res.status(404).json({ error: 'User not found' });
     }
-    if (Number(userRows[0]?.is_active || 0) === 0) {
+    if (Number(userRows[0]?.has_active_account || 0) === 0) {
       return res.status(403).json({ error: 'Account is inactive' });
     }
     const bannedUntil = userRows[0]?.banned_until ? new Date(userRows[0].banned_until) : null;
@@ -16063,8 +16071,7 @@ router.post('/blogs/:postId/comments', authMutationRateLimit, requireAuth('user'
        FROM blog_post_comments c
        INNER JOIN users u ON u.id = c.user_id
        WHERE c.post_id = ?
-         AND u.is_active = 1
-         AND (u.banned_until IS NULL OR u.banned_until < NOW())`,
+          AND ${buildVisibleUserClause('u')}`,
       [postId],
     );
 
