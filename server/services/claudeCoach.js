@@ -737,8 +737,20 @@ const parseClaudeText = (responsePayload) => {
 
 export const hasAnthropicConfig = () => Boolean(String(process.env.ANTHROPIC_API_KEY || '').trim());
 
+const parsePositiveIntegerEnv = (name, fallbackValue, minimumValue = 1_000) => {
+  const rawValue = Number(process.env[name] || '');
+  if (!Number.isFinite(rawValue)) return fallbackValue;
+  const normalizedValue = Math.floor(rawValue);
+  return normalizedValue >= minimumValue ? normalizedValue : fallbackValue;
+};
+
 const CLAUDE_MAX_ATTEMPTS = 3;
-const CLAUDE_REQUEST_TIMEOUT_MS = 90_000;
+const DEFAULT_CLAUDE_REQUEST_TIMEOUT_MS = 90_000;
+const getClaudeRequestTimeoutMs = () => parsePositiveIntegerEnv(
+  'ANTHROPIC_REQUEST_TIMEOUT_MS',
+  DEFAULT_CLAUDE_REQUEST_TIMEOUT_MS,
+  5_000,
+);
 
 const isRetryableClaudeStatus = (statusCode) => (
   [408, 409, 429, 500, 502, 503, 504].includes(Number(statusCode))
@@ -755,6 +767,12 @@ const isRetryableClaudeParseError = (error) => {
 };
 
 const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+const getClaudeRequestUserId = (profile = {}) => {
+  const rawUserId = profile?.userId ?? profile?.onboardingFields?.userId;
+  const normalizedUserId = Number(rawUserId || 0);
+  return Number.isFinite(normalizedUserId) && normalizedUserId > 0 ? normalizedUserId : null;
+};
 
 const stripHtml = (value) => String(value || '')
   .replace(/<[^>]*>/g, ' ')
@@ -795,10 +813,13 @@ export const generateTwoMonthPlanWithClaude = async ({ profile = {}, bodyImages 
     .map((image) => parseDataUriImage(image))
     .filter(Boolean)
     .slice(0, MAX_INCLUDED_IMAGES);
+  const requestTimeoutMs = getClaudeRequestTimeoutMs();
+  const requestUserId = getClaudeRequestUserId(profile);
 
   let lastError = null;
 
   for (let attempt = 1; attempt <= CLAUDE_MAX_ATTEMPTS; attempt += 1) {
+    const attemptStartedAt = Date.now();
     const retryInstruction = attempt > 1
       ? '\n\nIMPORTANT: Return one valid JSON object only. No markdown, no commentary, no partial output.'
       : '';
@@ -832,7 +853,7 @@ export const generateTwoMonthPlanWithClaude = async ({ profile = {}, bodyImages 
     };
 
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), CLAUDE_REQUEST_TIMEOUT_MS);
+    const timeout = setTimeout(() => controller.abort(), requestTimeoutMs);
 
     let response;
     let rawBody = '';
@@ -858,20 +879,44 @@ export const generateTwoMonthPlanWithClaude = async ({ profile = {}, bodyImages 
       }
     } catch (error) {
       const timedOut = error?.name === 'AbortError';
+      const durationMs = Date.now() - attemptStartedAt;
       lastError = timedOut
         ? new Error('Claude API request timed out')
         : new Error(error?.message || 'Claude API request failed');
 
       if (attempt < CLAUDE_MAX_ATTEMPTS) {
+        console.warn('[claude:onboarding] request attempt failed, retrying', {
+          userId: requestUserId,
+          model,
+          attempt,
+          maxAttempts: CLAUDE_MAX_ATTEMPTS,
+          durationMs,
+          timeoutMs: requestTimeoutMs,
+          usedImages: preparedImages.length,
+          reason: timedOut ? 'timeout' : 'request_error',
+          message: lastError.message,
+        });
         await wait(400 * attempt);
         continue;
       }
+      console.warn('[claude:onboarding] request failed', {
+        userId: requestUserId,
+        model,
+        attempt,
+        maxAttempts: CLAUDE_MAX_ATTEMPTS,
+        durationMs,
+        timeoutMs: requestTimeoutMs,
+        usedImages: preparedImages.length,
+        reason: timedOut ? 'timeout' : 'request_error',
+        message: lastError.message,
+      });
       throw lastError;
     } finally {
       clearTimeout(timeout);
     }
 
     if (!response.ok) {
+      const durationMs = Date.now() - attemptStartedAt;
       const details = buildClaudeHttpErrorDetails({
         statusCode: response.status,
         rawBody,
@@ -880,32 +925,92 @@ export const generateTwoMonthPlanWithClaude = async ({ profile = {}, bodyImages 
       lastError = new Error(`Claude API request failed (${response.status}): ${details}`);
 
       if (attempt < CLAUDE_MAX_ATTEMPTS && isRetryableClaudeStatus(response.status)) {
+        console.warn('[claude:onboarding] request attempt returned retryable status, retrying', {
+          userId: requestUserId,
+          model,
+          attempt,
+          maxAttempts: CLAUDE_MAX_ATTEMPTS,
+          durationMs,
+          timeoutMs: requestTimeoutMs,
+          usedImages: preparedImages.length,
+          statusCode: Number(response.status || 0),
+          message: lastError.message,
+        });
         await wait(500 * attempt);
         continue;
       }
+      console.warn('[claude:onboarding] request returned non-success status', {
+        userId: requestUserId,
+        model,
+        attempt,
+        maxAttempts: CLAUDE_MAX_ATTEMPTS,
+        durationMs,
+        timeoutMs: requestTimeoutMs,
+        usedImages: preparedImages.length,
+        statusCode: Number(response.status || 0),
+        message: lastError.message,
+      });
       throw lastError;
     }
 
     try {
+      const durationMs = Date.now() - attemptStartedAt;
       const rawText = parseClaudeText(parsedResponse);
       const json = extractJsonObject(rawText);
       const plan = normalizePlan(json, profile);
+
+      if (attempt > 1) {
+        console.info('[claude:onboarding] request succeeded after retry', {
+          userId: requestUserId,
+          model,
+          attempt,
+          maxAttempts: CLAUDE_MAX_ATTEMPTS,
+          durationMs,
+          timeoutMs: requestTimeoutMs,
+          usedImages: preparedImages.length,
+        });
+      }
 
       return {
         plan,
         rawText,
         model,
         usedImages: preparedImages.length,
+        attemptsUsed: attempt,
+        requestTimeoutMs,
       };
     } catch (error) {
+      const durationMs = Date.now() - attemptStartedAt;
       lastError = error instanceof Error ? error : new Error(String(error || 'Claude response parsing failed'));
       const wasTruncated = String(parsedResponse?.stop_reason || '').toLowerCase() === 'max_tokens';
 
       if (attempt < CLAUDE_MAX_ATTEMPTS && (wasTruncated || isRetryableClaudeParseError(lastError))) {
+        console.warn('[claude:onboarding] response parsing failed, retrying', {
+          userId: requestUserId,
+          model,
+          attempt,
+          maxAttempts: CLAUDE_MAX_ATTEMPTS,
+          durationMs,
+          timeoutMs: requestTimeoutMs,
+          usedImages: preparedImages.length,
+          stopReason: String(parsedResponse?.stop_reason || '').trim() || null,
+          message: lastError.message,
+        });
         await wait(450 * attempt);
         continue;
       }
 
+      console.warn('[claude:onboarding] response parsing failed', {
+        userId: requestUserId,
+        model,
+        attempt,
+        maxAttempts: CLAUDE_MAX_ATTEMPTS,
+        durationMs,
+        timeoutMs: requestTimeoutMs,
+        usedImages: preparedImages.length,
+        stopReason: String(parsedResponse?.stop_reason || '').trim() || null,
+        message: lastError.message,
+      });
       throw lastError;
     }
   }

@@ -71,7 +71,28 @@ const aiRouteRateLimit = createSimpleRateLimit({
   keySelector: (req) => String(req.authUser?.id || req.ip || 'unknown'),
 });
 const BI_WEEKLY_CLAUDE_API_URL = 'https://api.anthropic.com/v1/messages';
-const BI_WEEKLY_CLAUDE_TIMEOUT_MS = 45_000;
+const parsePositiveIntegerEnv = (name, fallbackValue, minimumValue = 1_000) => {
+  const rawValue = Number(process.env[name] || '');
+  if (!Number.isFinite(rawValue)) return fallbackValue;
+  const normalizedValue = Math.floor(rawValue);
+  return normalizedValue >= minimumValue ? normalizedValue : fallbackValue;
+};
+const DEFAULT_ANTHROPIC_ONBOARDING_TIMEOUT_MS = 90_000;
+const DEFAULT_BI_WEEKLY_CLAUDE_TIMEOUT_MS = 45_000;
+const getAnthropicOnboardingTimeoutMs = () => parsePositiveIntegerEnv(
+  'ANTHROPIC_REQUEST_TIMEOUT_MS',
+  DEFAULT_ANTHROPIC_ONBOARDING_TIMEOUT_MS,
+  5_000,
+);
+const getBiWeeklyClaudeTimeoutMs = () => parsePositiveIntegerEnv(
+  'ANTHROPIC_BIWEEKLY_REPORT_TIMEOUT_MS',
+  DEFAULT_BI_WEEKLY_CLAUDE_TIMEOUT_MS,
+  5_000,
+);
+const getRequestUserId = (req) => {
+  const normalizedUserId = Number(req?.authUser?.id || 0);
+  return Number.isFinite(normalizedUserId) && normalizedUserId > 0 ? normalizedUserId : null;
+};
 const getBiWeeklyReportOpenAIModel = () => String(
   process.env.OPENAI_BIWEEKLY_REPORT_MODEL
   || process.env.OPENAI_MODEL
@@ -308,7 +329,8 @@ const maybeGenerateClaudeBiWeeklyReport = async ({
   };
 
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), BI_WEEKLY_CLAUDE_TIMEOUT_MS);
+  const timeoutMs = getBiWeeklyClaudeTimeoutMs();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
 
   let response;
   let rawBody = '';
@@ -2242,7 +2264,7 @@ const XP_LEVELS = [
   { levelNumber: 14, levelName: 'Titan', xpRequired: 21000, tier: 14 },
   { levelNumber: 15, levelName: 'Legend', xpRequired: 28000, tier: 15 },
 ];
-const BLOG_POST_UPLOAD_POINTS = 10;
+const BLOG_POST_UPLOAD_POINTS = 20;
 
 const clampPercentage = (value) => Math.max(0, Math.min(100, Number(value || 0)));
 
@@ -4144,6 +4166,25 @@ const updateUserPointsAndRank = async (userId, metrics) => {
     completedChallenges: Number(completedChallengeRows[0]?.completed_count || 0),
     nextRank: getNextRankInfo(totalPoints),
   };
+};
+
+const recomputeUserPointsAndRank = async (userId) => {
+  const normalizedUserId = Number(userId);
+  if (!Number.isFinite(normalizedUserId) || normalizedUserId <= 0) return null;
+
+  const [userRows] = await pool.execute(
+    `SELECT COALESCE(total_workouts, 0) AS total_workouts
+     FROM users
+     WHERE id = ?
+     LIMIT 1`,
+    [normalizedUserId],
+  );
+
+  if (!userRows.length) return null;
+
+  return updateUserPointsAndRank(normalizedUserId, {
+    training_days: Number(userRows[0]?.total_workouts || 0),
+  });
 };
 
 const refreshGamificationForUser = async (userId, baseDate = new Date()) => {
@@ -7471,6 +7512,7 @@ router.post('/user/onboarding', authMutationRateLimit, requireAuth('user'), asyn
     }
 
     if (aiPlanRequested && claudeEnabled && shouldUseClaude && !shouldDisableClaude) {
+      const claudeGenerationStartedAt = Date.now();
       try {
         const claudeOnboardingFields = buildClaudeOnboardingFields(req.body, {
           userId: normalizedUserId,
@@ -7544,7 +7586,14 @@ router.post('/user/onboarding', authMutationRateLimit, requireAuth('user'), asyn
         } else {
           warning = rawWarning;
         }
-        console.warn('[onboarding] Claude generation failed, fallback to template:', rawWarning);
+        console.warn('[onboarding] Claude generation failed, using template fallback', {
+          userId: normalizedUserId,
+          durationMs: Date.now() - claudeGenerationStartedAt,
+          timeoutMs: getAnthropicOnboardingTimeoutMs(),
+          usedImages: normalizedBodyImages.length,
+          stage: 'generation',
+          message: rawWarning,
+        });
       }
     }
 
@@ -7663,6 +7712,7 @@ router.post('/user/onboarding', authMutationRateLimit, requireAuth('user'), asyn
 
       if (!assignedProgram && !assignmentInfo && aiPlanRequested && claudeGeneration) {
         await conn.query('SAVEPOINT onboarding_claude_plan');
+        const claudePlanPersistStartedAt = Date.now();
         try {
           const customPayload = buildCustomProgramPayloadFromClaudePlan(claudeGeneration.plan, {
             daysPerWeek: normalizedDays,
@@ -7711,7 +7761,16 @@ router.post('/user/onboarding', authMutationRateLimit, requireAuth('user'), asyn
           } else {
             warning = rawWarning;
           }
-          console.warn('[onboarding] Claude generation failed, fallback to template:', rawWarning);
+          console.warn('[onboarding] Claude-generated plan could not be persisted, using template fallback', {
+            userId: normalizedUserId,
+            durationMs: Date.now() - claudePlanPersistStartedAt,
+            stage: 'plan_persist',
+            model: claudeGeneration?.model || null,
+            attemptsUsed: Number(claudeGeneration?.attemptsUsed || 0) || null,
+            claudeRequestTimeoutMs: Number(claudeGeneration?.requestTimeoutMs || 0) || null,
+            usedImages: Number(claudeGeneration?.usedImages || 0) || 0,
+            message: rawWarning,
+          });
         }
       }
 
@@ -9021,7 +9080,10 @@ router.get('/leaderboard/:userId', requireAuth('user'), requireUserAccess('userI
           u.name,
           u.gym_id,
           ${profileImageColumn} AS profile_picture,
-          COALESCE(monthly_missions.points, 0) + COALESCE(monthly_challenges.points, 0) + COALESCE(monthly_friend_challenges.points, 0) AS points,
+          COALESCE(monthly_missions.points, 0)
+            + COALESCE(monthly_challenges.points, 0)
+            + COALESCE(monthly_friend_challenges.points, 0)
+            + COALESCE(monthly_blogs.points, 0) AS points,
           COALESCE(u.total_points, 0) AS total_points
         FROM users u
         LEFT JOIN (
@@ -9055,6 +9117,13 @@ router.get('/leaderboard/:userId', requireAuth('user'), requireUserAccess('userI
             AND challenge_points.completed_at < DATE_ADD(DATE_FORMAT(NOW(), '%Y-%m-01'), INTERVAL 1 MONTH)
           GROUP BY challenge_points.user_id
         ) monthly_friend_challenges ON monthly_friend_challenges.user_id = u.id
+        LEFT JOIN (
+          SELECT bp.user_id, COUNT(*) * ${BLOG_POST_UPLOAD_POINTS} AS points
+          FROM blog_posts bp
+          WHERE bp.created_at >= DATE_FORMAT(NOW(), '%Y-%m-01')
+            AND bp.created_at < DATE_ADD(DATE_FORMAT(NOW(), '%Y-%m-01'), INTERVAL 1 MONTH)
+          GROUP BY bp.user_id
+        ) monthly_blogs ON monthly_blogs.user_id = u.id
         WHERE ${scopeWhere}
         ORDER BY points DESC, u.id ASC
       `;
@@ -13800,6 +13869,7 @@ router.get('/progress/bi-weekly-report/:userId', requireAuth('user', 'coach', 'g
       aiNotice: getBiWeeklyReportAiUnavailableNotice(req),
     };
 
+    const claudeReportStartedAt = Date.now();
     try {
       const claudeReport = await maybeGenerateClaudeBiWeeklyReport({
         req,
@@ -13824,7 +13894,13 @@ router.get('/progress/bi-weekly-report/:userId', requireAuth('user', 'coach', 'g
         };
       }
     } catch (claudeError) {
-      console.warn('[bi-weekly-report] Claude generation failed, trying fallback provider:', claudeError?.message || claudeError);
+      console.warn('[bi-weekly-report] Claude generation failed, trying fallback provider', {
+        userId: getRequestUserId(req),
+        durationMs: Date.now() - claudeReportStartedAt,
+        timeoutMs: getBiWeeklyClaudeTimeoutMs(),
+        model: getBiWeeklyReportClaudeModel(),
+        message: claudeError?.message || String(claudeError || 'Claude bi-weekly report failed'),
+      });
     }
 
     if (reportCopy.aiStatus !== 'generated') {
@@ -15460,35 +15536,15 @@ router.post('/blogs', authMutationRateLimit, requireAuth('user'), requireUserAcc
 
     const postId = Number(result.insertId);
     const post = await fetchBlogPostById(postId, userId);
-    let totalPoints = null;
-    let blogPoints = null;
-    let blogPostCount = null;
-
+    let pointsSummary = null;
     try {
-      const gamification = await refreshGamificationForUser(userId);
-      totalPoints = Number(gamification?.totalPoints || 0);
-      blogPoints = Number(gamification?.blogPoints || 0);
-      blogPostCount = Number(gamification?.blogPostCount || 0);
-    } catch {
-      const [pointRows] = await pool.execute(
-        `SELECT COALESCE(total_points, 0) AS total_points
-         FROM users
-         WHERE id = ?
-         LIMIT 1`,
-        [userId],
-      );
-
-      const boostedPoints = Number(pointRows[0]?.total_points || 0) + BLOG_POST_UPLOAD_POINTS;
-      const boostedRank = getRankFromPoints(boostedPoints);
-      await pool.execute(
-        `UPDATE users
-         SET total_points = ?, \`rank\` = ?
-         WHERE id = ?`,
-        [boostedPoints, boostedRank, userId],
-      );
-
-      totalPoints = boostedPoints;
+      pointsSummary = await recomputeUserPointsAndRank(userId);
+    } catch (pointsError) {
+      console.warn('Blog post points sync failed after create:', pointsError?.message || pointsError);
     }
+    const totalPoints = pointsSummary ? Number(pointsSummary.totalPoints || 0) : null;
+    const blogPoints = pointsSummary ? Number(pointsSummary.blogPoints || 0) : null;
+    const blogPostCount = pointsSummary ? Number(pointsSummary.blogPostCount || 0) : null;
 
     return res.status(201).json({
       post,
@@ -15655,7 +15711,24 @@ router.delete('/blogs/:postId', authMutationRateLimit, requireAuth('user'), requ
     await conn.execute('DELETE FROM blog_posts WHERE id = ?', [postId]);
 
     await conn.commit();
-    return res.json({ success: true, postId });
+
+    let pointsSummary = null;
+    try {
+      pointsSummary = await recomputeUserPointsAndRank(userId);
+    } catch (pointsError) {
+      console.warn('Blog post points sync failed after delete:', pointsError?.message || pointsError);
+    }
+    const totalPoints = pointsSummary ? Number(pointsSummary.totalPoints || 0) : null;
+    const blogPoints = pointsSummary ? Number(pointsSummary.blogPoints || 0) : null;
+    const blogPostCount = pointsSummary ? Number(pointsSummary.blogPostCount || 0) : null;
+
+    return res.json({
+      success: true,
+      postId,
+      totalPoints,
+      blogPoints,
+      blogPostCount,
+    });
   } catch (error) {
     if (conn) await conn.rollback();
     return res.status(500).json({ error: error.message || 'Failed to delete post' });
