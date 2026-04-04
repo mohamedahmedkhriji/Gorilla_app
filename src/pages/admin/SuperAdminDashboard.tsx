@@ -10,6 +10,7 @@ import { BrandLogo } from '../../components/ui/BrandLogo';
 import { WorkspaceGrid } from '../../components/workspace/WorkspaceGrid';
 import { WorkspacePlaceholderScreen } from '../../components/workspace/WorkspacePlaceholderScreen';
 import { getWorkspacePage, getWorkspacePages } from '../../config/workspacePages';
+import { api } from '../../services/api';
 import { useScrollToTopOnChange } from '../../shared/scroll';
 import { clearStoredAdminSession } from '../../shared/adminAuthStorage';
 
@@ -64,8 +65,8 @@ export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({ onLogo
 
   useEffect(() => {
     setStats({
-      totalUsers: 1247,
-      activeUsers: 892,
+      totalUsers: 0,
+      activeUsers: 0,
       totalRevenue: 45680,
       monthlyRevenue: 12340,
       totalGyms: 23,
@@ -87,6 +88,38 @@ export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({ onLogo
       { month: 'Apr', users: 1150 },
       { month: 'May', users: 1247 }
     ]);
+
+    let cancelled = false;
+
+    const loadUserSummary = async () => {
+      try {
+        const response = await api.getAdminUsersOverview();
+        const responseUsers = Array.isArray(response?.users) ? response.users : [];
+        const summary = response?.summary || {};
+        const totalUsers = Number(summary.totalUsers || responseUsers.length || 0);
+        const activeUsers = Number(
+          summary.activeUsers
+            || responseUsers.filter((user: { status?: string | null }) => user?.status === 'active').length
+            || 0,
+        );
+
+        if (!cancelled) {
+          setStats((currentStats) => ({
+            ...currentStats,
+            totalUsers,
+            activeUsers,
+          }));
+        }
+      } catch (error) {
+        console.error('Failed to load admin user summary:', error);
+      }
+    };
+
+    void loadUserSummary();
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const maxUsers = Math.max(...userGrowth.map(d => d.users));

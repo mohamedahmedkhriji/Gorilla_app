@@ -1126,6 +1126,13 @@ export const api = {
     });
   },
 
+  getAdminUsersOverview: async () => {
+    return withTransientReadRetry(async () => {
+      const res = await fetchWithTimeout(`${API_URL}/users/admin-overview`, undefined, 10000);
+      return parseApiResponse(res, 'Failed to fetch admin users overview');
+    });
+  },
+
   getUserSessionStatus: async (userId: number | string) => {
     const res = await fetch(`${API_URL}/users/${userId}/exists`);
     return parseApiResponse(res, 'Failed to validate user session');

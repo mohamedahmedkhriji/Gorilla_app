@@ -2405,10 +2405,27 @@ const recalculateRecoveryStatusHoursForFactors = async (userId, previousFactors,
   );
 };
 
+const getUsersIdReferenceColumnSql = async () => {
+  const [rows] = await pool.execute(
+    `SELECT column_type
+     FROM information_schema.columns
+     WHERE table_schema = DATABASE()
+       AND table_name = 'users'
+       AND column_name = 'id'
+     LIMIT 1`,
+  );
+
+  return String(rows[0]?.column_type || '').toLowerCase().includes('unsigned')
+    ? 'INT UNSIGNED'
+    : 'INT';
+};
+
 const ensureRecoveryInfrastructure = async () => {
+  const userIdColumnSql = await getUsersIdReferenceColumnSql();
+
   await pool.execute(
     `CREATE TABLE IF NOT EXISTS recovery_factors (
-      user_id INT UNSIGNED PRIMARY KEY,
+      user_id ${userIdColumnSql} PRIMARY KEY,
       sleep_hours DECIMAL(4,1) NOT NULL DEFAULT 7.0,
       nutrition_quality VARCHAR(20) NOT NULL DEFAULT 'optimal',
       stress_level VARCHAR(20) NOT NULL DEFAULT 'low',
@@ -2432,7 +2449,7 @@ const ensureRecoveryInfrastructure = async () => {
   await pool.execute(
     `CREATE TABLE IF NOT EXISTS muscle_recovery_status (
       id BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
-      user_id INT UNSIGNED NOT NULL,
+      user_id ${userIdColumnSql} NOT NULL,
       muscle_group VARCHAR(80) NOT NULL,
       recovery_percentage DECIMAL(6,2) NOT NULL DEFAULT 100,
       hours_needed DECIMAL(8,2) NOT NULL DEFAULT 0,
@@ -2450,7 +2467,7 @@ const ensureRecoveryInfrastructure = async () => {
   await pool.execute(
     `CREATE TABLE IF NOT EXISTS recovery_history (
       id BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
-      user_id INT UNSIGNED NOT NULL,
+      user_id ${userIdColumnSql} NOT NULL,
       overall_recovery_score DECIMAL(6,2) NOT NULL DEFAULT 0,
       sleep_hours DECIMAL(4,1) NOT NULL DEFAULT 7.0,
       nutrition_quality VARCHAR(20) NOT NULL DEFAULT 'optimal',
@@ -2535,9 +2552,11 @@ const WEEKLY_ACTIVE_MISSION_TARGET = 5;
 const MONTHLY_ACTIVE_MISSION_TARGET = 1;
 
 const ensureNotificationSettingsInfrastructure = async () => {
+  const userIdColumnSql = await getUsersIdReferenceColumnSql();
+
   await pool.execute(
     `CREATE TABLE IF NOT EXISTS user_notification_settings (
-      user_id INT UNSIGNED PRIMARY KEY,
+      user_id ${userIdColumnSql} PRIMARY KEY,
       coach_messages TINYINT(1) NOT NULL DEFAULT 1,
       rest_timer TINYINT(1) NOT NULL DEFAULT 1,
       mission_challenge TINYINT(1) NOT NULL DEFAULT 1,
@@ -2548,13 +2567,15 @@ const ensureNotificationSettingsInfrastructure = async () => {
 };
 
 const ensureFriendshipInfrastructure = async () => {
+  const userIdColumnSql = await getUsersIdReferenceColumnSql();
+
   await pool.execute(
     `CREATE TABLE IF NOT EXISTS friendships (
       id BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
-      user_id INT UNSIGNED NOT NULL,
-      friend_id INT UNSIGNED NOT NULL,
+      user_id ${userIdColumnSql} NOT NULL,
+      friend_id ${userIdColumnSql} NOT NULL,
       status ENUM('pending','accepted','blocked','declined','removed') NOT NULL DEFAULT 'pending',
-      initiated_by INT UNSIGNED NOT NULL,
+      initiated_by ${userIdColumnSql} NOT NULL,
       accepted_at DATETIME NULL,
       created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
       updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -2571,15 +2592,17 @@ const ensureFriendshipInfrastructure = async () => {
 };
 
 const ensureFriendChallengeInfrastructure = async () => {
+  const userIdColumnSql = await getUsersIdReferenceColumnSql();
+
   await pool.execute(
     `CREATE TABLE IF NOT EXISTS friend_challenge_sessions (
       id BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
       challenge_key VARCHAR(80) NOT NULL,
-      sender_user_id INT UNSIGNED NOT NULL,
-      receiver_user_id INT UNSIGNED NOT NULL,
+      sender_user_id ${userIdColumnSql} NOT NULL,
+      receiver_user_id ${userIdColumnSql} NOT NULL,
       invitation_notification_id BIGINT UNSIGNED NULL,
       status ENUM('pending','active','completed','declined','abandoned') NOT NULL DEFAULT 'pending',
-      winner_user_id INT UNSIGNED NULL,
+      winner_user_id ${userIdColumnSql} NULL,
       client_match_id VARCHAR(120) NOT NULL,
       rounds_json JSON NOT NULL,
       metadata_json JSON NULL,
@@ -2616,13 +2639,13 @@ const ensureFriendChallengeInfrastructure = async () => {
     `CREATE TABLE IF NOT EXISTS friend_challenge_results (
       id BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
       challenge_key VARCHAR(80) NOT NULL,
-      participant_a_id INT UNSIGNED NOT NULL,
-      participant_b_id INT UNSIGNED NOT NULL,
+      participant_a_id ${userIdColumnSql} NOT NULL,
+      participant_b_id ${userIdColumnSql} NOT NULL,
       participant_a_points INT NOT NULL DEFAULT 0,
       participant_b_points INT NOT NULL DEFAULT 0,
-      submitted_by_user_id INT UNSIGNED NOT NULL,
-      winner_user_id INT UNSIGNED NOT NULL,
-      loser_user_id INT UNSIGNED NOT NULL,
+      submitted_by_user_id ${userIdColumnSql} NOT NULL,
+      winner_user_id ${userIdColumnSql} NOT NULL,
+      loser_user_id ${userIdColumnSql} NOT NULL,
       points_reward INT NOT NULL DEFAULT 0,
       client_match_id VARCHAR(120) NOT NULL,
       metadata_json JSON NULL,
@@ -2855,11 +2878,13 @@ let coachSessionNotesInfrastructurePromise;
 const ensureCoachSessionNotesInfrastructure = async () => {
   if (!coachSessionNotesInfrastructurePromise) {
     coachSessionNotesInfrastructurePromise = (async () => {
+      const userIdColumnSql = await getUsersIdReferenceColumnSql();
+
       await pool.execute(
         `CREATE TABLE IF NOT EXISTS coach_session_notes (
           id BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
-          coach_id INT UNSIGNED NOT NULL,
-          user_id INT UNSIGNED NOT NULL,
+          coach_id ${userIdColumnSql} NOT NULL,
+          user_id ${userIdColumnSql} NOT NULL,
           workout_session_id BIGINT UNSIGNED NULL,
           session_date DATE NOT NULL,
           workout_name VARCHAR(120) NULL,
@@ -2922,6 +2947,7 @@ const ensureGamificationInfrastructure = async () => {
   await ensureColumnExists('users', 'current_level_id', 'ALTER TABLE users ADD COLUMN current_level_id INT NULL');
   await ensureIndexExists('users', 'idx_users_current_level_id', 'CREATE INDEX idx_users_current_level_id ON users (current_level_id)');
   await ensureFriendChallengeInfrastructure();
+  const userIdColumnSql = await getUsersIdReferenceColumnSql();
 
   await pool.execute(
     `UPDATE users
@@ -2952,7 +2978,7 @@ const ensureGamificationInfrastructure = async () => {
   await pool.execute(
     `CREATE TABLE IF NOT EXISTS xp_transactions (
       id BIGINT PRIMARY KEY AUTO_INCREMENT,
-      user_id INT UNSIGNED NOT NULL,
+      user_id ${userIdColumnSql} NOT NULL,
       source_type ENUM(
         'workout',
         'planned_workout',
@@ -2985,7 +3011,7 @@ const ensureGamificationInfrastructure = async () => {
 
   await pool.execute(
     `CREATE TABLE IF NOT EXISTS user_xp (
-      user_id INT UNSIGNED PRIMARY KEY,
+      user_id ${userIdColumnSql} PRIMARY KEY,
       total_xp INT NOT NULL DEFAULT 0,
       current_level_id INT NULL,
       updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -3062,7 +3088,7 @@ const ensureGamificationInfrastructure = async () => {
   await pool.execute(
     `CREATE TABLE IF NOT EXISTS user_missions (
       id BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
-      user_id INT UNSIGNED NOT NULL,
+      user_id ${userIdColumnSql} NOT NULL,
       mission_id INT UNSIGNED NOT NULL,
       assigned_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
       instance_key VARCHAR(30) NOT NULL DEFAULT 'default',
@@ -3163,7 +3189,7 @@ const ensureGamificationInfrastructure = async () => {
   await pool.execute(
     `CREATE TABLE IF NOT EXISTS user_challenges (
       id BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
-      user_id INT NOT NULL,
+      user_id ${userIdColumnSql} NOT NULL,
       challenge_template_id INT UNSIGNED NOT NULL,
       instance_key VARCHAR(30) NOT NULL,
       current_progress INT UNSIGNED NOT NULL DEFAULT 0,
@@ -6056,6 +6082,78 @@ router.get('/users', requireAuth('coach', 'gym_owner'), async (req, res) => {
       params,
     );
     return res.json(rows);
+  } catch (error) {
+    return res.status(500).json({ error: error.message });
+  }
+});
+
+router.get('/users/admin-overview', requireAuth('coach', 'gym_owner'), async (req, res) => {
+  try {
+    const authUser = req.authUser;
+    const profileImageColumn = await getProfileImageColumn();
+    if (!profileImageColumn) {
+      return res.status(500).json({ error: 'No profile image column found on users table' });
+    }
+
+    const filters = ["u.role = 'user'"];
+    const params = [];
+
+    if (String(authUser?.role || '') === 'coach') {
+      filters.push('u.coach_id = ?');
+      params.push(Number(authUser.id || 0));
+    } else if (String(authUser?.role || '') === 'gym_owner' && Number(authUser?.gym_id || 0) > 0) {
+      filters.push('u.gym_id = ?');
+      params.push(Number(authUser.gym_id));
+    }
+
+    const [rows] = await pool.execute(
+      `SELECT
+          u.id,
+          u.name,
+          u.email,
+          u.role,
+          u.gym_id,
+          u.coach_id,
+          u.age,
+          u.\`${profileImageColumn}\` AS profile_picture,
+          COALESCE(u.total_points, 0) AS total_points,
+          COALESCE(u.total_workouts, 0) AS total_workouts,
+          u.\`rank\`,
+          u.onboarding_completed,
+          u.created_at AS joined_at,
+          CASE
+            WHEN ${buildVisibleUserClause('u')} THEN 'active'
+            ELSE 'inactive'
+          END AS status
+       FROM users u
+       WHERE ${filters.join(' AND ')}
+       ORDER BY u.created_at DESC, u.id DESC`,
+      params,
+    );
+
+    const users = rows.map((row) => normalizeUser({
+      ...row,
+      status: row.status === 'inactive' ? 'inactive' : 'active',
+    }));
+
+    const summary = users.reduce(
+      (accumulator, user) => {
+        accumulator.totalUsers += 1;
+        if (user.status === 'active') {
+          accumulator.activeUsers += 1;
+        } else {
+          accumulator.inactiveUsers += 1;
+        }
+        return accumulator;
+      },
+      {
+        totalUsers: 0,
+        activeUsers: 0,
+        inactiveUsers: 0,
+      },
+    );
+
+    return res.json({ users, summary });
   } catch (error) {
     return res.status(500).json({ error: error.message });
   }

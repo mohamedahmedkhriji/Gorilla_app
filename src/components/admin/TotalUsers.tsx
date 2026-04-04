@@ -1,70 +1,150 @@
-import React, { useState } from 'react';
-import { ArrowLeft, Users, TrendingUp, Edit, Trash2, Plus, X } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import { ArrowLeft, Trash2, TrendingUp, Users } from 'lucide-react';
+import { api } from '../../services/api';
 
 interface TotalUsersProps {
   onBack: () => void;
 }
 
-export const TotalUsers: React.FC<TotalUsersProps> = ({ onBack }) => {
-  const [timeRange, setTimeRange] = useState<'week' | 'month' | 'year'>('month');
-  const [showEditForm, setShowEditForm] = useState(false);
-  const [selectedUser, setSelectedUser] = useState<any>(null);
-  const [usersData, setUsersData] = useState([
-    { id: '1', name: 'Alex Johnson', email: 'alex@email.com', joined: '2024-01-15', status: 'active', workouts: 45, subscriptionEnd: '2025-01-15' },
-    { id: '2', name: 'Sarah Smith', email: 'sarah@email.com', joined: '2024-01-10', status: 'active', workouts: 38, subscriptionEnd: '2025-02-10' },
-    { id: '3', name: 'Mike Brown', email: 'mike@email.com', joined: '2024-01-08', status: 'active', workouts: 52, subscriptionEnd: '2024-01-01' },
-    { id: '4', name: 'Emma Davis', email: 'emma@email.com', joined: '2024-01-05', status: 'inactive', workouts: 12, subscriptionEnd: '2024-01-01' },
-    { id: '5', name: 'John Wilson', email: 'john@email.com', joined: '2023-12-20', status: 'active', workouts: 67, subscriptionEnd: '2025-03-20' }
-  ]);
-  const [formData, setFormData] = useState({ name: '', email: '', status: 'active' });
+type TimeRange = 'week' | 'month' | 'year';
+type UserStatus = 'active' | 'inactive';
 
-  React.useEffect(() => {
-    const checkSubscriptions = () => {
-      const today = new Date();
-      setUsersData(prevUsers => 
-        prevUsers.map(user => {
-          const subEnd = new Date(user.subscriptionEnd);
-          if (subEnd < today && user.status === 'active') {
-            return { ...user, status: 'inactive' };
-          }
-          return user;
-        })
-      );
+type AdminOverviewUserResponse = {
+  id?: number | string;
+  name?: string | null;
+  email?: string | null;
+  joined_at?: string | null;
+  status?: string | null;
+  total_workouts?: number | string | null;
+};
+
+type AdminOverviewUser = {
+  id: string;
+  name: string;
+  email: string;
+  joinedAt: string | null;
+  status: UserStatus;
+  workouts: number;
+};
+
+const getRangeStart = (range: TimeRange) => {
+  const now = new Date();
+  now.setHours(0, 0, 0, 0);
+
+  if (range === 'week') {
+    now.setDate(now.getDate() - 6);
+    return now;
+  }
+
+  if (range === 'month') {
+    now.setMonth(now.getMonth() - 1);
+    return now;
+  }
+
+  now.setFullYear(now.getFullYear() - 1);
+  return now;
+};
+
+const isUserWithinRange = (user: AdminOverviewUser, range: TimeRange) => {
+  if (!user.joinedAt) return true;
+
+  const joinedDate = new Date(user.joinedAt);
+  if (Number.isNaN(joinedDate.getTime())) return true;
+
+  return joinedDate >= getRangeStart(range);
+};
+
+const formatJoinedDate = (value: string | null) => {
+  if (!value) return 'Unknown';
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return 'Unknown';
+
+  return date.toISOString().slice(0, 10);
+};
+
+const getTimeRangeLabel = (range: TimeRange) => {
+  if (range === 'week') return 'last 7 days';
+  if (range === 'month') return 'last 30 days';
+  return 'last 12 months';
+};
+
+const normalizeAdminOverviewUser = (user: AdminOverviewUserResponse): AdminOverviewUser => {
+  const normalizedId = String(user.id ?? '').trim() || '0';
+  const fallbackName = `User ${normalizedId}`;
+  const workouts = Number(user.total_workouts || 0);
+
+  return {
+    id: normalizedId,
+    name: String(user.name || '').trim() || fallbackName,
+    email: String(user.email || '').trim() || 'No email',
+    joinedAt: typeof user.joined_at === 'string' ? user.joined_at : null,
+    status: user.status === 'inactive' ? 'inactive' : 'active',
+    workouts: Number.isFinite(workouts) ? workouts : 0,
+  };
+};
+
+export const TotalUsers: React.FC<TotalUsersProps> = ({ onBack }) => {
+  const [timeRange, setTimeRange] = useState<TimeRange>('month');
+  const [users, setUsers] = useState<AdminOverviewUser[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [deletingUserId, setDeletingUserId] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadUsers = async () => {
+      try {
+        setLoading(true);
+        setError('');
+
+        const response = await api.getAdminUsersOverview();
+        const nextUsers = Array.isArray(response?.users)
+          ? (response.users as AdminOverviewUserResponse[]).map(normalizeAdminOverviewUser)
+          : [];
+
+        if (!cancelled) {
+          setUsers(nextUsers);
+        }
+      } catch (loadError) {
+        if (!cancelled) {
+          setError(loadError instanceof Error ? loadError.message : 'Failed to load users');
+        }
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      }
     };
-    checkSubscriptions();
-    const interval = setInterval(checkSubscriptions, 86400000);
-    return () => clearInterval(interval);
+
+    void loadUsers();
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
-  const users = usersData;
+  const visibleUsers = users.filter((user) => isUserWithinRange(user, timeRange));
+  const totalUsers = visibleUsers.length;
+  const activeUsers = visibleUsers.filter((user) => user.status === 'active').length;
+  const inactiveUsers = totalUsers - activeUsers;
 
-  const handleEdit = (user: any, e: React.MouseEvent) => {
-    e.stopPropagation();
-    setSelectedUser(user);
-    setFormData({ name: user.name, email: user.email, status: user.status });
-    setShowEditForm(true);
-  };
+  const handleDelete = async (userId: string, userName: string) => {
+    const confirmed = window.confirm(
+      `Delete ${userName}? This removes the account and related user data.`,
+    );
+    if (!confirmed) return;
 
-  const handleDelete = (userId: string, e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (confirm('Are you sure you want to delete this user? All data will be removed.')) {
-      setUsersData(usersData.filter(u => u.id !== userId));
-      alert('User deleted successfully!');
-    }
-  };
-
-  const handleUpdate = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (selectedUser) {
-      setUsersData(usersData.map(u => 
-        u.id === selectedUser.id 
-          ? { ...u, name: formData.name, email: formData.email, status: formData.status }
-          : u
-      ));
-      alert('User updated successfully!');
-      setShowEditForm(false);
-      setSelectedUser(null);
-      setFormData({ name: '', email: '', status: 'active' });
+    try {
+      setDeletingUserId(userId);
+      setError('');
+      await api.deleteUser(userId);
+      setUsers((currentUsers) => currentUsers.filter((user) => user.id !== userId));
+    } catch (deleteError) {
+      setError(deleteError instanceof Error ? deleteError.message : 'Failed to delete user');
+    } finally {
+      setDeletingUserId(null);
     }
   };
 
@@ -75,13 +155,19 @@ export const TotalUsers: React.FC<TotalUsersProps> = ({ onBack }) => {
         <span>Back to Dashboard</span>
       </button>
 
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="text-3xl font-bold">Total Users</h1>
+      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between mb-6">
+        <div>
+          <h1 className="text-3xl font-bold">Total Users</h1>
+          <p className="text-sm text-gray-400 mt-1">
+            Showing users created in the {getTimeRangeLabel(timeRange)}.
+          </p>
+        </div>
+
         <div className="flex gap-2">
-          {['week', 'month', 'year'].map(range => (
+          {['week', 'month', 'year'].map((range) => (
             <button
               key={range}
-              onClick={() => setTimeRange(range as any)}
+              onClick={() => setTimeRange(range as TimeRange)}
               className={`px-4 py-2 rounded-lg capitalize ${
                 timeRange === range ? 'bg-[#10b981] text-black' : 'bg-[#242424]'
               }`}
@@ -92,138 +178,103 @@ export const TotalUsers: React.FC<TotalUsersProps> = ({ onBack }) => {
         </div>
       </div>
 
-      <div className="grid grid-cols-3 gap-4 mb-6">
+      {error && (
+        <div className="mb-6 rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-200">
+          {error}
+        </div>
+      )}
+
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
         <div className="bg-[#242424] rounded-lg p-6">
           <Users className="text-emerald-600 mb-2" size={24} />
-          <div className="text-3xl font-bold">1,247</div>
+          <div className="text-3xl font-bold">{loading ? '--' : totalUsers.toLocaleString()}</div>
           <div className="text-sm text-gray-400">Total Users</div>
         </div>
+
         <div className="bg-[#242424] rounded-lg p-6">
           <TrendingUp className="text-green-500 mb-2" size={24} />
-          <div className="text-3xl font-bold">892</div>
+          <div className="text-3xl font-bold">{loading ? '--' : activeUsers.toLocaleString()}</div>
           <div className="text-sm text-gray-400">Active Users</div>
         </div>
+
         <div className="bg-[#242424] rounded-lg p-6">
           <Users className="text-red-500 mb-2" size={24} />
-          <div className="text-3xl font-bold">355</div>
+          <div className="text-3xl font-bold">{loading ? '--' : inactiveUsers.toLocaleString()}</div>
           <div className="text-sm text-gray-400">Inactive Users</div>
         </div>
       </div>
 
       <div className="bg-[#242424] rounded-lg p-6">
-        <h2 className="text-xl font-semibold mb-4">User List</h2>
-        <table className="w-full">
-          <thead>
-            <tr className="border-b border-gray-800">
-              <th className="text-left py-3 px-4">Name</th>
-              <th className="text-left py-3 px-4">Email</th>
-              <th className="text-left py-3 px-4">Joined</th>
-              <th className="text-left py-3 px-4">Workouts</th>
-              <th className="text-left py-3 px-4">Status</th>
-              <th className="text-left py-3 px-4">Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {users.map(user => (
-              <tr key={user.id} className="border-b border-gray-800 hover:bg-[#1A1A1A]">
-                <td className="py-3 px-4 font-semibold">{user.name}</td>
-                <td className="py-3 px-4 text-gray-400">{user.email}</td>
-                <td className="py-3 px-4 text-gray-400">{user.joined}</td>
-                <td className="py-3 px-4">{user.workouts}</td>
-                <td className="py-3 px-4">
-                  <span className={`px-2 py-1 rounded text-xs ${
-                    user.status === 'active' ? 'bg-green-500/20 text-green-500' : 'bg-red-500/20 text-red-500'
-                  }`}>
-                    {user.status}
-                  </span>
-                </td>
-                <td className="py-3 px-4">
-                  <div className="flex gap-2">
-                    <button
-                      onClick={(e) => handleEdit(user, e)}
-                      className="p-2 bg-blue-500/20 text-blue-500 rounded hover:bg-blue-500/30 transition-colors"
+        <div className="flex items-center justify-between gap-3 mb-4">
+          <h2 className="text-xl font-semibold">User List</h2>
+          <div className="text-sm text-gray-400">
+            {loading ? 'Loading...' : `${visibleUsers.length} user${visibleUsers.length === 1 ? '' : 's'}`}
+          </div>
+        </div>
+
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[720px]">
+            <thead>
+              <tr className="border-b border-gray-800">
+                <th className="text-left py-3 px-4">Name</th>
+                <th className="text-left py-3 px-4">Email</th>
+                <th className="text-left py-3 px-4">Joined</th>
+                <th className="text-left py-3 px-4">Workouts</th>
+                <th className="text-left py-3 px-4">Status</th>
+                <th className="text-left py-3 px-4">Actions</th>
+              </tr>
+            </thead>
+
+            <tbody>
+              {!loading && visibleUsers.length === 0 && (
+                <tr>
+                  <td colSpan={6} className="py-10 px-4 text-center text-gray-400">
+                    No users found for the selected time range.
+                  </td>
+                </tr>
+              )}
+
+              {loading && (
+                <tr>
+                  <td colSpan={6} className="py-10 px-4 text-center text-gray-400">
+                    Loading real user data...
+                  </td>
+                </tr>
+              )}
+
+              {!loading && visibleUsers.map((user) => (
+                <tr key={user.id} className="border-b border-gray-800 hover:bg-[#1A1A1A]">
+                  <td className="py-3 px-4 font-semibold">{user.name}</td>
+                  <td className="py-3 px-4 text-gray-400">{user.email}</td>
+                  <td className="py-3 px-4 text-gray-400">{formatJoinedDate(user.joinedAt)}</td>
+                  <td className="py-3 px-4">{user.workouts}</td>
+                  <td className="py-3 px-4">
+                    <span
+                      className={`px-2 py-1 rounded text-xs ${
+                        user.status === 'active'
+                          ? 'bg-green-500/20 text-green-500'
+                          : 'bg-red-500/20 text-red-500'
+                      }`}
                     >
-                      <Edit size={16} />
-                    </button>
+                      {user.status}
+                    </span>
+                  </td>
+                  <td className="py-3 px-4">
                     <button
-                      onClick={(e) => handleDelete(user.id, e)}
-                      className="p-2 bg-red-500/20 text-red-500 rounded hover:bg-red-500/30 transition-colors"
+                      onClick={() => handleDelete(user.id, user.name)}
+                      disabled={deletingUserId === user.id}
+                      className="p-2 bg-red-500/20 text-red-500 rounded hover:bg-red-500/30 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                      aria-label={`Delete ${user.name}`}
                     >
                       <Trash2 size={16} />
                     </button>
-                  </div>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-
-      {showEditForm && selectedUser && (
-        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4" onClick={() => setShowEditForm(false)}>
-          <div className="bg-[#242424] rounded-xl max-w-2xl w-full p-6" onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-center justify-between mb-6">
-              <h2 className="text-2xl font-bold">Edit User</h2>
-              <button onClick={() => setShowEditForm(false)} className="text-gray-400 hover:text-white">
-                <X size={24} />
-              </button>
-            </div>
-
-            <form onSubmit={handleUpdate} className="space-y-4">
-              <div>
-                <label className="block text-sm text-gray-400 mb-2">Name *</label>
-                <input
-                  type="text"
-                  required
-                  value={formData.name}
-                  onChange={(e) => setFormData({...formData, name: e.target.value})}
-                  className="w-full bg-[#1A1A1A] text-white px-4 py-2 rounded-lg border border-gray-700 focus:border-[#10b981] outline-none"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm text-gray-400 mb-2">Email *</label>
-                <input
-                  type="email"
-                  required
-                  value={formData.email}
-                  onChange={(e) => setFormData({...formData, email: e.target.value})}
-                  className="w-full bg-[#1A1A1A] text-white px-4 py-2 rounded-lg border border-gray-700 focus:border-[#10b981] outline-none"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm text-gray-400 mb-2">Status *</label>
-                <select
-                  value={formData.status}
-                  onChange={(e) => setFormData({...formData, status: e.target.value})}
-                  className="w-full bg-[#1A1A1A] text-white px-4 py-2 rounded-lg border border-gray-700 focus:border-[#10b981] outline-none"
-                >
-                  <option value="active">Active</option>
-                  <option value="inactive">Inactive</option>
-                </select>
-              </div>
-
-              <div className="flex gap-3 pt-4">
-                <button
-                  type="button"
-                  onClick={() => setShowEditForm(false)}
-                  className="flex-1 bg-gray-700 py-3 rounded-lg font-semibold hover:bg-gray-600 transition-colors"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="flex-1 bg-[#10b981] text-black py-3 rounded-lg font-semibold hover:bg-[#a8e600] transition-colors"
-                >
-                  Update User
-                </button>
-              </div>
-            </form>
-          </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
-      )}
+      </div>
     </div>
   );
 };
-
