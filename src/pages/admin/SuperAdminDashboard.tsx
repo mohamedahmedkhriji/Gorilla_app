@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Users, DollarSign, TrendingUp, Building2, LogOut, UserCheck } from 'lucide-react';
 import { TotalUsers } from '../../components/admin/TotalUsers';
 import { TotalRevenue } from '../../components/admin/TotalRevenue';
@@ -6,10 +6,14 @@ import { PartnerGyms } from '../../components/admin/PartnerGyms';
 import { UserGrowthChart } from '../../components/admin/UserGrowthChart';
 import { RevenueBreakdown } from '../../components/admin/RevenueBreakdown';
 import { AllCoaches } from '../../components/admin/AllCoaches';
+import {
+  AdminOverviewUserRecord,
+  buildUserGrowthMetrics,
+  createUserGrowthChartScale,
+} from '../../components/admin/userGrowthUtils';
 import { BrandLogo } from '../../components/ui/BrandLogo';
-import { WorkspaceGrid } from '../../components/workspace/WorkspaceGrid';
 import { WorkspacePlaceholderScreen } from '../../components/workspace/WorkspacePlaceholderScreen';
-import { getWorkspacePage, getWorkspacePages } from '../../config/workspacePages';
+import { getWorkspacePage } from '../../config/workspacePages';
 import { api } from '../../services/api';
 import { useScrollToTopOnChange } from '../../shared/scroll';
 import { clearStoredAdminSession } from '../../shared/adminAuthStorage';
@@ -21,11 +25,6 @@ type Gym = {
   revenue: number;
   status: 'active' | 'inactive';
   plan: 'Premium' | 'Basic';
-};
-
-type GrowthPoint = {
-  month: string;
-  users: number;
 };
 
 interface SuperAdminDashboardProps {
@@ -48,7 +47,6 @@ export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({ onLogo
     | 'subscriptionmanagement'
   >('dashboard');
   const [timeRange, setTimeRange] = useState<'week' | 'month' | 'year'>('month');
-  const adminWorkspacePages = getWorkspacePages('admin');
   const [stats, setStats] = useState({
     totalUsers: 0,
     activeUsers: 0,
@@ -59,7 +57,8 @@ export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({ onLogo
   });
 
   const [gyms, setGyms] = useState<Gym[]>([]);
-  const [userGrowth, setUserGrowth] = useState<GrowthPoint[]>([]);
+  const [adminUsers, setAdminUsers] = useState<AdminOverviewUserRecord[]>([]);
+  const [adminUsersLoaded, setAdminUsersLoaded] = useState(false);
 
   useScrollToTopOnChange([view]);
 
@@ -81,20 +80,14 @@ export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({ onLogo
       { id: '5', name: 'Flex Zone', members: 67, revenue: 2010, status: 'inactive', plan: 'Basic' }
     ]);
 
-    setUserGrowth([
-      { month: 'Jan', users: 850 },
-      { month: 'Feb', users: 920 },
-      { month: 'Mar', users: 1050 },
-      { month: 'Apr', users: 1150 },
-      { month: 'May', users: 1247 }
-    ]);
-
     let cancelled = false;
 
     const loadUserSummary = async () => {
       try {
         const response = await api.getAdminUsersOverview();
-        const responseUsers = Array.isArray(response?.users) ? response.users : [];
+        const responseUsers = Array.isArray(response?.users)
+          ? (response.users as AdminOverviewUserRecord[])
+          : [];
         const summary = response?.summary || {};
         const totalUsers = Number(summary.totalUsers || responseUsers.length || 0);
         const activeUsers = Number(
@@ -104,6 +97,7 @@ export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({ onLogo
         );
 
         if (!cancelled) {
+          setAdminUsers(responseUsers);
           setStats((currentStats) => ({
             ...currentStats,
             totalUsers,
@@ -112,6 +106,10 @@ export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({ onLogo
         }
       } catch (error) {
         console.error('Failed to load admin user summary:', error);
+      } finally {
+        if (!cancelled) {
+          setAdminUsersLoaded(true);
+        }
       }
     };
 
@@ -122,40 +120,28 @@ export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({ onLogo
     };
   }, []);
 
-  const maxUsers = Math.max(...userGrowth.map(d => d.users));
-
-  const openAdminWorkspacePage = (pageId: string) => {
-    switch (pageId) {
-      case 'admin-dashboard':
-        setView('dashboard');
-        return;
-      case 'users-management':
-        setView('users');
-        return;
-      case 'coaches-management':
-        setView('coaches');
-        return;
-      case 'exercises-management':
-        setView('exercisesmanagement');
-        return;
-      case 'missions-management':
-        setView('missionsmanagement');
-        return;
-      case 'rank-system':
-        setView('ranksystem');
-        return;
-      case 'subscription-management':
-        setView('subscriptionmanagement');
-        return;
-      default:
-        setView('dashboard');
-    }
-  };
+  const userGrowthMetrics = useMemo(
+    () => buildUserGrowthMetrics(adminUsers, timeRange),
+    [adminUsers, timeRange],
+  );
+  const userGrowth = userGrowthMetrics.points;
+  const userGrowthChartScale = useMemo(
+    () => createUserGrowthChartScale(userGrowth),
+    [userGrowth],
+  );
 
   if (view === 'users') return <TotalUsers onBack={() => setView('dashboard')} />;
   if (view === 'revenue') return <TotalRevenue onBack={() => setView('dashboard')} />;
   if (view === 'gyms') return <PartnerGyms onBack={() => setView('dashboard')} />;
-  if (view === 'growth') return <UserGrowthChart onBack={() => setView('dashboard')} />;
+  if (view === 'growth') {
+    return (
+      <UserGrowthChart
+        onBack={() => setView('dashboard')}
+        initialTimeRange={timeRange}
+        initialUsers={adminUsersLoaded ? adminUsers : undefined}
+      />
+    );
+  }
   if (view === 'breakdown') return <RevenueBreakdown onBack={() => setView('dashboard')} />;
   if (view === 'coaches') return <AllCoaches onBack={() => setView('dashboard')} />;
   if (view === 'exercisesmanagement') {
@@ -336,39 +322,37 @@ export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({ onLogo
         </div>
       </div>
 
-      <div className="mb-4 md:mb-6">
-        <WorkspaceGrid
-          title="Admin Workspace"
-          subtitle="This maps the requested admin panel pages to the current implementation."
-          pages={adminWorkspacePages}
-          onSelect={(page) => openAdminWorkspacePage(page.id)}
-        />
-      </div>
-
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6 mb-4 md:mb-6">
         <div className="bg-[#242424] rounded-lg p-4 md:p-6 cursor-pointer hover:bg-[#2A2A2A] transition-colors" onClick={() => setView('growth')}>
           <h2 className="text-lg md:text-xl font-semibold mb-4">User Growth</h2>
           <div className="h-48 md:h-64">
-            <svg className="w-full h-full" viewBox="0 0 500 250">
-              {userGrowth.map((d, i) => {
-                const x = (i / (userGrowth.length - 1)) * 480 + 10;
-                const y = 230 - (d.users / maxUsers) * 200;
-                const nextPoint = userGrowth[i + 1];
-                const nextX = nextPoint ? ((i + 1) / (userGrowth.length - 1)) * 480 + 10 : x;
-                const nextY = nextPoint ? 230 - (nextPoint.users / maxUsers) * 200 : y;
-                
-                return (
-                  <g key={i}>
-                    {i < userGrowth.length - 1 && (
-                      <line x1={x} y1={y} x2={nextX} y2={nextY} stroke="#10b981" strokeWidth="3" />
-                    )}
-                    <circle cx={x} cy={y} r="5" fill="#10b981" />
-                    <text x={x} y="245" fill="#888" fontSize="12" textAnchor="middle">{d.month}</text>
-                    <text x={x} y={y - 10} fill="#10b981" fontSize="12" textAnchor="middle">{d.users}</text>
-                  </g>
-                );
-              })}
-            </svg>
+            {!adminUsersLoaded ? (
+              <div className="h-full flex items-center justify-center text-sm text-gray-400">
+                Loading real growth data...
+              </div>
+            ) : (
+              <svg className="w-full h-full" viewBox="0 0 500 250">
+                {userGrowth.map((point, index) => {
+                  const denominator = Math.max(1, userGrowth.length - 1);
+                  const x = (index / denominator) * 480 + 10;
+                  const y = userGrowthChartScale.getY(point.users, 230, 200);
+                  const nextPoint = userGrowth[index + 1];
+                  const nextX = nextPoint ? ((index + 1) / denominator) * 480 + 10 : x;
+                  const nextY = nextPoint ? userGrowthChartScale.getY(nextPoint.users, 230, 200) : y;
+
+                  return (
+                    <g key={`${point.label}-${index}`}>
+                      {index < userGrowth.length - 1 && (
+                        <line x1={x} y1={y} x2={nextX} y2={nextY} stroke="#10b981" strokeWidth="3" />
+                      )}
+                      <circle cx={x} cy={y} r="5" fill="#10b981" />
+                      <text x={x} y="245" fill="#888" fontSize="12" textAnchor="middle">{point.label}</text>
+                      <text x={x} y={y - 10} fill="#10b981" fontSize="12" textAnchor="middle">{point.users}</text>
+                    </g>
+                  );
+                })}
+              </svg>
+            )}
           </div>
         </div>
 
