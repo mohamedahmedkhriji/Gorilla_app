@@ -1249,7 +1249,8 @@ export function CustomPlanOnboardingScreen({
                                         {exercise.videoUrl ? (
                                           <video
                                             src={exercise.videoUrl}
-                                            className="h-full w-full cursor-pointer object-cover"
+                                            poster={getBodyPartImage(muscle)}
+                                            className="block h-full w-full cursor-pointer bg-black object-cover"
                                             muted
                                             playsInline
                                             autoPlay

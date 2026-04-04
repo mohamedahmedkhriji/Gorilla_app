@@ -1566,8 +1566,9 @@ export function FriendProfile({ onBack, onChallenge, friend }: FriendProfileProp
                       post.mediaType === 'video' ? (
                         <video
                           src={post.mediaUrl}
-                          className="max-h-64 w-full rounded-xl border border-white/10 bg-black/20 object-contain"
+                          className="block max-h-64 w-full rounded-xl border border-white/10 bg-black object-contain sm:max-h-72"
                           controls
+                          playsInline
                           preload="metadata"
                         />
                       ) : (

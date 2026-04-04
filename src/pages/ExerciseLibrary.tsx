@@ -529,7 +529,8 @@ export function ExerciseLibrary({
                   <div className="relative flex aspect-[4/3] items-center justify-center overflow-hidden bg-white/5">
                     <video
                       src={videoUrl}
-                      className="h-full w-full object-cover"
+                      poster={getBodyPartImage(exercise.bodyPart || exercise.muscle)}
+                      className="block h-full w-full bg-black object-cover"
                       muted
                       playsInline
                       preload="metadata"

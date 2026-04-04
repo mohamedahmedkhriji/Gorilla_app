@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Card } from '../ui/Card';
 import { ArrowLeft, Play } from 'lucide-react';
 import { getBodyPartImage } from '../../services/bodyPartTheme';
@@ -580,8 +580,13 @@ export function ExerciseVideoScreen({ onBack, exercise }: ExerciseVideoScreenPro
             : exerciseGroup === 'abs'
               ? getAbsMuscleDistribution(exercise?.name, resolvedVideoUrl)
               : exerciseGroup === 'legs'
-                ? getLegsMuscleDistribution(exercise?.name, resolvedVideoUrl)
+              ? getLegsMuscleDistribution(exercise?.name, resolvedVideoUrl)
                 : getMuscleDistribution(targetMuscles);
+  const fallbackPosterUrl = resolveTargetMuscleImage(muscleDistribution[0]?.name, exercise?.muscle);
+
+  useEffect(() => {
+    setIsPlaying(false);
+  }, [resolvedVideoUrl]);
 
   const toLocalizedSubMuscle = (value: string) => {
     const key = String(value || '').trim().toLowerCase();
@@ -615,16 +620,23 @@ export function ExerciseVideoScreen({ onBack, exercise }: ExerciseVideoScreenPro
   return (
     <div className="flex-1 flex flex-col h-full bg-background overflow-y-auto px-4 sm:px-6">
       {/* Video Player */}
-      <div className="relative mb-6 w-full overflow-hidden rounded-2xl border border-white/10 bg-black min-h-[18rem] sm:min-h-[21rem] md:min-h-[24rem]">
+      <div
+        className="relative mb-6 flex w-full items-center justify-center overflow-hidden rounded-2xl border border-white/10 bg-black"
+        style={{ minHeight: 'clamp(16rem, 46vh, 24rem)', maxHeight: '72vh' }}
+      >
         {resolvedVideoUrl ? (
           <>
             <video
               ref={videoRef}
               controls
-              className="w-full h-full object-contain bg-black"
+              playsInline
+              preload="metadata"
+              poster={fallbackPosterUrl}
+              className="block max-h-[72vh] w-full bg-black object-contain"
               src={resolvedVideoUrl}
               onPlay={() => setIsPlaying(true)}
-              onPause={() => setIsPlaying(false)}>
+              onPause={() => setIsPlaying(false)}
+              onEnded={() => setIsPlaying(false)}>
             </video>
             <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none">
               {!isPlaying && (

@@ -1217,7 +1217,8 @@ export function WorkoutPlanScreen({
                       <>
                         <video
                           src={videoUrl}
-                          className="h-full w-full object-cover"
+                          poster={getMuscleImage(primaryMuscle)}
+                          className="block h-full w-full bg-black object-cover"
                           autoPlay
                           loop
                           playsInline

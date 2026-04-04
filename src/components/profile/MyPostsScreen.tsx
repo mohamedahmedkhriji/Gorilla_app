@@ -429,8 +429,9 @@ export function MyPostsScreen({ onBack }: MyPostsScreenProps) {
                   post.mediaType === 'video' ? (
                     <video
                       src={post.mediaUrl}
-                      className="w-full rounded-xl border border-white/10 bg-black/20 max-h-72 object-contain"
+                      className="block w-full rounded-xl border border-white/10 bg-black max-h-72 object-contain sm:max-h-80"
                       controls
+                      playsInline
                       preload="metadata"
                     />
                   ) : (

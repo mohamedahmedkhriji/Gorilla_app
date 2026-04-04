@@ -1658,7 +1658,7 @@ export function Blogs({
                 {post.mediaType === 'video' ? (
                   <video
                     src={post.mediaUrl}
-                    className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.01]"
+                    className="block h-full w-full bg-black object-cover transition-transform duration-300 group-hover:scale-[1.01]"
                     muted
                     playsInline
                     preload="metadata"
@@ -1848,11 +1848,11 @@ export function Blogs({
             <X size={20} className="text-[#FFFFFF]" />
           </button>
 
-          <div ref={reelsContainerRef} className="h-screen overflow-y-auto snap-y snap-mandatory">
+          <div ref={reelsContainerRef} className="mobile-dvh-screen overflow-y-auto snap-y snap-mandatory">
             {visiblePosts.map((post, index) => (
               <section
                 key={`${post.id}-reel-${index}`}
-                className="relative h-screen snap-start bg-black"
+                className="mobile-dvh-screen relative snap-start bg-black"
                 onDoubleClick={() => handleDoubleLike(post.id)}
               >
                 {post.mediaType === 'video' ? (
@@ -1861,6 +1861,7 @@ export function Blogs({
                     autoPlay={index === activeReelIndex}
                     muted
                     playsInline
+                    preload={index === activeReelIndex ? 'auto' : 'metadata'}
                     ref={(node) => {
                       if (node) reelVideoRefs.current.set(post.id, node);
                       else reelVideoRefs.current.delete(post.id);
@@ -1873,7 +1874,7 @@ export function Blogs({
                         video.pause();
                       }
                     }}
-                    className="h-full w-full object-contain cursor-pointer"
+                    className="block h-full w-full bg-black object-contain cursor-pointer"
                   />
                 ) : (
                   <img src={post.mediaUrl} alt={post.mediaAlt || copy.mediaAlt} className="h-full w-full object-contain" />
@@ -2118,7 +2119,13 @@ export function Blogs({
               {newMediaUrl && (
                 <div className="rounded-xl overflow-hidden border border-white/10 bg-black/20">
                   {newMediaType === 'video' ? (
-                    <video src={newMediaUrl} controls className="w-full max-h-56 object-contain" />
+                    <video
+                      src={newMediaUrl}
+                      controls
+                      playsInline
+                      preload="metadata"
+                      className="block w-full max-h-56 bg-black object-contain"
+                    />
                   ) : (
                     <img src={newMediaUrl} alt={copy.newPostPreviewAlt} className="w-full max-h-56 object-contain" />
                   )}
