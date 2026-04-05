@@ -1157,7 +1157,7 @@ export function WorkoutPlanScreen({
                 ))}
               </div>
             ) : (
-              <div className="rounded-2xl border border-white/8 bg-card/60 px-4 py-4 text-sm text-text-secondary">
+              <div className="rounded-2xl border border-white/[0.08] bg-card/60 px-4 py-4 text-sm text-text-secondary">
                 {copy.targetMusclesEmpty}
               </div>
             )}
@@ -1208,7 +1208,7 @@ export function WorkoutPlanScreen({
                     ? 'border-green-500/35 bg-green-500/5'
                     : isNext
                       ? 'border-accent/40 bg-accent/5'
-                      : 'border-white/8 bg-card/70 hover:border-accent/20'
+                      : 'border-white/[0.08] bg-card/70 hover:border-accent/20'
                 }`}
               >
                 <div className="flex items-center gap-3">
@@ -1299,21 +1299,21 @@ export function WorkoutPlanScreen({
               </div>
 
               <div className="mt-5 grid grid-cols-3 gap-3">
-                <div className="rounded-2xl border border-white/8 bg-white/[0.04] px-3 py-3">
+                <div className="rounded-2xl border border-white/[0.08] bg-white/[0.04] px-3 py-3">
                   <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-text-tertiary">
                     {cardioCopy.modeLabel}
                   </div>
                   <div className="mt-2 text-sm font-semibold text-white">{cardioPresetCopy.name}</div>
                   <div className="mt-1 text-[11px] text-text-secondary">{cardioPresetCopy.hint}</div>
                 </div>
-                <div className="rounded-2xl border border-white/8 bg-white/[0.04] px-3 py-3">
+                <div className="rounded-2xl border border-white/[0.08] bg-white/[0.04] px-3 py-3">
                   <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-text-tertiary">
                     {cardioCopy.suggestedLabel}
                   </div>
                   <div className="mt-2 text-sm font-semibold text-white">{selectedCardioPreset.durationMinutes} {cardioCopy.minuteShort}</div>
                   <div className="mt-1 text-[11px] text-text-secondary">{cardioCopy.progressLabel}</div>
                 </div>
-                <div className="rounded-2xl border border-white/8 bg-white/[0.04] px-3 py-3">
+                <div className="rounded-2xl border border-white/[0.08] bg-white/[0.04] px-3 py-3">
                   <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-text-tertiary">
                     {cardioCopy.liveBurnLabel}
                   </div>
@@ -1391,7 +1391,7 @@ export function WorkoutPlanScreen({
                         key={preset.id}
                         type="button"
                         onClick={() => setSelectedCardioPresetId(preset.id)}
-                        className={`rounded-xl border px-3 py-2.5 transition-colors ${isSelected ? 'border-accent/45 bg-accent/12' : 'border-white/8 bg-white/[0.03] hover:border-accent/25'}`}
+                        className={`rounded-xl border px-3 py-2.5 transition-colors ${isSelected ? 'border-accent/45 bg-accent/12' : 'border-white/[0.08] bg-white/[0.03] hover:border-accent/25'}`}
                       >
                         <div className="flex items-start justify-between gap-2">
                           <div className={`min-w-0 ${isArabic ? 'text-right' : 'text-left'}`}>
@@ -1440,13 +1440,13 @@ export function WorkoutPlanScreen({
                     </div>
 
                     <div className="mt-3 grid grid-cols-2 gap-2">
-                      <div className="rounded-xl border border-white/8 bg-white/[0.03] px-3 py-2.5">
+                      <div className="rounded-xl border border-white/[0.08] bg-white/[0.03] px-3 py-2.5">
                         <div className="text-[9px] font-semibold uppercase tracking-[0.1em] text-text-tertiary sm:text-[10px] sm:tracking-[0.14em]">
                           {cardioCopy.suggestedLabel}
                         </div>
                         <div className="mt-1.5 text-base font-semibold text-white sm:text-lg">{selectedCardioPreset.durationMinutes} {cardioCopy.minuteShort}</div>
                       </div>
-                      <div className="rounded-xl border border-white/8 bg-white/[0.03] px-3 py-2.5">
+                      <div className="rounded-xl border border-white/[0.08] bg-white/[0.03] px-3 py-2.5">
                         <div className="text-[9px] font-semibold uppercase tracking-[0.1em] text-text-tertiary sm:text-[10px] sm:tracking-[0.14em]">
                           {cardioCopy.caloriesLabel}
                         </div>
@@ -1522,7 +1522,7 @@ export function WorkoutPlanScreen({
 
             <div ref={addModalScrollRef} className="mt-4 max-h-[70vh] space-y-5 overflow-y-auto pr-1">
               {catalogLoading && (
-                <div className="rounded-2xl border border-white/8 bg-background/60 px-4 py-3 text-sm text-text-secondary">
+                <div className="rounded-2xl border border-white/[0.08] bg-background/60 px-4 py-3 text-sm text-text-secondary">
                   {copy.loadingExercises}
                 </div>
               )}
@@ -1574,13 +1574,13 @@ export function WorkoutPlanScreen({
                     </div>
 
                     {!selectedCatalogMuscle && (
-                      <div className="mt-4 rounded-2xl border border-white/8 bg-background/60 px-4 py-5 text-sm text-text-secondary">
+                      <div className="mt-4 rounded-2xl border border-white/[0.08] bg-background/60 px-4 py-5 text-sm text-text-secondary">
                         {copy.pickMuscleCard}
                       </div>
                     )}
 
                     {selectedCatalogMuscle && filteredCatalog.length === 0 && (
-                      <div className="mt-4 rounded-2xl border border-white/8 bg-background/60 px-4 py-5 text-sm text-text-secondary">
+                      <div className="mt-4 rounded-2xl border border-white/[0.08] bg-background/60 px-4 py-5 text-sm text-text-secondary">
                         {copy.noMatchingExercise(toLocalizedMuscleLabel(selectedCatalogMuscle))}
                       </div>
                     )}
@@ -1603,7 +1603,7 @@ export function WorkoutPlanScreen({
                               disabled={isSubmittingExercise}
                               className={`surface-card rounded-2xl p-3 transition-colors group hover:border-accent/20 ${isArabic ? 'text-right' : 'text-left'}`}
                             >
-                              <div className="relative -mx-3 -mt-3 mb-3 aspect-video overflow-hidden rounded-t-2xl border-b border-white/8 bg-white/5">
+                              <div className="relative -mx-3 -mt-3 mb-3 aspect-video overflow-hidden rounded-t-2xl border-b border-white/[0.08] bg-white/5">
                                 <img
                                   src={getMuscleImage(muscleLabel)}
                                   alt={exercise.name}
@@ -1657,7 +1657,7 @@ export function WorkoutPlanScreen({
                       {copy.muscleGroups}
                     </div>
                     {catalogMuscles.length === 0 ? (
-                      <div className="rounded-2xl border border-white/8 bg-background/60 px-4 py-3 text-sm text-text-secondary">
+                      <div className="rounded-2xl border border-white/[0.08] bg-background/60 px-4 py-3 text-sm text-text-secondary">
                         {copy.noExerciseGroups}
                       </div>
                     ) : (
@@ -1675,10 +1675,10 @@ export function WorkoutPlanScreen({
                               className={`rounded-2xl border p-3 transition-colors ${isArabic ? 'text-right' : 'text-left'} ${
                                 isSelected
                                   ? 'border-accent/45 bg-accent/10'
-                                  : 'border-white/8 bg-background/60 hover:border-accent/25 hover:bg-accent/5'
+                                  : 'border-white/[0.08] bg-background/60 hover:border-accent/25 hover:bg-accent/5'
                               }`}
                             >
-                              <div className="-mx-3 -mt-3 mb-3 aspect-[4/3] overflow-hidden rounded-t-2xl border-b border-white/8 bg-white/5">
+                              <div className="-mx-3 -mt-3 mb-3 aspect-[4/3] overflow-hidden rounded-t-2xl border-b border-white/[0.08] bg-white/5">
                                 <img
                                   src={getMuscleImage(muscle.name)}
                                   alt={toLocalizedMuscleLabel(muscle.name)}
