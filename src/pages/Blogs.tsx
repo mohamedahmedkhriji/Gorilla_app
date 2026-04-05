@@ -142,7 +142,7 @@ const BLOGS_I18N = {
     newPostPlaceholder: 'Share your update...',
     womenOnlyLabel: 'Post for women only',
     womenOnlyHint: 'Only women will see this post in the blog feed.',
-    uploadMedia: 'Upload image or video',
+    uploadMedia: 'Upload image',
     newPostPreviewAlt: 'New post preview',
     publishing: 'Publishing...',
     publish: 'Publish Post',
@@ -177,7 +177,7 @@ const BLOGS_I18N = {
     errorFileTooLarge: 'Media file is too large.',
     errorDescriptionRequired: 'Write a short post description.',
     errorDescriptionTooLong: (max: number) => `Description is too long (max ${max} characters).`,
-    errorMediaRequired: 'Upload an image or video.',
+    errorMediaRequired: 'Upload an image.',
     errorPublish: 'Failed to publish post',
     errorCopyLink: 'Copy to clipboard failed',
     commentRequired: 'Write a comment before posting.',
@@ -238,7 +238,7 @@ const BLOGS_I18N = {
     newPostPlaceholder: 'شارك تحديثك...',
     womenOnlyLabel: 'منشور للنساء فقط',
     womenOnlyHint: 'لن يرى هذا المنشور إلا النساء في خلاصة المدونة.',
-    uploadMedia: 'رفع صورة أو فيديو',
+    uploadMedia: 'رفع صورة',
     newPostPreviewAlt: 'معاينة المنشور الجديد',
     publishing: 'جارٍ النشر...',
     publish: 'نشر المنشور',
@@ -273,7 +273,7 @@ const BLOGS_I18N = {
     errorFileTooLarge: 'حجم الملف كبير جدًا.',
     errorDescriptionRequired: 'اكتب وصفًا قصيرًا للمنشور.',
     errorDescriptionTooLong: (max: number) => `الوصف طويل جدًا (الحد الأقصى ${max} حرفًا).`,
-    errorMediaRequired: 'ارفع صورة أو فيديو.',
+    errorMediaRequired: 'ارفع صورة.',
     errorPublish: 'تعذر نشر المنشور',
     errorCopyLink: 'فشل نسخ الرابط إلى الحافظة',
     commentRequired: 'اكتب تعليقًا قبل الإرسال.',
@@ -334,7 +334,7 @@ const BLOGS_I18N = {
     newPostPlaceholder: 'Condividi il tuo aggiornamento...',
     womenOnlyLabel: 'Post solo per donne',
     womenOnlyHint: 'Solo le donne vedranno questo post nel feed blog.',
-    uploadMedia: 'Carica immagine o video',
+    uploadMedia: 'Carica immagine',
     newPostPreviewAlt: 'Anteprima nuovo post',
     publishing: 'Pubblicazione...',
     publish: 'Pubblica Post',
@@ -369,7 +369,7 @@ const BLOGS_I18N = {
     errorFileTooLarge: 'Il file multimediale e troppo grande.',
     errorDescriptionRequired: 'Scrivi una breve descrizione del post.',
     errorDescriptionTooLong: (max: number) => `La descrizione e troppo lunga (max ${max} caratteri).`,
-    errorMediaRequired: 'Carica un immagine o un video.',
+    errorMediaRequired: 'Carica un immagine.',
     errorPublish: 'Impossibile pubblicare il post',
     errorCopyLink: 'Copia negli appunti non riuscita',
     commentRequired: 'Scrivi un commento prima di pubblicarlo.',
@@ -430,7 +430,7 @@ const BLOGS_I18N = {
     newPostPlaceholder: 'Teile dein Update...',
     womenOnlyLabel: 'Post nur fuer Frauen',
     womenOnlyHint: 'Nur Frauen sehen diesen Post im Blog-Feed.',
-    uploadMedia: 'Bild oder Video hochladen',
+    uploadMedia: 'Bild hochladen',
     newPostPreviewAlt: 'Vorschau neuer Post',
     publishing: 'Wird veroeffentlicht...',
     publish: 'Post Veroeffentlichen',
@@ -465,7 +465,7 @@ const BLOGS_I18N = {
     errorFileTooLarge: 'Die Mediendatei ist zu gross.',
     errorDescriptionRequired: 'Schreibe eine kurze Post-Beschreibung.',
     errorDescriptionTooLong: (max: number) => `Beschreibung ist zu lang (max ${max} Zeichen).`,
-    errorMediaRequired: 'Lade ein Bild oder Video hoch.',
+    errorMediaRequired: 'Lade ein Bild hoch.',
     errorPublish: 'Post konnte nicht veroeffentlicht werden',
     errorCopyLink: 'Kopieren in die Zwischenablage fehlgeschlagen',
     commentRequired: 'Schreibe einen Kommentar, bevor du ihn sendest.',
@@ -1377,6 +1377,10 @@ export function Blogs({
     const file = event.target.files?.[0];
     event.target.value = '';
     if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      setCreateError(copy.errorMediaRequired);
+      return;
+    }
 
     try {
       const dataUrl = await fileToDataUrl(file);
@@ -1390,7 +1394,7 @@ export function Blogs({
       }
 
       setNewMediaUrl(dataUrl);
-      setNewMediaType(file.type.startsWith('video/') ? 'video' : 'image');
+      setNewMediaType('image');
       setCreateError('');
     } catch {
       setCreateError(copy.errorReadFile);
@@ -2113,22 +2117,12 @@ export function Blogs({
               <label className={`flex items-center justify-center gap-2 w-full border border-dashed border-white/20 rounded-xl px-3 py-3 text-sm text-text-secondary cursor-pointer hover:border-accent/60 hover:text-white transition-colors ${isArabic ? 'flex-row-reverse' : ''}`}>
                 <Upload size={16} />
                 {copy.uploadMedia}
-                <input type="file" accept="image/*,video/*" onChange={handleFilePicked} className="hidden" />
+                <input type="file" accept="image/*" onChange={handleFilePicked} className="hidden" />
               </label>
 
               {newMediaUrl && (
                 <div className="rounded-xl overflow-hidden border border-white/10 bg-black/20">
-                  {newMediaType === 'video' ? (
-                    <video
-                      src={newMediaUrl}
-                      controls
-                      playsInline
-                      preload="metadata"
-                      className="block w-full max-h-56 bg-black object-contain"
-                    />
-                  ) : (
-                    <img src={newMediaUrl} alt={copy.newPostPreviewAlt} className="w-full max-h-56 object-contain" />
-                  )}
+                  <img src={newMediaUrl} alt={copy.newPostPreviewAlt} className="w-full max-h-56 object-contain" />
                 </div>
               )}
 
