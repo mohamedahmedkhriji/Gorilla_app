@@ -459,7 +459,14 @@ export function Home({
   const todayKey = new Date().toDateString();
 
   const [view, setView] = useState<HomeView>('main');
-  const [selectedExercise, setSelectedExercise] = useState<{name: string, muscle: string, video?: string | null} | null>(null);
+  const [selectedExercise, setSelectedExercise] = useState<{
+    name: string;
+    muscle: string;
+    video?: string | null;
+    exerciseCatalogId?: number | null;
+    targetMuscles?: string[];
+    anatomy?: string | string[];
+  } | null>(null);
   const [exerciseLibraryFilter, setExerciseLibraryFilter] = useState('All');
   const [selectedCoach, setSelectedCoach] = useState<{id: number, name: string} | null>(null);
   const [selectedFriend, setSelectedFriend] = useState<FriendMember | null>(null);

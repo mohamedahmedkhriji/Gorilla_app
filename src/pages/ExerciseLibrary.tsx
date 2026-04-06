@@ -10,7 +10,14 @@ import { inferExerciseVideoBodyPart, normalizeExerciseVideoLookup } from '../sha
 
 interface ExerciseLibraryProps {
   onBack: () => void;
-  onExerciseClick: (exercise: { name: string; muscle: string; video?: string | null }) => void;
+  onExerciseClick: (exercise: {
+    name: string;
+    muscle: string;
+    video?: string | null;
+    exerciseCatalogId?: number | null;
+    targetMuscles?: string[];
+    anatomy?: string | string[];
+  }) => void;
   initialFilter?: string;
   onFilterChange?: (filter: string) => void;
 }
@@ -523,7 +530,14 @@ export function ExerciseLibrary({
               return (
                 <Card
                   key={`${exercise.id}-${exercise.videoAssetName}`}
-                  onClick={() => onExerciseClick({ name: exercise.name, muscle: exercise.muscle, video: videoUrl })}
+                  onClick={() => onExerciseClick({
+                    name: exercise.name,
+                    muscle: exercise.muscle,
+                    video: videoUrl,
+                    exerciseCatalogId: typeof exercise.id === 'number' ? exercise.id : null,
+                    targetMuscles: exercise.bodyPart ? [exercise.bodyPart] : undefined,
+                    anatomy: exercise.bodyPart || undefined,
+                  })}
                   className="group cursor-pointer overflow-hidden !p-0 transition-colors hover:border-accent/20"
                 >
                   <div className="relative flex aspect-[4/3] items-center justify-center overflow-hidden bg-white/5">

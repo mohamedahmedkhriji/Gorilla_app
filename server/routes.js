@@ -5832,6 +5832,140 @@ const normalizeCatalogMuscleGroup = (raw) => {
   return 'Other';
 };
 
+const CATALOG_MUSCLE_ROLE_PRIORITY = {
+  target: 0,
+  secondary: 1,
+  synergist: 2,
+  dynamic_stabilizer: 3,
+  stabilizer: 4,
+  antagonist: 5,
+};
+
+const normalizeCatalogMuscleRole = (value) => {
+  const key = String(value || '').trim().toLowerCase();
+  if (Object.prototype.hasOwnProperty.call(CATALOG_MUSCLE_ROLE_PRIORITY, key)) {
+    return key;
+  }
+  return 'secondary';
+};
+
+const toRoundedPercentages = (weights = []) => {
+  if (!Array.isArray(weights) || !weights.length) return [];
+
+  const safeWeights = weights.map((value) => {
+    const numeric = Number(value);
+    return Number.isFinite(numeric) && numeric > 0 ? numeric : 1;
+  });
+  const total = safeWeights.reduce((sum, value) => sum + value, 0) || safeWeights.length;
+  const rawPercentages = safeWeights.map((value) => (value / total) * 100);
+  const rounded = rawPercentages.map((value) => Math.floor(value));
+  let remaining = 100 - rounded.reduce((sum, value) => sum + value, 0);
+
+  const rankedByRemainder = rawPercentages
+    .map((value, index) => ({
+      index,
+      remainder: value - rounded[index],
+      weight: safeWeights[index],
+    }))
+    .sort((left, right) =>
+      right.remainder - left.remainder
+      || right.weight - left.weight
+      || left.index - right.index);
+
+  for (let i = 0; i < remaining; i += 1) {
+    rounded[rankedByRemainder[i % rankedByRemainder.length].index] += 1;
+  }
+
+  return rounded;
+};
+
+const getCatalogFallbackBaseMuscle = (value) => {
+  const normalized = normalizeCatalogRecoveryMuscle(value);
+  if (normalized) return normalized;
+  const grouped = normalizeCatalogMuscleGroup(value);
+  return grouped === 'Other' ? null : grouped;
+};
+
+const buildExerciseCatalogMuscleTargets = (rows = []) => {
+  if (!Array.isArray(rows) || !rows.length) return [];
+
+  const fallbackBodyPart = String(rows[0]?.body_part || '').trim();
+  const fallbackBaseMuscle = getCatalogFallbackBaseMuscle(fallbackBodyPart);
+  const byMuscle = new Map();
+
+  rows.forEach((row, index) => {
+    const rawName = String(row.muscle_group || '').trim();
+    const role = normalizeCatalogMuscleRole(row.role);
+    if (!rawName || role === 'antagonist') return;
+
+    const loadFactorRaw = Number(row.load_factor || 0);
+    const loadFactor = Number.isFinite(loadFactorRaw) && loadFactorRaw > 0 ? loadFactorRaw : 1;
+    const key = normalizeExerciseLookupName(rawName) || rawName.toLowerCase();
+    const baseMuscle = getCatalogFallbackBaseMuscle(rawName) || fallbackBaseMuscle;
+    const isPrimary = Number(row.is_primary || 0) === 1;
+    const current = byMuscle.get(key);
+
+    if (!current) {
+      byMuscle.set(key, {
+        name: rawName,
+        role,
+        loadFactor,
+        isPrimary,
+        baseMuscle,
+        order: index,
+      });
+      return;
+    }
+
+    current.loadFactor += loadFactor;
+    current.isPrimary = current.isPrimary || isPrimary;
+    if ((CATALOG_MUSCLE_ROLE_PRIORITY[role] ?? 99) < (CATALOG_MUSCLE_ROLE_PRIORITY[current.role] ?? 99)) {
+      current.role = role;
+    }
+    if (!current.baseMuscle && baseMuscle) {
+      current.baseMuscle = baseMuscle;
+    }
+  });
+
+  let entries = Array.from(byMuscle.values());
+  if (!entries.length && fallbackBodyPart) {
+    entries = [{
+      name: fallbackBodyPart,
+      role: 'target',
+      loadFactor: 1,
+      isPrimary: true,
+      baseMuscle: fallbackBaseMuscle,
+      order: 0,
+    }];
+  }
+
+  const highlighted = entries.filter((entry) =>
+    entry.isPrimary
+    || entry.role === 'target'
+    || entry.role === 'secondary'
+    || entry.role === 'synergist'
+    || entry.loadFactor >= 0.5);
+  const visible = highlighted.length ? highlighted : entries;
+
+  visible.sort((left, right) =>
+    Number(right.isPrimary) - Number(left.isPrimary)
+    || right.loadFactor - left.loadFactor
+    || (CATALOG_MUSCLE_ROLE_PRIORITY[left.role] ?? 99) - (CATALOG_MUSCLE_ROLE_PRIORITY[right.role] ?? 99)
+    || left.order - right.order
+    || String(left.name || '').localeCompare(String(right.name || '')));
+
+  const percentages = toRoundedPercentages(visible.map((entry) => entry.loadFactor));
+
+  return visible.map((entry, index) => ({
+    name: entry.name,
+    role: entry.role,
+    loadFactor: Number(entry.loadFactor.toFixed(3)),
+    isPrimary: entry.isPrimary,
+    baseMuscle: entry.baseMuscle || null,
+    percent: percentages[index] ?? 0,
+  }));
+};
+
 // =========================
 // AUTH
 // =========================
@@ -15093,6 +15227,50 @@ router.get('/exercises/catalog/filters', async (_req, res) => {
     const preferredOrder = ['All', 'Chest', 'Back', 'Legs', 'Shoulders', 'Arms', 'Abs'];
     const filters = preferredOrder.filter((f) => buckets.has(f));
     return res.json({ filters });
+  } catch (error) {
+    return res.status(500).json({ error: error.message });
+  }
+});
+
+router.get('/exercises/catalog/:exerciseId/muscles', async (req, res) => {
+  try {
+    const exerciseId = Number(req.params.exerciseId || 0);
+    if (!Number.isInteger(exerciseId) || exerciseId <= 0) {
+      return res.status(400).json({ error: 'Invalid exercise catalog id' });
+    }
+
+    const [rows] = await pool.execute(
+      `SELECT
+         ec.id,
+         ec.canonical_name,
+         ec.body_part,
+         ecm.muscle_group,
+         ecm.role,
+         COALESCE(ecm.load_factor, 1) AS load_factor,
+         COALESCE(ecm.is_primary, 0) AS is_primary
+       FROM exercise_catalog ec
+       LEFT JOIN exercise_catalog_muscles ecm ON ecm.exercise_catalog_id = ec.id
+       WHERE ec.id = ? AND ec.is_active = 1
+       ORDER BY
+         COALESCE(ecm.is_primary, 0) DESC,
+         COALESCE(ecm.load_factor, 0) DESC,
+         ecm.muscle_group ASC`,
+      [exerciseId],
+    );
+
+    if (!Array.isArray(rows) || !rows.length) {
+      return res.status(404).json({ error: 'Exercise catalog entry not found' });
+    }
+
+    const firstRow = rows[0];
+    return res.json({
+      exercise: {
+        id: Number(firstRow.id || 0),
+        name: firstRow.canonical_name || null,
+        bodyPart: firstRow.body_part || null,
+      },
+      muscles: buildExerciseCatalogMuscleTargets(rows),
+    });
   } catch (error) {
     return res.status(500).json({ error: error.message });
   }

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Card } from '../ui/Card';
 import { ArrowLeft, Play } from 'lucide-react';
 import { getBodyPartImage } from '../../services/bodyPartTheme';
+import { api } from '../../services/api';
 import { resolveExerciseVideoUrl } from '../../services/exerciseVideos';
 import { AppLanguage, getActiveLanguage, getStoredLanguage } from '../../services/language';
 import { stripExercisePrefix } from '../../services/exerciseName';
@@ -16,11 +17,21 @@ interface ExerciseVideoScreenProps {
     name: string;
     muscle?: string;
     video?: string | null;
+    exerciseCatalogId?: number | null;
     targetMuscles?: string | string[];
     importance?: string;
     anatomy?: string | string[];
   };
 }
+
+type MuscleDistributionEntry = {
+  name: string;
+  percent: number;
+  colorClass: string;
+  baseMuscle?: string | null;
+  role?: string;
+  isPrimary?: boolean;
+};
 
 const BACK_LATS_IMAGE = backLatsImageUrl;
 const BACK_UPPER_IMAGE = backUpperImageUrl;
@@ -48,9 +59,15 @@ const canonicalizeMuscleLabel = (value: unknown) => {
   const key = String(value || '').trim().toLowerCase();
   if (!key) return '';
 
+  if (key.includes('clavicular') || key.includes('upper pector')) return 'Upper Chest';
   if (key.includes('upper chest')) return 'Upper Chest';
   if (key.includes('mid chest') || key.includes('middle chest')) return 'Mid Chest';
+  if (key.includes('sternocostal') || key.includes('mid pector')) return 'Mid Chest';
   if (key.includes('lower chest')) return 'Lower Chest';
+  if (key.includes('latissimus')) return 'Lats';
+  if (key.includes('rhomboid')) return 'Rhomboids';
+  if (key.includes('trapezius') || key.includes('trap')) return 'Traps';
+  if (key.includes('erector spinae') || key.includes('spinal erector') || key.includes('spinae')) return 'Lower Back';
   if (key.includes('rear delt') || key.includes('rear deltoid') || key.includes('posterior delt')) return 'Rear Delts';
   if (key.includes('lateral delt') || key.includes('side delt') || key.includes('medial delt')) return 'Side Delts';
   if (key.includes('front delt') || key.includes('anterior delt') || key.includes('front deltoid')) return 'Front Delts';
@@ -66,11 +83,12 @@ const canonicalizeMuscleLabel = (value: unknown) => {
   if (key.includes('upper abs')) return 'Upper Abs';
   if (key.includes('lower abs')) return 'Lower Abs';
   if (key.includes('oblique')) return 'Obliques';
+  if (key.includes('serratus')) return 'Serratus';
   if (key.includes('shoulder') || key.includes('delt')) return 'Shoulders';
   if (key.includes('tricep') || key.includes('triceps brachii')) return 'Triceps';
   if (key.includes('bicep') || key.includes('biceps brachii')) return 'Biceps';
   if (key.includes('chest') || key.includes('pect') || key.includes('pec')) return 'Chest';
-  if (key.includes('back') || key.includes('trap') || key.includes('rhomboid')) return 'Back';
+  if (key.includes('back')) return 'Back';
   if (key.includes('quad') || key.includes('thigh')) return 'Quadriceps';
   if (key.includes('hamstring')) return 'Hamstrings';
   if (key.includes('calf')) return 'Calves';
@@ -256,6 +274,9 @@ const AR_SUB_MUSCLE_LABELS: Record<string, string> = {
   'upper back': 'أعلى الظهر',
   'lower back': 'أسفل الظهر',
   lats: 'اللاتس',
+  traps: 'الترابس',
+  rhomboids: 'الرومبويد',
+  serratus: 'العضلة المنشارية',
   'long head biceps': 'الرأس الطويل للبايسبس',
   'short head biceps': 'الرأس القصير للبايسبس',
   brachialis: 'العضلة العضدية',
@@ -289,6 +310,9 @@ const IT_SUB_MUSCLE_LABELS: Record<string, string> = {
   'upper back': 'Schiena alta',
   'lower back': 'Schiena bassa',
   lats: 'Dorsali',
+  traps: 'Trapezi',
+  rhomboids: 'Romboidi',
+  serratus: 'Dentato anteriore',
   'long head biceps': 'Capo lungo bicipite',
   'short head biceps': 'Capo corto bicipite',
   brachialis: 'Brachiale',
@@ -310,6 +334,9 @@ const DE_SUB_MUSCLE_LABELS: Record<string, string> = {
   'upper back': 'Oberer Ruecken',
   'lower back': 'Unterer Ruecken',
   lats: 'Latissimus',
+  traps: 'Trapezmuskel',
+  rhomboids: 'Rhomboiden',
+  serratus: 'Serratus',
   'long head biceps': 'Langer Bizepskopf',
   'short head biceps': 'Kurzer Bizepskopf',
   brachialis: 'Brachialis',
@@ -375,7 +402,103 @@ const getSegmentColor = (index: number, isActive: boolean) => {
   return 'rgb(39, 46, 52)';
 };
 
-const getMuscleDistribution = (muscles: string[]) => {
+const toRoundedPercentages = (weights: number[]) => {
+  if (weights.length === 0) return [];
+
+  const safeWeights = weights.map((value) => {
+    const numeric = Number(value);
+    return Number.isFinite(numeric) && numeric > 0 ? numeric : 1;
+  });
+  const total = safeWeights.reduce((sum, value) => sum + value, 0) || safeWeights.length;
+  const rawPercentages = safeWeights.map((value) => (value / total) * 100);
+  const rounded = rawPercentages.map((value) => Math.floor(value));
+  let remaining = 100 - rounded.reduce((sum, value) => sum + value, 0);
+
+  const rankedByRemainder = rawPercentages
+    .map((value, index) => ({
+      index,
+      remainder: value - rounded[index],
+      weight: safeWeights[index],
+    }))
+    .sort((left, right) =>
+      right.remainder - left.remainder
+      || right.weight - left.weight
+      || left.index - right.index);
+
+  for (let i = 0; i < remaining; i += 1) {
+    rounded[rankedByRemainder[i % rankedByRemainder.length].index] += 1;
+  }
+
+  return rounded;
+};
+
+const getExactMuscleDistribution = (
+  muscles: Array<{
+    name?: string;
+    percent?: number;
+    loadFactor?: number;
+    role?: string;
+    isPrimary?: boolean;
+    baseMuscle?: string | null;
+  }>,
+): MuscleDistributionEntry[] => {
+  if (!Array.isArray(muscles) || muscles.length === 0) return [];
+
+  const byMuscle = new Map<string, {
+    name: string;
+    weight: number;
+    role?: string;
+    isPrimary?: boolean;
+    baseMuscle?: string | null;
+    order: number;
+  }>();
+
+  muscles.forEach((entry, index) => {
+    const name = canonicalizeMuscleLabel(entry?.name);
+    if (!name) return;
+
+    const key = normalizeLookup(name);
+    const weightRaw = Number(entry?.loadFactor ?? entry?.percent ?? 0);
+    const weight = Number.isFinite(weightRaw) && weightRaw > 0 ? weightRaw : 1;
+    const baseMuscle = canonicalizeMuscleLabel(entry?.baseMuscle) || toBaseMuscleGroup(name) || null;
+    const current = byMuscle.get(key);
+
+    if (!current) {
+      byMuscle.set(key, {
+        name,
+        weight,
+        role: entry?.role,
+        isPrimary: Boolean(entry?.isPrimary),
+        baseMuscle,
+        order: index,
+      });
+      return;
+    }
+
+    current.weight += weight;
+    current.isPrimary = current.isPrimary || Boolean(entry?.isPrimary);
+    if (!current.role && entry?.role) current.role = entry.role;
+    if (!current.baseMuscle && baseMuscle) current.baseMuscle = baseMuscle;
+  });
+
+  const ordered = Array.from(byMuscle.values()).sort((left, right) =>
+    Number(right.isPrimary) - Number(left.isPrimary)
+    || right.weight - left.weight
+    || left.order - right.order
+    || left.name.localeCompare(right.name));
+  const percentages = toRoundedPercentages(ordered.map((entry) => entry.weight));
+
+  return ordered.map((entry, index) => ({
+    name: entry.name,
+    percent: percentages[index] ?? 0,
+    colorClass: MUSCLE_BAR_COLORS[index % MUSCLE_BAR_COLORS.length],
+    baseMuscle: entry.baseMuscle || null,
+    role: entry.role,
+    isPrimary: entry.isPrimary,
+  }));
+};
+
+const getMuscleDistribution = (muscles: string[]): MuscleDistributionEntry[] => {
   if (muscles.length === 0) return [];
 
   if (muscles.length === 1) {
@@ -703,6 +826,7 @@ export function ExerciseVideoScreen({ onBack, exercise }: ExerciseVideoScreenPro
   const copy = EXERCISE_VIDEO_I18N[language] || EXERCISE_VIDEO_I18N.en;
   const videoRef = useRef<HTMLVideoElement>(null);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [catalogMuscleDistribution, setCatalogMuscleDistribution] = useState<MuscleDistributionEntry[]>([]);
   const displayExerciseName = getDisplayExerciseName(exercise?.name);
   const explicitTargetMuscles = dedupeMuscles([
     ...parseTargetMuscles(exercise?.targetMuscles),
@@ -718,8 +842,13 @@ export function ExerciseVideoScreen({ onBack, exercise }: ExerciseVideoScreenPro
     const nonGeneral = combined.filter((entry) => normalizeLookup(entry) !== 'general');
     return nonGeneral.length > 0 ? nonGeneral : combined;
   })();
+  const exactPrimaryMuscle = (
+    toBaseMuscleGroup(catalogMuscleDistribution[0]?.baseMuscle || catalogMuscleDistribution[0]?.name)
+    || ''
+  );
   const primaryMuscle = (
-    toBaseMuscleGroup(targetMuscles[0])
+    exactPrimaryMuscle
+    || toBaseMuscleGroup(targetMuscles[0])
     || toBaseMuscleGroup(exercise?.muscle)
     || toBaseMuscleGroup(inferredTargetMuscles[0])
     || 'General'
@@ -730,22 +859,67 @@ export function ExerciseVideoScreen({ onBack, exercise }: ExerciseVideoScreenPro
     bodyPart: targetMuscles.join(', ') || String(exercise?.anatomy || exercise?.muscle || ''),
   }) || undefined;
   const exerciseGroup = detectExerciseGroup(primaryMuscle, resolvedVideoUrl, targetMuscles, exercise?.name);
-  const muscleDistribution = exerciseGroup === 'back'
-    ? getBackMuscleDistribution(exercise?.name, resolvedVideoUrl)
-    : exerciseGroup === 'chest'
-      ? getChestMuscleDistribution(exercise?.name, resolvedVideoUrl)
-      : exerciseGroup === 'biceps'
-        ? getBicepsMuscleDistribution(exercise?.name, resolvedVideoUrl)
-        : exerciseGroup === 'triceps'
-          ? getTricepsMuscleDistribution(exercise?.name, resolvedVideoUrl)
-          : exerciseGroup === 'shoulders'
-            ? getShouldersMuscleDistribution(exercise?.name, resolvedVideoUrl)
-            : exerciseGroup === 'abs'
-              ? getAbsMuscleDistribution(exercise?.name, resolvedVideoUrl)
-              : exerciseGroup === 'legs'
-              ? getLegsMuscleDistribution(exercise?.name, resolvedVideoUrl)
-                : getMuscleDistribution(targetMuscles);
-  const fallbackPosterUrl = resolveTargetMuscleImage(muscleDistribution[0]?.name, primaryMuscle);
+  const fallbackMuscleDistribution: MuscleDistributionEntry[] = explicitTargetMuscles.length > 0
+    ? getMuscleDistribution(explicitTargetMuscles)
+    : targetMuscles.length > 0
+      ? getMuscleDistribution(targetMuscles)
+      : exerciseGroup === 'back'
+        ? getBackMuscleDistribution(exercise?.name, resolvedVideoUrl)
+        : exerciseGroup === 'chest'
+          ? getChestMuscleDistribution(exercise?.name, resolvedVideoUrl)
+          : exerciseGroup === 'biceps'
+            ? getBicepsMuscleDistribution(exercise?.name, resolvedVideoUrl)
+            : exerciseGroup === 'triceps'
+              ? getTricepsMuscleDistribution(exercise?.name, resolvedVideoUrl)
+              : exerciseGroup === 'shoulders'
+                ? getShouldersMuscleDistribution(exercise?.name, resolvedVideoUrl)
+                : exerciseGroup === 'abs'
+                  ? getAbsMuscleDistribution(exercise?.name, resolvedVideoUrl)
+                  : exerciseGroup === 'legs'
+                    ? getLegsMuscleDistribution(exercise?.name, resolvedVideoUrl)
+                    : getMuscleDistribution(targetMuscles);
+  const muscleDistribution: MuscleDistributionEntry[] = catalogMuscleDistribution.length > 0
+    ? catalogMuscleDistribution
+    : fallbackMuscleDistribution;
+  const fallbackPosterUrl = resolveTargetMuscleImage(
+    muscleDistribution[0]?.name,
+    muscleDistribution[0]?.baseMuscle || primaryMuscle,
+  );
+
+  useEffect(() => {
+    let cancelled = false;
+    const exerciseCatalogId = Number(exercise?.exerciseCatalogId || 0) || null;
+
+    setCatalogMuscleDistribution([]);
+    if (!exerciseCatalogId) return () => {
+      cancelled = true;
+    };
+
+    const loadCatalogMuscles = async () => {
+      try {
+        const data = await api.getExerciseCatalogMuscles(exerciseCatalogId);
+        if (cancelled) return;
+
+        const nextDistribution = getExactMuscleDistribution(
+          Array.isArray(data?.muscles) ? data.muscles : [],
+        );
+        setCatalogMuscleDistribution(nextDistribution);
+      } catch (error) {
+        if (!cancelled) {
+          setCatalogMuscleDistribution([]);
+          if (import.meta.env.DEV) {
+            console.error('Failed to load exact exercise muscle targets:', error);
+          }
+        }
+      }
+    };
+
+    void loadCatalogMuscles();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [exercise?.exerciseCatalogId]);
 
   useEffect(() => {
     setIsPlaying(false);
@@ -851,7 +1025,7 @@ export function ExerciseVideoScreen({ onBack, exercise }: ExerciseVideoScreenPro
                     className="overflow-hidden rounded-2xl border border-white/10 bg-white/[0.03]"
                   >
                     <img
-                      src={resolveTargetMuscleImage(muscle.name, primaryMuscle)}
+                      src={resolveTargetMuscleImage(muscle.name, muscle.baseMuscle || primaryMuscle)}
                       alt={displayName}
                       className="h-24 w-full object-cover object-center sm:h-28"
                       loading="lazy"

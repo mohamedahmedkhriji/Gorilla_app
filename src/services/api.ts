@@ -1245,6 +1245,11 @@ export const api = {
     return res.json();
   },
 
+  getExerciseCatalogMuscles: async (exerciseCatalogId: number) => {
+    const res = await fetch(`${API_URL}/exercises/catalog/${exerciseCatalogId}/muscles`);
+    return parseApiResponse(res, 'Failed to load exercise muscle targets');
+  },
+
   saveWorkoutSet: async (data: any) => {
     const res = await fetch(`${API_URL}/workout-sets`, {
       method: 'POST',

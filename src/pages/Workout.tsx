@@ -2740,6 +2740,7 @@ export function Workout({
         exercise={{
           name: resolvedExerciseName,
           muscle: primaryMuscle,
+          exerciseCatalogId: selectedWorkoutExercise?.exerciseCatalogId ?? null,
           targetMuscles,
           importance: `Technique reference for ${resolvedExerciseName}.`,
           anatomy: targetMuscles,
