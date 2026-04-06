@@ -36,6 +36,7 @@ import {
   hasAnthropicConfig,
 } from './services/claudeCoach.js';
 import { processGamificationProgression } from './services/progressionService.js';
+import { getExerciseFallbackMuscleRows } from './services/exerciseMuscleProfiles.js';
 import { hasOpenAIConfig, requestOpenAIChatCompletion } from './services/openaiProxy.js';
 
 const router = express.Router();
@@ -6030,8 +6031,30 @@ const canonicalizeCatalogTargetName = (value) => {
   return String(value || '').trim();
 };
 
-const buildExerciseCatalogMuscleTargets = (rows = []) => {
-  if (!Array.isArray(rows) || !rows.length) return [];
+const buildExerciseCatalogFallbackEntries = (fallbackBodyPart = null) => {
+  const normalizedBodyPart = String(fallbackBodyPart || '').trim();
+  const fallbackBaseMuscle = getCatalogFallbackBaseMuscle(normalizedBodyPart);
+  if (!normalizedBodyPart) {
+    return [];
+  }
+
+  return [{
+    name: canonicalizeCatalogTargetName(normalizedBodyPart) || normalizedBodyPart,
+    role: 'target',
+    loadFactor: 1,
+    isPrimary: true,
+    baseMuscle: fallbackBaseMuscle,
+    order: 0,
+  }];
+};
+
+const buildExerciseCatalogMuscleEntries = (rows = []) => {
+  if (!Array.isArray(rows) || !rows.length) {
+    return {
+      entries: [],
+      fallbackEntries: [],
+    };
+  }
 
   const fallbackBodyPart = String(rows[0]?.body_part || '').trim();
   const fallbackBaseMuscle = getCatalogFallbackBaseMuscle(fallbackBodyPart);
@@ -6074,20 +6097,41 @@ const buildExerciseCatalogMuscleTargets = (rows = []) => {
 
   let entries = Array.from(byMuscle.values());
   if (!entries.length && fallbackBodyPart) {
-    entries = [{
-      name: canonicalizeCatalogTargetName(fallbackBodyPart) || fallbackBodyPart,
-      role: 'target',
-      loadFactor: 1,
-      isPrimary: true,
-      baseMuscle: fallbackBaseMuscle,
-      order: 0,
-    }];
+    entries = buildExerciseCatalogFallbackEntries(fallbackBodyPart);
   }
 
+  return {
+    entries,
+    fallbackEntries: buildExerciseCatalogFallbackEntries(fallbackBodyPart),
+    fallbackBaseMuscle,
+  };
+};
+
+const mapCatalogEntriesToTargets = (entries = []) => {
+  if (!Array.isArray(entries) || !entries.length) return [];
+
+  const limitedEntries = [...entries].slice(0, 3);
+  const percentages = toRoundedPercentages(limitedEntries.map((entry) => entry.loadFactor));
+
+  return limitedEntries.map((entry, index) => ({
+    name: entry.name,
+    role: entry.role,
+    loadFactor: Number(entry.loadFactor.toFixed(3)),
+    isPrimary: entry.isPrimary,
+    baseMuscle: entry.baseMuscle || null,
+    percent: percentages[index] ?? 0,
+  }));
+};
+
+const buildVisibleCatalogEntries = (entries = [], fallbackEntries = []) => {
   const targets = entries.filter((entry) => entry.isPrimary || entry.role === 'target');
   const secondary = entries.filter((entry) => entry.role === 'secondary');
   const synergists = entries.filter((entry) => entry.role === 'synergist');
   let visible = targets.length ? targets : secondary.length ? secondary : synergists.length ? synergists : entries;
+
+  if (!visible.length && fallbackEntries.length) {
+    visible = fallbackEntries;
+  }
 
   const specificBases = new Set(
     visible
@@ -6110,18 +6154,77 @@ const buildExerciseCatalogMuscleTargets = (rows = []) => {
     || left.order - right.order
     || String(left.name || '').localeCompare(String(right.name || '')));
 
-  visible = visible.slice(0, 3);
+  return visible;
+};
 
-  const percentages = toRoundedPercentages(visible.map((entry) => entry.loadFactor));
+const buildExerciseCatalogMuscleTargets = (rows = []) => {
+  const { entries, fallbackEntries } = buildExerciseCatalogMuscleEntries(rows);
+  const visible = buildVisibleCatalogEntries(entries, fallbackEntries);
+  return mapCatalogEntriesToTargets(visible);
+};
 
-  return visible.map((entry, index) => ({
-    name: entry.name,
-    role: entry.role,
-    loadFactor: Number(entry.loadFactor.toFixed(3)),
-    isPrimary: entry.isPrimary,
-    baseMuscle: entry.baseMuscle || null,
-    percent: percentages[index] ?? 0,
-  }));
+const buildExerciseCatalogMuscleSections = (rows = []) => {
+  const { entries, fallbackEntries } = buildExerciseCatalogMuscleEntries(rows);
+
+  const primaryEntries = entries.filter((entry) => entry.isPrimary || entry.role === 'target');
+  const secondaryEntries = entries.filter((entry) =>
+    !(entry.isPrimary || entry.role === 'target')
+    && ['secondary', 'synergist', 'dynamic_stabilizer', 'stabilizer'].includes(entry.role));
+
+  const primaryMuscles = mapCatalogEntriesToTargets(primaryEntries.length ? primaryEntries : fallbackEntries);
+  const primaryNames = new Set(primaryMuscles.map((entry) => String(entry.name || '').trim().toLowerCase()));
+  const secondaryMuscles = mapCatalogEntriesToTargets(
+    secondaryEntries.filter((entry) => !primaryNames.has(String(entry.name || '').trim().toLowerCase())),
+  );
+
+  return {
+    muscles: mapCatalogEntriesToTargets(buildVisibleCatalogEntries(entries, fallbackEntries)),
+    primaryMuscles,
+    secondaryMuscles,
+  };
+};
+
+const hasSpecificCatalogTargets = (entries = []) =>
+  Array.isArray(entries) && entries.some((entry) => {
+    const name = String(entry?.name || '').trim();
+    return name && !GENERIC_CATALOG_TARGET_NAMES.has(name);
+  });
+
+const chooseMuscleSection = (catalogEntries = [], fallbackEntries = []) => {
+  if (!fallbackEntries.length) return catalogEntries;
+  if (!catalogEntries.length) return fallbackEntries;
+
+  const catalogSpecific = hasSpecificCatalogTargets(catalogEntries);
+  const fallbackSpecific = hasSpecificCatalogTargets(fallbackEntries);
+  if (!catalogSpecific && (fallbackSpecific || fallbackEntries.length > catalogEntries.length)) {
+    return fallbackEntries;
+  }
+  if (!catalogSpecific && !fallbackSpecific && fallbackEntries.length > catalogEntries.length) {
+    return fallbackEntries;
+  }
+  return catalogEntries;
+};
+
+const buildExerciseCatalogResponse = ({
+  rows = [],
+  fallbackRows = [],
+} = {}) => {
+  const catalogSections = buildExerciseCatalogMuscleSections(rows);
+  const fallbackSections = buildExerciseCatalogMuscleSections(fallbackRows);
+  const primaryMuscles = chooseMuscleSection(catalogSections.primaryMuscles, fallbackSections.primaryMuscles);
+  const secondaryMuscles = chooseMuscleSection(catalogSections.secondaryMuscles, fallbackSections.secondaryMuscles)
+    .filter((entry) =>
+      !primaryMuscles.some((primary) =>
+        String(primary?.name || '').trim().toLowerCase() === String(entry?.name || '').trim().toLowerCase()));
+  const muscles = primaryMuscles.length
+    ? primaryMuscles
+    : chooseMuscleSection(catalogSections.muscles, fallbackSections.muscles);
+
+  return {
+    muscles,
+    primaryMuscles,
+    secondaryMuscles,
+  };
 };
 
 // =========================
@@ -15427,13 +15530,21 @@ router.get('/exercises/catalog/muscles/resolve', async (req, res) => {
     }
 
     const firstRow = rows[0];
+    const fallbackRows = getExerciseFallbackMuscleRows({
+      name: firstRow.canonical_name,
+      bodyPart: firstRow.body_part,
+      muscleHint: requestedMuscle,
+    });
     return res.json({
       exercise: {
         id: Number(firstRow.id || 0),
         name: firstRow.canonical_name || null,
         bodyPart: firstRow.body_part || null,
       },
-      muscles: buildExerciseCatalogMuscleTargets(rows),
+      ...buildExerciseCatalogResponse({
+        rows,
+        fallbackRows,
+      }),
     });
   } catch (error) {
     return res.status(500).json({ error: error.message });
@@ -15471,13 +15582,21 @@ router.get('/exercises/catalog/:exerciseId/muscles', async (req, res) => {
     }
 
     const firstRow = rows[0];
+    const fallbackRows = getExerciseFallbackMuscleRows({
+      name: firstRow.canonical_name,
+      bodyPart: firstRow.body_part,
+      muscleHint: firstRow.body_part,
+    });
     return res.json({
       exercise: {
         id: Number(firstRow.id || 0),
         name: firstRow.canonical_name || null,
         bodyPart: firstRow.body_part || null,
       },
-      muscles: buildExerciseCatalogMuscleTargets(rows),
+      ...buildExerciseCatalogResponse({
+        rows,
+        fallbackRows,
+      }),
     });
   } catch (error) {
     return res.status(500).json({ error: error.message });

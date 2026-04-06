@@ -209,26 +209,36 @@ const MUSCLE_BAR_COLORS = [
 
 const EXERCISE_VIDEO_I18N: Record<AppLanguage, {
   muscleDistributionTitle: string;
+  primaryTargetsTitle: string;
+  secondaryTargetsTitle: string;
   noVideo: string;
   defaultMuscle: string;
 }> = {
   en: {
     muscleDistributionTitle: 'Muscle Distribution (Plan Target)',
+    primaryTargetsTitle: 'Main Target Muscles',
+    secondaryTargetsTitle: 'Secondary Target Muscles',
     noVideo: 'No linked video yet for this exercise',
     defaultMuscle: 'Chest',
   },
   ar: {
     muscleDistributionTitle: 'توزيع العضلات (هدف الخطة)',
+    primaryTargetsTitle: 'العضلات المستهدفة أساسيًا',
+    secondaryTargetsTitle: 'العضلات المساعدة',
     noVideo: 'لا يوجد فيديو مرتبط بهذا التمرين بعد',
     defaultMuscle: 'الصدر',
   },
   it: {
     muscleDistributionTitle: 'Distribuzione Muscolare (Target del Piano)',
+    primaryTargetsTitle: 'Muscoli target principali',
+    secondaryTargetsTitle: 'Muscoli target secondari',
     noVideo: 'Nessun video collegato ancora per questo esercizio',
     defaultMuscle: 'Petto',
   },
   de: {
     muscleDistributionTitle: 'Muskelverteilung (Plan-Ziel)',
+    primaryTargetsTitle: 'Hauptzielmuskeln',
+    secondaryTargetsTitle: 'Sekundaere Zielmuskeln',
     noVideo: 'Fuer diese Uebung ist noch kein Video verknuepft',
     defaultMuscle: 'Brust',
   },
@@ -527,7 +537,8 @@ export function ExerciseVideoScreen({ onBack, exercise }: ExerciseVideoScreenPro
   const copy = EXERCISE_VIDEO_I18N[language] || EXERCISE_VIDEO_I18N.en;
   const videoRef = useRef<HTMLVideoElement>(null);
   const [isPlaying, setIsPlaying] = useState(false);
-  const [catalogMuscleDistribution, setCatalogMuscleDistribution] = useState<MuscleDistributionEntry[]>([]);
+  const [catalogPrimaryMuscleDistribution, setCatalogPrimaryMuscleDistribution] = useState<MuscleDistributionEntry[]>([]);
+  const [catalogSecondaryMuscleDistribution, setCatalogSecondaryMuscleDistribution] = useState<MuscleDistributionEntry[]>([]);
   const displayExerciseName = getDisplayExerciseName(exercise?.name);
   const explicitTargetMuscles = dedupeMuscles([
     ...parseTargetMuscles(exercise?.targetMuscles),
@@ -543,12 +554,38 @@ export function ExerciseVideoScreen({ onBack, exercise }: ExerciseVideoScreenPro
     const nonGeneral = combined.filter((entry) => normalizeLookup(entry) !== 'general');
     return nonGeneral.length > 0 ? nonGeneral : combined;
   })();
+  const directMuscle = canonicalizeMuscleLabel(exercise?.muscle);
+  const primaryFallbackTargets = (() => {
+    if (explicitTargetMuscles.length > 0) return explicitTargetMuscles;
+    if (directMuscle && directMuscle !== 'General') return [directMuscle];
+    if (targetMuscles.length > 0) return targetMuscles;
+    const inferredPrimary = inferMusclesFromExerciseName(exercise?.name);
+    if (inferredPrimary.length > 0) return inferredPrimary.slice(0, 2);
+    return ['General'];
+  })();
+  const secondaryFallbackTargets = (() => {
+    const primaryKeys = new Set(primaryFallbackTargets.map((entry) => normalizeLookup(entry)));
+    return dedupeMuscles([
+      ...inferredTargetMuscles,
+      directMuscle,
+      ...targetMuscles,
+    ]).filter((entry) => !primaryKeys.has(normalizeLookup(entry))).slice(0, 3);
+  })();
+  const fallbackPrimaryMuscleDistribution: MuscleDistributionEntry[] = getMuscleDistribution(primaryFallbackTargets);
+  const fallbackSecondaryMuscleDistribution: MuscleDistributionEntry[] = getMuscleDistribution(secondaryFallbackTargets);
+  const primaryMuscleDistribution: MuscleDistributionEntry[] = catalogPrimaryMuscleDistribution.length > 0
+    ? catalogPrimaryMuscleDistribution
+    : fallbackPrimaryMuscleDistribution;
+  const secondaryMuscleDistribution: MuscleDistributionEntry[] = catalogSecondaryMuscleDistribution.length > 0
+    ? catalogSecondaryMuscleDistribution
+    : fallbackSecondaryMuscleDistribution;
   const exactPrimaryMuscle = (
-    toBaseMuscleGroup(catalogMuscleDistribution[0]?.baseMuscle || catalogMuscleDistribution[0]?.name)
+    toBaseMuscleGroup(primaryMuscleDistribution[0]?.baseMuscle || primaryMuscleDistribution[0]?.name)
     || ''
   );
   const primaryMuscle = (
     exactPrimaryMuscle
+    || toBaseMuscleGroup(primaryFallbackTargets[0])
     || toBaseMuscleGroup(targetMuscles[0])
     || toBaseMuscleGroup(exercise?.muscle)
     || toBaseMuscleGroup(inferredTargetMuscles[0])
@@ -560,20 +597,9 @@ export function ExerciseVideoScreen({ onBack, exercise }: ExerciseVideoScreenPro
     bodyPart: targetMuscles.join(', ') || String(exercise?.anatomy || exercise?.muscle || ''),
     targetMuscles,
   }) || undefined;
-  const conservativeFallbackTargets = (() => {
-    if (explicitTargetMuscles.length > 0) return explicitTargetMuscles;
-    const directMuscle = canonicalizeMuscleLabel(exercise?.muscle);
-    if (directMuscle && directMuscle !== 'General') return [directMuscle];
-    if (primaryMuscle && primaryMuscle !== 'General') return [primaryMuscle];
-    return ['General'];
-  })();
-  const fallbackMuscleDistribution: MuscleDistributionEntry[] = getMuscleDistribution(conservativeFallbackTargets);
-  const muscleDistribution: MuscleDistributionEntry[] = catalogMuscleDistribution.length > 0
-    ? catalogMuscleDistribution
-    : fallbackMuscleDistribution;
   const fallbackPosterUrl = resolveTargetMuscleImage(
-    muscleDistribution[0]?.name,
-    muscleDistribution[0]?.baseMuscle || primaryMuscle,
+    primaryMuscleDistribution[0]?.name,
+    primaryMuscleDistribution[0]?.baseMuscle || primaryMuscle,
   );
 
   useEffect(() => {
@@ -582,7 +608,8 @@ export function ExerciseVideoScreen({ onBack, exercise }: ExerciseVideoScreenPro
     const exerciseName = String(exercise?.name || '').trim();
     const catalogLookupMuscleHint = explicitTargetMuscles[0] || canonicalizeMuscleLabel(exercise?.muscle) || primaryMuscle;
 
-    setCatalogMuscleDistribution([]);
+    setCatalogPrimaryMuscleDistribution([]);
+    setCatalogSecondaryMuscleDistribution([]);
     if (!exerciseCatalogId && !exerciseName) return () => {
       cancelled = true;
     };
@@ -594,13 +621,22 @@ export function ExerciseVideoScreen({ onBack, exercise }: ExerciseVideoScreenPro
           : await api.getExerciseCatalogMusclesByName(exerciseName, catalogLookupMuscleHint);
         if (cancelled) return;
 
-        const nextDistribution = getExactMuscleDistribution(
-          Array.isArray(data?.muscles) ? data.muscles : [],
+        const nextPrimaryDistribution = getExactMuscleDistribution(
+          Array.isArray(data?.primaryMuscles)
+            ? data.primaryMuscles
+            : Array.isArray(data?.muscles)
+              ? data.muscles
+              : [],
         );
-        setCatalogMuscleDistribution(nextDistribution);
+        const nextSecondaryDistribution = getExactMuscleDistribution(
+          Array.isArray(data?.secondaryMuscles) ? data.secondaryMuscles : [],
+        );
+        setCatalogPrimaryMuscleDistribution(nextPrimaryDistribution);
+        setCatalogSecondaryMuscleDistribution(nextSecondaryDistribution);
       } catch (error) {
         if (!cancelled) {
-          setCatalogMuscleDistribution([]);
+          setCatalogPrimaryMuscleDistribution([]);
+          setCatalogSecondaryMuscleDistribution([]);
           if (import.meta.env.DEV) {
             console.error('Failed to load exact exercise muscle targets:', error);
           }
@@ -637,6 +673,63 @@ export function ExerciseVideoScreen({ onBack, exercise }: ExerciseVideoScreenPro
     if (language === 'it') return IT_BASE_MUSCLE_LABELS[key] || value || copy.defaultMuscle;
     if (language === 'de') return DE_BASE_MUSCLE_LABELS[key] || value || copy.defaultMuscle;
     return value || copy.defaultMuscle;
+  };
+
+  const renderMuscleSection = (title: string, muscles: MuscleDistributionEntry[]) => {
+    if (!muscles.length) return null;
+
+    return (
+      <div className="space-y-3">
+        <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-text-tertiary">
+          {title}
+        </div>
+        <div className="grid grid-cols-3 gap-3">
+          {muscles.map((muscle) => {
+            const displayName = toLocalizedSubMuscle(muscle.name);
+            return (
+              <div
+                key={`${title}-${muscle.name}-image`}
+                className="overflow-hidden rounded-2xl border border-white/10 bg-white/[0.03]"
+              >
+                <img
+                  src={resolveTargetMuscleImage(muscle.name, muscle.baseMuscle || primaryMuscle)}
+                  alt={displayName}
+                  className="h-24 w-full object-cover object-center sm:h-28"
+                  loading="lazy"
+                />
+                <div className="border-t border-white/10 px-3 py-2 text-center text-[11px] font-medium text-text-secondary">
+                  {displayName}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+        <div className="space-y-3">
+          {muscles.map((muscle) => (
+            <div key={`${title}-${muscle.name}`}>
+              <div className="mb-1 flex justify-between text-xs text-text-secondary">
+                <span>{toLocalizedSubMuscle(muscle.name)}</span>
+                <span className="font-electrolize">{muscle.percent}%</span>
+              </div>
+              <div className="mt-1 rounded-md border border-white/10 bg-white/[0.02] p-1">
+                <div className="flex h-2 items-center gap-1">
+                  {Array.from({ length: SEGMENT_COUNT }, (_, index) => {
+                    const isActive = index < getActiveSegments(muscle.percent);
+                    return (
+                      <div
+                        key={`${title}-${muscle.name}-segment-${index}`}
+                        className="h-full flex-1 rounded-[2px] transition-colors duration-300"
+                        style={{ backgroundColor: getSegmentColor(index, isActive) }}
+                      />
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
   };
 
   const togglePlay = () => {
@@ -710,50 +803,13 @@ export function ExerciseVideoScreen({ onBack, exercise }: ExerciseVideoScreenPro
       <div className="pb-24 space-y-6">
           <Card translate="no">
             <h3 className="mb-4 font-medium text-white">{copy.muscleDistributionTitle}</h3>
-            <div className="mb-5 grid grid-cols-3 gap-3">
-              {muscleDistribution.map((muscle) => {
-                const displayName = toLocalizedSubMuscle(muscle.name);
-                return (
-                  <div
-                    key={`${muscle.name}-image`}
-                    className="overflow-hidden rounded-2xl border border-white/10 bg-white/[0.03]"
-                  >
-                    <img
-                      src={resolveTargetMuscleImage(muscle.name, muscle.baseMuscle || primaryMuscle)}
-                      alt={displayName}
-                      className="h-24 w-full object-cover object-center sm:h-28"
-                      loading="lazy"
-                    />
-                    <div className="border-t border-white/10 px-3 py-2 text-center text-[11px] font-medium text-text-secondary">
-                      {displayName}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-            <div className="space-y-3">
-              {muscleDistribution.map((muscle) => (
-                <div key={muscle.name}>
-                  <div className="mb-1 flex justify-between text-xs text-text-secondary">
-                    <span>{toLocalizedSubMuscle(muscle.name)}</span>
-                    <span className="font-electrolize">{muscle.percent}%</span>
-                  </div>
-                  <div className="mt-1 rounded-md border border-white/10 bg-white/[0.02] p-1">
-                    <div className="flex h-2 items-center gap-1">
-                      {Array.from({ length: SEGMENT_COUNT }, (_, index) => {
-                        const isActive = index < getActiveSegments(muscle.percent);
-                        return (
-                          <div
-                            key={`${muscle.name}-segment-${index}`}
-                            className="h-full flex-1 rounded-[2px] transition-colors duration-300"
-                            style={{ backgroundColor: getSegmentColor(index, isActive) }}
-                          />
-                        );
-                      })}
-                    </div>
-                  </div>
+            <div className="space-y-5">
+              {renderMuscleSection(copy.primaryTargetsTitle, primaryMuscleDistribution)}
+              {secondaryMuscleDistribution.length > 0 ? (
+                <div className="border-t border-white/10 pt-5">
+                  {renderMuscleSection(copy.secondaryTargetsTitle, secondaryMuscleDistribution)}
                 </div>
-              ))}
+              ) : null}
             </div>
           </Card>
 
