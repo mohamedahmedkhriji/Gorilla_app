@@ -869,7 +869,8 @@ export function WorkoutPlanScreen({
       const videoMatch = resolveExerciseVideo({
         name: exercise.name,
         muscle: primaryMuscle,
-        bodyPart: primaryMuscle,
+        bodyPart: exercise.targetMuscles.join(' '),
+        targetMuscles: exercise.targetMuscles,
       });
       return { primaryMuscle, videoMatch };
     })

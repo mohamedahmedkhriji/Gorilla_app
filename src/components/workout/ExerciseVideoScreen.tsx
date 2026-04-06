@@ -558,6 +558,7 @@ export function ExerciseVideoScreen({ onBack, exercise }: ExerciseVideoScreenPro
     name: exercise?.name,
     muscle: primaryMuscle,
     bodyPart: targetMuscles.join(', ') || String(exercise?.anatomy || exercise?.muscle || ''),
+    targetMuscles,
   }) || undefined;
   const conservativeFallbackTargets = (() => {
     if (explicitTargetMuscles.length > 0) return explicitTargetMuscles;

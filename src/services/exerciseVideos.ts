@@ -10,6 +10,7 @@ type ExerciseVideoLookupInput = {
   name?: string | null;
   muscle?: string | null;
   bodyPart?: string | null;
+  targetMuscles?: Array<string | null | undefined> | null;
 };
 
 type ExerciseVideoAsset = {
@@ -121,11 +122,15 @@ const resolveInputVideoTarget = ({
   name,
   muscle,
   bodyPart,
+  targetMuscles,
 }: ExerciseVideoLookupInput) => {
   const normalizedName = normalizeExerciseVideoLookup(name);
   const nameTarget = inferSpecificVideoTarget(String(name || ''));
+  const targetMuscleHint = Array.isArray(targetMuscles)
+    ? targetMuscles.map((entry) => String(entry || '').trim()).filter(Boolean).join(' ')
+    : '';
   const hintTarget =
-    inferSpecificVideoTarget(`${bodyPart || ''} ${muscle || ''}`)
+    inferSpecificVideoTarget(`${targetMuscleHint} ${bodyPart || ''} ${muscle || ''}`)
     || inferSpecificVideoTarget(String(muscle || ''))
     || inferSpecificVideoTarget(String(bodyPart || ''));
 
@@ -228,10 +233,11 @@ export const resolveExerciseVideo = ({
   name,
   muscle,
   bodyPart,
+  targetMuscles,
 }: ExerciseVideoLookupInput): ExerciseVideoMatch => {
   const normalizedName = normalizeExerciseVideoLookup(name);
-  const bodyPartKey = resolveExerciseVideoBodyPart({ name, muscle, bodyPart }) || inferExerciseVideoBodyPart(bodyPart || muscle);
-  const specificTarget = resolveInputVideoTarget({ name, muscle, bodyPart });
+  const bodyPartKey = resolveExerciseVideoBodyPart({ name, muscle, bodyPart, targetMuscles }) || inferExerciseVideoBodyPart(bodyPart || muscle);
+  const specificTarget = resolveInputVideoTarget({ name, muscle, bodyPart, targetMuscles });
 
   if (!normalizedName) {
     return {
@@ -245,7 +251,7 @@ export const resolveExerciseVideo = ({
   const directOverride = DIRECT_VIDEO_OVERRIDES[normalizedName];
   if (directOverride) return directOverride;
 
-  const manifestMatch = resolveExerciseVideoManifest({ name, muscle, bodyPart });
+  const manifestMatch = resolveExerciseVideoManifest({ name, muscle, bodyPart, targetMuscles });
   if (manifestMatch.matchType === 'alias' && manifestMatch.fileName) {
     const aliasAsset = findAssetByFileName(manifestMatch.fileName);
     if (aliasAsset) {

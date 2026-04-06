@@ -65,10 +65,13 @@ const inferExerciseVideoBodyPart = (value) => {
   return '';
 };
 
-const resolveExerciseVideoBodyPart = ({ name, muscle, bodyPart } = {}) => {
+const resolveExerciseVideoBodyPart = ({ name, muscle, bodyPart, targetMuscles } = {}) => {
   const normalizedName = normalizeExerciseVideoLookup(name);
   const nameBodyPart = inferExerciseVideoBodyPart(name);
-  const hintedBodyPart = inferExerciseVideoBodyPart(`${bodyPart || ''} ${muscle || ''}`);
+  const targetMuscleHint = Array.isArray(targetMuscles)
+    ? targetMuscles.map((entry) => String(entry || '').trim()).filter(Boolean).join(' ')
+    : '';
+  const hintedBodyPart = inferExerciseVideoBodyPart(`${targetMuscleHint} ${bodyPart || ''} ${muscle || ''}`);
 
   if (hintedBodyPart) {
     if (!nameBodyPart || nameBodyPart === hintedBodyPart) return hintedBodyPart;
@@ -946,9 +949,9 @@ const resolveAbsVideoFallback = (normalizedName) => {
   };
 };
 
-const resolveExerciseVideoManifest = ({ name, muscle, bodyPart } = {}) => {
+const resolveExerciseVideoManifest = ({ name, muscle, bodyPart, targetMuscles } = {}) => {
   const normalizedName = normalizeExerciseVideoLookup(name);
-  const bodyPartKey = resolveExerciseVideoBodyPart({ name, muscle, bodyPart });
+  const bodyPartKey = resolveExerciseVideoBodyPart({ name, muscle, bodyPart, targetMuscles });
 
   if (!normalizedName) {
     return {

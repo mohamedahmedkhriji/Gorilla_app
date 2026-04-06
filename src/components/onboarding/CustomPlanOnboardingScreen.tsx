@@ -525,6 +525,7 @@ export function CustomPlanOnboardingScreen({
           name: exercise.name,
           muscle: exercise.muscle,
           bodyPart: exercise.bodyPart,
+          targetMuscles: [exercise.bodyPart || exercise.muscle].filter(Boolean),
         });
         const hasTrustedVideo = videoMatch.matchType === 'alias' || videoMatch.matchType === 'filename';
         return {

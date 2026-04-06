@@ -2751,6 +2751,7 @@ export function Workout({
             name: resolvedExerciseName,
             muscle: primaryMuscle,
             bodyPart: videoBodyPartHint,
+            targetMuscles,
           }),
         }}
       />
