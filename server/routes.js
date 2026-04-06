@@ -6201,9 +6201,35 @@ const FRAGMENTED_CATALOG_TARGET_NAMES = new Set([
   'inferior digitations',
 ]);
 
+const UNFRIENDLY_CATALOG_TARGET_PATTERNS = [
+  /\bthighs\b/i,
+  /\bgastrocnemius\b/i,
+  /\bsoleus\b/i,
+  /\bgracilis\b/i,
+  /\bpopliteus\b/i,
+  /\bbiceps femoris\b/i,
+  /\bsemitendinosus\b/i,
+  /\bsemimembranosus\b/i,
+  /\brectus femoris\b/i,
+  /\bvastus (lateralis|medialis|intermedius)\b/i,
+  /\b(?:long|short)\s+head\s+biceps\b/i,
+  /\b(?:long|lateral|medial)\s+head\s+triceps\b/i,
+];
+
 const hasFragmentedCatalogTargets = (entries = []) =>
-  Array.isArray(entries) && entries.some((entry) =>
-    FRAGMENTED_CATALOG_TARGET_NAMES.has(String(entry?.name || '').trim().toLowerCase()));
+  Array.isArray(entries) && entries.some((entry) => {
+    const name = String(entry?.name || '').trim().toLowerCase();
+    if (!name) return false;
+    return FRAGMENTED_CATALOG_TARGET_NAMES.has(name)
+      || /\b(?:long|short)\s+head\s+biceps\b/.test(name)
+      || /\b(?:long|lateral|medial)\s+head\s+triceps\b/.test(name);
+  });
+
+const hasUnfriendlyCatalogTargets = (entries = []) =>
+  Array.isArray(entries) && entries.some((entry) => {
+    const name = String(entry?.name || '').trim();
+    return name && UNFRIENDLY_CATALOG_TARGET_PATTERNS.some((pattern) => pattern.test(name));
+  });
 
 const hasGenericDuplicateBases = (entries = []) => {
   const specificBases = new Set(
@@ -6223,13 +6249,49 @@ const hasGenericDuplicateBases = (entries = []) => {
   });
 };
 
+const getMuscleSectionQualityScore = (entries = []) => {
+  if (!Array.isArray(entries) || !entries.length) return Number.NEGATIVE_INFINITY;
+
+  let score = 0;
+  entries.forEach((entry, index) => {
+    const name = String(entry?.name || '').trim();
+    if (!name) return;
+
+    if (GENERIC_CATALOG_TARGET_NAMES.has(name)) {
+      score += 1;
+    } else if (UNFRIENDLY_CATALOG_TARGET_PATTERNS.some((pattern) => pattern.test(name))) {
+      score -= 1;
+    } else {
+      score += 3;
+    }
+
+    if (entry?.isPrimary || entry?.role === 'target') {
+      score += 1;
+    } else if (entry?.role === 'secondary') {
+      score += 0.5;
+    }
+
+    score += Math.max(0, 2 - index) * 0.1;
+  });
+
+  if (hasFragmentedCatalogTargets(entries)) score -= 3;
+  if (hasGenericDuplicateBases(entries)) score -= 3;
+  if (hasUnfriendlyCatalogTargets(entries)) score -= 3;
+
+  return score;
+};
+
 const chooseMuscleSection = (catalogEntries = [], fallbackEntries = []) => {
   if (!fallbackEntries.length) return catalogEntries;
   if (!catalogEntries.length) return fallbackEntries;
 
   const catalogSpecific = hasSpecificCatalogTargets(catalogEntries);
   const fallbackSpecific = hasSpecificCatalogTargets(fallbackEntries);
-  if (hasFragmentedCatalogTargets(catalogEntries) || hasGenericDuplicateBases(catalogEntries)) {
+  if (
+    hasFragmentedCatalogTargets(catalogEntries)
+    || hasGenericDuplicateBases(catalogEntries)
+    || hasUnfriendlyCatalogTargets(catalogEntries)
+  ) {
     return fallbackEntries;
   }
   if (!catalogSpecific && (fallbackSpecific || fallbackEntries.length > catalogEntries.length)) {
@@ -6238,6 +6300,11 @@ const chooseMuscleSection = (catalogEntries = [], fallbackEntries = []) => {
   if (!catalogSpecific && !fallbackSpecific && fallbackEntries.length > catalogEntries.length) {
     return fallbackEntries;
   }
+
+  if (getMuscleSectionQualityScore(fallbackEntries) > getMuscleSectionQualityScore(catalogEntries)) {
+    return fallbackEntries;
+  }
+
   return catalogEntries;
 };
 
