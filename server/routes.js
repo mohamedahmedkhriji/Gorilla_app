@@ -15606,6 +15606,37 @@ router.get('/exercises/catalog/muscles/resolve', async (req, res) => {
 
     const exerciseId = await resolveCatalogIdByExerciseName(requestedName, requestedMuscle);
     if (!exerciseId) {
+      const fallbackRows = getExerciseFallbackMuscleRows({
+        name: requestedName,
+        bodyPart: requestedMuscle || null,
+        muscleHint: requestedMuscle || null,
+      });
+      const genericFallbackRows = fallbackRows.length
+        ? fallbackRows
+        : (requestedMuscle
+          ? [{
+              body_part: requestedMuscle,
+              muscle_group: requestedMuscle,
+              role: 'target',
+              load_factor: 1,
+              is_primary: 1,
+            }]
+          : []);
+
+      if (genericFallbackRows.length) {
+        return res.json({
+          exercise: {
+            id: 0,
+            name: requestedName,
+            bodyPart: requestedMuscle || null,
+          },
+          ...buildExerciseCatalogResponse({
+            rows: [],
+            fallbackRows: genericFallbackRows,
+          }),
+        });
+      }
+
       return res.status(404).json({ error: 'Exercise catalog entry not found' });
     }
 

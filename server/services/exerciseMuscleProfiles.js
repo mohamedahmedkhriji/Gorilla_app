@@ -75,6 +75,7 @@ const dedupeMuscles = (values = []) => {
 };
 
 const RAW_MUSCLE_PROFILES = {
+  'abs circuit': { primary: ['Abs'], secondary: ['Obliques'] },
   'assisted dip': { primary: ['Triceps', 'Chest'], secondary: ['Front Delts'] },
   'back squat': { primary: ['Quadriceps'], secondary: ['Glutes', 'Hamstrings', 'Abs', 'Lower Back'] },
   'barbell bench press': { primary: ['Chest'], secondary: ['Front Delts', 'Triceps'] },
@@ -86,6 +87,7 @@ const RAW_MUSCLE_PROFILES = {
   'cable lateral raise': { primary: ['Side Delts'], secondary: ['Front Delts', 'Traps'] },
   'cable reverse fly': { primary: ['Rear Delts'], secondary: ['Rhomboids', 'Mid Traps'] },
   'cable seated row': { primary: ['Lats', 'Rhomboids', 'Mid Traps'], secondary: ['Biceps', 'Rear Delts'] },
+  'cable curl pushdown superset': { primary: ['Biceps'], secondary: ['Brachialis', 'Forearms'] },
   'cable tricep kickback': { primary: ['Triceps'], secondary: [] },
   'chest supported t bar row': { primary: ['Lats', 'Rhomboids', 'Mid Traps'], secondary: ['Biceps', 'Rear Delts'] },
   'close grip bench press': { primary: ['Triceps'], secondary: ['Chest', 'Front Delts'] },
@@ -120,6 +122,7 @@ const RAW_MUSCLE_PROFILES = {
   'overhead press': { primary: ['Front Delts', 'Side Delts'], secondary: ['Triceps', 'Upper Traps'] },
   'pec deck': { primary: ['Chest'], secondary: ['Front Delts'] },
   plank: { primary: ['Abs'], secondary: ['Shoulders', 'Glutes'] },
+  'rope pushdown': { primary: ['Triceps'], secondary: [] },
   'reverse grip lat pulldown': { primary: ['Lats', 'Biceps'], secondary: ['Rhomboids', 'Mid Traps'] },
   'reverse grip lat pulldown gethin variation': { primary: ['Lats', 'Biceps'], secondary: ['Rhomboids', 'Mid Traps'] },
   'reverse pec deck': { primary: ['Rear Delts'], secondary: ['Rhomboids', 'Mid Traps'] },
@@ -136,6 +139,7 @@ const RAW_MUSCLE_PROFILES = {
 };
 
 const ALIASES = {
+  'fst 7 rope pushdown': 'rope pushdown',
   'incline db': 'incline dumbbell bench press',
   'incline db press': 'incline dumbbell bench press',
   'incline db bench press': 'incline dumbbell bench press',
@@ -150,6 +154,18 @@ const ALIASES = {
 };
 
 const BODY_PART_ALIASES = {
+  'cable curl pushdown superset': {
+    biceps: 'ez bar curl',
+    triceps: 'rope pushdown',
+    arms: 'ez bar curl',
+    default: 'ez bar curl',
+  },
+  'cable curl and pushdown superset': {
+    biceps: 'ez bar curl',
+    triceps: 'rope pushdown',
+    arms: 'ez bar curl',
+    default: 'ez bar curl',
+  },
   'seated curl': {
     legs: 'seated leg curl',
     arms: 'ez bar curl',
@@ -172,6 +188,8 @@ const BODY_PART_ALIASES = {
 const getBodyPartContext = (...values) => {
   const haystack = normalizeName(values.filter(Boolean).join(' '));
   if (!haystack) return '';
+  if (/(bicep)/.test(haystack)) return 'biceps';
+  if (/(tricep)/.test(haystack)) return 'triceps';
   if (/(hamstring|glute|calf|quad|thigh|leg)/.test(haystack)) return 'legs';
   if (/(bicep|tricep|forearm|arm)/.test(haystack)) return 'arms';
   if (/(chest|pect|pec)/.test(haystack)) return 'chest';
