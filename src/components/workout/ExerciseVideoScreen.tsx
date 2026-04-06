@@ -675,20 +675,17 @@ export function ExerciseVideoScreen({ onBack, exercise }: ExerciseVideoScreenPro
     return value || copy.defaultMuscle;
   };
 
-  const renderMuscleSection = (title: string, muscles: MuscleDistributionEntry[]) => {
+  const renderMuscleSection = (muscles: MuscleDistributionEntry[]) => {
     if (!muscles.length) return null;
 
     return (
       <div className="space-y-3">
-        <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-text-tertiary">
-          {title}
-        </div>
         <div className="grid grid-cols-3 gap-3">
           {muscles.map((muscle) => {
             const displayName = toLocalizedSubMuscle(muscle.name);
             return (
               <div
-                key={`${title}-${muscle.name}-image`}
+                key={`${muscle.name}-image`}
                 className="overflow-hidden rounded-2xl border border-white/10 bg-white/[0.03]"
               >
                 <img
@@ -706,7 +703,7 @@ export function ExerciseVideoScreen({ onBack, exercise }: ExerciseVideoScreenPro
         </div>
         <div className="space-y-3">
           {muscles.map((muscle) => (
-            <div key={`${title}-${muscle.name}`}>
+            <div key={muscle.name}>
               <div className="mb-1 flex justify-between text-xs text-text-secondary">
                 <span>{toLocalizedSubMuscle(muscle.name)}</span>
                 <span className="font-electrolize">{muscle.percent}%</span>
@@ -717,7 +714,7 @@ export function ExerciseVideoScreen({ onBack, exercise }: ExerciseVideoScreenPro
                     const isActive = index < getActiveSegments(muscle.percent);
                     return (
                       <div
-                        key={`${title}-${muscle.name}-segment-${index}`}
+                        key={`${muscle.name}-segment-${index}`}
                         className="h-full flex-1 rounded-[2px] transition-colors duration-300"
                         style={{ backgroundColor: getSegmentColor(index, isActive) }}
                       />
@@ -804,10 +801,22 @@ export function ExerciseVideoScreen({ onBack, exercise }: ExerciseVideoScreenPro
           <Card translate="no">
             <h3 className="mb-4 font-medium text-white">{copy.muscleDistributionTitle}</h3>
             <div className="space-y-5">
-              {renderMuscleSection(copy.primaryTargetsTitle, primaryMuscleDistribution)}
+              {primaryMuscleDistribution.length ? (
+                <div className="space-y-3">
+                  <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-text-tertiary">
+                    {copy.primaryTargetsTitle}
+                  </div>
+                  {renderMuscleSection(primaryMuscleDistribution)}
+                </div>
+              ) : null}
               {secondaryMuscleDistribution.length > 0 ? (
                 <div className="border-t border-white/10 pt-5">
-                  {renderMuscleSection(copy.secondaryTargetsTitle, secondaryMuscleDistribution)}
+                  <div className="space-y-3">
+                    <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-text-tertiary">
+                      {copy.secondaryTargetsTitle}
+                    </div>
+                    {renderMuscleSection(secondaryMuscleDistribution)}
+                  </div>
                 </div>
               ) : null}
             </div>
