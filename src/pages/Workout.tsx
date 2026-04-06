@@ -35,7 +35,9 @@ import {
 import { offlineCacheKeys, readOfflineCacheValue } from '../services/offlineCache';
 import { OPEN_PICKED_WORKOUT_PLAN } from '../services/workoutNavigation';
 import { getActiveT2PremiumConfig } from '../services/premiumPlan';
+import { stripExercisePrefix } from '../services/exerciseName';
 import { useScrollToTopOnChange } from '../shared/scroll';
+import { normalizeExerciseVideoLookup } from '../shared/exerciseVideoManifest.js';
 
 interface WorkoutProps {
   onBack: () => void;
@@ -320,6 +322,23 @@ const normalizeMuscleName = (value = '') =>
     .filter(Boolean)
     .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
     .join(' ');
+
+const dedupeStrings = (values: string[]) => [...new Set(values.filter(Boolean))];
+
+const normalizeExerciseSelectionName = (value = '') =>
+  normalizeExerciseVideoLookup(stripExercisePrefix(String(value || '')));
+
+const isMatchingWorkoutExerciseName = (left: string, right: string) => {
+  const normalizedLeft = normalizeExerciseSelectionName(left);
+  const normalizedRight = normalizeExerciseSelectionName(right);
+
+  if (!normalizedLeft || !normalizedRight) return false;
+  return (
+    normalizedLeft === normalizedRight
+    || normalizedLeft.startsWith(`${normalizedRight} `)
+    || normalizedRight.startsWith(`${normalizedLeft} `)
+  );
+};
 
 const inferMusclesFromExerciseName = (exerciseName = '') => {
   const name = String(exerciseName).toLowerCase();
@@ -2643,7 +2662,10 @@ export function Workout({
 
   if (view === 'tracker') {
     const selectedWorkoutExercise = todayExercises.find(
-      (exercise) => normalizeExerciseName(exercise.exerciseName) === normalizeExerciseName(selectedExercise),
+      (exercise) => (
+        normalizeExerciseName(exercise.exerciseName) === normalizeExerciseName(selectedExercise)
+        || isMatchingWorkoutExerciseName(exercise.exerciseName, selectedExercise)
+      ),
     );
     return (
       <>
@@ -2678,24 +2700,40 @@ export function Workout({
 
   if (view === 'video') {
     const selectedWorkoutExercise = todayExercises.find(
-      (exercise) => normalizeExerciseName(exercise.exerciseName) === normalizeExerciseName(selectedExercise),
+      (exercise) => (
+        normalizeExerciseName(exercise.exerciseName) === normalizeExerciseName(selectedExercise)
+        || isMatchingWorkoutExerciseName(exercise.exerciseName, selectedExercise)
+      ),
     );
     const resolvedExerciseName = String(selectedWorkoutExercise?.exerciseName || selectedExercise || '').trim() || selectedExercise;
     const inferredMuscles = inferMusclesFromExerciseName(resolvedExerciseName);
+    const normalizedTargetMuscles = dedupeStrings(
+      (
+        Array.isArray(selectedWorkoutExercise?.targetMuscles) && selectedWorkoutExercise.targetMuscles.length
+          ? selectedWorkoutExercise.targetMuscles
+          : selectedWorkoutExercise?.muscleGroup
+            ? [selectedWorkoutExercise.muscleGroup]
+            : inferredMuscles
+      )
+        .map((entry) => normalizeMuscleName(String(entry || '')))
+        .filter(Boolean),
+    ).filter((entry) => entry.toLowerCase() !== 'general');
     const primaryMuscle =
       String(
-        selectedWorkoutExercise?.muscleGroup
-        || selectedWorkoutExercise?.targetMuscles?.[0]
+        normalizedTargetMuscles[0]
+        || selectedWorkoutExercise?.muscleGroup
         || inferredMuscles[0]
         || 'General',
       ).trim()
       || 'General';
     const videoBodyPartHint =
-      String(selectedWorkoutExercise?.muscleGroup || inferredMuscles[0] || primaryMuscle).trim()
+      String(normalizedTargetMuscles[0] || selectedWorkoutExercise?.muscleGroup || inferredMuscles[0] || primaryMuscle).trim()
       || 'General';
-    const targetMuscles = Array.isArray(selectedWorkoutExercise?.targetMuscles)
-      ? selectedWorkoutExercise.targetMuscles.join(', ')
-      : primaryMuscle;
+    const targetMuscles = normalizedTargetMuscles.length > 0
+      ? normalizedTargetMuscles
+      : primaryMuscle !== 'General'
+        ? [primaryMuscle]
+        : inferredMuscles;
     return (
       <ExerciseVideoScreen
         onBack={() => setView(videoReturnView)}
