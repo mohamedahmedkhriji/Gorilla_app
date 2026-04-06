@@ -6,6 +6,9 @@ import { resolveExerciseVideoUrl } from '../../services/exerciseVideos';
 import { AppLanguage, getActiveLanguage, getStoredLanguage } from '../../services/language';
 import { stripExercisePrefix } from '../../services/exerciseName';
 import { playMediaSafely } from '../../shared/mediaPlayback';
+import backLatsImageUrl from '../../../assets/Workout/body part/back/Lates.png';
+import backUpperImageUrl from '../../../assets/Workout/body part/back/upper back.png';
+import backLowerImageUrl from '../../../assets/Workout/body part/back/lower back.png';
 
 interface ExerciseVideoScreenProps {
   onBack: () => void;
@@ -19,9 +22,9 @@ interface ExerciseVideoScreenProps {
   };
 }
 
-const BACK_LATS_IMAGE = '/assets/Workout/body%20part/back/Lates.png';
-const BACK_UPPER_IMAGE = '/assets/Workout/body%20part/back/upper%20back.png';
-const BACK_LOWER_IMAGE = '/assets/Workout/body%20part/back/lower%20back.png';
+const BACK_LATS_IMAGE = backLatsImageUrl;
+const BACK_UPPER_IMAGE = backUpperImageUrl;
+const BACK_LOWER_IMAGE = backLowerImageUrl;
 
 const getDisplayExerciseName = (name?: string) =>
   stripExercisePrefix(String(name || 'Barbell Bench Press'));

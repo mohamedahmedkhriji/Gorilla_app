@@ -8,6 +8,11 @@ const OFFLINE_CACHE_MAX_ENTRY_BYTES = 250_000;
 const OFFLINE_CACHE_EVICTION_BATCH_SIZE = 8;
 const warnedOfflineCacheKeys = new Set<string>();
 
+const logOfflineCacheWarning = (...args: unknown[]) => {
+  if (!import.meta.env.DEV) return;
+  console.warn(...args);
+};
+
 const hasWindow = () =>
   typeof window !== 'undefined' && typeof window.localStorage !== 'undefined';
 
@@ -140,7 +145,7 @@ export const writeOfflineCache = <T>(key: string, value: T) => {
   try {
     serialized = JSON.stringify(payload);
   } catch (error) {
-    console.warn('Failed to serialize offline cache entry:', error);
+    logOfflineCacheWarning('Failed to serialize offline cache entry:', error);
     return;
   }
 
@@ -148,7 +153,7 @@ export const writeOfflineCache = <T>(key: string, value: T) => {
     removeOfflineCache(key);
     if (!warnedOfflineCacheKeys.has(key)) {
       warnedOfflineCacheKeys.add(key);
-      console.warn(`Skipped offline cache entry because it is too large: ${key}`);
+      logOfflineCacheWarning(`Skipped offline cache entry because it is too large: ${key}`);
     }
     return;
   }
@@ -159,7 +164,7 @@ export const writeOfflineCache = <T>(key: string, value: T) => {
     return;
   } catch (error) {
     if (!isQuotaExceededError(error)) {
-      console.warn('Failed to write offline cache entry:', error);
+      logOfflineCacheWarning('Failed to write offline cache entry:', error);
       return;
     }
   }
@@ -173,7 +178,7 @@ export const writeOfflineCache = <T>(key: string, value: T) => {
     removeOfflineCache(key);
     if (!warnedOfflineCacheKeys.has(key)) {
       warnedOfflineCacheKeys.add(key);
-      console.warn('Failed to write offline cache entry:', error);
+      logOfflineCacheWarning('Failed to write offline cache entry:', error);
     }
   }
 };
