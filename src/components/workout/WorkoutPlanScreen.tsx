@@ -641,8 +641,8 @@ const resolvePrimaryExerciseMuscle = (exercise: WorkoutExerciseCard) => {
     if (match) return match;
   }
 
-  if (inferredMuscles.length > 0) return inferredMuscles[0];
   if (normalizedTargets.length > 0) return normalizedTargets[0];
+  if (inferredMuscles.length > 0) return inferredMuscles[0];
   return 'Chest';
 };
 

@@ -2,6 +2,7 @@ import genericCardioVideoUrl from '../../assets/intro.mp4';
 import {
   inferExerciseVideoBodyPart,
   normalizeExerciseVideoLookup,
+  resolveExerciseVideoBodyPart,
   resolveExerciseVideoManifest,
 } from '../shared/exerciseVideoManifest.js';
 
@@ -103,6 +104,8 @@ const simplifyLookup = (value: string) => {
 const inferSpecificVideoTarget = (value: string) => {
   const text = normalizeExerciseVideoLookup(value);
   if (!text) return '';
+  if (/(leg curl|lying curl|seated curl|hamstring curl|fst 7 curl|fst7 curl)/.test(text)) return 'legs';
+  if (/(romanian deadlift|rdl|stiff leg deadlift)/.test(text)) return 'legs';
   if (/(bicep|biceps|\bcurl\b|preacher|scott|hammer curl|incline curl)/.test(text)) return 'biceps';
   if (/(tricep|triceps|push down|press down|kick back|skull crusher|overhead extension|rope pushdown|french press)/.test(text)) return 'triceps';
   if (/(calf|calves)/.test(text)) return 'calves';
@@ -118,11 +121,31 @@ const resolveInputVideoTarget = ({
   name,
   muscle,
   bodyPart,
-}: ExerciseVideoLookupInput) => (
-  inferSpecificVideoTarget(String(name || ''))
-  || inferSpecificVideoTarget(String(muscle || ''))
-  || inferSpecificVideoTarget(String(bodyPart || ''))
-);
+}: ExerciseVideoLookupInput) => {
+  const normalizedName = normalizeExerciseVideoLookup(name);
+  const nameTarget = inferSpecificVideoTarget(String(name || ''));
+  const hintTarget =
+    inferSpecificVideoTarget(`${bodyPart || ''} ${muscle || ''}`)
+    || inferSpecificVideoTarget(String(muscle || ''))
+    || inferSpecificVideoTarget(String(bodyPart || ''));
+
+  if (hintTarget) {
+    if (!nameTarget || nameTarget === hintTarget) return hintTarget;
+
+    if (
+      hintTarget === 'legs'
+      && /(seated curl|lying curl|leg curl|hamstring curl|fst 7 curl|fst7 curl|romanian deadlift|rdl|stiff leg deadlift|deadlift)/.test(normalizedName)
+    ) {
+      return hintTarget;
+    }
+
+    if (!['biceps', 'triceps'].includes(hintTarget) && ['biceps', 'triceps'].includes(nameTarget)) {
+      return hintTarget;
+    }
+  }
+
+  return nameTarget || hintTarget;
+};
 
 const doesAssetMatchTarget = (
   asset: Pick<ExerciseVideoAsset, 'folderTarget' | 'bodyPart'>,
@@ -207,7 +230,7 @@ export const resolveExerciseVideo = ({
   bodyPart,
 }: ExerciseVideoLookupInput): ExerciseVideoMatch => {
   const normalizedName = normalizeExerciseVideoLookup(name);
-  const bodyPartKey = inferExerciseVideoBodyPart(name) || inferExerciseVideoBodyPart(bodyPart || muscle);
+  const bodyPartKey = resolveExerciseVideoBodyPart({ name, muscle, bodyPart }) || inferExerciseVideoBodyPart(bodyPart || muscle);
   const specificTarget = resolveInputVideoTarget({ name, muscle, bodyPart });
 
   if (!normalizedName) {

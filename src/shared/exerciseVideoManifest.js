@@ -65,6 +65,29 @@ const inferExerciseVideoBodyPart = (value) => {
   return '';
 };
 
+const resolveExerciseVideoBodyPart = ({ name, muscle, bodyPart } = {}) => {
+  const normalizedName = normalizeExerciseVideoLookup(name);
+  const nameBodyPart = inferExerciseVideoBodyPart(name);
+  const hintedBodyPart = inferExerciseVideoBodyPart(`${bodyPart || ''} ${muscle || ''}`);
+
+  if (hintedBodyPart) {
+    if (!nameBodyPart || nameBodyPart === hintedBodyPart) return hintedBodyPart;
+
+    if (
+      hintedBodyPart === 'legs'
+      && /(seated curl|lying curl|leg curl|hamstring curl|fst 7 curl|fst7 curl|romanian deadlift|rdl|stiff leg deadlift|deadlift)/.test(normalizedName)
+    ) {
+      return hintedBodyPart;
+    }
+
+    if (hintedBodyPart !== 'arms' && nameBodyPart === 'arms') {
+      return hintedBodyPart;
+    }
+  }
+
+  return nameBodyPart || hintedBodyPart;
+};
+
 const matchesLookup = (exerciseName, alias) => {
   if (!exerciseName || !alias) return false;
   return exerciseName === alias;
@@ -636,6 +659,10 @@ const TEMPLATE_VIDEO_MANIFEST = [
       'lying leg curl',
       'seated curl',
       'seated leg curl',
+      'fst 7 curl',
+      'fst-7 curl',
+      'fst 7 leg curl',
+      'fst-7 leg curl',
     ],
   },
   {
@@ -921,7 +948,7 @@ const resolveAbsVideoFallback = (normalizedName) => {
 
 const resolveExerciseVideoManifest = ({ name, muscle, bodyPart } = {}) => {
   const normalizedName = normalizeExerciseVideoLookup(name);
-  const bodyPartKey = inferExerciseVideoBodyPart(name) || inferExerciseVideoBodyPart(bodyPart || muscle);
+  const bodyPartKey = resolveExerciseVideoBodyPart({ name, muscle, bodyPart });
 
   if (!normalizedName) {
     return {
@@ -932,9 +959,11 @@ const resolveExerciseVideoManifest = ({ name, muscle, bodyPart } = {}) => {
     };
   }
 
-  const aliasRule = EXERCISE_VIDEO_MANIFEST.find((rule) => {
-    return rule.normalizedAliases.some((alias) => matchesLookup(normalizedName, alias));
-  });
+  const aliasRule = (
+    EXERCISE_VIDEO_MANIFEST.find((rule) =>
+      rule.bodyPart === bodyPartKey && rule.normalizedAliases.some((alias) => matchesLookup(normalizedName, alias)))
+    || EXERCISE_VIDEO_MANIFEST.find((rule) => rule.normalizedAliases.some((alias) => matchesLookup(normalizedName, alias)))
+  );
 
   if (aliasRule) {
     return {
@@ -974,6 +1003,7 @@ export {
   EXERCISE_VIDEO_MANIFEST,
   hasExactExerciseVideoLink,
   inferExerciseVideoBodyPart,
+  resolveExerciseVideoBodyPart,
   normalizeExerciseVideoLookup,
   resolveExerciseVideoManifest,
 };
