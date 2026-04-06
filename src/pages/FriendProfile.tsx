@@ -627,7 +627,8 @@ const inferMusclesFromExerciseName = (exerciseName: unknown) => {
   if (/deadlift|row|pull-up|pull up|lat|pulldown|pullover/.test(name)) matches.push('Back', 'Biceps', 'Forearms');
   if (/squat|leg press|lunge|split squat|step up/.test(name)) matches.push('Quadriceps', 'Hamstrings', 'Calves');
   if (/romanian deadlift|rdl|leg curl|hamstring/.test(name)) matches.push('Hamstrings');
-  if (/shoulder|overhead press|lateral raise|rear delt/.test(name)) matches.push('Shoulders', 'Triceps');
+  if (/lateral raise|rear delt|face pull|front raise/.test(name)) matches.push('Shoulders');
+  if (/shoulder|overhead press|arnold press|seated shoulder press|machine shoulder press/.test(name)) matches.push('Shoulders', 'Triceps');
   if (/curl/.test(name)) matches.push('Biceps', 'Forearms');
   if (/tricep|triceps|dip/.test(name)) matches.push('Triceps');
   if (/calf/.test(name)) matches.push('Calves');

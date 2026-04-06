@@ -178,12 +178,15 @@ const parseTargetMuscles = (value?: string | string[]) => {
 const inferMusclesFromExerciseName = (exerciseName?: string) => {
   const name = String(exerciseName || '').toLowerCase();
   const matches: string[] = [];
+  const isShoulderIsolation = /lateral raise|\blateral\b|rear delt|face pull|front raise/.test(name);
+  const isShoulderPress = /shoulder|overhead press|arnold press|seated db press|seated shoulder press|machine shoulder press/.test(name);
 
   if (/bench|chest|fly|push-up|push up|pec deck|incline (db|dumbbell|barbell|machine|smith)? ?press|machine press|hammer strength press|weighted dip|dip/.test(name)) matches.push('Chest', 'Triceps', 'Shoulders');
   if (/deadlift|row|pull-up|pull up|pullup|chin-up|chin up|chinup|pulldown|pullover|lat pulldown|lat pull|rack pull/.test(name)) matches.push('Back', 'Biceps', 'Forearms');
   if (/squat|leg press|leg extension|lunge|split squat|step up|hip thrust/.test(name)) matches.push('Quadriceps', 'Hamstrings', 'Calves');
   if (/romanian deadlift|rdl|leg curl|hamstring/.test(name)) matches.push('Hamstrings');
-  if (/shoulder|overhead press|lateral raise|\blateral\b|rear delt|face pull|arnold press|seated db press|seated shoulder press|machine shoulder press/.test(name)) matches.push('Shoulders', 'Triceps');
+  if (isShoulderIsolation) matches.push('Shoulders');
+  if (isShoulderPress) matches.push('Shoulders', 'Triceps');
   if (/curl/.test(name)) matches.push('Biceps', 'Forearms');
   if (/tricep|triceps|pushdown|push down|skullcrusher|french press/.test(name)) matches.push('Triceps');
   if (/calf/.test(name)) matches.push('Calves');
@@ -460,7 +463,7 @@ const getExactMuscleDistribution = (
     const key = normalizeLookup(name);
     const weightRaw = Number(entry?.loadFactor ?? entry?.percent ?? 0);
     const weight = Number.isFinite(weightRaw) && weightRaw > 0 ? weightRaw : 1;
-    const baseMuscle = canonicalizeMuscleLabel(entry?.baseMuscle) || toBaseMuscleGroup(name) || null;
+    const baseMuscle = toBaseMuscleGroup(name) || canonicalizeMuscleLabel(entry?.baseMuscle) || null;
     const current = byMuscle.get(key);
 
     if (!current) {
@@ -805,6 +808,7 @@ const detectExerciseGroup = (
   if (lookup.includes('body part back') || lookup.includes('back')) return 'back';
   if (lookup.includes('body part chest') || lookup.includes('chest')) return 'chest';
   if (lookup.includes('body part biceps') || lookup.includes('biceps')) return 'biceps';
+  if (lookup.includes('body part shoulder') || lookup.includes('shoulder')) return 'shoulders';
   if (lookup.includes('body part triceps') || lookup.includes('triceps')) return 'triceps';
   if (
     lookup.includes('body part arms')
@@ -814,7 +818,6 @@ const detectExerciseGroup = (
     if (lookup.includes('tricep')) return 'triceps';
     return 'biceps';
   }
-  if (lookup.includes('body part shoulder') || lookup.includes('shoulder')) return 'shoulders';
   if (lookup.includes('body part abs') || lookup.includes(' abs ') || lookup.includes('abdom') || lookup.includes('oblique') || lookup.includes('core')) return 'abs';
   if (lookup.includes('body part legs') || lookup.includes('body part calves') || lookup.includes('legs') || lookup.includes('quads') || lookup.includes('hamstring') || lookup.includes('glute') || lookup.includes('calf')) return 'legs';
   return 'general';

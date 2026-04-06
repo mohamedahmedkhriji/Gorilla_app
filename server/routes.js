@@ -1837,7 +1837,8 @@ const inferMusclesFromExerciseName = (exerciseName = '') => {
   if (/hip thrust|glute bridge|kickback/.test(name)) matches.push('Glutes', 'Hamstrings');
   if (/squat|leg press|lunge|split squat|step up/.test(name)) matches.push('Quadriceps', 'Hamstrings', 'Glutes', 'Calves');
   if (/romanian deadlift|rdl|leg curl|hamstring/.test(name)) matches.push('Hamstrings', 'Glutes');
-  if (/shoulder|overhead press|lateral raise|rear delt/.test(name)) matches.push('Shoulders', 'Triceps');
+  if (/lateral raise|rear delt|face pull|front raise/.test(name)) matches.push('Shoulders');
+  if (/shoulder|overhead press|arnold press|seated shoulder press|machine shoulder press/.test(name)) matches.push('Shoulders', 'Triceps');
   if (/curl/.test(name)) matches.push('Biceps', 'Forearms');
   if (/tricep|triceps|dip/.test(name)) matches.push('Triceps');
   if (/calf/.test(name)) matches.push('Calves');
@@ -5880,10 +5881,63 @@ const toRoundedPercentages = (weights = []) => {
 };
 
 const getCatalogFallbackBaseMuscle = (value) => {
-  const normalized = normalizeCatalogRecoveryMuscle(value);
-  if (normalized) return normalized;
+  const key = String(value || '').trim().toLowerCase();
+  if (!key) return null;
+
+  if (
+    /(shoulder|deltoid|rear delt|front delt|side delt|lateral deltoid|medial deltoid|posterior deltoid|anterior deltoid|supraspinatus|infraspinatus|teres minor|rotator cuff)/.test(key)
+  ) {
+    return 'Shoulders';
+  }
+  if (/(chest|pector|pec|serratus)/.test(key)) return 'Chest';
+  if (/(tricep)/.test(key)) return 'Triceps';
+  if (/(bicep|brachialis|brachioradialis)/.test(key)) return 'Biceps';
+  if (/(forearm|wrist|grip)/.test(key)) return 'Forearms';
+  if (/(latissimus|\blats?\b|rhomboid|trap|trapezius|back|erector|spinae|teres major|middle back|upper back|lower back)/.test(key)) return 'Back';
+  if (/(quad|quadricep|thigh)/.test(key)) return 'Quadriceps';
+  if (/(hamstring|adductor|abductor)/.test(key)) return 'Hamstrings';
+  if (/(glute)/.test(key)) return 'Glutes';
+  if (/(calf)/.test(key)) return 'Calves';
+  if (/(abs|abdom|core|oblique)/.test(key)) return 'Abs';
+
   const grouped = normalizeCatalogMuscleGroup(value);
   return grouped === 'Other' ? null : grouped;
+};
+
+const GENERIC_CATALOG_TARGET_NAMES = new Set([
+  'Abs',
+  'Back',
+  'Biceps',
+  'Calves',
+  'Chest',
+  'Forearms',
+  'Glutes',
+  'Hamstrings',
+  'Legs',
+  'Quadriceps',
+  'Shoulders',
+  'Triceps',
+]);
+
+const canonicalizeCatalogTargetName = (value) => {
+  const key = String(value || '').trim().toLowerCase();
+  if (!key) return '';
+
+  if (/(lateral deltoid|medial deltoid|side delt)/.test(key)) return 'Side Delts';
+  if (/(anterior deltoid|front delt)/.test(key)) return 'Front Delts';
+  if (/(posterior deltoid|rear delt)/.test(key)) return 'Rear Delts';
+  if (/(deltoid|shoulder|supraspinatus|infraspinatus|teres minor|rotator cuff)/.test(key)) return 'Shoulders';
+  if (/(latissimus|\blats?\b)/.test(key)) return 'Lats';
+  if (/(trapezius|trap)/.test(key)) return 'Traps';
+  if (/(rhomboid)/.test(key)) return 'Rhomboids';
+  if (/(erector|spinae|lower back)/.test(key)) return 'Lower Back';
+  if (/(upper back|middle back)/.test(key)) return 'Upper Back';
+  if (/(clavicular|upper chest|upper pector)/.test(key)) return 'Upper Chest';
+  if (/(sternocostal|mid chest|middle chest|mid pector)/.test(key)) return 'Mid Chest';
+  if (/(lower chest)/.test(key)) return 'Lower Chest';
+  if (/(chest|pector|pec)/.test(key)) return 'Chest';
+
+  return String(value || '').trim();
 };
 
 const buildExerciseCatalogMuscleTargets = (rows = []) => {
@@ -5900,14 +5954,15 @@ const buildExerciseCatalogMuscleTargets = (rows = []) => {
 
     const loadFactorRaw = Number(row.load_factor || 0);
     const loadFactor = Number.isFinite(loadFactorRaw) && loadFactorRaw > 0 ? loadFactorRaw : 1;
-    const key = normalizeExerciseLookupName(rawName) || rawName.toLowerCase();
-    const baseMuscle = getCatalogFallbackBaseMuscle(rawName) || fallbackBaseMuscle;
+    const displayName = canonicalizeCatalogTargetName(rawName);
+    const key = normalizeExerciseLookupName(displayName || rawName) || rawName.toLowerCase();
+    const baseMuscle = getCatalogFallbackBaseMuscle(displayName || rawName) || fallbackBaseMuscle;
     const isPrimary = Number(row.is_primary || 0) === 1;
     const current = byMuscle.get(key);
 
     if (!current) {
       byMuscle.set(key, {
-        name: rawName,
+        name: displayName || rawName,
         role,
         loadFactor,
         isPrimary,
@@ -5930,7 +5985,7 @@ const buildExerciseCatalogMuscleTargets = (rows = []) => {
   let entries = Array.from(byMuscle.values());
   if (!entries.length && fallbackBodyPart) {
     entries = [{
-      name: fallbackBodyPart,
+      name: canonicalizeCatalogTargetName(fallbackBodyPart) || fallbackBodyPart,
       role: 'target',
       loadFactor: 1,
       isPrimary: true,
@@ -5939,13 +5994,24 @@ const buildExerciseCatalogMuscleTargets = (rows = []) => {
     }];
   }
 
-  const highlighted = entries.filter((entry) =>
-    entry.isPrimary
-    || entry.role === 'target'
-    || entry.role === 'secondary'
-    || entry.role === 'synergist'
-    || entry.loadFactor >= 0.5);
-  const visible = highlighted.length ? highlighted : entries;
+  const targets = entries.filter((entry) => entry.isPrimary || entry.role === 'target');
+  const secondary = entries.filter((entry) => entry.role === 'secondary');
+  const synergists = entries.filter((entry) => entry.role === 'synergist');
+  let visible = targets.length ? targets : secondary.length ? secondary : synergists.length ? synergists : entries;
+
+  const specificBases = new Set(
+    visible
+      .filter((entry) => entry.baseMuscle && !GENERIC_CATALOG_TARGET_NAMES.has(String(entry.name || '').trim()))
+      .map((entry) => entry.baseMuscle),
+  );
+  const withoutGenericDuplicates = visible.filter((entry) => !(
+    entry.baseMuscle
+    && specificBases.has(entry.baseMuscle)
+    && GENERIC_CATALOG_TARGET_NAMES.has(String(entry.name || '').trim())
+  ));
+  if (withoutGenericDuplicates.length) {
+    visible = withoutGenericDuplicates;
+  }
 
   visible.sort((left, right) =>
     Number(right.isPrimary) - Number(left.isPrimary)
@@ -5953,6 +6019,8 @@ const buildExerciseCatalogMuscleTargets = (rows = []) => {
     || (CATALOG_MUSCLE_ROLE_PRIORITY[left.role] ?? 99) - (CATALOG_MUSCLE_ROLE_PRIORITY[right.role] ?? 99)
     || left.order - right.order
     || String(left.name || '').localeCompare(String(right.name || '')));
+
+  visible = visible.slice(0, 3);
 
   const percentages = toRoundedPercentages(visible.map((entry) => entry.loadFactor));
 
