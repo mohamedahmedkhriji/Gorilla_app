@@ -800,26 +800,14 @@ export function ExerciseVideoScreen({ onBack, exercise }: ExerciseVideoScreenPro
       <div className="pb-24 space-y-6">
           <Card translate="no">
             <h3 className="mb-4 font-medium text-white">{copy.muscleDistributionTitle}</h3>
-            <div className="space-y-5">
-              {primaryMuscleDistribution.length ? (
-                <div className="space-y-3">
-                  <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-text-tertiary">
-                    {copy.primaryTargetsTitle}
-                  </div>
-                  {renderMuscleSection(primaryMuscleDistribution)}
+            {primaryMuscleDistribution.length ? (
+              <div className="space-y-3">
+                <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-text-tertiary">
+                  {copy.primaryTargetsTitle}
                 </div>
-              ) : null}
-              {secondaryMuscleDistribution.length > 0 ? (
-                <div className="border-t border-white/10 pt-5">
-                  <div className="space-y-3">
-                    <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-text-tertiary">
-                      {copy.secondaryTargetsTitle}
-                    </div>
-                    {renderMuscleSection(secondaryMuscleDistribution)}
-                  </div>
-                </div>
-              ) : null}
-            </div>
+                {renderMuscleSection(primaryMuscleDistribution)}
+              </div>
+            ) : null}
           </Card>
 
       </div>
