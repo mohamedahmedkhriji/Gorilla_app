@@ -1250,6 +1250,14 @@ export const api = {
     return parseApiResponse(res, 'Failed to load exercise muscle targets');
   },
 
+  getExerciseCatalogMusclesByName: async (exerciseName: string, muscleHint?: string | null) => {
+    const params = new URLSearchParams();
+    params.set('name', exerciseName);
+    if (muscleHint) params.set('muscle', muscleHint);
+    const res = await fetch(`${API_URL}/exercises/catalog/muscles/resolve?${params.toString()}`);
+    return parseApiResponse(res, 'Failed to resolve exercise muscle targets');
+  },
+
   saveWorkoutSet: async (data: any) => {
     const res = await fetch(`${API_URL}/workout-sets`, {
       method: 'POST',

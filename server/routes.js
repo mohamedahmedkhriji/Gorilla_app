@@ -1906,6 +1906,96 @@ const resolveCatalogIdsByNormalizedNames = async (normalizedNames = []) => {
   return mapping;
 };
 
+const stripCatalogLookupPrefix = (value = '') =>
+  String(value || '')
+    .replace(
+      /^\d+(?:\.\d+)?\s+(?:back|chest|legs?|shoulders?|arms|abs|core|biceps?|triceps?|forearms?|calves?|glutes?|hamstrings?|quadriceps?)\s+/i,
+      '',
+    )
+    .replace(/^\d+(?:\.\d+)?\s+/, '')
+    .trim();
+
+const resolveCatalogIdByExerciseName = async (exerciseName = '', muscleHint = '') => {
+  const rawCandidates = [
+    String(exerciseName || '').trim(),
+    stripCatalogLookupPrefix(exerciseName),
+  ].filter(Boolean);
+  const normalizedCandidates = [...new Set(
+    rawCandidates
+      .map((value) => normalizeExerciseLookupName(value))
+      .filter(Boolean),
+  )];
+
+  if (!normalizedCandidates.length) return null;
+
+  const exactMatches = await resolveCatalogIdsByNormalizedNames(normalizedCandidates);
+  for (const candidate of normalizedCandidates) {
+    const exact = Number(exactMatches.get(candidate) || 0);
+    if (exact > 0) return exact;
+  }
+
+  const normalizedHint = String(getCatalogFallbackBaseMuscle(muscleHint) || muscleHint || '')
+    .trim()
+    .toLowerCase();
+
+  for (const candidate of normalizedCandidates) {
+    const tokens = candidate.split(' ').filter((token) => token.length >= 2);
+    if (!tokens.length) continue;
+
+    const tokenClauses = tokens.map(() => 'resolved.normalized_label LIKE ?').join(' AND ');
+    const tokenParams = tokens.map((token) => `%${token}%`);
+    const selectSql = `SELECT resolved.exercise_catalog_id
+       FROM (
+         SELECT ec.id AS exercise_catalog_id, ec.normalized_name AS normalized_label, ec.body_part
+         FROM exercise_catalog ec
+         WHERE ec.is_active = 1
+         UNION ALL
+         SELECT ea.exercise_catalog_id AS exercise_catalog_id, ea.alias_normalized AS normalized_label, ec.body_part
+         FROM exercise_aliases ea
+         INNER JOIN exercise_catalog ec
+           ON ec.id = ea.exercise_catalog_id
+          AND ec.is_active = 1
+       ) resolved
+       WHERE ${tokenClauses}`;
+    const orderSql = `
+       ORDER BY
+         CASE
+           WHEN resolved.normalized_label = ? THEN 0
+           WHEN resolved.normalized_label LIKE ? THEN 1
+           ELSE 2
+         END,
+         LENGTH(resolved.normalized_label) ASC,
+         resolved.exercise_catalog_id ASC
+       LIMIT 1`;
+
+    const hintFilterSql = normalizedHint
+      ? `
+       AND (
+         LOWER(COALESCE(resolved.body_part, '')) = ?
+         OR LOWER(COALESCE(resolved.body_part, '')) LIKE ?
+       )`
+      : '';
+    const hintParams = normalizedHint ? [normalizedHint, `%${normalizedHint}%`] : [];
+
+    let [rows] = await pool.query(
+      `${selectSql}${hintFilterSql}${orderSql}`,
+      [...tokenParams, ...hintParams, candidate, `${candidate}%`],
+    );
+
+    if ((!Array.isArray(rows) || !rows.length) && normalizedHint) {
+      [rows] = await pool.query(
+        `${selectSql}${orderSql}`,
+        [...tokenParams, candidate, `${candidate}%`],
+      );
+    }
+
+    const resolvedId = Number(rows?.[0]?.exercise_catalog_id || 0);
+    if (resolvedId > 0) return resolvedId;
+  }
+
+  return null;
+};
+
 const getCatalogRecoveryContexts = async (catalogIds = []) => {
   const ids = [...new Set(catalogIds.map((id) => Number(id)).filter((id) => Number.isFinite(id) && id > 0))];
   const contexts = new Map();
@@ -15295,6 +15385,56 @@ router.get('/exercises/catalog/filters', async (_req, res) => {
     const preferredOrder = ['All', 'Chest', 'Back', 'Legs', 'Shoulders', 'Arms', 'Abs'];
     const filters = preferredOrder.filter((f) => buckets.has(f));
     return res.json({ filters });
+  } catch (error) {
+    return res.status(500).json({ error: error.message });
+  }
+});
+
+router.get('/exercises/catalog/muscles/resolve', async (req, res) => {
+  try {
+    const requestedName = String(req.query.name || '').trim();
+    const requestedMuscle = String(req.query.muscle || '').trim();
+    if (!requestedName) {
+      return res.status(400).json({ error: 'Exercise name is required' });
+    }
+
+    const exerciseId = await resolveCatalogIdByExerciseName(requestedName, requestedMuscle);
+    if (!exerciseId) {
+      return res.status(404).json({ error: 'Exercise catalog entry not found' });
+    }
+
+    const [rows] = await pool.execute(
+      `SELECT
+         ec.id,
+         ec.canonical_name,
+         ec.body_part,
+         ecm.muscle_group,
+         ecm.role,
+         COALESCE(ecm.load_factor, 1) AS load_factor,
+         COALESCE(ecm.is_primary, 0) AS is_primary
+       FROM exercise_catalog ec
+       LEFT JOIN exercise_catalog_muscles ecm ON ecm.exercise_catalog_id = ec.id
+       WHERE ec.id = ? AND ec.is_active = 1
+       ORDER BY
+         COALESCE(ecm.is_primary, 0) DESC,
+         COALESCE(ecm.load_factor, 0) DESC,
+         ecm.muscle_group ASC`,
+      [exerciseId],
+    );
+
+    if (!Array.isArray(rows) || !rows.length) {
+      return res.status(404).json({ error: 'Exercise catalog entry not found' });
+    }
+
+    const firstRow = rows[0];
+    return res.json({
+      exercise: {
+        id: Number(firstRow.id || 0),
+        name: firstRow.canonical_name || null,
+        bodyPart: firstRow.body_part || null,
+      },
+      muscles: buildExerciseCatalogMuscleTargets(rows),
+    });
   } catch (error) {
     return res.status(500).json({ error: error.message });
   }

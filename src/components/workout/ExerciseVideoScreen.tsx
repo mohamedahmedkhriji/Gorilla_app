@@ -207,42 +207,6 @@ const MUSCLE_BAR_COLORS = [
   'bg-emerald-500',
 ];
 
-const BACK_MUSCLE_DISTRIBUTION = [
-  { name: 'Upper Back', colorClass: MUSCLE_BAR_COLORS[0] },
-  { name: 'Lats', colorClass: MUSCLE_BAR_COLORS[1] },
-  { name: 'Lower Back', colorClass: MUSCLE_BAR_COLORS[2] },
-];
-
-const CHEST_MUSCLE_DISTRIBUTION = [
-  { name: 'Upper Chest', colorClass: MUSCLE_BAR_COLORS[0] },
-  { name: 'Mid Chest', colorClass: MUSCLE_BAR_COLORS[1] },
-  { name: 'Lower Chest', colorClass: MUSCLE_BAR_COLORS[2] },
-];
-
-const BICEPS_MUSCLE_DISTRIBUTION = [
-  { name: 'Long Head Biceps', colorClass: MUSCLE_BAR_COLORS[0] },
-  { name: 'Short Head Biceps', colorClass: MUSCLE_BAR_COLORS[1] },
-  { name: 'Brachialis', colorClass: MUSCLE_BAR_COLORS[2] },
-];
-
-const ABS_MUSCLE_DISTRIBUTION = [
-  { name: 'Upper Abs', colorClass: MUSCLE_BAR_COLORS[0] },
-  { name: 'Obliques', colorClass: MUSCLE_BAR_COLORS[1] },
-  { name: 'Lower Abs', colorClass: MUSCLE_BAR_COLORS[2] },
-];
-
-const SHOULDERS_MUSCLE_DISTRIBUTION = [
-  { name: 'Front Delts', colorClass: MUSCLE_BAR_COLORS[0] },
-  { name: 'Side Delts', colorClass: MUSCLE_BAR_COLORS[1] },
-  { name: 'Rear Delts', colorClass: MUSCLE_BAR_COLORS[2] },
-];
-
-const TRICEPS_MUSCLE_DISTRIBUTION = [
-  { name: 'Long Head Triceps', colorClass: MUSCLE_BAR_COLORS[0] },
-  { name: 'Lateral Head Triceps', colorClass: MUSCLE_BAR_COLORS[1] },
-  { name: 'Medial Head Triceps', colorClass: MUSCLE_BAR_COLORS[2] },
-];
-
 const EXERCISE_VIDEO_I18N: Record<AppLanguage, {
   muscleDistributionTitle: string;
   noVideo: string;
@@ -381,14 +345,6 @@ const DE_BASE_MUSCLE_LABELS: Record<string, string> = {
 const SEGMENT_COUNT = 10;
 
 const clampPercent = (value: number) => Math.max(0, Math.min(100, value));
-
-const applyDistribution = (
-  template: Array<{ name: string; colorClass: string }>,
-  percentages: number[],
-) => template.map((muscle, index) => ({
-  ...muscle,
-  percent: percentages[index] ?? 0,
-}));
 
 const getActiveSegments = (percent: number) =>
   Math.round((clampPercent(percent) / 100) * SEGMENT_COUNT);
@@ -531,238 +487,6 @@ const getMuscleDistribution = (muscles: string[]): MuscleDistributionEntry[] => 
   }));
 };
 
-const getBackMuscleDistribution = (exerciseName?: string, videoUrl?: string) => {
-  const lookup = normalizeLookup(`${exerciseName || ''} ${videoUrl || ''}`);
-  let distribution = [40, 40, 20];
-
-  if (
-    lookup.includes('deadlift')
-    || lookup.includes('back extension')
-    || lookup.includes('hyperextension')
-    || lookup.includes('good morning')
-  ) {
-    distribution = [30, 15, 55];
-  } else if (
-    lookup.includes('trap')
-    || lookup.includes('shrug')
-  ) {
-    distribution = [65, 20, 15];
-  } else if (
-    lookup.includes('rear delt')
-    || lookup.includes('reverse fly')
-  ) {
-    distribution = [55, 30, 15];
-  } else if (lookup.includes('pullover')) {
-    distribution = [20, 65, 15];
-  } else if (lookup.includes('lower lats')) {
-    distribution = [20, 50, 30];
-  } else if (lookup.includes('upper lats')) {
-    distribution = [45, 40, 15];
-  } else if (
-    lookup.includes('pull up')
-    || lookup.includes('pullup')
-    || lookup.includes('pull down')
-    || lookup.includes('pulldown')
-    || lookup.includes('lat pull')
-  ) {
-    distribution = [30, 55, 15];
-  } else if (
-    lookup.includes('bent over')
-    || lookup.includes('barbell row')
-    || lookup.includes('dumbbell row')
-    || lookup.includes('landmine row')
-  ) {
-    distribution = [40, 35, 25];
-  } else if (
-    lookup.includes('row')
-    || lookup.includes('rope pulling')
-    || lookup.includes('seated row')
-  ) {
-    distribution = [45, 40, 15];
-  }
-
-  return applyDistribution(BACK_MUSCLE_DISTRIBUTION, distribution);
-};
-
-const getChestMuscleDistribution = (exerciseName?: string, videoUrl?: string) => {
-  const lookup = normalizeLookup(`${exerciseName || ''} ${videoUrl || ''}`);
-  let distribution = [30, 50, 20];
-
-  if (
-    lookup.includes('upper')
-    || lookup.includes('incline')
-    || lookup.includes('45')
-  ) {
-    distribution = [60, 25, 15];
-  } else if (
-    lookup.includes('lower')
-    || lookup.includes('dip')
-    || lookup.includes('decline')
-  ) {
-    distribution = [15, 30, 55];
-  } else if (
-    lookup.includes('middle')
-    || lookup.includes('midel')
-    || lookup.includes('flat')
-    || lookup.includes('pec deck')
-    || lookup.includes('bench press')
-    || lookup.includes('guillotine')
-  ) {
-    distribution = [25, 55, 20];
-  }
-
-  return applyDistribution(CHEST_MUSCLE_DISTRIBUTION, distribution);
-};
-
-const getBicepsMuscleDistribution = (exerciseName?: string, videoUrl?: string) => {
-  const lookup = normalizeLookup(`${exerciseName || ''} ${videoUrl || ''}`);
-  let distribution = [40, 35, 25];
-
-  if (lookup.includes('hammer')) {
-    distribution = [20, 20, 60];
-  } else if (lookup.includes('incline')) {
-    distribution = [60, 25, 15];
-  } else if (
-    lookup.includes('scott')
-    || lookup.includes('preacher')
-  ) {
-    distribution = [25, 55, 20];
-  } else if (
-    lookup.includes('cable')
-    || lookup.includes('v ')
-    || lookup.endsWith(' v')
-  ) {
-    distribution = [35, 45, 20];
-  }
-
-  return applyDistribution(BICEPS_MUSCLE_DISTRIBUTION, distribution);
-};
-
-const getAbsMuscleDistribution = (exerciseName?: string, videoUrl?: string) => {
-  const lookup = normalizeLookup(`${exerciseName || ''} ${videoUrl || ''}`);
-  let distribution = [45, 30, 25];
-
-  if (
-    lookup.includes('bicycle')
-    || lookup.includes('russian')
-    || lookup.includes('twist')
-    || lookup.includes('side crunch')
-  ) {
-    distribution = [20, 55, 25];
-  } else if (
-    lookup.includes('leg raise')
-    || lookup.includes('leg lift')
-    || lookup.includes('knee raise')
-    || lookup.includes('weighted leg lift')
-  ) {
-    distribution = [15, 25, 60];
-  } else if (
-    lookup.includes('crunch')
-    || lookup.includes('reach')
-    || lookup.includes('half crunch')
-    || lookup.includes('knee tap')
-  ) {
-    distribution = [60, 25, 15];
-  }
-
-  return applyDistribution(ABS_MUSCLE_DISTRIBUTION, distribution);
-};
-
-const getShouldersMuscleDistribution = (exerciseName?: string, videoUrl?: string) => {
-  const lookup = normalizeLookup(`${exerciseName || ''} ${videoUrl || ''}`);
-  let distribution = [35, 40, 25];
-
-  if (
-    lookup.includes('front')
-    || lookup.includes('overhead')
-    || lookup.includes('press')
-  ) {
-    distribution = [60, 25, 15];
-  } else if (
-    lookup.includes('lateral')
-    || lookup.includes('side delt')
-  ) {
-    distribution = [20, 65, 15];
-  } else if (lookup.includes('rear delt')) {
-    distribution = [15, 25, 60];
-  }
-
-  return applyDistribution(SHOULDERS_MUSCLE_DISTRIBUTION, distribution);
-};
-
-const getTricepsMuscleDistribution = (exerciseName?: string, videoUrl?: string) => {
-  const lookup = normalizeLookup(`${exerciseName || ''} ${videoUrl || ''}`);
-  let distribution = [45, 35, 20];
-
-  if (
-    lookup.includes('overhead')
-    || lookup.includes('french press')
-    || lookup.includes('skullcrusher')
-  ) {
-    distribution = [60, 25, 15];
-  } else if (
-    lookup.includes('pressdown')
-    || lookup.includes('press down')
-    || lookup.includes('rope')
-    || lookup.includes('bar')
-  ) {
-    distribution = [35, 50, 15];
-  } else if (lookup.includes('kickback')) {
-    distribution = [40, 25, 35];
-  }
-
-  return applyDistribution(TRICEPS_MUSCLE_DISTRIBUTION, distribution);
-};
-
-const getLegsMuscleDistribution = (exerciseName?: string, videoUrl?: string) => {
-  const lookup = normalizeLookup(`${exerciseName || ''} ${videoUrl || ''}`);
-
-  if (lookup.includes('calf')) {
-    return [
-      { name: 'Calves', percent: 70, colorClass: MUSCLE_BAR_COLORS[0] },
-      { name: 'Hamstrings', percent: 15, colorClass: MUSCLE_BAR_COLORS[1] },
-      { name: 'Quadriceps', percent: 15, colorClass: MUSCLE_BAR_COLORS[2] },
-    ];
-  }
-
-  if (
-    lookup.includes('hamstring')
-    || lookup.includes('romanian deadlift')
-    || lookup.includes('rdl')
-  ) {
-    return [
-      { name: 'Hamstrings', percent: 60, colorClass: MUSCLE_BAR_COLORS[0] },
-      { name: 'Glutes', percent: 25, colorClass: MUSCLE_BAR_COLORS[1] },
-      { name: 'Quadriceps', percent: 15, colorClass: MUSCLE_BAR_COLORS[2] },
-    ];
-  }
-
-  if (
-    lookup.includes('adductor')
-    || lookup.includes('sumo')
-  ) {
-    return [
-      { name: 'Adductors', percent: 55, colorClass: MUSCLE_BAR_COLORS[0] },
-      { name: 'Glutes', percent: 30, colorClass: MUSCLE_BAR_COLORS[1] },
-      { name: 'Quadriceps', percent: 15, colorClass: MUSCLE_BAR_COLORS[2] },
-    ];
-  }
-
-  if (lookup.includes('glute')) {
-    return [
-      { name: 'Glutes', percent: 60, colorClass: MUSCLE_BAR_COLORS[0] },
-      { name: 'Hamstrings', percent: 25, colorClass: MUSCLE_BAR_COLORS[1] },
-      { name: 'Quadriceps', percent: 15, colorClass: MUSCLE_BAR_COLORS[2] },
-    ];
-  }
-
-  return [
-    { name: 'Quadriceps', percent: 60, colorClass: MUSCLE_BAR_COLORS[0] },
-    { name: 'Hamstrings', percent: 25, colorClass: MUSCLE_BAR_COLORS[1] },
-    { name: 'Glutes', percent: 15, colorClass: MUSCLE_BAR_COLORS[2] },
-  ];
-};
-
 const resolveWorkoutMuscleImage = (muscleName?: string, muscleGroup?: string) => {
   const normalizedMuscle = normalizeLookup(muscleName);
   const normalizedGroup = normalizeLookup(muscleGroup);
@@ -795,32 +519,6 @@ const resolveTargetMuscleImage = (muscleName?: string, muscleGroup?: string) => 
 
   // Prefer detailed theme image using both muscle label and group context.
   return getBodyPartImage(`${muscleName || ''} ${muscleGroup || ''}`.trim() || 'General');
-};
-
-const detectExerciseGroup = (
-  muscle?: string,
-  videoUrl?: string,
-  targetMuscles: string[] = [],
-  exerciseName?: string,
-) => {
-  const lookup = normalizeLookup(`${muscle || ''} ${targetMuscles.join(' ')} ${exerciseName || ''} ${videoUrl || ''}`);
-
-  if (lookup.includes('body part back') || lookup.includes('back')) return 'back';
-  if (lookup.includes('body part chest') || lookup.includes('chest')) return 'chest';
-  if (lookup.includes('body part biceps') || lookup.includes('biceps')) return 'biceps';
-  if (lookup.includes('body part shoulder') || lookup.includes('shoulder')) return 'shoulders';
-  if (lookup.includes('body part triceps') || lookup.includes('triceps')) return 'triceps';
-  if (
-    lookup.includes('body part arms')
-    || lookup.includes('arms')
-    || lookup.includes('forearm')
-  ) {
-    if (lookup.includes('tricep')) return 'triceps';
-    return 'biceps';
-  }
-  if (lookup.includes('body part abs') || lookup.includes(' abs ') || lookup.includes('abdom') || lookup.includes('oblique') || lookup.includes('core')) return 'abs';
-  if (lookup.includes('body part legs') || lookup.includes('body part calves') || lookup.includes('legs') || lookup.includes('quads') || lookup.includes('hamstring') || lookup.includes('glute') || lookup.includes('calf')) return 'legs';
-  return 'general';
 };
 
 export function ExerciseVideoScreen({ onBack, exercise }: ExerciseVideoScreenProps) {
@@ -861,26 +559,14 @@ export function ExerciseVideoScreen({ onBack, exercise }: ExerciseVideoScreenPro
     muscle: primaryMuscle,
     bodyPart: targetMuscles.join(', ') || String(exercise?.anatomy || exercise?.muscle || ''),
   }) || undefined;
-  const exerciseGroup = detectExerciseGroup(primaryMuscle, resolvedVideoUrl, targetMuscles, exercise?.name);
-  const fallbackMuscleDistribution: MuscleDistributionEntry[] = explicitTargetMuscles.length > 0
-    ? getMuscleDistribution(explicitTargetMuscles)
-    : targetMuscles.length > 0
-      ? getMuscleDistribution(targetMuscles)
-      : exerciseGroup === 'back'
-        ? getBackMuscleDistribution(exercise?.name, resolvedVideoUrl)
-        : exerciseGroup === 'chest'
-          ? getChestMuscleDistribution(exercise?.name, resolvedVideoUrl)
-          : exerciseGroup === 'biceps'
-            ? getBicepsMuscleDistribution(exercise?.name, resolvedVideoUrl)
-            : exerciseGroup === 'triceps'
-              ? getTricepsMuscleDistribution(exercise?.name, resolvedVideoUrl)
-              : exerciseGroup === 'shoulders'
-                ? getShouldersMuscleDistribution(exercise?.name, resolvedVideoUrl)
-                : exerciseGroup === 'abs'
-                  ? getAbsMuscleDistribution(exercise?.name, resolvedVideoUrl)
-                  : exerciseGroup === 'legs'
-                    ? getLegsMuscleDistribution(exercise?.name, resolvedVideoUrl)
-                    : getMuscleDistribution(targetMuscles);
+  const conservativeFallbackTargets = (() => {
+    if (explicitTargetMuscles.length > 0) return explicitTargetMuscles;
+    const directMuscle = canonicalizeMuscleLabel(exercise?.muscle);
+    if (directMuscle && directMuscle !== 'General') return [directMuscle];
+    if (primaryMuscle && primaryMuscle !== 'General') return [primaryMuscle];
+    return ['General'];
+  })();
+  const fallbackMuscleDistribution: MuscleDistributionEntry[] = getMuscleDistribution(conservativeFallbackTargets);
   const muscleDistribution: MuscleDistributionEntry[] = catalogMuscleDistribution.length > 0
     ? catalogMuscleDistribution
     : fallbackMuscleDistribution;
@@ -892,15 +578,19 @@ export function ExerciseVideoScreen({ onBack, exercise }: ExerciseVideoScreenPro
   useEffect(() => {
     let cancelled = false;
     const exerciseCatalogId = Number(exercise?.exerciseCatalogId || 0) || null;
+    const exerciseName = String(exercise?.name || '').trim();
+    const catalogLookupMuscleHint = explicitTargetMuscles[0] || canonicalizeMuscleLabel(exercise?.muscle) || primaryMuscle;
 
     setCatalogMuscleDistribution([]);
-    if (!exerciseCatalogId) return () => {
+    if (!exerciseCatalogId && !exerciseName) return () => {
       cancelled = true;
     };
 
     const loadCatalogMuscles = async () => {
       try {
-        const data = await api.getExerciseCatalogMuscles(exerciseCatalogId);
+        const data = exerciseCatalogId
+          ? await api.getExerciseCatalogMuscles(exerciseCatalogId)
+          : await api.getExerciseCatalogMusclesByName(exerciseName, catalogLookupMuscleHint);
         if (cancelled) return;
 
         const nextDistribution = getExactMuscleDistribution(
@@ -922,7 +612,7 @@ export function ExerciseVideoScreen({ onBack, exercise }: ExerciseVideoScreenPro
     return () => {
       cancelled = true;
     };
-  }, [exercise?.exerciseCatalogId]);
+  }, [exercise?.exerciseCatalogId, exercise?.name, exercise?.muscle, explicitTargetMuscles.join('|'), primaryMuscle]);
 
   useEffect(() => {
     setIsPlaying(false);
