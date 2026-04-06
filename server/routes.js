@@ -6190,12 +6190,48 @@ const hasSpecificCatalogTargets = (entries = []) =>
     return name && !GENERIC_CATALOG_TARGET_NAMES.has(name);
   });
 
+const FRAGMENTED_CATALOG_TARGET_NAMES = new Set([
+  'anterior',
+  'posterior',
+  'lateral',
+  'medial',
+  'upper',
+  'lower',
+  'middle',
+  'inferior digitations',
+]);
+
+const hasFragmentedCatalogTargets = (entries = []) =>
+  Array.isArray(entries) && entries.some((entry) =>
+    FRAGMENTED_CATALOG_TARGET_NAMES.has(String(entry?.name || '').trim().toLowerCase()));
+
+const hasGenericDuplicateBases = (entries = []) => {
+  const specificBases = new Set(
+    (Array.isArray(entries) ? entries : [])
+      .filter((entry) => {
+        const name = String(entry?.name || '').trim();
+        return name && !GENERIC_CATALOG_TARGET_NAMES.has(name);
+      })
+      .map((entry) => String(entry?.baseMuscle || '').trim())
+      .filter(Boolean),
+  );
+
+  return (Array.isArray(entries) ? entries : []).some((entry) => {
+    const name = String(entry?.name || '').trim();
+    const baseMuscle = String(entry?.baseMuscle || '').trim();
+    return name && GENERIC_CATALOG_TARGET_NAMES.has(name) && baseMuscle && specificBases.has(baseMuscle);
+  });
+};
+
 const chooseMuscleSection = (catalogEntries = [], fallbackEntries = []) => {
   if (!fallbackEntries.length) return catalogEntries;
   if (!catalogEntries.length) return fallbackEntries;
 
   const catalogSpecific = hasSpecificCatalogTargets(catalogEntries);
   const fallbackSpecific = hasSpecificCatalogTargets(fallbackEntries);
+  if (hasFragmentedCatalogTargets(catalogEntries) || hasGenericDuplicateBases(catalogEntries)) {
+    return fallbackEntries;
+  }
   if (!catalogSpecific && (fallbackSpecific || fallbackEntries.length > catalogEntries.length)) {
     return fallbackEntries;
   }
