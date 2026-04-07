@@ -8,6 +8,7 @@ import { AppLanguage, getActiveLanguage, getStoredLanguage } from '../../service
 import { formatWorkoutDayLabel, normalizeWorkoutDayKey } from '../../services/workoutDayLabel';
 import { stripExercisePrefix } from '../../services/exerciseName';
 import { translateProgramText } from '../../services/programI18n';
+import { useScreenshotProtection } from '../../shared/useScreenshotProtection';
 
 interface WorkoutPlanScreenProps {
   onBack: () => void;
@@ -664,6 +665,7 @@ export function WorkoutPlanScreen({
   allowEditing = true,
   isDayFullyDone = false,
 }: WorkoutPlanScreenProps) {
+  useScreenshotProtection();
   const [language, setLanguage] = useState<AppLanguage>('en');
   const [catalog, setCatalog] = useState<CatalogExercise[]>([]);
   const [catalogLoading, setCatalogLoading] = useState(false);

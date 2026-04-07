@@ -21,9 +21,10 @@
     "migrate:pending": "node server/scripts/runPendingMigrations.js"
   },
   "dependencies": {
-    "@capacitor/android": "^8.2.0",
-    "@capacitor/cli": "^8.2.0",
-    "@capacitor/core": "^8.2.0",
+    "@capacitor/android": "^8.3.0",
+    "@capacitor/cli": "^8.3.0",
+    "@capacitor/core": "^8.3.0",
+    "@capacitor/ios": "^8.3.0",
     "@emotion/react": "^11.13.3",
     "@fontsource/bebas-neue": "^5.2.7",
     "@fontsource/space-grotesk": "^5.2.10",

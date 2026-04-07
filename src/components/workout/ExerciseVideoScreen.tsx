@@ -7,6 +7,7 @@ import { resolveExerciseVideoUrl } from '../../services/exerciseVideos';
 import { AppLanguage, getActiveLanguage, getStoredLanguage } from '../../services/language';
 import { stripExercisePrefix } from '../../services/exerciseName';
 import { playMediaSafely } from '../../shared/mediaPlayback';
+import { useScreenshotProtection } from '../../shared/useScreenshotProtection';
 import backLatsImageUrl from '../../../assets/Workout/body part/back/Lates.png';
 import backUpperImageUrl from '../../../assets/Workout/body part/back/upper back.png';
 import backLowerImageUrl from '../../../assets/Workout/body part/back/lower back.png';
@@ -532,6 +533,7 @@ const resolveTargetMuscleImage = (muscleName?: string, muscleGroup?: string) => 
 };
 
 export function ExerciseVideoScreen({ onBack, exercise }: ExerciseVideoScreenProps) {
+  useScreenshotProtection();
   const language = getActiveLanguage(getStoredLanguage());
   const isArabic = language === 'ar';
   const copy = EXERCISE_VIDEO_I18N[language] || EXERCISE_VIDEO_I18N.en;

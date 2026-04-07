@@ -33,6 +33,7 @@ import {
   formatWorkoutDayShortLabel,
 } from '../services/workoutDayLabel';
 import { useScrollToTopOnChange } from '../shared/scroll';
+import { useScreenshotProtection } from '../shared/useScreenshotProtection';
 import type { FriendMember } from './FriendsList';
 
 interface FriendProfileProps {
@@ -902,6 +903,7 @@ const getActiveViewerId = () => {
 };
 
 export function FriendProfile({ onBack, onChallenge, friend }: FriendProfileProps) {
+  useScreenshotProtection();
   const [language, setLanguage] = useState<AppLanguage>(() => getActiveLanguage());
   const [showInvite, setShowInvite] = useState(false);
   const [showAvatarPreview, setShowAvatarPreview] = useState(false);

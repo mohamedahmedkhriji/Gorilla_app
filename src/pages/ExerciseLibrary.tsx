@@ -7,6 +7,7 @@ import { getBodyPartImage } from '../services/bodyPartTheme';
 import { listExerciseVideoAssets, resolveExerciseVideo } from '../services/exerciseVideos';
 import { AppLanguage, getActiveLanguage, getStoredLanguage, pickLanguage } from '../services/language';
 import { inferExerciseVideoBodyPart, normalizeExerciseVideoLookup } from '../shared/exerciseVideoManifest.js';
+import { useScreenshotProtection } from '../shared/useScreenshotProtection';
 
 interface ExerciseLibraryProps {
   onBack: () => void;
@@ -102,6 +103,7 @@ export function ExerciseLibrary({
   initialFilter = 'All',
   onFilterChange,
 }: ExerciseLibraryProps) {
+  useScreenshotProtection();
   const [language, setLanguage] = useState<AppLanguage>(() => getActiveLanguage(getStoredLanguage()));
   const copy = pickLanguage(language, {
     en: {

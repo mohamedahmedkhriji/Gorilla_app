@@ -28,6 +28,7 @@ import {
   readCoachmarkProgress,
 } from '../services/coachmarks';
 import { playMediaSafely } from '../shared/mediaPlayback';
+import { useScreenshotProtection } from '../shared/useScreenshotProtection';
 
 type PostCategory = 'Training' | 'Nutrition' | 'Recovery' | 'Mindset';
 type FeedCategory = 'All' | 'Women' | PostCategory;
@@ -645,6 +646,7 @@ export function Blogs({
   onGuidedTourComplete,
   onGuidedTourDismiss,
 }: BlogsProps) {
+  useScreenshotProtection();
   const userId = useMemo(() => getUserId(), []);
   const userProfileImage = useMemo(() => getUserProfileImage(), []);
   const [userGender, setUserGender] = useState(() => getUserGender());
