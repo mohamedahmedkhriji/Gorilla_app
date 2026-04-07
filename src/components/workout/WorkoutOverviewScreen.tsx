@@ -680,8 +680,16 @@ export function WorkoutOverviewScreen({
           </div>
 
           {loading && (
-            <div className="rounded-2xl border border-white/10 bg-card/60 px-4 py-5 text-sm text-text-secondary">
-              {copy.loading}
+            <div className="rounded-2xl border border-white/10 bg-card/60 p-6">
+              <div className="flex min-h-[160px] items-center justify-center">
+                <div className="relative flex h-20 w-20 items-center justify-center rounded-[1.75rem] bg-white/[0.04] shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]">
+                  <div
+                    className="h-14 w-14 animate-spin rounded-full border-[6px] border-white/10 border-b-transparent border-l-transparent border-r-[#5b61ff] border-t-[#a8afff]"
+                    aria-label={copy.loading}
+                    role="status"
+                  />
+                </div>
+              </div>
             </div>
           )}
 

@@ -535,7 +535,7 @@ export function WorkoutCard({
           {!isResolvedRestDay && resolvedActionLabel && (
             <button
               type="button"
-              className="mt-5 inline-flex w-fit items-center justify-center whitespace-nowrap rounded-full border border-accent/30 bg-accent/20 px-7 py-2.5 text-sm font-marker text-text-primary shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_8px_18px_rgba(0,0,0,0.18)]"
+              className="mt-5 mx-auto flex w-fit items-center justify-center whitespace-nowrap rounded-full border border-accent/30 bg-accent/20 px-7 py-2.5 text-center text-sm font-marker text-text-primary shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_8px_18px_rgba(0,0,0,0.18)]"
             >
               {resolvedActionLabel}
             </button>
