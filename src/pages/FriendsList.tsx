@@ -277,6 +277,7 @@ const FRIENDS_LIST_I18N = {
 
 export function FriendsList({ onBack, onFriendClick }: FriendsListProps) {
   const [members, setMembers] = useState<FriendMember[]>([]);
+  const [loadingMembers, setLoadingMembers] = useState(true);
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState<'all' | 'friends' | 'requests' | 'rank'>('friends');
   const [activeUserId, setActiveUserId] = useState<number>(0);
@@ -288,6 +289,7 @@ export function FriendsList({ onBack, onFriendClick }: FriendsListProps) {
     message: string;
   } | null>(null);
   const requestFeedbackTimerRef = useRef<number | null>(null);
+  const hasLoadedMembersRef = useRef(false);
   const [avatarPreview, setAvatarPreview] = useState<{ src: string; name: string } | null>(null);
   const [language, setLanguage] = useState<AppLanguage>('en');
   const copy = FRIENDS_LIST_I18N[language] || FRIENDS_LIST_I18N.en;
@@ -319,17 +321,40 @@ export function FriendsList({ onBack, onFriendClick }: FriendsListProps) {
   };
 
   useEffect(() => {
+    let cancelled = false;
+
     const loadMembers = async () => {
+      const shouldShowInitialLoader = !hasLoadedMembersRef.current;
+      if (shouldShowInitialLoader && !cancelled) {
+        setLoadingMembers(true);
+      }
+
       const userId = getActiveUserId();
-      setActiveUserId(userId);
-      if (!userId) return;
+      if (!cancelled) {
+        setActiveUserId(userId);
+      }
+      if (!userId) {
+        if (!cancelled) {
+          setMembers([]);
+          setLoadingMembers(false);
+        }
+        hasLoadedMembersRef.current = true;
+        return;
+      }
 
       try {
         const data = await api.getGymMembers(userId);
         const rawMembers = Array.isArray(data?.members) ? data.members : [];
-        setMembers(rawMembers.map((member: FriendMember) => normalizeMember(member)));
+        if (!cancelled) {
+          setMembers(rawMembers.map((member: FriendMember) => normalizeMember(member)));
+        }
       } catch (error) {
         console.error('Failed to load gym members:', error);
+      } finally {
+        hasLoadedMembersRef.current = true;
+        if (!cancelled) {
+          setLoadingMembers(false);
+        }
       }
     };
 
@@ -337,7 +362,10 @@ export function FriendsList({ onBack, onFriendClick }: FriendsListProps) {
     const refresh = window.setInterval(() => {
       void loadMembers();
     }, 10000);
-    return () => window.clearInterval(refresh);
+    return () => {
+      cancelled = true;
+      window.clearInterval(refresh);
+    };
   }, [refreshTick]);
 
   useEffect(() => {
@@ -522,7 +550,21 @@ export function FriendsList({ onBack, onFriendClick }: FriendsListProps) {
       </div>
 
       <div className="px-4 sm:px-6 space-y-4">
-        {filteredMembers.map((member) => {
+        {loadingMembers && (
+          <Card className="border border-white/10 p-6">
+            <div className="flex min-h-[160px] items-center justify-center">
+              <div className="relative flex h-20 w-20 items-center justify-center rounded-[1.75rem] bg-white/[0.04] shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]">
+                <div
+                  className="h-14 w-14 animate-spin rounded-full border-[6px] border-white/10 border-b-transparent border-l-transparent border-r-[#5b61ff] border-t-[#a8afff]"
+                  aria-label="Loading friends"
+                  role="status"
+                />
+              </div>
+            </div>
+          </Card>
+        )}
+
+        {!loadingMembers && filteredMembers.map((member) => {
           const memberId = toPositiveInt(member.id) || 0;
           const status = toFriendStatus(member.friend_status);
           const isBusy = busyMemberId === memberId;
@@ -677,7 +719,7 @@ export function FriendsList({ onBack, onFriendClick }: FriendsListProps) {
           );
         })}
 
-        {filteredMembers.length === 0 && (
+        {!loadingMembers && filteredMembers.length === 0 && (
           <Card className="p-4 text-sm text-text-secondary border border-white/10">
             {filter === 'requests' ? copy.noPendingFriendRequests : copy.noUsersForFilter}
           </Card>
