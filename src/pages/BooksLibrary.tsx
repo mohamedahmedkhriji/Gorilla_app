@@ -8,6 +8,7 @@ import { T2BulkingPlanScreen } from './T2BulkingPlanScreen';
 import { AppLanguage, getActiveLanguage } from '../services/language';
 import { BOOK_USAGE_UPDATED_EVENT, readBookUsage, type BookUsageMap } from '../services/bookUsage';
 import { getAssignedBookPlan } from '../services/bookPlanSelection';
+import { useScrollToTopOnChange } from '../shared/scroll';
 
 const tank1CoverImage = new URL('../../assets/emoji/T-1.png', import.meta.url).href;
 const vipIcon = new URL('../../assets/emoji/vip.png', import.meta.url).href;
@@ -234,6 +235,8 @@ export function BooksLibrary({ onBack }: BooksLibraryProps) {
   const [usage, setUsage] = useState<BookUsageMap>(() => readBookUsage());
   const [assignedPlanId, setAssignedPlanId] = useState(() => getAssignedBookPlan().id);
   const copy = useMemo(() => BOOKS_LIBRARY_I18N[language] || BOOKS_LIBRARY_I18N.en, [language]);
+
+  useScrollToTopOnChange([activePlan]);
 
   useEffect(() => {
     const handleLanguageChange = (event: Event) => {

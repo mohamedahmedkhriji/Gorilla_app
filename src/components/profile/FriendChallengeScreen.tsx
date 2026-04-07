@@ -24,6 +24,7 @@ import {
   getStoredLanguage,
   pickLanguage,
 } from '../../services/language';
+import { useScrollToTopOnChange } from '../../shared/scroll';
 
 interface FriendChallengeScreenProps {
   onBack: () => void;
@@ -404,6 +405,8 @@ export function FriendChallengeScreen({
   const localLeaveInFlightRef = useRef(false);
   const pushUpDraftSyncKeyRef = useRef('');
   const strengthDraftSyncKeyRef = useRef('');
+
+  useScrollToTopOnChange([view, activeChallengeSessionId]);
 
   useEffect(() => {
     const handleLanguageChanged = () => {

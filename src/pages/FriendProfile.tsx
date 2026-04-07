@@ -32,6 +32,7 @@ import {
 import {
   formatWorkoutDayShortLabel,
 } from '../services/workoutDayLabel';
+import { useScrollToTopOnChange } from '../shared/scroll';
 import type { FriendMember } from './FriendsList';
 
 interface FriendProfileProps {
@@ -936,6 +937,8 @@ export function FriendProfile({ onBack, onChallenge, friend }: FriendProfileProp
     () => friendName.split(' ').filter(Boolean).map((name) => name[0]).join('').slice(0, 2).toUpperCase() || 'FR',
     [friendName],
   );
+
+  useScrollToTopOnChange([friendId, view]);
 
   useEffect(() => {
     setLanguage(getActiveLanguage());

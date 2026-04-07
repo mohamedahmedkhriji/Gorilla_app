@@ -22,6 +22,7 @@ import {
   WORKOUT_TRACKER_COACHMARK_VERSION,
 } from '../../services/coachmarks';
 import { persistStoredUser } from '../../shared/authStorage';
+import { useScrollToTopOnChange } from '../../shared/scroll';
 interface SettingsScreenProps {
   onBack: () => void;
   onOpenGym?: () => void;
@@ -625,6 +626,8 @@ export function SettingsScreen({ onBack, onOpenGym, onOpenHomeTour }: SettingsSc
   const copy = normalizeLocalizedValue(SETTINGS_I18N_WITH_DE[language] || SETTINGS_I18N_WITH_DE.en);
   const languageActiveClass = 'bg-white/10 border-accent text-white';
   const languageInactiveClass = 'bg-background border-white/10 text-text-secondary hover:bg-white/5';
+
+  useScrollToTopOnChange([activePage]);
 
   useEffect(() => {
     setTheme(getActiveTheme());

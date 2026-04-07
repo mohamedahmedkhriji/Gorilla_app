@@ -11,7 +11,7 @@ import { TabBar } from './components/ui/TabBar';
 import { SplashScreen } from './components/ui/SplashScreen';
 import { AnimatePresence, motion } from 'framer-motion';
 import { OPEN_PICKED_WORKOUT_PLAN } from './services/workoutNavigation';
-import { useScrollToTopOnChange } from './shared/scroll';
+import { useManualScrollRestoration, useScrollToTopOnChange } from './shared/scroll';
 import { clearStoredUserSession, getStoredAppUser, getStoredUserId, getStoredUserAuthToken, persistStoredUserSession } from './shared/authStorage';
 import { api } from './services/api';
 import { isOfflineApiError } from './services/offlineCache';
@@ -56,6 +56,8 @@ export function App() {
     }),
     [coachmarkScope],
   );
+
+  useManualScrollRestoration();
 
   useEffect(() => {
     let cancelled = false;
