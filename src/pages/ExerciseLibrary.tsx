@@ -1,5 +1,5 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { Heart, Play } from 'lucide-react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { ArrowLeft, Heart, Play } from 'lucide-react';
 import { Card } from '../components/ui/Card';
 import { Header } from '../components/ui/Header';
 import { api } from '../services/api';
@@ -8,6 +8,24 @@ import { listExerciseVideoAssets, resolveExerciseVideo } from '../services/exerc
 import { AppLanguage, getActiveLanguage, getStoredLanguage, pickLanguage } from '../services/language';
 import { inferExerciseVideoBodyPart, normalizeExerciseVideoLookup } from '../shared/exerciseVideoManifest.js';
 import { useScreenshotProtection } from '../shared/useScreenshotProtection';
+
+const announcementVideoModules = import.meta.glob('../../assets/Workout/annanc/*.mp4', {
+  eager: true,
+  import: 'default',
+}) as Record<string, string>;
+
+const announcementVideosByFilter = Object.entries(announcementVideoModules).reduce<Record<string, string>>((acc, [path, url]) => {
+  const fileName = path.split('/').pop() || '';
+  const baseName = fileName.replace(/\.[^.]+$/, '');
+  const normalizedKey = String(baseName)
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim();
+  if (normalizedKey) {
+    acc[normalizedKey] = url;
+  }
+  return acc;
+}, {});
 
 interface ExerciseLibraryProps {
   onBack: () => void;
@@ -170,6 +188,7 @@ export function ExerciseLibrary({
   onFilterChange,
 }: ExerciseLibraryProps) {
   useScreenshotProtection();
+  const introVideoRef = useRef<HTMLVideoElement>(null);
   const [language, setLanguage] = useState<AppLanguage>(() => getActiveLanguage(getStoredLanguage()));
   const copy = pickLanguage(language, {
     en: {
@@ -203,6 +222,7 @@ export function ExerciseLibrary({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [likes, setLikes] = useState<{ [key: string]: { count: number; liked: boolean } }>({});
+  const [activeIntroFilter, setActiveIntroFilter] = useState<string | null>(null);
   const bodyPartSkeletons = Array.from({ length: 6 }, (_, index) => `body-part-skeleton-${index}`);
   const exerciseSkeletons = Array.from({ length: 6 }, (_, index) => `exercise-skeleton-${index}`);
 
@@ -364,6 +384,11 @@ export function ExerciseLibrary({
     });
   };
 
+  const getIntroVideoForFilter = (filter: string) => {
+    const key = normalizeFilterKey(filter);
+    return announcementVideosByFilter[key] || null;
+  };
+
   const allVideoAssets = useMemo(
     () => listExerciseVideoAssets(),
     [],
@@ -470,6 +495,7 @@ export function ExerciseLibrary({
     const toCanonicalLabel = (value: string) => {
       const key = normalizeFilterKey(value);
       if (!key) return '';
+      if (key === 'cardio') return '';
       if (key === 'shoulder' || key === 'shoulders') return 'Shoulders';
       if (key === 'arm' || key === 'arms') return 'Arms';
       if (key === 'leg' || key === 'legs') return 'Legs';
@@ -515,6 +541,46 @@ export function ExerciseLibrary({
 
     return Array.from(byKey.values()).sort((a, b) => a.localeCompare(b));
   }, [exercisesWithVideo, filters, folderFilters]);
+
+  const activeIntroVideoUrl = useMemo(
+    () => (activeIntroFilter ? getIntroVideoForFilter(activeIntroFilter) : null),
+    [activeIntroFilter],
+  );
+
+  useEffect(() => {
+    if (!activeIntroVideoUrl) return;
+    const video = introVideoRef.current;
+    if (!video) return;
+    video.currentTime = 0;
+    const playPromise = video.play();
+    if (playPromise && typeof playPromise.catch === 'function') {
+      playPromise.catch(() => {});
+    }
+  }, [activeIntroVideoUrl]);
+
+  const closeIntroPlayer = () => {
+    const video = introVideoRef.current;
+    if (video) {
+      video.pause();
+      video.currentTime = 0;
+    }
+    setActiveIntroFilter(null);
+    setSelectedFilter('All');
+  };
+
+  const completeIntroPlayer = () => {
+    const video = introVideoRef.current;
+    if (video) {
+      video.pause();
+    }
+    setActiveIntroFilter(null);
+  };
+
+  const handleFilterSelect = (filter: string) => {
+    setSelectedFilter(filter);
+    const introVideo = getIntroVideoForFilter(filter);
+    setActiveIntroFilter(introVideo ? filter : null);
+  };
 
   useEffect(() => {
     if (selectedFilter === 'All') return;
@@ -569,9 +635,9 @@ export function ExerciseLibrary({
               return (
                 <button
                   key={filter}
-                  onClick={() => setSelectedFilter(filter)}
-                  className="overflow-hidden rounded-2xl border border-white/10 bg-card p-3 text-center transition-all hover:border-accent/30 hover:bg-white/[0.03]"
-                >
+                    onClick={() => handleFilterSelect(filter)}
+                    className="overflow-hidden rounded-2xl border border-white/10 bg-card p-3 text-center transition-all hover:border-accent/30 hover:bg-white/[0.03]"
+                  >
                   <div className="-mx-3 -mt-1 overflow-hidden">
                     <img
                       src={getBodyPartImage(filter)}
@@ -696,6 +762,38 @@ export function ExerciseLibrary({
             </div>
           )}
         </>
+      )}
+
+      {activeIntroVideoUrl && (
+        <div className="fixed inset-0 z-[100] flex min-h-screen flex-col bg-black">
+          <div className="absolute left-4 right-4 top-[max(1rem,env(safe-area-inset-top,0px)+0.5rem)] z-10 flex items-center justify-between gap-3">
+            <button
+              onClick={closeIntroPlayer}
+              className="flex h-11 w-11 items-center justify-center rounded-full border border-white/15 bg-black/50 text-white backdrop-blur-md transition-colors hover:border-accent/40"
+              aria-label="Back"
+            >
+              <ArrowLeft size={18} />
+            </button>
+            <button
+              onClick={completeIntroPlayer}
+              className="rounded-full border border-white/15 bg-black/50 px-4 py-2 text-sm font-semibold text-white backdrop-blur-md transition-colors hover:border-accent/40"
+            >
+              Skip
+            </button>
+          </div>
+
+          <video
+            ref={introVideoRef}
+            key={activeIntroVideoUrl}
+            src={activeIntroVideoUrl}
+            className="h-screen w-screen bg-black object-contain"
+            autoPlay
+            playsInline
+            preload="auto"
+            onEnded={completeIntroPlayer}
+            onError={completeIntroPlayer}
+          />
+        </div>
       )}
     </div>
   );
