@@ -11,7 +11,8 @@ public class ScreenshotSecurityPlugin: CAPPlugin, CAPBridgedPlugin {
     ]
 
     private var protectionEnabled = false
-    private var captureObserver: NSObjectProtocol?
+    private var appIsActive = true
+    private var observers: [NSObjectProtocol] = []
     private lazy var blankingView: UIView = {
         let view = UIView(frame: .zero)
         view.backgroundColor = .black
@@ -22,20 +23,33 @@ public class ScreenshotSecurityPlugin: CAPPlugin, CAPBridgedPlugin {
     }()
 
     @objc override public func load() {
-        captureObserver = NotificationCenter.default.addObserver(
-            forName: UIScreen.capturedDidChangeNotification,
-            object: nil,
-            queue: .main
-        ) { [weak self] _ in
-            self?.updateBlankingState()
+        appIsActive = UIApplication.shared.applicationState == .active
+
+        let notificationCenter = NotificationCenter.default
+        let observedNotifications: [NSNotification.Name] = [
+            UIScreen.capturedDidChangeNotification,
+            UIApplication.willResignActiveNotification,
+            UIApplication.didBecomeActiveNotification,
+            UIApplication.didEnterBackgroundNotification,
+            UIApplication.willEnterForegroundNotification,
+        ]
+
+        observers = observedNotifications.map { notificationName in
+            notificationCenter.addObserver(
+                forName: notificationName,
+                object: nil,
+                queue: .main
+            ) { [weak self] notification in
+                self?.handle(notification: notification)
+            }
         }
 
         updateBlankingState()
     }
 
     deinit {
-        if let captureObserver {
-            NotificationCenter.default.removeObserver(captureObserver)
+        observers.forEach { observer in
+            NotificationCenter.default.removeObserver(observer)
         }
     }
 
@@ -47,9 +61,24 @@ public class ScreenshotSecurityPlugin: CAPPlugin, CAPBridgedPlugin {
         ])
     }
 
+    private func handle(notification: Notification) {
+        switch notification.name {
+        case UIApplication.willResignActiveNotification, UIApplication.didEnterBackgroundNotification:
+            appIsActive = false
+        case UIApplication.didBecomeActiveNotification, UIApplication.willEnterForegroundNotification:
+            appIsActive = true
+        case UIScreen.capturedDidChangeNotification:
+            break
+        default:
+            break
+        }
+
+        updateBlankingState()
+    }
+
     private func updateBlankingState() {
         DispatchQueue.main.async {
-            let shouldBlank = self.protectionEnabled && UIScreen.main.isCaptured
+            let shouldBlank = self.protectionEnabled && (!self.appIsActive || UIScreen.main.isCaptured)
             if shouldBlank {
                 self.showBlankingView()
             } else {

@@ -69,7 +69,29 @@ const toFallbackExerciseName = (fileName: string) =>
     .replace(/\s*&\s*/g, ' & ')
     .trim();
 
+const toCanonicalExerciseLibraryMuscle = (value?: string | null) => {
+  const key = normalizeFilterKey(String(value || ''));
+  if (!key) return '';
+  if (key === 'ab' || key === 'abs' || key === 'core') return 'Abs';
+  if (key === 'back' || key === 'lat' || key === 'lats' || key === 'trap' || key === 'traps') return 'Back';
+  if (key === 'bicep' || key === 'biceps') return 'Biceps';
+  if (key === 'tricep' || key === 'triceps') return 'Triceps';
+  if (key === 'forearm' || key === 'forearms') return 'Forearms';
+  if (key === 'calf' || key === 'calves') return 'Calves';
+  if (key === 'chest' || key === 'pec' || key === 'pecs') return 'Chest';
+  if (key === 'glute' || key === 'glutes') return 'Glutes';
+  if (key === 'hamstring' || key === 'hamstrings') return 'Hamstrings';
+  if (key === 'quad' || key === 'quads' || key === 'quadricep' || key === 'quadriceps') return 'Quadriceps';
+  if (key === 'adductor' || key === 'adductors') return 'Adductors';
+  if (key === 'shoulder' || key === 'shoulders' || key === 'delt' || key === 'delts') return 'Shoulders';
+  if (key === 'arm' || key === 'arms') return 'Arms';
+  if (key === 'leg' || key === 'legs') return 'Legs';
+  return toTitleCase(String(value || ''));
+};
+
 const bodyPartToMuscleLabel = (bodyPart?: string | null) => {
+  const directLabel = toCanonicalExerciseLibraryMuscle(bodyPart);
+  if (directLabel) return directLabel;
   const key = inferExerciseVideoBodyPart(bodyPart || '');
   if (key === 'back') return 'Back';
   if (key === 'chest') return 'Chest';
@@ -96,6 +118,50 @@ const isBetterAssetMatch = (
   candidate: CatalogExerciseWithVideo,
   current: CatalogExerciseWithVideo,
 ) => getExerciseAssetScore(candidate) > getExerciseAssetScore(current);
+
+const normalizeFilterKey = (value: string) =>
+  String(value || '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim();
+
+const ARM_FILTER_KEYS = new Set(['arm', 'arms']);
+const ARM_SUBFILTER_KEYS = new Set(['bicep', 'biceps', 'tricep', 'triceps', 'forearm', 'forearms']);
+const LEG_FILTER_KEYS = new Set(['leg', 'legs']);
+const LEG_SUBFILTER_KEYS = new Set(['quadricep', 'quadriceps', 'hamstring', 'hamstrings', 'glute', 'glutes', 'calf', 'calves', 'adductor', 'adductors']);
+
+const inferExerciseLibraryMuscle = (value: {
+  name?: string | null;
+  muscle?: string | null;
+  bodyPart?: string | null;
+  sourceFolder?: string | null;
+  videoAssetName?: string | null;
+}) => {
+  const sourceFolderLabel = toCanonicalExerciseLibraryMuscle(value.sourceFolder);
+  const bodyPartLabel = toCanonicalExerciseLibraryMuscle(value.bodyPart);
+  const muscleLabel = toCanonicalExerciseLibraryMuscle(value.muscle);
+  const directLabel = sourceFolderLabel || bodyPartLabel || muscleLabel;
+  const combinedText = normalizeExerciseVideoLookup([
+    value.name,
+    value.muscle,
+    value.bodyPart,
+    value.sourceFolder,
+    value.videoAssetName,
+  ].filter(Boolean).join(' '));
+
+  if (!combinedText) return 'General';
+  if (directLabel && !['Legs', 'Arms'].includes(directLabel)) return directLabel;
+  if (/(adductor|inner thigh)/.test(combinedText)) return 'Adductors';
+  if (/(calf|calves)/.test(combinedText)) return 'Calves';
+  if (/(glute|hip thrust|glute bridge)/.test(combinedText)) return 'Glutes';
+  if (/(hamstring|leg curl|lying curl|seated curl|romanian deadlift|\brdl\b|stiff leg deadlift)/.test(combinedText)) return 'Hamstrings';
+  if (/(quad|quadricep|leg extension|leg press|hack squat|goblet squat|bulgarian split squat|lunge|step up|squat)/.test(combinedText)) return 'Quadriceps';
+  if (/(bicep|biceps|brachialis|\bcurl\b)/.test(combinedText)) return 'Biceps';
+  if (/(tricep|triceps|push down|skull crusher|kick back|french press|overhead extension)/.test(combinedText)) return 'Triceps';
+  if (/(forearm|wrist|grip)/.test(combinedText)) return 'Forearms';
+  if (directLabel) return directLabel;
+  return bodyPartToMuscleLabel(value.bodyPart || value.sourceFolder || value.muscle);
+};
 
 export function ExerciseLibrary({
   onBack,
@@ -132,7 +198,7 @@ export function ExerciseLibrary({
     },
   });
   const [selectedFilter, setSelectedFilter] = useState(initialFilter || 'All');
-  const [filters, setFilters] = useState<string[]>(['All', 'Chest', 'Back', 'Legs', 'Shoulders', 'Arms', 'Abs']);
+  const [filters, setFilters] = useState<string[]>(['All', 'Chest', 'Back', 'Quadriceps', 'Hamstrings', 'Glutes', 'Calves', 'Shoulders', 'Biceps', 'Triceps', 'Abs']);
   const [exercises, setExercises] = useState<CatalogExercise[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -265,7 +331,6 @@ export function ExerciseLibrary({
 
         if (Array.isArray(filtersData?.filters) && filtersData.filters.length) {
           setFilters(filtersData.filters);
-          setSelectedFilter((current) => (filtersData.filters.includes(current) ? current : 'All'));
         }
 
         if (Array.isArray(catalogData?.exercises)) {
@@ -359,7 +424,12 @@ export function ExerciseLibrary({
         .map((asset) => ({
           id: `video-${asset.fileName}`,
           name: toFallbackExerciseName(asset.fileName),
-          muscle: toTitleCase(asset.folderName) || bodyPartToMuscleLabel(asset.bodyPart),
+          muscle: inferExerciseLibraryMuscle({
+            name: asset.fileName,
+            bodyPart: asset.bodyPart,
+            sourceFolder: asset.folderName,
+            videoAssetName: asset.fileName,
+          }),
           bodyPart: asset.bodyPart,
           sourceFolder: toTitleCase(asset.folderName),
           videoUrl: asset.url,
@@ -378,7 +448,13 @@ export function ExerciseLibrary({
         ...dedupedCatalogExercises.map((exercise) => ({
           id: exercise.id,
           name: toFallbackExerciseName(exercise.videoAssetName),
-          muscle: folderByAssetName.get(exercise.videoAssetName) || exercise.muscle,
+          muscle: inferExerciseLibraryMuscle({
+            name: exercise.name || exercise.videoAssetName,
+            muscle: exercise.muscle,
+            bodyPart: exercise.bodyPart,
+            sourceFolder: folderByAssetName.get(exercise.videoAssetName) || null,
+            videoAssetName: exercise.videoAssetName,
+          }),
           bodyPart: exercise.bodyPart,
           sourceFolder: folderByAssetName.get(exercise.videoAssetName) || null,
           videoUrl: exercise.videoUrl,
@@ -391,14 +467,8 @@ export function ExerciseLibrary({
   );
 
   const visibleMuscleFilters = useMemo(() => {
-    const normalizeKey = (value: string) =>
-      String(value || '')
-        .toLowerCase()
-        .replace(/[^a-z0-9]+/g, ' ')
-        .trim();
-
     const toCanonicalLabel = (value: string) => {
-      const key = normalizeKey(value);
+      const key = normalizeFilterKey(value);
       if (!key) return '';
       if (key === 'shoulder' || key === 'shoulders') return 'Shoulders';
       if (key === 'arm' || key === 'arms') return 'Arms';
@@ -406,23 +476,45 @@ export function ExerciseLibrary({
       if (key === 'ab' || key === 'abs' || key === 'core') return 'Abs';
       if (key === 'bicep' || key === 'biceps') return 'Biceps';
       if (key === 'tricep' || key === 'triceps') return 'Triceps';
+      if (key === 'quad' || key === 'quadricep' || key === 'quadriceps') return 'Quadriceps';
+      if (key === 'hamstring' || key === 'hamstrings') return 'Hamstrings';
+      if (key === 'glute' || key === 'glutes') return 'Glutes';
       return toTitleCase(value);
     };
 
     const apiFilters = filters
       .filter((filter) => String(filter).toLowerCase() !== 'all')
       .map((filter) => toCanonicalLabel(filter));
+    const exerciseFilters = exercisesWithVideo.map((exercise) => toCanonicalLabel(exercise.muscle));
 
-    const merged = [...apiFilters, ...folderFilters.map(toCanonicalLabel)].filter(Boolean);
+    const merged = [...apiFilters, ...exerciseFilters, ...folderFilters.map(toCanonicalLabel)].filter(Boolean);
     const byKey = new Map<string, string>();
     merged.forEach((label) => {
-      const key = normalizeKey(label);
+      const key = normalizeFilterKey(label);
       if (!key || byKey.has(key)) return;
       byKey.set(key, label);
     });
 
+    const hasSpecificArmFilters = Array.from(byKey.keys()).some((key) => ARM_SUBFILTER_KEYS.has(key));
+    if (hasSpecificArmFilters) {
+      Array.from(byKey.keys()).forEach((key) => {
+        if (ARM_FILTER_KEYS.has(key)) {
+          byKey.delete(key);
+        }
+      });
+    }
+
+    const hasSpecificLegFilters = Array.from(byKey.keys()).some((key) => LEG_SUBFILTER_KEYS.has(key));
+    if (hasSpecificLegFilters) {
+      Array.from(byKey.keys()).forEach((key) => {
+        if (LEG_FILTER_KEYS.has(key)) {
+          byKey.delete(key);
+        }
+      });
+    }
+
     return Array.from(byKey.values()).sort((a, b) => a.localeCompare(b));
-  }, [filters, folderFilters]);
+  }, [exercisesWithVideo, filters, folderFilters]);
 
   useEffect(() => {
     if (selectedFilter === 'All') return;
@@ -433,10 +525,28 @@ export function ExerciseLibrary({
 
   const filteredExercises = useMemo(() => {
     if (selectedFilter === 'All') return [];
-    const normalizedFilter = selectedFilter.trim().toLowerCase();
+    const normalizedFilter = normalizeFilterKey(selectedFilter);
     return exercisesWithVideo.filter((exercise) => {
-      const muscleMatch = String(exercise.muscle || '').trim().toLowerCase() === normalizedFilter;
-      const folderMatch = String(exercise.sourceFolder || '').trim().toLowerCase() === normalizedFilter;
+      const muscleKey = normalizeFilterKey(String(exercise.muscle || ''));
+      const folderKey = normalizeFilterKey(String(exercise.sourceFolder || ''));
+      if (ARM_FILTER_KEYS.has(normalizedFilter)) {
+        return (
+          ARM_FILTER_KEYS.has(muscleKey)
+          || ARM_FILTER_KEYS.has(folderKey)
+          || ARM_SUBFILTER_KEYS.has(muscleKey)
+          || ARM_SUBFILTER_KEYS.has(folderKey)
+        );
+      }
+      if (LEG_FILTER_KEYS.has(normalizedFilter)) {
+        return (
+          LEG_FILTER_KEYS.has(muscleKey)
+          || LEG_FILTER_KEYS.has(folderKey)
+          || LEG_SUBFILTER_KEYS.has(muscleKey)
+          || LEG_SUBFILTER_KEYS.has(folderKey)
+        );
+      }
+      const muscleMatch = muscleKey === normalizedFilter;
+      const folderMatch = folderKey === normalizedFilter;
       return muscleMatch || folderMatch;
     });
   }, [exercisesWithVideo, selectedFilter]);
@@ -537,8 +647,8 @@ export function ExerciseLibrary({
                     muscle: exercise.muscle,
                     video: videoUrl,
                     exerciseCatalogId: typeof exercise.id === 'number' ? exercise.id : null,
-                    targetMuscles: exercise.bodyPart ? [exercise.bodyPart] : undefined,
-                    anatomy: exercise.bodyPart || undefined,
+                    targetMuscles: exercise.muscle ? [exercise.muscle] : undefined,
+                    anatomy: exercise.muscle || exercise.bodyPart || undefined,
                   })}
                   className="group cursor-pointer overflow-hidden !p-0 transition-colors hover:border-accent/20"
                 >

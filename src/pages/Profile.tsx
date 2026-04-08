@@ -17,6 +17,7 @@ import { Messaging } from './Messaging';
 import { api } from '../services/api';
 import { ArrowLeft, Bell, Settings } from 'lucide-react';
 import { useScrollToTopOnChange } from '../shared/scroll';
+import { useScreenshotProtection } from '../shared/useScreenshotProtection';
 import { clearStoredUserSession, getStoredUserId } from '../shared/authStorage';
 import { AppLanguage, getActiveLanguage, getStoredLanguage } from '../services/language';
 import {
@@ -68,6 +69,20 @@ const toChallengeCardId = (challengeKey?: string | null) => {
   return 'push-up-duel';
 };
 
+const SCREENSHOT_PROTECTED_PROFILE_VIEWS = new Set([
+  'settings',
+  'notifications',
+  'weeklyPlan',
+  'presetPlans',
+  'customPlanBuilder',
+  'posts',
+  'friends',
+  'friendProfile',
+  'friendChallenge',
+  'notificationChallenge',
+  'chat',
+]);
+
 export function Profile({
   onNavigateTab,
   onTabBarVisibilityChange,
@@ -95,6 +110,7 @@ export function Profile({
   const [isCoachmarkOpen, setIsCoachmarkOpen] = useState(false);
 
   useScrollToTopOnChange([view, resetSignal]);
+  useScreenshotProtection(SCREENSHOT_PROTECTED_PROFILE_VIEWS.has(view));
 
   useEffect(() => {
     onTabBarVisibilityChange?.(view !== 'friendChallenge' && view !== 'notificationChallenge');

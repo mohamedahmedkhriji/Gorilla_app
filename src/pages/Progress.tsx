@@ -20,6 +20,7 @@ import {
 } from '../services/coachmarks';
 import { AppLanguage, getActiveLanguage, pickLanguage } from '../services/language';
 import { useScrollToTopOnChange } from '../shared/scroll';
+import { useScreenshotProtection } from '../shared/useScreenshotProtection';
 
 interface ProgressProps {
   resetSignal?: number;
@@ -27,6 +28,18 @@ interface ProgressProps {
   onGuidedTourComplete?: () => void;
   onGuidedTourDismiss?: () => void;
 }
+
+const SCREENSHOT_PROTECTED_PROGRESS_VIEWS = new Set([
+  'dashboard',
+  'report',
+  'recovery',
+  'measurements',
+  'photos',
+  'exercise',
+  'insights',
+  'weeklyCheckin',
+  'strengthScore',
+]);
 
 const hasCoachmarkTargets = (steps: CoachmarkStep[]) =>
   typeof document !== 'undefined'
@@ -300,6 +313,7 @@ export function Progress({
   const activeCoachmarkStep = coachmarkSteps[coachmarkStepIndex] || null;
 
   useScrollToTopOnChange([view, resetSignal]);
+  useScreenshotProtection(SCREENSHOT_PROTECTED_PROGRESS_VIEWS.has(view));
 
   useEffect(() => {
     const handleLanguageChanged = () => {

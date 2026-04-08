@@ -37,6 +37,7 @@ import { OPEN_PICKED_WORKOUT_PLAN } from '../services/workoutNavigation';
 import { getActiveT2PremiumConfig } from '../services/premiumPlan';
 import { stripExercisePrefix } from '../services/exerciseName';
 import { useScrollToTopOnChange } from '../shared/scroll';
+import { useScreenshotProtection } from '../shared/useScreenshotProtection';
 import { normalizeExerciseVideoLookup } from '../shared/exerciseVideoManifest.js';
 
 interface WorkoutProps {
@@ -110,6 +111,16 @@ type CoachOption = {
   name: string;
   email?: string;
 };
+
+const SCREENSHOT_PROTECTED_WORKOUT_VIEWS = new Set<ViewState>([
+  'plan',
+  'tracker',
+  'video',
+  'live',
+  'summary',
+  'presetPlans',
+  'customPlanBuilder',
+]);
 
 const readStoredUser = () => {
   try {
@@ -851,6 +862,7 @@ export function Workout({
   const [coachmarkStepIndex, setCoachmarkStepIndex] = useState(0);
 
   useScrollToTopOnChange([view, resetSignal]);
+  useScreenshotProtection(SCREENSHOT_PROTECTED_WORKOUT_VIEWS.has(view));
 
   useEffect(() => {
     const handleLanguageChanged = () => {
