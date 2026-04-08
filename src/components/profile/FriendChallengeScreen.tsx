@@ -7,12 +7,18 @@ import {
   Plus,
   Trophy,
 } from 'lucide-react';
-import benchPressImage from '../../../assets/Workout/Bench Press.png';
 import challengeHeroImage from '../../../assets/Workout/CHALLENGE.png';
-import deadliftImage from '../../../assets/Workout/Deadlift.png';
-import pushUpDuelImage from '../../../assets/Workout/Push-Up Duel.png';
-import squatRepRaceImage from '../../../assets/Workout/Squat Rep Race.png';
 import { api } from '../../services/api';
+import {
+  compareFriendChallengeValues,
+  FriendChallengeDefinition,
+  getFriendChallengeByCardId,
+  getFriendChallengeByKey,
+  getVisibleFriendChallengeCards,
+  isStrengthFriendChallenge,
+  toFriendChallengeCardId,
+  toFriendChallengeKey,
+} from '../../services/friendChallenges';
 import {
   getStoredAppUser,
   getStoredUserId,
@@ -37,12 +43,12 @@ interface FriendChallengeScreenProps {
   challengeSessionId?: number | string | null;
 }
 
-type ChallengeView = 'intro' | 'cards' | 'push-up-duel' | 'strength-duel';
+type ChallengeView = 'intro' | 'cards' | 'numeric-duel' | 'weight-duel';
 type PlayerKey = 'player1' | 'player2';
 type RoundStatus = PlayerKey | 'complete';
 type RoundWinner = PlayerKey | 'tie';
 type StrengthAttemptResult = 'pending' | 'made' | 'missed';
-type ChallengeMode = 'reps' | 'weight';
+type ChallengeMode = 'numeric' | 'weight';
 type MatchSubmissionState = 'idle' | 'submitting' | 'completed' | 'error';
 type InviteState = 'idle' | 'sending' | 'sent' | 'error';
 type ChallengeAccessStatus = 'idle' | 'pending' | 'accepted' | 'declined' | 'cancelled';
@@ -51,14 +57,6 @@ type ChallengeResultModalState = {
   didWin: boolean;
   challengeTitle: string;
   pointsAwarded: number;
-};
-
-type ChallengeCard = {
-  id: string;
-  title: string;
-  image: string;
-  accentClassName: string;
-  available: boolean;
 };
 
 type PushUpRound = {
@@ -96,36 +94,7 @@ type FriendChallengeSession = {
 const CHALLENGE_ROUND_WIN_POINTS = 10;
 const CHALLENGE_ROUND_TIE_POINTS = 5;
 
-const CHALLENGE_CARDS: ChallengeCard[] = [
-  {
-    id: 'push-up-duel',
-    title: 'Push-Up Duel',
-    image: pushUpDuelImage,
-    accentClassName: 'from-[#bbff5c]/30 via-[#bbff5c]/10 to-transparent',
-    available: true,
-  },
-  {
-    id: 'squat-rep-race',
-    title: 'Squat Rep Race',
-    image: squatRepRaceImage,
-    accentClassName: 'from-[#22d3ee]/28 via-[#22d3ee]/8 to-transparent',
-    available: true,
-  },
-  {
-    id: 'bench-press',
-    title: 'Bench Press',
-    image: benchPressImage,
-    accentClassName: 'from-[#f59e0b]/28 via-[#f59e0b]/8 to-transparent',
-    available: true,
-  },
-  {
-    id: 'deadlift-one',
-    title: 'Deadlift One',
-    image: deadliftImage,
-    accentClassName: 'from-[#f87171]/28 via-[#f87171]/8 to-transparent',
-    available: true,
-  },
-];
+const CHALLENGE_CARDS = getVisibleFriendChallengeCards();
 
 const createPushUpRound = (number: number): PushUpRound => ({
   number,
@@ -145,37 +114,15 @@ const createStrengthRound = (number: number): StrengthRound => ({
 const createClientMatchId = (challengeKey = 'push_up_duel') =>
   `${challengeKey}-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
 
-const toChallengeKey = (cardId: string) => {
-  if (cardId === 'push-up-duel') return 'push_up_duel';
-  if (cardId === 'squat-rep-race') return 'squat_rep_race';
-  if (cardId === 'bench-press') return 'bench_press';
-  if (cardId === 'deadlift-one') return 'deadlift_one';
-  return String(cardId || '')
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '_')
-    .replace(/^_+|_+$/g, '');
-};
-
-const toChallengeCardId = (challengeKey: string) => {
-  if (challengeKey === 'push_up_duel') return 'push-up-duel';
-  if (challengeKey === 'squat_rep_race') return 'squat-rep-race';
-  if (challengeKey === 'bench_press') return 'bench-press';
-  if (challengeKey === 'deadlift_one') return 'deadlift-one';
-  return 'push-up-duel';
-};
-
-const isStrengthChallengeKey = (challengeKey: string) =>
-  ['squat_rep_race', 'bench_press', 'deadlift_one'].includes(String(challengeKey || '').trim().toLowerCase());
-
 const toPositiveInteger = (value: unknown) => {
   const parsed = Number(value);
   return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
 };
 
-const getRoundWinner = (round: PushUpRound): RoundWinner => {
-  if (round.player1 === round.player2) return 'tie';
-  return round.player1 > round.player2 ? 'player1' : 'player2';
+const getRoundWinner = (round: PushUpRound, challengeKey: string): RoundWinner => {
+  const comparison = compareFriendChallengeValues(round.player1, round.player2, challengeKey);
+  if (comparison === 0) return 'tie';
+  return comparison > 0 ? 'player1' : 'player2';
 };
 
 const normalizeStrengthAttemptResult = (value: unknown): StrengthAttemptResult => {
@@ -215,7 +162,7 @@ const getChallengePointsByRole = (
   challengeKey: string,
   rounds: Array<PushUpRound | StrengthRound>,
 ) => {
-  if (isStrengthChallengeKey(challengeKey)) {
+  if (isStrengthFriendChallenge(challengeKey)) {
     const strengthRounds = rounds as StrengthRound[];
     const decidingRound = [...strengthRounds]
       .reverse()
@@ -237,7 +184,7 @@ const getChallengePointsByRole = (
     (totals, round) => {
       if (round.status !== 'complete') return totals;
 
-      const winner = getRoundWinner(round);
+      const winner = getRoundWinner(round, challengeKey);
       if (winner === 'player1') {
         totals.player1 += CHALLENGE_ROUND_WIN_POINTS;
         return totals;
@@ -287,9 +234,9 @@ const normalizeFriendChallengeSession = (rawValue: unknown): FriendChallengeSess
   if (!parsedId) return null;
 
   const challengeKey = String(sessionObject.challengeKey || '').trim().toLowerCase();
-  const challengeMode: ChallengeMode = sessionObject.challengeMode === 'weight' || isStrengthChallengeKey(challengeKey)
+  const challengeMode: ChallengeMode = sessionObject.challengeMode === 'weight' || isStrengthFriendChallenge(challengeKey)
     ? 'weight'
-    : 'reps';
+    : 'numeric';
   const rounds = challengeMode === 'weight'
     ? normalizeStrengthRounds(sessionObject.rounds)
     : normalizePushUpRounds(sessionObject.rounds);
@@ -431,12 +378,13 @@ export function FriendChallengeScreen({
     if (view !== 'intro') return undefined;
 
     const timer = window.setTimeout(() => {
-      if (introTargetChallengeId === 'push-up-duel') {
-        setView('push-up-duel');
+      const challengeDefinition = getFriendChallengeByCardId(introTargetChallengeId);
+      if (challengeDefinition?.sessionType === 'weight') {
+        setView('weight-duel');
         return;
       }
-      if (introTargetChallengeId === 'squat-rep-race' || introTargetChallengeId === 'bench-press' || introTargetChallengeId === 'deadlift-one') {
-        setView('strength-duel');
+      if (challengeDefinition) {
+        setView('numeric-duel');
         return;
       }
       setView('cards');
@@ -1052,10 +1000,17 @@ export function FriendChallengeScreen({
 
   const currentChallengeKey = challengeSession?.challengeKey
     || activeInviteChallengeKey
-    || toChallengeKey(introTargetChallengeId || directChallengeId || 'push-up-duel');
-  const isStrengthChallenge = isStrengthChallengeKey(currentChallengeKey);
-  const currentChallengeCard = CHALLENGE_CARDS.find((card) => toChallengeKey(card.id) === currentChallengeKey) || CHALLENGE_CARDS[0];
-  const currentChallengeTitle = currentChallengeCard?.title || copy.pushUpTitle;
+    || toFriendChallengeKey(introTargetChallengeId || directChallengeId || 'push-until-failure')
+    || 'push_until_failure';
+  const isStrengthChallenge = isStrengthFriendChallenge(currentChallengeKey);
+  const currentChallengeCard = getFriendChallengeByKey(currentChallengeKey) || CHALLENGE_CARDS[0];
+  const currentChallengeTitle = currentChallengeCard?.title || 'Challenge';
+  const currentChallengeSubtitle = currentChallengeCard?.heroSubtitle || turnLockedLabel;
+  const currentChallengeValueLabel = currentChallengeCard?.valueLabel || 'Score';
+  const currentChallengeTotalLabel = currentChallengeCard?.totalLabel || copy.totalReps;
+  const currentChallengeEntryLabel = currentChallengeCard?.entryLabel || currentRoundRepsLabel;
+  const currentChallengeStep = currentChallengeCard?.step || 1;
+  const currentChallengeMin = currentChallengeCard?.min || 0;
   const resetPushUpDuel = useCallback((challengeKey = 'push_up_duel') => {
     localLeaveInFlightRef.current = false;
     setPushUpRounds([createPushUpRound(1)]);
@@ -1115,7 +1070,7 @@ export function FriendChallengeScreen({
           const data = parseNotificationData(notification?.data);
           if (resolveNotificationType(notification, data) !== 'friend_challenge_response') return false;
           return Number(data.receiverNotificationId || 0) === activeInviteNotificationId
-            && String(data.challengeKey || '').trim().toLowerCase() === activeInviteChallengeKey;
+            && (toFriendChallengeKey(String(data.challengeKey || '')) || String(data.challengeKey || '').trim().toLowerCase()) === activeInviteChallengeKey;
         });
 
         if (!matchingNotification) return;
@@ -1124,7 +1079,7 @@ export function FriendChallengeScreen({
         const responseStatus = String(responseData.responseStatus || '').trim().toLowerCase();
         if (responseStatus === 'accepted') {
           const nextSessionId = toPositiveInteger(responseData.sessionId);
-          const nextChallengeCardId = toChallengeCardId(activeInviteChallengeKey);
+          const nextChallengeCardId = toFriendChallengeCardId(activeInviteChallengeKey);
           setChallengeAccessStatus('accepted');
           setInviteMessage(inviteAcceptedLabel(resolvedFriendName));
           if (nextSessionId) {
@@ -1178,7 +1133,7 @@ export function FriendChallengeScreen({
 
   useEffect(() => {
     if (!currentUserId || !activeChallengeSessionId) return undefined;
-    if (view !== 'intro' && view !== 'push-up-duel' && view !== 'strength-duel') return undefined;
+    if (view !== 'intro' && view !== 'numeric-duel' && view !== 'weight-duel') return undefined;
 
     let cancelled = false;
     const syncSession = async (silent = false) => {
@@ -1256,7 +1211,7 @@ export function FriendChallengeScreen({
 
   const activeRound = pushUpRounds[pushUpRounds.length - 1] || createPushUpRound(1);
   const activePlayer = activeRound.status === 'complete' ? null : activeRound.status;
-  const activeRoundWinner = getRoundWinner(activeRound);
+  const activeRoundWinner = getRoundWinner(activeRound, currentChallengeKey);
   const activeRoundWinnerLabel =
     activeRoundWinner === 'tie'
       ? copy.tie
@@ -1271,10 +1226,10 @@ export function FriendChallengeScreen({
       completedRounds,
       player1Reps: pushUpRounds.reduce((sum, round) => sum + round.player1, 0),
       player2Reps: pushUpRounds.reduce((sum, round) => sum + round.player2, 0),
-      player1Wins: completedRounds.filter((round) => getRoundWinner(round) === 'player1').length,
-      player2Wins: completedRounds.filter((round) => getRoundWinner(round) === 'player2').length,
+      player1Wins: completedRounds.filter((round) => getRoundWinner(round, currentChallengeKey) === 'player1').length,
+      player2Wins: completedRounds.filter((round) => getRoundWinner(round, currentChallengeKey) === 'player2').length,
     };
-  }, [pushUpRounds]);
+  }, [currentChallengeKey, pushUpRounds]);
 
   const matchWinner = useMemo<PlayerKey | null>(() => {
     if (!totals.completedRounds.length) return null;
@@ -1400,7 +1355,7 @@ export function FriendChallengeScreen({
       setTurnDraftOutcome('made');
       if (currentPlayer === 'player1') {
         const previousWeight = strengthRounds[strengthRounds.length - 2]?.weightKg || 20;
-        setTurnDraftWeightKg(Math.max(20, previousWeight + (strengthRounds.length > 1 ? 5 : 0)));
+        setTurnDraftWeightKg(Math.max(20, previousWeight + (strengthRounds.length > 1 ? currentChallengeStep : 0)));
       }
       return;
     }
@@ -1421,10 +1376,10 @@ export function FriendChallengeScreen({
       setTurnDraftWeightKg(
         Number(strengthActiveRound.weightKg || 0) > 0
           ? Number(strengthActiveRound.weightKg || 0)
-          : Math.max(20, previousWeight + (strengthRounds.length > 1 ? 5 : 0)),
+          : Math.max(20, previousWeight + (strengthRounds.length > 1 ? currentChallengeStep : 0)),
       );
     }
-  }, [currentPlayer, isStrengthChallenge, strengthActivePlayer, strengthActiveRound, strengthRounds]);
+  }, [currentChallengeStep, currentPlayer, isStrengthChallenge, strengthActivePlayer, strengthActiveRound, strengthRounds]);
 
   useEffect(() => {
     if (!challengeSession || !currentUserId) return;
@@ -1494,13 +1449,13 @@ export function FriendChallengeScreen({
   };
 
   const handleBack = () => {
-    if (view === 'push-up-duel' || view === 'strength-duel') {
+    if (view === 'numeric-duel' || view === 'weight-duel') {
       if (activeChallengeSessionId && !challengeFinished) {
         void handleLeaveChallenge();
         return;
       }
-      if (directChallengeId === 'push-up-duel' || directChallengeId === 'squat-rep-race' || directChallengeId === 'bench-press' || directChallengeId === 'deadlift-one') {
-        resetPushUpDuel(toChallengeKey(directChallengeId));
+      if (getFriendChallengeByCardId(directChallengeId)) {
+        resetPushUpDuel(toFriendChallengeKey(directChallengeId) || currentChallengeKey);
         exitChallengeToHome();
         return;
       }
@@ -1511,10 +1466,10 @@ export function FriendChallengeScreen({
     onBack();
   };
 
-  const handleSelectChallenge = async (card: ChallengeCard) => {
+  const handleSelectChallenge = async (card: FriendChallengeDefinition) => {
     if (!card.available || inviteState === 'sending') return;
 
-    const challengeKey = toChallengeKey(card.id);
+    const challengeKey = card.key;
     const waitingForCurrentInvite =
       activeInviteChallengeKey === challengeKey
       && activeInviteNotificationId
@@ -1579,7 +1534,7 @@ export function FriendChallengeScreen({
 
   const changeRepCount = (delta: number) => {
     if (!canCountOwnTurn) return;
-    setTurnDraftCount((current) => Math.max(0, current + delta));
+    setTurnDraftCount((current) => Math.max(currentChallengeMin, current + delta));
   };
 
   const changeWeightKg = (delta: number) => {
@@ -1630,7 +1585,7 @@ export function FriendChallengeScreen({
           : {
             userId: currentUserId,
             sessionId: activeChallengeSessionId,
-            reps: turnDraftCount,
+            value: turnDraftCount,
           },
       );
       const normalizedSession = applyChallengeSession(response?.session || response);
@@ -1693,7 +1648,7 @@ export function FriendChallengeScreen({
         userId: currentUserId,
         friendId: resolvedFriendId,
         winnerUserId: matchWinnerUserIdForSession,
-        challengeKey: currentChallengeKey as 'push_up_duel' | 'squat_rep_race' | 'bench_press' | 'deadlift_one',
+        challengeKey: currentChallengeKey,
         sessionId: activeChallengeSessionId,
         clientMatchId,
         rounds: isStrengthChallenge
@@ -1796,10 +1751,10 @@ export function FriendChallengeScreen({
           <div className="mt-4 flex items-start justify-between gap-3">
             <div className="min-w-0">
               <h1 className="text-[1.8rem] font-black uppercase leading-[0.95] tracking-[0.04em] text-white sm:text-[2rem]">
-                {copy.pushUpTitle}
+                {currentChallengeTitle}
               </h1>
               <p className="mt-2 max-w-xl text-sm leading-relaxed text-text-secondary">
-                {turnLockedLabel}
+                {currentChallengeSubtitle}
               </p>
             </div>
             <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[1rem] border border-white/12 bg-white/5 text-white">
@@ -1863,11 +1818,11 @@ export function FriendChallengeScreen({
                 <div className="mt-3 flex items-end justify-between gap-2">
                   <div>
                     <p className="text-[1.65rem] font-black leading-none text-white">{player.total}</p>
-                    <p className="mt-1 text-xs text-text-secondary">{copy.totalReps}</p>
+                    <p className="mt-1 text-xs text-text-secondary">{currentChallengeTotalLabel}</p>
                   </div>
                   <div className="text-right">
                     <p className="text-base font-black leading-none text-white">{player.roundCount}</p>
-                    <p className="mt-1 text-xs text-text-secondary">{currentRoundRepsLabel}</p>
+                    <p className="mt-1 text-xs text-text-secondary">{currentChallengeEntryLabel}</p>
                   </div>
                 </div>
                 <p className="mt-2.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-accent">
@@ -1892,7 +1847,7 @@ export function FriendChallengeScreen({
                   <div className="mt-4 grid grid-cols-[52px_1fr_52px] items-center gap-2.5">
                     <button
                       type="button"
-                      onClick={() => changeRepCount(-1)}
+                      onClick={() => changeRepCount(-currentChallengeStep)}
                       className="flex h-12 w-12 items-center justify-center rounded-[1rem] border border-white/12 bg-white/5 text-white transition-colors hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-60"
                       aria-label={copy.undo}
                       disabled={!canCountOwnTurn}
@@ -1902,12 +1857,12 @@ export function FriendChallengeScreen({
 
                     <div className="rounded-[1.2rem] border border-white/12 bg-white/5 px-4 py-4 text-center">
                       <div className="text-4xl font-black text-white">{displayedRoundCount}</div>
-                      <div className="mt-1 text-xs uppercase tracking-[0.12em] text-text-secondary">{copy.repsCounted}</div>
+                      <div className="mt-1 text-xs uppercase tracking-[0.12em] text-text-secondary">{currentChallengeValueLabel}</div>
                     </div>
 
                     <button
                       type="button"
-                      onClick={() => changeRepCount(1)}
+                      onClick={() => changeRepCount(currentChallengeStep)}
                       className="flex h-12 w-12 items-center justify-center rounded-[1rem] border border-accent/30 bg-accent text-black transition-colors hover:bg-accent/90 disabled:cursor-not-allowed disabled:opacity-60"
                       aria-label={copy.addRep}
                       disabled={!canCountOwnTurn}
@@ -1923,7 +1878,7 @@ export function FriendChallengeScreen({
                     disabled={!canCountOwnTurn}
                   >
                     {sessionSyncState === 'saving' ? <LoaderCircle size={16} className="animate-spin" /> : null}
-                    {submitOwnTurnLabel}
+                    {saveMyResultLabel}
                   </button>
                 </>
               ) : (
@@ -1939,7 +1894,7 @@ export function FriendChallengeScreen({
                   </div>
                   <p className="mt-2 text-sm text-text-secondary">{yourCountLockedLabel}</p>
                   <div className="mt-4 rounded-[1.1rem] border border-white/10 bg-white/[0.04] px-4 py-3">
-                    <div className="text-xs uppercase tracking-[0.12em] text-text-secondary">{currentRoundRepsLabel}</div>
+                    <div className="text-xs uppercase tracking-[0.12em] text-text-secondary">{currentChallengeEntryLabel}</div>
                     <div className="mt-2 text-3xl font-black text-white">
                       {currentPlayer === 'player1' ? activeRound.player1 : activeRound.player2}
                     </div>
@@ -2023,7 +1978,7 @@ export function FriendChallengeScreen({
 
           <div className="mt-4 space-y-2.5">
             {pushUpRounds.map((round) => {
-              const winner = getRoundWinner(round);
+              const winner = getRoundWinner(round, currentChallengeKey);
               const winnerLabel =
                 round.status !== 'complete'
                   ? round.status === 'player1'
@@ -2301,7 +2256,7 @@ export function FriendChallengeScreen({
                           <div className="grid grid-cols-[46px_1fr_46px] items-center gap-2">
                             <button
                               type="button"
-                              onClick={() => changeWeightKg(-5)}
+                              onClick={() => changeWeightKg(-currentChallengeStep)}
                               className="flex h-11 w-11 items-center justify-center rounded-[1rem] border border-white/12 bg-white/5 text-white transition-colors hover:bg-white/10"
                             >
                               <Minus size={18} />
@@ -2309,14 +2264,14 @@ export function FriendChallengeScreen({
                             <input
                               type="number"
                               min="0"
-                              step="2.5"
+                              step={currentChallengeStep}
                               value={turnDraftWeightKg}
                               onChange={(event) => setTurnDraftWeightKg(Math.max(0, Number.parseFloat(event.target.value) || 0))}
                               className="w-full rounded-[1rem] border border-white/12 bg-black/20 px-3 py-3 text-center text-lg font-black text-white outline-none focus:border-accent/40"
                             />
                             <button
                               type="button"
-                              onClick={() => changeWeightKg(5)}
+                              onClick={() => changeWeightKg(currentChallengeStep)}
                               className="flex h-11 w-11 items-center justify-center rounded-[1rem] border border-accent/30 bg-accent text-black transition-colors hover:bg-accent/90"
                             >
                               <Plus size={18} />
@@ -2558,7 +2513,7 @@ export function FriendChallengeScreen({
     );
   }
 
-  if (view === 'push-up-duel') {
+  if (view === 'numeric-duel') {
     return (
       <>
         {renderPushUpDuelScreen()}
@@ -2567,7 +2522,7 @@ export function FriendChallengeScreen({
       </>
     );
   }
-  if (view === 'strength-duel') {
+  if (view === 'weight-duel') {
     return (
       <>
         {renderStrengthDuelScreen()}
@@ -2618,7 +2573,7 @@ export function FriendChallengeScreen({
             <div className="mt-6 grid gap-3">
               {CHALLENGE_CARDS.map((card) => (
                 (() => {
-                  const challengeKey = toChallengeKey(card.id);
+                  const challengeKey = card.key;
                   const isCurrentInvite = activeInviteChallengeKey === challengeKey;
                   const isWaiting = isCurrentInvite && challengeAccessStatus === 'pending';
                   const isAccepted = isCurrentInvite && challengeAccessStatus === 'accepted';

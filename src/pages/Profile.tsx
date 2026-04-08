@@ -20,6 +20,7 @@ import { useScrollToTopOnChange } from '../shared/scroll';
 import { useScreenshotProtection } from '../shared/useScreenshotProtection';
 import { clearStoredUserSession, getStoredUserId } from '../shared/authStorage';
 import { AppLanguage, getActiveLanguage, getStoredLanguage } from '../services/language';
+import { toFriendChallengeCardId } from '../services/friendChallenges';
 import {
   PROFILE_COACHMARK_TOUR_ID,
   PROFILE_COACHMARK_VERSION,
@@ -59,15 +60,6 @@ const PROFILE_PAGE_I18N = {
     openNotifications: '\u0641\u062a\u062d \u0627\u0644\u0625\u0634\u0639\u0627\u0631\u0627\u062a',
   },
 } as const;
-
-const toChallengeCardId = (challengeKey?: string | null) => {
-  const normalized = String(challengeKey || '').trim().toLowerCase();
-  if (normalized === 'push_up_duel') return 'push-up-duel';
-  if (normalized === 'squat_rep_race') return 'squat-rep-race';
-  if (normalized === 'bench_press') return 'bench-press';
-  if (normalized === 'deadlift_one') return 'deadlift-one';
-  return 'push-up-duel';
-};
 
 const SCREENSHOT_PROTECTED_PROFILE_VIEWS = new Set([
   'settings',
@@ -566,7 +558,7 @@ export function Profile({
         friendName={acceptedChallengeContext?.friendName}
         friendId={acceptedChallengeContext?.friendId}
         initialView="intro"
-        directChallengeId={toChallengeCardId(acceptedChallengeContext?.challengeKey)}
+        directChallengeId={toFriendChallengeCardId(acceptedChallengeContext?.challengeKey)}
         currentUserPlayer="player2"
         challengeSessionId={acceptedChallengeContext?.challengeSessionId}
       />

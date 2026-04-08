@@ -8,9 +8,13 @@ import { AppLanguage, getActiveLanguage, getStoredLanguage } from '../../service
 import { stripExercisePrefix } from '../../services/exerciseName';
 import { playMediaSafely } from '../../shared/mediaPlayback';
 import { useScreenshotProtection } from '../../shared/useScreenshotProtection';
+import { getStoredAppUser } from '../../shared/authStorage';
 import backLatsImageUrl from '../../../assets/Workout/body part/back/Lates.png';
 import backUpperImageUrl from '../../../assets/Workout/body part/back/upper back.png';
 import backLowerImageUrl from '../../../assets/Workout/body part/back/lower back.png';
+import cardioManVideoUrl from '../../../assets/Workout/body part/cardio/cardio man.mp4';
+import cardioWomanVideoUrl from '../../../assets/Workout/body part/cardio/cardio woman.mp4';
+import genericCardioPlaceholderVideoUrl from '../../../assets/intro.mp4';
 
 interface ExerciseVideoScreenProps {
   onBack: () => void;
@@ -22,6 +26,8 @@ interface ExerciseVideoScreenProps {
     targetMuscles?: string | string[];
     importance?: string;
     anatomy?: string | string[];
+    workoutType?: string;
+    isCardio?: boolean;
   };
 }
 
@@ -138,6 +144,30 @@ const dedupeMuscles = (muscles: string[]) => {
   });
 
   return result;
+};
+
+const isFemaleGender = (value: unknown) => {
+  const normalized = String(value || '').trim().toLowerCase();
+  return normalized === 'female' || normalized === 'woman' || normalized === 'femme';
+};
+
+const CARDIO_CONTEXT_PATTERN = /\b(cardio|conditioning|liss|hiit|treadmill|incline walk|incline treadmill|bike|cycling|cycle|row|rowing|jog|jogging|run|running|elliptical|stair|stepper|jump rope|skipping)\b/i;
+
+const isCardioExerciseContext = (exercise?: ExerciseVideoScreenProps['exercise']) => {
+  if (exercise?.isCardio) return true;
+
+  const lookupText = [
+    exercise?.workoutType,
+    exercise?.name,
+    exercise?.muscle,
+    ...(Array.isArray(exercise?.targetMuscles) ? exercise.targetMuscles : [exercise?.targetMuscles]),
+    ...(Array.isArray(exercise?.anatomy) ? exercise.anatomy : [exercise?.anatomy]),
+  ]
+    .map((entry) => String(entry || '').trim())
+    .filter(Boolean)
+    .join(' ');
+
+  return CARDIO_CONTEXT_PATTERN.test(lookupText);
 };
 
 const parseTargetMuscles = (value?: string | string[]) => {
@@ -537,11 +567,16 @@ export function ExerciseVideoScreen({ onBack, exercise }: ExerciseVideoScreenPro
   const language = getActiveLanguage(getStoredLanguage());
   const isArabic = language === 'ar';
   const copy = EXERCISE_VIDEO_I18N[language] || EXERCISE_VIDEO_I18N.en;
+  const storedUser = getStoredAppUser();
   const videoRef = useRef<HTMLVideoElement>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [catalogPrimaryMuscleDistribution, setCatalogPrimaryMuscleDistribution] = useState<MuscleDistributionEntry[]>([]);
   const [catalogSecondaryMuscleDistribution, setCatalogSecondaryMuscleDistribution] = useState<MuscleDistributionEntry[]>([]);
   const displayExerciseName = getDisplayExerciseName(exercise?.name);
+  const isCardioContext = isCardioExerciseContext(exercise);
+  const cardioGuideVideoUrl = isFemaleGender(storedUser?.gender)
+    ? cardioWomanVideoUrl
+    : cardioManVideoUrl;
   const explicitTargetMuscles = dedupeMuscles([
     ...parseTargetMuscles(exercise?.targetMuscles),
     ...parseTargetMuscles(exercise?.anatomy),
@@ -575,17 +610,23 @@ export function ExerciseVideoScreen({ onBack, exercise }: ExerciseVideoScreenPro
   })();
   const fallbackPrimaryMuscleDistribution: MuscleDistributionEntry[] = getMuscleDistribution(primaryFallbackTargets);
   const fallbackSecondaryMuscleDistribution: MuscleDistributionEntry[] = getMuscleDistribution(secondaryFallbackTargets);
-  const primaryMuscleDistribution: MuscleDistributionEntry[] = catalogPrimaryMuscleDistribution.length > 0
+  const primaryMuscleDistribution: MuscleDistributionEntry[] = isCardioContext
+    ? []
+    : catalogPrimaryMuscleDistribution.length > 0
     ? catalogPrimaryMuscleDistribution
     : fallbackPrimaryMuscleDistribution;
-  const secondaryMuscleDistribution: MuscleDistributionEntry[] = catalogSecondaryMuscleDistribution.length > 0
+  const secondaryMuscleDistribution: MuscleDistributionEntry[] = isCardioContext
+    ? []
+    : catalogSecondaryMuscleDistribution.length > 0
     ? catalogSecondaryMuscleDistribution
     : fallbackSecondaryMuscleDistribution;
   const exactPrimaryMuscle = (
     toBaseMuscleGroup(primaryMuscleDistribution[0]?.baseMuscle || primaryMuscleDistribution[0]?.name)
     || ''
   );
-  const primaryMuscle = (
+  const primaryMuscle = isCardioContext
+    ? 'Cardio'
+    : (
     exactPrimaryMuscle
     || toBaseMuscleGroup(primaryFallbackTargets[0])
     || toBaseMuscleGroup(targetMuscles[0])
@@ -593,13 +634,20 @@ export function ExerciseVideoScreen({ onBack, exercise }: ExerciseVideoScreenPro
     || toBaseMuscleGroup(inferredTargetMuscles[0])
     || 'General'
   );
-  const resolvedVideoUrl = exercise?.video || resolveExerciseVideoUrl({
+  const resolvedVideoUrlFromExercise = exercise?.video || resolveExerciseVideoUrl({
     name: exercise?.name,
     muscle: primaryMuscle,
     bodyPart: targetMuscles.join(', ') || String(exercise?.anatomy || exercise?.muscle || ''),
     targetMuscles,
   }) || undefined;
-  const fallbackPosterUrl = resolveTargetMuscleImage(
+  const shouldUseCardioGuideVideo = isCardioContext && (
+    !resolvedVideoUrlFromExercise
+    || resolvedVideoUrlFromExercise === genericCardioPlaceholderVideoUrl
+  );
+  const resolvedVideoUrl = shouldUseCardioGuideVideo
+    ? cardioGuideVideoUrl
+    : resolvedVideoUrlFromExercise;
+  const fallbackPosterUrl = shouldUseCardioGuideVideo ? undefined : resolveTargetMuscleImage(
     primaryMuscleDistribution[0]?.name,
     primaryMuscleDistribution[0]?.baseMuscle || primaryMuscle,
   );
@@ -800,17 +848,19 @@ export function ExerciseVideoScreen({ onBack, exercise }: ExerciseVideoScreenPro
       </div>
 
       <div className="pb-24 space-y-6">
-          <Card translate="no">
-            <h3 className="mb-4 font-medium text-white">{copy.muscleDistributionTitle}</h3>
-            {primaryMuscleDistribution.length ? (
-              <div className="space-y-3">
-                <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-text-tertiary">
-                  {copy.primaryTargetsTitle}
+          {!isCardioContext ? (
+            <Card translate="no">
+              <h3 className="mb-4 font-medium text-white">{copy.muscleDistributionTitle}</h3>
+              {primaryMuscleDistribution.length ? (
+                <div className="space-y-3">
+                  <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-text-tertiary">
+                    {copy.primaryTargetsTitle}
+                  </div>
+                  {renderMuscleSection(primaryMuscleDistribution)}
                 </div>
-                {renderMuscleSection(primaryMuscleDistribution)}
-              </div>
-            ) : null}
-          </Card>
+              ) : null}
+            </Card>
+          ) : null}
 
       </div>
     </div>);

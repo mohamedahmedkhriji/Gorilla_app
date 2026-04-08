@@ -993,10 +993,8 @@ const normalizeChallengeInviteKey = (value) => String(value || '')
 
 const defaultChallengeInviteTitle = (challengeKey) => {
   const normalizedKey = normalizeChallengeInviteKey(challengeKey);
-  if (normalizedKey === 'push_up_duel') return 'Push-Up Duel';
-  if (normalizedKey === 'squat_rep_race') return 'Squat Rep Race';
-  if (normalizedKey === 'bench_press') return 'Bench Press';
-  if (normalizedKey === 'deadlift_one') return 'Deadlift One';
+  const challengeConfig = getFriendChallengeConfig(normalizedKey);
+  if (challengeConfig?.title) return challengeConfig.title;
 
   return normalizedKey
     .split('_')
@@ -1027,12 +1025,128 @@ const parseChallengeJson = (rawValue, fallback) => {
 const createChallengeSessionClientMatchId = (challengeKey = 'push_up_duel') =>
   `${normalizeChallengeInviteKey(challengeKey) || 'challenge'}-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
 
-const FRIEND_CHALLENGE_STRENGTH_KEYS = new Set(['squat_rep_race', 'bench_press', 'deadlift_one']);
+const FRIEND_CHALLENGE_CONFIGS = {
+  push_until_failure: {
+    key: 'push_until_failure',
+    title: 'Push Until Failure',
+    sessionType: 'numeric',
+    comparison: 'higher',
+    unit: 'reps',
+    allowDecimals: false,
+  },
+  plank_survivor: {
+    key: 'plank_survivor',
+    title: 'Plank Survivor',
+    sessionType: 'numeric',
+    comparison: 'higher',
+    unit: 'seconds',
+    allowDecimals: false,
+  },
+  rep_madness: {
+    key: 'rep_madness',
+    title: 'Rep Madness',
+    sessionType: 'numeric',
+    comparison: 'higher',
+    unit: 'reps',
+    allowDecimals: false,
+  },
+  volume_destroyer: {
+    key: 'volume_destroyer',
+    title: 'Volume Destroyer',
+    sessionType: 'numeric',
+    comparison: 'higher',
+    unit: 'score',
+    allowDecimals: false,
+  },
+  upper_body_war: {
+    key: 'upper_body_war',
+    title: 'Upper Body War',
+    sessionType: 'numeric',
+    comparison: 'higher',
+    unit: 'reps',
+    allowDecimals: false,
+  },
+  fast_grinder: {
+    key: 'fast_grinder',
+    title: 'Fast Grinder',
+    sessionType: 'numeric',
+    comparison: 'lower',
+    unit: 'seconds',
+    allowDecimals: false,
+  },
+  perfect_athlete: {
+    key: 'perfect_athlete',
+    title: 'Perfect Athlete',
+    sessionType: 'numeric',
+    comparison: 'higher',
+    unit: 'score',
+    allowDecimals: false,
+  },
+  bench_press_king: {
+    key: 'bench_press_king',
+    title: 'Bench Press King',
+    sessionType: 'weight',
+    comparison: 'higher',
+    unit: 'kg',
+    allowDecimals: true,
+  },
+  deadlift_monster: {
+    key: 'deadlift_monster',
+    title: 'Deadlift Monster',
+    sessionType: 'weight',
+    comparison: 'higher',
+    unit: 'kg',
+    allowDecimals: true,
+  },
+  squat_titan: {
+    key: 'squat_titan',
+    title: 'Squat Titan',
+    sessionType: 'weight',
+    comparison: 'higher',
+    unit: 'kg',
+    allowDecimals: true,
+  },
+  squat_rep_race: {
+    key: 'squat_rep_race',
+    title: 'Squat Rep Race',
+    sessionType: 'numeric',
+    comparison: 'higher',
+    unit: 'reps',
+    allowDecimals: false,
+    legacy: true,
+  },
+};
+
+const FRIEND_CHALLENGE_KEY_ALIASES = {
+  push_up_duel: 'push_until_failure',
+  bench_press: 'bench_press_king',
+  deadlift_one: 'deadlift_monster',
+};
+
+const resolveFriendChallengeKey = (challengeKey) => {
+  const normalizedKey = normalizeChallengeInviteKey(challengeKey);
+  if (!normalizedKey) return '';
+  return FRIEND_CHALLENGE_KEY_ALIASES[normalizedKey] || normalizedKey;
+};
+
+const getFriendChallengeConfig = (challengeKey) => {
+  const resolvedKey = resolveFriendChallengeKey(challengeKey);
+  if (!resolvedKey) return null;
+  return FRIEND_CHALLENGE_CONFIGS[resolvedKey] || null;
+};
+
+const isSupportedFriendChallengeKey = (challengeKey) => Boolean(getFriendChallengeConfig(challengeKey));
+
+const getFriendChallengeComparison = (challengeKey) =>
+  getFriendChallengeConfig(challengeKey)?.comparison || 'higher';
+
+const getFriendChallengeSessionType = (challengeKey) =>
+  getFriendChallengeConfig(challengeKey)?.sessionType || 'numeric';
 
 const isStrengthChallengeKey = (challengeKey) =>
-  FRIEND_CHALLENGE_STRENGTH_KEYS.has(normalizeChallengeInviteKey(challengeKey));
+  getFriendChallengeSessionType(challengeKey) === 'weight';
 
-const createRepChallengeRound = (number = 1) => ({
+const createNumericChallengeRound = (number = 1) => ({
   number,
   player1: 0,
   player2: 0,
@@ -1050,8 +1164,23 @@ const createStrengthChallengeRound = (number = 1) => ({
 const createChallengeSessionRounds = (challengeKey = 'push_up_duel') => ([
   isStrengthChallengeKey(challengeKey)
     ? createStrengthChallengeRound(1)
-    : createRepChallengeRound(1),
+    : createNumericChallengeRound(1),
 ]);
+
+const toChallengeNumericValue = (value) => {
+  const parsed = Number.parseFloat(value);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
+};
+
+const compareFriendChallengeValues = (leftValue, rightValue, comparison = 'higher') => {
+  const left = Number.isFinite(Number(leftValue)) ? Number(leftValue) : 0;
+  const right = Number.isFinite(Number(rightValue)) ? Number(rightValue) : 0;
+  if (left === right) return 0;
+  if (comparison === 'lower') {
+    return left < right ? 1 : -1;
+  }
+  return left > right ? 1 : -1;
+};
 
 const normalizeChallengeRoundStatus = (value) => {
   const normalized = String(value || '').trim().toLowerCase();
@@ -1100,8 +1229,8 @@ const normalizeChallengeRounds = (rawRounds, challengeKey = 'push_up_duel') => {
     const roundNumber = Number.isInteger(parsedNumber) && parsedNumber > 0 ? parsedNumber : index + 1;
     return {
       number: roundNumber,
-      player1: Math.max(0, Number.parseInt(roundObject.player1, 10) || 0),
-      player2: Math.max(0, Number.parseInt(roundObject.player2, 10) || 0),
+      player1: toChallengeNumericValue(roundObject.player1),
+      player2: toChallengeNumericValue(roundObject.player2),
       status: normalizeChallengeRoundStatus(roundObject.status),
     };
   });
@@ -1132,8 +1261,14 @@ const getChallengeRoundWinner = (round, challengeKey = 'push_up_duel') => {
     return 'tie';
   }
 
-  if (!round || round.player1 === round.player2) return 'tie';
-  return round.player1 > round.player2 ? 'player1' : 'player2';
+  if (!round) return 'tie';
+  const valueComparison = compareFriendChallengeValues(
+    round.player1,
+    round.player2,
+    getFriendChallengeComparison(challengeKey),
+  );
+  if (valueComparison === 0) return 'tie';
+  return valueComparison > 0 ? 'player1' : 'player2';
 };
 
 const FRIEND_CHALLENGE_ROUND_WIN_POINTS = 10;
@@ -1345,8 +1480,13 @@ const getChallengeSessionWinner = (rounds, challengeKey = 'push_up_duel') => {
 
   if (player1Wins > player2Wins) return 'player1';
   if (player2Wins > player1Wins) return 'player2';
-  if (player1Total > player2Total) return 'player1';
-  if (player2Total > player1Total) return 'player2';
+  const totalComparison = compareFriendChallengeValues(
+    player1Total,
+    player2Total,
+    getFriendChallengeComparison(challengeKey),
+  );
+  if (totalComparison > 0) return 'player1';
+  if (totalComparison < 0) return 'player2';
   return null;
 };
 
@@ -1359,7 +1499,8 @@ const getChallengeSessionPlayerRole = (sessionRow, userId) => {
 
 const buildFriendChallengeSessionResponse = (sessionRow) => {
   const challengeKey = normalizeChallengeInviteKey(sessionRow?.challenge_key) || 'push_up_duel';
-  const challengeMode = isStrengthChallengeKey(challengeKey) ? 'weight' : 'reps';
+  const challengeConfig = getFriendChallengeConfig(challengeKey);
+  const challengeMode = challengeConfig?.sessionType || (isStrengthChallengeKey(challengeKey) ? 'weight' : 'numeric');
   const rounds = normalizeChallengeRounds(parseChallengeJson(sessionRow?.rounds_json, []), challengeKey);
   const completedRounds = rounds.filter((round) => round.status === 'complete');
   const player1Wins = completedRounds.filter((round) => getChallengeRoundWinner(round, challengeKey) === 'player1').length;
@@ -1386,17 +1527,23 @@ const buildFriendChallengeSessionResponse = (sessionRow) => {
       decidingWeightKg: Number(decidingRound?.weightKg || 0),
     }
     : {
-      player1Reps: rounds.reduce((sum, round) => sum + round.player1, 0),
-      player2Reps: rounds.reduce((sum, round) => sum + round.player2, 0),
+      player1Value: rounds.reduce((sum, round) => sum + Number(round.player1 || 0), 0),
+      player2Value: rounds.reduce((sum, round) => sum + Number(round.player2 || 0), 0),
+      player1Reps: rounds.reduce((sum, round) => sum + Number(round.player1 || 0), 0),
+      player2Reps: rounds.reduce((sum, round) => sum + Number(round.player2 || 0), 0),
       player1Wins,
       player2Wins,
       completedRounds: completedRounds.length,
+      comparison: challengeConfig?.comparison || 'higher',
+      unit: challengeConfig?.unit || 'reps',
     };
 
   return {
     id: Number(sessionRow?.id || 0),
     challengeKey,
     challengeMode,
+    challengeUnit: challengeConfig?.unit || (challengeMode === 'weight' ? 'kg' : 'reps'),
+    challengeComparison: challengeConfig?.comparison || 'higher',
     senderUserId: Number(sessionRow?.sender_user_id || 0),
     receiverUserId: Number(sessionRow?.receiver_user_id || 0),
     invitationNotificationId: Number(sessionRow?.invitation_notification_id || 0),
@@ -2643,6 +2790,501 @@ const getMetricValue = (metrics, metricKey) => {
 const WEEKLY_ACTIVE_MISSION_TARGET = 5;
 const MONTHLY_ACTIVE_MISSION_TARGET = 1;
 
+const LEGACY_GAMIFICATION_MISSION_TITLES = [
+  'Workout Starter',
+  'Getting Started',
+  'Workout Machine',
+  'Recovery Habit',
+  'Recovery Master',
+  'Streak Starter',
+  'Streak Warrior',
+  'Consistency King',
+];
+
+const OVERLOAD_MISSION_SEEDS = [
+  {
+    title: '+10kg Club',
+    description: 'Increase your total lifted load by 10kg after this mission is assigned.',
+    missionType: 'weekly',
+    category: 'strength',
+    metricKey: 'lifted_weight_kg',
+    targetValue: 10,
+    pointsReward: 40,
+    badgeIcon: 'dumbbell',
+  },
+  {
+    title: 'Heavy Step Forward',
+    description: 'Add weight on at least 3 exercises this week.',
+    missionType: 'weekly',
+    category: 'strength',
+    metricKey: 'weight_progress_exercises',
+    targetValue: 3,
+    pointsReward: 55,
+    badgeIcon: 'arrow-up',
+  },
+  {
+    title: 'Progressive Beast',
+    description: 'Increase weight on the same exercise in 2 sessions in a row.',
+    missionType: 'weekly',
+    category: 'strength',
+    metricKey: 'consecutive_weight_progress_exercises',
+    targetValue: 1,
+    pointsReward: 60,
+    badgeIcon: 'zap',
+  },
+  {
+    title: 'No Comfort Zone',
+    description: 'Break a previous max weight on any exercise this week.',
+    missionType: 'weekly',
+    category: 'strength',
+    metricKey: 'new_max_weight_exercises',
+    targetValue: 1,
+    pointsReward: 55,
+    badgeIcon: 'flame',
+  },
+  {
+    title: 'Strength Builder',
+    description: 'Progress a compound lift such as bench, squat, or deadlift.',
+    missionType: 'weekly',
+    category: 'strength',
+    metricKey: 'compound_lift_progress_exercises',
+    targetValue: 1,
+    pointsReward: 60,
+    badgeIcon: 'shield',
+  },
+  {
+    title: 'Volume King',
+    description: 'Log 20 more reps after this mission is assigned.',
+    missionType: 'weekly',
+    category: 'volume',
+    metricKey: 'total_reps_logged',
+    targetValue: 20,
+    pointsReward: 40,
+    badgeIcon: 'repeat',
+  },
+  {
+    title: 'Extra Set Warrior',
+    description: 'Add at least 1 extra set to 3 exercises this week.',
+    missionType: 'weekly',
+    category: 'volume',
+    metricKey: 'extra_set_progress_exercises',
+    targetValue: 3,
+    pointsReward: 55,
+    badgeIcon: 'layers',
+  },
+  {
+    title: 'Rep Breaker',
+    description: 'Beat a previous rep record on any exercise this week.',
+    missionType: 'weekly',
+    category: 'volume',
+    metricKey: 'rep_record_break_exercises',
+    targetValue: 1,
+    pointsReward: 50,
+    badgeIcon: 'sparkles',
+  },
+  {
+    title: 'Endurance Push',
+    description: 'Complete 100 or more reps in a single workout session.',
+    missionType: 'weekly',
+    category: 'volume',
+    metricKey: 'endurance_sessions_100_reps',
+    targetValue: 1,
+    pointsReward: 45,
+    badgeIcon: 'activity',
+  },
+  {
+    title: 'High Volume Week',
+    description: 'Beat your previous weekly volume load.',
+    missionType: 'weekly',
+    category: 'volume',
+    metricKey: 'weekly_volume_progress_weeks',
+    targetValue: 1,
+    pointsReward: 60,
+    badgeIcon: 'bar-chart-3',
+  },
+  {
+    title: 'Last Rep Fighter',
+    description: 'Reach failure on the last set of 3 exercises this week.',
+    missionType: 'weekly',
+    category: 'intensity',
+    metricKey: 'failure_finish_exercises',
+    targetValue: 3,
+    pointsReward: 55,
+    badgeIcon: 'sword',
+  },
+  {
+    title: 'Controlled Power',
+    description: 'Increase load while keeping a slow controlled tempo.',
+    missionType: 'weekly',
+    category: 'intensity',
+    metricKey: 'controlled_power_exercises',
+    targetValue: 2,
+    pointsReward: 60,
+    badgeIcon: 'timer',
+  },
+  {
+    title: 'No Easy Sets',
+    description: 'Finish a workout where every logged set is above RPE 8.',
+    missionType: 'weekly',
+    category: 'intensity',
+    metricKey: 'no_easy_sets_sessions',
+    targetValue: 1,
+    pointsReward: 50,
+    badgeIcon: 'target',
+  },
+  {
+    title: 'Intensity Master',
+    description: 'Combine heavy work and controlled reps in the same workout.',
+    missionType: 'weekly',
+    category: 'intensity',
+    metricKey: 'intensity_master_sessions',
+    targetValue: 1,
+    pointsReward: 65,
+    badgeIcon: 'bolt',
+  },
+  {
+    title: 'Double Progress',
+    description: 'Improve weight or reps in 2 workout sessions this week.',
+    missionType: 'weekly',
+    category: 'consistency',
+    metricKey: 'double_progress_sessions',
+    targetValue: 2,
+    pointsReward: 55,
+    badgeIcon: 'git-branch',
+  },
+  {
+    title: 'Weekly Upgrade',
+    description: 'Get at least 1 progression inside 3 workouts this week.',
+    missionType: 'weekly',
+    category: 'consistency',
+    metricKey: 'weekly_upgrade_sessions',
+    targetValue: 3,
+    pointsReward: 65,
+    badgeIcon: 'trending-up',
+  },
+  {
+    title: 'No Regression',
+    description: 'Complete 2 workouts this week without performance drop-offs.',
+    missionType: 'weekly',
+    category: 'consistency',
+    metricKey: 'no_regression_sessions',
+    targetValue: 2,
+    pointsReward: 55,
+    badgeIcon: 'minus-circle',
+  },
+  {
+    title: 'AI Approved Progress',
+    description: 'Hit 3 planned overload targets from your program this week.',
+    missionType: 'weekly',
+    category: 'smart',
+    metricKey: 'ai_approved_targets_hit',
+    targetValue: 3,
+    pointsReward: 70,
+    badgeIcon: 'brain',
+  },
+  {
+    title: 'Recovery-Based Overload',
+    description: 'Improve performance while recovery is above 80%.',
+    missionType: 'weekly',
+    category: 'smart',
+    metricKey: 'recovery_based_overload_events',
+    targetValue: 1,
+    pointsReward: 65,
+    badgeIcon: 'heart-pulse',
+  },
+  {
+    title: 'Perfect Progression',
+    description: 'Stack 4 strong sessions with progression and solid recovery balance.',
+    missionType: 'monthly',
+    category: 'smart',
+    metricKey: 'perfect_progression_sessions',
+    targetValue: 4,
+    pointsReward: 120,
+    badgeIcon: 'crown',
+  },
+];
+
+const OVERLOAD_CHALLENGE_TEMPLATE_SEEDS = [
+  {
+    title: 'Bench Press King',
+    description: 'Hit an 80kg or better bench press 1RM estimate this week.',
+    challengeType: 'weekly',
+    category: 'strength_battle',
+    metricKey: 'bench_press_week_best_e1rm',
+    targetValue: 80,
+    pointsReward: 55,
+  },
+  {
+    title: 'Deadlift Monster',
+    description: 'Hit a 120kg or better deadlift 1RM estimate this week.',
+    challengeType: 'weekly',
+    category: 'strength_battle',
+    metricKey: 'deadlift_week_best_e1rm',
+    targetValue: 120,
+    pointsReward: 65,
+  },
+  {
+    title: 'Squat Titan',
+    description: 'Hit a 100kg or better squat this week.',
+    challengeType: 'weekly',
+    category: 'strength_battle',
+    metricKey: 'squat_week_best_weight',
+    targetValue: 100,
+    pointsReward: 60,
+  },
+  {
+    title: 'Push Until Failure',
+    description: 'Reach 30 push-ups in one set this week.',
+    challengeType: 'weekly',
+    category: 'endurance',
+    metricKey: 'push_up_best_set_reps',
+    targetValue: 30,
+    pointsReward: 45,
+  },
+  {
+    title: 'Plank Survivor',
+    description: 'Hold a plank for 90 seconds or longer this week.',
+    challengeType: 'weekly',
+    category: 'endurance',
+    metricKey: 'plank_best_hold_seconds',
+    targetValue: 90,
+    pointsReward: 45,
+  },
+  {
+    title: 'Rep Madness',
+    description: 'Reach 60 reps on a single exercise inside one workout this week.',
+    challengeType: 'weekly',
+    category: 'endurance',
+    metricKey: 'rep_madness_best_reps',
+    targetValue: 60,
+    pointsReward: 50,
+  },
+  {
+    title: 'Volume Destroyer',
+    description: 'Log 5,000kg of weekly training volume.',
+    challengeType: 'weekly',
+    category: 'volume',
+    metricKey: 'volume_destroyer_week_volume',
+    targetValue: 5000,
+    pointsReward: 60,
+  },
+  {
+    title: 'Upper Body War',
+    description: 'Log 150 upper-body reps across chest, shoulders, and arms this week.',
+    challengeType: 'weekly',
+    category: 'volume',
+    metricKey: 'upper_body_war_reps',
+    targetValue: 150,
+    pointsReward: 55,
+  },
+  {
+    title: 'Fast Grinder',
+    description: 'Finish a valid workout in 45 minutes or less this week.',
+    challengeType: 'weekly',
+    category: 'speed',
+    metricKey: 'fast_grinder_sessions',
+    targetValue: 1,
+    pointsReward: 50,
+  },
+  {
+    title: 'Perfect Athlete',
+    description: 'Reach a weekly athlete score of 75 by combining strength, volume, recovery, and consistency.',
+    challengeType: 'weekly',
+    category: 'hybrid',
+    metricKey: 'perfect_athlete_score',
+    targetValue: 75,
+    pointsReward: 80,
+  },
+];
+
+const DEFAULT_GAMIFICATION_METRIC_EXPECTATIONS = {
+  workouts_completed: 5,
+  training_days: 4,
+  recovery_logs_total: 4,
+  recovery_streak_days: 3,
+  lifted_weight_kg: 10,
+  weight_progress_exercises: 2,
+  consecutive_weight_progress_exercises: 1,
+  new_max_weight_exercises: 1,
+  compound_lift_progress_exercises: 1,
+  total_reps_logged: 20,
+  extra_set_progress_exercises: 2,
+  rep_record_break_exercises: 1,
+  endurance_sessions_100_reps: 1,
+  weekly_volume_progress_weeks: 1,
+  failure_finish_exercises: 2,
+  controlled_power_exercises: 1,
+  no_easy_sets_sessions: 1,
+  intensity_master_sessions: 1,
+  double_progress_sessions: 2,
+  weekly_upgrade_sessions: 3,
+  no_regression_sessions: 2,
+  ai_approved_targets_hit: 2,
+  recovery_based_overload_events: 1,
+  perfect_progression_sessions: 4,
+};
+
+const upsertMissionSeed = async (seed) => {
+  await pool.execute(
+    `INSERT INTO missions
+       (title, name, description, mission_type, category, metric_key, target_value, points_reward, badge_icon, is_active, active)
+     SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, TRUE
+     WHERE NOT EXISTS (
+       SELECT 1 FROM missions WHERE title = ?
+     )`,
+    [
+      seed.title,
+      seed.title,
+      seed.description,
+      seed.missionType,
+      seed.category,
+      seed.metricKey,
+      seed.targetValue,
+      seed.pointsReward,
+      seed.badgeIcon,
+      seed.title,
+    ],
+  );
+
+  await pool.execute(
+    `UPDATE missions
+     SET name = ?,
+         description = ?,
+         mission_type = ?,
+         category = ?,
+         metric_key = ?,
+         target_value = ?,
+         points_reward = ?,
+         badge_icon = ?,
+         is_active = 1,
+         active = TRUE
+     WHERE title = ?`,
+    [
+      seed.title,
+      seed.description,
+      seed.missionType,
+      seed.category,
+      seed.metricKey,
+      seed.targetValue,
+      seed.pointsReward,
+      seed.badgeIcon,
+      seed.title,
+    ],
+  );
+};
+
+const upsertChallengeTemplateSeed = async (seed) => {
+  await pool.execute(
+    `INSERT INTO challenge_templates
+       (title, description, challenge_type, category, metric_key, target_value, points_reward, is_active)
+     SELECT ?, ?, ?, ?, ?, ?, ?, 1
+     WHERE NOT EXISTS (
+       SELECT 1 FROM challenge_templates WHERE title = ?
+     )`,
+    [
+      seed.title,
+      seed.description,
+      seed.challengeType,
+      seed.category,
+      seed.metricKey,
+      seed.targetValue,
+      seed.pointsReward,
+      seed.title,
+    ],
+  );
+
+  await pool.execute(
+    `UPDATE challenge_templates
+     SET description = ?,
+         challenge_type = ?,
+         category = ?,
+         metric_key = ?,
+         target_value = ?,
+         points_reward = ?,
+         is_active = 1
+     WHERE title = ?`,
+    [
+      seed.description,
+      seed.challengeType,
+      seed.category,
+      seed.metricKey,
+      seed.targetValue,
+      seed.pointsReward,
+      seed.title,
+    ],
+  );
+};
+
+const getWorkoutLogSessionKey = (row) => {
+  const sessionId = Number(row?.session_id || 0);
+  if (sessionId > 0) return `session:${sessionId}`;
+  return `day:${formatDateISO(row?.created_at || new Date())}`;
+};
+
+const extractTargetRepHint = (rawValue) => {
+  const numbers = String(rawValue || '')
+    .match(/\d+/g)
+    ?.map((value) => Number(value))
+    .filter((value) => Number.isFinite(value) && value > 0) || [];
+  if (!numbers.length) return null;
+  return Math.max(...numbers);
+};
+
+const extractTempoEccentricSeconds = (rawValue) => {
+  const normalized = String(rawValue || '').trim().toLowerCase();
+  if (!normalized) return 0;
+  const firstNumber = normalized.match(/\d+/)?.[0];
+  if (firstNumber) {
+    return Math.max(0, Number(firstNumber) || 0);
+  }
+  if (normalized.includes('slow') || normalized.includes('controlled')) return 3;
+  return 0;
+};
+
+const hasSlowTempoPrescription = (rawValue) => extractTempoEccentricSeconds(rawValue) >= 3;
+
+const hasFailureSignal = (row) => {
+  const notes = String(row?.notes || '').trim().toLowerCase();
+  const rpe = Number(row?.rpe || 0);
+  return rpe >= 9.7 || /failure|to failure|fail|amrap/.test(notes);
+};
+
+const isBenchPressExercise = (name = '') => /bench/.test(String(name || '').toLowerCase());
+const isDeadliftExercise = (name = '') => /deadlift|rdl|romanian deadlift/.test(String(name || '').toLowerCase());
+const isSquatExercise = (name = '') => /squat|hack squat|leg press/.test(String(name || '').toLowerCase());
+const isPushUpExercise = (name = '') => /push[\s-]?up/.test(String(name || '').toLowerCase());
+const isPlankExercise = (name = '') => /plank/.test(String(name || '').toLowerCase());
+const isCompoundProgressExercise = (name = '') =>
+  isBenchPressExercise(name) || isSquatExercise(name) || isDeadliftExercise(name);
+
+const isUpperBodyWarExercise = (name = '') => {
+  const muscles = inferMusclesFromExerciseName(name);
+  return muscles.some((muscle) => ['Chest', 'Shoulders', 'Biceps', 'Triceps', 'Forearms', 'Arms'].includes(muscle));
+};
+
+const getRecoveryScoreForTimestamp = (recoveryRows, timestampMs) => {
+  if (!Array.isArray(recoveryRows) || !recoveryRows.length) return 0;
+  let latestScore = 0;
+  for (const row of recoveryRows) {
+    const recordedAtMs = new Date(row?.recorded_at || 0).getTime();
+    if (!Number.isFinite(recordedAtMs) || recordedAtMs > timestampMs) break;
+    latestScore = Math.max(0, Number(row?.overall_recovery_score || 0));
+  }
+  return latestScore;
+};
+
+const calculateWeeklyAthleteScore = ({
+  strengthScore = 0,
+  volumeRatioPct = 0,
+  avgRecovery = 0,
+  consistencyPct = 0,
+}) => Math.round(
+  (Math.max(0, Math.min(100, Number(strengthScore || 0))) * 0.35)
+  + (Math.max(0, Math.min(100, Number(volumeRatioPct || 0))) * 0.25)
+  + (Math.max(0, Math.min(100, Number(avgRecovery || 0))) * 0.20)
+  + (Math.max(0, Math.min(100, Number(consistencyPct || 0))) * 0.20),
+);
+
 const ensureNotificationSettingsInfrastructure = async () => {
   const userIdColumnSql = await getUsersIdReferenceColumnSql();
 
@@ -3298,160 +3940,61 @@ const ensureGamificationInfrastructure = async () => {
     ) ENGINE=InnoDB`
   );
 
-  const missionSeeds = [
-    {
-      title: 'Workout Starter',
-      description: 'Complete 5 workout days',
-      missionType: 'weekly',
-      category: 'workout',
-      metricKey: 'workouts_completed',
-      targetValue: 5,
-      pointsReward: 20,
-      badgeIcon: 'flame',
-    },
-    {
-      title: 'Getting Started',
-      description: 'Complete 10 workout days',
-      missionType: 'weekly',
-      category: 'workout',
-      metricKey: 'workouts_completed',
-      targetValue: 10,
-      pointsReward: 50,
-      badgeIcon: 'dumbbell',
-    },
-    {
-      title: 'Workout Machine',
-      description: 'Complete 20 workout days',
-      missionType: 'weekly',
-      category: 'workout',
-      metricKey: 'workouts_completed',
-      targetValue: 20,
-      pointsReward: 90,
-      badgeIcon: 'zap',
-    },
-    {
-      title: 'Recovery Habit',
-      description: 'Log recovery on 5 days',
-      missionType: 'weekly',
-      category: 'recovery',
-      metricKey: 'recovery_logs_total',
-      targetValue: 5,
-      pointsReward: 25,
-      badgeIcon: 'heart',
-    },
-    {
-      title: 'Recovery Master',
-      description: 'Log recovery on 12 days',
-      missionType: 'weekly',
-      category: 'recovery',
-      metricKey: 'recovery_logs_total',
-      targetValue: 12,
-      pointsReward: 55,
-      badgeIcon: 'heart-pulse',
-    },
-    {
-      title: 'Streak Starter',
-      description: 'Reach a 3-day recovery streak',
-      missionType: 'weekly',
-      category: 'recovery',
-      metricKey: 'recovery_streak_days',
-      targetValue: 3,
-      pointsReward: 20,
-      badgeIcon: 'sparkles',
-    },
-    {
-      title: 'Streak Warrior',
-      description: 'Reach a 7-day recovery streak',
-      missionType: 'weekly',
-      category: 'recovery',
-      metricKey: 'recovery_streak_days',
-      targetValue: 7,
-      pointsReward: 45,
-      badgeIcon: 'shield',
-    },
-    {
-      title: 'Consistency King',
-      description: 'Train for 30 workout days',
-      missionType: 'monthly',
-      category: 'streak',
-      metricKey: 'training_days',
-      targetValue: 30,
-      pointsReward: 100,
-      badgeIcon: 'crown',
-    },
-  ];
-
-  for (const seed of missionSeeds) {
-    await pool.execute(
-      `INSERT INTO missions
-         (title, description, mission_type, category, metric_key, target_value, points_reward, badge_icon, is_active)
-       SELECT ?, ?, ?, ?, ?, ?, ?, ?, 1
-       WHERE NOT EXISTS (
-         SELECT 1 FROM missions WHERE title = ?
-       )`,
-      [
-        seed.title,
-        seed.description,
-        seed.missionType,
-        seed.category,
-        seed.metricKey,
-        seed.targetValue,
-        seed.pointsReward,
-        seed.badgeIcon,
-        seed.title,
-      ],
-    );
+  for (const seed of OVERLOAD_MISSION_SEEDS) {
+    await upsertMissionSeed(seed);
   }
 
   await pool.execute(
     `UPDATE missions
-     SET description = 'Complete 10 workouts', metric_key = 'workouts_completed', target_value = 10
-     WHERE title = 'Getting Started'`,
+     SET is_active = 0,
+         active = FALSE
+     WHERE title IN (${LEGACY_GAMIFICATION_MISSION_TITLES.map(() => '?').join(', ')})`,
+    LEGACY_GAMIFICATION_MISSION_TITLES,
   );
 
-  await pool.execute(
-    `UPDATE missions
-     SET description = 'Complete 5 workouts', metric_key = 'workouts_completed', target_value = 5
-     WHERE title = 'Workout Starter'`,
-  );
+  await upsertChallengeTemplateSeed({
+    title: 'Daily Iron Habit',
+    description: 'Complete at least one workout today.',
+    challengeType: 'daily',
+    category: 'workout',
+    metricKey: 'workout_days_today',
+    targetValue: 1,
+    pointsReward: 15,
+  });
 
-  await pool.execute(
-    `UPDATE missions
-     SET description = 'Complete 20 workouts', metric_key = 'workouts_completed', target_value = 20
-     WHERE title = 'Workout Machine'`,
-  );
+  await upsertChallengeTemplateSeed({
+    title: 'Daily Recovery Check',
+    description: 'Submit your recovery check-in today.',
+    challengeType: 'daily',
+    category: 'recovery',
+    metricKey: 'recovery_logs_today',
+    targetValue: 1,
+    pointsReward: 10,
+  });
 
-  await pool.execute(
-    `INSERT INTO challenge_templates (title, description, challenge_type, category, metric_key, target_value, points_reward, is_active)
-     SELECT 'Daily Iron Habit', 'Complete at least one workout today', 'daily', 'workout', 'workout_days_today', 1, 15, 1
-     WHERE NOT EXISTS (
-       SELECT 1 FROM challenge_templates WHERE metric_key = 'workout_days_today' AND challenge_type = 'daily'
-     )`
-  );
+  await upsertChallengeTemplateSeed({
+    title: 'Weekly Workout Consistency',
+    description: 'Train on 4 different days this week.',
+    challengeType: 'weekly',
+    category: 'workout',
+    metricKey: 'workout_days_this_week',
+    targetValue: 4,
+    pointsReward: 45,
+  });
 
-  await pool.execute(
-    `INSERT INTO challenge_templates (title, description, challenge_type, category, metric_key, target_value, points_reward, is_active)
-     SELECT 'Daily Recovery Check', 'Submit your recovery check-in today', 'daily', 'recovery', 'recovery_logs_today', 1, 10, 1
-     WHERE NOT EXISTS (
-       SELECT 1 FROM challenge_templates WHERE metric_key = 'recovery_logs_today' AND challenge_type = 'daily'
-     )`
-  );
+  await upsertChallengeTemplateSeed({
+    title: 'Weekly Recovery Discipline',
+    description: 'Log recovery on 5 days this week.',
+    challengeType: 'weekly',
+    category: 'recovery',
+    metricKey: 'recovery_logs_this_week',
+    targetValue: 5,
+    pointsReward: 35,
+  });
 
-  await pool.execute(
-    `INSERT INTO challenge_templates (title, description, challenge_type, category, metric_key, target_value, points_reward, is_active)
-     SELECT 'Weekly Workout Consistency', 'Train on 4 different days this week', 'weekly', 'workout', 'workout_days_this_week', 4, 45, 1
-     WHERE NOT EXISTS (
-       SELECT 1 FROM challenge_templates WHERE metric_key = 'workout_days_this_week' AND challenge_type = 'weekly'
-     )`
-  );
-
-  await pool.execute(
-    `INSERT INTO challenge_templates (title, description, challenge_type, category, metric_key, target_value, points_reward, is_active)
-     SELECT 'Weekly Recovery Discipline', 'Log recovery on 5 days this week', 'weekly', 'recovery', 'recovery_logs_this_week', 5, 35, 1
-     WHERE NOT EXISTS (
-       SELECT 1 FROM challenge_templates WHERE metric_key = 'recovery_logs_this_week' AND challenge_type = 'weekly'
-     )`
-  );
+  for (const seed of OVERLOAD_CHALLENGE_TEMPLATE_SEEDS) {
+    await upsertChallengeTemplateSeed(seed);
+  }
 };
 
 const delay = (ms) => new Promise((resolve) => {
@@ -3503,6 +4046,473 @@ const initializeGamificationInfrastructureWithRetry = async () => {
 };
 
 const gamificationReady = initializeGamificationInfrastructureWithRetry();
+
+const collectOverloadGamificationMetrics = async (userId, baseDate = new Date()) => {
+  const currentWeekStart = getStartOfWeek(baseDate);
+  const currentWeekEnd = getEndOfWeek(baseDate);
+  const previousWeekStart = new Date(currentWeekStart);
+  previousWeekStart.setDate(previousWeekStart.getDate() - 7);
+  const previousWeekEnd = new Date(currentWeekStart);
+  previousWeekEnd.setMilliseconds(previousWeekEnd.getMilliseconds() - 1);
+
+  const currentWeekStartMs = currentWeekStart.getTime();
+  const currentWeekEndMs = currentWeekEnd.getTime();
+  const previousWeekStartMs = previousWeekStart.getTime();
+  const previousWeekEndMs = previousWeekEnd.getTime();
+
+  const [
+    [setRows],
+    [recoveryRows],
+    [programRows],
+  ] = await Promise.all([
+    pool.execute(
+      `SELECT
+          ws.id,
+          ws.session_id,
+          ws.workout_exercise_id,
+          ws.exercise_name,
+          ws.set_number,
+          ws.weight,
+          ws.reps,
+          ws.rpe,
+          ws.duration_seconds,
+          ws.rest_seconds,
+          ws.notes,
+          ws.created_at,
+          we.target_sets,
+          we.target_reps,
+          we.target_weight,
+          we.tempo AS target_tempo,
+          we.rpe_target
+       FROM workout_sets ws
+       LEFT JOIN workout_exercises we ON we.id = ws.workout_exercise_id
+       WHERE ws.user_id = ?
+         AND ws.completed = 1
+       ORDER BY ws.created_at ASC, ws.id ASC`,
+      [userId],
+    ),
+    pool.execute(
+      `SELECT recorded_at, overall_recovery_score
+       FROM recovery_history
+       WHERE user_id = ?
+       ORDER BY recorded_at ASC`,
+      [userId],
+    ),
+    pool.execute(
+      `SELECT p.days_per_week
+       FROM program_assignments pa
+       JOIN programs p ON p.id = pa.program_id
+       WHERE pa.user_id = ? AND pa.status = 'active'
+       ORDER BY pa.created_at DESC
+       LIMIT 1`,
+      [userId],
+    ),
+  ]);
+
+  const plannedSessionsThisWeek = Math.max(1, Number(programRows[0]?.days_per_week || 3));
+  let currentWeekWeightGainKg = 0;
+  let currentWeekTotalReps = 0;
+  let currentWeekVolume = 0;
+  let previousWeekVolume = 0;
+  let currentWeekUpperBodyReps = 0;
+  let currentWeekBenchBest = 0;
+  let currentWeekDeadliftBest = 0;
+  let currentWeekSquatBest = 0;
+  let currentWeekPushUpBest = 0;
+  let currentWeekPlankBest = 0;
+  const sessionSummaries = new Map();
+  const exerciseSessionSummaries = new Map();
+
+  const upsertSessionSummary = (sessionKey, createdAtMs, createdAtDate) => {
+    if (!sessionSummaries.has(sessionKey)) {
+      sessionSummaries.set(sessionKey, {
+        sessionKey,
+        timestamp: createdAtMs,
+        dateKey: formatDateISO(createdAtDate),
+        totalReps: 0,
+        totalVolume: 0,
+        totalWeight: 0,
+        totalDurationSeconds: 0,
+        setCount: 0,
+        exerciseKeys: new Set(),
+        comparedExercises: 0,
+        allSetsAbove8: true,
+        improvement: false,
+        noRegression: true,
+        heavy: false,
+        controlled: false,
+      });
+    }
+    return sessionSummaries.get(sessionKey);
+  };
+
+  for (const row of Array.isArray(setRows) ? setRows : []) {
+    const createdAt = new Date(row.created_at);
+    const createdAtMs = createdAt.getTime();
+    if (!Number.isFinite(createdAtMs)) continue;
+
+    const sessionKey = getWorkoutLogSessionKey(row);
+    const exerciseKey = normalizeExerciseLookupName(row.exercise_name)
+      || String(row.exercise_name || '').trim().toLowerCase();
+    if (!exerciseKey) continue;
+
+    const weight = Math.max(0, Number(row.weight || 0));
+    const reps = Math.max(0, Number(row.reps || 0));
+    const rpe = Number(row.rpe || 0);
+    const setVolume = (weight > 0 && reps > 0) ? (weight * reps) : 0;
+    const e1rm = weight > 0 && reps > 0 ? (weight * (1 + (reps / 30))) : 0;
+    const inCurrentWeek = createdAtMs >= currentWeekStartMs && createdAtMs <= currentWeekEndMs;
+    const inPreviousWeek = createdAtMs >= previousWeekStartMs && createdAtMs <= previousWeekEndMs;
+
+    if (inCurrentWeek) {
+      currentWeekTotalReps += reps;
+      currentWeekVolume += setVolume;
+      if (isUpperBodyWarExercise(row.exercise_name)) {
+        currentWeekUpperBodyReps += reps;
+      }
+      if (isBenchPressExercise(row.exercise_name)) {
+        currentWeekBenchBest = Math.max(currentWeekBenchBest, e1rm);
+      }
+      if (isDeadliftExercise(row.exercise_name)) {
+        currentWeekDeadliftBest = Math.max(currentWeekDeadliftBest, e1rm);
+      }
+      if (isSquatExercise(row.exercise_name)) {
+        currentWeekSquatBest = Math.max(currentWeekSquatBest, weight);
+      }
+      if (isPushUpExercise(row.exercise_name)) {
+        currentWeekPushUpBest = Math.max(currentWeekPushUpBest, reps);
+      }
+      if (isPlankExercise(row.exercise_name)) {
+        currentWeekPlankBest = Math.max(currentWeekPlankBest, Math.max(Number(row.duration_seconds || 0), reps));
+      }
+    }
+
+    if (inPreviousWeek) {
+      previousWeekVolume += setVolume;
+    }
+
+    const sessionSummary = upsertSessionSummary(sessionKey, createdAtMs, createdAt);
+    sessionSummary.timestamp = Math.max(sessionSummary.timestamp, createdAtMs);
+    sessionSummary.totalReps += reps;
+    sessionSummary.totalVolume += setVolume;
+    sessionSummary.totalWeight += weight;
+    sessionSummary.totalDurationSeconds += Math.max(0, Number(row.duration_seconds || 0)) + Math.max(0, Number(row.rest_seconds || 0));
+    sessionSummary.setCount += 1;
+    sessionSummary.exerciseKeys.add(exerciseKey);
+    if (!(rpe > 8)) {
+      sessionSummary.allSetsAbove8 = false;
+    }
+
+    const exerciseSessionKey = `${sessionKey}|${exerciseKey}`;
+    if (!exerciseSessionSummaries.has(exerciseSessionKey)) {
+      exerciseSessionSummaries.set(exerciseSessionKey, {
+        sessionKey,
+        exerciseKey,
+        exerciseName: String(row.exercise_name || '').trim() || 'Exercise',
+        timestamp: createdAtMs,
+        topWeight: 0,
+        bestReps: 0,
+        totalReps: 0,
+        totalVolume: 0,
+        setCount: 0,
+        totalRpe: 0,
+        rpeSamples: 0,
+        hasSlowTempo: false,
+        anyPlannedTargetHit: false,
+        targetSetCount: Number.isFinite(Number(row.target_sets)) && Number(row.target_sets) > 0 ? Number(row.target_sets) : null,
+        targetRepHint: extractTargetRepHint(row.target_reps),
+        targetWeight: Number.isFinite(Number(row.target_weight)) && Number(row.target_weight) > 0 ? Number(row.target_weight) : null,
+        lastSetNumber: -1,
+        lastSetFailure: false,
+      });
+    }
+
+    const entry = exerciseSessionSummaries.get(exerciseSessionKey);
+    entry.timestamp = Math.max(entry.timestamp, createdAtMs);
+    entry.topWeight = Math.max(entry.topWeight, weight);
+    entry.bestReps = Math.max(entry.bestReps, reps);
+    entry.totalReps += reps;
+    entry.totalVolume += setVolume;
+    entry.setCount += 1;
+    entry.totalRpe += rpe || 0;
+    entry.rpeSamples += Number.isFinite(rpe) ? 1 : 0;
+    entry.hasSlowTempo = entry.hasSlowTempo || hasSlowTempoPrescription(row.target_tempo);
+    if (
+      (entry.targetWeight && weight >= entry.targetWeight)
+      || (entry.targetRepHint && reps >= entry.targetRepHint)
+      || (Number.isFinite(Number(row.rpe_target)) && rpe >= Number(row.rpe_target || 0))
+    ) {
+      entry.anyPlannedTargetHit = true;
+    }
+
+    const setNumber = Number(row.set_number || 0);
+    if (setNumber >= entry.lastSetNumber) {
+      entry.lastSetNumber = setNumber;
+      entry.lastSetFailure = hasFailureSignal(row);
+    }
+  }
+
+  const sessionDurationByKey = new Map();
+  try {
+    const sessionConfig = await getCoachScheduleSessionColumnConfig();
+    if (sessionConfig.dateColumn) {
+      const durationSelect = sessionConfig.durationColumn
+        ? `COALESCE(${sessionConfig.durationColumn}, 0) AS duration_minutes`
+        : '0 AS duration_minutes';
+      const statusFilter = sessionConfig.statusColumn
+        ? `AND LOWER(TRIM(${sessionConfig.statusColumn})) = 'completed'`
+        : '';
+      const [sessionRows] = await pool.execute(
+        `SELECT id, ${sessionConfig.dateColumn} AS session_date, ${durationSelect}
+         FROM workout_sessions
+         WHERE user_id = ?
+           ${statusFilter}
+           AND DATE(${sessionConfig.dateColumn}) BETWEEN ? AND ?`,
+        [userId, formatDateISO(previousWeekStart), formatDateISO(currentWeekEnd)],
+      );
+
+      for (const row of Array.isArray(sessionRows) ? sessionRows : []) {
+        const sessionId = Number(row.id || 0);
+        const dateKey = formatDateISO(row.session_date || new Date());
+        const durationMinutes = Math.max(0, Number(row.duration_minutes || 0));
+        if (sessionId > 0 && durationMinutes > 0) {
+          sessionDurationByKey.set(`session:${sessionId}`, durationMinutes);
+        } else if (durationMinutes > 0) {
+          sessionDurationByKey.set(`day:${dateKey}`, durationMinutes);
+        }
+      }
+    }
+  } catch {
+    // Ignore workout session duration enrichment failures and fall back to set timing.
+  }
+
+  const exerciseHistoryByKey = new Map();
+  const exerciseSessionEntries = Array.from(exerciseSessionSummaries.values())
+    .map((entry) => ({
+      ...entry,
+      avgRpe: entry.rpeSamples > 0 ? (entry.totalRpe / entry.rpeSamples) : 0,
+      metPlannedTarget: entry.anyPlannedTargetHit && (!entry.targetSetCount || entry.setCount >= entry.targetSetCount),
+    }))
+    .sort((left, right) => left.timestamp - right.timestamp);
+
+  exerciseSessionEntries.forEach((entry) => {
+    if (!exerciseHistoryByKey.has(entry.exerciseKey)) {
+      exerciseHistoryByKey.set(entry.exerciseKey, []);
+    }
+    exerciseHistoryByKey.get(entry.exerciseKey).push(entry);
+
+    const sessionSummary = sessionSummaries.get(entry.sessionKey);
+    if (sessionSummary && entry.hasSlowTempo) {
+      sessionSummary.controlled = true;
+    }
+  });
+
+  const weightProgressExercises = new Set();
+  const progressiveBeastExercises = new Set();
+  const newMaxWeightExercises = new Set();
+  const compoundProgressExercises = new Set();
+  const extraSetExercises = new Set();
+  const repBreakerExercises = new Set();
+  const failureFinishExercises = new Set();
+  const controlledPowerExercises = new Set();
+  const aiApprovedTargetHits = new Set();
+  const recoveryBasedEvents = new Set();
+  const perfectProgressionSessions = new Set();
+
+  exerciseHistoryByKey.forEach((history, exerciseKey) => {
+    let priorMaxWeight = 0;
+    let priorBestReps = 0;
+    let priorBestSetCount = 0;
+
+    history.forEach((entry, index) => {
+      const inCurrentWeek = entry.timestamp >= currentWeekStartMs && entry.timestamp <= currentWeekEndMs;
+      const previousSession = index > 0 ? history[index - 1] : null;
+      const sessionSummary = sessionSummaries.get(entry.sessionKey);
+
+      if (inCurrentWeek) {
+        if (priorMaxWeight > 0 && entry.topWeight > priorMaxWeight) {
+          weightProgressExercises.add(exerciseKey);
+          newMaxWeightExercises.add(exerciseKey);
+          if (isCompoundProgressExercise(entry.exerciseName)) {
+            compoundProgressExercises.add(exerciseKey);
+          }
+        }
+
+        if (priorBestSetCount > 0 && entry.setCount >= (priorBestSetCount + 1)) {
+          extraSetExercises.add(exerciseKey);
+        }
+
+        if (priorBestReps > 0 && entry.bestReps > priorBestReps) {
+          repBreakerExercises.add(exerciseKey);
+        }
+
+        if (entry.lastSetFailure) {
+          failureFinishExercises.add(exerciseKey);
+        }
+
+        if (entry.hasSlowTempo && priorMaxWeight > 0 && entry.topWeight > priorMaxWeight) {
+          controlledPowerExercises.add(exerciseKey);
+        }
+
+        if (entry.metPlannedTarget) {
+          aiApprovedTargetHits.add(`${entry.sessionKey}:${exerciseKey}`);
+        }
+
+        if (sessionSummary) {
+          sessionSummary.heavy = sessionSummary.heavy
+            || (entry.topWeight > 0 && entry.bestReps > 0 && entry.bestReps <= 6)
+            || entry.avgRpe >= 8.5
+            || (priorMaxWeight > 0 && entry.topWeight >= priorMaxWeight);
+        }
+
+        if (previousSession && sessionSummary) {
+          const improvedVsPrevious = entry.topWeight > previousSession.topWeight
+            || entry.bestReps > previousSession.bestReps;
+          const noRegressionVsPrevious = !(
+            entry.topWeight + 0.01 < previousSession.topWeight
+            && entry.bestReps < previousSession.bestReps
+            && entry.totalVolume + 1 < previousSession.totalVolume
+          );
+
+          sessionSummary.comparedExercises += 1;
+          if (improvedVsPrevious) {
+            sessionSummary.improvement = true;
+          }
+          if (entry.topWeight > previousSession.topWeight) {
+            currentWeekWeightGainKg += (entry.topWeight - previousSession.topWeight);
+          }
+          if (!noRegressionVsPrevious) {
+            sessionSummary.noRegression = false;
+          }
+
+          const recoveryScore = getRecoveryScoreForTimestamp(recoveryRows, entry.timestamp);
+          if (improvedVsPrevious && recoveryScore >= 80) {
+            recoveryBasedEvents.add(`${entry.sessionKey}:${exerciseKey}`);
+          }
+          if (improvedVsPrevious && noRegressionVsPrevious && recoveryScore >= 75) {
+            perfectProgressionSessions.add(entry.sessionKey);
+          }
+        }
+      }
+
+      priorMaxWeight = Math.max(priorMaxWeight, entry.topWeight);
+      priorBestReps = Math.max(priorBestReps, entry.bestReps);
+      priorBestSetCount = Math.max(priorBestSetCount, entry.setCount);
+    });
+
+    for (let index = 2; index < history.length; index += 1) {
+      const a = history[index - 2];
+      const b = history[index - 1];
+      const c = history[index];
+      const currentInWeek = c.timestamp >= currentWeekStartMs && c.timestamp <= currentWeekEndMs;
+      if (currentInWeek && a.topWeight > 0 && b.topWeight > a.topWeight && c.topWeight > b.topWeight) {
+        progressiveBeastExercises.add(exerciseKey);
+      }
+    }
+  });
+
+  const currentWeekSessions = Array.from(sessionSummaries.values())
+    .filter((session) => session.timestamp >= currentWeekStartMs && session.timestamp <= currentWeekEndMs);
+
+  const noEasySetsSessions = currentWeekSessions.filter((session) => session.setCount > 0 && session.allSetsAbove8).length;
+  const enduranceSessions100Reps = currentWeekSessions.filter((session) => session.totalReps >= 100).length;
+  const intensityMasterSessions = currentWeekSessions.filter((session) => session.heavy && session.controlled).length;
+  const doubleProgressSessions = currentWeekSessions.filter((session) => session.improvement).length;
+  const weeklyUpgradeSessions = currentWeekSessions.filter((session) => session.improvement).length;
+  const noRegressionSessions = currentWeekSessions.filter((session) => session.comparedExercises > 0 && session.noRegression).length;
+
+  let fastGrinderSessions = 0;
+  currentWeekSessions.forEach((session) => {
+    const explicitDurationMinutes = Number(sessionDurationByKey.get(session.sessionKey) || 0);
+    const derivedDurationMinutes = explicitDurationMinutes > 0
+      ? explicitDurationMinutes
+      : Math.round(Number(session.totalDurationSeconds || 0) / 60);
+    const isValidSession = session.totalReps >= 20 || session.setCount >= 6;
+    if (derivedDurationMinutes > 0 && derivedDurationMinutes <= 45 && isValidSession) {
+      fastGrinderSessions += 1;
+    }
+  });
+
+  const currentWeekRecoveryRows = recoveryRows.filter((row) => {
+    const ts = new Date(row.recorded_at).getTime();
+    return Number.isFinite(ts) && ts >= currentWeekStartMs && ts <= currentWeekEndMs;
+  });
+  const latestRecoveryScore = recoveryRows.length
+    ? Math.max(0, Number(recoveryRows[recoveryRows.length - 1]?.overall_recovery_score || 0))
+    : 0;
+  const averageCurrentWeekRecovery = currentWeekRecoveryRows.length
+    ? (
+      currentWeekRecoveryRows.reduce((sum, row) => sum + Math.max(0, Number(row.overall_recovery_score || 0)), 0)
+      / currentWeekRecoveryRows.length
+    )
+    : latestRecoveryScore;
+
+  const consistencyPct = Math.max(
+    0,
+    Math.min(100, Math.round((currentWeekSessions.length / Math.max(1, plannedSessionsThisWeek)) * 100)),
+  );
+  const volumeRatioPct = previousWeekVolume > 0
+    ? Math.max(0, Math.min(100, Math.round((currentWeekVolume / previousWeekVolume) * 100)))
+    : (currentWeekVolume > 0 ? 75 : 0);
+  const strengthProgressScore = Math.max(
+    0,
+    Math.min(
+      100,
+      (weightProgressExercises.size * 20)
+      + (compoundProgressExercises.size * 25)
+      + (newMaxWeightExercises.size * 20)
+      + (progressiveBeastExercises.size * 25),
+    ),
+  );
+  const perfectAthleteScore = calculateWeeklyAthleteScore({
+    strengthScore: strengthProgressScore,
+    volumeRatioPct,
+    avgRecovery: averageCurrentWeekRecovery,
+    consistencyPct,
+  });
+
+  let repMadnessBestReps = 0;
+  exerciseSessionEntries.forEach((entry) => {
+    if (entry.timestamp >= currentWeekStartMs && entry.timestamp <= currentWeekEndMs) {
+      repMadnessBestReps = Math.max(repMadnessBestReps, entry.totalReps);
+    }
+  });
+
+  return {
+    lifted_weight_kg: Math.round(currentWeekWeightGainKg),
+    weight_progress_exercises: weightProgressExercises.size,
+    consecutive_weight_progress_exercises: progressiveBeastExercises.size,
+    new_max_weight_exercises: newMaxWeightExercises.size,
+    compound_lift_progress_exercises: compoundProgressExercises.size,
+    total_reps_logged: Math.round(currentWeekTotalReps),
+    extra_set_progress_exercises: extraSetExercises.size,
+    rep_record_break_exercises: repBreakerExercises.size,
+    endurance_sessions_100_reps: enduranceSessions100Reps,
+    weekly_volume_progress_weeks: currentWeekVolume > previousWeekVolume && previousWeekVolume > 0 ? 1 : 0,
+    failure_finish_exercises: failureFinishExercises.size,
+    controlled_power_exercises: controlledPowerExercises.size,
+    no_easy_sets_sessions: noEasySetsSessions,
+    intensity_master_sessions: intensityMasterSessions,
+    double_progress_sessions: doubleProgressSessions,
+    weekly_upgrade_sessions: weeklyUpgradeSessions,
+    no_regression_sessions: noRegressionSessions,
+    ai_approved_targets_hit: aiApprovedTargetHits.size,
+    recovery_based_overload_events: recoveryBasedEvents.size,
+    perfect_progression_sessions: perfectProgressionSessions.size,
+    bench_press_week_best_e1rm: Math.round(currentWeekBenchBest),
+    deadlift_week_best_e1rm: Math.round(currentWeekDeadliftBest),
+    squat_week_best_weight: Math.round(currentWeekSquatBest),
+    push_up_best_set_reps: Math.round(currentWeekPushUpBest),
+    plank_best_hold_seconds: Math.round(currentWeekPlankBest),
+    rep_madness_best_reps: Math.round(repMadnessBestReps),
+    volume_destroyer_week_volume: Math.round(currentWeekVolume),
+    upper_body_war_reps: Math.round(currentWeekUpperBodyReps),
+    fast_grinder_sessions: fastGrinderSessions,
+    perfect_athlete_score: perfectAthleteScore,
+    planned_sessions_this_week: plannedSessionsThisWeek,
+    average_recovery_score_this_week: Math.round(averageCurrentWeekRecovery),
+  };
+};
 
 const collectUserGamificationMetrics = async (userId, baseDate = new Date()) => {
   const startOfWeek = formatDateISO(getStartOfWeek(baseDate));
@@ -3600,6 +4610,8 @@ const collectUserGamificationMetrics = async (userId, baseDate = new Date()) => 
   const recoveryLogsToday = Number(recoveryTodayRows[0]?.c || 0);
   const recoveryLogsThisWeek = Number(recoveryWeekRows[0]?.c || 0);
 
+  const overloadMetrics = await collectOverloadGamificationMetrics(userId, baseDate);
+
   return {
     workouts_completed: workoutsCompleted,
     training_days: trainingDays,
@@ -3609,6 +4621,7 @@ const collectUserGamificationMetrics = async (userId, baseDate = new Date()) => 
     recovery_logs_today: recoveryLogsToday,
     recovery_logs_this_week: recoveryLogsThisWeek,
     recovery_streak_days: recoveryStreakDays,
+    ...overloadMetrics,
   };
 };
 
@@ -3691,6 +4704,7 @@ const assignWeeklyMissionSlots = async (userId, metrics, now = new Date()) => {
     training_days: Math.max(1, Number(metrics.workout_days_this_week || 0)),
     recovery_logs_total: Math.max(1, Number(metrics.recovery_logs_this_week || 0)),
     recovery_streak_days: Math.max(1, Number(metrics.recovery_streak_days || 1)),
+    ...DEFAULT_GAMIFICATION_METRIC_EXPECTATIONS,
   };
 
   const personalized = candidates
@@ -3865,6 +4879,9 @@ const assignMonthlyMissionSlots = async (userId, metrics, now = new Date()) => {
     training_days: Math.max(2, Number(metrics.workout_days_this_week || 0) * 4),
     recovery_logs_total: Math.max(2, Number(metrics.recovery_logs_this_week || 0) * 4),
     recovery_streak_days: Math.max(2, Number(metrics.recovery_streak_days || 1)),
+    ...Object.fromEntries(
+      Object.entries(DEFAULT_GAMIFICATION_METRIC_EXPECTATIONS).map(([key, value]) => [key, Math.max(2, Number(value || 1))]),
+    ),
   };
 
   const personalized = candidates
@@ -10224,6 +11241,9 @@ router.post('/friend-challenges/invite', authMutationRateLimit, requireAuth('use
     if (!challengeKey) {
       return res.status(400).json({ error: 'challengeKey is required' });
     }
+    if (!isSupportedFriendChallengeKey(challengeKey)) {
+      return res.status(400).json({ error: 'Unsupported challenge key' });
+    }
 
     const friendship = await getAcceptedFriendship(userId, friendId);
     if (!friendship) {
@@ -10253,7 +11273,7 @@ router.post('/friend-challenges/invite', authMutationRateLimit, requireAuth('use
       const payload = safeParseJson(notificationRow.data, {});
       const payloadObject = payload && typeof payload === 'object' ? payload : {};
       if (toNumber(payloadObject.senderUserId) !== userId) continue;
-      if (normalizeChallengeInviteKey(payloadObject.challengeKey) !== challengeKey) continue;
+      if ((resolveFriendChallengeKey(payloadObject.challengeKey) || normalizeChallengeInviteKey(payloadObject.challengeKey)) !== challengeKey) continue;
       if (getChallengeInviteStatus(payloadObject) !== 'pending') continue;
       if (hasChallengeInviteExpired(notificationRow.created_at)) {
         await expireFriendChallengeInviteNotification(pool, notificationRow);
@@ -10353,7 +11373,7 @@ router.post('/friend-challenges/respond', authMutationRateLimit, requireAuth('us
     }
 
     const nextStatus = action === 'accept' ? 'accepted' : 'declined';
-    const challengeKey = normalizeChallengeInviteKey(payloadObject.challengeKey);
+    const challengeKey = resolveFriendChallengeKey(payloadObject.challengeKey) || normalizeChallengeInviteKey(payloadObject.challengeKey);
     const challengeTitle = String(payloadObject.challengeTitle || defaultChallengeInviteTitle(payloadObject.challengeKey)).trim() || 'Challenge';
     const senderUserId = toNumber(payloadObject.senderUserId);
     let sessionId = toNumber(payloadObject.sessionId) || null;
@@ -10511,7 +11531,6 @@ router.post('/friend-challenges/session/submit-turn', authMutationRateLimit, req
 
     const userId = toNumber(req.body?.userId);
     const sessionId = toNumber(req.body?.sessionId);
-    const reps = Number.parseInt(req.body?.reps, 10);
     if (!userId || userId <= 0 || !sessionId || sessionId <= 0) {
       return res.status(400).json({ error: 'Valid userId and sessionId are required' });
     }
@@ -10534,10 +11553,7 @@ router.post('/friend-challenges/session/submit-turn', authMutationRateLimit, req
 
     const sessionRow = sessionRows[0];
     const challengeKey = normalizeChallengeInviteKey(sessionRow.challenge_key) || 'push_up_duel';
-    if (!isStrengthChallengeKey(challengeKey) && (!Number.isInteger(reps) || reps < 0)) {
-      await conn.rollback();
-      return res.status(400).json({ error: 'reps must be a non-negative integer' });
-    }
+    const challengeConfig = getFriendChallengeConfig(challengeKey);
     const playerRole = getChallengeSessionPlayerRole(sessionRow, userId);
     if (!playerRole) {
       await conn.rollback();
@@ -10586,7 +11602,15 @@ router.post('/friend-challenges/session/submit-turn', authMutationRateLimit, req
       activeRound[playerRole === 'player1' ? 'player1Result' : 'player2Result'] = outcome;
       activeRound.status = playerRole === 'player1' ? 'player2' : 'complete';
     } else {
-      activeRound[playerRole] = reps;
+      const rawValue = req.body?.value ?? req.body?.reps;
+      const numericValue = challengeConfig?.allowDecimals
+        ? Number.parseFloat(rawValue)
+        : Number.parseInt(rawValue, 10);
+      if (!Number.isFinite(numericValue) || numericValue < 0 || (!challengeConfig?.allowDecimals && !Number.isInteger(numericValue))) {
+        await conn.rollback();
+        return res.status(400).json({ error: 'value must be a non-negative number' });
+      }
+      activeRound[playerRole] = numericValue;
       activeRound.status = playerRole === 'player1' ? 'player2' : 'complete';
     }
 
@@ -10668,7 +11692,7 @@ router.post('/friend-challenges/session/add-round', authMutationRateLimit, requi
     rounds.push(
       isStrengthChallengeKey(challengeKey)
         ? createStrengthChallengeRound(rounds.length + 1)
-        : createRepChallengeRound(rounds.length + 1),
+        : createNumericChallengeRound(rounds.length + 1),
     );
 
     await conn.execute(
@@ -10961,27 +11985,49 @@ router.get('/friends/:viewerId/:friendId/challenge-win-stats', requireAuth('user
       return res.status(403).json({ error: 'Friend challenge stats are available only for accepted friends' });
     }
 
-    const supportedChallengeKeys = ['push_up_duel', 'squat_rep_race', 'bench_press', 'deadlift_one'];
+    const supportedChallengeKeys = [
+      'push_up_duel',
+      'push_until_failure',
+      'plank_survivor',
+      'rep_madness',
+      'volume_destroyer',
+      'upper_body_war',
+      'fast_grinder',
+      'perfect_athlete',
+      'squat_rep_race',
+      'bench_press',
+      'bench_press_king',
+      'deadlift_one',
+      'deadlift_monster',
+      'squat_titan',
+    ];
     const stats = {
-      push_up_duel: 0,
+      push_until_failure: 0,
+      plank_survivor: 0,
+      rep_madness: 0,
+      volume_destroyer: 0,
+      upper_body_war: 0,
+      fast_grinder: 0,
+      perfect_athlete: 0,
+      bench_press_king: 0,
+      deadlift_monster: 0,
+      squat_titan: 0,
       squat_rep_race: 0,
-      bench_press: 0,
-      deadlift_one: 0,
     };
 
     const [rows] = await pool.execute(
       `SELECT challenge_key, COUNT(*) AS win_count
        FROM friend_challenge_results
        WHERE winner_user_id = ?
-         AND challenge_key IN (?, ?, ?, ?)
+         AND challenge_key IN (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
        GROUP BY challenge_key`,
       [friendId, ...supportedChallengeKeys],
     );
 
     rows.forEach((row) => {
-      const challengeKey = normalizeChallengeInviteKey(row.challenge_key);
+      const challengeKey = resolveFriendChallengeKey(row.challenge_key) || normalizeChallengeInviteKey(row.challenge_key);
       if (!Object.prototype.hasOwnProperty.call(stats, challengeKey)) return;
-      stats[challengeKey] = Number(row.win_count || 0);
+      stats[challengeKey] += Number(row.win_count || 0);
     });
 
     return res.json({
@@ -11005,7 +12051,7 @@ router.post('/friend-challenges/complete', authMutationRateLimit, requireAuth('u
     const friendId = toNumber(req.body?.friendId);
     const winnerUserId = toNumber(req.body?.winnerUserId);
     const sessionId = toNumber(req.body?.sessionId);
-    const challengeKey = String(req.body?.challengeKey || '').trim().toLowerCase();
+    const challengeKey = resolveFriendChallengeKey(req.body?.challengeKey) || String(req.body?.challengeKey || '').trim().toLowerCase();
     let clientMatchId = String(req.body?.clientMatchId || '').trim();
     let rounds = Array.isArray(req.body?.rounds) ? req.body.rounds : [];
 
@@ -11015,7 +12061,7 @@ router.post('/friend-challenges/complete', authMutationRateLimit, requireAuth('u
     if (!winnerUserId || ![userId, friendId].includes(winnerUserId)) {
       return res.status(400).json({ error: 'winnerUserId must match one of the challenge participants' });
     }
-    if (challengeKey && !['push_up_duel', 'squat_rep_race', 'bench_press', 'deadlift_one'].includes(challengeKey)) {
+    if (challengeKey && !isSupportedFriendChallengeKey(challengeKey)) {
       return res.status(400).json({ error: 'Unsupported challenge key' });
     }
 
@@ -11029,7 +12075,7 @@ router.post('/friend-challenges/complete', authMutationRateLimit, requireAuth('u
       return res.status(400).json({ error: 'Invalid friend pair' });
     }
 
-    let resolvedChallengeKey = challengeKey || 'push_up_duel';
+    let resolvedChallengeKey = challengeKey || 'push_until_failure';
 
     if (sessionId) {
       const [sessionRows] = await pool.execute(
@@ -11078,10 +12124,10 @@ router.post('/friend-challenges/complete', authMutationRateLimit, requireAuth('u
       }
 
       clientMatchId = String(sessionRow.client_match_id || '').trim();
-      resolvedChallengeKey = normalizeChallengeInviteKey(sessionRow.challenge_key) || 'push_up_duel';
+      resolvedChallengeKey = resolveFriendChallengeKey(sessionRow.challenge_key) || normalizeChallengeInviteKey(sessionRow.challenge_key) || 'push_until_failure';
     }
 
-    if (!['push_up_duel', 'squat_rep_race', 'bench_press', 'deadlift_one'].includes(resolvedChallengeKey)) {
+    if (!isSupportedFriendChallengeKey(resolvedChallengeKey)) {
       return res.status(400).json({ error: 'Unsupported challenge key' });
     }
     if (!clientMatchId || clientMatchId.length > 120) {
@@ -11099,7 +12145,9 @@ router.post('/friend-challenges/complete', authMutationRateLimit, requireAuth('u
       .reverse()
       .find((round) => round.status === 'complete' && getChallengeRoundWinner(round, resolvedChallengeKey) !== 'tie') || null;
     const metadataJson = JSON.stringify({
-      challengeMode: isStrengthChallengeKey(resolvedChallengeKey) ? 'weight' : 'reps',
+      challengeMode: isStrengthChallengeKey(resolvedChallengeKey) ? 'weight' : 'numeric',
+      challengeUnit: getFriendChallengeConfig(resolvedChallengeKey)?.unit || 'reps',
+      challengeComparison: getFriendChallengeComparison(resolvedChallengeKey),
       rounds,
       decidingWeightKg: Number(decidingRound?.weightKg || 0),
       pointsByUser: {

@@ -1,10 +1,29 @@
 import mysql from 'mysql2/promise.js';
 import dotenv from 'dotenv';
+import { spawnSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 
 dotenv.config();
 
+const managedLocalDbEnabled = String(process.env.LOCAL_DB_MANAGED || '').trim() === '1';
+const placeholderDbPasswords = new Set(['', 'your_password', 'your_mysql_password']);
+
+if (managedLocalDbEnabled) {
+  const ensureLocalDbScriptPath = fileURLToPath(new URL('../scripts/ensure-local-db.mjs', import.meta.url));
+  const ensureResult = spawnSync(process.execPath, [ensureLocalDbScriptPath], {
+    cwd: fileURLToPath(new URL('..', import.meta.url)),
+    stdio: 'inherit',
+    env: process.env,
+    encoding: 'utf8',
+  });
+
+  if (ensureResult.status !== 0) {
+    throw new Error('Managed local DB bootstrap failed. Check the local DB logs under .local/.');
+  }
+}
+
 const dbPassword =
-  process.env.DB_PASSWORD && process.env.DB_PASSWORD !== 'your_password'
+  process.env.DB_PASSWORD && !placeholderDbPasswords.has(process.env.DB_PASSWORD)
     ? process.env.DB_PASSWORD
     : '';
 const dbHost = String(process.env.DB_HOST || '127.0.0.1').trim() === 'localhost'

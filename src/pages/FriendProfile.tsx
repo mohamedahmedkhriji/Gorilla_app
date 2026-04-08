@@ -12,12 +12,12 @@ import {
   Trophy,
   X,
 } from 'lucide-react';
-import benchPressIcon from '../../assets/Workout/bench-press icon.png';
-import deadliftIcon from '../../assets/Workout/Deadlift icon.png';
-import pushUpIcon from '../../assets/Workout/push-up icon.png';
-import squatRepRaceIcon from '../../assets/Workout/Squat Rep Race icon.png';
 import { api } from '../services/api';
 import { getBodyPartImage } from '../services/bodyPartTheme';
+import {
+  FRIEND_CHALLENGE_BADGE_KEYS,
+  getFriendChallengeByKey,
+} from '../services/friendChallenges';
 import {
   AppLanguage,
   getActiveLanguage,
@@ -106,7 +106,7 @@ type FriendPlanMuscle = {
 };
 
 type FriendPlanView = 'overview' | 'plan';
-type ChallengeBadgeKey = 'push_up_duel' | 'squat_rep_race' | 'bench_press' | 'deadlift_one';
+type ChallengeBadgeKey = typeof FRIEND_CHALLENGE_BADGE_KEYS[number];
 
 type FriendChallengeWinStats = Record<ChallengeBadgeKey, number>;
 
@@ -447,39 +447,20 @@ const MUSCLE_NAME_MAP: Record<AppLanguage, Record<string, string>> = {
   },
 };
 
-const createEmptyChallengeWinStats = (): FriendChallengeWinStats => ({
-  push_up_duel: 0,
-  squat_rep_race: 0,
-  bench_press: 0,
-  deadlift_one: 0,
-});
+const createEmptyChallengeWinStats = (): FriendChallengeWinStats =>
+  FRIEND_CHALLENGE_BADGE_KEYS.reduce((totals, key) => {
+    totals[key] = 0;
+    return totals;
+  }, {} as FriendChallengeWinStats);
 
-const CHALLENGE_BADGE_ITEMS: Array<{
-  key: ChallengeBadgeKey;
-  iconSrc: string;
-  alt: string;
-}> = [
-  {
-    key: 'push_up_duel',
-    iconSrc: pushUpIcon,
-    alt: 'Push-Up Duel',
-  },
-  {
-    key: 'squat_rep_race',
-    iconSrc: squatRepRaceIcon,
-    alt: 'Squat Rep Race',
-  },
-  {
-    key: 'bench_press',
-    iconSrc: benchPressIcon,
-    alt: 'Bench Press',
-  },
-  {
-    key: 'deadlift_one',
-    iconSrc: deadliftIcon,
-    alt: 'Deadlift One',
-  },
-];
+const CHALLENGE_BADGE_ITEMS = FRIEND_CHALLENGE_BADGE_KEYS.map((key) => {
+  const definition = getFriendChallengeByKey(key);
+  return {
+    key,
+    title: definition?.title || key,
+    accentClassName: definition?.accentClassName || 'from-white/10 via-white/5 to-transparent',
+  };
+});
 
 const getLocalizedFriendFallbackName = (language: AppLanguage) =>
   pickLanguage(language, {
@@ -505,35 +486,8 @@ const getLocalizedAvatarAlt = (language: AppLanguage, name: string) =>
     de: `Avatar von ${name}`,
   });
 
-const getLocalizedBadgeAlt = (language: AppLanguage, key: ChallengeBadgeKey) => {
-  const labels: Record<ChallengeBadgeKey, { en: string; ar: string; it: string; de: string }> = {
-    push_up_duel: {
-      en: 'Push-Up Duel',
-      ar: 'تحدي الضغط',
-      it: 'Duello di Push-Up',
-      de: 'Liegestuetz-Duell',
-    },
-    squat_rep_race: {
-      en: 'Squat Rep Race',
-      ar: 'سباق تكرارات السكوات',
-      it: 'Gara di Squat',
-      de: 'Squat-Wettkampf',
-    },
-    bench_press: {
-      en: 'Bench Press',
-      ar: 'بنش برس',
-      it: 'Panca Piana',
-      de: 'Bankdruecken',
-    },
-    deadlift_one: {
-      en: 'Deadlift One',
-      ar: 'تحدي الديدليفت',
-      it: 'Deadlift Singolo',
-      de: 'Deadlift Einzelversuch',
-    },
-  };
-
-  return pickLanguage(language, labels[key]);
+const getLocalizedBadgeAlt = (_language: AppLanguage, key: ChallengeBadgeKey) => {
+  return getFriendChallengeByKey(key)?.title || String(key);
 };
 
 const getLocalizedRankLabel = (language: AppLanguage, rank: string) => {
@@ -1124,15 +1078,15 @@ export function FriendProfile({ onBack, onChallenge, friend }: FriendProfileProp
         if (cancelled) return;
 
         const rawStats = response?.stats && typeof response.stats === 'object'
-          ? response.stats as Partial<Record<ChallengeBadgeKey, unknown>>
+          ? response.stats as Partial<Record<string, unknown>>
           : {};
 
-        setFriendChallengeWins({
-          push_up_duel: Math.max(0, Number.parseInt(String(rawStats.push_up_duel ?? 0), 10) || 0),
-          squat_rep_race: Math.max(0, Number.parseInt(String(rawStats.squat_rep_race ?? 0), 10) || 0),
-          bench_press: Math.max(0, Number.parseInt(String(rawStats.bench_press ?? 0), 10) || 0),
-          deadlift_one: Math.max(0, Number.parseInt(String(rawStats.deadlift_one ?? 0), 10) || 0),
-        });
+        setFriendChallengeWins(
+          FRIEND_CHALLENGE_BADGE_KEYS.reduce((totals, key) => {
+            totals[key] = Math.max(0, Number.parseInt(String(rawStats[key] ?? 0), 10) || 0);
+            return totals;
+          }, createEmptyChallengeWinStats()),
+        );
       } catch (error) {
         if (cancelled) return;
         const apiError = error as Error & { status?: number };
@@ -1471,25 +1425,36 @@ export function FriendProfile({ onBack, onChallenge, friend }: FriendProfileProp
               {CHALLENGE_BADGE_ITEMS.map((badge) => {
                 const winCount = friendChallengeWins[badge.key];
                 const isUnlocked = winCount > 0;
+                const badgeInitials = badge.title
+                  .split(/\s+/)
+                  .filter(Boolean)
+                  .slice(0, 2)
+                  .map((part) => part.charAt(0).toUpperCase())
+                  .join('');
 
                 return (
                   <div
                     key={badge.key}
-                    className="flex min-w-[4.5rem] flex-col items-center gap-2"
+                    className="flex min-w-[5.5rem] max-w-[5.5rem] flex-col items-center gap-2"
                   >
                     <div
-                      className={`flex h-16 w-16 items-center justify-center rounded-full border shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] ${
+                      className={`relative flex h-16 w-16 items-center justify-center overflow-hidden rounded-full border shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] ${
                         isUnlocked ? 'border-accent/30 bg-accent/12' : 'border-white/10 bg-card'
                       }`}
                     >
-                      <img
-                        src={badge.iconSrc}
-                        alt={getLocalizedBadgeAlt(language, badge.key)}
-                        className={`h-10 w-10 object-contain drop-shadow-[0_6px_12px_rgba(0,0,0,0.28)] ${isUnlocked ? '' : 'opacity-75'}`}
-                      />
+                      <div className={`absolute inset-0 bg-gradient-to-br ${badge.accentClassName} ${isUnlocked ? 'opacity-100' : 'opacity-45'}`} />
+                      <span
+                        aria-label={getLocalizedBadgeAlt(language, badge.key)}
+                        className={`relative text-sm font-black tracking-[0.12em] ${isUnlocked ? 'text-white' : 'text-text-secondary'}`}
+                      >
+                        {badgeInitials}
+                      </span>
                     </div>
                     <div className={`text-sm font-black ${isUnlocked ? 'text-accent' : 'text-text-tertiary'}`}>
                       {winCount}
+                    </div>
+                    <div className="text-center text-[10px] font-semibold uppercase leading-tight tracking-[0.08em] text-text-secondary">
+                      {badge.title}
                     </div>
                   </div>
                 );

@@ -906,7 +906,7 @@ export const api = {
     userId: number;
     friendId: number;
     winnerUserId: number;
-    challengeKey: 'push_up_duel' | 'squat_rep_race' | 'bench_press' | 'deadlift_one';
+    challengeKey: string;
     clientMatchId?: string;
     sessionId?: number;
     rounds?: Array<Record<string, unknown>>;
@@ -934,6 +934,7 @@ export const api = {
     userId: number;
     sessionId: number;
     reps?: number;
+    value?: number;
     weightKg?: number;
     outcome?: 'made' | 'missed';
   }) => {

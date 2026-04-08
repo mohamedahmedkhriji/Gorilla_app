@@ -2749,12 +2749,21 @@ export function Workout({
       : primaryMuscle !== 'General'
         ? [primaryMuscle]
         : inferredMuscles;
+    const isCardioSession = /cardio|conditioning|liss|hiit/i.test([
+      currentWorkoutName,
+      currentWorkoutDayLabel,
+      selectedWorkoutExercise?.exerciseName,
+      selectedWorkoutExercise?.muscleGroup,
+      resolvedExerciseName,
+    ].filter(Boolean).join(' '));
     return (
       <ExerciseVideoScreen
         onBack={() => setView(videoReturnView)}
         exercise={{
           name: resolvedExerciseName,
           muscle: primaryMuscle,
+          workoutType: String(currentWorkoutName || currentWorkoutDayLabel || '').trim(),
+          isCardio: isCardioSession,
           exerciseCatalogId: selectedWorkoutExercise?.exerciseCatalogId ?? null,
           targetMuscles,
           importance: `Technique reference for ${resolvedExerciseName}.`,
