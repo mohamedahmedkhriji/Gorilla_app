@@ -655,7 +655,7 @@ export function ExerciseLibrary({
                   <div className="relative flex aspect-[4/3] items-center justify-center overflow-hidden bg-white/5">
                     <video
                       src={videoUrl}
-                      poster={getBodyPartImage(exercise.bodyPart || exercise.muscle)}
+                      poster={getBodyPartImage(exercise.muscle || exercise.bodyPart)}
                       className="block h-full w-full bg-black object-cover"
                       muted
                       playsInline
