@@ -54,6 +54,17 @@ const COPY = {
       Advanced: { label: 'Profi', desc: '3+ Jahre Erfahrung' },
     },
   },
+  fr: {
+    title: 'Niveau fitness',
+    subtitle: 'Aide-nous a comprendre ton point de depart.',
+    label: 'Niveau d experience',
+    cta: 'Etape suivante',
+    levels: {
+      Beginner: { label: 'Debutant', desc: 'Nouveau dans la musculation' },
+      Intermediate: { label: 'Intermediaire', desc: '1-2 ans d experience' },
+      Advanced: { label: 'Avance', desc: '3 ans ou plus d experience' },
+    },
+  },
 } as const;
 
 export function FitnessBackgroundScreen({
@@ -62,7 +73,7 @@ export function FitnessBackgroundScreen({
   onboardingData,
 }: FitnessBackgroundScreenProps) {
   const language = getOnboardingLanguage();
-  const copy = COPY[language] ?? COPY.en;
+  const copy = COPY[language as keyof typeof COPY] ?? COPY.en;
   const validLevels = new Set(['Beginner', 'Intermediate', 'Advanced']);
   const initialLevel = String(onboardingData?.experienceLevel || 'Intermediate');
   const [level, setLevel] = useState(validLevels.has(initialLevel) ? initialLevel : 'Intermediate');

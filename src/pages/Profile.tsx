@@ -112,7 +112,7 @@ export function Profile({
     };
   }, [onTabBarVisibilityChange, view]);
 
-  const copy = PROFILE_PAGE_I18N[language] || PROFILE_PAGE_I18N.en;
+  const copy = PROFILE_PAGE_I18N[language as keyof typeof PROFILE_PAGE_I18N] || PROFILE_PAGE_I18N.en;
 
   const userId = useMemo(() => {
     return Number(getStoredUserId() || 0);

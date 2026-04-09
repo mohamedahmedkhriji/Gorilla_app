@@ -222,7 +222,7 @@ const PREMIUM_COPY = {
   },
 } as const;
 
-const getCopy = (language: AppLanguage) => PREMIUM_COPY[language] || PREMIUM_COPY.en;
+const getCopy = (language: AppLanguage) => PREMIUM_COPY[language as keyof typeof PREMIUM_COPY] || PREMIUM_COPY.en;
 
 const safeParseJson = <T,>(raw: string | null, fallback: T): T => {
   if (!raw) return fallback;

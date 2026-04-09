@@ -4,7 +4,7 @@ import { formatWorkoutDayLabel, formatWorkoutDayShortLabel, normalizeWorkoutDayK
 import { emojiAgenda, emojiDoneDayBg, emojiMissedDayBg } from '../../services/emojiTheme';
 import doneDayIcon from '../../../assets/emoji/done day.png';
 import highWeightIcon from '../../../assets/emoji/high weight.png';
-import { AppLanguage, getActiveLanguage, getLanguageLocale, getStoredLanguage } from '../../services/language';
+import { AppLanguage, LocalizedLanguageRecord, getActiveLanguage, getLanguageLocale, getStoredLanguage } from '../../services/language';
 import type { WorkoutAssignmentHistoryEntry } from '../../services/todayWorkoutSelection';
 import { stripExercisePrefix } from '../../services/exerciseName';
 
@@ -22,14 +22,14 @@ type AgendaDay = {
   isRestDay: boolean;
 };
 
-const AGENDA_TITLE: Record<AppLanguage, string> = {
+const AGENDA_TITLE: LocalizedLanguageRecord<string> = {
   en: '30 Day Agenda',
   ar: 'أجندة 30 يوماً',
   it: 'Agenda di 30 Giorni',
   de: '30-Tage-Agenda',
 };
 
-const AGENDA_COPY: Record<AppLanguage, {
+const AGENDA_COPY: LocalizedLanguageRecord<{
   exercises: string;
   recoveryDay: string;
   missedDay: string;

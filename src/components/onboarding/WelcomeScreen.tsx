@@ -32,11 +32,17 @@ const COPY = {
     detail: 'Baue Muskeln auf mit klarer Anleitung und besserer Erholung.',
     cta: 'Setup starten',
   },
+  fr: {
+    tagline: 'Entraine-toi mieux. Entraine-toi plus fort.',
+    intro: 'Ton coach de salle IA partout avec toi.',
+    detail: 'Construis du muscle avec des consignes claires et une meilleure recuperation.',
+    cta: 'Commencer',
+  },
 } as const;
 
 export function WelcomeScreen({ onNext }: WelcomeScreenProps) {
   const language = getOnboardingLanguage();
-  const copy = COPY[language] ?? COPY.en;
+  const copy = COPY[language as keyof typeof COPY] ?? COPY.en;
 
   return (
     <div className="flex-1 flex flex-col items-center justify-center text-center space-y-8 py-10">

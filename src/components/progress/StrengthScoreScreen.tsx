@@ -637,7 +637,7 @@ export function StrengthScoreScreen({ onBack }: StrengthScoreScreenProps) {
   const [data, setData] = useState<StrengthScorePayload | null>(null);
   const [support, setSupport] = useState<StrengthSupportData>(defaultSupportData);
   const [showInfo, setShowInfo] = useState(false);
-  const copy = STRENGTH_SCORE_I18N[language] || STRENGTH_SCORE_I18N.en;
+  const copy = STRENGTH_SCORE_I18N[language as keyof typeof STRENGTH_SCORE_I18N] || STRENGTH_SCORE_I18N.en;
   const toLocalizedTier = useCallback((value: string) => {
     const labels = TIER_LABELS_BY_LANGUAGE[language];
     return labels?.[value.trim().toLowerCase()] || value;

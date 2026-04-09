@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Header } from '../ui/Header';
 import { Play, Square, BarChart3, Video, Trash2 } from 'lucide-react';
 import { api } from '../../services/api';
-import { AppLanguage, getActiveLanguage, getStoredLanguage } from '../../services/language';
+import { AppLanguage, LocalizedLanguageRecord, getActiveLanguage, getStoredLanguage } from '../../services/language';
 import { stripExercisePrefix } from '../../services/exerciseName';
 
 interface TrackerScreenProps {
@@ -128,7 +128,7 @@ const buildPrefilledSets = (plannedSets: number | undefined, historySets: Histor
   });
 };
 
-const TRACKER_I18N: Record<AppLanguage, {
+const TRACKER_I18N: LocalizedLanguageRecord<{
   title: string;
   removeExerciseAria: string;
   timerAria: (timer: string) => string;

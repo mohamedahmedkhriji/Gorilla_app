@@ -61,7 +61,7 @@ const getActiveUserId = () => {
 export function FriendsCard({ onClick, coachmarkTargetId }: FriendsCardProps) {
   const [friends, setFriends] = useState<FriendProfile[]>([]);
   const [language, setLanguage] = useState<AppLanguage>('en');
-  const copy = FRIENDS_CARD_I18N[language] || FRIENDS_CARD_I18N.en;
+  const copy = FRIENDS_CARD_I18N[language as keyof typeof FRIENDS_CARD_I18N] || FRIENDS_CARD_I18N.en;
 
   useEffect(() => {
     setLanguage(getActiveLanguage());

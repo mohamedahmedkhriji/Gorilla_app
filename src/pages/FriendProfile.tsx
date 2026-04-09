@@ -20,6 +20,7 @@ import {
 } from '../services/friendChallenges';
 import {
   AppLanguage,
+  LocalizedLanguageRecord,
   getActiveLanguage,
   getLanguageLocale,
   getStoredLanguage,
@@ -409,9 +410,9 @@ const FRIEND_PROFILE_I18N = {
     workoutFallback: (value: number) => `Workout ${value}`,
     postMediaAlt: 'Beitragsmedium',
   },
-} satisfies Record<AppLanguage, FriendProfileCopy>;
+} satisfies LocalizedLanguageRecord<FriendProfileCopy>;
 
-const MUSCLE_NAME_MAP: Record<AppLanguage, Record<string, string>> = {
+const MUSCLE_NAME_MAP: LocalizedLanguageRecord<Record<string, string>> = {
   en: {},
   ar: {
     Abs: 'Abs',
@@ -657,7 +658,7 @@ const buildProgramDistribution = (workouts: FriendWorkout[]): FriendPlanMuscle[]
 };
 
 const localizeMuscleName = (value: string, language: AppLanguage) =>
-  MUSCLE_NAME_MAP[language][value] || value;
+  MUSCLE_NAME_MAP[language]?.[value] || MUSCLE_NAME_MAP.en?.[value] || value;
 
 const normalizeWorkouts = (raw: unknown): FriendWorkout[] =>
   (Array.isArray(raw) ? raw : [])

@@ -4,7 +4,7 @@ import { Header } from '../components/ui/Header';
 import { Card } from '../components/ui/Card';
 import { getBodyPartImage } from '../services/bodyPartTheme';
 import { api } from '../services/api';
-import { AppLanguage, getActiveLanguage, getStoredLanguage } from '../services/language';
+import { AppLanguage, LocalizedLanguageRecord, getActiveLanguage, getStoredLanguage } from '../services/language';
 import { recordBookApplied } from '../services/bookUsage';
 import { getAssignedBookPlan, getPlanSwitchPrompt } from '../services/bookPlanSelection';
 
@@ -238,7 +238,7 @@ const PLAN_TEXT_TRANSLATIONS: Partial<Record<AppLanguage, Record<string, string>
   },
 };
 
-const TANK1_PLAN_I18N: Record<AppLanguage, {
+const TANK1_PLAN_I18N: LocalizedLanguageRecord<{
   title: string;
   badge: string;
   summary: string;
@@ -320,7 +320,7 @@ const TANK1_PLAN_I18N: Record<AppLanguage, {
   },
 };
 
-const TANK1_PAYLOAD_I18N: Record<AppLanguage, { planName: string; description: string }> = {
+const TANK1_PAYLOAD_I18N: LocalizedLanguageRecord<{ planName: string; description: string }> = {
   en: {
     planName: 'Tank-1 Personal Plan',
     description: 'Tank-1 template applied as an active personal plan.',

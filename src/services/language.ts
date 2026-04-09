@@ -1,16 +1,18 @@
-export type AppLanguage = 'en' | 'ar' | 'it' | 'de';
+export type AppLanguage = 'en' | 'ar' | 'it' | 'de' | 'fr';
+export type LocalizedLanguageRecord<T> = { en: T } & Partial<Record<Exclude<AppLanguage, 'en'>, T>>;
 
 const LANGUAGE_STORAGE_KEY = 'appLanguagePreference';
 const MOJIBAKE_MARKERS = /[ØÙÃÂ]/;
 const UTF8_DECODER = typeof TextDecoder !== 'undefined' ? new TextDecoder('utf-8') : null;
 
 const isValidLanguage = (value: unknown): value is AppLanguage =>
-  value === 'en' || value === 'ar' || value === 'it' || value === 'de';
+  value === 'en' || value === 'ar' || value === 'it' || value === 'de' || value === 'fr';
 
 export const getLanguageLocale = (language: AppLanguage) => {
   if (language === 'ar') return 'ar-EG';
   if (language === 'it') return 'it-IT';
   if (language === 'de') return 'de-DE';
+  if (language === 'fr') return 'fr-FR';
   return 'en-US';
 };
 
@@ -54,7 +56,7 @@ export const normalizeLocalizedValue = <T>(value: T): T => {
 
 export const pickLanguage = <T>(
   language: AppLanguage,
-  values: { en: T; ar: T; it: T; de: T },
+  values: LocalizedLanguageRecord<T>,
 ) => normalizeLocalizedValue(values[language] ?? values.en);
 
 export const getStoredLanguage = (): AppLanguage => {

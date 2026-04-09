@@ -17,7 +17,7 @@ export const getOnboardingLanguage = (): AppLanguage => {
       if (raw) {
         const parsed = JSON.parse(raw) as { language?: unknown };
         const saved = String(parsed?.language || '').trim().toLowerCase();
-        if (saved === 'en' || saved === 'ar' || saved === 'it' || saved === 'de') {
+        if (saved === 'en' || saved === 'ar' || saved === 'it' || saved === 'de' || saved === 'fr') {
           return saved;
         }
       }
@@ -104,6 +104,30 @@ const STEP_TITLES_DE: Partial<Record<OnboardingStepId, string>> = {
   sport_plan_choice: 'Planwahl',
 };
 
+const STEP_TITLES_FR: Partial<Record<OnboardingStepId, string>> = {
+  language: 'Langue',
+  first_name: 'Prenom',
+  app_motivation: 'Motivation',
+  athlete_identity: 'Profil',
+  personal_info: 'Informations personnelles',
+  fitness_background: 'Niveau sportif',
+  fitness_goals: 'Objectifs fitness',
+  body_type: 'Type de corps',
+  goals_availability: 'Disponibilite',
+  workout_split: 'Choix du programme',
+  ai_plan_tuning: 'Preferences IA',
+  body_image_upload: 'Photos du corps',
+  ai_analysis: 'Analyse',
+  body_results: 'Resultats',
+  custom_plan: 'Programme personnalise',
+  custom_plan_builder: 'Structure du programme',
+  custom_plan_advice: 'Conseils IA',
+  custom_plan_templates: 'Modeles de programme',
+  sport_age_gender: 'Age et genre',
+  sport_experience: 'Experience sportive',
+  sport_plan_choice: 'Choix du programme',
+};
+
 export const resolveOnboardingTitle = (
   stepId: OnboardingStepId,
   fallback: string,
@@ -112,6 +136,7 @@ export const resolveOnboardingTitle = (
   if (language === 'ar') return STEP_TITLES_AR[stepId] ?? fallback;
   if (language === 'it') return STEP_TITLES_IT[stepId] ?? fallback;
   if (language === 'de') return STEP_TITLES_DE[stepId] ?? fallback;
+  if (language === 'fr') return STEP_TITLES_FR[stepId] ?? fallback;
   return fallback;
 };
 
@@ -184,6 +209,29 @@ const APP_MOTIVATION_DE: Record<string, { title: string; description: string }> 
   },
 };
 
+const APP_MOTIVATION_FR: Record<string, { title: string; description: string }> = {
+  guided_start: {
+    title: 'Je veux un cadre clair des le premier jour',
+    description: 'Donne-moi un plan simple et clair pour savoir quoi faire a chaque seance.',
+  },
+  consistency: {
+    title: 'J ai besoin d aide pour rester regulier',
+    description: 'Construisons une routine realiste que je peux suivre chaque semaine.',
+  },
+  progress_plateau: {
+    title: 'Je stagne et je veux recommencer a progresser',
+    description: 'Aide-moi a depasser ce plateau avec une programmation plus intelligente.',
+  },
+  time_efficiency: {
+    title: 'Je veux des seances efficaces pour mon emploi du temps',
+    description: 'Rends mes entrainements plus cibles et mieux adaptes a mon planning.',
+  },
+  accountability: {
+    title: 'Je veux plus de suivi et de responsabilite',
+    description: 'Suis mes entrainements et aide-moi a rester sur la bonne voie dans la duree.',
+  },
+};
+
 export const localizeMotivationOptions = (
   options: MotivationOption[],
   language: AppLanguage,
@@ -200,6 +248,13 @@ export const localizeMotivationOptions = (
       const de = APP_MOTIVATION_DE[option.id];
       if (!de) return option;
       return { ...option, title: de.title, description: de.description };
+    });
+  }
+  if (language === 'fr') {
+    return options.map((option) => {
+      const fr = APP_MOTIVATION_FR[option.id];
+      if (!fr) return option;
+      return { ...option, title: fr.title, description: fr.description };
     });
   }
   if (language !== 'ar') return options;
@@ -820,6 +875,209 @@ export const localizeAthleteOptions = (options: AthleteOption[], language: AppLa
     },
   };
 
+  const ATHLETE_IDENTITY_FR: Record<string, {
+    label: string;
+    description: string;
+    subGroups?: Record<string, { title: string; items: Record<string, string> }>;
+  }> = {
+    bodybuilding: {
+      label: 'Bodybuilding',
+      description: 'Developpe la masse musculaire, la symetrie et une force orientee physique.',
+      subGroups: {
+        bodybuilding_category: {
+          title: 'Par categorie',
+          items: {
+            hypertrophy: 'Hypertrophie',
+            powerlifting: 'Powerlifting',
+            cutting: 'Seche',
+            bulking: 'Prise de masse',
+            beginner_gym: 'Debutant en salle',
+            natural_athlete: 'Athlete naturel',
+            classic_physique: 'Classic physique',
+          },
+        },
+      },
+    },
+    cardio: {
+      label: 'Cardio',
+      description: 'Ameliore l endurance, la depense calorique et la condition generale.',
+      subGroups: {
+        cardio_goal: {
+          title: 'Par objectif',
+          items: {
+            fat_loss: 'Perte de graisse',
+            endurance: 'Endurance',
+            conditioning: 'Condition physique',
+            heart_health: 'Sante du coeur',
+          },
+        },
+      },
+    },
+    football: {
+      label: 'Football',
+      description: 'Ameliore vitesse, agilite, puissance et endurance de match.',
+      subGroups: {
+        football_position: {
+          title: 'Par poste',
+          items: {
+            striker: 'Attaquant',
+            winger: 'Ailier',
+            midfielder: 'Milieu',
+            defender: 'Defenseur',
+            goalkeeper: 'Gardien',
+          },
+        },
+        football_goal: {
+          title: 'Par objectif',
+          items: {
+            speed_acceleration: 'Vitesse et acceleration',
+            match_endurance: 'Endurance de match',
+            shooting_power: 'Puissance de frappe',
+            injury_prevention: 'Prevention des blessures',
+            strength_duels: 'Puissance dans les duels',
+          },
+        },
+        football_phase: {
+          title: 'Par phase de saison',
+          items: {
+            pre_season: 'Pre-saison',
+            in_season: 'En saison',
+            off_season: 'Hors saison',
+          },
+        },
+      },
+    },
+    basketball: {
+      label: 'Basketball',
+      description: 'Travaille l explosivite, la detente verticale et la condition sur le terrain.',
+      subGroups: {
+        basketball_role: {
+          title: 'Par role',
+          items: {
+            guard: 'Arriere',
+            forward: 'Ailier',
+            center: 'Pivot',
+          },
+        },
+        basketball_goal: {
+          title: 'Par objectif',
+          items: {
+            vertical_jump: 'Detente verticale',
+            explosive_speed: 'Vitesse explosive',
+            lateral_agility: 'Agilite laterale',
+            knee_injury_prevention: 'Prevention des blessures au genou',
+            core_stability: 'Stabilite du centre',
+          },
+        },
+        basketball_phase: {
+          title: 'Par phase',
+          items: {
+            pre_season: 'Pre-saison',
+            in_season: 'En saison',
+            off_season: 'Hors saison',
+          },
+        },
+      },
+    },
+    handball: {
+      label: 'Handball',
+      description: 'Developpe la puissance rotative, l acceleration et l endurance repetitive.',
+      subGroups: {
+        handball_position: {
+          title: 'Par poste',
+          items: {
+            wing: 'Ailier',
+            backcourt: 'Arriere',
+            pivot: 'Pivot',
+            goalkeeper: 'Gardien',
+          },
+        },
+        handball_goal: {
+          title: 'Par objectif',
+          items: {
+            throwing_power: 'Puissance de tir',
+            jump_explosiveness: 'Explosivite du saut',
+            shoulder_strength: 'Force des epaules',
+            sprint_endurance: 'Endurance sprint',
+          },
+        },
+        handball_phase: {
+          title: 'Par phase',
+          items: {
+            pre_season: 'Pre-saison',
+            in_season: 'En saison',
+            off_season: 'Hors saison',
+          },
+        },
+      },
+    },
+    swimming: {
+      label: 'Natation',
+      description: 'Developpe l endurance globale, la capacite pulmonaire et le controle.',
+      subGroups: {
+        swimming_stroke: {
+          title: 'Par nage',
+          items: {
+            freestyle: 'Nage libre',
+            breaststroke: 'Brasse',
+            butterfly: 'Papillon',
+            backstroke: 'Dos',
+          },
+        },
+        swimming_goal: {
+          title: 'Par objectif',
+          items: {
+            shoulder_mobility: 'Mobilite des epaules',
+            core_endurance: 'Endurance du centre',
+            breathing_capacity: 'Capacite respiratoire',
+            technique_strength: 'Force technique',
+          },
+        },
+        swimming_phase: {
+          title: 'Par phase',
+          items: {
+            conditioning_phase: 'Phase de conditionnement',
+            competition_phase: 'Phase de competition',
+            recovery_phase: 'Phase de recuperation',
+          },
+        },
+      },
+    },
+    combat_sports: {
+      label: 'Sports de combat',
+      description: 'Developpe la condition physique, la vitesse de reaction et la puissance fonctionnelle.',
+      subGroups: {
+        combat_sport_type: {
+          title: 'Par sport',
+          items: {
+            boxing: 'Boxe',
+            mma: 'MMA',
+            muay_thai: 'Muay Thai',
+            wrestling: 'Lutte',
+            judo: 'Judo',
+          },
+        },
+        combat_goal: {
+          title: 'Par objectif',
+          items: {
+            power_endurance: 'Endurance de puissance',
+            speed_reaction: 'Vitesse et reaction',
+            weight_cut_conditioning: 'Conditionnement pour coupe de poids',
+            neck_core_strength: 'Force du cou et du centre',
+          },
+        },
+        combat_phase: {
+          title: 'Par phase',
+          items: {
+            fight_camp: 'Camp de combat',
+            off_camp: 'Hors camp',
+            recovery: 'Recuperation',
+          },
+        },
+      },
+    },
+  };
+
   if (language === 'it') {
     return options.map((option) => {
       const it = ATHLETE_IDENTITY_IT[option.id];
@@ -859,6 +1117,29 @@ export const localizeAthleteOptions = (options: AthleteOption[], language: AppLa
             items: group.items.map((item) => ({
               ...item,
               label: groupDe?.items?.[item.id] || item.label,
+            })),
+          };
+        }),
+      };
+    });
+  }
+
+  if (language === 'fr') {
+    return options.map((option) => {
+      const fr = ATHLETE_IDENTITY_FR[option.id];
+      if (!fr) return option;
+      return {
+        ...option,
+        label: fr.label || option.label,
+        description: fr.description || option.description,
+        subGroups: option.subGroups.map((group) => {
+          const groupFr = fr.subGroups?.[group.id];
+          return {
+            ...group,
+            title: groupFr?.title || group.title,
+            items: group.items.map((item) => ({
+              ...item,
+              label: groupFr?.items?.[item.id] || item.label,
             })),
           };
         }),
@@ -956,6 +1237,27 @@ const FITNESS_GOALS_DE: Record<string, { title: string; description: string; tag
   },
 };
 
+const FITNESS_GOALS_FR: Record<string, { title: string; description: string; tag?: string }> = {
+  build_muscle_toned: {
+    title: 'Construire du muscle et se dessiner',
+    description: 'Concentre-toi sur la prise de muscle et la definition avec une progression claire.',
+    tag: 'Populaire',
+  },
+  general_fitness: {
+    title: 'Ameliorer la forme generale',
+    description: 'Ameliore ta condition physique generale avec des seances equilibrees et variees.',
+  },
+  conditioning: {
+    title: 'Developper l endurance',
+    description: 'Mise sur plus de volume, de rythme et des recuperations plus courtes.',
+  },
+  get_stronger: {
+    title: 'Devenir plus fort',
+    description: 'Priorise les mouvements polyarticulaires et des charges plus lourdes avec moins de repetitions.',
+    tag: 'Force',
+  },
+};
+
 export const localizeFitnessGoals = (options: GoalOption[], language: AppLanguage) => {
   if (language === 'it') {
     return options.map((option) => {
@@ -978,6 +1280,18 @@ export const localizeFitnessGoals = (options: GoalOption[], language: AppLanguag
         title: de.title || option.title,
         description: de.description || option.description,
         tag: de.tag ?? option.tag,
+      };
+    });
+  }
+  if (language === 'fr') {
+    return options.map((option) => {
+      const fr = FITNESS_GOALS_FR[option.id];
+      if (!fr) return option;
+      return {
+        ...option,
+        title: fr.title || option.title,
+        description: fr.description || option.description,
+        tag: fr.tag ?? option.tag,
       };
     });
   }
@@ -1093,6 +1407,39 @@ const WORKOUT_SPLIT_DE: Record<string, { title: string; summary: string; detail:
   },
 };
 
+const WORKOUT_SPLIT_FR: Record<string, { title: string; summary: string; detail: string }> = {
+  auto: {
+    title: 'Programme du coach avec IA',
+    summary: 'Cree un programme personnel complet avec Claude AI',
+    detail: 'Utilise ton profil et tes preferences pour construire un programme structure sur 8 semaines.',
+  },
+  full_body: {
+    title: 'Corps complet',
+    summary: 'Travaille tous les grands groupes musculaires a chaque seance',
+    detail: 'Ideal si tu t entraines peu de jours et veux progresser regulierement.',
+  },
+  upper_lower: {
+    title: 'Haut / Bas du corps',
+    summary: 'Alterne les jours haut du corps et bas du corps',
+    detail: 'Structure equilibree avec une bonne recuperation entre les seances.',
+  },
+  push_pull_legs: {
+    title: 'Push / Pull / Jambes',
+    summary: 'Une repartition par mouvements avec des jours plus cibles',
+    detail: 'Ideal pour une frequence d entrainement intermediaire ou elevee.',
+  },
+  hybrid: {
+    title: 'PPL + Haut / Bas',
+    summary: 'Combine PPL et haut/bas pour plus de volume',
+    detail: 'Parfait si tu veux plus de variete et une charge hebdomadaire equilibree.',
+  },
+  custom: {
+    title: 'Programme personnalise',
+    summary: 'Construis une repartition selon tes priorites',
+    detail: 'Pense pour ceux qui veulent un controle total sur la structure et le volume.',
+  },
+};
+
 export const localizeWorkoutSplitOptions = (options: SplitOption[], language: AppLanguage) => {
   if (language === 'it') {
     return options.map((option) => {
@@ -1106,6 +1453,13 @@ export const localizeWorkoutSplitOptions = (options: SplitOption[], language: Ap
       const de = WORKOUT_SPLIT_DE[option.id];
       if (!de) return option;
       return { ...option, title: de.title, summary: de.summary, detail: de.detail };
+    });
+  }
+  if (language === 'fr') {
+    return options.map((option) => {
+      const fr = WORKOUT_SPLIT_FR[option.id];
+      if (!fr) return option;
+      return { ...option, title: fr.title, summary: fr.summary, detail: fr.detail };
     });
   }
   if (language !== 'ar') return options;
@@ -1154,6 +1508,17 @@ const SPORT_PLAN_DE: Record<string, { title: string; description: string }> = {
   },
 };
 
+const SPORT_PLAN_FR: Record<string, { title: string; description: string }> = {
+  auto: {
+    title: 'Creer un programme avec IA',
+    description: 'L IA construit ton programme selon ton profil et tes objectifs sportifs.',
+  },
+  custom: {
+    title: 'Programme manuel personnalise',
+    description: 'Definis toi-meme la structure du programme puis fais-le evoluer.',
+  },
+};
+
 export const localizeSportPlanOptions = (options: PlanOption[], language: AppLanguage) => {
   if (language === 'it') {
     return options.map((option) => {
@@ -1167,6 +1532,13 @@ export const localizeSportPlanOptions = (options: PlanOption[], language: AppLan
       const de = SPORT_PLAN_DE[option.id];
       if (!de) return option;
       return { ...option, title: de.title, description: de.description };
+    });
+  }
+  if (language === 'fr') {
+    return options.map((option) => {
+      const fr = SPORT_PLAN_FR[option.id];
+      if (!fr) return option;
+      return { ...option, title: fr.title, description: fr.description };
     });
   }
   if (language !== 'ar') return options;
@@ -1198,6 +1570,13 @@ const TRAINING_FOCUS_DE: Record<string, string> = {
   fat_loss: 'Fettverlust-Unterstuetzung',
 };
 
+const TRAINING_FOCUS_FR: Record<string, string> = {
+  balanced: 'Equilibre',
+  hypertrophy: 'Focus hypertrophie',
+  strength: 'Focus force',
+  fat_loss: 'Soutien perte de graisse',
+};
+
 const RECOVERY_PRIORITY_AR: Record<string, string> = {
   balanced: 'متوازن',
   performance: 'دفع التقدم',
@@ -1216,6 +1595,12 @@ const RECOVERY_PRIORITY_DE: Record<string, string> = {
   recovery: 'Erholung priorisieren',
 };
 
+const RECOVERY_PRIORITY_FR: Record<string, string> = {
+  balanced: 'Equilibre',
+  performance: 'Pousser les progres',
+  recovery: 'Priorite a la recuperation',
+};
+
 export const localizeTrainingFocusOptions = (options: SimpleOption[], language: AppLanguage) => {
   if (language === 'it') {
     return options.map((option) => ({
@@ -1227,6 +1612,12 @@ export const localizeTrainingFocusOptions = (options: SimpleOption[], language: 
     return options.map((option) => ({
       ...option,
       label: TRAINING_FOCUS_DE[option.value] || option.label,
+    }));
+  }
+  if (language === 'fr') {
+    return options.map((option) => ({
+      ...option,
+      label: TRAINING_FOCUS_FR[option.value] || option.label,
     }));
   }
   if (language !== 'ar') return options;
@@ -1247,6 +1638,12 @@ export const localizeRecoveryOptions = (options: SimpleOption[], language: AppLa
     return options.map((option) => ({
       ...option,
       label: RECOVERY_PRIORITY_DE[option.value] || option.label,
+    }));
+  }
+  if (language === 'fr') {
+    return options.map((option) => ({
+      ...option,
+      label: RECOVERY_PRIORITY_FR[option.value] || option.label,
     }));
   }
   if (language !== 'ar') return options;
@@ -1271,6 +1668,11 @@ const GENDER_LABEL_DE: Record<string, string> = {
   female: 'Frau',
 };
 
+const GENDER_LABEL_FR: Record<string, string> = {
+  male: 'Homme',
+  female: 'Femme',
+};
+
 const SESSION_DURATION_AR: Record<string, string> = {
   '30': '30 دقيقة',
   '45': '45 دقيقة',
@@ -1292,6 +1694,13 @@ const SESSION_DURATION_DE: Record<string, string> = {
   '90': '90 Minuten',
 };
 
+const SESSION_DURATION_FR: Record<string, string> = {
+  '30': '30 minutes',
+  '45': '45 minutes',
+  '60': '60 minutes',
+  '90': '90 minutes',
+};
+
 const PREFERRED_TIME_AR: Record<string, string> = {
   morning: 'صباحًا',
   afternoon: 'ظهرًا',
@@ -1310,6 +1719,12 @@ const PREFERRED_TIME_DE: Record<string, string> = {
   evening: 'Abends',
 };
 
+const PREFERRED_TIME_FR: Record<string, string> = {
+  morning: 'Matin',
+  afternoon: 'Apres-midi',
+  evening: 'Soir',
+};
+
 export const localizeGenderButtonLabel = (value: string, language: AppLanguage) => {
   const normalized = String(value || '').trim().toLowerCase();
   if (language === 'it') {
@@ -1317,6 +1732,9 @@ export const localizeGenderButtonLabel = (value: string, language: AppLanguage) 
   }
   if (language === 'de') {
     return GENDER_LABEL_DE[normalized] || (normalized ? 'Nicht angegeben' : value);
+  }
+  if (language === 'fr') {
+    return GENDER_LABEL_FR[normalized] || (normalized ? 'Non precise' : value);
   }
   if (language !== 'ar') {
     if (normalized === 'male') return 'Man';
@@ -1361,6 +1779,21 @@ export const localizeSelectOptions = (
       }));
     }
   }
+  if (language === 'fr') {
+    const localizedMap = map === SESSION_DURATION_AR
+      ? SESSION_DURATION_FR
+      : map === PREFERRED_TIME_AR
+        ? PREFERRED_TIME_FR
+        : map === GENDER_LABEL_AR
+          ? GENDER_LABEL_FR
+          : null;
+    if (localizedMap) {
+      return options.map((option) => ({
+        ...option,
+        label: localizedMap[String(option.value || '').trim().toLowerCase()] || option.label,
+      }));
+    }
+  }
   if (language !== 'ar') return options;
   return options.map((option) => ({
     ...option,
@@ -1394,6 +1827,12 @@ export const localizeExperienceLevel = (value: string, language: AppLanguage) =>
     if (value.toLowerCase() === 'beginner') return 'Anfaenger';
     if (value.toLowerCase() === 'intermediate') return 'Fortgeschritten';
     if (value.toLowerCase() === 'advanced') return 'Profi';
+    return value;
+  }
+  if (language === 'fr') {
+    if (value.toLowerCase() === 'beginner') return 'Debutant';
+    if (value.toLowerCase() === 'intermediate') return 'Intermediaire';
+    if (value.toLowerCase() === 'advanced') return 'Avance';
     return value;
   }
   if (language !== 'ar') return value;

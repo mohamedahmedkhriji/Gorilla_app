@@ -32,6 +32,11 @@ const COPY = {
     subtitle: 'So koennen wir die richtigen Uebungen und Ziele fuer deinen Plan festlegen.',
     cta: 'Weiter',
   },
+  fr: {
+    title: 'Quels sont tes principaux objectifs fitness ?',
+    subtitle: 'Cela nous aide a choisir les bons exercices et les bons objectifs pour ton programme.',
+    cta: 'Continuer',
+  },
 } as const;
 
 const toSelectedGoalIds = (onboardingData: any, goalOptions: GoalOption[]) => {
@@ -56,7 +61,7 @@ export function FitnessGoalsScreen({
   options,
 }: FitnessGoalsScreenProps) {
   const language = getOnboardingLanguage();
-  const copy = COPY[language] ?? COPY.en;
+  const copy = COPY[language as keyof typeof COPY] ?? COPY.en;
   const goalOptions = options?.length
     ? options
     : DEFAULT_ONBOARDING_CONFIG.options.fitnessGoals;

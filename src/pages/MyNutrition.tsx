@@ -386,7 +386,7 @@ export function MyNutrition({ onBack }: MyNutritionProps) {
     loadFailed: isArabic ? 'تعذر إنشاء خطة التغذية.' : 'Failed to build nutrition plan.',
   };
   void legacyCopy;
-  const copy = NUTRITION_I18N[language] || NUTRITION_I18N.en;
+  const copy = NUTRITION_I18N[language as keyof typeof NUTRITION_I18N] || NUTRITION_I18N.en;
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [plan, setPlan] = useState<NutritionPlanResponse | null>(null);

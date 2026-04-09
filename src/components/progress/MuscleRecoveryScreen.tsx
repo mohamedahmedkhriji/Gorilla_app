@@ -348,7 +348,7 @@ export function MuscleRecoveryScreen({ onBack }: MuscleRecoveryScreenProps) {
     updateError: isArabic ? 'تعذر تحديث عوامل التعافي' : 'Failed to update recovery factors',
   };
   void legacyCopy;
-  const copy = RECOVERY_I18N[language] || RECOVERY_I18N.en;
+  const copy = RECOVERY_I18N[language as keyof typeof RECOVERY_I18N] || RECOVERY_I18N.en;
   const [muscleRecoveries, setMuscleRecoveries] = useState<MuscleRecoveryItem[]>([]);
   const [showFactors, setShowFactors] = useState(false);
   const [factors, setFactors] = useState<RecoveryFactorsState>({

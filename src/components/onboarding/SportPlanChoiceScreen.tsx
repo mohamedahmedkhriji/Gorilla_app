@@ -34,6 +34,11 @@ const COPY = {
     subtitle: 'Waehle, wie du deinen Trainingsplan erstellen moechtest.',
     cta: 'Naechster Schritt',
   },
+  fr: {
+    title: 'Creation du programme',
+    subtitle: 'Choisis comment tu veux creer ton programme d entrainement.',
+    cta: 'Etape suivante',
+  },
 } as const;
 
 export function SportPlanChoiceScreen({
@@ -43,7 +48,7 @@ export function SportPlanChoiceScreen({
   options,
 }: SportPlanChoiceScreenProps) {
   const language = getOnboardingLanguage();
-  const copy = COPY[language] ?? COPY.en;
+  const copy = COPY[language as keyof typeof COPY] ?? COPY.en;
   const planOptions = options?.length
     ? options
     : DEFAULT_ONBOARDING_CONFIG.options.sportPlan;

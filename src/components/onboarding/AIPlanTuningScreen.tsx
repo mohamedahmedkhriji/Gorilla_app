@@ -70,6 +70,19 @@ const COPY = {
     equipmentPlaceholder: 'z. B. keine Langhantelbank, nur Kurzhanteln und Kabel',
     cta: 'Naechster Schritt',
   },
+  fr: {
+    badge: 'Reglage du plan IA',
+    title: 'Definis comment ton programme IA sera construit',
+    subtitle: 'Ajuste le style de coaching, la priorite de recuperation et les contraintes de materiel avant la generation du plan.',
+    focus: 'Focus entrainement',
+    recovery: 'Strategie de recuperation',
+    injuries: 'Blessures ou mouvements a eviter',
+    equipment: 'Notes sur le materiel',
+    optional: '(optionnel)',
+    injuriesPlaceholder: 'ex. douleur lombaire, eviter le developpe militaire',
+    equipmentPlaceholder: 'ex. pas de banc barre, seulement halteres et cables',
+    cta: 'Etape suivante',
+  },
 } as const;
 
 const resolveOptionValue = (
@@ -89,7 +102,7 @@ export function AIPlanTuningScreen({
   recoveryStrategyOptions,
 }: AIPlanTuningScreenProps) {
   const language = getOnboardingLanguage();
-  const copy = COPY[language] ?? COPY.en;
+  const copy = COPY[language as keyof typeof COPY] ?? COPY.en;
   const trainingOptions = trainingFocusOptions?.length
     ? trainingFocusOptions
     : DEFAULT_ONBOARDING_CONFIG.options.aiTrainingFocus;

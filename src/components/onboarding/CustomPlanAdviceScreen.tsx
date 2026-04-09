@@ -61,6 +61,16 @@ const COPY = {
     recommendations: 'KI-Empfehlungen',
     cta: 'Zur Startseite',
   },
+  fr: {
+    title: 'Conseils IA pour ton programme personnalise',
+    subtitle: 'Ton programme est enregistre. Voici des ameliorations adaptees a ton profil et a ton planning.',
+    loading: 'Analyse de ton programme et generation des conseils...',
+    error: 'Impossible de generer des conseils pour le programme personnalise.',
+    summaryFallback: 'Ton programme personnalise est solide. Continue avec une progression reguliere et une bonne recuperation.',
+    strengths: 'Ce qui fonctionne bien',
+    recommendations: 'Recommandations IA',
+    cta: 'Aller a l accueil',
+  },
 } as const;
 
 export function CustomPlanAdviceScreen({
@@ -69,7 +79,7 @@ export function CustomPlanAdviceScreen({
   userId,
 }: CustomPlanAdviceScreenProps) {
   const language = getOnboardingLanguage();
-  const copy = COPY[language] ?? COPY.en;
+  const copy = COPY[language as keyof typeof COPY] ?? COPY.en;
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [advice, setAdvice] = useState<CustomAdvice | null>(null);

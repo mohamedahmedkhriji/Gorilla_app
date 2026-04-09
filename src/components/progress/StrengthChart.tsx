@@ -111,7 +111,7 @@ export function StrengthChart({ coachmarkTargetId }: StrengthChartProps) {
   const [language, setLanguage] = useState<AppLanguage>('en');
   const gradientId = useId().replace(/:/g, '');
   const strokeGradientId = `${gradientId}-stroke`;
-  const copy = STRENGTH_CHART_I18N[language] || STRENGTH_CHART_I18N.en;
+  const copy = STRENGTH_CHART_I18N[language as keyof typeof STRENGTH_CHART_I18N] || STRENGTH_CHART_I18N.en;
 
   useEffect(() => {
     setLanguage(getActiveLanguage());

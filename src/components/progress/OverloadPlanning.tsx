@@ -58,7 +58,7 @@ export function OverloadPlanning({ coachmarkTargetId }: OverloadPlanningProps) {
   const [recommendations, setRecommendations] = useState<OverloadRecommendation[]>([]);
   const [sourceMode, setSourceMode] = useState<'plan' | 'recent'>('recent');
   const [loading, setLoading] = useState(true);
-  const copy = OVERLOAD_I18N[language] || OVERLOAD_I18N.en;
+  const copy = OVERLOAD_I18N[language as keyof typeof OVERLOAD_I18N] || OVERLOAD_I18N.en;
   const sourceLabel = sourceMode === 'plan' ? copy.sourcePlan : copy.sourceRecent;
 
   useEffect(() => {

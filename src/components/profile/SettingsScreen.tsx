@@ -581,6 +581,67 @@ const SETTINGS_I18N_WITH_DE = {
       },
     ],
   },
+  fr: {
+    ...SETTINGS_I18N.en,
+    settings: 'Parametres',
+    account: 'Compte',
+    personalDetails: 'Informations personnelles',
+    privacyAndSecurity: 'Confidentialite et securite',
+    preferences: 'Preferences',
+    notifications: 'Notifications',
+    notificationControls: 'Controle des notifications',
+    coachMessages: 'Messages du coach',
+    restBetweenSets: 'Repos entre les series',
+    missionChallengeComplete: 'Missions et defis termines',
+    theme: 'Theme',
+    language: 'Langue',
+    english: 'Anglais',
+    italian: 'Italien',
+    arabic: 'Arabe',
+    dark: 'Sombre',
+    light: 'Clair',
+    appTour: 'Visite de l app',
+    showAppTour: 'Afficher la visite',
+    showAppTourDetail: 'Relance la visite de l accueil quand tu veux un rappel rapide.',
+    logOut: 'Se deconnecter',
+    gymAccess: 'Acces a la salle',
+    failedLoadNotificationSettings: 'Impossible de charger les parametres de notification',
+    failedLoadPersonalDetails: 'Impossible de charger les informations personnelles',
+    failedSavePersonalDetails: 'Impossible d enregistrer les informations personnelles',
+    failedUpdatePassword: 'Impossible de mettre a jour le mot de passe',
+    failedUpdateNotificationSettings: 'Impossible de mettre a jour les notifications',
+    savedSuccessfully: 'Enregistre avec succes',
+    fullName: 'Nom complet',
+    age: 'Age',
+    gender: 'Genre',
+    select: 'Selectionner',
+    man: 'Homme',
+    woman: 'Femme',
+    heightCm: 'Taille (cm)',
+    weightKg: 'Poids (kg)',
+    sessionDuration: 'Duree de la seance a la salle',
+    preferredTime: 'Heure d entrainement preferee',
+    thirtyMinutes: '30 minutes',
+    fortyFiveMinutes: '45 minutes',
+    sixtyMinutes: '60 minutes',
+    ninetyMinutes: '90 minutes',
+    morningTime: 'Matin',
+    afternoonTime: 'Apres-midi',
+    eveningTime: 'Soir',
+    saving: 'Enregistrement...',
+    saveChanges: 'Enregistrer les modifications',
+    changePassword: 'Changer le mot de passe',
+    oldPassword: 'Ancien mot de passe',
+    newPassword: 'Nouveau mot de passe',
+    confirmNewPassword: 'Confirmer le nouveau mot de passe',
+    updatingPassword: 'Mise a jour du mot de passe...',
+    updatePassword: 'Mettre a jour le mot de passe',
+    pleaseFillPasswordFields: 'Renseigne l ancien mot de passe, le nouveau et la confirmation',
+    newPasswordMinLength: 'Le nouveau mot de passe doit contenir au moins 6 caracteres',
+    confirmPasswordMismatch: 'La confirmation du mot de passe ne correspond pas',
+    passwordUpdated: 'Mot de passe mis a jour avec succes',
+    toggleLabelPrefix: 'Basculer',
+  },
 } as const;
 
 export function SettingsScreen({ onBack, onOpenGym, onOpenHomeTour }: SettingsScreenProps) {
@@ -1332,6 +1393,18 @@ export function SettingsScreen({ onBack, onOpenGym, onOpenHomeTour }: SettingsSc
             >
               <Languages size={16} />
               <span className="text-sm font-medium">Deutsch</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => handleLanguageChange('fr')}
+              className={`rounded-xl p-3 border transition-colors flex items-center justify-center gap-2 ${
+                language === 'fr'
+                  ? languageActiveClass
+                  : languageInactiveClass
+              }`}
+            >
+              <Languages size={16} />
+              <span className="text-sm font-medium">Francais</span>
             </button>
           </div>
         </div>

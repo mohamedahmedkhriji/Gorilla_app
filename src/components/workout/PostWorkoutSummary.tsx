@@ -220,7 +220,7 @@ export function PostWorkoutSummary({
   const [blogPending, setBlogPending] = useState(false);
   const [confirmBlogPostOpen, setConfirmBlogPostOpen] = useState(false);
   const [feedback, setFeedback] = useState<string | null>(null);
-  const copy = POST_SUMMARY_I18N[language] || POST_SUMMARY_I18N.en;
+  const copy = POST_SUMMARY_I18N[language as keyof typeof POST_SUMMARY_I18N] || POST_SUMMARY_I18N.en;
   const isArabic = language === 'ar';
 
   const toLocalizedMuscle = useCallback(

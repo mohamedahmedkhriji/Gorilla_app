@@ -43,6 +43,14 @@ const RANK_NAME_MAP = {
     diamond: 'Diamant',
     elite: 'Elite',
   },
+  fr: {
+    bronze: 'Bronze',
+    silver: 'Argent',
+    gold: 'Or',
+    platinum: 'Platine',
+    diamond: 'Diamant',
+    elite: 'Elite',
+  },
 } as const;
 
 export function RankDisplay({ points = 420, coachmarkTargetId }: RankDisplayProps) {
@@ -50,7 +58,7 @@ export function RankDisplay({ points = 420, coachmarkTargetId }: RankDisplayProp
   const rankBadge = getUserRankBadge(points);
   const rankBadgeImage = getRankBadgeImage(rankBadge.name);
   const rankKey = String(rankBadge.name || '').trim().toLowerCase() as keyof typeof RANK_NAME_MAP.en;
-  const rankNameDisplay = repairMojibakeText(RANK_NAME_MAP[language][rankKey] || rankBadge.name);
+  const rankNameDisplay = repairMojibakeText((RANK_NAME_MAP[language] || RANK_NAME_MAP.en)[rankKey] || rankBadge.name);
   const copy = pickLanguage(language, {
     en: {
       pointsLabel: `${points} points`,
@@ -67,6 +75,10 @@ export function RankDisplay({ points = 420, coachmarkTargetId }: RankDisplayProp
     de: {
       pointsLabel: `${points} Punkte`,
       iconAlt: 'Rangsymbol',
+    },
+    fr: {
+      pointsLabel: `${points} points`,
+      iconAlt: 'Icone de rang',
     },
   });
 

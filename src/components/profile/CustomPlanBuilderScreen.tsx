@@ -251,7 +251,7 @@ const buildInitialBuilderData = (
   storedTemplate: StoredAssignedProgramTemplate | null,
   language: AppLanguage,
 ): BuilderData => {
-  const copy = COPY[language] || COPY.en;
+  const copy = COPY[language as keyof typeof COPY] || COPY.en;
   const sortedCurrentWeekWorkouts = [...(Array.isArray(program?.currentWeekWorkouts) ? program.currentWeekWorkouts : [])]
     .sort((left, right) => {
       const leftDay = normalizeDayKey(left.day_name || left.dayName);
@@ -371,7 +371,7 @@ export function CustomPlanBuilderScreen({ onBack, onSaved }: CustomPlanBuilderSc
     };
   }, []);
 
-  const copy = COPY[language] || COPY.en;
+  const copy = COPY[language as keyof typeof COPY] || COPY.en;
 
   useEffect(() => {
     const initialize = async () => {

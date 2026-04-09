@@ -7,6 +7,7 @@ const ENGLISH_FLAG = new URL('../../../assets/flags/English.png', import.meta.ur
 const ARABIC_FLAG = new URL('../../../assets/flags/العربية.png', import.meta.url).href;
 const ITALIAN_FLAG = new URL('../../../assets/flags/Italiano.png', import.meta.url).href;
 const GERMAN_FLAG = new URL('../../../assets/flags/Deutsch.png', import.meta.url).href;
+const FRENCH_FLAG = new URL('../../../assets/flags/france.png', import.meta.url).href;
 
 interface LanguageScreenProps {
   onNext: () => void;
@@ -41,12 +42,17 @@ const LANGUAGE_OPTIONS: Array<{
     title: 'Deutsch',
     flagSrc: GERMAN_FLAG,
   },
+  {
+    id: 'fr',
+    title: 'Francais',
+    flagSrc: FRENCH_FLAG,
+  },
 ];
 
 export function LanguageScreen({ onNext, onDataChange, onboardingData }: LanguageScreenProps) {
   const initialLanguage = useMemo<AppLanguage>(() => {
     const saved = String(onboardingData?.language || '').trim().toLowerCase();
-    if (saved === 'ar' || saved === 'en' || saved === 'it' || saved === 'de') return saved;
+    if (saved === 'ar' || saved === 'en' || saved === 'it' || saved === 'de' || saved === 'fr') return saved;
     return getActiveLanguage() || getStoredLanguage();
   }, [onboardingData?.language]);
 
@@ -82,6 +88,13 @@ export function LanguageScreen({ onNext, onDataChange, onboardingData }: Languag
       greeting: 'Hallo',
       cta: 'Weiter',
     },
+    fr: {
+      title: 'Choisis ta langue',
+      subtitle: 'Tu pourras la changer plus tard dans les Parametres.',
+      welcome: 'Bienvenue !',
+      greeting: 'Salut',
+      cta: 'Continuer',
+    },
   });
 
   const handleSelect = (language: AppLanguage) => {
@@ -95,6 +108,7 @@ export function LanguageScreen({ onNext, onDataChange, onboardingData }: Languag
     ar: '\u0645\u062a\u0627\u0628\u0639\u0629',
     it: 'Continua',
     de: 'Weiter',
+    fr: 'Continuer',
   });
 
   return (

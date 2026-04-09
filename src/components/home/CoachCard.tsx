@@ -41,7 +41,7 @@ const COACH_CARD_I18N = {
 export function CoachCard({ onClick, coachmarkTargetId }: CoachCardProps) {
   const [unreadCount, setUnreadCount] = useState(0);
   const [language, setLanguage] = useState<AppLanguage>('en');
-  const copy = COACH_CARD_I18N[language] || COACH_CARD_I18N.en;
+  const copy = COACH_CARD_I18N[language as keyof typeof COACH_CARD_I18N] || COACH_CARD_I18N.en;
 
   useEffect(() => {
     setLanguage(getActiveLanguage());

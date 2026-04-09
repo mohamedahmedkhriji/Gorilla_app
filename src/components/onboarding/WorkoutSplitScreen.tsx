@@ -49,6 +49,14 @@ const COPY = {
     summary: (days: number, level: string, profile: string) =>
       `Basierend auf ${days} Trainingstag${days > 1 ? 'en' : ''}, Level ${level} und Profil ${profile} sind das deine besten Optionen.`,
   },
+  fr: {
+    title: 'Choisis ton type de programme',
+    customBadge: 'Creer + retour IA',
+    recommendedBadge: 'Recommande pour toi',
+    cta: 'Etape suivante',
+    summary: (days: number, level: string, profile: string) =>
+      `Avec ${days} jour${days > 1 ? 's' : ''} d entrainement, un niveau ${level} et un profil ${profile}, voici les options les plus adaptees.`,
+  },
 } as const;
 
 const toTrainingDays = (value: unknown) => {
@@ -70,6 +78,7 @@ const PROFILE_COPY = {
   ar: { male: '\u0630\u0643\u0631', female: '\u0623\u0646\u062b\u0649', unspecified: '\u0639\u0627\u0645' },
   it: { male: 'uomo', female: 'donna', unspecified: 'generale' },
   de: { male: 'Mann', female: 'Frau', unspecified: 'allgemein' },
+  fr: { male: 'homme', female: 'femme', unspecified: 'general' },
 } as const;
 
 export function WorkoutSplitScreen({
@@ -80,8 +89,8 @@ export function WorkoutSplitScreen({
   recommendedByDays,
 }: WorkoutSplitScreenProps) {
   const language = getOnboardingLanguage();
-  const copy = COPY[language] ?? COPY.en;
-  const profileCopy = PROFILE_COPY[language] ?? PROFILE_COPY.en;
+  const copy = COPY[language as keyof typeof COPY] ?? COPY.en;
+  const profileCopy = PROFILE_COPY[language as keyof typeof PROFILE_COPY] ?? PROFILE_COPY.en;
   const splitOptions = options?.length
     ? options
     : DEFAULT_ONBOARDING_CONFIG.options.workoutSplit;

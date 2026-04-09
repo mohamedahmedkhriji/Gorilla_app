@@ -373,7 +373,7 @@ const formatTimeAgo = (value: string, language: AppLanguage) => {
   if (!Number.isFinite(ts)) return '';
   const diffMs = Date.now() - ts;
   const diffMin = Math.floor(diffMs / (1000 * 60));
-  const copy = NOTIFICATIONS_I18N[language] || NOTIFICATIONS_I18N.en;
+  const copy = NOTIFICATIONS_I18N[language as keyof typeof NOTIFICATIONS_I18N] || NOTIFICATIONS_I18N.en;
   if (diffMin < 1) return copy.justNow;
   if (diffMin < 60) return `${diffMin}${copy.minutesAgo}`;
   const diffHr = Math.floor(diffMin / 60);
@@ -401,7 +401,7 @@ export function NotificationsScreen({ onBack, onOpenAcceptedChallenge }: Notific
   } | null>(null);
   const pendingFriendshipIdsRef = useRef<Set<number>>(new Set());
   const [language, setLanguage] = useState<AppLanguage>('en');
-  const copy = NOTIFICATIONS_I18N[language] || NOTIFICATIONS_I18N.en;
+  const copy = NOTIFICATIONS_I18N[language as keyof typeof NOTIFICATIONS_I18N] || NOTIFICATIONS_I18N.en;
   const copyWithFallbacks = copy as typeof copy & {
     failedAcceptChallengeInvite?: string;
     failedDeclineChallengeInvite?: string;
@@ -534,7 +534,7 @@ export function NotificationsScreen({ onBack, onOpenAcceptedChallenge }: Notific
   }, []);
 
   const fetchNotifications = useCallback(async () => {
-    const currentCopy = NOTIFICATIONS_I18N[language] || NOTIFICATIONS_I18N.en;
+    const currentCopy = NOTIFICATIONS_I18N[language as keyof typeof NOTIFICATIONS_I18N] || NOTIFICATIONS_I18N.en;
     if (!userId) {
       setError(currentCopy.noActiveSession);
       setLoading(false);

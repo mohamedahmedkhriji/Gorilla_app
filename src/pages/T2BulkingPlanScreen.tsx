@@ -4,7 +4,7 @@ import { Header } from '../components/ui/Header';
 import { Card } from '../components/ui/Card';
 import { getBodyPartImage } from '../services/bodyPartTheme';
 import { api } from '../services/api';
-import { AppLanguage, getActiveLanguage, getStoredLanguage } from '../services/language';
+import { AppLanguage, LocalizedLanguageRecord, getActiveLanguage, getStoredLanguage } from '../services/language';
 import { getStoredUserId } from '../shared/authStorage';
 import { recordBookApplied } from '../services/bookUsage';
 import { getAssignedBookPlan, getPlanSwitchPrompt } from '../services/bookPlanSelection';
@@ -51,7 +51,7 @@ type T2BulkingPremiumConfig = {
   recoveryMode: 'protect' | 'balanced' | 'performance';
 };
 
-const COPY: Record<AppLanguage, {
+const COPY: LocalizedLanguageRecord<{
   title: string;
   badge: string;
   summary: string;
@@ -254,7 +254,7 @@ const COPY: Record<AppLanguage, {
   },
 };
 
-const PREMIUM_UI_COPY: Record<AppLanguage, {
+const PREMIUM_UI_COPY: LocalizedLanguageRecord<{
   setupTitle: string;
   setupBody: string;
   surplusMode: string;
@@ -331,7 +331,7 @@ const PREMIUM_UI_COPY: Record<AppLanguage, {
   },
 };
 
-const T2_BULKING_CONTENT_COPY: Record<AppLanguage, Record<string, string>> = {
+const T2_BULKING_CONTENT_COPY: LocalizedLanguageRecord<Record<string, string>> = {
   en: {},
   ar: {
     '8 Weeks': '8 أسابيع',

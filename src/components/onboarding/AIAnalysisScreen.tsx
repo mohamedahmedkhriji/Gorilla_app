@@ -57,11 +57,22 @@ const COPY = {
     finalizing: 'Dein Plan wird finalisiert...',
     preparing: 'Das kann kurz dauern. Wir bereiten gerade alles fuer dich vor...',
   },
+  fr: {
+    title: 'Creation de ton planning quotidien...',
+    subtitle: 'Cela peut prendre un petit moment pendant que nous construisons ton programme personnalise.',
+    checkpoints: [
+      'Analyse de ton profil et de ton niveau d activite',
+      'Construction de ton planning d entrainement personnalise',
+      'Finalisation du programme et des objectifs de recuperation',
+    ],
+    finalizing: 'Finalisation de ton programme...',
+    preparing: 'Cela peut prendre un petit moment. Nous preparons tout pour toi...',
+  },
 } as const;
 
 export function AIAnalysisScreen({ onComplete, onboardingData, userId }: AIAnalysisScreenProps) {
   const language = getOnboardingLanguage();
-  const copy = COPY[language] ?? COPY.en;
+  const copy = COPY[language as keyof typeof COPY] ?? COPY.en;
   const checkpoints = copy.checkpoints;
   const [isGenerationDone, setIsGenerationDone] = useState(false);
   const [progress, setProgress] = useState(0);

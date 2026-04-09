@@ -62,7 +62,7 @@ export function BiWeeklyReport({ onBack }: BiWeeklyReportProps) {
   const [language, setLanguage] = useState<AppLanguage>('en');
   const [report, setReport] = useState<BiWeeklyReportData | null>(null);
   const [loading, setLoading] = useState(true);
-  const copy = BIWEEKLY_REPORT_I18N[language] || BIWEEKLY_REPORT_I18N.en;
+  const copy = BIWEEKLY_REPORT_I18N[language as keyof typeof BIWEEKLY_REPORT_I18N] || BIWEEKLY_REPORT_I18N.en;
 
   useEffect(() => {
     setLanguage(getActiveLanguage());

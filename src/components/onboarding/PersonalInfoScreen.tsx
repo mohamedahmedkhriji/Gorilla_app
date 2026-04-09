@@ -94,6 +94,26 @@ const COPY = {
     male: 'Mann',
     female: 'Frau',
   },
+  fr: {
+    title: 'Parle-nous de toi',
+    subtitle: 'Nous utilisons ces informations pour calibrer ton premier programme.',
+    age: 'Age',
+    gender: 'Genre',
+    height: 'Taille',
+    weight: 'Poids',
+    next: 'Etape suivante',
+    ageRequired: 'L age est obligatoire',
+    genderRequired: 'Le genre est obligatoire',
+    heightRequired: 'La taille est obligatoire',
+    weightRequired: 'Le poids est obligatoire',
+    heightMax: `La taille doit etre inferieure ou egale a ${MAX_BODY_METRIC} cm`,
+    weightMax: `Le poids doit etre inferieur ou egal a ${MAX_BODY_METRIC} kg`,
+    agePlaceholder: 'ex. 28',
+    heightPlaceholder: 'cm',
+    weightPlaceholder: 'kg',
+    male: 'Homme',
+    female: 'Femme',
+  },
 } as const;
 
 export function PersonalInfoScreen({
@@ -103,7 +123,7 @@ export function PersonalInfoScreen({
   genderOptions,
 }: PersonalInfoScreenProps) {
   const language = getOnboardingLanguage();
-  const copy = COPY[language] ?? COPY.en;
+  const copy = COPY[language as keyof typeof COPY] ?? COPY.en;
   const genderSelectOptions = genderOptions?.length
     ? genderOptions
     : DEFAULT_ONBOARDING_CONFIG.options.genders;

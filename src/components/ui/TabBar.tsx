@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Home, Activity, Dumbbell, User, Film } from 'lucide-react';
 import { motion } from 'framer-motion';
-import { AppLanguage, getActiveLanguage, getStoredLanguage } from '../../services/language';
+import { AppLanguage, LocalizedLanguageRecord, getActiveLanguage, getStoredLanguage } from '../../services/language';
 import { AppTheme, getActiveTheme, getStoredTheme } from '../../services/theme';
 
 interface TabBarProps {
@@ -9,7 +9,7 @@ interface TabBarProps {
   onTabChange: (tab: string) => void;
 }
 
-const TAB_LABELS: Record<AppLanguage, Record<string, string>> = {
+const TAB_LABELS: LocalizedLanguageRecord<Record<string, string>> = {
   en: {
     home: 'Home',
     workout: 'My Plan',

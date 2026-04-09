@@ -179,6 +179,7 @@ const getBiWeeklyReportLanguage = (req) => {
   if (/(^|,|\s)ar\b/.test(raw)) return 'ar';
   if (/(^|,|\s)it\b/.test(raw)) return 'it';
   if (/(^|,|\s)de\b/.test(raw)) return 'de';
+  if (/(^|,|\s)fr\b/.test(raw)) return 'fr';
   return 'en';
 };
 
@@ -192,6 +193,9 @@ const getBiWeeklyReportAiUnavailableLegacyNotice = (req) => {
   }
   if (language === 'de') {
     return 'KI ist im Moment nicht verfugbar. Stattdessen wird der Standardbericht angezeigt.';
+  }
+  if (language === 'fr') {
+    return 'L IA n est pas disponible pour le moment. Nous affichons le rapport standard a la place.';
   }
   return 'AI unavailable right now. Showing the standard report instead.';
 };
@@ -250,6 +254,8 @@ const maybeGenerateOpenAIBiWeeklyReport = async ({
               ? 'Write all user-facing text in Italian.'
               : language === 'de'
                 ? 'Write all user-facing text in German.'
+                : language === 'fr'
+                  ? 'Write all user-facing text in French.'
                 : 'Write all user-facing text in English.',
         ].join(' '),
       },
@@ -364,6 +370,8 @@ const maybeGenerateClaudeBiWeeklyReport = async ({
               ? 'Write all user-facing text in Italian.'
               : language === 'de'
                 ? 'Write all user-facing text in German.'
+                : language === 'fr'
+                  ? 'Write all user-facing text in French.'
                 : 'Write all user-facing text in English.',
         ].join(' '),
         messages: [
@@ -9017,6 +9025,8 @@ router.post('/user/onboarding', authMutationRateLimit, requireAuth('user'), asyn
           ? 'it'
           : requestedLanguage === 'de'
             ? 'de'
+            : requestedLanguage === 'fr'
+              ? 'fr'
           : 'en';
     const normalizedAthleteIdentity = normalizeAthleteIdentity(athleteIdentity || req.body.athlete_identity);
     const normalizedAthleteIdentityLabel = normalizeShortText(

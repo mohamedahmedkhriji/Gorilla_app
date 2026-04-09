@@ -85,6 +85,19 @@ const COPY = {
       Advanced: (name: string) => `3+ Jahre in ${name.toLowerCase()}`,
     },
   },
+  fr: {
+    title: 'Experience sportive',
+    subtitle: (specialty: string, sportName: string) =>
+      `Aide-nous a mieux comprendre ton point de depart${specialty ? ` pour ${specialty}` : ` en ${sportName}`}.`,
+    label: 'Niveau d experience',
+    cta: 'Etape suivante',
+    labels: { Beginner: 'Debutant', Intermediate: 'Intermediaire', Advanced: 'Avance' },
+    desc: {
+      Beginner: (name: string) => `Debutant en entrainement ${name.toLowerCase()}`,
+      Intermediate: (name: string) => `1-2 ans en ${name.toLowerCase()}`,
+      Advanced: (name: string) => `3+ ans en ${name.toLowerCase()}`,
+    },
+  },
 } as const;
 
 export function SportExperienceYearsScreen({
@@ -93,7 +106,7 @@ export function SportExperienceYearsScreen({
   onboardingData,
 }: SportExperienceYearsScreenProps) {
   const language = getOnboardingLanguage();
-  const copy = COPY[language] ?? COPY.en;
+  const copy = COPY[language as keyof typeof COPY] ?? COPY.en;
   const sportName = useMemo(
     () => normalizeAthleteName(onboardingData?.athleteIdentityLabel, onboardingData?.athleteIdentity),
     [onboardingData?.athleteIdentity, onboardingData?.athleteIdentityLabel],

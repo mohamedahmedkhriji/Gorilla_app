@@ -55,6 +55,17 @@ const COPY = {
       unsure: { name: 'Unsicher', desc: 'Lass RepSet AI deine Fotos analysieren.' },
     },
   },
+  fr: {
+    title: 'Type de corps',
+    subtitle: 'Cela aide RepSet a personnaliser ton entrainement et ta recuperation.',
+    cta: 'Etape suivante',
+    types: {
+      ectomorph: { name: 'Ectomorphe', desc: 'Silhouette fine. Plus difficile de prendre de la masse.' },
+      mesomorph: { name: 'Mesomorphe', desc: 'Naturellement muscle. Prend du muscle plus facilement.' },
+      endomorph: { name: 'Endomorphe', desc: 'Silhouette plus large. Prend du volume plus facilement.' },
+      unsure: { name: 'Je ne sais pas', desc: 'Laisse RepSet AI analyser tes photos.' },
+    },
+  },
 } as const;
 
 function Zap(props: any) {
@@ -82,7 +93,7 @@ export function BodyTypeSelectionScreen({
   onboardingData,
 }: BodyTypeSelectionScreenProps) {
   const language = getOnboardingLanguage();
-  const copy = COPY[language] ?? COPY.en;
+  const copy = COPY[language as keyof typeof COPY] ?? COPY.en;
   const initialBodyType = typeof onboardingData?.bodyType === 'string'
     ? onboardingData.bodyType.toLowerCase()
     : null;

@@ -138,7 +138,7 @@ const useLanguage = () => {
 
 export function T2PostWorkoutCheckInCard({ summary, userId, onSaved }: T2PostWorkoutCheckInCardProps) {
   const language = useLanguage();
-  const copy = COPY[language] || COPY.en;
+  const copy = COPY[language as keyof typeof COPY] || COPY.en;
   const isArabic = language === 'ar';
   const summaryDate = String(summary.summaryDate || new Date().toISOString().slice(0, 10)).trim();
 

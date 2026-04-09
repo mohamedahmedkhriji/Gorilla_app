@@ -653,7 +653,7 @@ export function Blogs({
   const showWomenFilter = isFemaleGender(userGender);
   const canCreateWomenOnlyPost = showWomenFilter;
   const [language, setLanguage] = useState<AppLanguage>('en');
-  const copy = BLOGS_I18N[language] || BLOGS_I18N.en;
+  const copy = BLOGS_I18N[language as keyof typeof BLOGS_I18N] || BLOGS_I18N.en;
   const isArabic = language === 'ar';
   const [posts, setPosts] = useState<Post[]>([]);
   const [loading, setLoading] = useState(true);

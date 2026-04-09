@@ -1,4 +1,4 @@
-import { AppLanguage, repairMojibakeText } from './language';
+import { AppLanguage, LocalizedLanguageRecord, repairMojibakeText } from './language';
 
 const normalizeText = (value: unknown) => String(value || '').trim().toLowerCase();
 
@@ -11,7 +11,7 @@ const replaceByMap = (value: string, replacements: Array<[string, string]>) =>
     value,
   );
 
-const CUSTOM_PLAN_NAME_BY_LANGUAGE: Record<AppLanguage, string> = {
+const CUSTOM_PLAN_NAME_BY_LANGUAGE: LocalizedLanguageRecord<string> = {
   en: 'My Custom Plan',
   ar: 'خطتي المخصصة',
   it: 'Piano personalizzato',

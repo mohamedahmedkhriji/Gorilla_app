@@ -4,7 +4,7 @@ import { api } from '../../services/api';
 import { Bookmark, CalendarX2, Check, Plus, Play, Search, Square, TriangleAlert, X } from 'lucide-react';
 import { getBodyPartImage } from '../../services/bodyPartTheme';
 import { resolveExerciseVideo } from '../../services/exerciseVideos';
-import { AppLanguage, getActiveLanguage, getStoredLanguage } from '../../services/language';
+import { AppLanguage, LocalizedLanguageRecord, getActiveLanguage, getStoredLanguage } from '../../services/language';
 import { formatWorkoutDayLabel, normalizeWorkoutDayKey } from '../../services/workoutDayLabel';
 import { stripExercisePrefix } from '../../services/exerciseName';
 import { translateProgramText } from '../../services/programI18n';
@@ -414,7 +414,7 @@ const CARDIO_PLAN_I18N = {
   },
 } as const;
 
-const LOCALIZED_WORKOUT_PLAN_I18N: Record<AppLanguage, typeof WORKOUT_PLAN_I18N.en> = {
+const LOCALIZED_WORKOUT_PLAN_I18N: LocalizedLanguageRecord<typeof WORKOUT_PLAN_I18N.en> = {
   en: WORKOUT_PLAN_I18N.en,
   ar: WORKOUT_PLAN_I18N.ar,
   it: {
@@ -543,7 +543,7 @@ const LOCALIZED_WORKOUT_PLAN_I18N: Record<AppLanguage, typeof WORKOUT_PLAN_I18N.
   },
 };
 
-const LOCALIZED_CARDIO_PLAN_I18N: Record<AppLanguage, typeof CARDIO_PLAN_I18N.en> = {
+const LOCALIZED_CARDIO_PLAN_I18N: LocalizedLanguageRecord<typeof CARDIO_PLAN_I18N.en> = {
   en: CARDIO_PLAN_I18N.en,
   ar: CARDIO_PLAN_I18N.ar,
   it: {

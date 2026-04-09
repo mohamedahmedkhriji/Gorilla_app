@@ -71,11 +71,26 @@ const COPY = {
     privacy: 'Fotos sind verschluesselt und privat',
     cta: 'Fotos analysieren',
   },
+  fr: {
+    title: 'Analyse du corps',
+    subtitle: 'Ajoute des photos pour une analyse IA de la composition corporelle.',
+    note: 'Note : importer des images ici n est pas obligatoire. Cela aide simplement notre IA a mieux analyser ton corps.',
+    front: 'Face',
+    side: 'Profil',
+    back: 'Dos',
+    guidelines: 'Consignes',
+    guide1: 'Porte des vetements pres du corps ou un maillot',
+    guide2: 'Assure-toi d avoir une bonne lumiere',
+    guide3: 'Tiens-toi droit avec les bras legerement ecartes du corps',
+    guide4: 'Le visage n est pas necessaire',
+    privacy: 'Les photos sont chiffrees et privees',
+    cta: 'Analyser les photos',
+  },
 } as const;
 
 export function BodyImageUploadScreen({ onNext, onDataChange, onboardingData }: BodyImageUploadScreenProps) {
   const language = getOnboardingLanguage();
-  const copy = COPY[language] ?? COPY.en;
+  const copy = COPY[language as keyof typeof COPY] ?? COPY.en;
   const [images, setImages] = React.useState<string[]>(
     Array.isArray(onboardingData?.bodyImages)
       ? onboardingData.bodyImages.map((entry: unknown) => String(entry || '')).filter(Boolean)

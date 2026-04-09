@@ -216,7 +216,7 @@ const resolveUserId = () => {
 };
 
 const formatRelativeDay = (value: string | null, language: AppLanguage) => {
-  const copy = MY_POSTS_I18N[language] || MY_POSTS_I18N.en;
+  const copy = MY_POSTS_I18N[language as keyof typeof MY_POSTS_I18N] || MY_POSTS_I18N.en;
   if (!value) return copy.recently;
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return copy.recently;
@@ -238,7 +238,7 @@ interface MyPostsScreenProps {
 export function MyPostsScreen({ onBack }: MyPostsScreenProps) {
   const userId = useMemo(() => resolveUserId(), []);
   const [language, setLanguage] = useState<AppLanguage>('en');
-  const copy = MY_POSTS_I18N[language] || MY_POSTS_I18N.en;
+  const copy = MY_POSTS_I18N[language as keyof typeof MY_POSTS_I18N] || MY_POSTS_I18N.en;
 
   const [posts, setPosts] = useState<BlogPost[]>([]);
   const [loading, setLoading] = useState(true);

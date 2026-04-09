@@ -49,6 +49,14 @@ const COPY = {
     time: 'Bevorzugte Zeit',
     cta: 'Naechster Schritt',
   },
+  fr: {
+    title: 'Disponibilite',
+    subtitle: 'Combien de fois peux-tu t entrainer ?',
+    days: 'Jours par semaine',
+    duration: 'Duree de la seance',
+    time: 'Moment prefere',
+    cta: 'Etape suivante',
+  },
 } as const;
 
 export function GoalsAvailabilityScreen({
@@ -60,7 +68,7 @@ export function GoalsAvailabilityScreen({
   workoutDaysRange,
 }: GoalsAvailabilityScreenProps) {
   const language = getOnboardingLanguage();
-  const copy = COPY[language] ?? COPY.en;
+  const copy = COPY[language as keyof typeof COPY] ?? COPY.en;
   const durationOptions = sessionDurationOptions?.length
     ? sessionDurationOptions
     : DEFAULT_ONBOARDING_CONFIG.options.sessionDurations;

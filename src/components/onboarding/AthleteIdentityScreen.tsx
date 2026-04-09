@@ -112,6 +112,16 @@ export function AthleteIdentityScreen({
             chooseUpTo: 'Waehle bis zu',
             cta: 'Weiter',
           }
+        : language === 'fr'
+          ? {
+              title: 'PROFIL',
+              subtitle: 'Choisis un profil et un objectif specifique.',
+              fitnessSection: 'FITNESS / PHYSIQUE',
+              athleteSection: 'SPORTS ATHLETIQUES',
+              subCategories: 'Sous-categories',
+              chooseUpTo: 'Choisis jusqu a',
+              cta: 'Continuer',
+            }
         : {
             title: 'I AM',
             subtitle: 'Choose one profile and one specific goal.',

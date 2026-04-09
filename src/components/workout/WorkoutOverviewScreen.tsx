@@ -3,7 +3,7 @@ import { Dumbbell } from 'lucide-react';
 import { Header } from '../ui/Header';
 import { AgendaSection } from '../home/AgendaSection';
 import { getBodyPartImage } from '../../services/bodyPartTheme';
-import { AppLanguage, getActiveLanguage, getStoredLanguage, normalizeLocalizedValue } from '../../services/language';
+import { AppLanguage, LocalizedLanguageRecord, getActiveLanguage, getStoredLanguage, normalizeLocalizedValue } from '../../services/language';
 import type { WorkoutAssignmentHistoryEntry } from '../../services/todayWorkoutSelection';
 import { formatWorkoutDayLabel } from '../../services/workoutDayLabel';
 import {
@@ -182,7 +182,7 @@ const COPY = {
   },
 } as const;
 
-const LOCALIZED_COPY: Record<AppLanguage, typeof COPY.en> = {
+const LOCALIZED_COPY: LocalizedLanguageRecord<typeof COPY.en> = {
   en: COPY.en,
   ar: {
     title: 'خطتي',
@@ -276,7 +276,7 @@ const LOCALIZED_COPY: Record<AppLanguage, typeof COPY.en> = {
   },
 };
 
-const PREMIUM_CARD_SURFACE_LABELS: Record<AppLanguage, {
+const PREMIUM_CARD_SURFACE_LABELS: LocalizedLanguageRecord<{
   cardio: string;
   target: string;
   flow: string;
@@ -308,7 +308,7 @@ const PREMIUM_CARD_SURFACE_LABELS: Record<AppLanguage, {
   },
 };
 
-const MUSCLE_LABELS: Record<AppLanguage, Record<string, string>> = {
+const MUSCLE_LABELS: LocalizedLanguageRecord<Record<string, string>> = {
   en: {},
   ar: {
     chest: 'الصدر',

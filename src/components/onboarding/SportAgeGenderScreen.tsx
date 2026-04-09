@@ -89,6 +89,24 @@ const COPY = {
     male: 'Mann',
     female: 'Frau',
   },
+  fr: {
+    title: 'Parle-nous de toi',
+    subtitle: 'Nous utilisons ces informations pour ajuster ton programme de depart.',
+    age: 'Age',
+    gender: 'Genre',
+    height: 'Taille',
+    weight: 'Poids',
+    next: 'Etape suivante',
+    ageRequired: 'L age est obligatoire',
+    genderRequired: 'Le genre est obligatoire',
+    heightRequired: 'La taille est obligatoire',
+    weightRequired: 'Le poids est obligatoire',
+    agePlaceholder: 'ex. 28',
+    heightPlaceholder: 'cm',
+    weightPlaceholder: 'kg',
+    male: 'Homme',
+    female: 'Femme',
+  },
 } as const;
 
 export function SportAgeGenderScreen({
@@ -98,7 +116,7 @@ export function SportAgeGenderScreen({
   genderOptions,
 }: SportAgeGenderScreenProps) {
   const language = getOnboardingLanguage();
-  const copy = COPY[language] ?? COPY.en;
+  const copy = COPY[language as keyof typeof COPY] ?? COPY.en;
   const genderSelectOptions = genderOptions?.length
     ? genderOptions
     : DEFAULT_ONBOARDING_CONFIG.options.genders;

@@ -4,7 +4,7 @@ import { Header } from '../components/ui/Header';
 import { Card } from '../components/ui/Card';
 import { getBodyPartImage } from '../services/bodyPartTheme';
 import { api } from '../services/api';
-import { AppLanguage, getActiveLanguage, getStoredLanguage } from '../services/language';
+import { AppLanguage, LocalizedLanguageRecord, getActiveLanguage, getStoredLanguage } from '../services/language';
 import { recordBookApplied } from '../services/bookUsage';
 import { getAssignedBookPlan, getPlanSwitchPrompt } from '../services/bookPlanSelection';
 import { DEFAULT_T2_PREMIUM_CONFIG, getActiveT2PremiumConfig, T2PremiumConfig } from '../services/premiumPlan';
@@ -46,7 +46,7 @@ type Row = {
   action: string;
 };
 
-const COPY: Record<AppLanguage, {
+const COPY: LocalizedLanguageRecord<{
   title: string;
   badge: string;
   summary: string;
@@ -207,7 +207,7 @@ const COPY: Record<AppLanguage, {
   },
 };
 
-const PREMIUM_UI_COPY: Record<AppLanguage, {
+const PREMIUM_UI_COPY: LocalizedLanguageRecord<{
   setupTitle: string;
   setupBody: string;
   cutIntensity: string;
@@ -284,7 +284,7 @@ const PREMIUM_UI_COPY: Record<AppLanguage, {
   },
 };
 
-const T2_CONTENT_COPY: Record<AppLanguage, Record<string, string>> = {
+const T2_CONTENT_COPY: LocalizedLanguageRecord<Record<string, string>> = {
   en: {},
   ar: {
     '8 Weeks': '8 أسابيع',

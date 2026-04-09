@@ -5,7 +5,7 @@ import { Card } from '../components/ui/Card';
 import { Tank1PlanScreen } from './Tank1PlanScreen';
 import { T2PlanScreen } from './T2PlanScreen';
 import { T2BulkingPlanScreen } from './T2BulkingPlanScreen';
-import { AppLanguage, getActiveLanguage } from '../services/language';
+import { AppLanguage, LocalizedLanguageRecord, getActiveLanguage } from '../services/language';
 import { BOOK_USAGE_UPDATED_EVENT, readBookUsage, type BookUsageMap } from '../services/bookUsage';
 import { getAssignedBookPlan } from '../services/bookPlanSelection';
 import { useScrollToTopOnChange } from '../shared/scroll';
@@ -37,7 +37,7 @@ type BooksLibraryCopy = {
   t2BulkDescription: string;
 };
 
-const BOOKS_LIBRARY_I18N: Record<AppLanguage, BooksLibraryCopy> = {
+const BOOKS_LIBRARY_I18N: LocalizedLanguageRecord<BooksLibraryCopy> = {
   en: {
     title: 'Plans',
     intro: 'Open your RepSet plan templates and review the full structure before applying one.',

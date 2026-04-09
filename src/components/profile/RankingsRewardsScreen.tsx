@@ -6,7 +6,7 @@ import { LeaderboardScreen } from './LeaderboardScreen';
 import { api } from '../../services/api';
 import { offlineCacheKeys, readOfflineCacheValue } from '../../services/offlineCache';
 import { getRankBadgeImage } from '../../services/rankTheme';
-import { AppLanguage, getActiveLanguage, getLanguageLocale, pickLanguage } from '../../services/language';
+import { AppLanguage, LocalizedLanguageRecord, getActiveLanguage, getLanguageLocale, pickLanguage } from '../../services/language';
 import {
   emojiChallenges,
   emojiDone,
@@ -57,7 +57,7 @@ type Summary = {
 
 const NEW_ITEM_WINDOW_MS = 24 * 60 * 60 * 1000;
 
-const RANK_NAME_MAP: Record<AppLanguage, Record<string, string>> = {
+const RANK_NAME_MAP: LocalizedLanguageRecord<Record<string, string>> = {
   en: {
     bronze: 'Bronze',
     silver: 'Silver',
@@ -92,7 +92,7 @@ const RANK_NAME_MAP: Record<AppLanguage, Record<string, string>> = {
   },
 };
 
-const TITLE_TRANSLATIONS: Record<string, Record<AppLanguage, string>> = {
+const TITLE_TRANSLATIONS: Record<string, LocalizedLanguageRecord<string>> = {
   'consistency king': { en: 'Consistency King', ar: 'ملك الالتزام', it: 'Re della Costanza', de: 'Koenig der Konstanz' },
   'workout machine': { en: 'Workout Machine', ar: 'آلة التمرين', it: 'Macchina da Allenamento', de: 'Workout-Maschine' },
   'getting started': { en: 'Getting Started', ar: 'البداية', it: 'Per Iniziare', de: 'Erste Schritte' },
@@ -106,7 +106,7 @@ const TITLE_TRANSLATIONS: Record<string, Record<AppLanguage, string>> = {
   'weekly recovery discipline': { en: 'Weekly Recovery Discipline', ar: 'انضباط التعافي الأسبوعي', it: 'Disciplina Recupero Settimanale', de: 'Woechentliche Erholungs-Disziplin' },
 };
 
-const DESCRIPTION_TRANSLATIONS: Record<string, Record<AppLanguage, string>> = {
+const DESCRIPTION_TRANSLATIONS: Record<string, LocalizedLanguageRecord<string>> = {
   'train for 30 days': { en: 'Train for 30 days', ar: 'تمرّن لمدة 30 يومًا', it: 'Allenati per 30 giorni', de: 'Trainiere 30 Tage lang' },
   'complete 20 workouts': { en: 'Complete 20 workouts', ar: 'أكمل 20 تمرينًا', it: 'Completa 20 allenamenti', de: 'Schliesse 20 Workouts ab' },
   'complete 10 workouts': { en: 'Complete 10 workouts', ar: 'أكمل 10 تمارين', it: 'Completa 10 allenamenti', de: 'Schliesse 10 Workouts ab' },
@@ -266,7 +266,7 @@ export function RankingsRewardsScreen({ onBack }: RankingsRewardsScreenProps) {
     },
   });
 
-  const translateText = (value: string, map: Record<string, Record<AppLanguage, string>>) => {
+  const translateText = (value: string, map: Record<string, LocalizedLanguageRecord<string>>) => {
     const key = value.trim().toLowerCase();
     return map[key]?.[language] || value;
   };
@@ -374,9 +374,9 @@ export function RankingsRewardsScreen({ onBack }: RankingsRewardsScreenProps) {
 
   const rankBadgeImage = getRankBadgeImage(summary.rank);
   const rankKey = String(summary.rank || '').trim().toLowerCase();
-  const rankNameDisplay = RANK_NAME_MAP[language][rankKey] || summary.rank;
+  const rankNameDisplay = RANK_NAME_MAP[language]?.[rankKey] || RANK_NAME_MAP.en?.[rankKey] || summary.rank;
   const nextRankKey = String(summary.nextRank?.name || '').trim().toLowerCase();
-  const nextRankName = summary.nextRank ? (RANK_NAME_MAP[language][nextRankKey] || summary.nextRank.name) : '';
+  const nextRankName = summary.nextRank ? (RANK_NAME_MAP[language]?.[nextRankKey] || RANK_NAME_MAP.en?.[nextRankKey] || summary.nextRank.name) : '';
   const nextRankText = summary.nextRank ? copy.nextRank(nextRankName, summary.nextRank.pointsNeeded) : copy.topRank;
 
   const missionHistoryByPeriod = useMemo(

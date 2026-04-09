@@ -4,7 +4,7 @@ import { ArrowLeft, Play } from 'lucide-react';
 import { getBodyPartImage } from '../../services/bodyPartTheme';
 import { api } from '../../services/api';
 import { resolveExerciseVideoUrl } from '../../services/exerciseVideos';
-import { AppLanguage, getActiveLanguage, getStoredLanguage } from '../../services/language';
+import { AppLanguage, LocalizedLanguageRecord, getActiveLanguage, getStoredLanguage } from '../../services/language';
 import { stripExercisePrefix } from '../../services/exerciseName';
 import { playMediaSafely } from '../../shared/mediaPlayback';
 import { useScreenshotProtection } from '../../shared/useScreenshotProtection';
@@ -238,7 +238,7 @@ const MUSCLE_BAR_COLORS = [
   'bg-emerald-500',
 ];
 
-const EXERCISE_VIDEO_I18N: Record<AppLanguage, {
+const EXERCISE_VIDEO_I18N: LocalizedLanguageRecord<{
   muscleDistributionTitle: string;
   primaryTargetsTitle: string;
   secondaryTargetsTitle: string;

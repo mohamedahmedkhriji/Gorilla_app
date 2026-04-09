@@ -32,6 +32,11 @@ const COPY = {
     subtitle: 'Waehle den Hauptgrund, damit wir dein Onboarding und deinen ersten Plan anpassen koennen.',
     cta: 'Weiter',
   },
+  fr: {
+    title: 'Qu est-ce qui t amene sur RepSet ?',
+    subtitle: 'Choisis la raison principale pour que nous adaptions ton onboarding et ton premier programme.',
+    cta: 'Continuer',
+  },
 } as const;
 
 export function AppMotivationScreen({
@@ -41,7 +46,7 @@ export function AppMotivationScreen({
   options,
 }: AppMotivationScreenProps) {
   const language = getOnboardingLanguage();
-  const copy = COPY[language] ?? COPY.en;
+  const copy = COPY[language as keyof typeof COPY] ?? COPY.en;
   const motivationOptions = options?.length
     ? options
     : DEFAULT_ONBOARDING_CONFIG.options.appMotivation;

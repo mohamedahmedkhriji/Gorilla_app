@@ -594,6 +594,8 @@ const buildUserPrompt = (profile, imageCount) => {
         ? 'Italian'
         : preferredLanguageCode === 'de'
           ? 'German'
+          : preferredLanguageCode === 'fr'
+            ? 'French'
         : 'English';
   const exerciseAnchors = normalizeExerciseAnchors(profile?.exerciseAnchors);
   const onboardingFields = profile?.onboardingFields && typeof profile.onboardingFields === 'object'

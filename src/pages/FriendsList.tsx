@@ -292,7 +292,7 @@ export function FriendsList({ onBack, onFriendClick }: FriendsListProps) {
   const hasLoadedMembersRef = useRef(false);
   const [avatarPreview, setAvatarPreview] = useState<{ src: string; name: string } | null>(null);
   const [language, setLanguage] = useState<AppLanguage>('en');
-  const copy = FRIENDS_LIST_I18N[language] || FRIENDS_LIST_I18N.en;
+  const copy = FRIENDS_LIST_I18N[language as keyof typeof FRIENDS_LIST_I18N] || FRIENDS_LIST_I18N.en;
 
   useEffect(() => {
     setLanguage(getActiveLanguage());

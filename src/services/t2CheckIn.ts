@@ -94,7 +94,7 @@ const COPY = {
   },
 } as const;
 
-const getCopy = (language: AppLanguage) => COPY[language] || COPY.en;
+const getCopy = (language: AppLanguage) => COPY[language as keyof typeof COPY] || COPY.en;
 
 const normalizeWorkoutKey = (summaryDate: string, workoutName: string) =>
   `${String(summaryDate || '').trim()}::${String(workoutName || '').trim().toLowerCase()}`;

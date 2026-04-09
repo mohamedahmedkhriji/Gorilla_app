@@ -203,7 +203,7 @@ export function ProfileScreen({ onNavigate, onLogout }: ProfileScreenProps) {
   const [language, setLanguage] = useState<AppLanguage>('en');
   const avatarInputRef = useRef<HTMLInputElement | null>(null);
   const createdAt = user?.created_at || user?.createdAt;
-  const copy = PROFILE_I18N[language] || PROFILE_I18N.en;
+  const copy = PROFILE_I18N[language as keyof typeof PROFILE_I18N] || PROFILE_I18N.en;
 
   const isValidImageDataUrl = (value: string | null | undefined) =>
     typeof value === 'string' && value.startsWith('data:image/') && value.includes(';base64,');

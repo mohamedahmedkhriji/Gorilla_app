@@ -41,11 +41,18 @@ const COPY = {
     placeholder: 'Dein Name',
     cta: 'Weiter',
   },
+  fr: {
+    intro: 'Commencons !',
+    title: 'Comment veux-tu que nous t appelions ?',
+    label: 'Prenom',
+    placeholder: 'Ton prenom',
+    cta: 'Suivant',
+  },
 } as const;
 
 export function FirstNameScreen({ onNext, onDataChange, onboardingData }: FirstNameScreenProps) {
   const language = getOnboardingLanguage();
-  const copy = COPY[language] ?? COPY.en;
+  const copy = COPY[language as keyof typeof COPY] ?? COPY.en;
   const [firstName, setFirstName] = useState(
     String(onboardingData?.firstName || onboardingData?.name || '').trim(),
   );

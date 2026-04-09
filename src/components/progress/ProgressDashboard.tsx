@@ -345,7 +345,7 @@ export function ProgressDashboard({ onViewReport, onViewStrengthScore }: Progres
   const [showPageInfo, setShowPageInfo] = useState(false);
   const [language, setLanguage] = useState<AppLanguage>('en');
   const [activeProgramData, setActiveProgramData] = useState<any>(null);
-  const copy = PROGRESS_DASHBOARD_I18N[language] || PROGRESS_DASHBOARD_I18N.en;
+  const copy = PROGRESS_DASHBOARD_I18N[language as keyof typeof PROGRESS_DASHBOARD_I18N] || PROGRESS_DASHBOARD_I18N.en;
 
   useEffect(() => {
     setLanguage(getActiveLanguage());
