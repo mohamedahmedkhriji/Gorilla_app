@@ -95,9 +95,9 @@ const CHALLENGE_ROUND_TIE_POINTS = 5;
 
 const PROFILE_CHALLENGE_CARD_KEYS = [
   'push_until_failure',
-  'plank_survivor',
-  'rep_madness',
-  'volume_destroyer',
+  'deadlift_monster',
+  'bench_press_king',
+  'squat_titan',
 ] as const;
 
 const CHALLENGE_CARDS = PROFILE_CHALLENGE_CARD_KEYS

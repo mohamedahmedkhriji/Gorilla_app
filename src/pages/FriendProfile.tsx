@@ -112,9 +112,9 @@ type FriendChallengeWinStats = Record<ChallengeBadgeKey, number>;
 
 const PROFILE_CHALLENGE_BADGE_KEYS = [
   'push_until_failure',
-  'plank_survivor',
-  'rep_madness',
-  'volume_destroyer',
+  'deadlift_monster',
+  'bench_press_king',
+  'squat_titan',
 ] satisfies ChallengeBadgeKey[];
 
 type FriendProfileCopy = {
@@ -465,6 +465,7 @@ const CHALLENGE_BADGE_ITEMS = PROFILE_CHALLENGE_BADGE_KEYS.map((key) => {
   return {
     key,
     title: definition?.title || key,
+    image: definition?.image || '',
     accentClassName: definition?.accentClassName || 'from-white/10 via-white/5 to-transparent',
   };
 });
@@ -1432,12 +1433,6 @@ export function FriendProfile({ onBack, onChallenge, friend }: FriendProfileProp
               {CHALLENGE_BADGE_ITEMS.map((badge) => {
                 const winCount = friendChallengeWins[badge.key];
                 const isUnlocked = winCount > 0;
-                const badgeInitials = badge.title
-                  .split(/\s+/)
-                  .filter(Boolean)
-                  .slice(0, 2)
-                  .map((part) => part.charAt(0).toUpperCase())
-                  .join('');
 
                 return (
                   <div
@@ -1450,12 +1445,25 @@ export function FriendProfile({ onBack, onChallenge, friend }: FriendProfileProp
                       }`}
                     >
                       <div className={`absolute inset-0 bg-gradient-to-br ${badge.accentClassName} ${isUnlocked ? 'opacity-100' : 'opacity-45'}`} />
-                      <span
-                        aria-label={getLocalizedBadgeAlt(language, badge.key)}
-                        className={`relative text-sm font-black tracking-[0.12em] ${isUnlocked ? 'text-white' : 'text-text-secondary'}`}
-                      >
-                        {badgeInitials}
-                      </span>
+                      {badge.image ? (
+                        <img
+                          src={badge.image}
+                          alt={getLocalizedBadgeAlt(language, badge.key)}
+                          className={`relative h-full w-full object-cover ${isUnlocked ? '' : 'opacity-60 grayscale'}`}
+                        />
+                      ) : (
+                        <span
+                          aria-label={getLocalizedBadgeAlt(language, badge.key)}
+                          className={`relative text-sm font-black tracking-[0.12em] ${isUnlocked ? 'text-white' : 'text-text-secondary'}`}
+                        >
+                          {badge.title
+                            .split(/\s+/)
+                            .filter(Boolean)
+                            .slice(0, 2)
+                            .map((part) => part.charAt(0).toUpperCase())
+                            .join('')}
+                        </span>
+                      )}
                     </div>
                     <div className={`text-sm font-black ${isUnlocked ? 'text-accent' : 'text-text-tertiary'}`}>
                       {winCount}
