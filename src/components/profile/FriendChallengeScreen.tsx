@@ -14,7 +14,6 @@ import {
   FriendChallengeDefinition,
   getFriendChallengeByCardId,
   getFriendChallengeByKey,
-  getVisibleFriendChallengeCards,
   isStrengthFriendChallenge,
   toFriendChallengeCardId,
   toFriendChallengeKey,
@@ -94,7 +93,16 @@ type FriendChallengeSession = {
 const CHALLENGE_ROUND_WIN_POINTS = 10;
 const CHALLENGE_ROUND_TIE_POINTS = 5;
 
-const CHALLENGE_CARDS = getVisibleFriendChallengeCards();
+const PROFILE_CHALLENGE_CARD_KEYS = [
+  'push_until_failure',
+  'plank_survivor',
+  'rep_madness',
+  'volume_destroyer',
+] as const;
+
+const CHALLENGE_CARDS = PROFILE_CHALLENGE_CARD_KEYS
+  .map((key) => getFriendChallengeByKey(key))
+  .filter((card): card is FriendChallengeDefinition => Boolean(card));
 
 const createPushUpRound = (number: number): PushUpRound => ({
   number,

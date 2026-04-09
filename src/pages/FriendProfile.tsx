@@ -110,6 +110,13 @@ type ChallengeBadgeKey = typeof FRIEND_CHALLENGE_BADGE_KEYS[number];
 
 type FriendChallengeWinStats = Record<ChallengeBadgeKey, number>;
 
+const PROFILE_CHALLENGE_BADGE_KEYS = [
+  'push_until_failure',
+  'plank_survivor',
+  'rep_madness',
+  'volume_destroyer',
+] satisfies ChallengeBadgeKey[];
+
 type FriendProfileCopy = {
   profileTitle: string;
   planTitle: string;
@@ -448,12 +455,12 @@ const MUSCLE_NAME_MAP: Record<AppLanguage, Record<string, string>> = {
 };
 
 const createEmptyChallengeWinStats = (): FriendChallengeWinStats =>
-  FRIEND_CHALLENGE_BADGE_KEYS.reduce((totals, key) => {
+  PROFILE_CHALLENGE_BADGE_KEYS.reduce((totals, key) => {
     totals[key] = 0;
     return totals;
   }, {} as FriendChallengeWinStats);
 
-const CHALLENGE_BADGE_ITEMS = FRIEND_CHALLENGE_BADGE_KEYS.map((key) => {
+const CHALLENGE_BADGE_ITEMS = PROFILE_CHALLENGE_BADGE_KEYS.map((key) => {
   const definition = getFriendChallengeByKey(key);
   return {
     key,
@@ -1082,7 +1089,7 @@ export function FriendProfile({ onBack, onChallenge, friend }: FriendProfileProp
           : {};
 
         setFriendChallengeWins(
-          FRIEND_CHALLENGE_BADGE_KEYS.reduce((totals, key) => {
+          PROFILE_CHALLENGE_BADGE_KEYS.reduce((totals, key) => {
             totals[key] = Math.max(0, Number.parseInt(String(rawStats[key] ?? 0), 10) || 0);
             return totals;
           }, createEmptyChallengeWinStats()),
