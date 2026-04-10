@@ -2818,6 +2818,25 @@ const getMetricValue = (metrics, metricKey) => {
   return Math.max(0, Number(metrics?.[key] || 0));
 };
 
+const safeFetchCount = async (sql, params = []) => {
+  try {
+    const [rows] = await pool.execute(sql, params);
+    return Math.max(0, Number(rows[0]?.c || 0));
+  } catch {
+    return 0;
+  }
+};
+
+const safeFetchRows = async (sql, params = []) => {
+  try {
+    const [rows] = await pool.execute(sql, params);
+    return Array.isArray(rows) ? rows : [];
+  } catch {
+    return [];
+  }
+};
+
+const DAILY_ACTIVE_MISSION_TARGET = 4;
 const WEEKLY_ACTIVE_MISSION_TARGET = 5;
 const MONTHLY_ACTIVE_MISSION_TARGET = 1;
 
@@ -2830,6 +2849,97 @@ const LEGACY_GAMIFICATION_MISSION_TITLES = [
   'Streak Starter',
   'Streak Warrior',
   'Consistency King',
+];
+
+const MICRO_CHALLENGE_MISSION_SEEDS = [
+  {
+    title: 'Coach Check-In',
+    description: 'Send one real message to your coach today.',
+    missionType: 'daily',
+    category: 'coach',
+    metricKey: 'coach_messages_sent_today',
+    targetValue: 1,
+    pointsReward: 5,
+    xpReward: 5,
+    badgeIcon: 'message-circle',
+  },
+  {
+    title: 'Recovery Check',
+    description: 'Log today\'s recovery status to keep your plan adaptive.',
+    missionType: 'daily',
+    category: 'recovery',
+    metricKey: 'recovery_logs_today',
+    targetValue: 1,
+    pointsReward: 4,
+    xpReward: 4,
+    badgeIcon: 'heart-pulse',
+  },
+  {
+    title: 'Feed Scout',
+    description: 'View 3 posts in the community feed today.',
+    missionType: 'daily',
+    category: 'social',
+    metricKey: 'blog_post_views_today',
+    targetValue: 3,
+    pointsReward: 4,
+    xpReward: 4,
+    badgeIcon: 'eye',
+  },
+  {
+    title: 'Show Some Love',
+    description: 'Like 2 different posts today.',
+    missionType: 'daily',
+    category: 'social',
+    metricKey: 'blog_post_likes_today',
+    targetValue: 2,
+    pointsReward: 5,
+    xpReward: 5,
+    badgeIcon: 'heart',
+  },
+  {
+    title: 'Start a Conversation',
+    description: 'Comment on 1 post in the community feed today.',
+    missionType: 'daily',
+    category: 'social',
+    metricKey: 'blog_post_comments_today',
+    targetValue: 1,
+    pointsReward: 6,
+    xpReward: 6,
+    badgeIcon: 'message-square',
+  },
+  {
+    title: 'First Lift Logged',
+    description: 'Log at least 1 exercise today.',
+    missionType: 'daily',
+    category: 'training',
+    metricKey: 'logged_exercises_today',
+    targetValue: 1,
+    pointsReward: 6,
+    xpReward: 6,
+    badgeIcon: 'dumbbell',
+  },
+  {
+    title: 'Send a Challenge',
+    description: 'Send 1 friend challenge today.',
+    missionType: 'daily',
+    category: 'challenge',
+    metricKey: 'friend_challenges_sent_today',
+    targetValue: 1,
+    pointsReward: 5,
+    xpReward: 5,
+    badgeIcon: 'swords',
+  },
+  {
+    title: 'Accept the Challenge',
+    description: 'Accept 1 incoming friend challenge today.',
+    missionType: 'daily',
+    category: 'challenge',
+    metricKey: 'friend_challenges_accepted_today',
+    targetValue: 1,
+    pointsReward: 5,
+    xpReward: 5,
+    badgeIcon: 'trophy',
+  },
 ];
 
 const OVERLOAD_MISSION_SEEDS = [
@@ -3158,8 +3268,8 @@ const DEFAULT_GAMIFICATION_METRIC_EXPECTATIONS = {
 const upsertMissionSeed = async (seed) => {
   await pool.execute(
     `INSERT INTO missions
-       (title, name, description, mission_type, category, metric_key, target_value, points_reward, badge_icon, is_active, active)
-     SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, TRUE
+       (title, name, description, mission_type, category, metric_key, target_value, points_reward, xp_reward, badge_icon, is_active, active)
+     SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, TRUE
      WHERE NOT EXISTS (
        SELECT 1 FROM missions WHERE title = ?
      )`,
@@ -3172,6 +3282,7 @@ const upsertMissionSeed = async (seed) => {
       seed.metricKey,
       seed.targetValue,
       seed.pointsReward,
+      seed.xpReward ?? seed.pointsReward ?? 0,
       seed.badgeIcon,
       seed.title,
     ],
@@ -3181,14 +3292,15 @@ const upsertMissionSeed = async (seed) => {
     `UPDATE missions
      SET name = ?,
          description = ?,
-         mission_type = ?,
-         category = ?,
-         metric_key = ?,
-         target_value = ?,
-         points_reward = ?,
-         badge_icon = ?,
-         is_active = 1,
-         active = TRUE
+        mission_type = ?,
+        category = ?,
+        metric_key = ?,
+        target_value = ?,
+        points_reward = ?,
+        xp_reward = ?,
+        badge_icon = ?,
+        is_active = 1,
+        active = TRUE
      WHERE title = ?`,
     [
       seed.title,
@@ -3198,6 +3310,7 @@ const upsertMissionSeed = async (seed) => {
       seed.metricKey,
       seed.targetValue,
       seed.pointsReward,
+      seed.xpReward ?? seed.pointsReward ?? 0,
       seed.badgeIcon,
       seed.title,
     ],
@@ -3971,7 +4084,7 @@ const ensureGamificationInfrastructure = async () => {
     ) ENGINE=InnoDB`
   );
 
-  for (const seed of OVERLOAD_MISSION_SEEDS) {
+  for (const seed of [...MICRO_CHALLENGE_MISSION_SEEDS, ...OVERLOAD_MISSION_SEEDS]) {
     await upsertMissionSeed(seed);
   }
 
@@ -4550,16 +4663,23 @@ const collectUserGamificationMetrics = async (userId, baseDate = new Date()) => 
   const endOfWeek = formatDateISO(getEndOfWeek(baseDate));
 
   const [
-    [workoutCompletionRows],
-    [trainingDaysRows],
-    [workoutTodayRows],
-    [workoutWeekRows],
-    [recoveryTotalRows],
-    [recoveryTodayRows],
-    [recoveryWeekRows],
-    [recoveryDateRows],
+    workoutsCompleted,
+    trainingDays,
+    workoutDaysToday,
+    workoutDaysThisWeek,
+    recoveryLogsTotal,
+    recoveryLogsToday,
+    recoveryLogsThisWeek,
+    recoveryDateRows,
+    coachMessagesSentToday,
+    blogPostViewsToday,
+    blogPostLikesToday,
+    blogPostCommentsToday,
+    loggedExercisesToday,
+    friendChallengesSentToday,
+    friendChallengesAcceptedToday,
   ] = await Promise.all([
-    pool.execute(
+    safeFetchCount(
       // Count completed workout progress by finished session when available,
       // otherwise fall back to one workout day per calendar date.
       `SELECT COUNT(
@@ -4572,48 +4692,105 @@ const collectUserGamificationMetrics = async (userId, baseDate = new Date()) => 
        WHERE user_id = ? AND completed = 1`,
       [userId],
     ),
-    pool.execute(
+    safeFetchCount(
       `SELECT COUNT(DISTINCT DATE(created_at)) AS c
        FROM workout_sets
        WHERE user_id = ? AND completed = 1`,
       [userId],
     ),
-    pool.execute(
+    safeFetchCount(
       `SELECT COUNT(DISTINCT DATE(created_at)) AS c
        FROM workout_sets
        WHERE user_id = ? AND completed = 1 AND DATE(created_at) = CURDATE()`,
       [userId],
     ),
-    pool.execute(
+    safeFetchCount(
       `SELECT COUNT(DISTINCT DATE(created_at)) AS c
        FROM workout_sets
        WHERE user_id = ? AND completed = 1 AND DATE(created_at) BETWEEN ? AND ?`,
       [userId, startOfWeek, endOfWeek],
     ),
-    pool.execute(
+    safeFetchCount(
       `SELECT COUNT(DISTINCT DATE(recorded_at)) AS c
        FROM recovery_history
        WHERE user_id = ?`,
       [userId],
     ),
-    pool.execute(
+    safeFetchCount(
       `SELECT COUNT(DISTINCT DATE(recorded_at)) AS c
        FROM recovery_history
        WHERE user_id = ? AND DATE(recorded_at) = CURDATE()`,
       [userId],
     ),
-    pool.execute(
+    safeFetchCount(
       `SELECT COUNT(DISTINCT DATE(recorded_at)) AS c
        FROM recovery_history
        WHERE user_id = ? AND DATE(recorded_at) BETWEEN ? AND ?`,
       [userId, startOfWeek, endOfWeek],
     ),
-    pool.execute(
+    safeFetchRows(
       `SELECT DISTINCT DATE(recorded_at) AS log_date
        FROM recovery_history
        WHERE user_id = ?
        ORDER BY log_date DESC
        LIMIT 180`,
+      [userId],
+    ),
+    safeFetchCount(
+      `SELECT COUNT(*) AS c
+       FROM messages
+       WHERE sender_id = ?
+         AND sender_type = 'user'
+         AND DATE(created_at) = CURDATE()`,
+      [userId],
+    ),
+    safeFetchCount(
+      `SELECT COUNT(DISTINCT post_id) AS c
+       FROM blog_post_views
+       WHERE user_id = ?
+         AND DATE(created_at) = CURDATE()`,
+      [userId],
+    ),
+    safeFetchCount(
+      `SELECT COUNT(DISTINCT post_id) AS c
+       FROM blog_post_likes
+       WHERE user_id = ?
+         AND DATE(created_at) = CURDATE()`,
+      [userId],
+    ),
+    safeFetchCount(
+      `SELECT COUNT(*) AS c
+       FROM blog_post_comments
+       WHERE user_id = ?
+         AND DATE(created_at) = CURDATE()`,
+      [userId],
+    ),
+    safeFetchCount(
+      `SELECT COUNT(
+          DISTINCT COALESCE(
+            NULLIF(TRIM(exercise_name), ''),
+            CONCAT('exercise:', exercise_id),
+            CONCAT('set:', id)
+          )
+        ) AS c
+       FROM workout_sets
+       WHERE user_id = ?
+         AND DATE(created_at) = CURDATE()`,
+      [userId],
+    ),
+    safeFetchCount(
+      `SELECT COUNT(*) AS c
+       FROM friend_challenge_sessions
+       WHERE sender_user_id = ?
+         AND DATE(created_at) = CURDATE()`,
+      [userId],
+    ),
+    safeFetchCount(
+      `SELECT COUNT(*) AS c
+       FROM friend_challenge_sessions
+       WHERE receiver_user_id = ?
+         AND accepted_at IS NOT NULL
+         AND DATE(accepted_at) = CURDATE()`,
       [userId],
     ),
   ]);
@@ -4633,14 +4810,6 @@ const collectUserGamificationMetrics = async (userId, baseDate = new Date()) => 
     cursor.setDate(cursor.getDate() - 1);
   }
 
-  const workoutsCompleted = Number(workoutCompletionRows[0]?.c || 0);
-  const trainingDays = Number(trainingDaysRows[0]?.c || 0);
-  const workoutDaysToday = Number(workoutTodayRows[0]?.c || 0);
-  const workoutDaysThisWeek = Number(workoutWeekRows[0]?.c || 0);
-  const recoveryLogsTotal = Number(recoveryTotalRows[0]?.c || 0);
-  const recoveryLogsToday = Number(recoveryTodayRows[0]?.c || 0);
-  const recoveryLogsThisWeek = Number(recoveryWeekRows[0]?.c || 0);
-
   const overloadMetrics = await collectOverloadGamificationMetrics(userId, baseDate);
 
   return {
@@ -4652,8 +4821,211 @@ const collectUserGamificationMetrics = async (userId, baseDate = new Date()) => 
     recovery_logs_today: recoveryLogsToday,
     recovery_logs_this_week: recoveryLogsThisWeek,
     recovery_streak_days: recoveryStreakDays,
+    coach_messages_sent_today: coachMessagesSentToday,
+    blog_post_views_today: blogPostViewsToday,
+    blog_post_likes_today: blogPostLikesToday,
+    blog_post_comments_today: blogPostCommentsToday,
+    logged_exercises_today: loggedExercisesToday,
+    friend_challenges_sent_today: friendChallengesSentToday,
+    friend_challenges_accepted_today: friendChallengesAcceptedToday,
     ...overloadMetrics,
   };
+};
+
+const getDailyMissionContext = async (userId) => {
+  const [coachRows, friendshipRows, socialRows] = await Promise.all([
+    safeFetchRows(
+      `SELECT COALESCE(coach_id, 0) AS coach_id
+       FROM users
+       WHERE id = ?
+       LIMIT 1`,
+      [userId],
+    ),
+    safeFetchRows(
+      `SELECT COUNT(*) AS c
+       FROM friendships
+       WHERE status = 'accepted'
+         AND (user_id = ? OR friend_id = ?)`,
+      [userId, userId],
+    ),
+    safeFetchRows(
+      `SELECT COUNT(*) AS c
+       FROM blog_posts
+       WHERE user_id <> ?`,
+      [userId],
+    ),
+  ]);
+
+  return {
+    hasCoach: Number(coachRows[0]?.coach_id || 0) > 0,
+    acceptedFriendsCount: Math.max(0, Number(friendshipRows[0]?.c || 0)),
+    availableSocialPosts: Math.max(0, Number(socialRows[0]?.c || 0)),
+  };
+};
+
+const isEligibleDailyMissionTemplate = (mission, context) => {
+  const metricKey = String(mission?.metric_key || '').toLowerCase().trim();
+
+  if (metricKey === 'coach_messages_sent_today') {
+    return !!context?.hasCoach;
+  }
+
+  if (metricKey === 'friend_challenges_sent_today' || metricKey === 'friend_challenges_accepted_today') {
+    return Number(context?.acceptedFriendsCount || 0) > 0;
+  }
+
+  if (
+    metricKey === 'blog_post_views_today'
+    || metricKey === 'blog_post_likes_today'
+    || metricKey === 'blog_post_comments_today'
+  ) {
+    return Number(context?.availableSocialPosts || 0) > 0;
+  }
+
+  return true;
+};
+
+const assignDailyMissionSlots = async (userId, metrics, now = new Date()) => {
+  const currentDayKey = getDailyInstanceKey(now);
+  const endOfToday = getEndOfDay(now);
+
+  const [userMissionRows] = await pool.execute(
+    `SELECT um.mission_id, um.instance_key, um.status
+     FROM user_missions um
+     JOIN missions m ON m.id = um.mission_id
+     WHERE um.user_id = ?
+       AND m.mission_type = 'daily'`,
+    [userId],
+  );
+
+  const hasAssignmentToday = userMissionRows.some((row) => row.instance_key === currentDayKey);
+  if (hasAssignmentToday) return;
+
+  const [missionTemplates] = await pool.execute(
+    `SELECT id, category, metric_key, target_value
+     FROM missions
+     WHERE mission_type = 'daily'
+       AND is_active = 1
+       AND (starts_at IS NULL OR starts_at <= NOW())
+       AND (expires_at IS NULL OR expires_at >= NOW())
+     ORDER BY id ASC`,
+  );
+
+  if (!missionTemplates.length) return;
+
+  const context = await getDailyMissionContext(userId);
+  const eligibleTemplates = missionTemplates
+    .filter((mission) => isEligibleDailyMissionTemplate(mission, context))
+    .filter((mission) => getMetricValue(metrics, mission.metric_key) < Math.max(1, Number(mission.target_value || 1)));
+
+  if (!eligibleTemplates.length) return;
+
+  const candidateIds = eligibleTemplates.map((mission) => Number(mission.id));
+  const candidatePlaceholders = candidateIds.map(() => '?').join(', ');
+  const historyRows = candidateIds.length
+    ? (await pool.execute(
+      `SELECT
+          mission_id,
+          COUNT(*) AS assigned_count,
+          SUM(
+            CASE
+              WHEN completed_at IS NOT NULL AND completed_at >= DATE_SUB(?, INTERVAL 30 DAY)
+                THEN 1
+              ELSE 0
+            END
+          ) AS recent_completed_count
+       FROM user_missions
+       WHERE user_id = ? AND mission_id IN (${candidatePlaceholders})
+       GROUP BY mission_id`,
+      [now, userId, ...candidateIds],
+    ))[0]
+    : [];
+
+  const historyByMissionId = new Map(
+    historyRows.map((row) => [
+      Number(row.mission_id || 0),
+      {
+        assignedCount: Number(row.assigned_count || 0),
+        recentCompletedCount: Number(row.recent_completed_count || 0),
+      },
+    ]),
+  );
+
+  const personalized = eligibleTemplates
+    .map((mission) => {
+      const missionId = Number(mission.id || 0);
+      const currentValue = Math.max(0, Number(getMetricValue(metrics, mission.metric_key)));
+      const target = Math.max(1, Number(mission.target_value || 1));
+      const history = historyByMissionId.get(missionId) || { assignedCount: 0, recentCompletedCount: 0 };
+      let seed = 2166136261;
+      const seedInput = `${userId}:${currentDayKey}:${missionId}`;
+      for (let i = 0; i < seedInput.length; i += 1) {
+        seed ^= seedInput.charCodeAt(i);
+        seed = Math.imul(seed, 16777619);
+      }
+      const jitter = ((seed >>> 0) % 1000) / 1000;
+      return {
+        ...mission,
+        missionId,
+        metricKey: String(mission.metric_key || '').toLowerCase().trim(),
+        category: String(mission.category || '').toLowerCase().trim(),
+        score:
+          Math.min(2, history.assignedCount * 0.2)
+          + (history.recentCompletedCount > 0 ? 0.45 : 0)
+          - Math.min(0.25, currentValue / target / 4)
+          + jitter * 0.08,
+      };
+    })
+    .sort((a, b) => (a.score - b.score) || (a.missionId - b.missionId));
+
+  const selectedMissions = [];
+  const usedMetricKeys = new Set();
+  const usedCategories = new Set();
+
+  for (let index = 0; index < personalized.length; index += 1) {
+    const mission = personalized[index];
+    if (selectedMissions.length >= DAILY_ACTIVE_MISSION_TARGET) break;
+    const remainingCandidates = personalized.length - index;
+    const remainingSlots = DAILY_ACTIVE_MISSION_TARGET - selectedMissions.length;
+    const metricAlreadyUsed = mission.metricKey && usedMetricKeys.has(mission.metricKey);
+    const categoryAlreadyUsed = mission.category && usedCategories.has(mission.category);
+    const diversityFlexible = remainingCandidates <= remainingSlots;
+
+    if ((metricAlreadyUsed || categoryAlreadyUsed) && !diversityFlexible) {
+      continue;
+    }
+
+    selectedMissions.push(mission);
+    if (mission.metricKey) usedMetricKeys.add(mission.metricKey);
+    if (mission.category) usedCategories.add(mission.category);
+  }
+
+  if (selectedMissions.length < DAILY_ACTIVE_MISSION_TARGET) {
+    const selectedIds = new Set(selectedMissions.map((mission) => Number(mission.id)));
+    for (const mission of personalized) {
+      if (selectedMissions.length >= DAILY_ACTIVE_MISSION_TARGET) break;
+      if (selectedIds.has(Number(mission.id))) continue;
+      selectedMissions.push(mission);
+      selectedIds.add(Number(mission.id));
+    }
+  }
+
+  for (const mission of selectedMissions) {
+    await pool.execute(
+      `INSERT INTO user_missions
+         (user_id, mission_id, instance_key, current_progress, baseline_value, target_value, status, completed_at, expires_at)
+       VALUES (?, ?, ?, 0, 0, ?, 'active', NULL, ?)
+       ON DUPLICATE KEY UPDATE
+         updated_at = CURRENT_TIMESTAMP`,
+      [
+        userId,
+        Number(mission.id),
+        currentDayKey,
+        Math.max(1, Number(mission.target_value || 1)),
+        endOfToday,
+      ],
+    );
+  }
 };
 
 const assignWeeklyMissionSlots = async (userId, metrics, now = new Date()) => {
@@ -5029,6 +5401,7 @@ const syncUserMissionProgress = async (userId, metrics, now = new Date()) => {
     [userId, now, dailyKey, weeklyKey, monthlyKey],
   );
 
+  await assignDailyMissionSlots(userId, metrics, now);
   await assignWeeklyMissionSlots(userId, metrics, now);
   await assignMonthlyMissionSlots(userId, metrics, now);
 
@@ -5047,12 +5420,17 @@ const syncUserMissionProgress = async (userId, metrics, now = new Date()) => {
        m.title,
        m.description,
        m.points_reward,
+       m.xp_reward,
        m.mission_type,
        m.metric_key
      FROM user_missions um
      JOIN missions m ON m.id = um.mission_id
      WHERE um.user_id = ?
-     ORDER BY FIELD(um.status, 'active', 'completed', 'expired'), um.created_at DESC, um.id DESC`,
+     ORDER BY
+       FIELD(um.status, 'active', 'completed', 'expired'),
+       FIELD(m.mission_type, 'daily', 'weekly', 'monthly', 'achievement', 'special'),
+       um.created_at DESC,
+       um.id DESC`,
     [userId],
   );
 
@@ -5064,10 +5442,12 @@ const syncUserMissionProgress = async (userId, metrics, now = new Date()) => {
     const target = Math.max(1, Number(row.target_value || 1));
     const baseline = Math.max(0, Number(row.baseline_value || 0));
     const currentMetric = Math.floor(getMetricValue(metrics, row.metric_key));
-
+    const isDailyMission = String(row.mission_type || '').toLowerCase() === 'daily';
     const computedProgress = row.status === 'completed'
       ? Math.max(Number(row.current_progress || target), target)
-      : Math.max(0, currentMetric - baseline);
+      : isDailyMission
+        ? Math.max(0, currentMetric)
+        : Math.max(0, currentMetric - baseline);
 
     const isExpired = row.status === 'expired';
     const completed = row.status === 'completed' || (!isExpired && computedProgress >= target);
@@ -5102,6 +5482,7 @@ const syncUserMissionProgress = async (userId, metrics, now = new Date()) => {
       title: row.title,
       description: row.description,
       points_reward: Number(row.points_reward || 0),
+      xp_reward: Number(row.xp_reward || 0),
       progress: finalProgress,
       target,
       completed,

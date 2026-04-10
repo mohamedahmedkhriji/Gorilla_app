@@ -27,7 +27,19 @@ export function ActiveMissionsCard({ onClick }: ActiveMissionsCardProps) {
         ]);
 
         if (Array.isArray(data)) {
-          setMissions(data.filter((m) => m?.status === 'active').slice(0, 5));
+          const activeMissions = data
+            .filter((m) => m?.status === 'active')
+            .sort((a, b) => {
+              const missionTypeOrder = (value: unknown) => {
+                const normalized = String(value || '').toLowerCase();
+                if (normalized === 'daily') return 0;
+                if (normalized === 'weekly') return 1;
+                if (normalized === 'monthly') return 2;
+                return 3;
+              };
+              return missionTypeOrder(a?.mission_type) - missionTypeOrder(b?.mission_type);
+            });
+          setMissions(activeMissions.slice(0, 5));
         }
 
         const completedMissions = Number(summary?.completedMissions || 0);
@@ -73,14 +85,16 @@ export function ActiveMissionsCard({ onClick }: ActiveMissionsCardProps) {
     <Card className="p-4 cursor-pointer" onClick={onClick}>
       <div className="flex items-center gap-2 mb-3">
         <Target size={18} className="text-accent" />
-        <h3 className="font-bold text-white text-sm">Active Missions</h3>
+        <h3 className="font-bold text-white text-sm">Micro Challenges</h3>
       </div>
       <div className="space-y-2">
         {missions.slice(0, 3).map((mission) => (
           <div key={mission.id} className="bg-white/5 rounded-lg p-2">
             <div className="flex justify-between items-start mb-1">
               <p className="text-xs font-semibold text-white">{mission.title}</p>
-              <span className="text-xs font-bold text-accent">+{mission.points_reward}</span>
+              <span className="text-xs font-bold text-accent">
+                +{Number(mission.xp_reward || mission.points_reward || 0)} XP
+              </span>
             </div>
             <div className="flex items-center gap-2">
               <div className="flex-1 h-1 bg-white/10 rounded-full overflow-hidden">
@@ -97,7 +111,7 @@ export function ActiveMissionsCard({ onClick }: ActiveMissionsCardProps) {
         ))}
         {missions.length > 3 && (
           <p className="text-xs text-text-secondary text-center pt-1">
-            +{missions.length - 3} more missions
+            +{missions.length - 3} more challenges
           </p>
         )}
       </div>

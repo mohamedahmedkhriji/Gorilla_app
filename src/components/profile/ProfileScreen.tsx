@@ -26,11 +26,11 @@ const PROFILE_I18N = {
     of: 'of',
     daysLeft: 'Days Left',
     sessions: 'sessions',
-    myBlogPosts: 'My Blog Posts',
-    manageUploads: 'Manage Uploads',
+    myBlogPostsLine1: 'My Blog',
+    myBlogPostsLine2: 'Posts',
     open: 'Open',
-    createWorkoutPlan: 'Create My Workout Plan',
-    planBuilder: 'Plan Builder',
+    createWorkoutPlanLine1: 'Create My',
+    createWorkoutPlanLine2: 'Workout Plan',
     start: 'Start',
     logOut: 'Log Out',
     choosePlanTitle: 'Create My Workout Plan',
@@ -65,11 +65,11 @@ const PROFILE_I18N = {
     of: '\u0645\u0646',
     daysLeft: '\u0627\u0644\u0623\u064a\u0627\u0645 \u0627\u0644\u0645\u062a\u0628\u0642\u064a\u0629',
     sessions: '\u062d\u0635\u0635',
-    myBlogPosts: '\u0645\u0646\u0634\u0648\u0631\u0627\u062a\u064a',
-    manageUploads: '\u0625\u062f\u0627\u0631\u0629 \u0627\u0644\u0645\u0631\u0641\u0648\u0639\u0627\u062a',
+    myBlogPostsLine1: '\u0645\u0646\u0634\u0648\u0631\u0627\u062a\u064a',
+    myBlogPostsLine2: '\u0627\u0644\u0645\u062f\u0648\u0646\u0629',
     open: '\u0641\u062a\u062d',
-    createWorkoutPlan: '\u0623\u0646\u0634\u0626 \u062e\u0637\u0629 \u062a\u0645\u0631\u064a\u0646\u064a',
-    planBuilder: '\u0628\u0646\u0627\u0621 \u0627\u0644\u062e\u0637\u0629',
+    createWorkoutPlanLine1: '\u0623\u0646\u0634\u0626',
+    createWorkoutPlanLine2: '\u062e\u0637\u0629 \u062a\u0645\u0631\u064a\u0646\u064a',
     start: '\u0627\u0628\u062f\u0623',
     logOut: '\u062a\u0633\u062c\u064a\u0644 \u0627\u0644\u062e\u0631\u0648\u062c',
     choosePlanTitle: '\u0623\u0646\u0634\u0626 \u062e\u0637\u0629 \u062a\u0645\u0631\u064a\u0646\u064a',
@@ -104,11 +104,11 @@ const PROFILE_I18N = {
     of: 'su',
     daysLeft: 'Giorni Rimasti',
     sessions: 'sessioni',
-    myBlogPosts: 'I Miei Post del Blog',
-    manageUploads: 'Gestisci Upload',
+    myBlogPostsLine1: 'I Miei Post',
+    myBlogPostsLine2: 'del Blog',
     open: 'Apri',
-    createWorkoutPlan: 'Crea il Mio Piano di Allenamento',
-    planBuilder: 'Costruttore Piano',
+    createWorkoutPlanLine1: 'Crea il Mio',
+    createWorkoutPlanLine2: 'Piano di Allenamento',
     start: 'Inizia',
     logOut: 'Esci',
     choosePlanTitle: 'Crea il Mio Piano di Allenamento',
@@ -143,11 +143,11 @@ const PROFILE_I18N = {
     of: 'von',
     daysLeft: 'Tage Uebrig',
     sessions: 'Einheiten',
-    myBlogPosts: 'Meine Blogbeitraege',
-    manageUploads: 'Uploads Verwalten',
+    myBlogPostsLine1: 'Meine Blog',
+    myBlogPostsLine2: 'Beitraege',
     open: 'Oeffnen',
-    createWorkoutPlan: 'Meinen Trainingsplan Erstellen',
-    planBuilder: 'Plan-Builder',
+    createWorkoutPlanLine1: 'Meinen Trainingsplan',
+    createWorkoutPlanLine2: 'Erstellen',
     start: 'Starten',
     logOut: 'Abmelden',
     choosePlanTitle: 'Meinen Trainingsplan Erstellen',
@@ -566,8 +566,10 @@ export function ProfileScreen({ onNavigate, onLogout }: ProfileScreenProps) {
             <img src={emojiRightArrow} alt="" aria-hidden="true" className="h-4 w-4 object-contain opacity-70 group-hover:opacity-100 transition-opacity" />
           </div>
           <div className="relative z-10 mt-4 min-w-0">
-            <div className="text-lg leading-none text-white truncate">{copy.myBlogPosts}</div>
-            <div className="text-[10px] text-text-secondary uppercase tracking-[0.12em] mt-1">{copy.manageUploads}</div>
+            <div className="text-lg leading-none text-white">
+              <div>{copy.myBlogPostsLine1}</div>
+              <div>{copy.myBlogPostsLine2}</div>
+            </div>
           </div>
           <div className="relative z-10 mt-3 text-[11px] text-emerald-300 font-semibold uppercase tracking-[0.1em]">{copy.open}</div>
         </button>
@@ -586,8 +588,10 @@ export function ProfileScreen({ onNavigate, onLogout }: ProfileScreenProps) {
             <img src={emojiRightArrow} alt="" aria-hidden="true" className="h-4 w-4 object-contain opacity-70 group-hover:opacity-100 transition-opacity" />
           </div>
           <div className="relative z-10 mt-4 min-w-0">
-            <div className="text-lg leading-none text-white truncate">{copy.createWorkoutPlan}</div>
-            <div className="text-[10px] text-text-secondary uppercase tracking-[0.12em] mt-1">{copy.planBuilder}</div>
+            <div className="text-lg leading-none text-white">
+              <div>{copy.createWorkoutPlanLine1}</div>
+              <div>{copy.createWorkoutPlanLine2}</div>
+            </div>
           </div>
           <div className="relative z-10 mt-3 text-[11px] text-accent font-semibold uppercase tracking-[0.1em]">{copy.start}</div>
         </button>
