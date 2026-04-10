@@ -30,6 +30,12 @@ const COACH_CARD_I18N = {
     subtitle: 'Supporto Chat',
     cta: 'Chatta Ora',
   },
+  fr: {
+    coachSupportLogoAlt: 'Logo du support coach',
+    title: 'Support de Notre Coach',
+    subtitle: 'Support chat',
+    cta: 'Discuter maintenant',
+  },
   de: {
     coachSupportLogoAlt: 'Coach-Support-Logo',
     title: 'Unser Coach-Support',

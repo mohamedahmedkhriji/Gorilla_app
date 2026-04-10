@@ -32,6 +32,11 @@ const FRIENDS_CARD_I18N = {
     friendsLogoAlt: 'Amici',
     profileSuffix: 'profilo',
   },
+  fr: {
+    friends: 'Amis',
+    friendsLogoAlt: 'Amis',
+    profileSuffix: 'profil',
+  },
   de: {
     friends: 'Freunde',
     friendsLogoAlt: 'Freunde',
