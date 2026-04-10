@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Trophy } from 'lucide-react';
+import { Activity, ChevronRight, Dumbbell, HeartPulse, Sparkles, Trophy } from 'lucide-react';
 import { Header } from '../ui/Header';
 import { Card } from '../ui/Card';
 import { LeaderboardScreen } from './LeaderboardScreen';
@@ -24,6 +24,7 @@ type MissionItem = {
   title: string;
   description: string;
   points_reward: number;
+  mission_type?: 'daily' | 'weekly' | 'monthly' | 'achievement' | 'special';
   progress: number;
   target: number;
   completed: boolean;
@@ -53,6 +54,90 @@ type Summary = {
   totalPoints: number;
   rank: string;
   nextRank: { name: string; minPoints: number; pointsNeeded: number } | null;
+};
+
+type DashboardCategory = 'consistency' | 'strength' | 'recovery' | 'engagement';
+
+type CategoryHistoryItem = {
+  id: string;
+  title: string;
+  description: string;
+  points_reward: number;
+  completed_at?: string | null;
+  type: 'mission' | 'challenge';
+  cadence?: 'daily' | 'weekly' | 'monthly';
+  category: DashboardCategory;
+};
+
+const CATEGORY_ORDER: DashboardCategory[] = ['consistency', 'strength', 'recovery', 'engagement'];
+
+const CATEGORY_TITLE_MAP: Record<string, DashboardCategory> = {
+  'coach check-in': 'consistency',
+  'first lift logged': 'consistency',
+  'weekly workout consistency': 'consistency',
+  'daily iron habit': 'consistency',
+  'weekly upgrade': 'consistency',
+  'no regression': 'consistency',
+  'perfect progression': 'consistency',
+  '+10kg club': 'strength',
+  'heavy step forward': 'strength',
+  'progressive beast': 'strength',
+  'no comfort zone': 'strength',
+  'strength builder': 'strength',
+  'volume king': 'strength',
+  'extra set warrior': 'strength',
+  'rep breaker': 'strength',
+  'endurance push': 'strength',
+  'high volume week': 'strength',
+  'last rep fighter': 'strength',
+  'controlled power': 'strength',
+  'no easy sets': 'strength',
+  'intensity master': 'strength',
+  'double progress': 'strength',
+  'bench press king': 'strength',
+  'deadlift monster': 'strength',
+  'squat titan': 'strength',
+  'push until failure': 'strength',
+  'plank survivor': 'strength',
+  'rep madness': 'strength',
+  'volume destroyer': 'strength',
+  'upper body war': 'strength',
+  'fast grinder': 'strength',
+  'perfect athlete': 'strength',
+  'recovery check': 'recovery',
+  'daily recovery check': 'recovery',
+  'weekly recovery discipline': 'recovery',
+  'recovery-based overload': 'recovery',
+  'ai approved progress': 'recovery',
+  'feed scout': 'engagement',
+  'show some love': 'engagement',
+  'start a conversation': 'engagement',
+  'send a challenge': 'engagement',
+  'accept the challenge': 'engagement',
+};
+
+const normalizeCategoryKey = (value: string) => String(value || '').trim().toLowerCase();
+
+const inferDashboardCategory = (title: string, description = ''): DashboardCategory => {
+  const normalizedTitle = normalizeCategoryKey(title);
+  if (CATEGORY_TITLE_MAP[normalizedTitle]) return CATEGORY_TITLE_MAP[normalizedTitle];
+
+  const haystack = `${normalizedTitle} ${normalizeCategoryKey(description)}`;
+  if (haystack.includes('recovery') || haystack.includes('coach')) return 'recovery';
+  if (haystack.includes('comment') || haystack.includes('feed') || haystack.includes('post') || haystack.includes('challenge')) return 'engagement';
+  if (
+    haystack.includes('weight')
+    || haystack.includes('bench')
+    || haystack.includes('deadlift')
+    || haystack.includes('squat')
+    || haystack.includes('intensity')
+    || haystack.includes('volume')
+    || haystack.includes('rep')
+    || haystack.includes('pr')
+  ) {
+    return 'strength';
+  }
+  return 'consistency';
 };
 
 const NEW_ITEM_WINDOW_MS = 24 * 60 * 60 * 1000;
@@ -127,6 +212,19 @@ const isNewWithin24Hours = (dateValue?: string | null) => {
   return Date.now() - timestamp <= NEW_ITEM_WINDOW_MS;
 };
 
+const CATEGORY_PROGRESS_SEGMENT_COLORS = [
+  'rgb(233, 233, 12)',
+  'rgb(208, 233, 12)',
+  'rgb(184, 233, 12)',
+  'rgb(159, 233, 12)',
+  'rgb(135, 233, 12)',
+  'rgb(110, 233, 12)',
+  'rgb(86, 233, 12)',
+  'rgb(61, 233, 12)',
+  'rgb(37, 233, 12)',
+  'rgb(12, 233, 12)',
+];
+
 function CardLoadingSkeleton({ tone = 'accent' }: { tone?: 'accent' | 'blue' }) {
   const barTone = tone === 'blue' ? 'bg-blue-400/45' : 'bg-accent/45';
   return (
@@ -146,6 +244,29 @@ function CardLoadingSkeleton({ tone = 'accent' }: { tone?: 'accent' | 'blue' }) 
         </div>
       </div>
     </Card>
+  );
+}
+
+function CategoryGridSkeleton() {
+  return (
+    <div className="grid grid-cols-2 gap-3">
+      {Array.from({ length: 4 }).map((_, index) => (
+        <Card key={`category-skeleton-${index}`} className="!p-4">
+          <div className="animate-pulse space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="h-8 w-8 rounded-xl bg-white/10" />
+              <div className="h-4 w-4 rounded bg-white/10" />
+            </div>
+            <div className="h-4 w-24 rounded bg-white/10" />
+            <div className="space-y-1.5">
+              <div className="h-3 w-20 rounded bg-white/10" />
+              <div className="h-3 w-24 rounded bg-white/10" />
+              <div className="h-3 w-16 rounded bg-white/10" />
+            </div>
+          </div>
+        </Card>
+      ))}
+    </div>
   );
 }
 
@@ -265,6 +386,78 @@ export function RankingsRewardsScreen({ onBack }: RankingsRewardsScreenProps) {
       challengesAlt: 'Challenges',
     },
   });
+  const dashboardCopy = pickLanguage(language, {
+    en: {
+      dashboard: 'Performance Dashboard',
+      categoryStats: 'Category Stats',
+      categoryHistory: 'Completed',
+      categoryEmpty: 'No items in this category yet.',
+      activeLabel: 'Active',
+      progressLabel: 'Avg progress',
+      completedLabel: 'Completed',
+      missionLabel: 'Mission',
+      categoryConsistency: 'Consistency',
+      categoryStrength: 'Strength',
+      categoryRecovery: 'Recovery',
+      categoryEngagement: 'Engagement',
+    },
+    ar: {
+      dashboard: 'Performance Dashboard',
+      categoryStats: 'Category Stats',
+      categoryHistory: 'Completed',
+      categoryEmpty: 'No items in this category yet.',
+      activeLabel: 'Active',
+      progressLabel: 'Avg progress',
+      completedLabel: 'Completed',
+      missionLabel: 'Mission',
+      categoryConsistency: 'Consistency',
+      categoryStrength: 'Strength',
+      categoryRecovery: 'Recovery',
+      categoryEngagement: 'Engagement',
+    },
+    it: {
+      dashboard: 'Dashboard Prestazioni',
+      categoryStats: 'Statistiche Categoria',
+      categoryHistory: 'Completate',
+      categoryEmpty: 'Nessun elemento in questa categoria.',
+      activeLabel: 'Attive',
+      progressLabel: 'Progresso medio',
+      completedLabel: 'Completate',
+      missionLabel: 'Missione',
+      categoryConsistency: 'Costanza',
+      categoryStrength: 'Forza',
+      categoryRecovery: 'Recupero',
+      categoryEngagement: 'Coinvolgimento',
+    },
+    de: {
+      dashboard: 'Performance-Dashboard',
+      categoryStats: 'Kategorie-Statistiken',
+      categoryHistory: 'Abgeschlossen',
+      categoryEmpty: 'Noch keine Eintraege in dieser Kategorie.',
+      activeLabel: 'Aktiv',
+      progressLabel: 'Ø Fortschritt',
+      completedLabel: 'Abgeschlossen',
+      missionLabel: 'Mission',
+      categoryConsistency: 'Konstanz',
+      categoryStrength: 'Staerke',
+      categoryRecovery: 'Erholung',
+      categoryEngagement: 'Engagement',
+    },
+    fr: {
+      dashboard: 'Tableau de Performance',
+      categoryStats: 'Stats de la Categorie',
+      categoryHistory: 'Termine',
+      categoryEmpty: 'Aucun element dans cette categorie pour le moment.',
+      activeLabel: 'Actif',
+      progressLabel: 'Progression moy.',
+      completedLabel: 'Termine',
+      missionLabel: 'Mission',
+      categoryConsistency: 'Regularite',
+      categoryStrength: 'Force',
+      categoryRecovery: 'Recuperation',
+      categoryEngagement: 'Engagement',
+    },
+  });
 
   const translateText = (value: string, map: Record<string, LocalizedLanguageRecord<string>>) => {
     const key = value.trim().toLowerCase();
@@ -287,6 +480,9 @@ export function RankingsRewardsScreen({ onBack }: RankingsRewardsScreenProps) {
     nextRank: null,
   });
   const [loading, setLoading] = useState(true);
+  const [selectedCategory, setSelectedCategory] = useState<DashboardCategory>('consistency');
+  const [showCategoryDetail, setShowCategoryDetail] = useState(false);
+  const [categoryDetailLoading, setCategoryDetailLoading] = useState(false);
 
   const appUser = JSON.parse(localStorage.getItem('appUser') || localStorage.getItem('user') || '{}');
   const userId = parseInt(String(appUser?.id || localStorage.getItem('appUserId') || localStorage.getItem('userId') || '0'), 10);
@@ -366,11 +562,10 @@ export function RankingsRewardsScreen({ onBack }: RankingsRewardsScreenProps) {
     };
   }, [userId]);
 
-  const activeMissions = missions.filter((m) => m.status === 'active').slice(0, 5);
-  const completedMissions = missions.filter((m) => m.completed);
+  const activeMissions = missions.filter((m) => m.status === 'active');
   const activeDailyChallenges = dailyChallenges.filter((c) => c.status === 'active');
   const activeWeeklyChallenges = weeklyChallenges.filter((c) => c.status === 'active');
-  const completedChallenges = [...dailyChallenges, ...weeklyChallenges].filter((c) => c.completed);
+  const activeChallenges = [...activeDailyChallenges, ...activeWeeklyChallenges];
 
   const rankBadgeImage = getRankBadgeImage(summary.rank);
   const rankKey = String(summary.rank || '').trim().toLowerCase();
@@ -400,6 +595,170 @@ export function RankingsRewardsScreen({ onBack }: RankingsRewardsScreenProps) {
       }, {} as Record<string, any[]>),
     [challengeHistory],
   );
+
+  const categoryName = (category: DashboardCategory) => {
+    if (category === 'consistency') return dashboardCopy.categoryConsistency;
+    if (category === 'strength') return dashboardCopy.categoryStrength;
+    if (category === 'recovery') return dashboardCopy.categoryRecovery;
+    return dashboardCopy.categoryEngagement;
+  };
+
+  const categorizedActiveMissions = useMemo(
+    () =>
+      activeMissions.reduce((acc, mission) => {
+        const category = inferDashboardCategory(mission.title, mission.description);
+        acc[category].push(mission);
+        return acc;
+      }, {
+        consistency: [],
+        strength: [],
+        recovery: [],
+        engagement: [],
+      } as Record<DashboardCategory, MissionItem[]>),
+    [activeMissions],
+  );
+
+  const categorizedActiveChallenges = useMemo(
+    () =>
+      activeChallenges.reduce((acc, challenge) => {
+        const category = inferDashboardCategory(challenge.title, challenge.description);
+        acc[category].push(challenge);
+        return acc;
+      }, {
+        consistency: [],
+        strength: [],
+        recovery: [],
+        engagement: [],
+      } as Record<DashboardCategory, ChallengeItem[]>),
+    [activeChallenges],
+  );
+
+  const categorizedHistory = useMemo(() => {
+    const missionEntries: CategoryHistoryItem[] = missionHistory.map((mission: any, index: number) => ({
+      id: `mission-${index}-${mission.title}`,
+      title: String(mission.title || ''),
+      description: String(mission.description || ''),
+      points_reward: Number(mission.points_reward || 0),
+      completed_at: mission.completed_at || null,
+      type: 'mission',
+      cadence: undefined,
+      category: inferDashboardCategory(String(mission.title || ''), String(mission.description || '')),
+    }));
+
+    const challengeEntries: CategoryHistoryItem[] = challengeHistory.map((challenge: any, index: number) => ({
+      id: `challenge-${index}-${challenge.title}`,
+      title: String(challenge.title || ''),
+      description: String(challenge.description || ''),
+      points_reward: Number(challenge.points_reward || 0),
+      completed_at: challenge.completed_at || null,
+      type: 'challenge',
+      cadence: challenge.challenge_type === 'daily' ? 'daily' : 'weekly',
+      category: inferDashboardCategory(String(challenge.title || ''), String(challenge.description || '')),
+    }));
+
+    return [...missionEntries, ...challengeEntries]
+      .sort((a, b) => new Date(b.completed_at || 0).getTime() - new Date(a.completed_at || 0).getTime())
+      .reduce((acc, entry) => {
+        acc[entry.category].push(entry);
+        return acc;
+      }, {
+        consistency: [],
+        strength: [],
+        recovery: [],
+        engagement: [],
+      } as Record<DashboardCategory, CategoryHistoryItem[]>);
+  }, [challengeHistory, missionHistory]);
+
+  const categoryMeta = {
+    consistency: {
+      icon: Activity,
+      iconClassName: 'text-emerald-400',
+      iconWrapClassName: 'bg-emerald-500/10 border-emerald-400/25',
+      cardClassName: 'border-emerald-400/20 bg-emerald-500/[0.05]',
+      selectedClassName: 'border-emerald-400/45 bg-emerald-500/[0.10]',
+      accentClassName: 'text-emerald-300',
+    },
+    strength: {
+      icon: Dumbbell,
+      iconClassName: 'text-rose-400',
+      iconWrapClassName: 'bg-rose-500/10 border-rose-400/25',
+      cardClassName: 'border-rose-400/20 bg-rose-500/[0.05]',
+      selectedClassName: 'border-rose-400/45 bg-rose-500/[0.10]',
+      accentClassName: 'text-rose-300',
+    },
+    recovery: {
+      icon: HeartPulse,
+      iconClassName: 'text-sky-400',
+      iconWrapClassName: 'bg-sky-500/10 border-sky-400/25',
+      cardClassName: 'border-sky-400/20 bg-sky-500/[0.05]',
+      selectedClassName: 'border-sky-400/45 bg-sky-500/[0.10]',
+      accentClassName: 'text-sky-300',
+    },
+    engagement: {
+      icon: Sparkles,
+      iconClassName: 'text-violet-400',
+      iconWrapClassName: 'bg-violet-500/10 border-violet-400/25',
+      cardClassName: 'border-violet-400/20 bg-violet-500/[0.05]',
+      selectedClassName: 'border-violet-400/45 bg-violet-500/[0.10]',
+      accentClassName: 'text-violet-300',
+    },
+  } satisfies Record<
+    DashboardCategory,
+    {
+      icon: typeof Activity;
+      iconClassName: string;
+      iconWrapClassName: string;
+      cardClassName: string;
+      selectedClassName: string;
+      accentClassName: string;
+    }
+  >;
+
+  const categoryStats = useMemo(
+    () =>
+      CATEGORY_ORDER.reduce((acc, category) => {
+        const missionItems = categorizedActiveMissions[category];
+        const challengeItems = categorizedActiveChallenges[category];
+        const historyItems = categorizedHistory[category];
+        const progressItems = [...missionItems, ...challengeItems];
+        const averageProgress = progressItems.length
+          ? Math.round(
+            progressItems.reduce((sum, item) => {
+              const target = Math.max(1, Number(item.target || 1));
+              return sum + Math.min(Number(item.progress || 0) / target, 1);
+            }, 0) / progressItems.length * 100,
+          )
+          : 0;
+
+        acc[category] = {
+          activeCount: missionItems.length + challengeItems.length,
+          completedCount: historyItems.length,
+          averageProgress,
+        };
+        return acc;
+      }, {} as Record<DashboardCategory, { activeCount: number; completedCount: number; averageProgress: number }>),
+    [categorizedActiveChallenges, categorizedActiveMissions, categorizedHistory],
+  );
+
+  const selectedMissionItems = categorizedActiveMissions[selectedCategory];
+  const selectedChallengeItems = categorizedActiveChallenges[selectedCategory];
+  const selectedHistoryItems = categorizedHistory[selectedCategory].slice(0, 8);
+
+  const handleCategorySelect = (category: DashboardCategory) => {
+    setSelectedCategory(category);
+    setCategoryDetailLoading(true);
+    setShowCategoryDetail(true);
+  };
+
+  useEffect(() => {
+    if (!showCategoryDetail || !categoryDetailLoading) return undefined;
+
+    const timer = window.setTimeout(() => {
+      setCategoryDetailLoading(false);
+    }, 450);
+
+    return () => window.clearTimeout(timer);
+  }, [categoryDetailLoading, showCategoryDetail, selectedCategory]);
 
   if (showLeaderboard) {
     return <LeaderboardScreen onBack={() => setShowLeaderboard(false)} />;
@@ -475,6 +834,156 @@ export function RankingsRewardsScreen({ onBack }: RankingsRewardsScreenProps) {
     );
   }
 
+  if (showCategoryDetail) {
+    return (
+      <div className="flex-1 flex min-h-screen flex-col bg-background pb-24">
+        <div className="px-4 pt-2 sm:px-6">
+          <Header
+            title={categoryName(selectedCategory)}
+            onBack={() => {
+              setCategoryDetailLoading(false);
+              setShowCategoryDetail(false);
+            }}
+            compact
+          />
+        </div>
+
+        <div className="mt-4 space-y-4 px-4 sm:px-6">
+          {categoryDetailLoading ? (
+            <div className="flex min-h-[40vh] flex-col items-center justify-center">
+              <div className="rounded-[28px] bg-white/[0.03] p-5 shadow-[0_12px_30px_rgba(0,0,0,0.18)]">
+                <div
+                  className="h-16 w-16 animate-spin rounded-full border-[6px] border-[#d7dbff] border-b-transparent border-l-transparent border-r-[#5b61ff] border-t-[#8d93ff]"
+                  aria-label="Loading category"
+                />
+              </div>
+            </div>
+          ) : (
+            <>
+          {selectedMissionItems.length > 0 && (
+            <div className="space-y-2">
+              <div className="flex items-center gap-2">
+                <img src={emojiMissions} alt={copy.missionsAlt} className="h-4 w-4 object-contain" />
+                <h3 className="text-xs font-bold uppercase tracking-wider text-text-secondary">{copy.activeMissions}</h3>
+              </div>
+              <div className="space-y-2">
+                {selectedMissionItems.map((mission) => (
+                  <Card key={mission.id} className="!p-2.5">
+                    <div className="mb-2 flex items-start justify-between">
+                      <div className="flex items-center gap-1.5">
+                        <h4 className="text-sm font-semibold text-white">{translateTitle(mission.title)}</h4>
+                        {isNewWithin24Hours(mission.assigned_at || mission.created_at) && (
+                          <img src={emojiNew} alt={copy.newAlt} className="h-4 w-6 object-contain" />
+                        )}
+                      </div>
+                      <span className="rounded bg-accent/10 px-2 py-0.5 text-xs font-bold text-accent">+{mission.points_reward}</span>
+                    </div>
+                    <p className="mb-1.5 text-xs text-text-secondary">{translateDescription(mission.description)}</p>
+                    <div className="space-y-0.5">
+                      <div className="flex items-center gap-2">
+                        <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-white/5">
+                          <div
+                            className="h-full rounded-full bg-accent"
+                            style={{ width: `${Math.min((mission.progress / Math.max(1, mission.target)) * 100, 100)}%` }}
+                          />
+                        </div>
+                        <span className="font-mono text-xs text-text-tertiary">
+                          {mission.progress}/{mission.target}
+                        </span>
+                      </div>
+                      <p className="text-xs text-text-tertiary">{copy.remaining(mission.remaining)}</p>
+                    </div>
+                  </Card>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {selectedChallengeItems.length > 0 && (
+            <div className="space-y-2">
+              <div className="flex items-center gap-2">
+                <img src={emojiChallenges} alt={copy.challengesAlt} className="h-4 w-4 object-contain" />
+                <h3 className="text-xs font-bold uppercase tracking-wider text-text-secondary">{copy.activeChallenges}</h3>
+              </div>
+              <div className="space-y-2">
+                {selectedChallengeItems.map((challenge) => (
+                  <Card key={`${challenge.challenge_type}-${challenge.id}`} className="!p-2.5">
+                    <div className="mb-2 flex items-start justify-between">
+                      <div>
+                        <div className="flex items-center gap-1.5">
+                          <h4 className="text-sm font-semibold text-white">{translateTitle(challenge.title)}</h4>
+                          {isNewWithin24Hours(challenge.created_at) && (
+                            <img src={emojiNew} alt={copy.newAlt} className="h-4 w-6 object-contain" />
+                          )}
+                        </div>
+                        <p className="mt-0.5 text-[11px] uppercase text-text-secondary">{copy.challengeType(challenge.challenge_type)}</p>
+                      </div>
+                      <span className="rounded bg-blue-400/10 px-2 py-0.5 text-xs font-bold text-blue-400">+{challenge.points_reward}</span>
+                    </div>
+                    <p className="mb-1.5 text-xs text-text-secondary">{translateDescription(challenge.description)}</p>
+                    <div className="space-y-0.5">
+                      <div className="flex items-center gap-2">
+                        <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-white/5">
+                          <div
+                            className="h-full rounded-full bg-blue-400"
+                            style={{ width: `${Math.min((challenge.progress / Math.max(1, challenge.target)) * 100, 100)}%` }}
+                          />
+                        </div>
+                        <span className="font-mono text-xs text-text-tertiary">
+                          {challenge.progress}/{challenge.target}
+                        </span>
+                      </div>
+                      <p className="text-xs text-text-tertiary">{copy.remaining(challenge.remaining)}</p>
+                    </div>
+                  </Card>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {selectedHistoryItems.length > 0 && (
+            <div className="space-y-2">
+              <div className="flex items-center gap-2">
+                <Trophy size={16} className="text-green-500" />
+                <h3 className="text-xs font-bold uppercase tracking-wider text-text-secondary">{dashboardCopy.categoryHistory}</h3>
+              </div>
+              <div className="space-y-2">
+                {selectedHistoryItems.map((item) => (
+                  <Card key={item.id} className="!p-2.5 opacity-75">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <h4 className="text-sm font-semibold text-white">{translateTitle(item.title)}</h4>
+                          <span className="rounded-full border border-white/10 bg-white/[0.03] px-2 py-0.5 text-[10px] uppercase tracking-[0.12em] text-text-secondary">
+                            {item.type === 'mission' ? dashboardCopy.missionLabel : copy.challengeWord}
+                          </span>
+                        </div>
+                        <p className="mt-1 text-xs text-text-secondary">{translateDescription(item.description)}</p>
+                        {item.completed_at && (
+                          <p className="mt-1 text-[11px] text-text-tertiary">{copy.completedOn(new Date(item.completed_at))}</p>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="rounded bg-white/5 px-2 py-0.5 text-xs font-bold text-white">+{item.points_reward}</span>
+                        <img src={emojiDone} alt={copy.doneAlt} className="h-4 w-4 object-contain" />
+                      </div>
+                    </div>
+                  </Card>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {selectedMissionItems.length === 0 && selectedChallengeItems.length === 0 && selectedHistoryItems.length === 0 && (
+            <p className="text-center text-sm text-text-secondary">{copy.noMissions}</p>
+          )}
+            </>
+          )}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="flex-1 flex min-h-screen flex-col bg-background pb-24">
       <div className="px-4 pt-2 sm:px-6">
@@ -519,162 +1028,87 @@ export function RankingsRewardsScreen({ onBack }: RankingsRewardsScreenProps) {
           <span className="text-accent">&rarr;</span>
         </button>
 
-        {loading ? (
-          <div className="space-y-3">
-            <div className="space-y-2">
-              <div className="flex items-center gap-2">
-                <img src={emojiMissions} alt={copy.missionsAlt} className="h-4 w-4 object-contain opacity-70" />
-                <h3 className="text-xs font-bold uppercase tracking-wider text-text-secondary">{copy.activeMissions}</h3>
-              </div>
-              <div className="space-y-2">
-                <CardLoadingSkeleton tone="accent" />
-                <CardLoadingSkeleton tone="accent" />
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <div className="flex items-center gap-2">
-                <img src={emojiChallenges} alt={copy.challengesAlt} className="h-4 w-4 object-contain opacity-70" />
-                <h3 className="text-xs font-bold uppercase tracking-wider text-text-secondary">{copy.activeChallenges}</h3>
-              </div>
-              <div className="space-y-2">
-                <CardLoadingSkeleton tone="blue" />
-                <CardLoadingSkeleton tone="blue" />
-              </div>
-            </div>
+        <div className="space-y-2">
+          <div className="flex items-center gap-2">
+            <img src={emojiMissions} alt={copy.missionsAlt} className="h-4 w-4 object-contain" />
+            <h3 className="text-xs font-bold uppercase tracking-wider text-text-secondary">{dashboardCopy.dashboard}</h3>
           </div>
-        ) : (
-          <>
-            {activeMissions.length > 0 && (
+
+          {loading ? (
+            <div className="space-y-3">
+              <CategoryGridSkeleton />
               <div className="space-y-2">
-                <div className="flex items-center gap-2">
-                  <img src={emojiMissions} alt={copy.missionsAlt} className="h-4 w-4 object-contain" />
-                  <h3 className="text-xs font-bold uppercase tracking-wider text-text-secondary">{copy.activeMissions}</h3>
-                </div>
-                <div className="space-y-2">
-                  {activeMissions.map((mission) => (
-                    <Card key={mission.id} className="!p-2.5">
-                      <div className="mb-2 flex items-start justify-between">
-                        <div className="flex items-center gap-1.5">
-                          <h4 className="text-sm font-semibold text-white">{translateTitle(mission.title)}</h4>
-                          {isNewWithin24Hours(mission.assigned_at || mission.created_at) && (
-                            <img src={emojiNew} alt={copy.newAlt} className="h-4 w-6 object-contain" />
-                          )}
+                <CardLoadingSkeleton tone="accent" />
+                <CardLoadingSkeleton tone="blue" />
+              </div>
+            </div>
+          ) : (
+            <>
+              <div className="grid grid-cols-2 gap-3">
+                {CATEGORY_ORDER.map((category) => {
+                  const meta = categoryMeta[category];
+                  const Icon = meta.icon;
+                  const stats = categoryStats[category];
+                  const isSelected = selectedCategory === category;
+
+                  return (
+                    <button
+                      key={category}
+                      type="button"
+                      onClick={() => handleCategorySelect(category)}
+                      className={`rounded-2xl border p-4 text-left transition-all ${
+                        isSelected ? meta.selectedClassName : meta.cardClassName
+                      }`}
+                    >
+                      <div className="flex items-center justify-between gap-3">
+                        <div className={`flex h-10 w-10 items-center justify-center rounded-2xl border ${meta.iconWrapClassName}`}>
+                          <Icon size={18} className={meta.iconClassName} />
                         </div>
-                        <span className="rounded bg-accent/10 px-2 py-0.5 text-xs font-bold text-accent">+{mission.points_reward}</span>
+                        <ChevronRight size={16} className={`${meta.accentClassName} ${isSelected ? 'opacity-100' : 'opacity-60'}`} />
                       </div>
-                      <p className="mb-1.5 text-xs text-text-secondary">{translateDescription(mission.description)}</p>
-                      <div className="space-y-0.5">
-                        <div className="flex items-center gap-2">
-                          <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-white/5">
-                            <div
-                              className="h-full rounded-full bg-accent"
-                              style={{ width: `${Math.min((mission.progress / mission.target) * 100, 100)}%` }}
-                            />
+
+                      <div className="mt-3">
+                        <h4 className="text-sm font-semibold text-white">{categoryName(category)}</h4>
+                      </div>
+
+                      <div className="mt-3 space-y-1.5 text-xs text-text-secondary">
+                        <p>
+                          <span className={meta.accentClassName}>{dashboardCopy.activeLabel}:</span>{' '}
+                          {stats.activeCount}
+                        </p>
+                        <p>
+                          <span className={meta.accentClassName}>{dashboardCopy.completedLabel}:</span>{' '}
+                          {stats.completedCount}
+                        </p>
+                        <div className="pt-0.5">
+                          <p className={meta.accentClassName}>{dashboardCopy.progressLabel}</p>
+                          <div className="mt-1 rounded-md border border-white/10 bg-white/[0.02] p-1">
+                            <div className="flex h-2 items-center gap-1">
+                              {CATEGORY_PROGRESS_SEGMENT_COLORS.map((color, index) => {
+                                const threshold = ((index + 1) / CATEGORY_PROGRESS_SEGMENT_COLORS.length) * 100;
+                                const isFilled = stats.averageProgress >= threshold;
+                                return (
+                                  <div
+                                    key={`${category}-progress-${color}`}
+                                    className="h-full flex-1 rounded-[2px] transition-colors duration-300"
+                                    style={{
+                                      backgroundColor: isFilled ? color : 'rgba(255,255,255,0.08)',
+                                    }}
+                                  />
+                                );
+                              })}
+                            </div>
                           </div>
-                          <span className="font-mono text-xs text-text-tertiary">
-                            {mission.progress}/{mission.target}
-                          </span>
                         </div>
-                        <p className="text-xs text-text-tertiary">{copy.remaining(mission.remaining)}</p>
                       </div>
-                    </Card>
-                  ))}
-                </div>
+                    </button>
+                  );
+                })}
               </div>
-            )}
 
-            {(activeDailyChallenges.length > 0 || activeWeeklyChallenges.length > 0) && (
-              <div className="space-y-2">
-                <div className="flex items-center gap-2">
-                  <img src={emojiMissions} alt={copy.missionsAlt} className="h-4 w-4 object-contain" />
-                  <h3 className="text-xs font-bold uppercase tracking-wider text-text-secondary">{copy.activeChallenges}</h3>
-                </div>
-                <div className="space-y-2">
-                  {[...activeDailyChallenges, ...activeWeeklyChallenges].map((challenge) => (
-                    <Card key={`${challenge.challenge_type}-${challenge.id}`} className="!p-2.5">
-                      <div className="mb-2 flex items-start justify-between">
-                        <div>
-                          <div className="flex items-center gap-1.5">
-                            <h4 className="text-sm font-semibold text-white">{translateTitle(challenge.title)}</h4>
-                            {isNewWithin24Hours(challenge.created_at) && (
-                              <img src={emojiNew} alt={copy.newAlt} className="h-4 w-6 object-contain" />
-                            )}
-                          </div>
-                          <p className="mt-0.5 text-[11px] uppercase text-text-secondary">{copy.challengeType(challenge.challenge_type)}</p>
-                        </div>
-                        <span className="rounded bg-blue-400/10 px-2 py-0.5 text-xs font-bold text-blue-400">+{challenge.points_reward}</span>
-                      </div>
-                      <p className="mb-1.5 text-xs text-text-secondary">{translateDescription(challenge.description)}</p>
-                      <div className="space-y-0.5">
-                        <div className="flex items-center gap-2">
-                          <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-white/5">
-                            <div
-                              className="h-full rounded-full bg-blue-400"
-                              style={{ width: `${Math.min((challenge.progress / challenge.target) * 100, 100)}%` }}
-                            />
-                          </div>
-                          <span className="font-mono text-xs text-text-tertiary">
-                            {challenge.progress}/{challenge.target}
-                          </span>
-                        </div>
-                        <p className="text-xs text-text-tertiary">{copy.remaining(challenge.remaining)}</p>
-                      </div>
-                    </Card>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {completedMissions.length > 0 && (
-              <div className="space-y-1">
-                <div className="flex items-center gap-2">
-                  <Trophy size={16} className="text-green-500" />
-                  <h3 className="text-xs font-bold uppercase tracking-wider text-text-secondary">{copy.completedMissions}</h3>
-                </div>
-                {completedMissions.map((mission) => (
-                  <Card key={`done-m-${mission.id}`} className="!p-2.5 opacity-60">
-                    <div className="flex items-start justify-between">
-                      <div>
-                        <h4 className="text-sm font-semibold text-white">{translateTitle(mission.title)}</h4>
-                        <p className="mt-0.5 text-xs text-text-secondary">{translateDescription(mission.description)}</p>
-                      </div>
-                      <img src={emojiDone} alt={copy.doneAlt} className="h-4 w-4 object-contain" />
-                    </div>
-                  </Card>
-                ))}
-              </div>
-            )}
-
-            {completedChallenges.length > 0 && (
-              <div className="space-y-1">
-                <div className="flex items-center gap-2">
-                  <Trophy size={16} className="text-green-500" />
-                  <h3 className="text-xs font-bold uppercase tracking-wider text-text-secondary">{copy.completedChallenges}</h3>
-                </div>
-                {completedChallenges.map((challenge) => (
-                  <Card key={`done-c-${challenge.challenge_type}-${challenge.id}`} className="!p-2.5 opacity-60">
-                    <div className="flex items-start justify-between">
-                      <div>
-                        <h4 className="text-sm font-semibold text-white">{translateTitle(challenge.title)}</h4>
-                        <p className="mt-0.5 text-xs text-text-secondary">{translateDescription(challenge.description)}</p>
-                      </div>
-                      <img src={emojiDone} alt={copy.doneAlt} className="h-4 w-4 object-contain" />
-                    </div>
-                  </Card>
-                ))}
-              </div>
-            )}
-
-            {activeMissions.length === 0
-              && activeDailyChallenges.length === 0
-              && activeWeeklyChallenges.length === 0
-              && completedMissions.length === 0
-              && completedChallenges.length === 0 && (
-              <p className="text-center text-sm text-text-secondary">{copy.noMissions}</p>
-            )}
-          </>
-        )}
+            </>
+          )}
+        </div>
       </div>
     </div>
   );
