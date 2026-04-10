@@ -26,6 +26,10 @@ export function CalculatorCard({ onClick }: CalculatorCardProps) {
       title: 'Smarte Ernahrung',
       subtitle: 'Kalorien- und Proteinziele',
     },
+    fr: {
+      title: 'Nutrition Auto',
+      subtitle: 'Objectifs de calories et de proteines',
+    },
   });
 
   return (

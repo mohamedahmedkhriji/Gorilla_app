@@ -220,6 +220,49 @@ const PREMIUM_COPY = {
     progressCardio: 'Cardio',
     progressPressure: 'Wochenlast',
   },
+  fr: {
+    weekA: 'Semaine A',
+    weekB: 'Semaine B',
+    density: 'Densite',
+    pump: 'Pump',
+    minutes: 'min',
+    lockedBadge: 'Debloque apres le choix',
+    lockedTitle: 'Choisis d abord l entrainement du jour',
+    lockedBody: 'RepSet debloque ton objectif cardio apres avoir choisi la meilleure session pour aujourd hui.',
+    lockedFooter: 'Cet objectif premium s adapte a ta configuration et au type de session.',
+    lockedButton: 'Choisir la meilleure session',
+    requiredBadge: 'Obligatoire',
+    recommendedBadge: 'Recommande',
+    recoveryBadge: 'Guide par la recuperation',
+    completedBadge: 'Fait aujourd hui',
+    completedTitle: 'La session du jour est deja terminee',
+    completedBody: 'Utilise Progres pour voir le prochain ajustement premium avant la prochaine session.',
+    completedFooter: 'RepSet continuera a ajuster la seche a mesure que de nouvelles donnees arrivent.',
+    completedButton: 'Termine',
+    cardioFooterRequired: 'Cet objectif cardio fait partie de ton flow premium de seche aujourd hui.',
+    cardioFooterRecommended: 'RepSet recommande cet objectif pour faire avancer la seche sans trop entamer la recuperation.',
+    cardioFooterRecovery: 'La protection recuperation est activee, donc le cardio reste plus leger aujourd hui.',
+    cardioTitle: 'Cardio post-entrainement',
+    longCardioTitle: 'Bloc cardio principal',
+    inclineWalk: 'Marche inclinee',
+    bike: 'Velo',
+    mixed: 'Cardio mixte',
+    heroEyebrow: 'Jour premium seche',
+    heroNoteRequired: 'Aujourd hui, la seche demande une vraie poussee. Fais la seance puis termine l objectif cardio.',
+    heroNoteRecommended: 'La qualite de l entrainement reste prioritaire aujourd hui. Le cardio s adapte autour de la recuperation.',
+    heroNoteRecovery: 'Le mode protection musculaire est actif. RepSet garde le cardio plus leger pour proteger la performance.',
+    insightPicked: 'Session premium active du jour',
+    insightRecommended: 'Meilleur choix pour equilibrer recuperation et perte de graisse',
+    insightDensity: 'Bloc densite pour la structure et la tension',
+    insightPump: 'Bloc pump pour le volume et le stress metabolique',
+    progressTitle: 'Controle Premium T-2',
+    progressBodyGood: 'La seche est dans une zone stable. Garde une bonne qualite et laisse le plan accumuler des semaines propres.',
+    progressBodyWatch: 'La pression de recuperation monte. RepSet favorise une execution propre plutot qu une fatigue supplementaire.',
+    progressBodyHold: 'L adherence est la priorite pour le moment. Continue le plan avant d augmenter la demande.',
+    progressMode: 'Mode',
+    progressCardio: 'Cardio',
+    progressPressure: 'Charge de la semaine',
+  },
 } as const;
 
 const getCopy = (language: AppLanguage) => PREMIUM_COPY[language as keyof typeof PREMIUM_COPY] || PREMIUM_COPY.en;
@@ -339,6 +382,11 @@ const getModeLabel = (config: T2PremiumConfig, language: AppLanguage) => {
     if (config.cutIntensity === 'aggressive') return 'Aggressiv';
     if (config.cutIntensity === 'conservative') return 'Konservativ';
     return 'Ausgewogen';
+  }
+  if (language === 'fr') {
+    if (config.cutIntensity === 'aggressive') return 'Agressif';
+    if (config.cutIntensity === 'conservative') return 'Conservateur';
+    return 'Equilibre';
   }
   if (config.cutIntensity === 'aggressive') return 'Aggressive';
   if (config.cutIntensity === 'conservative') return 'Conservative';
@@ -495,7 +543,9 @@ export const buildT2PremiumCardioRecommendation = ({
         ? 'Avvia Workout'
         : language === 'de'
           ? 'Workout Starten'
-          : 'Start Workout',
+          : language === 'fr'
+            ? 'Demarrer l entrainement'
+            : 'Start Workout',
     actionWorkoutKey: selectedWorkoutKey || null,
     disabled: !selectedWorkoutKey,
   };

@@ -352,6 +352,64 @@ const FRIEND_PROFILE_I18N = {
     workoutFallback: (value: number) => `Allenamento ${value}`,
     postMediaAlt: 'Media del post',
   },
+  fr: {
+    profileTitle: 'Profil de l Ami',
+    planTitle: 'Plan de l Ami',
+    lockedTitle: 'Profil verrouille',
+    lockedBody: 'Envoie une demande d amitie et attends l acceptation avant d afficher ce profil.',
+    backToFriends: 'Retour aux amis',
+    inviteToGymDay: 'Inviter a une seance',
+    challenge: 'Defi',
+    badges: 'Badges',
+    trainingSplit: 'Split d entrainement',
+    viewFriendPlan: 'Ouvrir le plan complet',
+    planPeek: 'Appuie pour explorer les entrainements, les muscles cibles et les details de la semaine.',
+    planLoading: 'Chargement du plan de l ami...',
+    planError: 'Impossible de charger le plan de cet ami pour le moment.',
+    emptyPlan: 'Aucun plan d entrainement actif trouve pour cet ami pour le moment.',
+    posts: 'Publications',
+    loadingPosts: 'Chargement des publications...',
+    noPosts: 'Aucune publication pour le moment.',
+    today: 'Aujourd hui',
+    yesterday: 'Hier',
+    recently: 'Recemment',
+    likes: 'j aime',
+    comments: 'commentaires',
+    views: 'vues',
+    inviteModalTitle: 'Inviter a la seance',
+    inviteModalSubtitle: 'Choisis la date et l heure pour vous entrainer ensemble.',
+    selectedSession: 'Seance selectionnee',
+    chooseDateTime: 'Choisir la date et l heure',
+    time: 'Heure',
+    sendInvitation: 'Envoyer l invitation',
+    closeImagePreview: 'Fermer l apercu de l image',
+    comingSoon: 'Bientot',
+    challengeSoonTitle: 'Les defis arrivent bientot',
+    challengeSoonBody: 'Nous peaufinons les entrainements competitifs pour que tu puisses defier tes amis avec suivi du score et meilleurs matchs.',
+    challengeSoonHint: 'En attendant, invite-les a une seance a la salle pendant que nous finalisons l experience de defi.',
+    challengeSoonCta: 'Compris',
+    noSession: 'Aucune session utilisateur active trouvee.',
+    friendNotSelected: 'Aucun ami selectionne.',
+    inviteSent: 'Invitation a la seance envoyee !',
+    inviteFailed: 'Impossible d envoyer l invitation',
+    level: (value: number) => `Niveau ${value}`,
+    weekLabel: (week: number, total: number) => `Semaine ${week}${total > 0 ? ` / ${total}` : ''}`,
+    workoutsLabel: (value: number) => `${value} entrainements`,
+    exerciseCount: (value: number) => `${value} exercices`,
+    moreExercises: (value: number) => `+${value} exercices en plus`,
+    targetMuscles: 'Muscles Cibles',
+    targetMusclesHint: 'Les principaux groupes musculaires sur lesquels cet ami se concentre en ce moment.',
+    weeklySchedule: 'Planning Hebdomadaire',
+    weeklyScheduleHint: 'Une vue plus elegante de la semaine active du plan.',
+    planHighlights: 'Points forts du plan',
+    planHighlightsHint: 'Split actuel, semaine active et densite des entrainements.',
+    notes: 'Note du coach',
+    sets: (value: number) => `${value} series`,
+    reps: (value: string | number) => `${value} repetitions`,
+    rest: (value: number) => `${value}s de repos`,
+    workoutFallback: (value: number) => `Entrainement ${value}`,
+    postMediaAlt: 'Media de la publication',
+  },
   de: {
     profileTitle: 'Freundesprofil',
     planTitle: 'Trainingsplan des Freundes',
@@ -440,6 +498,19 @@ const MUSCLE_NAME_MAP: LocalizedLanguageRecord<Record<string, string>> = {
     Shoulders: 'Spalle',
     Triceps: 'Tricipiti',
   },
+  fr: {
+    Abs: 'Abdos',
+    Back: 'Dos',
+    Biceps: 'Biceps',
+    Calves: 'Mollets',
+    Chest: 'Poitrine',
+    Forearms: 'Avant-bras',
+    Glutes: 'Fessiers',
+    Hamstrings: 'Ischio-jambiers',
+    Quadriceps: 'Quadriceps',
+    Shoulders: 'Epaules',
+    Triceps: 'Triceps',
+  },
   de: {
     Abs: 'Bauch',
     Back: 'Ruecken',
@@ -476,6 +547,7 @@ const getLocalizedFriendFallbackName = (language: AppLanguage) =>
     en: 'Friend',
     ar: 'صديق',
     it: 'Amico',
+    fr: 'Ami',
     de: 'Freund',
   });
 
@@ -484,6 +556,7 @@ const getLocalizedMemberRank = (language: AppLanguage) =>
     en: 'Member',
     ar: 'عضو',
     it: 'Membro',
+    fr: 'Membre',
     de: 'Mitglied',
   });
 
@@ -492,6 +565,7 @@ const getLocalizedAvatarAlt = (language: AppLanguage, name: string) =>
     en: `${name} avatar`,
     ar: `صورة ${name}`,
     it: `Avatar di ${name}`,
+    fr: `Avatar de ${name}`,
     de: `Avatar von ${name}`,
   });
 
@@ -504,6 +578,18 @@ const getLocalizedRankLabel = (language: AppLanguage, rank: string) => {
 
   if (!normalizedRank) {
     return getLocalizedMemberRank(language);
+  }
+
+  if (language === 'fr') {
+    const frenchRanks: Record<string, string> = {
+      bronze: 'Bronze',
+      silver: 'Argent',
+      gold: 'Or',
+      platinum: 'Platine',
+      diamond: 'Diamant',
+      member: getLocalizedMemberRank(language),
+    };
+    return frenchRanks[normalizedRank] || rank;
   }
 
   const localizedRanks = {

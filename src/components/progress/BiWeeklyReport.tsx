@@ -56,6 +56,18 @@ const BIWEEKLY_REPORT_I18N = {
     nextFocusEmptyTitle: 'استمر على الانتظام في التدريب',
     nextFocusEmptyDetail: 'أكمل جلساتك المجدولة هذا الأسبوع.',
   },
+  fr: {
+    title: 'Rapport Bi-Hebdomadaire',
+    summaryTitle: 'Resume du Coach IA',
+    summaryLoading: 'Analyse de tes dernieres donnees d entrainement...',
+    summaryEmpty: 'Aucune donnee de rapport pour le moment. Commence a enregistrer tes entrainements pour generer un rapport personnalise.',
+    improvementsTitle: 'Ameliorations',
+    improvementsEmptyTitle: 'Pas encore d amelioration majeure',
+    improvementsEmptyDetail: 'Enregistre plus d entrainements sur cette periode pour debloquer des tendances detaillees.',
+    nextFocusTitle: 'Prochain Axe',
+    nextFocusEmptyTitle: 'Continue a t entrainer regulierement',
+    nextFocusEmptyDetail: 'Complete tes seances prevues cette semaine.',
+  },
 } as const;
 
 export function BiWeeklyReport({ onBack }: BiWeeklyReportProps) {

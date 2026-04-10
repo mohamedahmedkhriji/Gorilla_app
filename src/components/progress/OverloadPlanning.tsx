@@ -38,6 +38,15 @@ const OVERLOAD_I18N = {
     footerPlan: 'I consigli vengono generati dalla tua settimana di piano attiva e dalle tue ultime serie completate.',
     footerRecent: 'In base alla tua prestazione recente, RepSet consiglia questi aumenti per mantenere il sovraccarico progressivo.',
   },
+  fr: {
+    title: 'Surcharge de la Prochaine Periode',
+    sourcePrefix: 'Source',
+    sourcePlan: 'Semaine actuelle du plan',
+    sourceRecent: 'Performance recente',
+    empty: 'Aucune recommandation de surcharge pour le moment. Enregistre plus de series pour generer tes prochains objectifs de progression.',
+    footerPlan: 'Les recommandations sont generees a partir de ta semaine de plan active et de tes dernieres series completes.',
+    footerRecent: 'En fonction de ta performance recente, RepSet recommande ces augmentations pour maintenir la surcharge progressive.',
+  },
   de: {
     title: 'Overload fuer den Naechsten Zeitraum',
     sourcePrefix: 'Quelle',

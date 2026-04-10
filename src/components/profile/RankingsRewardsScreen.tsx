@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Activity, ChevronRight, Dumbbell, HeartPulse, Sparkles, Trophy } from 'lucide-react';
+import { ChevronRight, Trophy } from 'lucide-react';
 import { Header } from '../ui/Header';
 import { Card } from '../ui/Card';
 import { LeaderboardScreen } from './LeaderboardScreen';
@@ -14,6 +14,10 @@ import {
   emojiNew,
   emojiViewLeaderboard,
 } from '../../services/emojiTheme';
+import emojiConsistency from '../../../assets/emoji/Consistency.png';
+import emojiStrength from '../../../assets/emoji/Strengths.png';
+import emojiRecovery from '../../../assets/emoji/Recovery.png';
+import emojiEngagement from '../../../assets/emoji/Engagement.png';
 
 interface RankingsRewardsScreenProps {
   onBack: () => void;
@@ -175,6 +179,14 @@ const RANK_NAME_MAP: LocalizedLanguageRecord<Record<string, string>> = {
     diamond: 'Diamant',
     elite: 'Elite',
   },
+  fr: {
+    bronze: 'Bronze',
+    silver: 'Argent',
+    gold: 'Or',
+    platinum: 'Platine',
+    diamond: 'Diamant',
+    elite: 'Elite',
+  },
 };
 
 const TITLE_TRANSLATIONS: Record<string, LocalizedLanguageRecord<string>> = {
@@ -203,6 +215,53 @@ const DESCRIPTION_TRANSLATIONS: Record<string, LocalizedLanguageRecord<string>> 
   'submit your recovery check-in today': { en: 'Submit your recovery check-in today', ar: 'أرسل حالة التعافي اليوم', it: 'Invia oggi il tuo check-in di recupero', de: 'Reiche heute deinen Recovery-Check-in ein' },
   'train on 4 different days this week': { en: 'Train on 4 different days this week', ar: 'تمرّن في 4 أيام مختلفة هذا الأسبوع', it: 'Allenati in 4 giorni diversi questa settimana', de: 'Trainiere diese Woche an 4 verschiedenen Tagen' },
   'log recovery on 5 days this week': { en: 'Log recovery on 5 days this week', ar: 'سجّل التعافي في 5 أيام هذا الأسبوع', it: 'Registra il recupero in 5 giorni questa settimana', de: 'Erfasse diese Woche an 5 Tagen deine Erholung' },
+};
+
+const TITLE_TRANSLATION_FR_OVERRIDES: Record<string, string> = {
+  'daily iron habit': 'Habitude fonte du jour',
+  'daily recovery check': 'Check recuperation du jour',
+  'weekly workout consistency': 'Regularite entrainement hebdo',
+  'weekly recovery discipline': 'Discipline recuperation hebdo',
+  'coach check-in': 'Check-in coach',
+  'first lift logged': 'Premier exercice enregistre',
+  'start a conversation': 'Commencer une conversation',
+  'send a challenge': 'Envoyer un defi',
+  'recovery check': 'Check recuperation',
+  'show some love': 'Montrer du soutien',
+  'feed scout': 'Explorer le feed',
+  'accept the challenge': 'Accepter le defi',
+  'bench press king': 'Roi du developpe couche',
+  'deadlift monster': 'Monstre du souleve de terre',
+  'squat titan': 'Titan du squat',
+  'push until failure': 'Pompes jusqu a l echec',
+  'plank survivor': 'Survivant du gainage',
+  'rep madness': 'Folie des repetitions',
+  'volume destroyer': 'Destructeur de volume',
+  'upper body war': 'Guerre du haut du corps',
+  'fast grinder': 'Grinder rapide',
+  'perfect athlete': 'Athlete parfait',
+};
+
+const DESCRIPTION_TRANSLATION_FR_OVERRIDES: Record<string, string> = {
+  'complete at least one workout today': 'Termine au moins un entrainement aujourd hui',
+  'submit your recovery check-in today': 'Envoie ton check de recuperation aujourd hui',
+  'train on 4 different days this week': 'Entraine-toi 4 jours differents cette semaine',
+  'log recovery on 5 days this week': 'Enregistre ta recuperation 5 jours cette semaine',
+  'log at least 1 exercise today.': 'Enregistre au moins 1 exercice aujourd hui.',
+  'comment on 1 post in the community feed today.': 'Commente 1 publication du feed aujourd hui.',
+  'send one real message to your coach today.': 'Envoie un vrai message a ton coach aujourd hui.',
+  'send 1 friend challenge today.': 'Envoie 1 defi a un ami aujourd hui.',
+  "log today's recovery status to keep your plan adaptive.": 'Enregistre ton etat de recuperation du jour pour garder ton plan adaptatif.',
+  'hit an 80kg or better bench press 1rm estimate this week.': 'Atteins un 1RM estime de 80 kg ou plus au developpe couche cette semaine.',
+  'hit a 120kg or better deadlift 1rm estimate this week.': 'Atteins un 1RM estime de 120 kg ou plus au souleve de terre cette semaine.',
+  'hit a 100kg or better squat this week.': 'Atteins un squat de 100 kg ou plus cette semaine.',
+  'reach 30 push-ups in one set this week.': 'Atteins 30 pompes en une seule serie cette semaine.',
+  'hold a plank for 90 seconds or longer this week.': 'Tiens une planche 90 secondes ou plus cette semaine.',
+  'reach 60 reps on a single exercise inside one workout this week.': 'Atteins 60 repetitions sur un seul exercice dans une seance cette semaine.',
+  'log 5,000kg of weekly training volume.': 'Enregistre 5 000 kg de volume d entrainement cette semaine.',
+  'log 150 upper-body reps across chest, shoulders, and arms this week.': 'Enregistre 150 repetitions du haut du corps cette semaine.',
+  'finish a valid workout in 45 minutes or less this week.': 'Termine une seance valide en 45 minutes ou moins cette semaine.',
+  'reach a weekly athlete score of 75 by combining strength, volume, recovery, and consistency.': 'Atteins un score athletique hebdo de 75 en combinant force, volume, recuperation et regularite.',
 };
 
 const isNewWithin24Hours = (dateValue?: string | null) => {
@@ -385,6 +444,34 @@ export function RankingsRewardsScreen({ onBack }: RankingsRewardsScreenProps) {
       missionsAlt: 'Missionen',
       challengesAlt: 'Challenges',
     },
+    fr: {
+      title: 'Rang et Recompenses',
+      history: 'Historique',
+      missionHistory: 'Historique des missions',
+      challengeHistory: 'Historique des defis',
+      noHistory: 'Aucun historique pour le moment',
+      viewLeaderboard: 'Voir le classement',
+      seeRankings: 'Voir le classement de la salle',
+      missionChallengeHistory: 'Historique des missions et defis',
+      viewCompleted: 'Voir les elements termines',
+      activeMissions: 'Missions actives',
+      activeChallenges: 'Defis actifs',
+      completedMissions: 'Missions terminees',
+      completedChallenges: 'Defis termines',
+      noMissions: 'Aucune mission ou aucun defi trouve',
+      points: (value: number) => `${value} points`,
+      pointsShort: 'pts',
+      nextRank: (rank: string, points: number) => `Suivant : ${rank} (${points} pts)`,
+      topRank: 'Rang maximum atteint',
+      completedOn: (date: Date) => `Termine le ${date.toLocaleDateString(getLanguageLocale(language))}`,
+      challengeType: (type: string) => (type === 'daily' ? 'Quotidien' : 'Hebdomadaire'),
+      challengeWord: 'defi',
+      remaining: (value: number) => `${value} restants`,
+      newAlt: 'nouveau',
+      doneAlt: 'termine',
+      missionsAlt: 'Missions',
+      challengesAlt: 'Defis',
+    },
   });
   const dashboardCopy = pickLanguage(language, {
     en: {
@@ -393,7 +480,7 @@ export function RankingsRewardsScreen({ onBack }: RankingsRewardsScreenProps) {
       categoryHistory: 'Completed',
       categoryEmpty: 'No items in this category yet.',
       activeLabel: 'Active',
-      progressLabel: 'Avg progress',
+      progressLabel: 'Left to finish',
       completedLabel: 'Completed',
       missionLabel: 'Mission',
       categoryConsistency: 'Consistency',
@@ -407,7 +494,7 @@ export function RankingsRewardsScreen({ onBack }: RankingsRewardsScreenProps) {
       categoryHistory: 'Completed',
       categoryEmpty: 'No items in this category yet.',
       activeLabel: 'Active',
-      progressLabel: 'Avg progress',
+      progressLabel: 'Left to finish',
       completedLabel: 'Completed',
       missionLabel: 'Mission',
       categoryConsistency: 'Consistency',
@@ -421,7 +508,7 @@ export function RankingsRewardsScreen({ onBack }: RankingsRewardsScreenProps) {
       categoryHistory: 'Completate',
       categoryEmpty: 'Nessun elemento in questa categoria.',
       activeLabel: 'Attive',
-      progressLabel: 'Progresso medio',
+      progressLabel: 'Da completare',
       completedLabel: 'Completate',
       missionLabel: 'Missione',
       categoryConsistency: 'Costanza',
@@ -449,7 +536,7 @@ export function RankingsRewardsScreen({ onBack }: RankingsRewardsScreenProps) {
       categoryHistory: 'Termine',
       categoryEmpty: 'Aucun element dans cette categorie pour le moment.',
       activeLabel: 'Actif',
-      progressLabel: 'Progression moy.',
+      progressLabel: 'Reste a faire',
       completedLabel: 'Termine',
       missionLabel: 'Mission',
       categoryConsistency: 'Regularite',
@@ -461,6 +548,12 @@ export function RankingsRewardsScreen({ onBack }: RankingsRewardsScreenProps) {
 
   const translateText = (value: string, map: Record<string, LocalizedLanguageRecord<string>>) => {
     const key = value.trim().toLowerCase();
+    if (language === 'fr') {
+      const frOverride = map === TITLE_TRANSLATIONS
+        ? TITLE_TRANSLATION_FR_OVERRIDES[key]
+        : DESCRIPTION_TRANSLATION_FR_OVERRIDES[key];
+      if (frOverride) return frOverride;
+    }
     return map[key]?.[language] || value;
   };
 
@@ -671,32 +764,28 @@ export function RankingsRewardsScreen({ onBack }: RankingsRewardsScreenProps) {
 
   const categoryMeta = {
     consistency: {
-      icon: Activity,
-      iconClassName: 'text-emerald-400',
+      iconSrc: emojiConsistency,
       iconWrapClassName: 'bg-emerald-500/10 border-emerald-400/25',
       cardClassName: 'border-emerald-400/20 bg-emerald-500/[0.05]',
       selectedClassName: 'border-emerald-400/45 bg-emerald-500/[0.10]',
       accentClassName: 'text-emerald-300',
     },
     strength: {
-      icon: Dumbbell,
-      iconClassName: 'text-rose-400',
+      iconSrc: emojiStrength,
       iconWrapClassName: 'bg-rose-500/10 border-rose-400/25',
       cardClassName: 'border-rose-400/20 bg-rose-500/[0.05]',
       selectedClassName: 'border-rose-400/45 bg-rose-500/[0.10]',
       accentClassName: 'text-rose-300',
     },
     recovery: {
-      icon: HeartPulse,
-      iconClassName: 'text-sky-400',
+      iconSrc: emojiRecovery,
       iconWrapClassName: 'bg-sky-500/10 border-sky-400/25',
       cardClassName: 'border-sky-400/20 bg-sky-500/[0.05]',
       selectedClassName: 'border-sky-400/45 bg-sky-500/[0.10]',
       accentClassName: 'text-sky-300',
     },
     engagement: {
-      icon: Sparkles,
-      iconClassName: 'text-violet-400',
+      iconSrc: emojiEngagement,
       iconWrapClassName: 'bg-violet-500/10 border-violet-400/25',
       cardClassName: 'border-violet-400/20 bg-violet-500/[0.05]',
       selectedClassName: 'border-violet-400/45 bg-violet-500/[0.10]',
@@ -705,8 +794,7 @@ export function RankingsRewardsScreen({ onBack }: RankingsRewardsScreenProps) {
   } satisfies Record<
     DashboardCategory,
     {
-      icon: typeof Activity;
-      iconClassName: string;
+      iconSrc: string;
       iconWrapClassName: string;
       cardClassName: string;
       selectedClassName: string;
@@ -734,9 +822,10 @@ export function RankingsRewardsScreen({ onBack }: RankingsRewardsScreenProps) {
           activeCount: missionItems.length + challengeItems.length,
           completedCount: historyItems.length,
           averageProgress,
+          remainingPercent: progressItems.length ? Math.max(0, 100 - averageProgress) : 0,
         };
         return acc;
-      }, {} as Record<DashboardCategory, { activeCount: number; completedCount: number; averageProgress: number }>),
+      }, {} as Record<DashboardCategory, { activeCount: number; completedCount: number; averageProgress: number; remainingPercent: number }>),
     [categorizedActiveChallenges, categorizedActiveMissions, categorizedHistory],
   );
 
@@ -1047,7 +1136,6 @@ export function RankingsRewardsScreen({ onBack }: RankingsRewardsScreenProps) {
               <div className="grid grid-cols-2 gap-3">
                 {CATEGORY_ORDER.map((category) => {
                   const meta = categoryMeta[category];
-                  const Icon = meta.icon;
                   const stats = categoryStats[category];
                   const isSelected = selectedCategory === category;
 
@@ -1059,10 +1147,10 @@ export function RankingsRewardsScreen({ onBack }: RankingsRewardsScreenProps) {
                       className={`rounded-2xl border p-4 text-left transition-all ${
                         isSelected ? meta.selectedClassName : meta.cardClassName
                       }`}
-                    >
+                      >
                       <div className="flex items-center justify-between gap-3">
                         <div className={`flex h-10 w-10 items-center justify-center rounded-2xl border ${meta.iconWrapClassName}`}>
-                          <Icon size={18} className={meta.iconClassName} />
+                          <img src={meta.iconSrc} alt={categoryName(category)} className="h-6 w-6 object-contain" />
                         </div>
                         <ChevronRight size={16} className={`${meta.accentClassName} ${isSelected ? 'opacity-100' : 'opacity-60'}`} />
                       </div>
@@ -1076,17 +1164,13 @@ export function RankingsRewardsScreen({ onBack }: RankingsRewardsScreenProps) {
                           <span className={meta.accentClassName}>{dashboardCopy.activeLabel}:</span>{' '}
                           {stats.activeCount}
                         </p>
-                        <p>
-                          <span className={meta.accentClassName}>{dashboardCopy.completedLabel}:</span>{' '}
-                          {stats.completedCount}
-                        </p>
                         <div className="pt-0.5">
                           <p className={meta.accentClassName}>{dashboardCopy.progressLabel}</p>
                           <div className="mt-1 rounded-md border border-white/10 bg-white/[0.02] p-1">
                             <div className="flex h-2 items-center gap-1">
                               {CATEGORY_PROGRESS_SEGMENT_COLORS.map((color, index) => {
                                 const threshold = ((index + 1) / CATEGORY_PROGRESS_SEGMENT_COLORS.length) * 100;
-                                const isFilled = stats.averageProgress >= threshold;
+                                const isFilled = stats.remainingPercent >= threshold;
                                 return (
                                   <div
                                     key={`${category}-progress-${color}`}

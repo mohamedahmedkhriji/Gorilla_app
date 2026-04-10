@@ -4,6 +4,7 @@ import { Header } from '../ui/Header';
 import { AgendaSection } from '../home/AgendaSection';
 import { getBodyPartImage } from '../../services/bodyPartTheme';
 import { AppLanguage, LocalizedLanguageRecord, getActiveLanguage, getStoredLanguage, normalizeLocalizedValue } from '../../services/language';
+import { translateProgramText } from '../../services/programI18n';
 import type { WorkoutAssignmentHistoryEntry } from '../../services/todayWorkoutSelection';
 import { formatWorkoutDayLabel } from '../../services/workoutDayLabel';
 import {
@@ -274,6 +275,36 @@ const LOCALIZED_COPY: LocalizedLanguageRecord<typeof COPY.en> = {
     noExercises: 'Noch keine Uebungen hinzugefuegt.',
     exerciseCount: (count: number) => `${count} ${count === 1 ? 'Uebung' : 'Uebungen'}`,
   },
+  fr: {
+    title: 'Mon Plan',
+    heroEyebrow: 'Jour actuel',
+    heroBody: 'Choisis une carte ci-dessous pour l enregistrer comme plan du jour.',
+    heroSelectedEyebrow: 'Enregistre pour aujourd hui',
+    heroSelectedBody: 'C est l entrainement actuellement enregistre pour aujourd hui.',
+    heroLockedBody: 'Tu as deja commence l entrainement du jour, donc le plan d aujourd hui est verrouille.',
+    heroCompletedBody: 'L entrainement du jour est marque comme termine. Utilise la suggestion suivante quand tu es pret.',
+    sectionTitle: 'Plan de la semaine',
+    recommendationTitle: 'Prochain recommande',
+    loading: 'Chargement de ton plan de la semaine...',
+    empty: 'Aucun plan d entrainement n a encore ete trouve pour cette semaine.',
+    error: 'Impossible de charger ton plan de la semaine.',
+    recommendedNextBadge: 'Recommande pour le prochain jour',
+    pickedBadge: 'Choisi',
+    completedBadge: 'Termine',
+    pickForToday: 'Choisir pour aujourd hui',
+    startMyWorkout: 'Commencer mon entrainement',
+    planLocked: 'Plan verrouille',
+    pickedForToday: 'Choisi pour aujourd hui',
+    completedForToday: 'Termine aujourd hui',
+    planFinishedTitle: 'Plan termine',
+    planFinishedBody: 'Tu as termine toutes les semaines de ce plan. Cree un nouveau plan pour continuer a t entrainer les prochaines semaines.',
+    createNewPlan: 'Creer un nouveau plan',
+    exercisesIncluded: 'Exercices de cet entrainement',
+    showExercises: 'Afficher les exercices',
+    hideExercises: 'Masquer les exercices',
+    noExercises: 'Aucun exercice ajoute pour le moment.',
+    exerciseCount: (count: number) => `${count} ${count === 1 ? 'exercice' : 'exercices'}`,
+  },
 };
 
 const PREMIUM_CARD_SURFACE_LABELS: LocalizedLanguageRecord<{
@@ -303,6 +334,12 @@ const PREMIUM_CARD_SURFACE_LABELS: LocalizedLanguageRecord<{
   de: {
     cardio: 'Cardio',
     target: 'Ziel',
+    flow: 'Flow',
+    premiumFlow: 'T-2 Premium',
+  },
+  fr: {
+    cardio: 'Cardio',
+    target: 'Objectif',
     flow: 'Flow',
     premiumFlow: 'T-2 Premium',
   },
@@ -363,6 +400,24 @@ const MUSCLE_LABELS: LocalizedLanguageRecord<Record<string, string>> = {
     glutes: 'Gesaess',
     adductors: 'Adduktoren',
     general: 'Allgemein',
+  },
+  fr: {
+    chest: 'Poitrine',
+    back: 'Dos',
+    shoulders: 'Epaules',
+    'front shoulders': 'Epaules avant',
+    'side shoulders': 'Epaules laterales',
+    'rear shoulders': 'Epaules arriere',
+    triceps: 'Triceps',
+    biceps: 'Biceps',
+    abs: 'Abdos',
+    quadriceps: 'Quadriceps',
+    hamstrings: 'Ischio-jambiers',
+    calves: 'Mollets',
+    forearms: 'Avant-bras',
+    glutes: 'Fessiers',
+    adductors: 'Adducteurs',
+    general: 'General',
   },
 };
 
@@ -437,6 +492,10 @@ export function WorkoutOverviewScreen({
     return formatWorkoutDayLabel(value, value, language);
   }, [language]);
 
+  const localizeWorkoutText = useCallback((value: string) => {
+    return translateProgramText(value, language);
+  }, [language]);
+
   const localizeMuscle = useCallback((value: string) => {
     const normalized = String(value || '').trim().toLowerCase();
     return localizedMuscleLabels[normalized] || value;
@@ -482,7 +541,7 @@ export function WorkoutOverviewScreen({
   );
   const heroEyebrow = hasTodaySelection ? copy.heroSelectedEyebrow : copy.heroEyebrow;
   const heroTitle = hasTodaySelection
-    ? String(selectedTodayWorkoutName || '').trim() || localizeDay(selectedTodayWorkoutDayLabel || currentDayLabel)
+    ? localizeWorkoutText(String(selectedTodayWorkoutName || '').trim()) || localizeDay(selectedTodayWorkoutDayLabel || currentDayLabel)
     : localizeDay(currentDayLabel);
   const heroBody = hasTodaySelection
     ? (isTodaySelectionCompleted
@@ -505,6 +564,7 @@ export function WorkoutOverviewScreen({
             isRecommendedNext: workout.isRecommendedNext,
           })
         : null,
+      localizedWorkoutName: localizeWorkoutText(workout.workoutName),
       localizedMuscles: workout.targetMuscles.slice(0, 3).map((entry) => {
         const label = localizeMuscle(toTitleCase(entry));
         return {
@@ -513,7 +573,7 @@ export function WorkoutOverviewScreen({
         };
       }),
     })),
-    [language, latestAssignmentByWorkoutKey, localizeMuscle, premiumConfig, selectableWorkouts],
+    [language, latestAssignmentByWorkoutKey, localizeMuscle, localizeWorkoutText, premiumConfig, selectableWorkouts],
   );
   const recommendedWorkoutKey = useMemo(
     () => cards.find((workout) => workout.isRecommendedNext)?.key || null,
@@ -653,7 +713,7 @@ export function WorkoutOverviewScreen({
               {copy.recommendationTitle}
             </div>
             <div className="mt-2 text-base font-semibold text-white">
-              {recommendedWorkout.workoutName}
+              {localizeWorkoutText(recommendedWorkout.workoutName)}
             </div>
             <div className="mt-1 text-sm text-text-secondary">
               {localizeDay(recommendedWorkout.dayLabel)}
@@ -750,7 +810,7 @@ export function WorkoutOverviewScreen({
                     type="button"
                     onClick={() => onSelectWorkout(workout.key)}
                     className="w-full text-inherit"
-                    aria-label={workout.premiumMeta?.displayTitle || workout.workoutName}
+                    aria-label={localizeWorkoutText(workout.premiumMeta?.displayTitle || workout.workoutName)}
                   >
                     <div className={`flex items-start justify-between gap-3 ${isArabic ? 'flex-row-reverse' : ''}`}>
                       <div className={`flex items-start gap-3 min-w-0 ${isArabic ? 'flex-row-reverse' : ''}`}>
@@ -769,7 +829,7 @@ export function WorkoutOverviewScreen({
                             </div>
                           )}
                           <div className="truncate text-base font-semibold text-white">
-                            {workout.premiumMeta?.displayTitle || workout.workoutName}
+                            {localizeWorkoutText(workout.premiumMeta?.displayTitle || workout.localizedWorkoutName || workout.workoutName)}
                           </div>
                           <div className="mt-1 text-xs text-text-secondary">
                             {workout.premiumMeta

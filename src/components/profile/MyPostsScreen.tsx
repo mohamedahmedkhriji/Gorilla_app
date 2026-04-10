@@ -138,6 +138,36 @@ const MY_POSTS_I18N = {
     yesterday: 'Ieri',
     daysAgoSuffix: 'g fa',
   },
+  fr: {
+    title: 'Mes Articles de Blog',
+    missingUserId: 'Utilisateur connecte introuvable. Merci de te reconnecter.',
+    failedLoadPosts: 'Impossible de charger tes publications',
+    failedLoadMorePosts: 'Impossible de charger plus de publications',
+    descriptionRequired: 'La description est obligatoire.',
+    descriptionTooLong: `La description est trop longue (max ${DESCRIPTION_MAX_LENGTH} caracteres).`,
+    failedSaveChanges: 'Impossible d enregistrer les modifications de la publication',
+    deleteConfirm: 'Supprimer cette publication ? Cette action est definitive.',
+    failedDeletePost: 'Impossible de supprimer la publication',
+    loadingPosts: 'Chargement de tes publications...',
+    noPostsYet: 'Tu n as encore publie aucun article de blog.',
+    likes: 'j aime',
+    comments: 'commentaires',
+    views: 'vues',
+    edit: 'Modifier',
+    deleting: 'Suppression...',
+    delete: 'Supprimer',
+    loadingMore: 'Chargement de plus de publications...',
+    loadMore: 'Charger plus de publications',
+    editPost: 'Modifier la publication',
+    updateDescription: 'Met a jour la description de ta publication...',
+    cancel: 'Annuler',
+    saving: 'Enregistrement...',
+    saveChanges: 'Enregistrer les modifications',
+    recently: 'Recemment',
+    today: 'Aujourd hui',
+    yesterday: 'Hier',
+    daysAgoSuffix: ' j',
+  },
   de: {
     title: 'Meine Blogbeitraege',
     missingUserId: 'Benutzer-ID fehlt. Bitte melde dich erneut an.',
@@ -227,7 +257,7 @@ const formatRelativeDay = (value: string | null, language: AppLanguage) => {
   if (dayDiff <= 0) return copy.today;
   if (dayDiff === 1) return copy.yesterday;
   if (dayDiff < 7) return `${dayDiff}${copy.daysAgoSuffix}`;
-  const locale = language === 'ar' ? 'ar' : language === 'it' ? 'it-IT' : language === 'de' ? 'de-DE' : 'en-US';
+  const locale = language === 'ar' ? 'ar' : language === 'it' ? 'it-IT' : language === 'fr' ? 'fr-FR' : language === 'de' ? 'de-DE' : 'en-US';
   return date.toLocaleDateString(locale);
 };
 
@@ -449,9 +479,9 @@ export function MyPostsScreen({ onBack }: MyPostsScreenProps) {
                 )}
 
                 <div className="text-xs text-text-tertiary">
-                  {new Intl.NumberFormat(language === 'ar' ? 'ar' : language === 'it' ? 'it-IT' : language === 'de' ? 'de-DE' : 'en-US').format(post.likes)} {copy.likes} - {' '}
-                  {new Intl.NumberFormat(language === 'ar' ? 'ar' : language === 'it' ? 'it-IT' : language === 'de' ? 'de-DE' : 'en-US').format(post.comments)} {copy.comments} - {' '}
-                  {new Intl.NumberFormat(language === 'ar' ? 'ar' : language === 'it' ? 'it-IT' : language === 'de' ? 'de-DE' : 'en-US').format(post.views)} {copy.views}
+                  {new Intl.NumberFormat(language === 'ar' ? 'ar' : language === 'it' ? 'it-IT' : language === 'fr' ? 'fr-FR' : language === 'de' ? 'de-DE' : 'en-US').format(post.likes)} {copy.likes} - {' '}
+                  {new Intl.NumberFormat(language === 'ar' ? 'ar' : language === 'it' ? 'it-IT' : language === 'fr' ? 'fr-FR' : language === 'de' ? 'de-DE' : 'en-US').format(post.comments)} {copy.comments} - {' '}
+                  {new Intl.NumberFormat(language === 'ar' ? 'ar' : language === 'it' ? 'it-IT' : language === 'fr' ? 'fr-FR' : language === 'de' ? 'de-DE' : 'en-US').format(post.views)} {copy.views}
                 </div>
 
                 <div className="pt-1 flex items-center gap-2">

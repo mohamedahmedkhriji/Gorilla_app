@@ -106,6 +106,25 @@ const BOOKS_LIBRARY_I18N: LocalizedLanguageRecord<BooksLibraryCopy> = {
     t2BulkAuthor: 'Von RepSet',
     t2BulkDescription: 'T-2 Bulking ist ein 2-Wochen-Masseplan mit Kraftwoche, Stretch-Hypertrophie-Woche und smartem Overload fuer Brust, Ruecken und Beine.',
   },
+  fr: {
+    title: 'Plans',
+    intro: 'Ouvre les modeles de plans RepSet et consulte la structure complete avant d en appliquer un.',
+    openPlan: 'Ouvrir le plan',
+    notUsedYet: 'Pas encore utilise',
+    activeNow: 'Actif maintenant',
+    premium: 'Premium',
+    t2CoverSubtitle: 'Seche',
+    t2BulkCoverSubtitle: 'Prise de masse',
+    tank1Badge: 'Modele de plan RepSet',
+    tank1Author: 'Par RepSet',
+    tank1Description: 'Tank-1 est un plan bodybuilding RepSet avec progression Mois 1 et Mois 2, associations precises, consignes techniques et commentaires coaching RepSet pour chaque jour.',
+    t2Badge: 'Modele Cutting RepSet',
+    t2Author: 'Par RepSet',
+    t2Description: 'T-2 est un plan de seche de 8 semaines avec alternance de semaines densite et pump, logique d overload adaptative, controle du cardio et ajustements selon la fatigue.',
+    t2BulkBadge: 'Modele Bulking RepSet',
+    t2BulkAuthor: 'Par RepSet',
+    t2BulkDescription: 'T-2 Bulking est un plan de prise de masse rotatif sur 2 semaines avec une semaine force, une semaine hypertrophie etiree et un overload intelligent centre sur la croissance du torse, du dos et des jambes.',
+  },
 };
 
 const formatBookUsage = (language: AppLanguage, count: number, emptyLabel: string) => {
@@ -118,6 +137,8 @@ const formatBookUsage = (language: AppLanguage, count: number, emptyLabel: strin
       return `Usato ${count} volte`;
     case 'de':
       return `${count}x genutzt`;
+    case 'fr':
+      return `Utilise ${count} ${count === 1 ? 'fois' : 'fois'}`;
     case 'en':
     default:
       return `Used ${count} ${count === 1 ? 'time' : 'times'}`;
@@ -314,7 +335,7 @@ export function BooksLibrary({ onBack }: BooksLibraryProps) {
           cover={(
             <PremiumCover
               title="T-2"
-              subtitle={language === 'ar' ? 'تنشيف' : language === 'it' ? 'Definizione' : language === 'de' ? 'Definition' : 'Cutting'}
+              subtitle={language === 'ar' ? 'تنشيف' : language === 'it' ? 'Definizione' : language === 'de' ? 'Definition' : language === 'fr' ? copy.t2CoverSubtitle : 'Cutting'}
               tint="bg-[radial-gradient(circle_at_top_left,rgba(201,255,89,0.45),transparent_38%),linear-gradient(160deg,rgba(24,30,18,1),rgba(44,55,35,0.96))]"
               overlay="bg-[linear-gradient(160deg,rgba(24,30,18,0.55),rgba(44,55,35,0.92))]"
               coverImageAlt="T-2 cover"
@@ -339,7 +360,7 @@ export function BooksLibrary({ onBack }: BooksLibraryProps) {
           cover={(
             <PremiumCover
               title="T-2"
-              subtitle={language === 'ar' ? 'تضخيم' : language === 'it' ? 'Massa' : language === 'de' ? 'Aufbau' : 'Bulking'}
+              subtitle={language === 'ar' ? 'تضخيم' : language === 'it' ? 'Massa' : language === 'de' ? 'Aufbau' : language === 'fr' ? copy.t2BulkCoverSubtitle : 'Bulking'}
               tint="bg-[radial-gradient(circle_at_top_left,rgba(255,178,89,0.5),transparent_40%),linear-gradient(160deg,rgba(46,26,17,1),rgba(75,45,29,0.96))]"
               overlay="bg-[linear-gradient(160deg,rgba(46,26,17,0.55),rgba(75,45,29,0.92))]"
               coverImageAlt="T-2 Bulking cover"

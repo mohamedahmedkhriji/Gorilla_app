@@ -53,6 +53,16 @@ export function RecoveryIndicator({ percentage, onClick, coachmarkTargetId }: Re
       },
       alt: 'Muskel-Erholung',
     },
+    fr: {
+      title: 'Recuperation',
+      statuses: {
+        high: 'Pret a t entrainer fort',
+        solid: 'Recuperation solide',
+        moderate: 'Fatigue moderee',
+        low: 'Recuperation necessaire',
+      },
+      alt: 'Recuperation musculaire',
+    },
   });
 
   const getRecoveryStatus = (value: number) => {

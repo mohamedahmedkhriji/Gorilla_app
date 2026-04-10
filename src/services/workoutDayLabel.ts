@@ -40,6 +40,16 @@ const GERMAN_DAY_LABELS: Record<string, { long: string; short: string }> = {
   sunday: { long: 'Sonntag', short: 'So' },
 };
 
+const FRENCH_DAY_LABELS: Record<string, { long: string; short: string }> = {
+  monday: { long: 'Lundi', short: 'Lun' },
+  tuesday: { long: 'Mardi', short: 'Mar' },
+  wednesday: { long: 'Mercredi', short: 'Mer' },
+  thursday: { long: 'Jeudi', short: 'Jeu' },
+  friday: { long: 'Vendredi', short: 'Ven' },
+  saturday: { long: 'Samedi', short: 'Sam' },
+  sunday: { long: 'Dimanche', short: 'Dim' },
+};
+
 const DAY_ALIASES: Record<string, keyof typeof DAY_LABELS> = {
   mon: 'monday',
   monday: 'monday',
@@ -70,6 +80,7 @@ const getDayLabels = (language: AppLanguage) => {
   if (language === 'ar') return ARABIC_DAY_LABELS;
   if (language === 'it') return ITALIAN_DAY_LABELS;
   if (language === 'de') return GERMAN_DAY_LABELS;
+  if (language === 'fr') return FRENCH_DAY_LABELS;
   return DAY_LABELS;
 };
 

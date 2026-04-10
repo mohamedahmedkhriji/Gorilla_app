@@ -84,6 +84,20 @@ const DE_MUSCLE_LABELS: Record<string, string> = {
   abs: 'Bauch',
 };
 
+const FR_MUSCLE_LABELS: Record<string, string> = {
+  glutes: 'Fessiers',
+  chest: 'Pectoraux',
+  back: 'Dos',
+  quadriceps: 'Quadriceps',
+  hamstrings: 'Ischio-jambiers',
+  shoulders: 'Epaules',
+  biceps: 'Biceps',
+  triceps: 'Triceps',
+  forearms: 'Avant-bras',
+  calves: 'Mollets',
+  abs: 'Abdos',
+};
+
 const RECOVERY_I18N = {
   en: {
     title: 'Muscle Recovery',
@@ -265,6 +279,51 @@ const RECOVERY_I18N = {
     fullRecoveryIn: 'Vollstaendige Erholung in',
     fullyRecovered: 'Vollstaendig erholt',
   },
+  fr: {
+    title: 'Recuperation musculaire',
+    damaged: 'Muscles fatigues',
+    almost: 'Presque prets',
+    ready: 'Prets a s entrainer',
+    lastTrained: 'Dernier entrainement',
+    today: 'Aujourd hui',
+    yesterday: 'Hier',
+    daysAgo: (days: number) => `Il y a ${days} jours`,
+    notTrained: 'Pas entraine recemment',
+    todayLabel: 'Aujourd hui',
+    weekLabel: 'Semaine',
+    setsLabel: 'series',
+    remaining: 'Restant',
+    volume: 'Volume',
+    hourAbbr: 'h',
+    factorsTitle: 'Facteurs de recuperation',
+    sleepHours: 'Heures de sommeil',
+    protein: 'Apport en proteines',
+    supplements: 'Supplements',
+    soreness: 'Courbatures',
+    energy: 'Energie',
+    fatigue: 'Fatigue',
+    mood: 'Humeur',
+    jointPain: 'Douleur articulaire',
+    signalLow: 'Faible',
+    signalBalanced: 'Equilibre',
+    signalHigh: 'Eleve',
+    nonePain: 'Aucune',
+    mildPain: 'Legere',
+    sharpPain: 'Elevee',
+    cancel: 'Annuler',
+    update: 'Mettre a jour',
+    low: 'Faible (<0.8g/kg)',
+    medium: 'Moyen (0.8-1.2g/kg)',
+    high: 'Eleve (1.6-2.2g/kg)',
+    none: 'Aucun',
+    creatine: 'Creatine',
+    full: 'Pack complet',
+    loadError: 'Impossible de charger l etat de recuperation',
+    updateError: 'Impossible de mettre a jour les facteurs de recuperation',
+    updating: 'Mise a jour...',
+    fullRecoveryIn: 'Recuperation complete dans',
+    fullyRecovered: 'Recuperation complete',
+  },
 } as const;
 
 type RecoveryFactorsState = {
@@ -372,6 +431,8 @@ export function MuscleRecoveryScreen({ onBack }: MuscleRecoveryScreenProps) {
         ? IT_MUSCLE_LABELS
         : language === 'de'
           ? DE_MUSCLE_LABELS
+          : language === 'fr'
+            ? FR_MUSCLE_LABELS
           : {},
   ), [language]);
 
@@ -567,6 +628,8 @@ export function MuscleRecoveryScreen({ onBack }: MuscleRecoveryScreenProps) {
       ? 'Completa una giornata di allenamento per vedere i muscoli allenati e la loro percentuale di recupero.'
       : language === 'de'
         ? 'Schliesse einen Trainingstag ab, um die trainierten Muskeln und ihre Erholungswerte zu sehen.'
+        : language === 'fr'
+          ? 'Termine une seance pour voir les muscles entraines et leur niveau de recuperation.'
         : 'Complete a workout day to see the muscles you trained and their recovery percentages.';
   return (
     <div className="flex-1 flex flex-col h-full bg-background pb-24">

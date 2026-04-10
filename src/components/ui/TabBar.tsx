@@ -38,6 +38,13 @@ const TAB_LABELS: LocalizedLanguageRecord<Record<string, string>> = {
     progress: 'Fortschritt',
     profile: 'Profil',
   },
+  fr: {
+    home: 'Accueil',
+    workout: 'Mon Plan',
+    blogs: 'Blogs',
+    progress: 'Progres',
+    profile: 'Profil',
+  },
 };
 
 export function TabBar({ activeTab, onTabChange }: TabBarProps) {

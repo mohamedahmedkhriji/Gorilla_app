@@ -282,6 +282,30 @@ const GERMAN_LEVEL_MAP: Record<string, string> = {
   intermediate: 'Mittelstufe',
 };
 
+const FRENCH_WORKOUT_TYPE_MAP: Record<string, string> = {
+  legs: 'Jambes',
+  'lower body': 'Bas du corps',
+  pull: 'Tirage',
+  push: 'Poussee',
+  'upper body': 'Haut du corps',
+};
+
+const FRENCH_SIGNAL_MAP: Record<string, string> = {
+  bodybuilding: 'Bodybuilding',
+  cardio: 'Cardio',
+  endurance: 'Endurance',
+  hypertrophy: 'Hypertrophie',
+  mobility: 'Mobilite',
+  strength: 'Force',
+  weight_loss: 'Perte de poids',
+};
+
+const FRENCH_LEVEL_MAP: Record<string, string> = {
+  advanced: 'Avance',
+  beginner: 'Debutant',
+  intermediate: 'Intermediaire',
+};
+
 const PROGRAM_TEXT_REPLACEMENTS: Array<[string, string]> = [
   ['Custom Workout', 'تمرين مخصص'],
   ['Recovery Day', 'يوم التعافي'],
@@ -328,6 +352,7 @@ export const translateWorkoutType = (value: unknown, language: AppLanguage = 'en
   if (language === 'ar') return repairMojibakeText(ARABIC_WORKOUT_TYPE_MAP[normalizeText(text)] || text);
   if (language === 'it') return ITALIAN_WORKOUT_TYPE_MAP[normalizeText(text)] || text;
   if (language === 'de') return GERMAN_WORKOUT_TYPE_MAP[normalizeText(text)] || text;
+  if (language === 'fr') return FRENCH_WORKOUT_TYPE_MAP[normalizeText(text)] || text;
   return text;
 };
 
@@ -338,6 +363,7 @@ export const translateAiSignal = (value: unknown, language: AppLanguage = 'en') 
   if (language === 'ar') return repairMojibakeText(ARABIC_SIGNAL_MAP[key] || text);
   if (language === 'it') return ITALIAN_SIGNAL_MAP[key] || text;
   if (language === 'de') return GERMAN_SIGNAL_MAP[key] || text;
+  if (language === 'fr') return FRENCH_SIGNAL_MAP[key] || text;
   return text;
 };
 
@@ -347,6 +373,7 @@ export const translateExperienceLevel = (value: unknown, language: AppLanguage =
   if (language === 'ar') return repairMojibakeText(ARABIC_LEVEL_MAP[normalizeText(text)] || text);
   if (language === 'it') return ITALIAN_LEVEL_MAP[normalizeText(text)] || text;
   if (language === 'de') return GERMAN_LEVEL_MAP[normalizeText(text)] || text;
+  if (language === 'fr') return FRENCH_LEVEL_MAP[normalizeText(text)] || text;
   return text;
 };
 
@@ -418,6 +445,43 @@ export const translateProgramText = (value: unknown, language: AppLanguage = 'en
       ['Week', 'Woche'],
       ['Program', 'Programm'],
       ['Workout', 'Workout'],
+    ]);
+  }
+  if (language === 'fr') {
+    return replaceByMap(text, [
+      ['Custom Workout', 'Entrainement personnalise'],
+      ['Recovery Day', 'Jour de recuperation'],
+      ['Rest Day', 'Jour de repos'],
+      ['Leg Day', 'Jour jambes'],
+      ['Pull Day', 'Jour tirage'],
+      ['Push Day', 'Jour poussee'],
+      ['Strength & Bulk Plan', 'Plan force et masse'],
+      ['Upper / Lower', 'Haut / Bas'],
+      ['Upper/Lower', 'Haut/Bas'],
+      ['Current Program', 'Programme actuel'],
+      ['Lower Body', 'Bas du corps'],
+      ['Upper Body', 'Haut du corps'],
+      ['Push Hypertrophy', 'Poussee hypertrophie'],
+      ['Push Strength', 'Poussee force'],
+      ['Upper Balance', 'Equilibre haut du corps'],
+      ['Shoulders + Arms', 'Epaules + Bras'],
+      ['Back Width + Abs', 'Largeur du dos + Abdos'],
+      ['Back Thickness + Hamstrings', 'Epaisseur du dos + Ischio-jambiers'],
+      ['Quads Focus', 'Focus quadriceps'],
+      ['Cardio + Core', 'Cardio + Core'],
+      ['Lower B', 'Bas B'],
+      ['Lower A', 'Bas A'],
+      ['Upper B', 'Haut B'],
+      ['Upper A', 'Haut A'],
+      ['Legs B', 'Jambes B'],
+      ['Legs A', 'Jambes A'],
+      ['Pull B', 'Tirage B'],
+      ['Pull A', 'Tirage A'],
+      ['Push B', 'Poussee B'],
+      ['Push A', 'Poussee A'],
+      ['Week', 'Semaine'],
+      ['Program', 'Programme'],
+      ['Workout', 'Entrainement'],
     ]);
   }
   return text;

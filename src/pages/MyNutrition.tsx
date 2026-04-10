@@ -294,6 +294,40 @@ const NUTRITION_I18N = {
     dinner: 'Abendessen',
     snack: (n: number) => `Snack ${n}`,
   },
+  fr: {
+    title: 'Ma Nutrition',
+    today: 'Aujourd hui',
+    remaining: 'Restant',
+    over: 'Depasse',
+    baseGoal: 'Objectif de base',
+    food: 'Alimentation',
+    exercise: 'Exercice',
+    goalPrefix: 'Objectif',
+    tdee: 'TDEE',
+    carbs: 'Glucides',
+    protein: 'Proteines',
+    fat: 'Lipides',
+    meals: 'Repas',
+    activity: 'Activite',
+    hydration: 'Hydratation',
+    dailyTotals: 'Totaux du jour',
+    dailyWater: 'Eau du jour',
+    fromFoods: 'Depuis les aliments',
+    drinkDirectly: 'A boire',
+    caloriesPlanned: 'Calories prevues',
+    proteinPlanned: 'Proteines prevues',
+    fiber: 'Fibres',
+    sodium: 'Sodium',
+    loadingPlan: 'Creation de ton plan nutrition du jour...',
+    noSession: 'Aucune session active trouvee. Connecte-toi a nouveau.',
+    missingProfile: 'Donnees de profil manquantes (age, poids, taille). Mets a jour ton profil pour generer la nutrition automatique.',
+    loadFailed: 'Impossible de creer le plan nutritionnel.',
+    generalFitness: 'Forme generale',
+    breakfast: 'Petit-dejeuner',
+    lunch: 'Dejeuner',
+    dinner: 'Diner',
+    snack: (n: number) => `Collation ${n}`,
+  },
 } as const;
 
 interface CircularMeterProps {
@@ -636,6 +670,14 @@ export function MyNutrition({ onBack }: MyNutritionProps) {
       if (key.includes('endurance')) return 'Maggiore resistenza';
       return copy.generalFitness;
     }
+    if (language === 'fr') {
+      if (key.includes('fat') || key.includes('loss')) return 'Perte de graisse';
+      if (key.includes('recomp')) return 'Recomposition corporelle';
+      if (key.includes('hypertrophy') || key.includes('muscle')) return 'Prise de muscle';
+      if (key.includes('strength')) return 'Gain de force';
+      if (key.includes('endurance')) return 'Endurance amelioree';
+      return copy.generalFitness;
+    }
     if (key.includes('fat') || key.includes('loss')) return 'Fettverlust';
     if (key.includes('recomp')) return 'Koerperrekomposition';
     if (key.includes('hypertrophy') || key.includes('muscle')) return 'Muskelaufbau';
@@ -657,6 +699,15 @@ export function MyNutrition({ onBack }: MyNutritionProps) {
             'snack/carbs': 'Spuntino/Carboidrati',
             'snack/fat': 'Spuntino/Grassi',
           }
+        : language === 'fr'
+          ? {
+              'meal/protein': 'Repas/Proteines',
+              'meal/carbs': 'Repas/Glucides',
+              'meal/fat': 'Repas/Lipides',
+              'snack/protein': 'Collation/Proteines',
+              'snack/carbs': 'Collation/Glucides',
+              'snack/fat': 'Collation/Lipides',
+            }
         : {
             'meal/protein': 'Mahlzeit/Protein',
             'meal/carbs': 'Mahlzeit/Kohlenhydrate',

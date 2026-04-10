@@ -265,6 +265,23 @@ const PROGRESS_DASHBOARD_I18N = {
     fireAlt: 'Fuoco',
     progressDialogAria: 'Finestra info pagina progressi',
   },
+  fr: {
+    title: 'Tes Progres',
+    strengthScoreInfo: 'Infos score de force',
+    totalVolume: 'Volume Total',
+    muscleDistribution: 'Repartition Musculaire (Cible du Plan)',
+    noPlanDistribution: 'Aucune repartition du plan n est encore disponible pour cet utilisateur.',
+    viewBiWeeklyReport: 'Voir le Rapport Bi-Hebdomadaire',
+    progressDialogTitle: 'Ce que montre cette page',
+    close: 'Fermer',
+    infoLine1: 'Ta tendance de force hebdomadaire (1RM estime).',
+    infoLine2: 'Ton pourcentage de regularite hebdomadaire et les jours completes.',
+    infoLine3: 'Ton volume total souleve.',
+    infoLine4: 'Tes principaux muscles cibles dans le plan actuel.',
+    infoLine5: 'Les prochaines recommandations de surcharge et un acces rapide au rapport.',
+    fireAlt: 'Feu',
+    progressDialogAria: 'Fenetre d information de la page progres',
+  },
   de: {
     title: 'Dein Fortschritt',
     strengthScoreInfo: 'Infos zum Kraftwert',
@@ -323,9 +340,23 @@ const GERMAN_MUSCLE_NAME_MAP: Record<string, string> = {
   Forearms: 'Unterarme',
 };
 
+const FRENCH_MUSCLE_NAME_MAP: Record<string, string> = {
+  Abs: 'Abdos',
+  Triceps: 'Triceps',
+  Biceps: 'Biceps',
+  Chest: 'Poitrine',
+  Back: 'Dos',
+  Shoulders: 'Epaules',
+  Quadriceps: 'Quadriceps',
+  Hamstrings: 'Ischio-jambiers',
+  Calves: 'Mollets',
+  Forearms: 'Avant-bras',
+};
+
 const getLocalizedMuscleName = (name: string, language: AppLanguage) => {
   if (language === 'ar') return ARABIC_MUSCLE_NAME_MAP[name] || name;
   if (language === 'it') return ITALIAN_MUSCLE_NAME_MAP[name] || name;
+  if (language === 'fr') return FRENCH_MUSCLE_NAME_MAP[name] || name;
   if (language === 'de') return GERMAN_MUSCLE_NAME_MAP[name] || name;
   return name;
 };
@@ -564,6 +595,8 @@ export function ProgressDashboard({ onViewReport, onViewStrengthScore }: Progres
     ? `${completedThisWeek} / ${plannedThisWeek} أيام`
     : language === 'it'
       ? `${completedThisWeek} / ${plannedThisWeek} giorni`
+    : language === 'fr'
+      ? `${completedThisWeek} / ${plannedThisWeek} jours`
       : language === 'de'
         ? `${completedThisWeek} / ${plannedThisWeek} Tage`
         : `${completedThisWeek} / ${plannedThisWeek} days`;
@@ -623,7 +656,7 @@ export function ProgressDashboard({ onViewReport, onViewStrengthScore }: Progres
               </div>
               <div className="rounded-2xl border border-white/10 bg-black/20 px-3 py-2 text-right">
                 <div className="text-[10px] uppercase tracking-[0.14em] text-text-tertiary">
-                  {language === 'ar' ? '\u0627\u0644\u062d\u0627\u0644\u0629' : language === 'it' ? 'Stato' : language === 'de' ? 'Status' : 'Status'}
+                  {language === 'ar' ? '\u0627\u0644\u062d\u0627\u0644\u0629' : language === 'it' ? 'Stato' : language === 'fr' ? 'Statut' : language === 'de' ? 'Status' : 'Status'}
                 </div>
                 <div className="mt-1 text-sm font-semibold text-white">{consistencyLabel}</div>
               </div>

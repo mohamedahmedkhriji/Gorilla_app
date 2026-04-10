@@ -27,6 +27,7 @@ const AGENDA_TITLE: LocalizedLanguageRecord<string> = {
   ar: 'أجندة 30 يوماً',
   it: 'Agenda di 30 Giorni',
   de: '30-Tage-Agenda',
+  fr: 'Agenda 30 jours',
 };
 
 const AGENDA_COPY: LocalizedLanguageRecord<{
@@ -128,6 +129,26 @@ const AGENDA_COPY: LocalizedLanguageRecord<{
     planLocked: 'Plan Gesperrt',
     missedBody: 'Dieses geplante Workout wurde als verpasst markiert und zaehlt nicht mehr zu den verbleibenden Einheiten dieser Woche.',
     recoveryBody: 'Ruhe dich aus und gib deinen Muskeln Zeit zur Erholung',
+  },
+  fr: {
+    exercises: 'Exercices',
+    recoveryDay: 'Jour de recuperation',
+    missedDay: 'Jour manque',
+    chooseFirstTitle: 'Choisis cette seance d abord',
+    chooseFirstBody: 'Choisis d abord cet entrainement pour aujourd hui avant de voir les details de la seance.',
+    selectedForToday: 'Selectionne pour aujourd hui',
+    selectedBody: 'C est l entrainement actuellement choisi pour aujourd hui. Tu peux le changer a tout moment.',
+    selectedLockedBody: 'Tu as deja commence l entrainement du jour, donc le plan d aujourd hui est verrouille.',
+    assignedBody: 'Cet entrainement a ete assigne a ce jour.',
+    completedForToday: 'Termine aujourd hui',
+    pendingRecoveryDay: 'Jour de recuperation',
+    chooseForToday: 'Choisir pour aujourd hui',
+    chosenForToday: 'Choisi pour aujourd hui',
+    planLockedTitle: 'Plan verrouille',
+    planLockedBody: 'Des que tu commences un exercice aujourd hui, tu ne peux plus changer le plan du jour.',
+    planLocked: 'Plan verrouille',
+    missedBody: 'Cet entrainement prevu a ete marque comme manque et ne compte plus dans les seances restantes de cette semaine.',
+    recoveryBody: 'Repose-toi et laisse tes muscles recuperer',
   },
 };
 

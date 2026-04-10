@@ -273,6 +273,32 @@ const DE_MUSCLE_LABELS: Record<string, string> = {
   'full body': 'Ganzkorper',
 };
 
+const FR_MUSCLE_LABELS: Record<string, string> = {
+  chest: 'Pectoraux',
+  back: 'Dos',
+  shoulders: 'Epaules',
+  triceps: 'Triceps',
+  biceps: 'Biceps',
+  forearms: 'Avant-bras',
+  quadriceps: 'Quadriceps',
+  hamstrings: 'Ischio-jambiers',
+  calves: 'Mollets',
+  glutes: 'Fessiers',
+  legs: 'Jambes',
+  abs: 'Abdos',
+  core: 'Core',
+  'rear delts': 'Deltoides posterieurs',
+  'side delts': 'Deltoides lateraux',
+  'front delts': 'Deltoides anterieurs',
+  'upper back': 'Haut du dos',
+  'lower back': 'Bas du dos',
+  lats: 'Grand dorsal',
+  mobility: 'Mobilite',
+  walking: 'Marche',
+  sleep: 'Sommeil',
+  'full body': 'Corps complet',
+};
+
 const localizeWorkoutTitle = (value: string, language: AppLanguage) => {
   if (language === 'en') return value;
   let next = String(value || '').trim();
@@ -318,6 +344,23 @@ const localizeWorkoutTitle = (value: string, language: AppLanguage) => {
     next = next.replace(/\bpush\b/gi, 'Push');
     next = next.replace(/\bpull\b/gi, 'Pull');
     next = next.replace(/\blegs?\b/gi, 'Beine');
+    return repairMojibakeText(next);
+  }
+
+  if (language === 'fr') {
+    next = next.replace(/week\s*(\d+)/gi, 'Semaine $1');
+    next = next.replace(/\brest day\b/gi, 'Jour de repos');
+    next = next.replace(/\bcustom workout\b/gi, 'Entrainement personnalise');
+    next = next.replace(/\bworkout\b/gi, 'Entrainement');
+    next = next.replace(/\bpush day\b/gi, 'Jour push');
+    next = next.replace(/\bpull day\b/gi, 'Jour pull');
+    next = next.replace(/\bleg day\b/gi, 'Jour jambes');
+    next = next.replace(/\bupper body\b/gi, 'Haut du corps');
+    next = next.replace(/\blower body\b/gi, 'Bas du corps');
+    next = next.replace(/\bfull body\b/gi, 'Corps complet');
+    next = next.replace(/\bpush\b/gi, 'Push');
+    next = next.replace(/\bpull\b/gi, 'Pull');
+    next = next.replace(/\blegs?\b/gi, 'Jambes');
     return repairMojibakeText(next);
   }
 
@@ -400,6 +443,17 @@ export function WorkoutCard({
       complete: 'Abgeschlossen',
       recovery: 'Erholung',
     },
+    fr: {
+      todayPlan: 'Plan du jour',
+      restDay: 'Jour de repos',
+      restAndRecover: 'Repose-toi et recupere',
+      fullBodyFocus: 'Focus corps complet',
+      exercisesLabel: (count: number) => `${count} ${count === 1 ? 'exercice' : 'exercices'}`,
+      estimated: (minutes: number) => `Duree estimee ${minutes} min`,
+      startWorkout: 'Commencer la seance',
+      complete: 'Termine',
+      recovery: 'Recuperation',
+    },
   });
   const normalizedTitle = String(title || '').trim().toLowerCase();
   const normalizedType = String(workoutType || '').trim().toLowerCase();
@@ -446,6 +500,7 @@ export function WorkoutCard({
           if (language === 'ar') return repairMojibakeText(AR_MUSCLE_LABELS[key] || entry);
           if (language === 'it') return IT_MUSCLE_LABELS[key] || entry;
           if (language === 'de') return DE_MUSCLE_LABELS[key] || entry;
+          if (language === 'fr') return FR_MUSCLE_LABELS[key] || entry;
           return entry;
         })
         .join(' - ')

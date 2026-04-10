@@ -243,68 +243,68 @@ const buildAutoTargets = ({
 export function Calculator({ onBack }: CalculatorProps) {
   const language = getActiveLanguage(getStoredLanguage());
   const isArabic = language === 'ar';
-  const tr = <T,>(en: T, ar: T, it: T, de: T = en): T => (
-    language === 'ar' ? ar : language === 'it' ? it : language === 'de' ? de : en
+  const tr = <T,>(en: T, ar: T, it: T, de: T = en, fr: T = en): T => (
+    language === 'ar' ? ar : language === 'it' ? it : language === 'de' ? de : language === 'fr' ? fr : en
   );
   const copy = {
-    title: tr('Auto Nutrition Targets', '\u0623\u0647\u062f\u0627\u0641 \u0627\u0644\u062a\u063a\u0630\u064a\u0629 \u0627\u0644\u062a\u0644\u0642\u0627\u0626\u064a\u0629', 'Obiettivi nutrizionali automatici', 'Automatische Ernahrungsziele'),
-    editInputs: tr('Edit Inputs', '\u062a\u0639\u062f\u064a\u0644 \u0627\u0644\u0628\u064a\u0627\u0646\u0627\u062a', 'Modifica dati', 'Daten bearbeiten'),
-    editInputsAria: tr('Edit nutrition inputs', '\u062a\u0639\u062f\u064a\u0644 \u0628\u064a\u0627\u0646\u0627\u062a \u0627\u0644\u062a\u063a\u0630\u064a\u0629', 'Modifica dati nutrizionali', 'Ernahrungsdaten bearbeiten'),
-    close: tr('Close', '\u0625\u063a\u0644\u0627\u0642', 'Chiudi', 'Schliessen'),
-    cancel: tr('Cancel', '\u0625\u0644\u063a\u0627\u0621', 'Annulla', 'Abbrechen'),
-    recalculate: tr('Recalculate', '\u0625\u0639\u0627\u062f\u0629 \u0627\u0644\u062d\u0633\u0627\u0628', 'Ricalcola', 'Neu berechnen'),
-    recalculating: tr('Recalculating...', '\u062c\u0627\u0631 \u0625\u0639\u0627\u062f\u0629 \u0627\u0644\u062d\u0633\u0627\u0628...', 'Ricalcolo in corso...', 'Berechnung lauft...'),
-    loadingTargets: tr('Building your targets from profile and training data...', '\u062c\u0627\u0631 \u0625\u0646\u0634\u0627\u0621 \u0627\u0644\u0623\u0647\u062f\u0627\u0641 \u0645\u0646 \u0628\u064a\u0627\u0646\u0627\u062a \u0627\u0644\u0645\u0644\u0641 \u0648\u0627\u0644\u062a\u062f\u0631\u064a\u0628...', 'Creo gli obiettivi dai dati del profilo e dell\'allenamento...', 'Deine Ziele werden aus Profil- und Trainingsdaten erstellt...'),
-    noSession: tr('No active user session found. Please login again.', '\u0644\u0627 \u062a\u0648\u062c\u062f \u062c\u0644\u0633\u0629 \u0645\u0633\u062a\u062e\u062f\u0645 \u0646\u0634\u0637\u0629. \u064a\u0631\u062c\u0649 \u062a\u0633\u062c\u064a\u0644 \u0627\u0644\u062f\u062e\u0648\u0644 \u0645\u0631\u0629 \u0623\u062e\u0631\u0649.', 'Nessuna sessione utente attiva trovata. Accedi di nuovo.', 'Keine aktive Benutzersitzung gefunden. Bitte melde dich erneut an.'),
-    missingProfile: tr('Missing required profile data (age, weight, height). Update your profile details to enable automatic targets.', '\u0627\u0644\u0628\u064a\u0627\u0646\u0627\u062a \u0627\u0644\u0645\u0637\u0644\u0648\u0628\u0629 \u0646\u0627\u0642\u0635\u0629 (\u0627\u0644\u0639\u0645\u0631\u060c \u0627\u0644\u0648\u0632\u0646\u060c \u0627\u0644\u0637\u0648\u0644). \u062d\u062f\u062b \u0645\u0644\u0641\u0643 \u0644\u062a\u0641\u0639\u064a\u0644 \u0627\u0644\u0623\u0647\u062f\u0627\u0641 \u0627\u0644\u062a\u0644\u0642\u0627\u0626\u064a\u0629.', 'Mancano dati profilo richiesti (eta, peso, altezza). Aggiorna il profilo per attivare gli obiettivi automatici.', 'Erforderliche Profildaten fehlen (Alter, Gewicht, Grosse). Aktualisiere dein Profil, um automatische Ziele zu aktivieren.'),
-    autoGenFailed: tr('Failed to auto-generate nutrition targets.', '\u062a\u0639\u0630\u0631 \u0625\u0646\u0634\u0627\u0621 \u0623\u0647\u062f\u0627\u0641 \u0627\u0644\u062a\u063a\u0630\u064a\u0629 \u062a\u0644\u0642\u0627\u0626\u064a\u0627.', 'Impossibile generare automaticamente gli obiettivi nutrizionali.', 'Automatische Ernahrungsziele konnten nicht erstellt werden.'),
-    datasetUnavailable: tr('Could not load dataset benchmark right now.', '\u062a\u0639\u0630\u0631 \u062a\u062d\u0645\u064a\u0644 \u0645\u0642\u0627\u0631\u0646\u0629 \u0627\u0644\u0628\u064a\u0627\u0646\u0627\u062a \u062d\u0627\u0644\u064a\u0627.', 'Impossibile caricare il benchmark del dataset in questo momento.', 'Der Datensatz-Benchmark konnte gerade nicht geladen werden.'),
-    datasetUnavailableCard: tr('Dataset benchmark unavailable right now:', '\u0645\u0642\u0627\u0631\u0646\u0629 \u0627\u0644\u0628\u064a\u0627\u0646\u0627\u062a \u063a\u064a\u0631 \u0645\u062a\u0627\u062d\u0629 \u0627\u0644\u0622\u0646:', 'Benchmark del dataset non disponibile al momento:', 'Datensatz-Benchmark aktuell nicht verfugbar:'),
-    profileSaveFailed: tr('Recalculated and synced locally, but profile save failed:', '\u062a\u0645\u062a \u0625\u0639\u0627\u062f\u0629 \u0627\u0644\u062d\u0633\u0627\u0628 \u0645\u062d\u0644\u064a\u0627\u060c \u0644\u0643\u0646 \u0641\u0634\u0644 \u062d\u0641\u0638 \u0627\u0644\u0645\u0644\u0641 \u0627\u0644\u0634\u062e\u0635\u064a:', 'Ricalcolo eseguito e sincronizzato in locale, ma il salvataggio del profilo non e riuscito:', 'Neu berechnet und lokal synchronisiert, aber das Speichern des Profils ist fehlgeschlagen:'),
-    ageRangeError: tr('Age must be between 10 and 100.', '\u064a\u062c\u0628 \u0623\u0646 \u064a\u0643\u0648\u0646 \u0627\u0644\u0639\u0645\u0631 \u0628\u064a\u0646 10 \u0648100.', 'L\'eta deve essere compresa tra 10 e 100.', 'Das Alter muss zwischen 10 und 100 liegen.'),
-    weightRangeError: tr('Weight must be between 25 and 350 kg.', '\u064a\u062c\u0628 \u0623\u0646 \u064a\u0643\u0648\u0646 \u0627\u0644\u0648\u0632\u0646 \u0628\u064a\u0646 25 \u0648350 \u0643\u062c\u0645.', 'Il peso deve essere compreso tra 25 e 350 kg.', 'Das Gewicht muss zwischen 25 und 350 kg liegen.'),
-    heightRangeError: tr('Height must be between 100 and 260 cm.', '\u064a\u062c\u0628 \u0623\u0646 \u064a\u0643\u0648\u0646 \u0627\u0644\u0637\u0648\u0644 \u0628\u064a\u0646 100 \u0648260 \u0633\u0645.', 'L\'altezza deve essere compresa tra 100 e 260 cm.', 'Die Grosse muss zwischen 100 und 260 cm liegen.'),
-    dailyNutritionPlan: tr('Daily Nutrition Plan', '\u062e\u0637\u0629 \u0627\u0644\u062a\u063a\u0630\u064a\u0629 \u0627\u0644\u064a\u0648\u0645\u064a\u0629', 'Piano nutrizionale giornaliero', 'Taglicher Ernahrungsplan'),
-    kcalPerDay: tr('kcal/day', '\u0633\u0639\u0631/\u064a\u0648\u0645', 'kcal/giorno', 'kcal/Tag'),
-    autoGenerated: tr('Auto-generated from your profile and current training load.', '\u062a\u0645 \u062a\u0648\u0644\u064a\u062f\u0647\u0627 \u062a\u0644\u0642\u0627\u0626\u064a\u0627 \u0645\u0646 \u0645\u0644\u0641\u0643 \u0648\u062d\u0645\u0644 \u0627\u0644\u062a\u062f\u0631\u064a\u0628 \u0627\u0644\u062d\u0627\u0644\u064a.', 'Generato automaticamente dal tuo profilo e dal carico attuale di allenamento.', 'Automatisch aus deinem Profil und der aktuellen Trainingsbelastung erstellt.'),
-    goal: tr('Goal', '\u0627\u0644\u0647\u062f\u0641', 'Obiettivo', 'Ziel'),
-    activity: tr('Activity', '\u0627\u0644\u0646\u0634\u0627\u0637', 'Attivita', 'Aktivitat'),
-    activeScenario: tr('Active Scenario', '\u0627\u0644\u0633\u064a\u0646\u0627\u0631\u064a\u0648 \u0627\u0644\u0646\u0634\u0637', 'Scenario attivo', 'Aktives Szenario'),
-    proteinTarget: tr('Protein Target', '\u0647\u062f\u0641 \u0627\u0644\u0628\u0631\u0648\u062a\u064a\u0646', 'Obiettivo proteine', 'Proteinziel'),
-    proteinLabel: tr('Protein', '\u0627\u0644\u0628\u0631\u0648\u062a\u064a\u0646', 'Proteine', 'Protein'),
-    waterTarget: tr('Water Target', '\u0647\u062f\u0641 \u0627\u0644\u0645\u0627\u0621', 'Obiettivo acqua', 'Wasserziel'),
-    estimatedTdee: tr('Estimated TDEE', 'TDEE \u0627\u0644\u062a\u0642\u0631\u064a\u0628\u064a', 'TDEE stimato', 'Geschatzter TDEE'),
-    perDay: tr('per day', '\u0641\u064a \u0627\u0644\u064a\u0648\u0645', 'al giorno', 'pro Tag'),
-    cupsPerDay: (value: number) => tr(`${value} cups/day`, `${value} \u0643\u0648\u0628/\u064a\u0648\u0645`, `${value} tazze/giorno`, `${value} Glaser/Tag`),
-    baseline: tr('baseline', '\u062e\u0637 \u0627\u0644\u0623\u0633\u0627\u0633', 'base', 'Basis'),
-    personalInputs: tr('Personal Inputs Used', '\u0627\u0644\u0645\u062f\u062e\u0644\u0627\u062a \u0627\u0644\u0634\u062e\u0635\u064a\u0629 \u0627\u0644\u0645\u0633\u062a\u062e\u062f\u0645\u0629', 'Dati personali usati', 'Verwendete personliche Daten'),
-    age: tr('Age', '\u0627\u0644\u0639\u0645\u0631', 'Eta', 'Alter'),
-    sex: tr('Sex', '\u0627\u0644\u062c\u0646\u0633', 'Sesso', 'Geschlecht'),
-    male: tr('male', '\u0630\u0643\u0631', 'uomo', 'mannlich'),
-    female: tr('female', '\u0623\u0646\u062b\u0649', 'donna', 'weiblich'),
-    weight: tr('Weight', '\u0627\u0644\u0648\u0632\u0646', 'Peso', 'Gewicht'),
-    height: tr('Height', '\u0627\u0644\u0637\u0648\u0644', 'Altezza', 'Grosse'),
-    trainingDays: tr('Training Days', '\u0623\u064a\u0627\u0645 \u0627\u0644\u062a\u062f\u0631\u064a\u0628', 'Giorni di allenamento', 'Trainingstage'),
-    hydrationTarget: tr('Hydration Target', '\u0647\u062f\u0641 \u0627\u0644\u062a\u0631\u0637\u064a\u0628', 'Obiettivo idratazione', 'Hydrationsziel'),
-    recommendedDailyWater: tr('Recommended Daily Water', '\u0627\u0644\u0645\u0627\u0621 \u0627\u0644\u064a\u0648\u0645\u064a \u0627\u0644\u0645\u0648\u0635\u0649 \u0628\u0647', 'Acqua giornaliera consigliata', 'Empfohlenes tagliches Wasser'),
-    range: tr('Range', '\u0627\u0644\u0646\u0637\u0627\u0642', 'Intervallo', 'Bereich'),
-    cups: tr('Cups', '\u0623\u0643\u0648\u0627\u0628', 'Tazze', 'Glaser'),
-    lastCheckIn: tr('Last check-in hydration', '\u0622\u062e\u0631 \u062a\u0633\u062c\u064a\u0644 \u0644\u0644\u062a\u0631\u0637\u064a\u0628', 'Ultimo check idratazione', 'Letzter Hydrations-Check-in'),
-    calorieScenarios: tr('Calorie Scenarios', '\u0633\u064a\u0646\u0627\u0631\u064a\u0648\u0647\u0627\u062a \u0627\u0644\u0633\u0639\u0631\u0627\u062a', 'Scenari calorie', 'Kalorienszenarien'),
-    macroSplit: tr('Daily Macro Split', '\u062a\u0648\u0632\u064a\u0639 \u0627\u0644\u0645\u0627\u0643\u0631\u0648\u0632 \u0627\u0644\u064a\u0648\u0645\u064a', 'Ripartizione macro giornaliera', 'Tagliche Makroverteilung'),
-    datasetBenchmark: tr('Dataset Benchmark', '\u0645\u0642\u0627\u0631\u0646\u0629 \u0627\u0644\u0628\u064a\u0627\u0646\u0627\u062a', 'Benchmark dataset', 'Datensatz-Benchmark'),
-    suggestedLevel: tr('Suggested Level', '\u0627\u0644\u0645\u0633\u062a\u0648\u0649 \u0627\u0644\u0645\u0642\u062a\u0631\u062d', 'Livello suggerito', 'Empfohlenes Niveau'),
-    suggestedWorkoutTypes: tr('Suggested Workout Types', '\u0623\u0646\u0648\u0627\u0639 \u0627\u0644\u062a\u0645\u0631\u064a\u0646 \u0627\u0644\u0645\u0642\u062a\u0631\u062d\u0629', 'Tipi di allenamento consigliati', 'Empfohlene Trainingsarten'),
-    editAge: tr('Age', '\u0627\u0644\u0639\u0645\u0631', 'Eta', 'Alter'),
-    editSex: tr('Sex', '\u0627\u0644\u062c\u0646\u0633', 'Sesso', 'Geschlecht'),
-    editWeight: tr('Weight (kg)', '\u0627\u0644\u0648\u0632\u0646 (\u0643\u062c\u0645)', 'Peso (kg)', 'Gewicht (kg)'),
-    editHeight: tr('Height (cm)', '\u0627\u0644\u0637\u0648\u0644 (\u0633\u0645)', 'Altezza (cm)', 'Grosse (cm)'),
-    editGoal: tr('Goal', '\u0627\u0644\u0647\u062f\u0641', 'Obiettivo', 'Ziel'),
-    editGoalPlaceholder: 'muscle_gain / fat_loss / endurance',
-    editTrainingDays: tr('Training Days Per Week', '\u0623\u064a\u0627\u0645 \u0627\u0644\u062a\u062f\u0631\u064a\u0628 \u0641\u064a \u0627\u0644\u0623\u0633\u0628\u0648\u0639', 'Giorni di allenamento a settimana', 'Trainingstage pro Woche'),
-    notAvailable: tr('N/A', '\u063a\u064a\u0631 \u0645\u062a\u0627\u062d', 'N/D', 'k. A.'),
-    carbs: tr('Carbs', '\u0643\u0631\u0628\u0648\u0647\u064a\u062f\u0631\u0627\u062a', 'Carboidrati', 'Kohlenhydrate'),
-    fat: tr('Fat', '\u062f\u0647\u0648\u0646', 'Grassi', 'Fett'),
+    title: tr('Auto Nutrition Targets', '\u0623\u0647\u062f\u0627\u0641 \u0627\u0644\u062a\u063a\u0630\u064a\u0629 \u0627\u0644\u062a\u0644\u0642\u0627\u0626\u064a\u0629', 'Obiettivi nutrizionali automatici', 'Automatische Ernahrungsziele', 'Objectifs nutrition automatiques'),
+    editInputs: tr('Edit Inputs', '\u062a\u0639\u062f\u064a\u0644 \u0627\u0644\u0628\u064a\u0627\u0646\u0627\u062a', 'Modifica dati', 'Daten bearbeiten', 'Modifier les donnees'),
+    editInputsAria: tr('Edit nutrition inputs', '\u062a\u0639\u062f\u064a\u0644 \u0628\u064a\u0627\u0646\u0627\u062a \u0627\u0644\u062a\u063a\u0630\u064a\u0629', 'Modifica dati nutrizionali', 'Ernahrungsdaten bearbeiten', 'Modifier les donnees nutrition'),
+    close: tr('Close', '\u0625\u063a\u0644\u0627\u0642', 'Chiudi', 'Schliessen', 'Fermer'),
+    cancel: tr('Cancel', '\u0625\u0644\u063a\u0627\u0621', 'Annulla', 'Abbrechen', 'Annuler'),
+    recalculate: tr('Recalculate', '\u0625\u0639\u0627\u062f\u0629 \u0627\u0644\u062d\u0633\u0627\u0628', 'Ricalcola', 'Neu berechnen', 'Recalculer'),
+    recalculating: tr('Recalculating...', '\u062c\u0627\u0631 \u0625\u0639\u0627\u062f\u0629 \u0627\u0644\u062d\u0633\u0627\u0628...', 'Ricalcolo in corso...', 'Berechnung lauft...', 'Recalcul en cours...'),
+    loadingTargets: tr('Building your targets from profile and training data...', '\u062c\u0627\u0631 \u0625\u0646\u0634\u0627\u0621 \u0627\u0644\u0623\u0647\u062f\u0627\u0641 \u0645\u0646 \u0628\u064a\u0627\u0646\u0627\u062a \u0627\u0644\u0645\u0644\u0641 \u0648\u0627\u0644\u062a\u062f\u0631\u064a\u0628...', 'Creo gli obiettivi dai dati del profilo e dell\'allenamento...', 'Deine Ziele werden aus Profil- und Trainingsdaten erstellt...', 'Creation de tes objectifs a partir du profil et de la charge d entrainement...'),
+    noSession: tr('No active user session found. Please login again.', '\u0644\u0627 \u062a\u0648\u062c\u062f \u062c\u0644\u0633\u0629 \u0645\u0633\u062a\u062e\u062f\u0645 \u0646\u0634\u0637\u0629. \u064a\u0631\u062c\u0649 \u062a\u0633\u062c\u064a\u0644 \u0627\u0644\u062f\u062e\u0648\u0644 \u0645\u0631\u0629 \u0623\u062e\u0631\u0649.', 'Nessuna sessione utente attiva trovata. Accedi di nuovo.', 'Keine aktive Benutzersitzung gefunden. Bitte melde dich erneut an.', 'Aucune session utilisateur active trouvee. Connecte-toi a nouveau.'),
+    missingProfile: tr('Missing required profile data (age, weight, height). Update your profile details to enable automatic targets.', '\u0627\u0644\u0628\u064a\u0627\u0646\u0627\u062a \u0627\u0644\u0645\u0637\u0644\u0648\u0628\u0629 \u0646\u0627\u0642\u0635\u0629 (\u0627\u0644\u0639\u0645\u0631\u060c \u0627\u0644\u0648\u0632\u0646\u060c \u0627\u0644\u0637\u0648\u0644). \u062d\u062f\u062b \u0645\u0644\u0641\u0643 \u0644\u062a\u0641\u0639\u064a\u0644 \u0627\u0644\u0623\u0647\u062f\u0627\u0641 \u0627\u0644\u062a\u0644\u0642\u0627\u0626\u064a\u0629.', 'Mancano dati profilo richiesti (eta, peso, altezza). Aggiorna il profilo per attivare gli obiettivi automatici.', 'Erforderliche Profildaten fehlen (Alter, Gewicht, Grosse). Aktualisiere dein Profil, um automatische Ziele zu aktivieren.', 'Des donnees de profil obligatoires manquent (age, poids, taille). Mets a jour ton profil pour activer les objectifs automatiques.'),
+    autoGenFailed: tr('Failed to auto-generate nutrition targets.', '\u062a\u0639\u0630\u0631 \u0625\u0646\u0634\u0627\u0621 \u0623\u0647\u062f\u0627\u0641 \u0627\u0644\u062a\u063a\u0630\u064a\u0629 \u062a\u0644\u0642\u0627\u0626\u064a\u0627.', 'Impossibile generare automaticamente gli obiettivi nutrizionali.', 'Automatische Ernahrungsziele konnten nicht erstellt werden.', 'Impossible de generer automatiquement les objectifs nutritionnels.'),
+    datasetUnavailable: tr('Could not load dataset benchmark right now.', '\u062a\u0639\u0630\u0631 \u062a\u062d\u0645\u064a\u0644 \u0645\u0642\u0627\u0631\u0646\u0629 \u0627\u0644\u0628\u064a\u0627\u0646\u0627\u062a \u062d\u0627\u0644\u064a\u0627.', 'Impossibile caricare il benchmark del dataset in questo momento.', 'Der Datensatz-Benchmark konnte gerade nicht geladen werden.', 'Impossible de charger le benchmark du dataset pour le moment.'),
+    datasetUnavailableCard: tr('Dataset benchmark unavailable right now:', '\u0645\u0642\u0627\u0631\u0646\u0629 \u0627\u0644\u0628\u064a\u0627\u0646\u0627\u062a \u063a\u064a\u0631 \u0645\u062a\u0627\u062d\u0629 \u0627\u0644\u0622\u0646:', 'Benchmark del dataset non disponibile al momento:', 'Datensatz-Benchmark aktuell nicht verfugbar:', 'Benchmark du dataset indisponible pour le moment :'),
+    profileSaveFailed: tr('Recalculated and synced locally, but profile save failed:', '\u062a\u0645\u062a \u0625\u0639\u0627\u062f\u0629 \u0627\u0644\u062d\u0633\u0627\u0628 \u0645\u062d\u0644\u064a\u0627\u060c \u0644\u0643\u0646 \u0641\u0634\u0644 \u062d\u0641\u0638 \u0627\u0644\u0645\u0644\u0641 \u0627\u0644\u0634\u062e\u0635\u064a:', 'Ricalcolo eseguito e sincronizzato in locale, ma il salvataggio del profilo non e riuscito:', 'Neu berechnet und lokal synchronisiert, aber das Speichern des Profils ist fehlgeschlagen:', 'Recalcule et synchronise localement, mais l enregistrement du profil a echoue :'),
+    ageRangeError: tr('Age must be between 10 and 100.', '\u064a\u062c\u0628 \u0623\u0646 \u064a\u0643\u0648\u0646 \u0627\u0644\u0639\u0645\u0631 \u0628\u064a\u0646 10 \u0648100.', 'L\'eta deve essere compresa tra 10 e 100.', 'Das Alter muss zwischen 10 und 100 liegen.', 'L age doit etre compris entre 10 et 100 ans.'),
+    weightRangeError: tr('Weight must be between 25 and 350 kg.', '\u064a\u062c\u0628 \u0623\u0646 \u064a\u0643\u0648\u0646 \u0627\u0644\u0648\u0632\u0646 \u0628\u064a\u0646 25 \u0648350 \u0643\u062c\u0645.', 'Il peso deve essere compreso tra 25 e 350 kg.', 'Das Gewicht muss zwischen 25 und 350 kg liegen.', 'Le poids doit etre compris entre 25 et 350 kg.'),
+    heightRangeError: tr('Height must be between 100 and 260 cm.', '\u064a\u062c\u0628 \u0623\u0646 \u064a\u0643\u0648\u0646 \u0627\u0644\u0637\u0648\u0644 \u0628\u064a\u0646 100 \u0648260 \u0633\u0645.', 'L\'altezza deve essere compresa tra 100 e 260 cm.', 'Die Grosse muss zwischen 100 und 260 cm liegen.', 'La taille doit etre comprise entre 100 et 260 cm.'),
+    dailyNutritionPlan: tr('Daily Nutrition Plan', '\u062e\u0637\u0629 \u0627\u0644\u062a\u063a\u0630\u064a\u0629 \u0627\u0644\u064a\u0648\u0645\u064a\u0629', 'Piano nutrizionale giornaliero', 'Taglicher Ernahrungsplan', 'Plan nutrition quotidien'),
+    kcalPerDay: tr('kcal/day', '\u0633\u0639\u0631/\u064a\u0648\u0645', 'kcal/giorno', 'kcal/Tag', 'kcal/jour'),
+    autoGenerated: tr('Auto-generated from your profile and current training load.', '\u062a\u0645 \u062a\u0648\u0644\u064a\u062f\u0647\u0627 \u062a\u0644\u0642\u0627\u0626\u064a\u0627 \u0645\u0646 \u0645\u0644\u0641\u0643 \u0648\u062d\u0645\u0644 \u0627\u0644\u062a\u062f\u0631\u064a\u0628 \u0627\u0644\u062d\u0627\u0644\u064a.', 'Generato automaticamente dal tuo profilo e dal carico attuale di allenamento.', 'Automatisch aus deinem Profil und der aktuellen Trainingsbelastung erstellt.', 'Genere automatiquement a partir de ton profil et de ta charge d entrainement actuelle.'),
+    goal: tr('Goal', '\u0627\u0644\u0647\u062f\u0641', 'Obiettivo', 'Ziel', 'Objectif'),
+    activity: tr('Activity', '\u0627\u0644\u0646\u0634\u0627\u0637', 'Attivita', 'Aktivitat', 'Activite'),
+    activeScenario: tr('Active Scenario', '\u0627\u0644\u0633\u064a\u0646\u0627\u0631\u064a\u0648 \u0627\u0644\u0646\u0634\u0637', 'Scenario attivo', 'Aktives Szenario', 'Scenario actif'),
+    proteinTarget: tr('Protein Target', '\u0647\u062f\u0641 \u0627\u0644\u0628\u0631\u0648\u062a\u064a\u0646', 'Obiettivo proteine', 'Proteinziel', 'Objectif proteines'),
+    proteinLabel: tr('Protein', '\u0627\u0644\u0628\u0631\u0648\u062a\u064a\u0646', 'Proteine', 'Protein', 'Proteines'),
+    waterTarget: tr('Water Target', '\u0647\u062f\u0641 \u0627\u0644\u0645\u0627\u0621', 'Obiettivo acqua', 'Wasserziel', 'Objectif eau'),
+    estimatedTdee: tr('Estimated TDEE', 'TDEE \u0627\u0644\u062a\u0642\u0631\u064a\u0628\u064a', 'TDEE stimato', 'Geschatzter TDEE', 'TDEE estime'),
+    perDay: tr('per day', '\u0641\u064a \u0627\u0644\u064a\u0648\u0645', 'al giorno', 'pro Tag', 'par jour'),
+    cupsPerDay: (value: number) => tr(`${value} cups/day`, `${value} \u0643\u0648\u0628/\u064a\u0648\u0645`, `${value} tazze/giorno`, `${value} Glaser/Tag`, `${value} verres/jour`),
+    baseline: tr('baseline', '\u062e\u0637 \u0627\u0644\u0623\u0633\u0627\u0633', 'base', 'Basis', 'base'),
+    personalInputs: tr('Personal Inputs Used', '\u0627\u0644\u0645\u062f\u062e\u0644\u0627\u062a \u0627\u0644\u0634\u062e\u0635\u064a\u0629 \u0627\u0644\u0645\u0633\u062a\u062e\u062f\u0645\u0629', 'Dati personali usati', 'Verwendete personliche Daten', 'Donnees personnelles utilisees'),
+    age: tr('Age', '\u0627\u0644\u0639\u0645\u0631', 'Eta', 'Alter', 'Age'),
+    sex: tr('Sex', '\u0627\u0644\u062c\u0646\u0633', 'Sesso', 'Geschlecht', 'Sexe'),
+    male: tr('male', '\u0630\u0643\u0631', 'uomo', 'mannlich', 'homme'),
+    female: tr('female', '\u0623\u0646\u062b\u0649', 'donna', 'weiblich', 'femme'),
+    weight: tr('Weight', '\u0627\u0644\u0648\u0632\u0646', 'Peso', 'Gewicht', 'Poids'),
+    height: tr('Height', '\u0627\u0644\u0637\u0648\u0644', 'Altezza', 'Grosse', 'Taille'),
+    trainingDays: tr('Training Days', '\u0623\u064a\u0627\u0645 \u0627\u0644\u062a\u062f\u0631\u064a\u0628', 'Giorni di allenamento', 'Trainingstage', 'Jours d entrainement'),
+    hydrationTarget: tr('Hydration Target', '\u0647\u062f\u0641 \u0627\u0644\u062a\u0631\u0637\u064a\u0628', 'Obiettivo idratazione', 'Hydrationsziel', 'Objectif hydratation'),
+    recommendedDailyWater: tr('Recommended Daily Water', '\u0627\u0644\u0645\u0627\u0621 \u0627\u0644\u064a\u0648\u0645\u064a \u0627\u0644\u0645\u0648\u0635\u0649 \u0628\u0647', 'Acqua giornaliera consigliata', 'Empfohlenes tagliches Wasser', 'Eau quotidienne recommandee'),
+    range: tr('Range', '\u0627\u0644\u0646\u0637\u0627\u0642', 'Intervallo', 'Bereich', 'Fourchette'),
+    cups: tr('Cups', '\u0623\u0643\u0648\u0627\u0628', 'Tazze', 'Glaser', 'Verres'),
+    lastCheckIn: tr('Last check-in hydration', '\u0622\u062e\u0631 \u062a\u0633\u062c\u064a\u0644 \u0644\u0644\u062a\u0631\u0637\u064a\u0628', 'Ultimo check idratazione', 'Letzter Hydrations-Check-in', 'Dernier suivi hydratation'),
+    calorieScenarios: tr('Calorie Scenarios', '\u0633\u064a\u0646\u0627\u0631\u064a\u0648\u0647\u0627\u062a \u0627\u0644\u0633\u0639\u0631\u0627\u062a', 'Scenari calorie', 'Kalorienszenarien', 'Scenarios caloriques'),
+    macroSplit: tr('Daily Macro Split', '\u062a\u0648\u0632\u064a\u0639 \u0627\u0644\u0645\u0627\u0643\u0631\u0648\u0632 \u0627\u0644\u064a\u0648\u0645\u064a', 'Ripartizione macro giornaliera', 'Tagliche Makroverteilung', 'Repartition quotidienne des macros'),
+    datasetBenchmark: tr('Dataset Benchmark', '\u0645\u0642\u0627\u0631\u0646\u0629 \u0627\u0644\u0628\u064a\u0627\u0646\u0627\u062a', 'Benchmark dataset', 'Datensatz-Benchmark', 'Benchmark du dataset'),
+    suggestedLevel: tr('Suggested Level', '\u0627\u0644\u0645\u0633\u062a\u0648\u0649 \u0627\u0644\u0645\u0642\u062a\u0631\u062d', 'Livello suggerito', 'Empfohlenes Niveau', 'Niveau suggere'),
+    suggestedWorkoutTypes: tr('Suggested Workout Types', '\u0623\u0646\u0648\u0627\u0639 \u0627\u0644\u062a\u0645\u0631\u064a\u0646 \u0627\u0644\u0645\u0642\u062a\u0631\u062d\u0629', 'Tipi di allenamento consigliati', 'Empfohlene Trainingsarten', 'Types d entrainement suggeres'),
+    editAge: tr('Age', '\u0627\u0644\u0639\u0645\u0631', 'Eta', 'Alter', 'Age'),
+    editSex: tr('Sex', '\u0627\u0644\u062c\u0646\u0633', 'Sesso', 'Geschlecht', 'Sexe'),
+    editWeight: tr('Weight (kg)', '\u0627\u0644\u0648\u0632\u0646 (\u0643\u062c\u0645)', 'Peso (kg)', 'Gewicht (kg)', 'Poids (kg)'),
+    editHeight: tr('Height (cm)', '\u0627\u0644\u0637\u0648\u0644 (\u0633\u0645)', 'Altezza (cm)', 'Grosse (cm)', 'Taille (cm)'),
+    editGoal: tr('Goal', '\u0627\u0644\u0647\u062f\u0641', 'Obiettivo', 'Ziel', 'Objectif'),
+    editGoalPlaceholder: tr('muscle_gain / fat_loss / endurance', 'muscle_gain / fat_loss / endurance', 'massa_muscolare / perdita_grasso / resistenza', 'muskelaufbau / fettverlust / ausdauer', 'prise_de_muscle / perte_de_graisse / endurance'),
+    editTrainingDays: tr('Training Days Per Week', '\u0623\u064a\u0627\u0645 \u0627\u0644\u062a\u062f\u0631\u064a\u0628 \u0641\u064a \u0627\u0644\u0623\u0633\u0628\u0648\u0639', 'Giorni di allenamento a settimana', 'Trainingstage pro Woche', 'Jours d entrainement par semaine'),
+    notAvailable: tr('N/A', '\u063a\u064a\u0631 \u0645\u062a\u0627\u062d', 'N/D', 'k. A.', 'N/D'),
+    carbs: tr('Carbs', '\u0643\u0631\u0628\u0648\u0647\u064a\u062f\u0631\u0627\u062a', 'Carboidrati', 'Kohlenhydrate', 'Glucides'),
+    fat: tr('Fat', '\u062f\u0647\u0648\u0646', 'Grassi', 'Fett', 'Lipides'),
   };
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -325,47 +325,47 @@ export function Calculator({ onBack }: CalculatorProps) {
 
   const translateGoalLabel = (value: string) => {
     const key = normalizeGoal(value);
-    if (!key) return tr('General Fitness', '\u0644\u064a\u0627\u0642\u0629 \u0639\u0627\u0645\u0629', 'Fitness generale', 'Allgemeine Fitness');
-    if (key.includes('fat') || key.includes('loss')) return tr('Fat Loss', '\u062e\u0633\u0627\u0631\u0629 \u0627\u0644\u062f\u0647\u0648\u0646', 'Perdita di grasso', 'Fettverlust');
-    if (key.includes('recomp')) return tr('Body Recomposition', '\u0625\u0639\u0627\u062f\u0629 \u062a\u0631\u0643\u064a\u0628 \u0627\u0644\u062c\u0633\u0645', 'Ricomposizione corporea', 'Korperrekomposition');
-    if (key.includes('hypertrophy') || key.includes('muscle') || key.includes('gain')) return tr('Muscle Gain', '\u0628\u0646\u0627\u0621 \u0627\u0644\u0639\u0636\u0644\u0627\u062a', 'Aumento massa muscolare', 'Muskelaufbau');
-    if (key.includes('strength')) return tr('Strength', '\u0632\u064a\u0627\u062f\u0629 \u0627\u0644\u0642\u0648\u0629', 'Forza', 'Kraft');
-    if (key.includes('endurance')) return tr('Endurance', '\u062a\u062d\u0645\u0644 \u0623\u0639\u0644\u0649', 'Resistenza', 'Ausdauer');
-    return tr('General Fitness', '\u0644\u064a\u0627\u0642\u0629 \u0639\u0627\u0645\u0629', 'Fitness generale', 'Allgemeine Fitness');
+    if (!key) return tr('General Fitness', '\u0644\u064a\u0627\u0642\u0629 \u0639\u0627\u0645\u0629', 'Fitness generale', 'Allgemeine Fitness', 'Fitness generale');
+    if (key.includes('fat') || key.includes('loss')) return tr('Fat Loss', '\u062e\u0633\u0627\u0631\u0629 \u0627\u0644\u062f\u0647\u0648\u0646', 'Perdita di grasso', 'Fettverlust', 'Perte de graisse');
+    if (key.includes('recomp')) return tr('Body Recomposition', '\u0625\u0639\u0627\u062f\u0629 \u062a\u0631\u0643\u064a\u0628 \u0627\u0644\u062c\u0633\u0645', 'Ricomposizione corporea', 'Korperrekomposition', 'Recomposition corporelle');
+    if (key.includes('hypertrophy') || key.includes('muscle') || key.includes('gain')) return tr('Muscle Gain', '\u0628\u0646\u0627\u0621 \u0627\u0644\u0639\u0636\u0644\u0627\u062a', 'Aumento massa muscolare', 'Muskelaufbau', 'Prise de muscle');
+    if (key.includes('strength')) return tr('Strength', '\u0632\u064a\u0627\u062f\u0629 \u0627\u0644\u0642\u0648\u0629', 'Forza', 'Kraft', 'Force');
+    if (key.includes('endurance')) return tr('Endurance', '\u062a\u062d\u0645\u0644 \u0623\u0639\u0644\u0649', 'Resistenza', 'Ausdauer', 'Endurance');
+    return tr('General Fitness', '\u0644\u064a\u0627\u0642\u0629 \u0639\u0627\u0645\u0629', 'Fitness generale', 'Allgemeine Fitness', 'Fitness generale');
   };
 
   const translateActivityLabel = (value: string) => {
     const key = String(value || '').toLowerCase();
-    if (key.includes('sedentary')) return tr('Sedentary', '\u062e\u0627\u0645\u0644', 'Sedentario', 'Sitzend');
-    if (key.includes('light')) return tr('Light Activity', '\u0646\u0634\u0627\u0637 \u062e\u0641\u064a\u0641', 'Attivita leggera', 'Leichte Aktivitat');
-    if (key.includes('moderate')) return tr('Moderate Activity', '\u0646\u0634\u0627\u0637 \u0645\u062a\u0648\u0633\u0637', 'Attivita moderata', 'Mittlere Aktivitat');
-    if (key.includes('very')) return tr('Very Active', '\u0646\u0634\u0627\u0637 \u0639\u0627\u0644', 'Molto attivo', 'Sehr aktiv');
+    if (key.includes('sedentary')) return tr('Sedentary', '\u062e\u0627\u0645\u0644', 'Sedentario', 'Sitzend', 'Sedentaire');
+    if (key.includes('light')) return tr('Light Activity', '\u0646\u0634\u0627\u0637 \u062e\u0641\u064a\u0641', 'Attivita leggera', 'Leichte Aktivitat', 'Activite legere');
+    if (key.includes('moderate')) return tr('Moderate Activity', '\u0646\u0634\u0627\u0637 \u0645\u062a\u0648\u0633\u0637', 'Attivita moderata', 'Mittlere Aktivitat', 'Activite moderee');
+    if (key.includes('very')) return tr('Very Active', '\u0646\u0634\u0627\u0637 \u0639\u0627\u0644', 'Molto attivo', 'Sehr aktiv', 'Tres actif');
     return value;
   };
 
   const translateScenarioLabel = (value: string) => {
     const key = String(value || '').toLowerCase();
-    if (key.includes('fat')) return tr('Fat Loss', '\u062e\u0633\u0627\u0631\u0629 \u0627\u0644\u062f\u0647\u0648\u0646', 'Perdita di grasso', 'Fettverlust');
-    if (key.includes('gain')) return tr('Muscle Gain', '\u0628\u0646\u0627\u0621 \u0627\u0644\u0639\u0636\u0644\u0627\u062a', 'Aumento massa muscolare', 'Muskelaufbau');
-    if (key.includes('maintain')) return tr('Maintain', '\u0627\u0644\u062d\u0641\u0627\u0638', 'Mantenimento', 'Halten');
+    if (key.includes('fat')) return tr('Fat Loss', '\u062e\u0633\u0627\u0631\u0629 \u0627\u0644\u062f\u0647\u0648\u0646', 'Perdita di grasso', 'Fettverlust', 'Perte de graisse');
+    if (key.includes('gain')) return tr('Muscle Gain', '\u0628\u0646\u0627\u0621 \u0627\u0644\u0639\u0636\u0644\u0627\u062a', 'Aumento massa muscolare', 'Muskelaufbau', 'Prise de muscle');
+    if (key.includes('maintain')) return tr('Maintain', '\u0627\u0644\u062d\u0641\u0627\u0638', 'Mantenimento', 'Halten', 'Maintien');
     return value;
   };
 
   const translateWorkoutType = (value: string) => {
     const key = String(value || '').toLowerCase();
-    if (key.includes('strength')) return tr('Strength', '\u0642\u0648\u0629', 'Forza', 'Kraft');
-    if (key.includes('cardio')) return tr('Cardio', '\u0643\u0627\u0631\u062f\u064a\u0648', 'Cardio', 'Cardio');
-    if (key.includes('yoga')) return tr('Yoga', '\u064a\u0648\u063a\u0627', 'Yoga', 'Yoga');
-    if (key.includes('mobility')) return tr('Mobility', '\u0645\u0631\u0648\u0646\u0629', 'Mobilita', 'Mobilitat');
+    if (key.includes('strength')) return tr('Strength', '\u0642\u0648\u0629', 'Forza', 'Kraft', 'Force');
+    if (key.includes('cardio')) return tr('Cardio', '\u0643\u0627\u0631\u062f\u064a\u0648', 'Cardio', 'Cardio', 'Cardio');
+    if (key.includes('yoga')) return tr('Yoga', '\u064a\u0648\u063a\u0627', 'Yoga', 'Yoga', 'Yoga');
+    if (key.includes('mobility')) return tr('Mobility', '\u0645\u0631\u0648\u0646\u0629', 'Mobilita', 'Mobilitat', 'Mobilite');
     return value;
   };
 
   const translateExperienceLevel = (value: string) => {
     const key = String(value || '').toLowerCase();
-    if (key.includes('beginner')) return tr('Beginner', '\u0645\u0628\u062a\u062f\u0626', 'Principiante', 'Anfanger');
-    if (key.includes('intermediate')) return tr('Intermediate', '\u0645\u062a\u0648\u0633\u0637', 'Intermedio', 'Mittelstufe');
-    if (key.includes('advanced')) return tr('Advanced', '\u0645\u062a\u0642\u062f\u0645', 'Avanzato', 'Fortgeschritten');
-    if (key.includes('elite')) return tr('Elite', '\u0646\u062e\u0628\u0648\u064a', 'Elite', 'Elite');
+    if (key.includes('beginner')) return tr('Beginner', '\u0645\u0628\u062a\u062f\u0626', 'Principiante', 'Anfanger', 'Debutant');
+    if (key.includes('intermediate')) return tr('Intermediate', '\u0645\u062a\u0648\u0633\u0637', 'Intermedio', 'Mittelstufe', 'Intermediaire');
+    if (key.includes('advanced')) return tr('Advanced', '\u0645\u062a\u0642\u062f\u0645', 'Avanzato', 'Fortgeschritten', 'Avance');
+    if (key.includes('elite')) return tr('Elite', '\u0646\u062e\u0628\u0648\u064a', 'Elite', 'Elite', 'Elite');
     return value;
   };
 
@@ -386,6 +386,11 @@ export function Calculator({ onBack }: CalculatorProps) {
       if (rounded <= 25) return `${rounded}% (unter dem Durchschnitt)`;
       if (rounded <= 75) return `${rounded}% (im Durchschnitt)`;
       return `${rounded}% (uber dem Durchschnitt)`;
+    }
+    if (language === 'fr') {
+      if (rounded <= 25) return `${rounded}% (sous la moyenne)`;
+      if (rounded <= 75) return `${rounded}% (dans la moyenne)`;
+      return `${rounded}% (au-dessus de la moyenne)`;
     }
     return formatPercentileLabel(value);
   };

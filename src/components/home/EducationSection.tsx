@@ -52,6 +52,13 @@ export function EducationSection({
       books: 'Bucher',
       comingSoon: 'Demnachst',
     },
+    fr: {
+      learningHub: 'Centre d apprentissage',
+      exercises: 'Exercices',
+      browse: 'Explorer',
+      books: 'Livres',
+      comingSoon: 'Bientot disponible',
+    },
   });
 
   return (
