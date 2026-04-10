@@ -5,9 +5,8 @@
     "defaultTrack": "sport"
   },
   "steps": {
-    "intro": ["welcome", "first_name", "app_motivation", "athlete_identity"],
+    "intro": ["welcome", "first_name", "personal_info", "app_motivation", "athlete_identity"],
     "bodybuilding": [
-      "personal_info",
       "fitness_background",
       "fitness_goals",
       "body_type",
@@ -37,7 +36,7 @@
     "ai_analysis": { "title": "Analyzing", "showBack": false },
     "body_results": { "title": "Results", "showBack": false, "showHeader": false, "showProgress": false },
     "custom_plan": { "title": "Customize Plan" },
-    "custom_plan_builder": { "title": "Plan Templates", "showBack": false },
+    "custom_plan_builder": { "title": "Plan Templates" },
     "custom_plan_templates": { "title": "Plan Templates", "showBack": false },
     "custom_plan_advice": { "title": "AI Advice", "showBack": false },
     "sport_age_gender": { "title": "Age & Gender" },

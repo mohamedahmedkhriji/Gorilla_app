@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Button } from '../ui/Button';
 import { SelectionCheck } from '../ui/SelectionCheck';
 import {
@@ -9,6 +9,7 @@ import {
   emojiFootball,
   emojiHandball,
   emojiSwimming,
+  emojiWoman,
 } from '../../services/emojiTheme';
 import {
   DEFAULT_ONBOARDING_CONFIG,
@@ -26,6 +27,7 @@ interface AthleteIdentityScreenProps {
     athleteSubCategoryId?: string;
     athleteSubCategoryIds?: string[];
     athleteSubCategorySelections?: Record<string, string[]>;
+    gender?: string;
   };
   options?: AthleteOption[];
   groupSelectionLimits?: Record<string, number>;
@@ -87,6 +89,7 @@ export function AthleteIdentityScreen({
         title: '\u0623\u0646\u0627',
         subtitle: '\u0627\u062e\u062a\u0631 \u0645\u0644\u0641\u064b\u0627 \u0648\u0627\u062d\u062f\u064b\u0627 \u0648\u0647\u062f\u0641\u064b\u0627 \u0645\u062d\u062f\u062f\u064b\u0627.',
         fitnessSection: '\u0644\u064a\u0627\u0642\u0629 / \u0647\u064a\u0626\u0629',
+        fitnessSectionFemale: '\u0644\u064a\u0627\u0642\u0629 / \u0647\u064a\u0626\u0629 (\u0644\u0644\u0646\u0633\u0627\u0621)',
         athleteSection: '\u0631\u064a\u0627\u0636\u0627\u062a \u0627\u0644\u0631\u064a\u0627\u0636\u064a\u064a\u0646',
         subCategories: '\u0627\u0644\u0641\u0626\u0627\u062a \u0627\u0644\u0641\u0631\u0639\u064a\u0629',
         chooseUpTo: '\u0627\u062e\u062a\u0631 \u062d\u062a\u0649',
@@ -97,6 +100,7 @@ export function AthleteIdentityScreen({
           title: 'Profilo',
           subtitle: 'Scegli un profilo e un obiettivo specifico.',
           fitnessSection: 'FITNESS / FISICO',
+          fitnessSectionFemale: 'FITNESS / FISICO (DONNA)',
           athleteSection: 'SPORT ATLETICI',
           subCategories: 'Sotto-categorie',
           chooseUpTo: 'Scegli fino a',
@@ -107,6 +111,7 @@ export function AthleteIdentityScreen({
             title: 'ICH BIN',
             subtitle: 'Waehle ein Profil und ein konkretes Ziel.',
             fitnessSection: 'FITNESS / PHYSIQUE',
+            fitnessSectionFemale: 'FITNESS / FIGUR (FRAU)',
             athleteSection: 'ATHLETISCHE SPORTARTEN',
             subCategories: 'Unterkategorien',
             chooseUpTo: 'Waehle bis zu',
@@ -117,6 +122,7 @@ export function AthleteIdentityScreen({
               title: 'PROFIL',
               subtitle: 'Choisis un profil et un objectif specifique.',
               fitnessSection: 'FITNESS / PHYSIQUE',
+              fitnessSectionFemale: 'FITNESS / PHYSIQUE (FEMME)',
               athleteSection: 'SPORTS ATHLETIQUES',
               subCategories: 'Sous-categories',
               chooseUpTo: 'Choisis jusqu a',
@@ -126,30 +132,39 @@ export function AthleteIdentityScreen({
             title: 'I AM',
             subtitle: 'Choose one profile and one specific goal.',
             fitnessSection: 'FITNESS / PHYSIQUE',
+            fitnessSectionFemale: 'FITNESS / PHYSIQUE (WOMEN)',
             athleteSection: 'ATHLETE SPORTS',
             subCategories: 'Sub-Categories',
             chooseUpTo: 'Choose up to',
             cta: 'Continue',
           };
+  const normalizedGender = String(onboardingData?.gender || '').trim().toLowerCase();
+  const isFemale = normalizedGender === 'female' || normalizedGender === 'woman' || normalizedGender === 'f';
   const athleteOptions = options?.length
     ? options
     : DEFAULT_ONBOARDING_CONFIG.options.athleteIdentity;
-  const localizedOptions = localizeAthleteOptions(athleteOptions, language);
+  const localizedOptions = localizeAthleteOptions(athleteOptions, language, normalizedGender);
+  const visibleOptions = useMemo(
+    () => localizedOptions.filter((option) => !isFemale || option.category === 'fitness'),
+    [isFemale, localizedOptions],
+  );
   const selectionLimits = groupSelectionLimits
     ? { ...DEFAULT_ONBOARDING_CONFIG.options.athleteIdentityGroupLimits, ...groupSelectionLimits }
     : DEFAULT_ONBOARDING_CONFIG.options.athleteIdentityGroupLimits;
   const resolveIconUrl = (option: AthleteOption) =>
-    option.iconUrl || DEFAULT_ICON_MAP[option.iconKey || option.id] || '';
+    (isFemale && option.id === 'bodybuilding'
+      ? emojiWoman
+      : option.iconUrl || DEFAULT_ICON_MAP[option.iconKey || option.id] || '');
 
   const initialSelection = useMemo(() => {
     const saved = String(onboardingData?.athleteIdentity || '').trim().toLowerCase();
     const normalized = LEGACY_MAIN_ID_MAP[saved] || saved;
-    return localizedOptions.some((option) => option.id === normalized) ? normalized : '';
-  }, [localizedOptions, onboardingData?.athleteIdentity]);
+    return visibleOptions.some((option) => option.id === normalized) ? normalized : '';
+  }, [visibleOptions, onboardingData?.athleteIdentity]);
 
   const [selectedId, setSelectedId] = useState(initialSelection);
   const [selectedSubItemsByGroup, setSelectedSubItemsByGroup] = useState<GroupSelectionMap>(() => {
-    const option = localizedOptions.find((entry) => entry.id === initialSelection);
+    const option = visibleOptions.find((entry) => entry.id === initialSelection);
     if (!option) return {};
 
     const fromMap = coerceSelectionMap(onboardingData?.athleteSubCategorySelections);
@@ -173,8 +188,17 @@ export function AthleteIdentityScreen({
   });
 
   const selectedOption = useMemo(
-    () => localizedOptions.find((option) => option.id === selectedId) || null,
-    [localizedOptions, selectedId],
+    () => visibleOptions.find((option) => option.id === selectedId) || null,
+    [visibleOptions, selectedId],
+  );
+
+  const fitnessOptions = useMemo(
+    () => visibleOptions.filter((option) => option.category === 'fitness'),
+    [visibleOptions],
+  );
+  const athleteSportOptions = useMemo(
+    () => visibleOptions.filter((option) => option.category === 'athlete_sports'),
+    [visibleOptions],
   );
 
   const availableSubItemsByGroup = useMemo(
@@ -223,6 +247,13 @@ export function AthleteIdentityScreen({
       athleteGoal: '',
     });
   };
+
+  useEffect(() => {
+    if (!selectedId) return;
+    if (visibleOptions.some((option) => option.id === selectedId)) return;
+    setSelectedId('');
+    clearAllSelection();
+  }, [selectedId, visibleOptions]);
 
   const handleSelectMain = (nextId: string) => {
     const selected = athleteOptions.find((option) => option.id === nextId);
@@ -391,17 +422,19 @@ export function AthleteIdentityScreen({
       <div className="space-y-5">
         <div className="space-y-3">
           <h3 className="text-xs font-semibold uppercase tracking-[0.14em] text-accent">
-            {copy.fitnessSection}
+            {isFemale ? copy.fitnessSectionFemale : copy.fitnessSection}
           </h3>
-          <div className="space-y-3">{localizedOptions.filter((option) => option.category === 'fitness').map(renderMainOptionCard)}</div>
+          <div className="space-y-3">{fitnessOptions.map(renderMainOptionCard)}</div>
         </div>
 
-        <div className="space-y-3">
-          <h3 className="text-xs font-semibold uppercase tracking-[0.14em] text-accent">
-            {copy.athleteSection}
-          </h3>
-          <div className="space-y-3">{localizedOptions.filter((option) => option.category === 'athlete_sports').map(renderMainOptionCard)}</div>
-        </div>
+        {athleteSportOptions.length ? (
+          <div className="space-y-3">
+            <h3 className="text-xs font-semibold uppercase tracking-[0.14em] text-accent">
+              {copy.athleteSection}
+            </h3>
+            <div className="space-y-3">{athleteSportOptions.map(renderMainOptionCard)}</div>
+          </div>
+        ) : null}
       </div>
 
       <div className="flex-1" />

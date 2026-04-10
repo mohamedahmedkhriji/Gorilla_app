@@ -2479,6 +2479,29 @@ const normalizeAthleteIdentityCategory = (value) => {
   return null;
 };
 
+const shouldUseFemaleSpecializedStrengthPlan = ({
+  gender,
+  athleteIdentity,
+  athleteIdentityCategory,
+  workoutDays,
+  splitPreference,
+}) => {
+  const normalizedGender = normalizeGenderEnum(gender);
+  const normalizedIdentity = normalizeAthleteIdentity(athleteIdentity);
+  const normalizedCategory = normalizeAthleteIdentityCategory(athleteIdentityCategory);
+  const normalizedSplit = normalizeSplitPreference(splitPreference);
+  const clampedDays = clampWorkoutDays(workoutDays, 4);
+
+  return (
+    normalizedGender === 'female'
+    && (normalizedIdentity === 'bodybuilding' || normalizedCategory === 'fitness')
+    && (
+      (clampedDays === 4 && ['auto', 'upper_lower', 'hybrid'].includes(normalizedSplit))
+      || (clampedDays >= 5 && ['auto', 'push_pull_legs', 'hybrid'].includes(normalizedSplit))
+    )
+  );
+};
+
 const normalizeSportPracticeYears = (value) => {
   const years = toNumber(value, null);
   if (years == null) return null;
@@ -9077,6 +9100,13 @@ router.post('/user/onboarding', authMutationRateLimit, requireAuth('user'), asyn
     const athleteNeedsPerformanceWork =
       normalizedAthleteIdentityCategory === 'athlete_sports'
       && normalizedAthleteIdentity !== 'bodybuilding';
+    const prefersFemaleSpecializedStrengthPlan = shouldUseFemaleSpecializedStrengthPlan({
+      gender: normalizedGender,
+      athleteIdentity: normalizedAthleteIdentity,
+      athleteIdentityCategory: normalizedAthleteIdentityCategory,
+      workoutDays: normalizedDays,
+      splitPreference: normalizedSplitPreference,
+    });
     const equipmentProfile = equipment || availableEquipment || equipmentList || null;
     const onboardingProfilePayload = buildClaudeOnboardingFields(req.body, {
       userId: normalizedUserId,
@@ -9114,7 +9144,10 @@ router.post('/user/onboarding', authMutationRateLimit, requireAuth('user'), asyn
     const onboardingProfileJson = JSON.stringify(onboardingProfilePayload);
 
     const claudeEnabled = hasAnthropicConfig();
-    const shouldUseClaude = toBooleanFlag(useClaude, claudeEnabled) && !prefersCardioPlan;
+    const shouldUseClaude =
+      toBooleanFlag(useClaude, claudeEnabled)
+      && !prefersCardioPlan
+      && !prefersFemaleSpecializedStrengthPlan;
     const shouldDisableClaude = toBooleanFlag(disableClaude, false);
     const templateEligibleSplit = ['full_body', 'upper_lower', 'push_pull_legs', 'hybrid'].includes(normalizedSplitPreference);
     const aiPlanRequested = normalizedSplitPreference !== 'custom' && !prefersCardioPlan;
@@ -9123,7 +9156,7 @@ router.post('/user/onboarding', authMutationRateLimit, requireAuth('user'), asyn
     let claudeGeneration = null;
     let warning = null;
 
-    if (hasExplicitSplitPreference && templateEligibleSplit && !prefersCardioPlan) {
+    if (hasExplicitSplitPreference && templateEligibleSplit && !prefersCardioPlan && !prefersFemaleSpecializedStrengthPlan) {
       try {
         claudeExerciseAnchors = await buildTemplateExerciseAnchorsForSplit(pool, {
           splitPreference: normalizedSplitPreference,
@@ -9157,6 +9190,15 @@ router.post('/user/onboarding', authMutationRateLimit, requireAuth('user'), asyn
           limitations: normalizedAiLimitations,
           recoveryPriority: normalizedAiRecoveryPriority,
           equipmentNotes: normalizedAiEquipmentNotes,
+          athleteIdentity: normalizedAthleteIdentity,
+          athleteIdentityLabel: normalizedAthleteIdentityLabel,
+          athleteIdentityCategory: normalizedAthleteIdentityCategory,
+          athleteSubCategoryId: normalizedAthleteSubCategoryId,
+          athleteSubCategoryLabel: normalizedAthleteSubCategoryLabel,
+          athleteSubCategoryGroupId: normalizedAthleteSubCategoryGroupId,
+          athleteSubCategoryGroupLabel: normalizedAthleteSubCategoryGroupLabel,
+          athleteGoal: normalizedAthleteGoal,
+          experienceLevelSource: normalizedExperienceLevelSource,
           equipment: equipmentProfile,
           bodyImagesProvided: normalizedBodyImages.length,
           claudeRequested: aiPlanRequested,
@@ -9186,6 +9228,15 @@ router.post('/user/onboarding', authMutationRateLimit, requireAuth('user'), asyn
           limitations: normalizedAiLimitations,
           recoveryPriority: normalizedAiRecoveryPriority,
           equipmentNotes: normalizedAiEquipmentNotes,
+          athleteIdentity: normalizedAthleteIdentity,
+          athleteIdentityLabel: normalizedAthleteIdentityLabel,
+          athleteIdentityCategory: normalizedAthleteIdentityCategory,
+          athleteSubCategoryId: normalizedAthleteSubCategoryId,
+          athleteSubCategoryLabel: normalizedAthleteSubCategoryLabel,
+          athleteSubCategoryGroupId: normalizedAthleteSubCategoryGroupId,
+          athleteSubCategoryGroupLabel: normalizedAthleteSubCategoryGroupLabel,
+          athleteGoal: normalizedAthleteGoal,
+          experienceLevelSource: normalizedExperienceLevelSource,
           equipment: equipmentProfile,
           userName: String(userRows[0]?.name || '').trim() || null,
           exerciseAnchors: claudeExerciseAnchors,
@@ -9404,6 +9455,7 @@ router.post('/user/onboarding', authMutationRateLimit, requireAuth('user'), asyn
         && templateEligibleSplit
         && !athleteNeedsPerformanceWork
         && !prefersCardioPlan
+        && !prefersFemaleSpecializedStrengthPlan
       ) {
         const templateResult = await assignTemplateProgramFromLibrary(conn, {
           userId: normalizedUserId,
@@ -9426,8 +9478,16 @@ router.post('/user/onboarding', authMutationRateLimit, requireAuth('user'), asyn
           daysPerWeek: normalizedDays,
           cycleWeeks: 12,
           splitPreference: normalizedSplitPreference,
+          gender: normalizedGender,
           athleteIdentity: normalizedAthleteIdentity,
           athleteIdentityCategory: normalizedAthleteIdentityCategory,
+          athleteSubCategoryId: normalizedAthleteSubCategoryId,
+          athleteSubCategoryIds: Array.isArray(req.body?.athleteSubCategoryIds)
+            ? req.body.athleteSubCategoryIds.map((value) => String(value || '').trim()).filter(Boolean).slice(0, 6)
+            : [],
+          athleteSubCategoryLabel: normalizedAthleteSubCategoryLabel,
+          athleteGoal: normalizedAthleteGoal,
+          recoveryPriority: normalizedAiRecoveryPriority,
           equipment: equipmentProfile,
           notes: `Generated from onboarding: goal=${normalizedGoal}, days=${normalizedDays}, level=${normalizedExperience || 'unknown'}${normalizedOnboardingReason ? `, reason=${normalizedOnboardingReason}` : ''}${hasExplicitSplitPreference ? `, split=${normalizedSplitPreference}` : ''}${normalizedAiTrainingFocus ? `, focus=${normalizedAiTrainingFocus}` : ''}${normalizedAiRecoveryPriority ? `, recovery=${normalizedAiRecoveryPriority}` : ''}`,
         });
@@ -9526,7 +9586,7 @@ router.post('/user/:userId/program/generate-personalized', authMutationRateLimit
     }
 
     const [userRows] = await conn.execute(
-      `SELECT id, gym_id, fitness_goal, experience_level, athlete_identity, athlete_identity_category
+      `SELECT id, gym_id, fitness_goal, experience_level, gender, athlete_identity, athlete_identity_category, athlete_sub_category_id, athlete_sub_category_label, athlete_goal, ai_recovery_priority
        FROM users
        WHERE id = ?
        LIMIT 1`,
@@ -9550,8 +9610,16 @@ router.post('/user/:userId/program/generate-personalized', authMutationRateLimit
       experienceLevel: level,
       daysPerWeek,
       cycleWeeks,
+      gender: normalizeGenderEnum(req.body.gender || user.gender),
       athleteIdentity: normalizeAthleteIdentity(req.body.athleteIdentity || user.athlete_identity),
       athleteIdentityCategory: normalizeAthleteIdentityCategory(req.body.athleteIdentityCategory || user.athlete_identity_category),
+      athleteSubCategoryId: String(req.body.athleteSubCategoryId || user.athlete_sub_category_id || '').trim() || null,
+      athleteSubCategoryIds: Array.isArray(req.body?.athleteSubCategoryIds)
+        ? req.body.athleteSubCategoryIds.map((value) => String(value || '').trim()).filter(Boolean).slice(0, 6)
+        : [],
+      athleteSubCategoryLabel: String(req.body.athleteSubCategoryLabel || user.athlete_sub_category_label || '').trim() || null,
+      athleteGoal: String(req.body.athleteGoal || user.athlete_goal || '').trim() || null,
+      recoveryPriority: String(req.body.recoveryPriority || user.ai_recovery_priority || '').trim().toLowerCase() || null,
       equipment: req.body.equipment || req.body.availableEquipment || req.body.equipmentList || null,
       notes: `Manual generation request (goal=${goal}, days=${daysPerWeek}, level=${level})`,
     });

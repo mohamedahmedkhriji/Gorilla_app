@@ -142,9 +142,8 @@ export const DEFAULT_ONBOARDING_CONFIG: OnboardingConfig = {
     defaultTrack: 'sport',
   },
   steps: {
-    intro: ['welcome', 'language', 'first_name', 'app_motivation', 'athlete_identity'],
+    intro: ['welcome', 'language', 'first_name', 'personal_info', 'app_motivation', 'athlete_identity'],
     bodybuilding: [
-      'personal_info',
       'fitness_background',
       'fitness_goals',
       'body_type',
@@ -174,8 +173,8 @@ export const DEFAULT_ONBOARDING_CONFIG: OnboardingConfig = {
     body_image_upload: { title: 'Body Scan' },
     ai_analysis: { title: 'Analyzing', showBack: false },
     body_results: { title: 'Results', showBack: false, showHeader: false, showProgress: false },
-    custom_plan: { title: 'Customize Plan', showBack: false },
-    custom_plan_builder: { title: 'Plan Templates', showBack: false },
+    custom_plan: { title: 'Customize Plan' },
+    custom_plan_builder: { title: 'Plan Templates' },
     custom_plan_templates: { title: 'Plan Templates', showBack: false },
     custom_plan_advice: { title: 'AI Advice', showBack: false },
     sport_age_gender: { title: 'Age & Gender' },

@@ -283,6 +283,532 @@ const toProgramType = (daysPerWeek, splitPreference = 'auto') => {
   return 'custom';
 };
 
+const WEEKLY_DAY_NAMES = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
+
+const WEEKLY_FATIGUE_WEIGHTS = {
+  upper: 2,
+  lower: 4,
+  glutes: 5,
+  liss: 1,
+  endurance: 2,
+  hiit: 3,
+};
+
+const WEEKLY_CAPACITY_BY_LEVEL = {
+  beginner: 14,
+  intermediate: 18,
+  advanced: 22,
+};
+
+const normalizeRecoveryPriority = (value) => {
+  const key = String(value || '').trim().toLowerCase();
+  if (key === 'performance') return 'performance';
+  if (key === 'recovery') return 'recovery';
+  return 'balanced';
+};
+
+const resolveWeeklyCapacity = (level, recoveryPriority) => {
+  const base = WEEKLY_CAPACITY_BY_LEVEL[level] || WEEKLY_CAPACITY_BY_LEVEL.intermediate;
+  const normalizedPriority = normalizeRecoveryPriority(recoveryPriority);
+  if (normalizedPriority === 'performance') return base + 2;
+  if (normalizedPriority === 'recovery') return Math.max(10, base - 2);
+  return base;
+};
+
+const normalizeCardioGoal = (value) => {
+  const key = String(value || '').trim().toLowerCase();
+  if (!key) return null;
+  if (['fat_loss', 'fat loss'].includes(key) || /(fat|loss|burn|cut)/.test(key)) return 'fat_loss';
+  if (['endurance', 'conditioning'].includes(key) || /(endurance|aerobic|stamina|conditioning)/.test(key)) return 'endurance';
+  if (['hiit_fast_burn', 'hiit'].includes(key) || /(hiit|interval|rapid)/.test(key)) return 'hiit';
+  if (['wellness', 'health', 'wellbeing', 'well-being'].includes(key) || /(wellness|health|well|recovery|mobility)/.test(key)) return 'wellness';
+  return null;
+};
+
+const resolveCardioGoals = ({
+  goal,
+  athleteSubCategoryId,
+  athleteSubCategoryIds,
+  athleteSubCategoryLabel,
+  athleteGoal,
+}) => {
+  const candidates = [
+    goal,
+    athleteSubCategoryId,
+    athleteSubCategoryLabel,
+    athleteGoal,
+    ...(Array.isArray(athleteSubCategoryIds) ? athleteSubCategoryIds : []),
+  ];
+
+  const resolved = [];
+  for (const candidate of candidates) {
+    const normalized = normalizeCardioGoal(candidate);
+    if (normalized && !resolved.includes(normalized)) {
+      resolved.push(normalized);
+    }
+  }
+
+  return resolved.slice(0, 2);
+};
+
+const resolveStrengthScheduleKind = ({ splitPreference, femaleProfile, daysPerWeek }) => {
+  if (femaleProfile?.usesWowSplit) return 'sp';
+  if (femaleProfile?.usesDefaultUl) return 'ul';
+  if (femaleProfile?.usesHybridBalance) return 'ppl_ul';
+  if (femaleProfile?.usesPremiumPpl) return 'ppl';
+
+  const normalizedSplit = normalizeSplitPreference(splitPreference);
+  if (normalizedSplit === 'upper_lower') return 'ul';
+  if (normalizedSplit === 'push_pull_legs') return 'ppl';
+  if (normalizedSplit === 'hybrid') return Number(daysPerWeek || 0) >= 5 ? 'ppl_ul' : 'hybrid';
+  if (normalizedSplit === 'full_body') return 'full_body';
+  if (Number(daysPerWeek || 0) <= 3) return 'full_body';
+  if (Number(daysPerWeek || 0) === 4) return 'ul';
+  if (Number(daysPerWeek || 0) >= 6) return 'ppl';
+  return 'hybrid';
+};
+
+const classifyStrengthDay = (day) => {
+  const label = `${day?.name || ''} ${day?.focusLabel || ''} ${day?.workoutType || ''}`.toLowerCase();
+  const primary = Array.isArray(day?.primary) ? day.primary : [];
+  const hasLegs = primary.includes('Legs');
+  const isGluteFocused =
+    /(glute|hamstring|lower full|lower balanced|legs glutes|glutes pump|glutes strength)/.test(label)
+    || ['strength', 'pump', 'mixed_lower', 'strength_glutes', 'volume_lower'].includes(day?.progressionStyle);
+
+  if (isGluteFocused) {
+    return {
+      sessionType: 'glutes',
+      fatigueScore: WEEKLY_FATIGUE_WEIGHTS.glutes,
+      isUpper: false,
+      isLower: true,
+      isHeavyLower: true,
+      isGluteFocused: true,
+    };
+  }
+
+  if (hasLegs) {
+    return {
+      sessionType: 'lower',
+      fatigueScore: WEEKLY_FATIGUE_WEIGHTS.lower,
+      isUpper: false,
+      isLower: true,
+      isHeavyLower: true,
+      isGluteFocused: false,
+    };
+  }
+
+  return {
+    sessionType: 'upper',
+    fatigueScore: WEEKLY_FATIGUE_WEIGHTS.upper,
+    isUpper: true,
+    isLower: false,
+    isHeavyLower: false,
+    isGluteFocused: false,
+  };
+};
+
+const buildStrengthCalendar = (strengthDays, scheduleKind) => {
+  const count = strengthDays.length;
+  let positions;
+
+  if (count <= 2) positions = [0, 3];
+  else if (count === 3) positions = [0, 2, 4];
+  else if (count === 4) positions = [0, 1, 3, 4];
+  else if (count === 5) positions = scheduleKind === 'ppl_ul' || scheduleKind === 'ppl' ? [0, 1, 2, 4, 5] : [0, 1, 3, 4, 5];
+  else positions = scheduleKind === 'ppl' ? [0, 1, 2, 4, 5, 6] : [0, 1, 2, 3, 4, 5];
+
+  const calendar = Array(7).fill(null);
+  strengthDays.forEach((day, index) => {
+    const slot = positions[index] ?? index;
+    const profile = classifyStrengthDay(day);
+    calendar[slot] = {
+      ...day,
+      source: 'strength',
+      dayName: WEEKLY_DAY_NAMES[slot],
+      sessionType: profile.sessionType,
+      fatigueScore: profile.fatigueScore,
+      isUpper: profile.isUpper,
+      isLower: profile.isLower,
+      isHeavyLower: profile.isHeavyLower,
+      isGluteFocused: profile.isGluteFocused,
+      cardioAddOns: [],
+    };
+  });
+
+  return calendar;
+};
+
+const buildCardioBlueprint = ({ mode, goalType, level }) => {
+  const presetsByMode = {
+    zone2: {
+      name: 'Incline Walk',
+      workoutType: 'Zone 2 Cardio',
+      focusLabel: 'Low-Intensity Fat Loss',
+      fatigueScore: WEEKLY_FATIGUE_WEIGHTS.liss,
+      allowFinisher: true,
+      preferredPlacement: 'rest_or_upper',
+      targetDurationMinutes: level === 'beginner' ? 25 : level === 'advanced' ? 35 : 30,
+    },
+    recovery: {
+      name: 'Recovery Walk + Mobility',
+      workoutType: 'Recovery Cardio',
+      focusLabel: 'Recovery-Friendly Cardio',
+      fatigueScore: WEEKLY_FATIGUE_WEIGHTS.liss,
+      allowFinisher: true,
+      preferredPlacement: 'rest_or_any',
+      targetDurationMinutes: level === 'advanced' ? 30 : 25,
+    },
+    tempo: {
+      name: 'Endurance Conditioning',
+      workoutType: 'Tempo Cardio',
+      focusLabel: 'Endurance Build',
+      fatigueScore: WEEKLY_FATIGUE_WEIGHTS.endurance,
+      allowFinisher: false,
+      preferredPlacement: 'rest_or_upper',
+      targetDurationMinutes: level === 'beginner' ? 25 : level === 'advanced' ? 45 : 35,
+    },
+    long: {
+      name: 'Long Endurance Base',
+      workoutType: 'Zone 2 Cardio',
+      focusLabel: 'Long Aerobic Base',
+      fatigueScore: WEEKLY_FATIGUE_WEIGHTS.endurance,
+      allowFinisher: false,
+      preferredPlacement: 'rest_day',
+      targetDurationMinutes: level === 'beginner' ? 25 : level === 'advanced' ? 50 : 40,
+    },
+    interval: {
+      name: 'HIIT Conditioning',
+      workoutType: 'Cardio Intervals',
+      focusLabel: 'Fast Burn Intervals',
+      fatigueScore: WEEKLY_FATIGUE_WEIGHTS.hiit,
+      allowFinisher: true,
+      preferredPlacement: 'upper_only',
+      targetDurationMinutes: level === 'beginner' ? 10 : level === 'advanced' ? 15 : 12,
+    },
+    circuit: {
+      name: 'Cardio Circuit',
+      workoutType: 'Cardio Circuit',
+      focusLabel: 'Mixed HIIT Conditioning',
+      fatigueScore: WEEKLY_FATIGUE_WEIGHTS.hiit,
+      allowFinisher: true,
+      preferredPlacement: 'upper_only',
+      targetDurationMinutes: level === 'beginner' ? 10 : level === 'advanced' ? 15 : 12,
+    },
+  };
+
+  const preset = presetsByMode[mode] || presetsByMode.zone2;
+  return {
+    ...preset,
+    mode,
+    goalType,
+    exerciseTarget: mode === 'zone2' || mode === 'recovery' || mode === 'long' ? 3 : 4,
+  };
+};
+
+const buildCardioBlueprints = ({ cardioGoals, level, scheduleKind }) => {
+  const goals = Array.isArray(cardioGoals) ? cardioGoals.slice(0, 2) : [];
+  if (!goals.length) return [];
+
+  const has = (goal) => goals.includes(goal);
+  let modes = [];
+
+  if (has('fat_loss') && has('hiit')) {
+    modes = level === 'advanced' ? ['zone2', 'zone2', 'interval', 'circuit'] : ['zone2', 'zone2', 'interval'];
+  } else if (has('fat_loss') && has('endurance')) {
+    modes = ['zone2', 'tempo', 'long'];
+  } else if (has('fat_loss') && has('wellness')) {
+    modes = ['zone2', 'recovery', 'recovery'];
+  } else if (has('endurance') && has('hiit')) {
+    modes = ['interval', 'tempo', 'long'];
+  } else if (has('endurance') && has('wellness')) {
+    modes = ['tempo', 'zone2', 'recovery'];
+  } else if (has('fat_loss')) {
+    modes = level === 'beginner'
+      ? ['zone2', 'zone2', 'recovery']
+      : level === 'advanced'
+        ? ['zone2', 'zone2', 'tempo', 'interval']
+        : ['zone2', 'zone2', 'interval'];
+  } else if (has('endurance')) {
+    modes = level === 'beginner' ? ['tempo', 'zone2'] : ['tempo', 'zone2', 'long'];
+  } else if (has('hiit')) {
+    modes = level === 'beginner' ? ['interval'] : level === 'advanced' ? ['interval', 'circuit', 'interval'] : ['interval', 'circuit'];
+  } else if (has('wellness')) {
+    modes = level === 'advanced' ? ['recovery', 'zone2', 'recovery', 'zone2'] : level === 'beginner' ? ['recovery', 'recovery'] : ['recovery', 'zone2', 'recovery'];
+  }
+
+  if (scheduleKind === 'sp') {
+    modes = modes.map((mode) => (mode === 'circuit' || mode === 'interval' ? 'interval' : mode));
+  }
+  if (scheduleKind === 'ppl' || scheduleKind === 'ppl_ul') {
+    const highFatigueModes = modes.filter((mode) => mode === 'interval' || mode === 'circuit').length;
+    if (highFatigueModes > 1) {
+      let downgraded = 0;
+      modes = modes.map((mode) => {
+        if ((mode === 'interval' || mode === 'circuit') && downgraded < highFatigueModes - 1) {
+          downgraded += 1;
+          return 'zone2';
+        }
+        return mode;
+      });
+    }
+  }
+
+  return modes.map((mode) => buildCardioBlueprint({ mode, goalType: goals[0], level }));
+};
+
+const canAttachFinisher = (day, blueprint, calendar, dayIndex) => {
+  if (!day || day.source !== 'strength') return false;
+  if (!blueprint.allowFinisher) return false;
+  if (blueprint.mode === 'interval' || blueprint.mode === 'circuit') {
+    if (!day.isUpper) return false;
+    const nextDay = calendar[dayIndex + 1];
+    if (nextDay?.isHeavyLower) return false;
+  }
+  if ((blueprint.mode === 'tempo' || blueprint.mode === 'long') && !day.isUpper) return false;
+  if ((blueprint.mode === 'zone2' || blueprint.mode === 'recovery') && day.isGluteFocused) return false;
+  return true;
+};
+
+const attachCardioFinisher = (day, blueprint) => {
+  const nextAddOns = [...(Array.isArray(day.cardioAddOns) ? day.cardioAddOns : []), {
+    ...blueprint,
+    placement: 'finisher',
+  }];
+  return {
+    ...day,
+    cardioAddOns: nextAddOns,
+    cardioFinisher: nextAddOns
+      .map((item) => `${item.name} ${item.targetDurationMinutes} min`)
+      .join(' + '),
+  };
+};
+
+const canPlaceDedicatedCardio = (calendar, slotIndex, blueprint, level) => {
+  if (calendar[slotIndex]) return false;
+
+  const previous = calendar[slotIndex - 1];
+  const next = calendar[slotIndex + 1];
+  const adjacentModes = [previous?.mode, next?.mode].filter(Boolean);
+
+  if ((blueprint.mode === 'interval' || blueprint.mode === 'circuit')) {
+    if (level === 'beginner' && (previous?.isHeavyLower || next?.isHeavyLower)) return false;
+    if (next?.isHeavyLower) return false;
+    if (adjacentModes.includes('interval') || adjacentModes.includes('circuit')) return false;
+  }
+
+  if ((blueprint.mode === 'tempo' || blueprint.mode === 'long') && previous?.isGluteFocused) {
+    return false;
+  }
+
+  return true;
+};
+
+const createDedicatedCardioDay = (blueprint, slotIndex) => ({
+  name: blueprint.name,
+  workoutType: blueprint.workoutType,
+  primary: ['Legs', 'Abs'],
+  secondary: ['Back', 'Shoulders'],
+  focusLabel: blueprint.focusLabel,
+  progressionStyle: 'cardio',
+  mode: blueprint.mode,
+  exerciseTarget: blueprint.exerciseTarget,
+  cardioGoalType: blueprint.goalType,
+  targetDurationMinutes: blueprint.targetDurationMinutes,
+  cardioFinisher: `Target duration ${blueprint.targetDurationMinutes} min.`,
+  source: 'cardio',
+  dayName: WEEKLY_DAY_NAMES[slotIndex],
+  sessionType: blueprint.mode === 'interval' || blueprint.mode === 'circuit' ? 'hiit' : blueprint.mode === 'tempo' || blueprint.mode === 'long' ? 'endurance' : 'liss',
+  fatigueScore: blueprint.fatigueScore,
+  cardioAddOns: [],
+});
+
+const scoreDedicatedCardioSlot = (calendar, slotIndex, blueprint) => {
+  const previous = calendar[slotIndex - 1];
+  const next = calendar[slotIndex + 1];
+  let score = 0;
+
+  if (!previous && !next) score += 1;
+  if (blueprint.mode === 'zone2' || blueprint.mode === 'recovery') {
+    if (previous?.isUpper || next?.isUpper) score += 5;
+    if (!previous || !next) score += 3;
+    if (previous?.isLower || next?.isLower) score += 1;
+  } else if (blueprint.mode === 'interval' || blueprint.mode === 'circuit') {
+    if (previous?.isUpper || next?.isUpper) score += 5;
+    if (previous?.isHeavyLower || next?.isHeavyLower) score -= 10;
+    if (slotIndex >= 5) score += 2;
+  } else {
+    if (previous?.isUpper || next?.isUpper) score += 4;
+    if (previous?.isGluteFocused) score -= 8;
+    if (!previous || !next) score += 2;
+  }
+
+  return score;
+};
+
+const tryPlaceDedicatedCardio = (calendar, blueprint, level, maxActiveDays) => {
+  const activeCount = calendar.filter(Boolean).length;
+  if (activeCount >= maxActiveDays) return null;
+
+  const candidates = [];
+  for (let slotIndex = 0; slotIndex < calendar.length; slotIndex += 1) {
+    if (!canPlaceDedicatedCardio(calendar, slotIndex, blueprint, level)) continue;
+    candidates.push({
+      slotIndex,
+      score: scoreDedicatedCardioSlot(calendar, slotIndex, blueprint),
+    });
+  }
+
+  candidates.sort((a, b) => b.score - a.score);
+  return candidates[0]?.slotIndex ?? null;
+};
+
+const findFinisherTarget = (calendar, blueprint) => {
+  const candidates = calendar
+    .map((day, index) => ({ day, index }))
+    .filter(({ day, index }) => canAttachFinisher(day, blueprint, calendar, index))
+    .map(({ day, index }) => ({
+      index,
+      score:
+        (day?.isUpper ? 6 : 0)
+        + (!day?.isHeavyLower ? 2 : 0)
+        + ((blueprint.mode === 'zone2' || blueprint.mode === 'recovery') && day?.isLower ? 1 : 0),
+    }))
+    .sort((a, b) => b.score - a.score);
+
+  return candidates[0]?.index ?? null;
+};
+
+const resolveCardioDowngrade = (blueprint, level) => {
+  if (!blueprint) return null;
+  if (blueprint.mode === 'interval' || blueprint.mode === 'circuit') {
+    return buildCardioBlueprint({ mode: 'zone2', goalType: blueprint.goalType, level });
+  }
+  if (blueprint.mode === 'long' || blueprint.mode === 'tempo') {
+    return buildCardioBlueprint({ mode: 'recovery', goalType: blueprint.goalType, level });
+  }
+  if (blueprint.mode === 'zone2') {
+    return buildCardioBlueprint({ mode: 'recovery', goalType: blueprint.goalType, level });
+  }
+  return null;
+};
+
+const computeWeeklyFatigueScore = (calendar) =>
+  calendar.reduce((sum, day) => {
+    if (!day) return sum;
+    const addOnScore = Array.isArray(day.cardioAddOns)
+      ? day.cardioAddOns.reduce((cardioSum, item) => cardioSum + Number(item?.fatigueScore || 0), 0)
+      : 0;
+    return sum + Number(day.fatigueScore || 0) + addOnScore;
+  }, 0);
+
+const buildWeeklySchedule = ({
+  strengthDays,
+  splitPreference,
+  femaleProfile,
+  goal,
+  athleteSubCategoryId,
+  athleteSubCategoryIds,
+  athleteSubCategoryLabel,
+  athleteGoal,
+  level,
+  recoveryPriority,
+}) => {
+  const scheduleKind = resolveStrengthScheduleKind({
+    splitPreference,
+    femaleProfile,
+    daysPerWeek: strengthDays.length,
+  });
+  const calendar = buildStrengthCalendar(strengthDays, scheduleKind);
+  const cardioGoals = resolveCardioGoals({
+    goal,
+    athleteSubCategoryId,
+    athleteSubCategoryIds,
+    athleteSubCategoryLabel,
+    athleteGoal,
+  });
+
+  const blueprints = buildCardioBlueprints({
+    cardioGoals,
+    level,
+    scheduleKind,
+  });
+
+  const maxActiveDays = Math.min(6, strengthDays.length + (strengthDays.length >= 5 ? 1 : 2));
+
+  for (const blueprint of blueprints) {
+    const dedicatedIndex = tryPlaceDedicatedCardio(calendar, blueprint, level, maxActiveDays);
+    if (dedicatedIndex != null) {
+      calendar[dedicatedIndex] = createDedicatedCardioDay(blueprint, dedicatedIndex);
+      continue;
+    }
+
+    const finisherIndex = findFinisherTarget(calendar, blueprint);
+    if (finisherIndex != null) {
+      calendar[finisherIndex] = attachCardioFinisher(calendar[finisherIndex], blueprint);
+    }
+  }
+
+  const capacity = resolveWeeklyCapacity(level, recoveryPriority);
+  let fatigueScore = computeWeeklyFatigueScore(calendar);
+
+  while (fatigueScore > capacity) {
+    let changed = false;
+
+    for (let slotIndex = 0; slotIndex < calendar.length; slotIndex += 1) {
+      const day = calendar[slotIndex];
+      if (!day) continue;
+
+      if (day.source === 'cardio') {
+        const downgraded = resolveCardioDowngrade(day, level);
+        if (downgraded) {
+          calendar[slotIndex] = createDedicatedCardioDay(downgraded, slotIndex);
+        } else {
+          calendar[slotIndex] = null;
+        }
+        changed = true;
+        break;
+      }
+
+      if (Array.isArray(day.cardioAddOns) && day.cardioAddOns.length) {
+        const lastAddOn = day.cardioAddOns[day.cardioAddOns.length - 1];
+        const downgraded = resolveCardioDowngrade(lastAddOn, level);
+        if (downgraded) {
+          const nextAddOns = [...day.cardioAddOns];
+          nextAddOns[nextAddOns.length - 1] = { ...downgraded, placement: 'finisher' };
+          calendar[slotIndex] = {
+            ...day,
+            cardioAddOns: nextAddOns,
+            cardioFinisher: nextAddOns.map((item) => `${item.name} ${item.targetDurationMinutes} min`).join(' + '),
+          };
+        } else {
+          const nextAddOns = day.cardioAddOns.slice(0, -1);
+          calendar[slotIndex] = {
+            ...day,
+            cardioAddOns: nextAddOns,
+            cardioFinisher: nextAddOns.length
+              ? nextAddOns.map((item) => `${item.name} ${item.targetDurationMinutes} min`).join(' + ')
+              : '',
+          };
+        }
+        changed = true;
+        break;
+      }
+    }
+
+    if (!changed) break;
+    fatigueScore = computeWeeklyFatigueScore(calendar);
+  }
+
+  return {
+    activeDays: calendar.filter(Boolean),
+    weeklyFatigueScore: fatigueScore,
+    weeklyCapacity: capacity,
+    cardioGoals,
+    scheduleKind,
+  };
+};
+
 const splitLibraryByDays = (daysPerWeek) => {
   if (daysPerWeek <= 2) {
     return {
@@ -443,6 +969,545 @@ const splitByDays = (daysPerWeek, splitPreference = 'auto') => {
   if (daysPerWeek >= 6 && library.push_pull_legs) return library.push_pull_legs;
 
   return library.custom || library.full_body || library.upper_lower || library.push_pull_legs || library.hybrid || [];
+};
+
+const normalizeGender = (value) => {
+  const key = String(value || '').trim().toLowerCase();
+  if (key === 'female' || key === 'woman' || key === 'f') return 'female';
+  if (key === 'male' || key === 'man' || key === 'm') return 'male';
+  return '';
+};
+
+const normalizeGoalTokens = (...values) =>
+  values
+    .flatMap((value) => String(value || '').toLowerCase().split(/[^a-z0-9]+/))
+    .map((token) => token.trim())
+    .filter(Boolean);
+
+const includesAnyGoalToken = (tokens, expected) => expected.some((entry) => tokens.includes(entry));
+
+const FEMALE_PREMIUM_PATTERN_LIBRARY = {
+  push_a: [
+    /(incline.*(dumbbell|db).*(press)|(?:dumbbell|db).*incline.*press)/i,
+    /(shoulder press|overhead press)/i,
+    /(lateral raise|side raise)/i,
+    /(triceps pushdown|pushdown)/i,
+    /(cable fly|chest fly|pec deck)/i,
+  ],
+  push_b: [
+    /(chest press|machine press)/i,
+    /(arnold press)/i,
+    /(lateral raise|side raise)/i,
+    /(overhead triceps extension|triceps extension)/i,
+    /(cable fly|chest fly|pec deck)/i,
+  ],
+  pull_a: [
+    /(lat pulldown|pull[-\s]?down)/i,
+    /(seated row|cable row)/i,
+    /(face pull)/i,
+    /(biceps curl|dumbbell curl|ez curl)/i,
+    /(rear delt fly|reverse pec deck|rear delt raise)/i,
+  ],
+  pull_b: [
+    /(assisted pull[-\s]?up|pull[-\s]?up|lat pulldown|pull[-\s]?down)/i,
+    /(row machine|seated row|machine row|cable row)/i,
+    /(face pull)/i,
+    /(hammer curl)/i,
+    /(rear delt cable|rear delt fly|reverse pec deck)/i,
+  ],
+  legs_glutes: [
+    /(hip thrust|glute bridge)/i,
+    /(romanian deadlift|rdl)/i,
+    /(bulgarian split squat|split squat)/i,
+    /(kickback)/i,
+    /(abduction|abductor)/i,
+    /(glute bridge|back extension|step up)/i,
+  ],
+  legs_glutes_quads: [
+    /(hip thrust|glute bridge)/i,
+    /(hack squat|back squat|front squat|smith squat|squat)/i,
+    /(leg press)/i,
+    /(walking lunge|lunge)/i,
+    /(abduction|abductor)/i,
+    /(romanian deadlift|rdl|split squat)/i,
+  ],
+};
+
+const matchesExercisePattern = (exercise, pattern) =>
+  pattern.test(`${exercise.name} ${exercise.exerciseType || ''} ${exercise.description || ''}`);
+
+const pickPatternAnchors = ({
+  pools,
+  patterns,
+  usedNames,
+  preferVideoLinkedBackExercises = false,
+}) => {
+  const selected = [];
+  const localUsed = new Set(usedNames);
+  const mergedPool = pools.flat();
+
+  for (const pattern of patterns) {
+    const match = sortSelectionPool(
+      mergedPool.filter((exercise) => !localUsed.has(exercise.normalizedName) && matchesExercisePattern(exercise, pattern)),
+      { preferVideoLinkedBackExercises },
+    )[0];
+    if (!match) continue;
+    selected.push(match);
+    localUsed.add(match.normalizedName);
+  }
+
+  return selected;
+};
+
+const resolveFemaleTrainingGoal = ({
+  goal,
+  athleteSubCategoryId,
+  athleteSubCategoryLabel,
+  athleteGoal,
+}) => {
+  const tokens = normalizeGoalTokens(goal, athleteSubCategoryId, athleteSubCategoryLabel, athleteGoal);
+  const normalizedSubCategoryId = String(athleteSubCategoryId || '').trim().toLowerCase();
+
+  if (
+    normalizedSubCategoryId === 'glutes_focus'
+    || includesAnyGoalToken(tokens, ['glutes', 'glute', 'booty'])
+  ) {
+    return 'glutes';
+  }
+
+  if (
+    ['fat_loss', 'hiit_fast_burn', 'wellness'].includes(normalizedSubCategoryId)
+    || includesAnyGoalToken(tokens, ['fat', 'loss', 'hiit', 'burn', 'wellness'])
+  ) {
+    return 'fat_loss';
+  }
+
+  if (
+    ['toning', 'silhouette_posture', 'beginner_fitness'].includes(normalizedSubCategoryId)
+    || includesAnyGoalToken(tokens, ['tone', 'toning', 'silhouette', 'posture', 'beginner'])
+  ) {
+    return 'tone';
+  }
+
+  if (
+    normalizedSubCategoryId === 'muscle_strengthening'
+    || includesAnyGoalToken(tokens, ['muscle', 'strength', 'strengthening'])
+  ) {
+    return 'muscle';
+  }
+
+  if (String(goal || '').trim().toLowerCase() === 'fat_loss') {
+    return 'fat_loss';
+  }
+
+  return 'tone';
+};
+
+const resolveFemalePremiumProfile = ({
+  gender,
+  goal,
+  experienceLevel,
+  splitPreference,
+  athleteIdentity,
+  athleteIdentityCategory,
+  athleteSubCategoryId,
+  athleteSubCategoryLabel,
+  athleteGoal,
+  daysPerWeek,
+}) => {
+  const normalizedGender = normalizeGender(gender);
+  const normalizedIdentity = normalizeAthleteIdentity(athleteIdentity);
+  const normalizedCategory = normalizeAthleteIdentityCategory(athleteIdentityCategory);
+  const normalizedSplit = normalizeSplitPreference(splitPreference);
+  const normalizedLevel = String(experienceLevel || '').trim().toLowerCase();
+  const femaleGoal = resolveFemaleTrainingGoal({
+    goal,
+    athleteSubCategoryId,
+    athleteSubCategoryLabel,
+    athleteGoal,
+  });
+  const isFemaleStrengthProfile =
+    normalizedGender === 'female'
+    && (normalizedIdentity === 'bodybuilding' || normalizedCategory === 'fitness');
+  const usesWowSplit =
+    isFemaleStrengthProfile
+    && ['intermediate', 'advanced'].includes(normalizedLevel)
+    && Number(daysPerWeek || 0) === 4
+    && ['glutes', 'tone', 'fat_loss'].includes(femaleGoal)
+    && ['auto', 'hybrid'].includes(normalizedSplit);
+  const usesHybridBalance =
+    isFemaleStrengthProfile
+    && ['intermediate', 'advanced'].includes(normalizedLevel)
+    && Number(daysPerWeek || 0) === 5
+    && ['glutes', 'tone', 'fat_loss', 'muscle'].includes(femaleGoal)
+    && ['auto', 'hybrid'].includes(normalizedSplit);
+  const usesDefaultUl =
+    isFemaleStrengthProfile
+    && !usesWowSplit
+    && !usesHybridBalance
+    && Number(daysPerWeek || 0) === 4
+    && ['auto', 'upper_lower'].includes(normalizedSplit);
+  const usesPremiumPpl =
+    isFemaleStrengthProfile
+    && !usesWowSplit
+    && !usesHybridBalance
+    && Number(daysPerWeek || 0) >= 5
+    && ['auto', 'push_pull_legs', 'hybrid'].includes(normalizedSplit);
+
+  return {
+    enabled: isFemaleStrengthProfile,
+    usesWowSplit,
+    usesHybridBalance,
+    usesDefaultUl,
+    usesPremiumPpl,
+    goalKey: femaleGoal,
+    cardioSessions: femaleGoal === 'fat_loss' ? (Number(daysPerWeek || 0) >= 6 ? 3 : 2) : 0,
+  };
+};
+
+const buildFemaleHybridBalanceSplit = (femaleProfile) => {
+  const cardioNote = femaleProfile.goalKey === 'fat_loss'
+    ? 'Cardio add-on: incline walk 20-30 min or HIIT 10-15 min.'
+    : '';
+
+  return [
+    {
+      name: 'Push',
+      workoutType: 'Push',
+      primary: ['Shoulders', 'Chest'],
+      secondary: ['Arms', 'Abs'],
+      focusLabel: 'Upper Tone',
+      progressionStyle: 'strength_upper',
+      patternMatchers: [
+        /(incline.*(dumbbell|db).*(press)|(?:dumbbell|db).*incline.*press)/i,
+        /(shoulder press|overhead press)/i,
+        /(lateral raise|side raise)/i,
+        /(triceps pushdown|pushdown)/i,
+        /(cable fly|chest fly|pec deck)/i,
+      ],
+      exerciseTarget: 5,
+      cardioFinisher: '',
+    },
+    {
+      name: 'Pull',
+      workoutType: 'Pull',
+      primary: ['Back', 'Arms'],
+      secondary: ['Shoulders', 'Abs'],
+      focusLabel: 'Back Shape',
+      progressionStyle: 'strength_upper',
+      patternMatchers: [
+        /(lat pulldown|pull[-\s]?down)/i,
+        /(seated row|cable row|machine row)/i,
+        /(face pull)/i,
+        /(biceps curl|dumbbell curl|ez curl)/i,
+        /(rear delt fly|reverse pec deck|rear delt raise|rear delt cable)/i,
+      ],
+      exerciseTarget: 5,
+      cardioFinisher: '',
+    },
+    {
+      name: 'Legs Glutes',
+      workoutType: 'Legs',
+      primary: ['Legs'],
+      secondary: ['Abs', 'Back'],
+      focusLabel: 'Glutes Priority',
+      progressionStyle: 'strength_glutes',
+      patternMatchers: [
+        /(hip thrust|glute bridge)/i,
+        /(romanian deadlift|rdl)/i,
+        /(bulgarian split squat|split squat)/i,
+        /(kickback)/i,
+        /(abduction|abductor)/i,
+        /(back extension|step up)/i,
+      ],
+      exerciseTarget: femaleProfile.goalKey === 'glutes' ? 6 : 5,
+      cardioFinisher: cardioNote,
+    },
+    {
+      name: 'Upper Balanced',
+      workoutType: 'Upper Body',
+      primary: ['Back', 'Shoulders', 'Arms'],
+      secondary: ['Chest', 'Abs'],
+      focusLabel: 'Posture + Shape',
+      progressionStyle: 'volume_upper',
+      patternMatchers: [
+        /(assisted pull[-\s]?up|pull[-\s]?up|lat pulldown|pull[-\s]?down)/i,
+        /(row machine|seated row|machine row|cable row)/i,
+        /(shoulder press|overhead press)/i,
+        /(lateral raise|side raise)/i,
+        /(triceps pushdown|overhead triceps extension|triceps extension)/i,
+        /(biceps curl|hammer curl|dumbbell curl)/i,
+      ],
+      exerciseTarget: 6,
+      cardioFinisher: femaleProfile.goalKey === 'fat_loss' ? cardioNote : '',
+    },
+    {
+      name: 'Lower Balanced',
+      workoutType: 'Lower Body',
+      primary: ['Legs'],
+      secondary: ['Abs', 'Back'],
+      focusLabel: 'Glutes + Legs',
+      progressionStyle: 'volume_lower',
+      patternMatchers: [
+        /(hip thrust|glute bridge)/i,
+        /(hack squat|back squat|front squat|smith squat|squat)/i,
+        /(leg press)/i,
+        /(walking lunge|lunge)/i,
+        /(abduction|abductor)/i,
+        /(hamstring curl|leg curl|lying leg curl|seated leg curl)/i,
+      ],
+      exerciseTarget: femaleProfile.goalKey === 'glutes' ? 6 : 5,
+      cardioFinisher: femaleProfile.goalKey === 'fat_loss' ? 'Optional finisher: incline walk 15-20 min.' : '',
+    },
+  ];
+};
+
+const buildFemaleWowSplit = (daysPerWeek, femaleProfile) => {
+  const hasDedicatedCardioDay = Number(daysPerWeek || 0) >= 5;
+  const cardioNote = 'Cardio add-on: incline walk 20-30 min.';
+
+  const split = [
+    {
+      name: 'Glutes Strength',
+      workoutType: 'Lower Body',
+      primary: ['Legs'],
+      secondary: ['Back', 'Abs'],
+      focusLabel: 'Glutes + Hamstrings Strength',
+      progressionStyle: 'strength',
+      patternMatchers: [
+        /(hip thrust|glute bridge)/i,
+        /(romanian deadlift|rdl)/i,
+        /(bulgarian split squat|split squat)/i,
+        /(kickback)/i,
+        /(abduction|abductor)/i,
+        /(back extension|step up)/i,
+      ],
+      exerciseTarget: femaleProfile.goalKey === 'glutes' ? 6 : 5,
+      cardioFinisher: '',
+    },
+    {
+      name: 'Upper Light',
+      workoutType: 'Upper Body',
+      primary: ['Back', 'Shoulders', 'Arms'],
+      secondary: ['Chest', 'Abs'],
+      focusLabel: 'Upper Light Tone',
+      progressionStyle: 'light_upper',
+      patternMatchers: [
+        /(lat pulldown|pull[-\s]?down)/i,
+        /(seated row|cable row|machine row)/i,
+        /(lateral raise|side raise)/i,
+        /(triceps pushdown|pushdown)/i,
+        /(biceps curl|dumbbell curl|hammer curl|ez curl)/i,
+      ],
+      exerciseTarget: 5,
+      cardioFinisher: femaleProfile.goalKey === 'fat_loss' ? cardioNote : '',
+    },
+  ];
+
+  if (hasDedicatedCardioDay) {
+    split.push({
+      name: 'Cardio Conditioning',
+      workoutType: 'Cardio',
+      primary: ['Legs', 'Abs'],
+      secondary: ['Back', 'Shoulders'],
+      focusLabel: 'Incline Walk Conditioning',
+      progressionStyle: 'cardio',
+      mode: femaleProfile.goalKey === 'fat_loss' ? 'interval' : 'zone2',
+      exerciseTarget: femaleProfile.goalKey === 'fat_loss' ? 4 : 3,
+      cardioFinisher: 'Keep this session low impact and recovery-friendly.',
+    });
+  }
+
+  split.push(
+    {
+      name: 'Glutes Pump',
+      workoutType: 'Lower Body',
+      primary: ['Legs'],
+      secondary: ['Abs', 'Back'],
+      focusLabel: 'Glutes Pump + Volume',
+      progressionStyle: 'pump',
+      patternMatchers: [
+        /(hip thrust|glute bridge)/i,
+        /(glute bridge|bridge)/i,
+        /(kickback)/i,
+        /(abduction|abductor)/i,
+        /(step up|step-up)/i,
+        /(back extension|frog pump)/i,
+      ],
+      exerciseTarget: femaleProfile.goalKey === 'glutes' ? 6 : 5,
+      cardioFinisher: femaleProfile.goalKey === 'fat_loss' ? cardioNote : '',
+    },
+    {
+      name: 'Lower Full',
+      workoutType: 'Lower Body',
+      primary: ['Legs'],
+      secondary: ['Back', 'Abs'],
+      focusLabel: 'Glutes + Legs Mix',
+      progressionStyle: 'mixed_lower',
+      patternMatchers: [
+        /(hip thrust|glute bridge)/i,
+        /(hack squat|back squat|front squat|smith squat|squat)/i,
+        /(leg press)/i,
+        /(walking lunge|lunge)/i,
+        /(hamstring curl|leg curl|lying leg curl|seated leg curl)/i,
+        /(abduction|abductor)/i,
+      ],
+      exerciseTarget: femaleProfile.goalKey === 'glutes' ? 6 : 5,
+      cardioFinisher: femaleProfile.goalKey === 'fat_loss' ? 'Optional finisher: incline walk 15-20 min.' : '',
+    },
+  );
+
+  return split;
+};
+
+const buildFemaleDefaultUpperLowerSplit = (femaleProfile) => {
+  const cardioFinisher = femaleProfile.goalKey === 'fat_loss'
+    ? 'Cardio add-on: incline walk 20-30 min or HIIT 10-15 min.'
+    : '';
+
+  return [
+    {
+      name: 'Upper A',
+      workoutType: 'Upper Body',
+      primary: ['Back', 'Shoulders', 'Arms'],
+      secondary: ['Chest', 'Abs'],
+      focusLabel: 'Tone + Shape',
+      patternMatchers: [
+        /(lat pulldown|pull[-\s]?down)/i,
+        /(seated row|cable row|machine row)/i,
+        /(shoulder press|overhead press)/i,
+        /(lateral raise|side raise)/i,
+        /(triceps pushdown|pushdown)/i,
+        /(biceps curl|dumbbell curl|ez curl)/i,
+      ],
+      exerciseTarget: 6,
+      cardioFinisher,
+    },
+    {
+      name: 'Lower A',
+      workoutType: 'Lower Body',
+      primary: ['Legs'],
+      secondary: ['Abs', 'Back'],
+      focusLabel: 'Glutes Priority',
+      patternMatchers: [
+        /(hip thrust|glute bridge)/i,
+        /(romanian deadlift|rdl)/i,
+        /(bulgarian split squat|split squat)/i,
+        /(kickback)/i,
+        /(abduction|abductor)/i,
+        /(back extension|step up)/i,
+      ],
+      exerciseTarget: femaleProfile.goalKey === 'glutes' ? 6 : 5,
+      cardioFinisher: '',
+    },
+    {
+      name: 'Upper B',
+      workoutType: 'Upper Body',
+      primary: ['Back', 'Shoulders', 'Arms'],
+      secondary: ['Chest', 'Abs'],
+      focusLabel: 'Back Shape + Shoulders',
+      patternMatchers: [
+        /(assisted pull[-\s]?up|pull[-\s]?up|lat pulldown|pull[-\s]?down)/i,
+        /(row machine|seated row|machine row|cable row)/i,
+        /(lateral raise|side raise)/i,
+        /(rear delt fly|rear delt cable|reverse pec deck)/i,
+        /(overhead triceps extension|triceps extension)/i,
+        /(hammer curl)/i,
+      ],
+      exerciseTarget: 6,
+      cardioFinisher,
+    },
+    {
+      name: 'Lower B',
+      workoutType: 'Lower Body',
+      primary: ['Legs'],
+      secondary: ['Abs', 'Back'],
+      focusLabel: 'Glutes + Legs',
+      patternMatchers: [
+        /(hip thrust|glute bridge)/i,
+        /(hack squat|back squat|front squat|smith squat|squat)/i,
+        /(leg press)/i,
+        /(walking lunge|lunge)/i,
+        /(abduction|abductor)/i,
+        /(romanian deadlift|rdl|split squat)/i,
+      ],
+      exerciseTarget: femaleProfile.goalKey === 'glutes' ? 6 : 5,
+      cardioFinisher: '',
+    },
+  ];
+};
+
+const buildFemalePremiumSplit = (daysPerWeek, femaleProfile) => {
+  const dayTemplates = [
+    {
+      name: 'Push A',
+      workoutType: 'Push',
+      primary: ['Shoulders', 'Chest'],
+      secondary: ['Arms', 'Abs'],
+      focusLabel: 'Upper Tone',
+      patternKey: 'push_a',
+    },
+    {
+      name: 'Pull A',
+      workoutType: 'Pull',
+      primary: ['Back', 'Arms'],
+      secondary: ['Shoulders', 'Abs'],
+      focusLabel: 'Back Shape',
+      patternKey: 'pull_a',
+    },
+    {
+      name: 'Legs A',
+      workoutType: 'Legs',
+      primary: ['Legs'],
+      secondary: ['Abs', 'Back'],
+      focusLabel: 'Glutes Focus',
+      patternKey: 'legs_glutes',
+    },
+    {
+      name: 'Push B',
+      workoutType: 'Push',
+      primary: ['Shoulders', 'Chest'],
+      secondary: ['Arms', 'Abs'],
+      focusLabel: 'Upper Tone Variation',
+      patternKey: 'push_b',
+    },
+    {
+      name: 'Pull B',
+      workoutType: 'Pull',
+      primary: ['Back', 'Arms'],
+      secondary: ['Shoulders', 'Abs'],
+      focusLabel: 'Back Shape Variation',
+      patternKey: 'pull_b',
+    },
+    {
+      name: 'Legs B',
+      workoutType: 'Legs',
+      primary: ['Legs'],
+      secondary: ['Abs', 'Back'],
+      focusLabel: 'Glutes + Quads',
+      patternKey: 'legs_glutes_quads',
+    },
+  ];
+
+  const split = Number(daysPerWeek || 0) >= 6
+    ? dayTemplates
+    : [dayTemplates[0], dayTemplates[1], dayTemplates[2], dayTemplates[3], dayTemplates[5]];
+
+  const cardioDayIndexes = femaleProfile.goalKey === 'fat_loss'
+    ? (split.length >= 6 ? new Set([0, 2, 4]) : new Set([1, 3]))
+    : new Set();
+
+  return split.map((day, index) => ({
+    ...day,
+    patternMatchers: FEMALE_PREMIUM_PATTERN_LIBRARY[day.patternKey] || [],
+    exerciseTarget:
+      day.workoutType === 'Legs'
+        ? (femaleProfile.goalKey === 'glutes' ? 6 : 5)
+        : 5,
+    cardioFinisher: cardioDayIndexes.has(index)
+      ? 'Cardio add-on: incline walk 20-30 min or HIIT 10-15 min.'
+      : '',
+  }));
 };
 
 const parseEquipmentPreferences = (input) => {
@@ -617,7 +1682,86 @@ const ensureLegacyExerciseId = async (conn, cache, exerciseName) => {
   return id;
 };
 
-const programProgressionForWeek = ({ week, goal, level, adjustment }) => {
+const programProgressionForWeek = ({
+  week,
+  goal,
+  level,
+  adjustment,
+  day = null,
+  femaleProfile = null,
+}) => {
+  if (femaleProfile?.usesHybridBalance) {
+    const blockIndex = Math.floor((week - 1) / 2);
+    const style = String(day?.progressionStyle || '').trim().toLowerCase();
+    const hybridMap = {
+      strength_upper: { reps: '10-12', restSeconds: 75, rpeBase: 7.4, setBase: 3 },
+      strength_glutes: { reps: '8-12', restSeconds: 95, rpeBase: 7.8, setBase: 4 },
+      volume_upper: { reps: '10-15', restSeconds: 70, rpeBase: 7.0, setBase: 3 },
+      volume_lower: { reps: '8-12', restSeconds: 90, rpeBase: 7.4, setBase: 4 },
+    };
+    const styleConfig = hybridMap[style] || hybridMap.volume_upper;
+    const levelBonus = level === 'advanced' ? 1 : 0;
+    const sets = Math.max(2, Math.min(6, Math.round((styleConfig.setBase * (BLOCK_MULTIPLIERS[Math.min(blockIndex, BLOCK_MULTIPLIERS.length - 1)] || 1.0)) + (adjustment.setDelta || 0) + (style === 'strength_glutes' ? levelBonus * 0.35 : levelBonus * 0.2))));
+    const rpe = Math.max(6.0, Math.min(9.2, Number((styleConfig.rpeBase + (blockIndex * 0.1) + (adjustment.rpeDelta || 0)).toFixed(1))));
+    return {
+      sets,
+      rpe,
+      reps: styleConfig.reps,
+      restSeconds: styleConfig.restSeconds,
+    };
+  }
+
+  if (femaleProfile?.usesWowSplit) {
+    const blockIndex = Math.floor((week - 1) / 2);
+    const style = String(day?.progressionStyle || '').trim().toLowerCase();
+    if (style === 'cardio') {
+      return {
+        sets: 1,
+        rpe: femaleProfile.goalKey === 'fat_loss' ? 7.0 : 6.0,
+        reps: femaleProfile.goalKey === 'fat_loss' ? '10-15 min intervals' : '20-30 min',
+        restSeconds: 0,
+      };
+    }
+
+    const wowMap = {
+      strength: { reps: '6-8', restSeconds: 105, rpeBase: 7.8, setBase: 4 },
+      light_upper: { reps: '10-12', restSeconds: 70, rpeBase: 6.9, setBase: 3 },
+      pump: { reps: '12-15', restSeconds: 60, rpeBase: 7.1, setBase: 4 },
+      mixed_lower: { reps: '8-12', restSeconds: 90, rpeBase: 7.5, setBase: 3 },
+    };
+    const styleConfig = wowMap[style] || wowMap.light_upper;
+    const levelBonus = level === 'advanced' ? 1 : 0;
+    const sets = Math.max(2, Math.min(6, Math.round((styleConfig.setBase * (BLOCK_MULTIPLIERS[Math.min(blockIndex, BLOCK_MULTIPLIERS.length - 1)] || 1.0)) + (adjustment.setDelta || 0) + (style === 'strength' ? levelBonus * 0.35 : 0))));
+    const rpe = Math.max(6.0, Math.min(9.2, Number((styleConfig.rpeBase + (blockIndex * 0.1) + (adjustment.rpeDelta || 0)).toFixed(1))));
+    return {
+      sets,
+      rpe,
+      reps: styleConfig.reps,
+      restSeconds: styleConfig.restSeconds,
+    };
+  }
+
+  if (femaleProfile?.usesPremiumPpl || femaleProfile?.usesDefaultUl) {
+    const blockIndex = Math.floor((week - 1) / 2);
+    const blockMultiplier = BLOCK_MULTIPLIERS[Math.min(blockIndex, BLOCK_MULTIPLIERS.length - 1)] || 1.0;
+    const workoutType = String(day?.workoutType || '').toLowerCase();
+    const isLegDay = workoutType === 'legs' || workoutType === 'lower body';
+    const levelBonus = level === 'advanced' ? 1 : 0;
+    const baseSets = isLegDay
+      ? (femaleProfile.goalKey === 'glutes' || femaleProfile.goalKey === 'muscle' ? 4 : 3)
+      : 3;
+    const scaledSets = Math.round((baseSets * blockMultiplier) + (adjustment.setDelta || 0) + (isLegDay ? levelBonus * 0.35 : levelBonus * 0.2));
+    const sets = Math.max(2, Math.min(6, scaledSets));
+    const rpeBase = isLegDay ? 7.6 : 7.1;
+    const rpe = Math.max(6.0, Math.min(9.2, Number((rpeBase + (blockIndex * 0.1) + (adjustment.rpeDelta || 0)).toFixed(1))));
+    return {
+      sets,
+      rpe,
+      reps: '10-15',
+      restSeconds: isLegDay ? 90 : 75,
+    };
+  }
+
   const preset = GOAL_PRESETS[goal] || GOAL_PRESETS.general_fitness;
   const cfg = LEVEL_CONFIG[level] || LEVEL_CONFIG.intermediate;
   const blockIndex = Math.floor((week - 1) / 2);
@@ -795,8 +1939,14 @@ export const generatePersonalizedProgram = async (
     daysPerWeek = 4,
     cycleWeeks = 12,
     splitPreference = 'auto',
+    gender = null,
     athleteIdentity = null,
     athleteIdentityCategory = null,
+    athleteSubCategoryId = null,
+    athleteSubCategoryIds = [],
+    athleteSubCategoryLabel = null,
+    athleteGoal = null,
+    recoveryPriority = null,
     equipment = null,
     notes = null,
   },
@@ -808,6 +1958,18 @@ export const generatePersonalizedProgram = async (
   const normalizedIdentity = normalizeAthleteIdentity(athleteIdentity);
   const isCardioIdentity = normalizedIdentity === 'cardio';
   const equipmentPrefs = parseEquipmentPreferences(equipment);
+  const femaleProfile = resolveFemalePremiumProfile({
+    gender,
+    goal: normalizedGoal,
+    experienceLevel: normalizedLevel,
+    splitPreference,
+    athleteIdentity,
+    athleteIdentityCategory,
+    athleteSubCategoryId,
+    athleteSubCategoryLabel,
+    athleteGoal,
+    daysPerWeek: clampedDays,
+  });
   const athleteMovementBias = resolveAthleteMovementBias({
     goal: normalizedGoal,
     athleteIdentity,
@@ -831,9 +1993,32 @@ export const generatePersonalizedProgram = async (
     });
   }
 
-  const split = splitByDays(clampedDays, splitPreference);
-  const weekdays = WEEKDAY_BY_DAYS_PER_WEEK[clampedDays] || WEEKDAY_BY_DAYS_PER_WEEK[4];
+  const split = femaleProfile.usesWowSplit
+    ? buildFemaleWowSplit(clampedDays, femaleProfile)
+    : femaleProfile.usesHybridBalance
+      ? buildFemaleHybridBalanceSplit(femaleProfile)
+    : femaleProfile.usesPremiumPpl
+    ? buildFemalePremiumSplit(clampedDays, femaleProfile)
+    : femaleProfile.usesDefaultUl
+      ? buildFemaleDefaultUpperLowerSplit(femaleProfile)
+      : splitByDays(clampedDays, splitPreference);
+  const weeklySchedule = buildWeeklySchedule({
+    strengthDays: split,
+    splitPreference,
+    femaleProfile,
+    goal: normalizedGoal,
+    athleteSubCategoryId,
+    athleteSubCategoryIds,
+    athleteSubCategoryLabel,
+    athleteGoal,
+    level: normalizedLevel,
+    recoveryPriority,
+  });
+  const scheduledDays = weeklySchedule.activeDays;
+  const scheduledDayCount = Math.max(2, Math.min(6, scheduledDays.length || clampedDays));
   const cfg = LEVEL_CONFIG[normalizedLevel] || LEVEL_CONFIG.intermediate;
+  const cardioPool = pool.filter(isCardioExercise);
+  const activeCardioPool = cardioPool.length >= 8 ? cardioPool : pool;
 
   const [insertProgram] = await conn.execute(
     `INSERT INTO programs
@@ -844,10 +2029,10 @@ export const generatePersonalizedProgram = async (
       userId,
       `${clampedWeeks}-Week Personalized Plan`,
       notes || `Generated from onboarding (goal=${normalizedGoal}, level=${normalizedLevel}, days=${clampedDays}).`,
-      toProgramType(clampedDays, splitPreference),
+      toProgramType(scheduledDayCount, splitPreference),
       normalizedGoal,
       normalizedLevel,
-      clampedDays,
+      scheduledDayCount,
       clampedWeeks,
     ],
   );
@@ -863,10 +2048,10 @@ export const generatePersonalizedProgram = async (
       usedPerWeek.clear();
     }
 
-    for (let dayIdx = 0; dayIdx < split.length; dayIdx += 1) {
-      const day = split[dayIdx];
+    for (let dayIdx = 0; dayIdx < scheduledDays.length; dayIdx += 1) {
+      const day = scheduledDays[dayIdx];
       dayOrder += 1;
-      const dayName = weekdays[dayIdx % weekdays.length];
+      const dayName = String(day.dayName || WEEKDAY_BY_DAYS_PER_WEEK[scheduledDayCount]?.[dayIdx] || WEEKLY_DAY_NAMES[dayIdx] || 'monday');
       const dayPrimaryMuscles = new Set(day.primary);
       const preferVideoLinkedBackExercises = dayPrimaryMuscles.has('Back')
         && !dayPrimaryMuscles.has('Chest')
@@ -875,7 +2060,9 @@ export const generatePersonalizedProgram = async (
       const dayPool = pool.filter((ex) => dayPrimaryMuscles.has(ex.primaryMuscle));
       const daySecondaryPool = pool.filter((ex) => day.secondary.includes(ex.primaryMuscle));
 
-      const athleteAnchors = athleteMovementBias.enabled
+      const athleteAnchors = day.mode
+        ? []
+        : athleteMovementBias.enabled
         ? pickAthleteAnchorExercises({
             dayPool,
             daySecondaryPool,
@@ -889,59 +2076,118 @@ export const generatePersonalizedProgram = async (
           })
         : [];
 
-      const selection = [
-        ...athleteAnchors,
-        ...pickUniqueExercises({
-          pool: [...dayPool, ...daySecondaryPool],
-          fallbackPool: pool,
-          count: Math.max(0, cfg.exercisesPerDay - athleteAnchors.length),
-          usedNames: new Set([...usedPerWeek, ...athleteAnchors.map((exercise) => exercise.normalizedName)]),
-          lastDayPrimaryMuscles,
-          dayPrimaryMuscles,
-          preferVideoLinkedBackExercises,
-        }),
-      ];
+      const premiumAnchors = (femaleProfile.usesWowSplit || femaleProfile.usesHybridBalance || femaleProfile.usesPremiumPpl || femaleProfile.usesDefaultUl) && !day.mode
+        ? pickPatternAnchors({
+            pools: [dayPool, daySecondaryPool, pool],
+            patterns: Array.isArray(day.patternMatchers) ? day.patternMatchers : [],
+            usedNames: new Set([...usedPerWeek, ...athleteAnchors.map((exercise) => exercise.normalizedName)]),
+            preferVideoLinkedBackExercises,
+          })
+        : [];
 
-      if (athleteMovementBias.enabled && selection.length > cfg.exercisesPerDay) {
-        selection.length = cfg.exercisesPerDay;
+      const exerciseTarget = (femaleProfile.usesWowSplit || femaleProfile.usesHybridBalance || femaleProfile.usesPremiumPpl || femaleProfile.usesDefaultUl)
+        ? Math.max(
+            normalizedLevel === 'beginner' ? 4 : 5,
+            Math.min(6, Number(day.exerciseTarget || 5)),
+          )
+        : cfg.exercisesPerDay;
+
+      const selection = day.mode
+        ? [
+            ...pickUniqueExercises({
+              pool: selectCardioModePool(activeCardioPool, day.mode).filter((ex) => dayPrimaryMuscles.has(ex.primaryMuscle) || day.secondary.includes(ex.primaryMuscle)),
+              fallbackPool: selectCardioModePool(activeCardioPool, day.mode),
+              count: exerciseTarget,
+              usedNames: usedPerWeek,
+              lastDayPrimaryMuscles,
+              dayPrimaryMuscles,
+              preferVideoLinkedBackExercises: false,
+            }),
+          ]
+        : [
+            ...athleteAnchors,
+            ...premiumAnchors,
+            ...pickUniqueExercises({
+              pool: [...dayPool, ...daySecondaryPool],
+              fallbackPool: pool,
+              count: Math.max(0, exerciseTarget - athleteAnchors.length - premiumAnchors.length),
+              usedNames: new Set([
+                ...usedPerWeek,
+                ...athleteAnchors.map((exercise) => exercise.normalizedName),
+                ...premiumAnchors.map((exercise) => exercise.normalizedName),
+              ]),
+              lastDayPrimaryMuscles,
+              dayPrimaryMuscles,
+              preferVideoLinkedBackExercises,
+            }),
+          ];
+
+      if (selection.length > exerciseTarget) {
+        selection.length = exerciseTarget;
       }
 
       if (selection.length === 0) {
         throw new Error(`Could not build a valid exercise selection for week ${week}, day ${day.name}.`);
       }
 
-      if (selection.length < Math.max(4, cfg.exercisesPerDay - 1)) {
-        const fallbackSelection = pickUniqueExercises({
-          pool: [...dayPool, ...daySecondaryPool],
-          fallbackPool: pool,
-          count: cfg.exercisesPerDay,
-          usedNames: usedPerWeek,
-          lastDayPrimaryMuscles,
-          dayPrimaryMuscles,
-          preferVideoLinkedBackExercises,
-        });
+      if (selection.length < Math.max(day.mode ? 2 : 4, exerciseTarget - 1)) {
+        const fallbackSelection = day.mode
+          ? [
+              ...pickUniqueExercises({
+                pool: selectCardioModePool(activeCardioPool, day.mode),
+                fallbackPool: activeCardioPool,
+                count: exerciseTarget,
+                usedNames: usedPerWeek,
+                lastDayPrimaryMuscles,
+                dayPrimaryMuscles,
+                preferVideoLinkedBackExercises: false,
+              }),
+            ]
+          : [
+              ...athleteAnchors,
+              ...premiumAnchors,
+              ...pickUniqueExercises({
+                pool: [...dayPool, ...daySecondaryPool],
+                fallbackPool: pool,
+                count: Math.max(0, exerciseTarget - athleteAnchors.length - premiumAnchors.length),
+                usedNames: new Set([
+                  ...usedPerWeek,
+                  ...athleteAnchors.map((exercise) => exercise.normalizedName),
+                  ...premiumAnchors.map((exercise) => exercise.normalizedName),
+                ]),
+                lastDayPrimaryMuscles,
+                dayPrimaryMuscles,
+                preferVideoLinkedBackExercises,
+              }),
+            ];
         selection.length = 0;
         selection.push(...fallbackSelection);
       }
 
-      if (selection.length < Math.max(4, cfg.exercisesPerDay - 1)) {
+      if (selection.length < Math.max(day.mode ? 2 : 4, exerciseTarget - 1)) {
         throw new Error(`Could not satisfy exercise selection constraints for week ${week}, day ${day.name}.`);
       }
 
       const [workoutIns] = await conn.execute(
-        `INSERT INTO workouts
-          (program_id, workout_name, workout_type, day_order, day_name, estimated_duration_minutes, notes)
-         VALUES (?, ?, ?, ?, ?, ?, ?)`,
+          `INSERT INTO workouts
+            (program_id, workout_name, workout_type, day_order, day_name, estimated_duration_minutes, notes)
+          VALUES (?, ?, ?, ?, ?, ?, ?)`,
         [
           programId,
           `Week ${week} - ${day.name}`,
           String(day.workoutType || (day.primary[0] === 'Legs' ? 'Lower Body' : 'Upper Body')),
           dayOrder,
           dayName,
-          cfg.exercisesPerDay * 10 + 20,
-          athleteMovementBias.enabled
-            ? `Focus: ${day.primary.join(', ')} | Athletic blend: explosive + isometric`
-            : `Focus: ${day.primary.join(', ')}`,
+          day.mode
+            ? Number(day.targetDurationMinutes || ((CARDIO_MODE_PROGRAMMING[day.mode]?.durationMinutes || 30) + Math.min(6, Math.floor((week - 1) / 2) * 2)))
+            : exerciseTarget * 10 + 20 + (Array.isArray(day.cardioAddOns) ? day.cardioAddOns.reduce((sum, item) => sum + Math.max(0, Math.round(Number(item?.targetDurationMinutes || 0) * 0.35)), 0) : 0),
+          (femaleProfile.usesWowSplit || femaleProfile.usesHybridBalance || femaleProfile.usesPremiumPpl || femaleProfile.usesDefaultUl)
+            ? day.mode
+              ? `Focus: ${day.focusLabel || 'Cardio'} | Conditioning support and recovery-friendly work${day.cardioFinisher ? ` | ${day.cardioFinisher}` : ''}`
+              : `Focus: ${day.focusLabel || day.primary.join(', ')} | Lower body priority, glute-first execution${day.cardioFinisher ? ` | ${day.cardioFinisher}` : ''}`
+            : athleteMovementBias.enabled
+              ? `Focus: ${day.primary.join(', ')} | Athletic blend: explosive + isometric${day.cardioFinisher ? ` | ${day.cardioFinisher}` : ''}`
+              : `Focus: ${day.primary.join(', ')}${day.cardioFinisher ? ` | ${day.cardioFinisher}` : ''}`,
         ],
       );
       const workoutId = Number(workoutIns.insertId);
@@ -951,17 +2197,58 @@ export const generatePersonalizedProgram = async (
         goal: normalizedGoal,
         level: normalizedLevel,
         adjustment: { setDelta: 0, rpeDelta: 0 },
+        day,
+        femaleProfile,
       });
 
       for (let idx = 0; idx < selection.length; idx += 1) {
         const ex = selection[idx];
         usedPerWeek.add(ex.normalizedName);
         const legacyExerciseId = await ensureLegacyExerciseId(conn, legacyExerciseCache, ex.name);
+        const exerciseNote = femaleProfile.usesHybridBalance
+          ? (
+              day.progressionStyle === 'strength_glutes'
+                ? /hip thrust/i.test(ex.name)
+                  ? 'Treat this as the main glute strength lift and aim to progress load over time.'
+                  : 'Use controlled reps and keep glute tension high throughout the set.'
+                : day.progressionStyle === 'strength_upper'
+                  ? 'Build posture and upper-body balance without chasing unnecessary fatigue.'
+                  : day.progressionStyle === 'volume_upper'
+                    ? 'Progress reps first and keep the shoulders and back looking sharp and balanced.'
+                    : day.progressionStyle === 'volume_lower'
+                      ? 'Use this session to build weekly lower-body volume with clean, controlled reps.'
+                      : ''
+            )
+          : femaleProfile.usesWowSplit
+          ? (
+              day.mode
+                ? 'Keep intensity controlled and use this session to improve conditioning without hurting lower-body recovery.'
+                : /hip thrust/i.test(ex.name)
+                  ? 'Track hip thrust performance weekly and progress load first on the strength day.'
+                  : day.progressionStyle === 'pump'
+                    ? 'Prioritize constant tension, glute squeeze, and controlled tempo.'
+                    : day.progressionStyle === 'light_upper'
+                      ? 'Keep fatigue low and focus on posture, shape, and smooth execution.'
+                      : ex.primaryMuscle === 'Legs'
+                        ? 'Drive through the glutes and control the eccentric on every rep.'
+                        : ''
+            )
+          : (femaleProfile.usesPremiumPpl || femaleProfile.usesDefaultUl)
+          ? (
+              ex.primaryMuscle === 'Legs'
+                ? 'Control the eccentric and prioritize glute tension on every rep.'
+                : ex.primaryMuscle === 'Back'
+                  ? 'Lead with posture and shoulder position before increasing load.'
+                  : ex.primaryMuscle === 'Chest' || ex.primaryMuscle === 'Shoulders'
+                    ? 'Use smooth tempo and keep the upper-body work focused on shape and control.'
+                    : ''
+            )
+          : null;
 
         await conn.execute(
           `INSERT INTO workout_exercises
             (workout_id, exercise_id, order_index, exercise_name_snapshot, muscle_group_snapshot, target_sets, target_reps, target_weight, rest_seconds, tempo, rpe_target, notes)
-           VALUES (?, ?, ?, ?, ?, ?, ?, NULL, ?, NULL, ?, NULL)`,
+           VALUES (?, ?, ?, ?, ?, ?, ?, NULL, ?, NULL, ?, ?)`,
           [
             workoutId,
             legacyExerciseId,
@@ -972,6 +2259,7 @@ export const generatePersonalizedProgram = async (
             progression.reps,
             progression.restSeconds,
             progression.rpe,
+            exerciseNote,
           ],
         );
       }
@@ -982,11 +2270,21 @@ export const generatePersonalizedProgram = async (
 
   return {
     programId,
-    daysPerWeek: clampedDays,
+    daysPerWeek: scheduledDayCount,
     cycleWeeks: clampedWeeks,
     name: `${clampedWeeks}-Week Personalized Plan`,
-    programType: toProgramType(clampedDays),
+    programType: toProgramType(scheduledDayCount, splitPreference),
     goal: normalizedGoal,
+    weeklySchedule: scheduledDays.map((day) => ({
+      dayName: day.dayName,
+      name: day.name,
+      workoutType: day.workoutType,
+      focusLabel: day.focusLabel || '',
+      cardioFinisher: day.cardioFinisher || '',
+    })),
+    weeklyFatigueScore: weeklySchedule.weeklyFatigueScore,
+    weeklyCapacity: weeklySchedule.weeklyCapacity,
+    cardioGoals: weeklySchedule.cardioGoals,
   };
 };
 

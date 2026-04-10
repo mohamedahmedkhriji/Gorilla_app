@@ -1,6 +1,7 @@
 import { AppLanguage, getActiveLanguage, getStoredLanguage } from '../../services/language';
 import type {
   AthleteOption,
+  AthleteSubGroup,
   GoalOption,
   MotivationOption,
   PlanOption,
@@ -468,7 +469,17 @@ const ATHLETE_IDENTITY_AR: Record<string, {
   },
 };
 
-export const localizeAthleteOptions = (options: AthleteOption[], language: AppLanguage) => {
+export const localizeAthleteOptions = (
+  options: AthleteOption[],
+  language: AppLanguage,
+  gender?: string,
+) => {
+  type AthleteLocalizationEntry = {
+    label: string;
+    description: string;
+    subGroups?: Record<string, { title: string; items: Record<string, string> }>;
+  };
+
   const ATHLETE_IDENTITY_IT: Record<string, {
     label: string;
     description: string;
@@ -1078,94 +1089,246 @@ export const localizeAthleteOptions = (options: AthleteOption[], language: AppLa
     },
   };
 
+  const applyLocalizationMap = (
+    localizedOptions: AthleteOption[],
+    localizedMap?: Record<string, AthleteLocalizationEntry>,
+  ) =>
+    localizedOptions.map((option) => {
+      const localized = localizedMap?.[option.id];
+      if (!localized) return option;
+      return {
+        ...option,
+        label: localized.label || option.label,
+        description: localized.description || option.description,
+        subGroups: option.subGroups.map((group) => {
+          const localizedGroup = localized.subGroups?.[group.id];
+          return {
+            ...group,
+            title: localizedGroup?.title || group.title,
+            items: group.items.map((item) => ({
+              ...item,
+              label: localizedGroup?.items?.[item.id] || item.label,
+            })),
+          };
+        }),
+      };
+    });
+
+  const FEMALE_ATHLETE_OVERRIDES: Record<AppLanguage, Record<'bodybuilding' | 'cardio', {
+    label: string;
+    description: string;
+    subGroups: AthleteSubGroup[];
+  }>> = {
+    en: {
+      bodybuilding: {
+        label: 'Body Shaping',
+        description: 'Shape your curves, sculpt your body, and improve tone.',
+        subGroups: [
+          {
+            id: 'bodybuilding_category',
+            title: 'By Focus',
+            items: [
+              { id: 'glutes_focus', label: 'Glutes Focus' },
+              { id: 'toning', label: 'Toning' },
+              { id: 'fat_loss', label: 'Fat Loss' },
+              { id: 'muscle_strengthening', label: 'Muscle Strengthening' },
+              { id: 'beginner_fitness', label: 'Beginner Fitness' },
+              { id: 'silhouette_posture', label: 'Silhouette & Posture' },
+            ],
+          },
+        ],
+      },
+      cardio: {
+        label: 'Cardio',
+        description: 'Improve endurance, burn fat, and boost energy.',
+        subGroups: [
+          {
+            id: 'cardio_goal',
+            title: 'By Focus',
+            items: [
+              { id: 'fat_loss', label: 'Fat Loss' },
+              { id: 'endurance', label: 'Endurance' },
+              { id: 'hiit_fast_burn', label: 'HIIT / Fast Burn' },
+              { id: 'wellness', label: 'Health & Wellness' },
+            ],
+          },
+        ],
+      },
+    },
+    ar: {
+      bodybuilding: {
+        label: 'نحت الجسم',
+        description: 'يبني القوام، ينحت الجسم، ويحسن الشد.',
+        subGroups: [
+          {
+            id: 'bodybuilding_category',
+            title: 'حسب التركيز',
+            items: [
+              { id: 'glutes_focus', label: 'تركيز الغلوتس' },
+              { id: 'toning', label: 'شد الجسم' },
+              { id: 'fat_loss', label: 'حرق الدهون' },
+              { id: 'muscle_strengthening', label: 'تقوية العضلات' },
+              { id: 'beginner_fitness', label: 'استعادة اللياقة للمبتدئات' },
+              { id: 'silhouette_posture', label: 'القوام والوقفة' },
+            ],
+          },
+        ],
+      },
+      cardio: {
+        label: 'كارديو',
+        description: 'يحسن التحمل، يحرق الدهون، ويزيد الطاقة.',
+        subGroups: [
+          {
+            id: 'cardio_goal',
+            title: 'حسب التركيز',
+            items: [
+              { id: 'fat_loss', label: 'حرق الدهون' },
+              { id: 'endurance', label: 'التحمل' },
+              { id: 'hiit_fast_burn', label: 'HIIT / حرق سريع' },
+              { id: 'wellness', label: 'الصحة والعافية' },
+            ],
+          },
+        ],
+      },
+    },
+    it: {
+      bodybuilding: {
+        label: 'Body Shaping',
+        description: 'Sviluppa le forme, scolpisce il corpo e migliora il tono muscolare.',
+        subGroups: [
+          {
+            id: 'bodybuilding_category',
+            title: 'Per focus',
+            items: [
+              { id: 'glutes_focus', label: 'Focus glutei' },
+              { id: 'toning', label: 'Tonificazione' },
+              { id: 'fat_loss', label: 'Perdita di grasso' },
+              { id: 'muscle_strengthening', label: 'Rinforzo muscolare' },
+              { id: 'beginner_fitness', label: 'Rimessa in forma principiante' },
+              { id: 'silhouette_posture', label: 'Silhouette e postura' },
+            ],
+          },
+        ],
+      },
+      cardio: {
+        label: 'Cardio',
+        description: 'Migliora la resistenza, brucia i grassi e aumenta l energia.',
+        subGroups: [
+          {
+            id: 'cardio_goal',
+            title: 'Per focus',
+            items: [
+              { id: 'fat_loss', label: 'Perdita di grasso' },
+              { id: 'endurance', label: 'Resistenza' },
+              { id: 'hiit_fast_burn', label: 'HIIT / Bruciagrassi rapido' },
+              { id: 'wellness', label: 'Salute e benessere' },
+            ],
+          },
+        ],
+      },
+    },
+    de: {
+      bodybuilding: {
+        label: 'Body Shaping',
+        description: 'Formt den Koerper, betont die Formen und verbessert die Straffung.',
+        subGroups: [
+          {
+            id: 'bodybuilding_category',
+            title: 'Nach Fokus',
+            items: [
+              { id: 'glutes_focus', label: 'Gluteus-Fokus' },
+              { id: 'toning', label: 'Straffung' },
+              { id: 'fat_loss', label: 'Fettverlust' },
+              { id: 'muscle_strengthening', label: 'Muskelkraeftigung' },
+              { id: 'beginner_fitness', label: 'Fitness-Einstieg' },
+              { id: 'silhouette_posture', label: 'Silhouette und Haltung' },
+            ],
+          },
+        ],
+      },
+      cardio: {
+        label: 'Cardio',
+        description: 'Verbessert die Ausdauer, verbrennt Fett und steigert die Energie.',
+        subGroups: [
+          {
+            id: 'cardio_goal',
+            title: 'Nach Fokus',
+            items: [
+              { id: 'fat_loss', label: 'Fettverlust' },
+              { id: 'endurance', label: 'Ausdauer' },
+              { id: 'hiit_fast_burn', label: 'HIIT / Schnelle Fettverbrennung' },
+              { id: 'wellness', label: 'Gesundheit und Wohlbefinden' },
+            ],
+          },
+        ],
+      },
+    },
+    fr: {
+      bodybuilding: {
+        label: 'Body Shaping',
+        description: 'Developpe les formes, sculpte le corps et ameliore la tonicite.',
+        subGroups: [
+          {
+            id: 'bodybuilding_category',
+            title: 'Par objectif',
+            items: [
+              { id: 'glutes_focus', label: 'Glutes Focus' },
+              { id: 'toning', label: 'Tonification' },
+              { id: 'fat_loss', label: 'Perte de graisse' },
+              { id: 'muscle_strengthening', label: 'Renforcement musculaire' },
+              { id: 'beginner_fitness', label: 'Remise en forme debutante' },
+              { id: 'silhouette_posture', label: 'Silhouette et posture' },
+            ],
+          },
+        ],
+      },
+      cardio: {
+        label: 'Cardio',
+        description: 'Ameliore l endurance, brule les graisses et booste l energie.',
+        subGroups: [
+          {
+            id: 'cardio_goal',
+            title: 'Par objectif',
+            items: [
+              { id: 'fat_loss', label: 'Perte de graisse' },
+              { id: 'endurance', label: 'Endurance' },
+              { id: 'hiit_fast_burn', label: 'HIIT / Brulage rapide' },
+              { id: 'wellness', label: 'Sante et bien-etre' },
+            ],
+          },
+        ],
+      },
+    },
+  };
+
+  let localizedOptions = options;
   if (language === 'it') {
-    return options.map((option) => {
-      const it = ATHLETE_IDENTITY_IT[option.id];
-      if (!it) return option;
-      return {
-        ...option,
-        label: it.label || option.label,
-        description: it.description || option.description,
-        subGroups: option.subGroups.map((group) => {
-          const groupIt = it.subGroups?.[group.id];
-          return {
-            ...group,
-            title: groupIt?.title || group.title,
-            items: group.items.map((item) => ({
-              ...item,
-              label: groupIt?.items?.[item.id] || item.label,
-            })),
-          };
-        }),
-      };
-    });
+    localizedOptions = applyLocalizationMap(options, ATHLETE_IDENTITY_IT);
+  } else if (language === 'de') {
+    localizedOptions = applyLocalizationMap(options, ATHLETE_IDENTITY_DE);
+  } else if (language === 'fr') {
+    localizedOptions = applyLocalizationMap(options, ATHLETE_IDENTITY_FR);
+  } else if (language === 'ar') {
+    localizedOptions = applyLocalizationMap(options, ATHLETE_IDENTITY_AR);
   }
 
-  if (language === 'de') {
-    return options.map((option) => {
-      const de = ATHLETE_IDENTITY_DE[option.id];
-      if (!de) return option;
-      return {
-        ...option,
-        label: de.label || option.label,
-        description: de.description || option.description,
-        subGroups: option.subGroups.map((group) => {
-          const groupDe = de.subGroups?.[group.id];
-          return {
-            ...group,
-            title: groupDe?.title || group.title,
-            items: group.items.map((item) => ({
-              ...item,
-              label: groupDe?.items?.[item.id] || item.label,
-            })),
-          };
-        }),
-      };
-    });
+  const normalizedGender = String(gender || '').trim().toLowerCase();
+  if (normalizedGender !== 'female' && normalizedGender !== 'woman' && normalizedGender !== 'f') {
+    return localizedOptions;
   }
 
-  if (language === 'fr') {
-    return options.map((option) => {
-      const fr = ATHLETE_IDENTITY_FR[option.id];
-      if (!fr) return option;
-      return {
-        ...option,
-        label: fr.label || option.label,
-        description: fr.description || option.description,
-        subGroups: option.subGroups.map((group) => {
-          const groupFr = fr.subGroups?.[group.id];
-          return {
-            ...group,
-            title: groupFr?.title || group.title,
-            items: group.items.map((item) => ({
-              ...item,
-              label: groupFr?.items?.[item.id] || item.label,
-            })),
-          };
-        }),
-      };
-    });
-  }
-
-  if (language !== 'ar') return options;
-  return options.map((option) => {
-    const ar = ATHLETE_IDENTITY_AR[option.id];
-    if (!ar) return option;
+  const overrides = FEMALE_ATHLETE_OVERRIDES[language] || FEMALE_ATHLETE_OVERRIDES.en;
+  return localizedOptions.map((option) => {
+    const override = overrides[option.id as 'bodybuilding' | 'cardio'];
+    if (!override) return option;
     return {
       ...option,
-      label: ar.label || option.label,
-      description: ar.description || option.description,
-      subGroups: option.subGroups.map((group) => {
-        const groupAr = ar.subGroups?.[group.id];
-        return {
-          ...group,
-          title: groupAr?.title || group.title,
-          items: group.items.map((item) => ({
-            ...item,
-            label: groupAr?.items?.[item.id] || item.label,
-          })),
-        };
-      }),
+      label: override.label,
+      description: override.description,
+      subGroups: override.subGroups.map((group) => ({
+        ...group,
+        items: group.items.map((item) => ({ ...item })),
+      })),
     };
   });
 };

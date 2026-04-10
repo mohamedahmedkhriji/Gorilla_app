@@ -20,6 +20,7 @@ export const emojiMissions = new URL('../../assets/emoji/Missions.png', import.m
 export const emojiDone = new URL('../../assets/emoji/done.png', import.meta.url).href;
 export const emojiNew = new URL('../../assets/emoji/new.png', import.meta.url).href;
 export const emojiBodybuilding = new URL('../../assets/emoji/bodybuilding.png', import.meta.url).href;
+export const emojiWoman = new URL('../../assets/emoji/woman.png', import.meta.url).href;
 export const emojiCardio = emojiFire;
 export const emojiFootball = new URL('../../assets/emoji/Football.png', import.meta.url).href;
 export const emojiBasketball = new URL('../../assets/emoji/Basketball.png', import.meta.url).href;
