@@ -693,11 +693,6 @@ export function WorkoutOverviewScreen({
                       </div>
 
                       <div className={`flex items-center gap-2 ${isArabic ? 'flex-row-reverse' : ''}`}>
-                        {workout.isRecommendedNext && !workout.isPickedForToday && !isCompleted && (
-                          <span className="rounded-full bg-emerald-500/15 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-emerald-200">
-                            {copy.recommendedNextBadge}
-                          </span>
-                        )}
                         {(isCompleted || workout.isPickedForToday) && (
                           <span className={`rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] ${
                             isCompleted
