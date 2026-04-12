@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { X, Check, CalendarX2 } from 'lucide-react';
 import { formatWorkoutDayLabel, formatWorkoutDayShortLabel, normalizeWorkoutDayKey } from '../../services/workoutDayLabel';
 import { emojiAgenda, emojiDoneDayBg, emojiMissedDayBg } from '../../services/emojiTheme';
@@ -495,7 +496,7 @@ export function AgendaSection({
         />
         {showGradientOverlay && (
           <div
-            className="absolute inset-0 bg-gradient-to-r from-background/65 via-background/45 to-background/25"
+            className="pointer-events-none absolute inset-0 bg-gradient-to-r from-background/65 via-background/45 to-background/25"
             aria-hidden="true"
           />
         )}
@@ -591,9 +592,9 @@ export function AgendaSection({
         </div>
       </div>
 
-      {selectedDay && (
+      {selectedDay && typeof document !== 'undefined' && createPortal(
         <div
-          className="fixed inset-0 z-50 overflow-y-auto bg-black/80 px-4 py-5 sm:flex sm:items-center sm:justify-center sm:p-6"
+          className="fixed inset-0 z-[160] overflow-y-auto bg-black/80 px-4 py-5 sm:flex sm:items-center sm:justify-center sm:p-6"
           onClick={() => setSelectedDay(null)}
         >
           <div
@@ -741,7 +742,7 @@ export function AgendaSection({
             </div>
           </div>
         </div>
-      )}
+      , document.body)}
 
       <style>{`
         .scrollbar-hide::-webkit-scrollbar {

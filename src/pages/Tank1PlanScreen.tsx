@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Check, Sparkles } from 'lucide-react';
 import { Header } from '../components/ui/Header';
 import { Card } from '../components/ui/Card';
@@ -1159,9 +1160,9 @@ export function Tank1PlanScreen({ onBack }: Tank1PlanScreenProps) {
         ))}
       </div>
 
-      {isConfirmOpen && (
+      {isConfirmOpen && typeof document !== 'undefined' && createPortal(
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4"
+          className="fixed inset-0 z-[160] flex items-center justify-center bg-black/70 p-4"
           onClick={() => {
             if (!isApplying) setIsConfirmOpen(false);
           }}
@@ -1205,7 +1206,7 @@ export function Tank1PlanScreen({ onBack }: Tank1PlanScreenProps) {
             </div>
           </div>
         </div>
-      )}
+      , document.body)}
     </div>
   );
 }

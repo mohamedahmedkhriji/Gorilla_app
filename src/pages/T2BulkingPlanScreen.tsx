@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Check, Sparkles } from 'lucide-react';
 import { Header } from '../components/ui/Header';
 import { Card } from '../components/ui/Card';
@@ -1376,9 +1377,9 @@ export function T2BulkingPlanScreen({ onBack }: T2BulkingPlanScreenProps) {
         </Card>
       </div>
 
-      {isConfirmOpen && (
+      {isConfirmOpen && typeof document !== 'undefined' && createPortal(
         <div
-          className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto overscroll-contain bg-black/70 px-2 pt-[calc(env(safe-area-inset-top,0px)+0.75rem)] pb-[calc(env(safe-area-inset-bottom,0px)+5.5rem)] sm:items-center sm:p-4"
+          className="fixed inset-0 z-[160] flex items-start justify-center overflow-y-auto overscroll-contain bg-black/70 px-2 pt-[calc(env(safe-area-inset-top,0px)+0.75rem)] pb-[calc(env(safe-area-inset-bottom,0px)+5.5rem)] sm:items-center sm:p-4"
           onClick={() => {
             if (!isApplying) setIsConfirmOpen(false);
           }}
@@ -1512,7 +1513,7 @@ export function T2BulkingPlanScreen({ onBack }: T2BulkingPlanScreenProps) {
             </div>
           </div>
         </div>
-      )}
+      , document.body)}
     </div>
   );
 }

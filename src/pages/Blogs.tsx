@@ -2135,7 +2135,7 @@ export function Blogs({
       )}
       {isCreateOpen && (
         <div
-          className="fixed inset-0 z-50 bg-black/80 p-4 flex items-center justify-center"
+          className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/80 px-4 pt-[calc(env(safe-area-inset-top,0px)+0.75rem)] pb-6 sm:pt-8"
           onClick={() => {
             setIsCreateOpen(false);
             setCreateError('');
@@ -2143,7 +2143,7 @@ export function Blogs({
           }}
         >
           <div
-            className={`w-full max-w-md max-h-[85vh] overflow-y-auto bg-card rounded-2xl border border-white/10 p-4 ${isArabic ? 'text-right' : 'text-left'}`}
+            className={`w-full max-w-md max-h-[calc(100dvh-1.5rem)] overflow-y-auto bg-card rounded-2xl border border-white/10 p-4 ${isArabic ? 'text-right' : 'text-left'}`}
             dir={isArabic ? 'rtl' : 'ltr'}
             onClick={(event) => event.stopPropagation()}
           >

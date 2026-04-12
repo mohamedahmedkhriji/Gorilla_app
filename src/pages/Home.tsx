@@ -682,7 +682,7 @@ export function Home({
     ? workoutCardCopy.chooseTraining
     : (todayWorkout === 'Rest Day' && hasAnyTodayExercises ? customWorkoutLabel : todayWorkout);
   const workoutCardSubtitle = shouldChooseWorkoutToday
-    ? workoutCardCopy.chooseWorkoutBody
+    ? null
     : (workoutRecommendation?.detail ?? null);
   const workoutCardDetailLines = shouldChooseWorkoutToday
     ? [workoutCardCopy.tapToOpenPlan]
@@ -698,7 +698,7 @@ export function Home({
       ? workoutCardCopy.done
       : undefined;
   const workoutCardTitleDisplay = shouldChooseWorkoutToday ? workoutCardCopy.chooseTraining : workoutCardTitle;
-  const workoutCardSubtitleDisplay = shouldChooseWorkoutToday ? workoutCardCopy.chooseWorkoutBody : workoutCardSubtitle;
+  const workoutCardSubtitleDisplay = workoutCardSubtitle;
   const workoutCardDetailLinesDisplay = shouldChooseWorkoutToday ? [workoutCardCopy.tapToOpenPlan] : workoutCardDetailLines;
   const workoutCardActionLabelDisplay = shouldChooseWorkoutToday
     ? workoutCardCopy.chooseFromPlan
