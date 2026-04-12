@@ -1,5 +1,4 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { motion } from 'framer-motion';
 import { ArrowLeft, MoonStar } from 'lucide-react';
 import { CoachmarkOverlay, type CoachmarkStep } from '../components/coachmarks/CoachmarkOverlay';
 import { WorkoutCard } from '../components/dashboard/WorkoutCard';
@@ -42,6 +41,7 @@ import {
 import { offlineCacheKeys, readOfflineCacheValue } from '../services/offlineCache';
 import { OPEN_PICKED_WORKOUT_PLAN } from '../services/workoutNavigation';
 import { useScrollToTopOnChange } from '../shared/scroll';
+import { ScreenSection, ScreenTransition, getNavigationDirection } from '../components/ui/ScreenTransition';
 interface HomeProps {
   onNavigate: (tab: string, day?: string) => void;
   onTabBarVisibilityChange?: (visible: boolean) => void;
@@ -443,6 +443,23 @@ type HomeView =
 'rank' |
 'workoutDetail' |
 'nutrition';
+
+const HOME_VIEW_ORDER: HomeView[] = [
+  'main',
+  'workoutDetail',
+  'nutrition',
+  'friends',
+  'friendProfile',
+  'friendChallenge',
+  'coachList',
+  'chat',
+  'calculator',
+  'exercises',
+  'video',
+  'books',
+  'recovery',
+  'rank',
+];
 export function Home({
   onNavigate,
   onTabBarVisibilityChange,
@@ -505,6 +522,7 @@ export function Home({
   const [coachmarkMode, setCoachmarkMode] = useState<'main' | null>(null);
   const [coachmarkStepIndex, setCoachmarkStepIndex] = useState(0);
   const hasTrackedHomeVisitRef = useRef(false);
+  const previousViewRef = useRef<HomeView>('main');
 
   useScrollToTopOnChange([view, resetSignal]);
 
@@ -525,6 +543,10 @@ export function Home({
     window.addEventListener('app-language-changed', handleLanguageChanged);
     return () => window.removeEventListener('app-language-changed', handleLanguageChanged);
   }, []);
+
+  useEffect(() => {
+    previousViewRef.current = view;
+  }, [view]);
 
   const selectedTodayWorkout = useMemo(
     () => weekPlanWorkouts.find((workout) => workout.key === todayWorkoutSelection?.workoutKey) || null,
@@ -1589,12 +1611,25 @@ export function Home({
       window.clearInterval(interval);
     };
   }, [todayWorkoutData, todayWorkout, currentUserId]);
+
+  const homeMotionDirection = getNavigationDirection(
+    view,
+    previousViewRef.current,
+    HOME_VIEW_ORDER,
+  );
+
+  const renderTransitionedView = (content: React.ReactNode) => (
+    <ScreenTransition screenKey={view} direction={homeMotionDirection}>
+      {content}
+    </ScreenTransition>
+  );
+
   if (view === 'nutrition') {
-    return <MyNutrition onBack={() => setView('main')} />;
+    return renderTransitionedView(<MyNutrition onBack={() => setView('main')} />);
   }
   if (view === 'workoutDetail') {
     if (todayWorkout === 'Rest Day' && !hasAnyTodayExercises) {
-      return (
+      return renderTransitionedView(
         <div className="flex flex-col items-center justify-center h-screen pb-24 px-4">
           <button
             onClick={() => setView('main')}
@@ -1615,7 +1650,7 @@ export function Home({
     const exercises = todayWorkoutExercises;
     const workoutDetailTitle = todayWorkout === 'Rest Day' ? customWorkoutLabel : todayWorkout;
     
-    return (
+    return renderTransitionedView(
       <div className="pb-24 pt-4">
         <button
           onClick={() => setView('main')}
@@ -1643,7 +1678,7 @@ export function Home({
     );
   }
   if (view === 'friends')
-  return (
+  return renderTransitionedView(
     <FriendsList
       onBack={() => setView('main')}
       onFriendClick={(friend) => {
@@ -1653,7 +1688,7 @@ export function Home({
 
 
   if (view === 'friendProfile')
-  return (
+  return renderTransitionedView(
     <FriendProfile
       onBack={() => setView('friends')}
       onChallenge={() => setView('friendChallenge')}
@@ -1661,7 +1696,7 @@ export function Home({
     />
   );
   if (view === 'friendChallenge') {
-    return (
+    return renderTransitionedView(
       <FriendChallengeScreen
         onBack={() => setView('friendProfile')}
         onExitHome={() => setView('main')}
@@ -1671,12 +1706,12 @@ export function Home({
     );
   }
   if (view === 'coachList')
-  return <CoachList onBack={() => setView('main')} onSelectCoach={(id, name) => { setSelectedCoach({id, name}); setView('chat'); }} />;
-  if (view === 'chat') return <Messaging onBack={() => setView('coachList')} coachId={selectedCoach?.id} coachName={selectedCoach?.name} />;
+  return renderTransitionedView(<CoachList onBack={() => setView('main')} onSelectCoach={(id, name) => { setSelectedCoach({id, name}); setView('chat'); }} />);
+  if (view === 'chat') return renderTransitionedView(<Messaging onBack={() => setView('coachList')} coachId={selectedCoach?.id} coachName={selectedCoach?.name} />);
   if (view === 'calculator')
-  return <Calculator onBack={() => setView('main')} />;
+  return renderTransitionedView(<Calculator onBack={() => setView('main')} />);
   if (view === 'exercises')
-  return (
+  return renderTransitionedView(
     <ExerciseLibrary
       onBack={() => setView('main')}
       initialFilter={exerciseLibraryFilter}
@@ -1687,15 +1722,15 @@ export function Home({
       }} />);
 
 
-  if (view === 'books') return <BooksLibrary onBack={() => setView('main')} />;
+  if (view === 'books') return renderTransitionedView(<BooksLibrary onBack={() => setView('main')} />);
   if (view === 'video')
-  return <ExerciseVideoScreen onBack={() => setView('exercises')} exercise={selectedExercise || undefined} />;
+  return renderTransitionedView(<ExerciseVideoScreen onBack={() => setView('exercises')} exercise={selectedExercise || undefined} />);
   if (view === 'recovery')
-  return <MuscleRecoveryScreen onBack={() => setView('main')} />;
+  return renderTransitionedView(<MuscleRecoveryScreen onBack={() => setView('main')} />);
   if (view === 'rank')
-  return <RankingsRewardsScreen onBack={() => setView('main')} />;
+  return renderTransitionedView(<RankingsRewardsScreen onBack={() => setView('main')} />);
   if (view === 'main' && isHomeLoading) {
-    return (
+    return renderTransitionedView(
       <div className="pb-24 pt-4 space-y-6 animate-pulse">
         <div className="surface-card rounded-2xl border border-white/12 px-4 py-4">
           <div className="h-8 w-40 rounded-lg bg-white/10" />
@@ -1708,102 +1743,83 @@ export function Home({
       </div>
     );
   }
-  return (
+  return renderTransitionedView(
     <div className="pb-24 pt-4">
-      {/* Header Section */}
-      <motion.header
-        data-coachmark-target="home_header_card"
-        initial={{
-          opacity: 0,
-          y: -20
-        }}
-        animate={{
-          opacity: 1,
-          y: 0
-        }}
-        transition={{
-          duration: 0.6,
-          ease: 'easeOut'
-        }}
-        onClick={() => onNavigate('profile')}
-        className="mb-7 surface-card relative overflow-hidden rounded-2xl border border-white/12 px-4 py-3 flex items-start justify-between gap-4 cursor-pointer">
-        <div
-          className="absolute inset-0 bg-cover bg-center opacity-60"
-          style={{ backgroundImage: `url(${emojiProfile})` }}
-          aria-hidden="true"
-        />
-        <div className="relative z-10">
-          <h1 className="mt-1 text-3xl font-electrolize font-bold text-text-primary">
-            {greeting}
-          </h1>
-          <p className="text-text-secondary mt-2 text-sm max-w-[200px] leading-snug">
-            {homeCopy.tagline}
-          </p>
-        </div>
-        
-        <button
-          type="button"
-          onClick={(event) => {
-            event.stopPropagation();
-            setView('rank');
-          }}
-          className="relative z-10 flex items-center gap-2 surface-glass px-3.5 py-2 rounded-2xl border border-white/15 shrink-0"
-        >
-          <div className="w-8 h-8 rounded-xl bg-accent/15 border border-accent/35 flex items-center justify-center">
-            <img src={rankBadgeImage} alt={rankNameDisplay} className="h-5 w-5 object-contain" />
+      <ScreenSection index={0}>
+        {/* Header Section */}
+        <header
+          data-coachmark-target="home_header_card"
+          onClick={() => onNavigate('profile')}
+          className="mb-7 surface-card relative overflow-hidden rounded-2xl border border-white/12 px-4 py-3 flex items-start justify-between gap-4 cursor-pointer">
+          <div
+            className="absolute inset-0 bg-cover bg-center opacity-60"
+            style={{ backgroundImage: `url(${emojiProfile})` }}
+            aria-hidden="true"
+          />
+          <div className="relative z-10">
+            <h1 className="mt-1 text-3xl font-electrolize font-bold text-text-primary">
+              {greeting}
+            </h1>
+            <p className="text-text-secondary mt-2 text-sm max-w-[200px] leading-snug">
+              {homeCopy.tagline}
+            </p>
           </div>
-          <div>
-            <div className="text-[10px] uppercase tracking-[0.1em] text-text-secondary">{homeCopy.rank}</div>
-            <div className="text-sm font-semibold text-accent">{rankNameDisplay}</div>
-          </div>
-        </button>
-      </motion.header>
+
+          <button
+            type="button"
+            onClick={(event) => {
+              event.stopPropagation();
+              setView('rank');
+            }}
+            className="relative z-10 flex items-center gap-2 surface-glass px-3.5 py-2 rounded-2xl border border-white/15 shrink-0"
+          >
+            <div className="w-8 h-8 rounded-xl bg-accent/15 border border-accent/35 flex items-center justify-center">
+              <img src={rankBadgeImage} alt={rankNameDisplay} className="h-5 w-5 object-contain" />
+            </div>
+            <div>
+              <div className="text-[10px] uppercase tracking-[0.1em] text-text-secondary">{homeCopy.rank}</div>
+              <div className="text-sm font-semibold text-accent">{rankNameDisplay}</div>
+            </div>
+          </button>
+        </header>
+      </ScreenSection>
 
       {/* Main Content Grid */}
       <div className="space-y-8">
         {/* Today's Workout */}
-        <div onClick={handleOpenWorkoutCard} className="cursor-pointer">
-          <WorkoutCard
-            coachmarkTargetId="home_today_plan_card"
-            coachmarkGradientTargetId="home_today_plan_gradient"
-            title={workoutCardTitleDisplay}
-            workoutType={todayWorkoutData?.workout_type || ''}
-            estimatedDurationMinutes={todayWorkoutData?.estimated_duration_minutes ?? null}
-            exercises={todayWorkoutExercises}
-            exerciseCount={todayWorkoutExerciseCount}
-            progress={shouldChooseWorkoutToday ? 0 : workoutProgress}
-            isRestDay={isWorkoutCardRestDay}
-            subtitleOverride={workoutCardSubtitleDisplay}
-            detailLines={workoutCardDetailLinesDisplay}
-            actionLabel={workoutCardActionLabelDisplay}
-            progressCaption={workoutCardProgressCaptionDisplay}
-            progressDisplayLabel={workoutCardProgressDisplayLabel}
-          />
-        </div>
+        <ScreenSection index={1}>
+          <div onClick={handleOpenWorkoutCard} className="cursor-pointer">
+            <WorkoutCard
+              coachmarkTargetId="home_today_plan_card"
+              coachmarkGradientTargetId="home_today_plan_gradient"
+              title={workoutCardTitleDisplay}
+              workoutType={todayWorkoutData?.workout_type || ''}
+              estimatedDurationMinutes={todayWorkoutData?.estimated_duration_minutes ?? null}
+              exercises={todayWorkoutExercises}
+              exerciseCount={todayWorkoutExerciseCount}
+              progress={shouldChooseWorkoutToday ? 0 : workoutProgress}
+              isRestDay={isWorkoutCardRestDay}
+              subtitleOverride={workoutCardSubtitleDisplay}
+              detailLines={workoutCardDetailLinesDisplay}
+              actionLabel={workoutCardActionLabelDisplay}
+              progressCaption={workoutCardProgressCaptionDisplay}
+              progressDisplayLabel={workoutCardProgressDisplayLabel}
+            />
+          </div>
+        </ScreenSection>
 
         {/* Rank & Recovery */}
-        <div className="grid grid-cols-1 gap-5">
-          <div onClick={() => setView('rank')} className="cursor-pointer">
-            <RankDisplay coachmarkTargetId="home_rank_card" points={programProgress?.totalPoints || 0} />
+        <ScreenSection index={2}>
+          <div className="grid grid-cols-1 gap-5">
+            <div onClick={() => setView('rank')} className="cursor-pointer">
+              <RankDisplay coachmarkTargetId="home_rank_card" points={programProgress?.totalPoints || 0} />
+            </div>
+            <RecoveryIndicator coachmarkTargetId="home_recovery_card" percentage={overallRecovery} onClick={() => setView('recovery')} />
           </div>
-          <RecoveryIndicator coachmarkTargetId="home_recovery_card" percentage={overallRecovery} onClick={() => setView('recovery')} />
-        </div>
+        </ScreenSection>
 
         {/* Quick Actions */}
-        <motion.div
-          initial={{
-            opacity: 0,
-            y: 20
-          }}
-          animate={{
-            opacity: 1,
-            y: 0
-          }}
-          transition={{
-            duration: 0.5,
-            delay: 0.5
-          }}
-          className="grid grid-cols-2 gap-4">
+        <ScreenSection index={3} className="grid grid-cols-2 gap-4">
 
           <GhostButton coachmarkTargetId="home_nutrition_card" onClick={() => setView('nutrition')} className="justify-between">
             <span className="flex items-center gap-2">
@@ -1818,7 +1834,7 @@ export function Home({
               <span>{homeCopy.shop}</span>
             </span>
           </GhostButton>
-        </motion.div>
+        </ScreenSection>
 
         {showShopComingSoon && (
           <div
@@ -1846,16 +1862,20 @@ export function Home({
         )}
 
         {/* Education */}
-        <EducationSection
-          onExercises={() => setView('exercises')}
-          onBooks={() => setView('books')}
-          exercisesCoachmarkTargetId="home_learning_exercises_card"
-          booksCoachmarkTargetId="home_learning_books_card"
-        />
+        <ScreenSection index={4}>
+          <EducationSection
+            onExercises={() => setView('exercises')}
+            onBooks={() => setView('books')}
+            exercisesCoachmarkTargetId="home_learning_exercises_card"
+            booksCoachmarkTargetId="home_learning_books_card"
+          />
+        </ScreenSection>
 
 
         {/* Calculators */}
-        <CalculatorCard onClick={() => setView('calculator')} />
+        <ScreenSection index={5}>
+          <CalculatorCard onClick={() => setView('calculator')} />
+        </ScreenSection>
       </div>
       <CoachmarkOverlay
         isOpen={isCoachmarkOpen}

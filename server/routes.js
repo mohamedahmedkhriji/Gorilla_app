@@ -2940,6 +2940,72 @@ const MICRO_CHALLENGE_MISSION_SEEDS = [
     xpReward: 5,
     badgeIcon: 'trophy',
   },
+  {
+    title: 'Add a Friend',
+    description: 'Send your first friend request.',
+    missionType: 'daily',
+    category: 'friendship',
+    metricKey: 'friend_requests_sent_total',
+    targetValue: 1,
+    pointsReward: 10,
+    xpReward: 10,
+    badgeIcon: 'user-plus',
+  },
+  {
+    title: 'Accept a Friend Invitation',
+    description: 'Accept your first friend request.',
+    missionType: 'daily',
+    category: 'friendship',
+    metricKey: 'friend_requests_accepted_total',
+    targetValue: 1,
+    pointsReward: 10,
+    xpReward: 10,
+    badgeIcon: 'user-check',
+  },
+  {
+    title: 'React to 5 Posts',
+    description: 'React to 5 community posts.',
+    missionType: 'daily',
+    category: 'social',
+    metricKey: 'blog_post_reactions_made_total',
+    targetValue: 5,
+    pointsReward: 10,
+    xpReward: 10,
+    badgeIcon: 'sparkles',
+  },
+  {
+    title: 'First Blog Post',
+    description: 'Publish your first blog post.',
+    missionType: 'daily',
+    category: 'blog',
+    metricKey: 'blog_posts_created_total',
+    targetValue: 1,
+    pointsReward: 10,
+    xpReward: 10,
+    badgeIcon: 'pen-square',
+  },
+  {
+    title: 'First 10 Blog Views',
+    description: 'Reach 10 views across your blog posts.',
+    missionType: 'daily',
+    category: 'blog',
+    metricKey: 'blog_post_views_received_total',
+    targetValue: 10,
+    pointsReward: 10,
+    xpReward: 10,
+    badgeIcon: 'bar-chart-3',
+  },
+  {
+    title: 'First 10 Post Reactions',
+    description: 'Reach 10 reactions across your blog posts.',
+    missionType: 'daily',
+    category: 'blog',
+    metricKey: 'blog_post_reactions_received_total',
+    targetValue: 10,
+    pointsReward: 10,
+    xpReward: 10,
+    badgeIcon: 'heart',
+  },
 ];
 
 const OVERLOAD_MISSION_SEEDS = [
@@ -4678,6 +4744,12 @@ const collectUserGamificationMetrics = async (userId, baseDate = new Date()) => 
     loggedExercisesToday,
     friendChallengesSentToday,
     friendChallengesAcceptedToday,
+    friendRequestsSentTotal,
+    friendRequestsAcceptedTotal,
+    blogPostReactionsMadeTotal,
+    blogPostsCreatedTotal,
+    blogPostViewsReceivedTotal,
+    blogPostReactionsReceivedTotal,
   ] = await Promise.all([
     safeFetchCount(
       // Count completed workout progress by finished session when available,
@@ -4787,11 +4859,66 @@ const collectUserGamificationMetrics = async (userId, baseDate = new Date()) => 
     ),
     safeFetchCount(
       `SELECT COUNT(*) AS c
-       FROM friend_challenge_sessions
-       WHERE receiver_user_id = ?
-         AND accepted_at IS NOT NULL
-         AND DATE(accepted_at) = CURDATE()`,
+        FROM friend_challenge_sessions
+        WHERE receiver_user_id = ?
+          AND accepted_at IS NOT NULL
+          AND DATE(accepted_at) = CURDATE()`,
       [userId],
+    ),
+    safeFetchCount(
+      `SELECT COUNT(*) AS c
+       FROM friendships
+       WHERE initiated_by = ?`,
+      [userId],
+    ),
+    safeFetchCount(
+      `SELECT COUNT(*) AS c
+       FROM friendships
+       WHERE status = 'accepted'
+         AND initiated_by <> ?
+         AND (user_id = ? OR friend_id = ?)`,
+      [userId, userId, userId],
+    ),
+    safeFetchCount(
+      `SELECT COUNT(DISTINCT post_id) AS c
+       FROM (
+         SELECT post_id
+         FROM blog_post_reactions
+         WHERE user_id = ?
+         UNION
+         SELECT post_id
+         FROM blog_post_likes
+         WHERE user_id = ?
+       ) reacted_posts`,
+      [userId, userId],
+    ),
+    safeFetchCount(
+      `SELECT COUNT(*) AS c
+       FROM blog_posts
+       WHERE user_id = ?`,
+      [userId],
+    ),
+    safeFetchCount(
+      `SELECT COUNT(*) AS c
+       FROM blog_post_views bpv
+       JOIN blog_posts bp ON bp.id = bpv.post_id
+       WHERE bp.user_id = ?
+         AND bpv.user_id <> ?`,
+      [userId, userId],
+    ),
+    safeFetchCount(
+      `SELECT COUNT(*) AS c
+       FROM (
+         SELECT bpr.post_id, bpr.user_id
+         FROM blog_post_reactions bpr
+         UNION
+         SELECT bpl.post_id, bpl.user_id
+         FROM blog_post_likes bpl
+       ) post_reactions
+       JOIN blog_posts bp ON bp.id = post_reactions.post_id
+       WHERE bp.user_id = ?
+         AND post_reactions.user_id <> ?`,
+      [userId, userId],
     ),
   ]);
 
@@ -4828,12 +4955,18 @@ const collectUserGamificationMetrics = async (userId, baseDate = new Date()) => 
     logged_exercises_today: loggedExercisesToday,
     friend_challenges_sent_today: friendChallengesSentToday,
     friend_challenges_accepted_today: friendChallengesAcceptedToday,
+    friend_requests_sent_total: friendRequestsSentTotal,
+    friend_requests_accepted_total: friendRequestsAcceptedTotal,
+    blog_post_reactions_made_total: blogPostReactionsMadeTotal,
+    blog_posts_created_total: blogPostsCreatedTotal,
+    blog_post_views_received_total: blogPostViewsReceivedTotal,
+    blog_post_reactions_received_total: blogPostReactionsReceivedTotal,
     ...overloadMetrics,
   };
 };
 
 const getDailyMissionContext = async (userId) => {
-  const [coachRows, friendshipRows, socialRows] = await Promise.all([
+  const [coachRows, friendshipRows, socialRows, incomingFriendRequestRows, ownBlogPostRows] = await Promise.all([
     safeFetchRows(
       `SELECT COALESCE(coach_id, 0) AS coach_id
        FROM users
@@ -4854,12 +4987,28 @@ const getDailyMissionContext = async (userId) => {
        WHERE user_id <> ?`,
       [userId],
     ),
+    safeFetchRows(
+      `SELECT COUNT(*) AS c
+       FROM friendships
+       WHERE status = 'pending'
+         AND initiated_by <> ?
+         AND (user_id = ? OR friend_id = ?)`,
+      [userId, userId, userId],
+    ),
+    safeFetchRows(
+      `SELECT COUNT(*) AS c
+       FROM blog_posts
+       WHERE user_id = ?`,
+      [userId],
+    ),
   ]);
 
   return {
     hasCoach: Number(coachRows[0]?.coach_id || 0) > 0,
     acceptedFriendsCount: Math.max(0, Number(friendshipRows[0]?.c || 0)),
     availableSocialPosts: Math.max(0, Number(socialRows[0]?.c || 0)),
+    pendingIncomingFriendRequests: Math.max(0, Number(incomingFriendRequestRows[0]?.c || 0)),
+    ownBlogPostsCount: Math.max(0, Number(ownBlogPostRows[0]?.c || 0)),
   };
 };
 
@@ -4874,12 +5023,24 @@ const isEligibleDailyMissionTemplate = (mission, context) => {
     return Number(context?.acceptedFriendsCount || 0) > 0;
   }
 
+  if (metricKey === 'friend_requests_accepted_total') {
+    return Number(context?.pendingIncomingFriendRequests || 0) > 0;
+  }
+
   if (
     metricKey === 'blog_post_views_today'
+    || metricKey === 'blog_post_reactions_made_total'
     || metricKey === 'blog_post_likes_today'
     || metricKey === 'blog_post_comments_today'
   ) {
     return Number(context?.availableSocialPosts || 0) > 0;
+  }
+
+  if (
+    metricKey === 'blog_post_views_received_total'
+    || metricKey === 'blog_post_reactions_received_total'
+  ) {
+    return Number(context?.ownBlogPostsCount || 0) > 0;
   }
 
   return true;

@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { CoachmarkOverlay, type CoachmarkStep } from '../components/coachmarks/CoachmarkOverlay';
 import { WorkoutOverviewScreen } from '../components/workout/WorkoutOverviewScreen';
 import { LiveWorkoutScreen } from '../components/workout/LiveWorkoutScreen';
@@ -39,6 +39,7 @@ import { stripExercisePrefix } from '../services/exerciseName';
 import { useScrollToTopOnChange } from '../shared/scroll';
 import { useScreenshotProtection } from '../shared/useScreenshotProtection';
 import { normalizeExerciseVideoLookup } from '../shared/exerciseVideoManifest.js';
+import { ScreenTransition, getNavigationDirection } from '../components/ui/ScreenTransition';
 
 interface WorkoutProps {
   onBack: () => void;
@@ -90,6 +91,17 @@ type RecoveryMuscleStatus = {
 };
 
 type ViewState = 'overview' | 'plan' | 'tracker' | 'video' | 'live' | 'summary' | 'presetPlans' | 'customPlanBuilder';
+
+const WORKOUT_VIEW_ORDER: ViewState[] = [
+  'overview',
+  'presetPlans',
+  'customPlanBuilder',
+  'plan',
+  'tracker',
+  'video',
+  'live',
+  'summary',
+];
 
 type SummaryMuscle = {
   name: string;
@@ -858,11 +870,16 @@ export function Workout({
   const [coachesLoading, setCoachesLoading] = useState(false);
   const [coachRequestingId, setCoachRequestingId] = useState<number | null>(null);
   const [language, setLanguage] = useState<AppLanguage>(() => getActiveLanguage());
+  const previousViewRef = useRef<ViewState>('overview');
   const [coachmarkMode, setCoachmarkMode] = useState<'plan' | 'tracker' | null>(null);
   const [coachmarkStepIndex, setCoachmarkStepIndex] = useState(0);
 
   useScrollToTopOnChange([view, resetSignal]);
   useScreenshotProtection(SCREENSHOT_PROTECTED_WORKOUT_VIEWS.has(view));
+
+  useEffect(() => {
+    previousViewRef.current = view;
+  }, [view]);
 
   useEffect(() => {
     const handleLanguageChanged = () => {
@@ -2480,8 +2497,20 @@ export function Workout({
     }
   };
 
+  const workoutMotionDirection = getNavigationDirection(
+    view,
+    previousViewRef.current,
+    WORKOUT_VIEW_ORDER,
+  );
+
+  const renderTransitionedView = (content: React.ReactNode) => (
+    <ScreenTransition screenKey={view} direction={workoutMotionDirection}>
+      {content}
+    </ScreenTransition>
+  );
+
   if (view === 'presetPlans') {
-    return (
+    return renderTransitionedView(
       <PresetProgramScreen
         onBack={() => setView('overview')}
         onSaved={handleNewPlanSaved}
@@ -2491,7 +2520,7 @@ export function Workout({
   }
 
   if (view === 'customPlanBuilder') {
-    return (
+    return renderTransitionedView(
       <CustomPlanBuilderScreen
         onBack={() => setView('presetPlans')}
         onSaved={handleNewPlanSaved}
@@ -2500,7 +2529,7 @@ export function Workout({
   }
 
   if (view === 'overview') {
-    return (
+    return renderTransitionedView(
       <>
         <WorkoutOverviewScreen
           onBack={onBack}
@@ -2638,7 +2667,7 @@ export function Workout({
   }
 
   if (view === 'plan') {
-    return (
+    return renderTransitionedView(
       <>
         <WorkoutPlanScreen
           onBack={() => setView('overview')}
@@ -2682,7 +2711,7 @@ export function Workout({
         || isMatchingWorkoutExerciseName(exercise.exerciseName, selectedExercise)
       ),
     );
-    return (
+    return renderTransitionedView(
       <>
         <TrackerScreen
           onBack={() => setView('plan')}
@@ -2756,7 +2785,7 @@ export function Workout({
       selectedWorkoutExercise?.muscleGroup,
       resolvedExerciseName,
     ].filter(Boolean).join(' '));
-    return (
+    return renderTransitionedView(
       <ExerciseVideoScreen
         onBack={() => setView(videoReturnView)}
         exercise={{
@@ -2780,11 +2809,11 @@ export function Workout({
   }
 
   if (view === 'live') {
-    return <LiveWorkoutScreen onFinish={() => setView('summary')} />;
+    return renderTransitionedView(<LiveWorkoutScreen onFinish={() => setView('summary')} />);
   }
 
   if (view === 'summary') {
-    return (
+    return renderTransitionedView(
       <PostWorkoutSummary
         onClose={() => setView('plan')}
         summary={summary}

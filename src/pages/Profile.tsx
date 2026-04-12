@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { CoachmarkOverlay, type CoachmarkStep } from '../components/coachmarks/CoachmarkOverlay';
 import { ProfileScreen } from '../components/profile/ProfileScreen';
 import { GymAccessScreen } from '../components/profile/GymAccessScreen';
@@ -21,6 +21,7 @@ import { useScreenshotProtection } from '../shared/useScreenshotProtection';
 import { clearStoredUserSession, getStoredUserId } from '../shared/authStorage';
 import { AppLanguage, getActiveLanguage, getStoredLanguage, pickLanguage } from '../services/language';
 import { toFriendChallengeCardId } from '../services/friendChallenges';
+import { ScreenSection, ScreenTransition, getNavigationDirection } from '../components/ui/ScreenTransition';
 import {
   PROFILE_COACHMARK_TOUR_ID,
   PROFILE_COACHMARK_VERSION,
@@ -99,6 +100,24 @@ const SCREENSHOT_PROTECTED_PROFILE_VIEWS = new Set([
   'chat',
 ]);
 
+const PROFILE_VIEW_ORDER = [
+  'main',
+  'settings',
+  'notifications',
+  'gym',
+  'rank',
+  'weeklyPlan',
+  'presetPlans',
+  'customPlanBuilder',
+  'posts',
+  'friends',
+  'friendProfile',
+  'friendChallenge',
+  'notificationChallenge',
+  'coachList',
+  'chat',
+] as const;
+
 export function Profile({
   onNavigateTab,
   onTabBarVisibilityChange,
@@ -124,6 +143,7 @@ export function Profile({
   const [language, setLanguage] = useState<AppLanguage>('en');
   const [coachmarkStepIndex, setCoachmarkStepIndex] = useState(0);
   const [isCoachmarkOpen, setIsCoachmarkOpen] = useState(false);
+  const previousViewRef = useRef(view);
 
   useScrollToTopOnChange([view, resetSignal]);
   useScreenshotProtection(SCREENSHOT_PROTECTED_PROFILE_VIEWS.has(view));
@@ -135,6 +155,10 @@ export function Profile({
       onTabBarVisibilityChange?.(true);
     };
   }, [onTabBarVisibilityChange, view]);
+
+  useEffect(() => {
+    previousViewRef.current = view;
+  }, [view]);
 
   const copy = PROFILE_PAGE_I18N[language as keyof typeof PROFILE_PAGE_I18N] || PROFILE_PAGE_I18N.en;
 
@@ -647,11 +671,24 @@ export function Profile({
     clearStoredUserSession();
     window.location.href = '/';
   };
-  if (view === 'gym') return <GymAccessScreen onBack={() => setView('main')} />;
+
+  const profileMotionDirection = getNavigationDirection(
+    view,
+    previousViewRef.current,
+    PROFILE_VIEW_ORDER,
+  );
+
+  const renderTransitionedView = (content: React.ReactNode) => (
+    <ScreenTransition screenKey={view} direction={profileMotionDirection}>
+      {content}
+    </ScreenTransition>
+  );
+
+  if (view === 'gym') return renderTransitionedView(<GymAccessScreen onBack={() => setView('main')} />);
   if (view === 'rank')
-  return <RankingsRewardsScreen onBack={() => setView('main')} />;
+  return renderTransitionedView(<RankingsRewardsScreen onBack={() => setView('main')} />);
   if (view === 'settings')
-  return (
+  return renderTransitionedView(
     <SettingsScreen
       onBack={() => setView('main')}
       onOpenGym={() => setView('gym')}
@@ -662,7 +699,7 @@ export function Profile({
     />
   );
   if (view === 'notifications')
-  return (
+  return renderTransitionedView(
     <NotificationsScreen
       onBack={() => setView('main')}
       onOpenAcceptedChallenge={(challenge) => {
@@ -672,7 +709,7 @@ export function Profile({
     />
   );
   if (view === 'weeklyPlan')
-  return (
+  return renderTransitionedView(
     <CurrentWeekPlanScreen
       onBack={() => setView('main')}
       onOpenWorkout={() => onNavigateTab?.('workout')}
@@ -680,7 +717,7 @@ export function Profile({
     />
   );
   if (view === 'presetPlans')
-  return (
+  return renderTransitionedView(
     <PresetProgramScreen
       onBack={() => setView('weeklyPlan')}
       onSaved={() => onNavigateTab?.('workout')}
@@ -688,16 +725,16 @@ export function Profile({
     />
   );
   if (view === 'customPlanBuilder')
-  return (
+  return renderTransitionedView(
     <CustomPlanBuilderScreen
       onBack={() => setView('presetPlans')}
       onSaved={() => onNavigateTab?.('workout')}
     />
   );
   if (view === 'posts')
-  return <MyPostsScreen onBack={() => setView('main')} />;
+  return renderTransitionedView(<MyPostsScreen onBack={() => setView('main')} />);
   if (view === 'friends')
-  return (
+  return renderTransitionedView(
     <FriendsList
       onBack={() => setView('main')}
       onFriendClick={(friend) => {
@@ -707,7 +744,7 @@ export function Profile({
     />
   );
   if (view === 'friendProfile')
-  return (
+  return renderTransitionedView(
     <FriendProfile
       onBack={() => setView('friends')}
       onChallenge={() => setView('friendChallenge')}
@@ -715,7 +752,7 @@ export function Profile({
     />
   );
   if (view === 'friendChallenge') {
-    return (
+    return renderTransitionedView(
       <FriendChallengeScreen
         onBack={() => setView('friendProfile')}
         onExitHome={() => setView('main')}
@@ -725,7 +762,7 @@ export function Profile({
     );
   }
   if (view === 'notificationChallenge') {
-    return (
+    return renderTransitionedView(
       <FriendChallengeScreen
         onBack={() => setView('notifications')}
         onExitHome={() => setView('main')}
@@ -739,7 +776,7 @@ export function Profile({
     );
   }
   if (view === 'coachList')
-  return (
+  return renderTransitionedView(
     <CoachList
       onBack={() => setView('main')}
       onSelectCoach={(id, name) => {
@@ -749,44 +786,46 @@ export function Profile({
     />
   );
   if (view === 'chat')
-  return (
+  return renderTransitionedView(
     <Messaging
       onBack={() => setView('coachList')}
       coachId={selectedCoach?.id}
       coachName={selectedCoach?.name}
     />
   );
-  return (
+  return renderTransitionedView(
     <div className="relative">
       {/* Header action icons */}
-      <div className="absolute top-6 right-6 z-10 flex items-center gap-2">
-        <button
-          data-coachmark-target="profile_settings_button"
-          onClick={() => setView('settings')}
-          className="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center text-white hover:bg-white/20 transition-colors"
-          aria-label={copy.openSettings}
-        >
-          <Settings size={20} />
-        </button>
+      <ScreenSection index={0}>
+        <div className="absolute top-6 right-6 z-10 flex items-center gap-2">
+          <button
+            data-coachmark-target="profile_settings_button"
+            onClick={() => setView('settings')}
+            className="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center text-white hover:bg-white/20 transition-colors"
+            aria-label={copy.openSettings}
+          >
+            <Settings size={20} />
+          </button>
 
-        <button
-          data-coachmark-target="profile_notifications_button"
-          onClick={() => setView('notifications')}
-          className="relative w-10 h-10 rounded-full bg-white/10 flex items-center justify-center text-white hover:bg-white/20 transition-colors"
-          aria-label={copy.openNotifications}
-        >
-          <Bell size={20} />
-          {unreadCount > 0 && (
-            <div className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 bg-accent text-black text-[10px] font-bold rounded-full flex items-center justify-center shadow-glow">
-              {unreadCount > 99 ? '99+' : unreadCount}
-            </div>
-          )}
-        </button>
-      </div>
+          <button
+            data-coachmark-target="profile_notifications_button"
+            onClick={() => setView('notifications')}
+            className="relative w-10 h-10 rounded-full bg-white/10 flex items-center justify-center text-white hover:bg-white/20 transition-colors"
+            aria-label={copy.openNotifications}
+          >
+            <Bell size={20} />
+            {unreadCount > 0 && (
+              <div className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 bg-accent text-black text-[10px] font-bold rounded-full flex items-center justify-center shadow-glow">
+                {unreadCount > 99 ? '99+' : unreadCount}
+              </div>
+            )}
+          </button>
+        </div>
+      </ScreenSection>
 
-      <div className="space-y-6 pb-24 px-4 sm:px-6">
+      <ScreenSection index={1} className="space-y-6 pb-24 px-4 sm:px-6">
         <ProfileScreen onNavigate={handleNavigate} onLogout={handleLogout} />
-      </div>
+      </ScreenSection>
 
       <CoachmarkOverlay
         isOpen={isCoachmarkOpen}

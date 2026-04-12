@@ -21,6 +21,7 @@ import {
 import { AppLanguage, getActiveLanguage, pickLanguage } from '../services/language';
 import { useScrollToTopOnChange } from '../shared/scroll';
 import { useScreenshotProtection } from '../shared/useScreenshotProtection';
+import { ScreenSection, ScreenTransition, getNavigationDirection } from '../components/ui/ScreenTransition';
 
 interface ProgressProps {
   resetSignal?: number;
@@ -41,6 +42,18 @@ const SCREENSHOT_PROTECTED_PROGRESS_VIEWS = new Set([
   'strengthScore',
 ]);
 
+const PROGRESS_VIEW_ORDER = [
+  'dashboard',
+  'report',
+  'recovery',
+  'measurements',
+  'photos',
+  'exercise',
+  'insights',
+  'weeklyCheckin',
+  'strengthScore',
+] as const;
+
 const hasCoachmarkTargets = (steps: CoachmarkStep[]) =>
   typeof document !== 'undefined'
   && steps.every((step) => Boolean(document.querySelector(`[data-coachmark-target="${step.targetId}"]`)));
@@ -58,6 +71,7 @@ export function Progress({
   const [coachmarkStepIndex, setCoachmarkStepIndex] = useState(0);
   const [isCoachmarkOpen, setIsCoachmarkOpen] = useState(false);
   const hasTrackedVisitRef = useRef(false);
+  const previousViewRef = useRef(view);
   const coachmarkScope = getCoachmarkUserScope();
   const coachmarkDefaultSeenSteps = useMemo(
     () => ({
@@ -330,6 +344,10 @@ export function Progress({
   }, [resetSignal]);
 
   useEffect(() => {
+    previousViewRef.current = view;
+  }, [view]);
+
+  useEffect(() => {
     if (view !== 'dashboard' || hasTrackedVisitRef.current) return;
 
     hasTrackedVisitRef.current = true;
@@ -402,43 +420,55 @@ export function Progress({
     if (guidedTourActive) onGuidedTourDismiss?.();
   };
 
+  const progressMotionDirection = getNavigationDirection(
+    view,
+    previousViewRef.current,
+    PROGRESS_VIEW_ORDER,
+  );
+
+  const renderTransitionedView = (content: React.ReactNode) => (
+    <ScreenTransition screenKey={view} direction={progressMotionDirection}>
+      {content}
+    </ScreenTransition>
+  );
+
   if (view === 'report') {
-    return <BiWeeklyReport onBack={() => setView('dashboard')} />;
+    return renderTransitionedView(<BiWeeklyReport onBack={() => setView('dashboard')} />);
   }
   if (view === 'recovery') {
-    return <MuscleRecoveryScreen onBack={() => setView('dashboard')} />;
+    return renderTransitionedView(<MuscleRecoveryScreen onBack={() => setView('dashboard')} />);
   }
   if (view === 'measurements') {
-    return <BodyMeasurementsScreen onBack={() => setView('dashboard')} />;
+    return renderTransitionedView(<BodyMeasurementsScreen onBack={() => setView('dashboard')} />);
   }
   if (view === 'photos') {
-    return <ProgressPhotosScreen onBack={() => setView('dashboard')} />;
+    return renderTransitionedView(<ProgressPhotosScreen onBack={() => setView('dashboard')} />);
   }
   if (view === 'exercise') {
-    return <ExerciseProgressScreen onBack={() => setView('dashboard')} />;
+    return renderTransitionedView(<ExerciseProgressScreen onBack={() => setView('dashboard')} />);
   }
   if (view === 'insights') {
-    return <AIInsightsScreen onBack={() => setView('dashboard')} />;
+    return renderTransitionedView(<AIInsightsScreen onBack={() => setView('dashboard')} />);
   }
   if (view === 'weeklyCheckin') {
-    return <WeeklyCheckInScreen onBack={() => setView('dashboard')} />;
+    return renderTransitionedView(<WeeklyCheckInScreen onBack={() => setView('dashboard')} />);
   }
   if (view === 'strengthScore') {
-    return <StrengthScoreScreen onBack={() => setView('dashboard')} />;
+    return renderTransitionedView(<StrengthScoreScreen onBack={() => setView('dashboard')} />);
   }
 
-  return (
+  return renderTransitionedView(
     <div data-coachmark-target="progress_page" className="relative pb-24">
-      <div className="space-y-2">
+      <ScreenSection index={0} className="space-y-2">
         <ProgressDashboard
           onViewReport={() => setView('report')}
           onViewStrengthScore={() => setView('strengthScore')}
         />
+      </ScreenSection>
 
-        <div className="px-4 sm:px-6">
-          <OverloadPlanning coachmarkTargetId="progress_overload_card" />
-        </div>
-      </div>
+      <ScreenSection index={1} className="px-4 sm:px-6">
+        <OverloadPlanning coachmarkTargetId="progress_overload_card" />
+      </ScreenSection>
 
       <CoachmarkOverlay
         isOpen={isCoachmarkOpen}

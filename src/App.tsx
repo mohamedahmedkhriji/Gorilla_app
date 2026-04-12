@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { Onboarding } from './pages/Onboarding';
 import { Home } from './pages/Home';
 import { Workout } from './pages/Workout';
@@ -9,7 +9,7 @@ import { LoginPage } from './pages/LoginPage';
 import { PublicLandingPage } from './pages/PublicLandingPage';
 import { TabBar } from './components/ui/TabBar';
 import { SplashScreen } from './components/ui/SplashScreen';
-import { AnimatePresence, motion } from 'framer-motion';
+import { ScreenTransition, getNavigationDirection } from './components/ui/ScreenTransition';
 import { OPEN_PICKED_WORKOUT_PLAN } from './services/workoutNavigation';
 import { useManualScrollRestoration, useScrollToTopOnChange } from './shared/scroll';
 import { clearStoredUserSession, getStoredAppUser, getStoredUserId, getStoredUserAuthToken, persistStoredUserSession } from './shared/authStorage';
@@ -26,6 +26,7 @@ import {
 type GuidedTourStage = 'home' | 'my_plan' | 'blogs' | 'progress' | 'profile' | 'done';
 
 const GUIDED_TOUR_ORDER: GuidedTourStage[] = ['home', 'my_plan', 'blogs', 'progress', 'profile'];
+const TAB_NAV_ORDER = ['home', 'workout', 'blogs', 'progress', 'profile'] as const;
 
 export function App() {
   const [isLoading, setIsLoading] = useState(true);
@@ -39,6 +40,7 @@ export function App() {
   const [workoutDay, setWorkoutDay] = useState('Push Day');
   const [workoutLaunchMode, setWorkoutLaunchMode] = useState<'default' | 'picked-plan'>('default');
   const [guidedTourStage, setGuidedTourStage] = useState<GuidedTourStage>('done');
+  const previousTabRef = useRef(activeTab);
 
   const coachmarkScope = useMemo(() => getCoachmarkUserScope(getStoredAppUser()), [isLoggedIn, hasOnboarded]);
   const guidedTourOptions = useMemo(
@@ -163,6 +165,10 @@ export function App() {
 
     setActiveTab(guidedTourStage);
   }, [guidedTourStage]);
+
+  useEffect(() => {
+    previousTabRef.current = activeTab;
+  }, [activeTab]);
 
   const completeGuidedTourStage = useCallback((stage: Exclude<GuidedTourStage, 'done'>) => {
     const currentIndex = GUIDED_TOUR_ORDER.indexOf(stage);
@@ -312,6 +318,12 @@ export function App() {
     }
   };
 
+  const tabMotionDirection = getNavigationDirection(
+    activeTab,
+    previousTabRef.current,
+    TAB_NAV_ORDER,
+  );
+
   return (
     <div
       className={`min-h-screen text-text-primary font-sans selection:bg-accent/80 selection:text-black ${
@@ -327,29 +339,13 @@ export function App() {
               : `px-4 sm:px-6 ${isTabBarVisible ? 'pb-[calc(env(safe-area-inset-bottom,0px)+6rem)]' : 'pb-6'}`
         }`}
       >
-        <AnimatePresence mode="wait">
-          <motion.div
-            key={activeTab}
-            initial={{
-              opacity: 0,
-              y: 10,
-            }}
-            animate={{
-              opacity: 1,
-              y: 0,
-            }}
-            exit={{
-              opacity: 0,
-              y: -10,
-            }}
-            transition={{
-              duration: 0.2,
-            }}
-            className="min-h-screen"
-          >
-            {renderTab()}
-          </motion.div>
-        </AnimatePresence>
+        <ScreenTransition
+          screenKey={activeTab}
+          direction={tabMotionDirection}
+          className="min-h-screen"
+        >
+          {renderTab()}
+        </ScreenTransition>
       </div>
 
       {isTabBarVisible && <TabBar activeTab={activeTab} onTabChange={handleTabChange} />}
