@@ -9,10 +9,8 @@ import type { WorkoutAssignmentHistoryEntry } from '../../services/todayWorkoutS
 import { formatWorkoutDayLabel } from '../../services/workoutDayLabel';
 import {
   buildT2PremiumCardMeta,
-  buildT2PremiumCardioRecommendation,
   getActiveT2PremiumConfig,
 } from '../../services/premiumPlan';
-import { getLatestT2WorkoutCheckIn, T2_CHECKIN_UPDATED_EVENT } from '../../services/t2CheckIn';
 import rightArrowIcon from '../../../assets/emoji/right-arrow.png';
 
 type WorkoutOverviewCard = {
@@ -307,44 +305,6 @@ const LOCALIZED_COPY: LocalizedLanguageRecord<typeof COPY.en> = {
   },
 };
 
-const PREMIUM_CARD_SURFACE_LABELS: LocalizedLanguageRecord<{
-  cardio: string;
-  target: string;
-  flow: string;
-  premiumFlow: string;
-}> = {
-  en: {
-    cardio: 'Cardio',
-    target: 'Target',
-    flow: 'Flow',
-    premiumFlow: 'T-2 Premium',
-  },
-  ar: {
-    cardio: '\u0627\u0644\u0643\u0627\u0631\u062f\u064a\u0648',
-    target: '\u0627\u0644\u0647\u062f\u0641',
-    flow: '\u0627\u0644\u0645\u0633\u0627\u0631',
-    premiumFlow: 'T-2 Premium',
-  },
-  it: {
-    cardio: 'Cardio',
-    target: 'Target',
-    flow: 'Flusso',
-    premiumFlow: 'T-2 Premium',
-  },
-  de: {
-    cardio: 'Cardio',
-    target: 'Ziel',
-    flow: 'Flow',
-    premiumFlow: 'T-2 Premium',
-  },
-  fr: {
-    cardio: 'Cardio',
-    target: 'Objectif',
-    flow: 'Flow',
-    premiumFlow: 'T-2 Premium',
-  },
-};
-
 const MUSCLE_LABELS: LocalizedLanguageRecord<Record<string, string>> = {
   en: {},
   ar: {
@@ -451,7 +411,6 @@ export function WorkoutOverviewScreen({
   error = null,
 }: WorkoutOverviewScreenProps) {
   const [language, setLanguage] = useState<AppLanguage>('en');
-  const [latestT2CheckIn, setLatestT2CheckIn] = useState(() => getLatestT2WorkoutCheckIn());
 
   useEffect(() => {
     setLanguage(getActiveLanguage());
@@ -468,12 +427,6 @@ export function WorkoutOverviewScreen({
     };
   }, []);
 
-  useEffect(() => {
-    const handleT2CheckInUpdated = () => setLatestT2CheckIn(getLatestT2WorkoutCheckIn());
-    window.addEventListener(T2_CHECKIN_UPDATED_EVENT, handleT2CheckInUpdated);
-    return () => window.removeEventListener(T2_CHECKIN_UPDATED_EVENT, handleT2CheckInUpdated);
-  }, []);
-
   const copy = useMemo(
     () => normalizeLocalizedValue(LOCALIZED_COPY[language] || LOCALIZED_COPY.en),
     [language],
@@ -481,10 +434,6 @@ export function WorkoutOverviewScreen({
   const isArabic = language === 'ar';
   const localizedMuscleLabels = useMemo(
     () => normalizeLocalizedValue(MUSCLE_LABELS[language] || {}),
-    [language],
-  );
-  const premiumSurfaceCopy = useMemo(
-    () => normalizeLocalizedValue(PREMIUM_CARD_SURFACE_LABELS[language] || PREMIUM_CARD_SURFACE_LABELS.en),
     [language],
   );
 
@@ -535,10 +484,6 @@ export function WorkoutOverviewScreen({
     return latestByKey;
   }, [assignmentHistory]);
   const premiumConfig = useMemo(() => getActiveT2PremiumConfig(userProgram), [userProgram]);
-  const pickedWorkoutKey = useMemo(
-    () => selectableWorkouts.find((workout) => workout.isPickedForToday)?.key || '',
-    [selectableWorkouts],
-  );
   const heroEyebrow = hasTodaySelection ? copy.heroSelectedEyebrow : copy.heroEyebrow;
   const heroTitle = hasTodaySelection
     ? localizeWorkoutText(String(selectedTodayWorkoutName || '').trim()) || localizeDay(selectedTodayWorkoutDayLabel || currentDayLabel)
@@ -575,38 +520,6 @@ export function WorkoutOverviewScreen({
     })),
     [language, latestAssignmentByWorkoutKey, localizeMuscle, localizeWorkoutText, premiumConfig, selectableWorkouts],
   );
-  const recommendedWorkoutKey = useMemo(
-    () => cards.find((workout) => workout.isRecommendedNext)?.key || null,
-    [cards],
-  );
-  const premiumCardioRecommendation = useMemo(
-    () => (
-      premiumConfig
-        ? buildT2PremiumCardioRecommendation({
-            language,
-            config: premiumConfig,
-            selectedWorkoutName: selectedTodayWorkoutName || heroTitle,
-            selectedWorkoutKey: pickedWorkoutKey || null,
-            recommendedWorkoutKey,
-            hasTodaySelection,
-            isTodaySelectionCompleted,
-            latestCheckIn: latestT2CheckIn,
-          })
-        : null
-    ),
-    [
-      language,
-      premiumConfig,
-      selectedTodayWorkoutName,
-      heroTitle,
-      pickedWorkoutKey,
-      recommendedWorkoutKey,
-      hasTodaySelection,
-      isTodaySelectionCompleted,
-      latestT2CheckIn,
-    ],
-  );
-
   return (
     <div className="flex-1 flex flex-col h-full bg-background overflow-y-auto pb-24">
       <div className="px-4 sm:px-6 pt-2">
@@ -641,71 +554,6 @@ export function WorkoutOverviewScreen({
             </p>
           </div>
         </div>
-
-        {premiumCardioRecommendation && (
-          <div
-            className="relative overflow-hidden rounded-[1.75rem] border border-white/10 bg-[linear-gradient(160deg,rgba(22,26,35,0.96),rgba(12,16,26,0.98))] p-5 shadow-[0_16px_50px_rgba(0,0,0,0.22)]"
-            dir={isArabic ? 'rtl' : 'ltr'}
-          >
-            <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-emerald-300/30 via-lime-300/20 to-transparent" />
-            <div className="pointer-events-none absolute -right-8 top-0 h-28 w-28 rounded-full bg-white/10 blur-3xl" />
-            <div className="relative">
-              <div className={`flex items-start justify-between gap-4 ${isArabic ? 'flex-row-reverse text-right' : 'text-left'}`}>
-                <div className="min-w-0">
-                  <div className="inline-flex rounded-full border border-white/10 bg-white/6 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-accent">
-                    {premiumCardioRecommendation.badge}
-                  </div>
-                  <h3 className="mt-3 text-xl font-semibold text-white">{premiumCardioRecommendation.title}</h3>
-                  <p className="mt-2 max-w-xl text-sm leading-relaxed text-text-secondary">
-                    {premiumCardioRecommendation.body}
-                  </p>
-                </div>
-                <div className="flex h-14 min-w-[4.75rem] flex-col items-center justify-center rounded-2xl border border-white/10 bg-black/20 px-3 text-center">
-                  <span className="text-lg font-electrolize text-white">{premiumCardioRecommendation.minutesLabel.split(' ')[0]}</span>
-                  <span className="text-[10px] uppercase tracking-[0.14em] text-text-tertiary">{premiumCardioRecommendation.minutesLabel.split(' ').slice(1).join(' ')}</span>
-                </div>
-              </div>
-
-                <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-3">
-                  <div className="rounded-2xl border border-white/8 bg-white/[0.04] px-3 py-3">
-                    <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-text-tertiary">{premiumSurfaceCopy.cardio}</div>
-                    <div className="mt-2 text-sm font-semibold text-white">{premiumCardioRecommendation.typeLabel}</div>
-                  </div>
-                  <div className="rounded-2xl border border-white/8 bg-white/[0.04] px-3 py-3">
-                    <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-text-tertiary">{premiumSurfaceCopy.target}</div>
-                    <div className="mt-2 text-sm font-semibold text-white">{premiumCardioRecommendation.minutesLabel}</div>
-                  </div>
-                  <div className="rounded-2xl border border-white/8 bg-white/[0.04] px-3 py-3 sm:block hidden">
-                    <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-text-tertiary">{premiumSurfaceCopy.flow}</div>
-                    <div className="mt-2 text-sm font-semibold text-white">{premiumSurfaceCopy.premiumFlow}</div>
-                  </div>
-                </div>
-
-              <div className={`mt-5 flex items-center justify-between gap-3 ${isArabic ? 'flex-row-reverse' : ''}`}>
-                <p className="text-xs leading-relaxed text-text-secondary">{premiumCardioRecommendation.footer}</p>
-                <button
-                  type="button"
-                  disabled={premiumCardioRecommendation.disabled}
-                  onClick={() => {
-                    if (premiumCardioRecommendation.disabled || !premiumCardioRecommendation.actionWorkoutKey) return;
-                    if (hasTodaySelection) {
-                      onSelectWorkout(premiumCardioRecommendation.actionWorkoutKey);
-                      return;
-                    }
-                    onPickWorkoutForToday(premiumCardioRecommendation.actionWorkoutKey);
-                  }}
-                  className={`inline-flex shrink-0 items-center justify-center rounded-full border px-5 py-2.5 text-xs font-semibold uppercase tracking-[0.12em] transition-colors ${
-                    premiumCardioRecommendation.disabled
-                      ? 'cursor-not-allowed border-white/10 bg-white/5 text-text-tertiary'
-                      : 'border-accent/30 bg-accent/15 text-text-primary hover:bg-accent/22'
-                  }`}
-                >
-                  {premiumCardioRecommendation.buttonLabel}
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
 
         {recommendedWorkout && (
           <div className={`rounded-[1.4rem] border border-accent/20 bg-accent/8 px-4 py-4 ${isArabic ? 'text-right' : 'text-left'}`}>
