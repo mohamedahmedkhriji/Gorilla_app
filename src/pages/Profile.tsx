@@ -796,7 +796,7 @@ export function Profile({
   return renderTransitionedView(
     <div className="relative">
       {/* Header action icons */}
-      <ScreenSection index={0}>
+      <ScreenSection index={0} className="relative z-20">
         <div className="absolute top-6 right-6 z-10 flex items-center gap-2">
           <button
             data-coachmark-target="profile_settings_button"
@@ -823,7 +823,7 @@ export function Profile({
         </div>
       </ScreenSection>
 
-      <ScreenSection index={1} className="space-y-6 pb-24 px-4 sm:px-6">
+      <ScreenSection index={1} className="relative z-0 space-y-6 pb-24 px-4 sm:px-6">
         <ProfileScreen onNavigate={handleNavigate} onLogout={handleLogout} />
       </ScreenSection>
 
