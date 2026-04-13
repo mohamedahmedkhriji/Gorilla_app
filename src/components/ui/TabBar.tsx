@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Home, Activity, Dumbbell, User, Film } from 'lucide-react';
+import { Home, Activity, Dumbbell, User, Plus } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { AppLanguage, LocalizedLanguageRecord, getActiveLanguage, getStoredLanguage } from '../../services/language';
 
@@ -12,35 +12,35 @@ const TAB_LABELS: LocalizedLanguageRecord<Record<string, string>> = {
   en: {
     home: 'Home',
     workout: 'My Plan',
-    blogs: 'Blogs',
+    blogs: 'Post',
     progress: 'Progress',
     profile: 'Profile',
   },
   ar: {
     home: '\u0627\u0644\u0631\u0626\u064a\u0633\u064a\u0629',
     workout: '\u062e\u0637\u062a\u064a',
-    blogs: '\u0627\u0644\u0645\u062f\u0648\u0646\u0627\u062a',
+    blogs: '\u0645\u0646\u0634\u0648\u0631',
     progress: '\u0627\u0644\u062a\u0642\u062f\u0645',
     profile: '\u0627\u0644\u0645\u0644\u0641',
   },
   it: {
     home: 'Home',
     workout: 'Il Mio Piano',
-    blogs: 'Blog',
+    blogs: 'Post',
     progress: 'Progressi',
     profile: 'Profilo',
   },
   de: {
     home: 'Home',
     workout: 'Mein Plan',
-    blogs: 'Blogs',
+    blogs: 'Post',
     progress: 'Fortschritt',
     profile: 'Profil',
   },
   fr: {
     home: 'Accueil',
     workout: 'Mon Plan',
-    blogs: 'Blogs',
+    blogs: 'Post',
     progress: 'Progres',
     profile: 'Profil',
   },
@@ -79,7 +79,7 @@ export function TabBar({ activeTab, onTabChange }: TabBarProps) {
     },
     {
       id: 'blogs',
-      icon: Film,
+      icon: Plus,
       label: labels.blogs,
     },
     {
@@ -99,7 +99,7 @@ export function TabBar({ activeTab, onTabChange }: TabBarProps) {
       <div className="w-full pointer-events-auto">
         <div
           data-coachmark-target="nav_bar"
-          className="relative overflow-hidden border-t border-white/10 bg-[linear-gradient(180deg,rgba(12,20,44,0.92)_0%,rgba(9,15,35,0.98)_100%)] px-2.5 pt-2.5 pb-[calc(env(safe-area-inset-bottom,0px)+0.8rem)] shadow-[0_-18px_60px_rgba(0,0,0,0.38)] backdrop-blur-2xl"
+          className="relative overflow-hidden border-t border-white/10 bg-[linear-gradient(180deg,rgba(12,20,44,0.92)_0%,rgba(9,15,35,0.98)_100%)] px-2.5 pt-3.5 pb-[calc(env(safe-area-inset-bottom,0px)+0.9rem)] shadow-[0_-18px_60px_rgba(0,0,0,0.38)] backdrop-blur-2xl"
         >
           <div className="absolute inset-x-8 top-0 h-px bg-gradient-to-r from-transparent via-white/20 to-transparent" />
           <div className="absolute inset-x-0 bottom-0 h-px bg-gradient-to-r from-transparent via-white/10 to-transparent" />
@@ -117,7 +117,7 @@ export function TabBar({ activeTab, onTabChange }: TabBarProps) {
                   data-coachmark-target={`nav_${tab.id}`}
                   aria-label={tab.label}
                   transition={{ layout: { type: 'spring', stiffness: 430, damping: 34, mass: 0.85 } }}
-                  className={`relative flex h-[3.4rem] shrink-0 items-center justify-center overflow-hidden rounded-full ${
+                  className={`relative flex h-[3.55rem] shrink-0 items-center justify-center overflow-hidden rounded-full ${
                     isActive ? 'px-4' : 'w-[3.4rem]'
                   }`}
                 >
@@ -125,7 +125,7 @@ export function TabBar({ activeTab, onTabChange }: TabBarProps) {
                     <motion.div
                       layoutId="activeTabPill"
                       transition={{ type: 'spring', stiffness: 520, damping: 38, mass: 0.82 }}
-                      className="absolute inset-0 rounded-full border border-accent/35 bg-accent/12 shadow-[0_10px_24px_rgba(0,0,0,0.2)]"
+                      className="absolute inset-0 rounded-full border border-white/20 bg-[linear-gradient(180deg,rgba(255,255,255,0.18)_0%,rgba(124,153,255,0.12)_42%,rgba(92,225,230,0.09)_100%)] shadow-[inset_0_1px_0_rgba(255,255,255,0.26),0_10px_24px_rgba(0,0,0,0.22)] backdrop-blur-xl"
                     />
                   )}
 

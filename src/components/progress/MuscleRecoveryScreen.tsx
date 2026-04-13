@@ -714,10 +714,6 @@ export function MuscleRecoveryScreen({ onBack }: MuscleRecoveryScreenProps) {
                     </div>
                   </div>
 
-                  {renderFactorChipRow(copy.soreness, factors.soreness, standardSignalOptions, (next) => setFactors({ ...factors, soreness: next }))}
-                  {renderFactorChipRow(copy.energy, factors.energy, standardSignalOptions, (next) => setFactors({ ...factors, energy: next }))}
-                  {renderFactorChipRow(copy.fatigue, factors.fatigue, standardSignalOptions, (next) => setFactors({ ...factors, fatigue: next }))}
-                  {renderFactorChipRow(copy.mood, factors.mood, standardSignalOptions, (next) => setFactors({ ...factors, mood: next }))}
                   {renderFactorChipRow(copy.jointPain, factors.jointPain, painSignalOptions, (next) => setFactors({ ...factors, jointPain: next }))}
                 </div>
               </div>
