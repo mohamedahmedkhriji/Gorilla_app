@@ -146,42 +146,49 @@ export function OverloadPlanning({ coachmarkTargetId }: OverloadPlanningProps) {
   }, [loadOverloadPlan]);
 
   return (
-    <Card coachmarkTargetId={coachmarkTargetId} className="bg-gradient-to-br from-card to-accent/5 border-accent/20">
-      <div className="flex items-center gap-2 mb-4">
-        <TrendingUp className="text-accent" size={20} />
-        <h3 className="font-bold text-white">{copy.title}</h3>
-      </div>
-      <p className="text-[11px] text-text-tertiary -mt-2 mb-3">
-        {copy.sourcePrefix}: {sourceLabel}
-      </p>
+    <Card
+      coachmarkTargetId={coachmarkTargetId}
+      className="relative overflow-hidden bg-gradient-to-br from-card to-accent/5 border-accent/20"
+    >
+      <div
+        className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(191,255,0,0.12),transparent_34%),linear-gradient(180deg,rgba(255,255,255,0.04),rgba(7,11,17,0.76))]"
+        aria-hidden="true"
+      />
+      <div className="relative">
+        <div className="mb-4 flex items-center gap-2">
+          <TrendingUp className="text-accent" size={20} />
+          <h3 className="font-bold text-white">{copy.title}</h3>
+        </div>
+        <p className="mb-3 -mt-2 text-[11px] text-text-tertiary">
+          {copy.sourcePrefix}: {sourceLabel}
+        </p>
 
-      <div className="space-y-3">
-        {!loading && recommendations.length === 0 && (
-          <div className="p-3 bg-black/20 rounded-xl border border-white/5 text-xs text-text-secondary">
-            {copy.empty}
-          </div>
-        )}
-
-        {recommendations.map((rec, i) =>
-        <div
-          key={i}
-          className="flex items-center justify-between p-3 bg-black/20 rounded-xl border border-white/5">
-
-            <span className="text-sm font-medium text-white">{rec.name}</span>
-            <div className="flex items-center gap-3">
-              <span className="text-xs text-text-tertiary">{rec.current}</span>
-              <ArrowUp size={12} className="text-text-tertiary" />
-              <span className="text-xs font-bold text-accent">{rec.next}</span>
+        <div className="space-y-3">
+          {!loading && recommendations.length === 0 && (
+            <div className="rounded-xl border border-white/5 bg-black/20 p-3 text-xs text-text-secondary">
+              {copy.empty}
             </div>
-          </div>
-        )}
+          )}
+
+          {recommendations.map((rec, index) => (
+            <div
+              key={index}
+              className="flex items-center justify-between rounded-xl border border-white/5 bg-black/20 p-3"
+            >
+              <span className="text-sm font-medium text-white">{rec.name}</span>
+              <div className="flex items-center gap-3">
+                <span className="text-xs text-text-tertiary">{rec.current}</span>
+                <ArrowUp size={12} className="text-text-tertiary" />
+                <span className="text-xs font-bold text-accent">{rec.next}</span>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <p className="mt-4 text-xs leading-relaxed text-text-secondary">
+          {sourceMode === 'plan' ? copy.footerPlan : copy.footerRecent}
+        </p>
       </div>
-
-      <p className="text-xs text-text-secondary mt-4 leading-relaxed">
-        {sourceMode === 'plan'
-          ? copy.footerPlan
-          : copy.footerRecent}
-      </p>
-    </Card>);
-
+    </Card>
+  );
 }

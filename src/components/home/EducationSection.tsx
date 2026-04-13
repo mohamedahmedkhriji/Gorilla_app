@@ -8,7 +8,7 @@ import {
   emojiRightArrow,
 } from '../../services/emojiTheme';
 import { getActiveLanguage, getStoredLanguage, pickLanguage } from '../../services/language';
-import { HOME_CARD_HOVER_CLASS, HOME_CARD_TITLE_CLASS } from './homeCardStyles';
+import { HOME_CARD_HOVER_CLASS, HOME_CARD_OVERLAY_CLASS, HOME_CARD_TITLE_CLASS } from './homeCardStyles';
 
 interface EducationSectionProps {
   onExercises: () => void;
@@ -77,11 +77,7 @@ export function EducationSection({
             aria-hidden="true"
           />
           <div
-            className="absolute inset-0 bg-gradient-to-r from-background/65 via-background/45 to-background/25"
-            aria-hidden="true"
-          />
-          <div
-            className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.05),transparent)] pointer-events-none"
+            className={HOME_CARD_OVERLAY_CLASS}
             aria-hidden="true"
           />
           <div className="relative z-10">
@@ -114,11 +110,7 @@ export function EducationSection({
             aria-hidden="true"
           />
           <div
-            className="absolute inset-0 bg-gradient-to-r from-background/65 via-background/45 to-background/25"
-            aria-hidden="true"
-          />
-          <div
-            className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.05),transparent)] pointer-events-none"
+            className={HOME_CARD_OVERLAY_CLASS}
             aria-hidden="true"
           />
           <div className="relative z-10">

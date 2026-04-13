@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { ProgressSteps } from '../ui/ProgressSteps';
 import { ArrowLeft } from 'lucide-react';
 import { useScrollToTopOnChange } from '../../shared/scroll';
+import { getActiveLanguage, getStoredLanguage } from '../../services/language';
 
 interface OnboardingLayoutProps {
   children: React.ReactNode;
@@ -26,9 +27,11 @@ export function OnboardingLayout({
   showProgress = true,
 }: OnboardingLayoutProps) {
   useScrollToTopOnChange([currentStep]);
+  const language = getActiveLanguage(getStoredLanguage());
+  const isArabic = language === 'ar';
 
   return (
-    <div className="min-h-screen px-4 py-6 sm:px-6 relative overflow-hidden">
+    <div dir={isArabic ? 'rtl' : 'ltr'} className="min-h-screen px-4 py-6 sm:px-6 relative overflow-hidden">
       <div className="pointer-events-none absolute -top-20 -right-16 h-56 w-56 rounded-full blur-3xl bg-info/25" />
       <div className="pointer-events-none absolute -bottom-24 -left-12 h-64 w-64 rounded-full blur-3xl bg-accent/20" />
 
@@ -38,9 +41,9 @@ export function OnboardingLayout({
             {showBack && onBack && (
               <button
                 onClick={onBack}
-                className="absolute left-0 w-10 h-10 rounded-xl surface-glass flex items-center justify-center text-text-secondary hover:text-text-primary transition-colors"
+                className={`absolute ${isArabic ? 'right-0' : 'left-0'} w-10 h-10 rounded-xl surface-glass flex items-center justify-center text-text-secondary hover:text-text-primary transition-colors`}
               >
-                <ArrowLeft size={18} />
+                <ArrowLeft size={18} className={isArabic ? 'rotate-180' : ''} />
               </button>
             )}
 
@@ -55,7 +58,7 @@ export function OnboardingLayout({
             key={currentStep}
             initial={{
               opacity: 0,
-              x: 20,
+              x: isArabic ? -20 : 20,
             }}
             animate={{
               opacity: 1,
@@ -63,7 +66,7 @@ export function OnboardingLayout({
             }}
             exit={{
               opacity: 0,
-              x: -20,
+              x: isArabic ? 20 : -20,
             }}
             transition={{
               duration: 0.3,

@@ -1405,7 +1405,7 @@ export const api = {
     );
   },
 
-  getLeaderboard: async (userId: number, period: 'monthly' | 'alltime' = 'alltime') => {
+  getLeaderboard: async (userId: number, period: 'weekly' | 'monthly' | 'alltime' = 'alltime') => {
     return withOfflineReadFallback(
       offlineCacheKeys.leaderboard(userId, period),
       async () => {
@@ -1417,6 +1417,11 @@ export const api = {
         return data;
       },
     );
+  },
+
+  getUserRank: async (userId: number) => {
+    const res = await fetch(`${API_URL}/user-rank/${userId}`);
+    return parseApiResponse(res, 'Failed to fetch user rank');
   },
 
   updateProfilePicture: async (userId: number, profilePicture: string) => {

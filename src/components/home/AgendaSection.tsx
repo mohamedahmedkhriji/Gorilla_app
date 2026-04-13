@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { X, Check, CalendarX2 } from 'lucide-react';
+import { HOME_CARD_OVERLAY_CLASS } from './homeCardStyles';
 import { formatWorkoutDayLabel, formatWorkoutDayShortLabel, normalizeWorkoutDayKey } from '../../services/workoutDayLabel';
 import { emojiAgenda, emojiDoneDayBg, emojiMissedDayBg } from '../../services/emojiTheme';
 import doneDayIcon from '../../../assets/emoji/done day.png';
@@ -483,7 +484,7 @@ export function AgendaSection({
         />
         {showGradientOverlay && (
           <div
-            className="pointer-events-none absolute inset-0 bg-gradient-to-r from-background/65 via-background/45 to-background/25"
+            className={`pointer-events-none ${HOME_CARD_OVERLAY_CLASS}`}
             aria-hidden="true"
           />
         )}

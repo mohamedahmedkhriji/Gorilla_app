@@ -9,6 +9,7 @@ import { WorkoutPlanScreen } from '../components/workout/WorkoutPlanScreen';
 import { TrackerScreen } from '../components/workout/TrackerScreen';
 import { PresetProgramScreen } from '../components/profile/PresetProgramScreen';
 import { CustomPlanBuilderScreen } from '../components/profile/CustomPlanBuilderScreen';
+import { DeltaFeedbackOverlay } from '../components/gamification/GamificationCards';
 import { api } from '../services/api';
 import {
   getCoachmarkUserScope,
@@ -36,10 +37,12 @@ import { offlineCacheKeys, readOfflineCacheValue } from '../services/offlineCach
 import { OPEN_PICKED_WORKOUT_PLAN } from '../services/workoutNavigation';
 import { getActiveT2PremiumConfig } from '../services/premiumPlan';
 import { stripExercisePrefix } from '../services/exerciseName';
+import { normalizeGamificationDelta } from '../services/gamificationEvents';
 import { useScrollToTopOnChange } from '../shared/scroll';
 import { useScreenshotProtection } from '../shared/useScreenshotProtection';
 import { normalizeExerciseVideoLookup } from '../shared/exerciseVideoManifest.js';
 import { ScreenTransition, getNavigationDirection } from '../components/ui/ScreenTransition';
+import type { GamificationDelta } from '../types/gamification';
 
 interface WorkoutProps {
   onBack: () => void;
@@ -861,6 +864,7 @@ export function Workout({
   const [summary, setSummary] = useState<WorkoutDaySummaryData | null>(null);
   const [summaryLoading, setSummaryLoading] = useState(false);
   const [summaryError, setSummaryError] = useState<string | null>(null);
+  const [gamificationDelta, setGamificationDelta] = useState<GamificationDelta | null>(null);
   const [hasLatestSummary, setHasLatestSummary] = useState(false);
   const [lastAutoSummaryKey, setLastAutoSummaryKey] = useState('');
   const [postedSummaryTokens, setPostedSummaryTokens] = useState<string[]>([]);
@@ -2227,7 +2231,7 @@ export function Workout({
       let didPersistWorkoutSession = false;
 
       try {
-        await api.completeWorkoutDaySession({
+        const sessionResponse = await api.completeWorkoutDaySession({
           userId,
           summaryDate: payload.summaryDate,
           workoutName: payload.workoutName,
@@ -2235,8 +2239,15 @@ export function Workout({
           muscles: payload.muscles,
           exercises: payload.exercises,
         });
+        const normalizedDelta = normalizeGamificationDelta(sessionResponse?.progression);
+        setGamificationDelta(normalizedDelta);
         didPersistWorkoutSession = true;
-        window.dispatchEvent(new CustomEvent('gamification-updated'));
+        window.dispatchEvent(new CustomEvent('gamification-updated', {
+          detail: {
+            delta: normalizedDelta,
+            source: 'workout_complete',
+          },
+        }));
       } catch (sessionError) {
         console.error('Failed to finalize workout session:', sessionError);
       }
@@ -2575,9 +2586,12 @@ export function Workout({
   );
 
   const renderTransitionedView = (content: React.ReactNode) => (
-    <ScreenTransition screenKey={view} direction={workoutMotionDirection}>
-      {content}
-    </ScreenTransition>
+    <>
+      <ScreenTransition screenKey={view} direction={workoutMotionDirection}>
+        {content}
+      </ScreenTransition>
+      <DeltaFeedbackOverlay delta={gamificationDelta} onClose={() => setGamificationDelta(null)} />
+    </>
   );
 
   if (view === 'presetPlans') {

@@ -7,6 +7,7 @@ import {
   localizeExperienceLevel,
   localizeWorkoutSplitOptions,
 } from './onboardingI18n';
+import { normalizeLocalizedValue } from '../../services/language';
 
 interface WorkoutSplitScreenProps {
   onNext: () => void;
@@ -31,6 +32,7 @@ const COPY = {
     customBadge: '\u0625\u0646\u0634\u0627\u0621 + \u0645\u0644\u0627\u062d\u0638\u0627\u062a \u0627\u0644\u0630\u0643\u0627\u0621 \u0627\u0644\u0627\u0635\u0637\u0646\u0627\u0639\u064a',
     recommendedBadge: '\u0645\u0648\u0635\u0649 \u0628\u0647 \u0644\u0643',
     cta: '\u0627\u0644\u062e\u0637\u0648\u0629 \u0627\u0644\u062a\u0627\u0644\u064a\u0629',
+    altCta: '\u0639\u0631\u0636 \u0627\u0644\u062e\u064a\u0627\u0631\u0627\u062a \u0627\u0644\u0623\u062e\u0631\u0649',
     summary: (days: number, level: string, profile: string) =>
       `\u0628\u0646\u0627\u0621\u064b \u0639\u0644\u0649 ${days} \u064a\u0648\u0645 \u062a\u062f\u0631\u064a\u0628\u060c \u0648\u0645\u0633\u062a\u0648\u0649 ${level}\u060c \u0648\u0645\u0644\u0641 ${profile}\u060c \u0647\u0630\u0647 \u0623\u0641\u0636\u0644 \u0627\u0644\u062e\u064a\u0627\u0631\u0627\u062a \u0644\u0643.`,
   },
@@ -39,6 +41,7 @@ const COPY = {
     customBadge: 'Crea + feedback AI',
     recommendedBadge: 'Consigliato per te',
     cta: 'Prossimo passo',
+    altCta: 'Vedi altre opzioni',
     summary: (days: number, level: string, profile: string) =>
       `In base a ${days} giorn${days > 1 ? 'i' : 'o'} di allenamento, livello ${level} e profilo ${profile}, queste sono le opzioni migliori per te.`,
   },
@@ -47,6 +50,7 @@ const COPY = {
     customBadge: 'Erstellen + KI-Feedback',
     recommendedBadge: 'Empfohlen fuer dich',
     cta: 'Naechster Schritt',
+    altCta: 'Weitere Optionen ansehen',
     summary: (days: number, level: string, profile: string) =>
       `Basierend auf ${days} Trainingstag${days > 1 ? 'en' : ''}, Level ${level} und Profil ${profile} sind das deine besten Optionen.`,
   },
@@ -55,6 +59,7 @@ const COPY = {
     customBadge: 'Creer + retour IA',
     recommendedBadge: 'Recommande pour toi',
     cta: 'Etape suivante',
+    altCta: 'Voir les autres options',
     summary: (days: number, level: string, profile: string) =>
       `Avec ${days} jour${days > 1 ? 's' : ''} d entrainement, un niveau ${level} et un profil ${profile}, voici les options les plus adaptees.`,
   },
@@ -414,7 +419,9 @@ const personalizeSplitOptions = (
   if (!isFitnessTrack || (!isFemale && !isMale)) return options;
 
   if (isMale) {
-    const copy = MALE_SPLIT_COPY[language as keyof typeof MALE_SPLIT_COPY] ?? MALE_SPLIT_COPY.en;
+    const copy = normalizeLocalizedValue(
+      MALE_SPLIT_COPY[language as keyof typeof MALE_SPLIT_COPY] ?? MALE_SPLIT_COPY.en,
+    );
 
     return options.map((option) => {
       if (option.id === 'auto') {
@@ -440,7 +447,9 @@ const personalizeSplitOptions = (
   const femaleGoal = resolveFemaleRecommendationKey(onboardingData);
   const level = String(onboardingData?.experienceLevel || '').trim().toLowerCase();
   const isIntermediatePlus = level === 'intermediate' || level === 'advanced';
-  const copy = FEMALE_SPLIT_COPY[language as keyof typeof FEMALE_SPLIT_COPY] ?? FEMALE_SPLIT_COPY.en;
+  const copy = normalizeLocalizedValue(
+    FEMALE_SPLIT_COPY[language as keyof typeof FEMALE_SPLIT_COPY] ?? FEMALE_SPLIT_COPY.en,
+  );
 
   return options.map((option) => {
     if (option.id === 'auto') {
@@ -477,6 +486,7 @@ export function WorkoutSplitScreen({
   recommendedByDays,
 }: WorkoutSplitScreenProps) {
   const language = getOnboardingLanguage();
+  const isArabic = language === 'ar';
   const copy = COPY[language as keyof typeof COPY] ?? COPY.en;
   const profileCopy = PROFILE_COPY[language as keyof typeof PROFILE_COPY] ?? PROFILE_COPY.en;
   const splitOptions = options?.length
@@ -560,8 +570,8 @@ export function WorkoutSplitScreen({
   const alternativeOptions = availableOptions.filter((option) => option.id !== recommendedId);
 
   return (
-    <div className="flex-1 flex flex-col space-y-6">
-      <div className="space-y-2">
+    <div dir={isArabic ? 'rtl' : 'ltr'} className="flex-1 flex flex-col space-y-6">
+      <div className={`space-y-2 ${isArabic ? 'text-right' : 'text-left'}`}>
         <h2 className="text-2xl font-light text-white">{copy.title}</h2>
         <p className="text-text-secondary">{copy.summary(trainingDays, levelLabel, profileLabel)}</p>
       </div>
@@ -574,9 +584,9 @@ export function WorkoutSplitScreen({
               setSelectedId(recommendedOption.id);
               persistSelection(recommendedOption.id);
             }}
-            className="w-full rounded-xl border border-accent/40 bg-accent/12 p-4 text-left transition-colors"
+            className={`w-full rounded-xl border border-accent/40 bg-accent/12 p-4 transition-colors ${isArabic ? 'text-right' : 'text-left'}`}
           >
-            <div className="flex items-start justify-between gap-3">
+            <div className={`flex items-start justify-between gap-3 ${isArabic ? 'flex-row-reverse' : ''}`}>
               <div className="space-y-1">
                 <span className="inline-flex items-center rounded-full bg-accent px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-black">
                   {copy.recommendedBadge}
@@ -606,13 +616,13 @@ export function WorkoutSplitScreen({
                       advanceToNextStep();
                     }
                   }}
-                  className={`w-full rounded-xl border p-4 text-left transition-colors ${
+                  className={`w-full rounded-xl border p-4 transition-colors ${isArabic ? 'text-right' : 'text-left'} ${
                     isSelected
                       ? 'bg-accent/12 border-accent text-white'
                       : 'bg-card border-white/10 text-text-secondary hover:bg-white/5'
                   }`}
                 >
-                  <div className="flex items-start justify-between gap-3">
+                  <div className={`flex items-start justify-between gap-3 ${isArabic ? 'flex-row-reverse' : ''}`}>
                     <div className="space-y-1">
                       {option.id === 'custom' && (
                         <span className="inline-flex items-center rounded-full bg-accent/20 text-accent px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide">

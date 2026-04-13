@@ -7,7 +7,7 @@ import FeedHeader from '../components/feed/FeedHeader';
 import CategoryFilters from '../components/feed/CategoryFilters';
 import PostSkeleton from '../components/feed/PostSkeleton';
 import { getStoredAppUser, getStoredUserId } from '../shared/authStorage';
-import { AppLanguage, getActiveLanguage, getStoredLanguage } from '../services/language';
+import { AppLanguage, getActiveLanguage, getStoredLanguage, pickLanguage } from '../services/language';
 import { offlineCacheKeys, readOfflineCacheValue } from '../services/offlineCache';
 import { BLOGS_COACHMARK_TOUR_ID, BLOGS_COACHMARK_VERSION, getCoachmarkUserScope, patchCoachmarkProgress, readCoachmarkProgress } from '../services/coachmarks';
 import { useScreenshotProtection } from '../shared/useScreenshotProtection';
@@ -118,6 +118,7 @@ const enCopy = {
   save: 'Save post',
   saved: 'Saved',
   share: 'Share',
+  reply: 'Reply',
   replyLabel: 'Replying to',
   views: 'views',
 } as const;
@@ -130,6 +131,93 @@ const BLOGS_I18N: Record<AppLanguage, BlogCopy> = {
   it: { ...enCopy, feedSubtitle: 'Scopri contenuti su allenamento, nutrizione e recupero', tabs: { 'For You': 'Per te', Following: 'Seguiti', Latest: 'Ultimi' } },
   fr: { ...enCopy, feedSubtitle: 'Decouvre du contenu sur l entrainement, la nutrition et la recuperation', tabs: { 'For You': 'Pour toi', Following: 'Abonnements', Latest: 'Recents' } },
   de: { ...enCopy, feedSubtitle: 'Entdecke Inhalte zu Training, Ernaehrung und Regeneration', tabs: { 'For You': 'Fuer dich', Following: 'Gefolgt', Latest: 'Neueste' } },
+};
+
+const BLOGS_COPY_OVERRIDES: Partial<Record<AppLanguage, Partial<BlogCopy>>> = {
+  ar: {
+    feedTitle: 'الخلاصة',
+    feedSubtitle: 'اكتشف محتوى التدريب والتغذية والاستشفاء',
+    tabs: { 'For You': 'لك', Following: 'المتابَعون', Latest: 'الأحدث' },
+    refreshFeedAria: 'تحديث الخلاصة',
+    createPostAria: 'إنشاء منشور جديد',
+    categories: { All: 'الكل', Women: 'نساء', Training: 'تدريب', Nutrition: 'تغذية', Recovery: 'استشفاء', Mindset: 'عقلية' },
+    noPosts: 'لا توجد منشورات بعد. اضغط + لإضافة أول منشور.',
+    noCategoryPosts: (categoryLabel: string) => `لا توجد منشورات ${categoryLabel} في هذه الخلاصة حتى الآن.`,
+    showAllCategories: 'عرض الكل',
+    womenOnly: 'للنساء فقط',
+    newPostTitle: 'منشور جديد',
+    newPostPlaceholder: 'شارك تحديثك...',
+    uploadMedia: 'رفع صورة',
+    publish: 'نشر المنشور',
+    commentsTitle: 'التعليقات',
+    noComments: 'لا توجد تعليقات بعد. أضف تعليقًا بالأسفل.',
+    addCommentPlaceholder: 'أضف تعليقًا...',
+    errorLoadFeed: 'تعذر تحميل الخلاصة',
+    errorLoadMore: 'تعذر تحميل المزيد من المنشورات',
+    errorLoadComments: 'تعذر تحميل التعليقات',
+    errorPublish: 'تعذر نشر المنشور',
+    maxTwoCategories: 'اختر فئتين كحد أقصى',
+    reply: 'رد',
+    replyLabel: 'الرد على',
+  },
+  it: {
+    refreshFeedAria: 'Aggiorna feed',
+    createPostAria: 'Crea un nuovo post',
+    categories: { All: 'Tutti', Women: 'Donne', Training: 'Allenamento', Nutrition: 'Nutrizione', Recovery: 'Recupero', Mindset: 'Mentalita' },
+    noPosts: 'Nessun post ancora. Tocca + per aggiungere il primo post.',
+    noCategoryPosts: (categoryLabel: string) => `Ancora nessun post ${categoryLabel.toLowerCase()} in questo feed.`,
+    showAllCategories: 'Mostra tutto',
+    womenOnly: 'Solo donne',
+    newPostTitle: 'Nuovo post',
+    newPostPlaceholder: 'Condividi il tuo aggiornamento...',
+    uploadMedia: 'Carica immagine',
+    publish: 'Pubblica post',
+    commentsTitle: 'Commenti',
+    errorLoadFeed: 'Impossibile caricare il feed',
+    errorLoadMore: 'Impossibile caricare altri post',
+    maxTwoCategories: 'Scegli fino a 2 categorie',
+    reply: 'Rispondi',
+    replyLabel: 'Risposta a',
+  },
+  fr: {
+    feedTitle: 'Fil',
+    refreshFeedAria: 'Actualiser le fil',
+    createPostAria: 'Creer une nouvelle publication',
+    categories: { All: 'Tout', Women: 'Femmes', Training: 'Entrainement', Nutrition: 'Nutrition', Recovery: 'Recuperation', Mindset: 'Mental' },
+    noPosts: 'Aucune publication pour le moment. Appuie sur + pour ajouter la premiere.',
+    noCategoryPosts: (categoryLabel: string) => `Aucune publication ${categoryLabel.toLowerCase()} dans ce fil pour le moment.`,
+    showAllCategories: 'Tout afficher',
+    womenOnly: 'Femmes uniquement',
+    newPostTitle: 'Nouvelle publication',
+    newPostPlaceholder: 'Partage ta mise a jour...',
+    uploadMedia: 'Televerser une image',
+    publish: 'Publier',
+    commentsTitle: 'Commentaires',
+    errorLoadFeed: 'Impossible de charger le fil',
+    errorLoadMore: 'Impossible de charger plus de publications',
+    maxTwoCategories: 'Choisis jusqu a 2 categories',
+    reply: 'Repondre',
+    replyLabel: 'Reponse a',
+  },
+  de: {
+    refreshFeedAria: 'Feed aktualisieren',
+    createPostAria: 'Neuen Beitrag erstellen',
+    categories: { All: 'Alle', Women: 'Frauen', Training: 'Training', Nutrition: 'Ernaehrung', Recovery: 'Erholung', Mindset: 'Mindset' },
+    noPosts: 'Noch keine Beitraege. Tippe auf +, um deinen ersten Beitrag zu erstellen.',
+    noCategoryPosts: (categoryLabel: string) => `Noch keine ${categoryLabel.toLowerCase()}-Beitraege in diesem Feed.`,
+    showAllCategories: 'Alle anzeigen',
+    womenOnly: 'Nur fuer Frauen',
+    newPostTitle: 'Neuer Beitrag',
+    newPostPlaceholder: 'Teile dein Update...',
+    uploadMedia: 'Bild hochladen',
+    publish: 'Beitrag veroeffentlichen',
+    commentsTitle: 'Kommentare',
+    errorLoadFeed: 'Feed konnte nicht geladen werden',
+    errorLoadMore: 'Weitere Beitraege konnten nicht geladen werden',
+    maxTwoCategories: 'Waehle bis zu 2 Kategorien',
+    reply: 'Antworten',
+    replyLabel: 'Antwort an',
+  },
 };
 
 const toCount = (value: unknown) => {
@@ -269,6 +357,13 @@ const readNumberSet = (key: string) => {
 const writeNumberSet = (key: string, value: Set<number>) => localStorage.setItem(key, JSON.stringify(Array.from(value)));
 const getUserProfileImage = () => String(getStoredAppUser()?.profile_picture || getStoredAppUser()?.profile_photo || '').trim();
 const getUserGender = () => String(getStoredAppUser()?.gender || '').trim().toLowerCase();
+const SENSITIVE_SERVER_ERROR_PATTERN = /(unknown column|field list|sql|database|syntax|sqlite|mysql|postgres|column)/i;
+const toUserFacingError = (error: unknown, fallback: string) => {
+  if (!(error instanceof Error)) return fallback;
+  const message = String(error.message || '').trim();
+  if (!message || SENSITIVE_SERVER_ERROR_PATTERN.test(message)) return fallback;
+  return message;
+};
 
 export function Blogs({ guidedTourActive = false, onGuidedTourComplete, onGuidedTourDismiss }: BlogsProps) {
   useScreenshotProtection();
@@ -277,7 +372,10 @@ export function Blogs({ guidedTourActive = false, onGuidedTourComplete, onGuided
   const userProfileImage = useMemo(() => getUserProfileImage(), []);
   const coachmarkScope = useMemo(() => getCoachmarkUserScope(getStoredAppUser()), []);
   const [language, setLanguage] = useState<AppLanguage>('en');
-  const copy = BLOGS_I18N[language] || BLOGS_I18N.en;
+  const copy = useMemo(
+    () => ({ ...pickLanguage(language, BLOGS_I18N), ...(BLOGS_COPY_OVERRIDES[language] || {}) }),
+    [language],
+  );
   const isArabic = language === 'ar';
   const [posts, setPosts] = useState<Post[]>([]);
   const [loading, setLoading] = useState(true);
@@ -488,7 +586,7 @@ export function Blogs({ guidedTourActive = false, onGuidedTourComplete, onGuided
       await api.deleteBlogPost(postId, userId);
       removePostFromView(postId);
     } catch (err) {
-      setError(err instanceof Error ? err.message : copy.errorDeletePost);
+      setError(toUserFacingError(err, copy.errorDeletePost));
     }
   }, [copy.errorDeletePost, removePostFromView, userId]);
 
@@ -525,7 +623,7 @@ export function Blogs({ guidedTourActive = false, onGuidedTourComplete, onGuided
       setNextCursor(response.cursor);
       setHasMore(response.hasMore);
     } catch (err) {
-      setError(err instanceof Error ? err.message : copy.errorLoadFeed);
+      setError(toUserFacingError(err, copy.errorLoadFeed));
     } finally {
       if (mode === 'initial') setLoading(false);
       if (mode === 'refresh') setRefreshing(false);
@@ -542,7 +640,7 @@ export function Blogs({ guidedTourActive = false, onGuidedTourComplete, onGuided
       setNextCursor(response.cursor);
       setHasMore(response.hasMore);
     } catch (err) {
-      setError(err instanceof Error ? err.message : copy.errorLoadMore);
+      setError(toUserFacingError(err, copy.errorLoadMore));
     } finally {
       setLoadingMore(false);
     }
@@ -613,7 +711,7 @@ export function Blogs({ guidedTourActive = false, onGuidedTourComplete, onGuided
       const post = posts.find((item) => item.id === postId);
       if (post) markAuthorEngaged(post.userId);
     } catch (err) {
-      setError(err instanceof Error ? err.message : copy.errorUpdateLike);
+      setError(toUserFacingError(err, copy.errorUpdateLike));
     }
   }, [copy.errorUpdateLike, markAuthorEngaged, posts, userId]);
 
@@ -633,7 +731,7 @@ export function Blogs({ guidedTourActive = false, onGuidedTourComplete, onGuided
       setCommentsByPost((prev) => ({ ...prev, [postId]: comments }));
       setPosts((prev) => prev.map((post) => (post.id === postId ? { ...post, comments: comments.length, latestCommentAvatarUrl } : post)));
     } catch (err) {
-      setCommentError(err instanceof Error ? err.message : copy.errorLoadComments);
+      setCommentError(toUserFacingError(err, copy.errorLoadComments));
     } finally {
       setCommentsLoading(false);
     }
@@ -736,7 +834,7 @@ export function Blogs({ guidedTourActive = false, onGuidedTourComplete, onGuided
       setReplyToComment(null);
       setCommentError('');
     } catch (err) {
-      setCommentError(err instanceof Error ? err.message : copy.errorPostComment);
+      setCommentError(toUserFacingError(err, copy.errorPostComment));
     }
   }, [activeCommentsPostId, commentsByPost, copy.commentRequired, copy.errorPostComment, getLatestCommentAvatarUrl, markAuthorEngaged, newCommentText, posts, replyToComment, userId]);
 
@@ -837,7 +935,7 @@ export function Blogs({ guidedTourActive = false, onGuidedTourComplete, onGuided
       setNewWomenOnly(false);
       setIsCreateOpen(false);
     } catch (err) {
-      setCreateError(err instanceof Error ? err.message : copy.errorPublish);
+      setCreateError(toUserFacingError(err, copy.errorPublish));
     } finally {
       setIsPublishing(false);
     }
@@ -855,7 +953,7 @@ export function Blogs({ guidedTourActive = false, onGuidedTourComplete, onGuided
   }, []);
 
   return (
-    <div className="blogs-page relative flex min-h-screen flex-1 flex-col pb-24">
+    <div dir={isArabic ? 'rtl' : 'ltr'} className="blogs-page relative flex min-h-screen flex-1 flex-col pb-24">
       <FeedPage
         header={<FeedHeader onRefresh={() => { void loadInitialFeed('refresh'); }} onCreate={() => { setIsCreateOpen(true); setCreateError(''); }} refreshAria={copy.refreshFeedAria} createAria={copy.createPostAria} refreshing={refreshing} />}
         filters={<CategoryFilters filters={categoryFilters} activeCategory={activeCategory} onSelect={selectCategory} getLabel={getCategoryLabel} getCount={(category) => categoryCounts[category]} />}
@@ -1011,7 +1109,7 @@ export function Blogs({ guidedTourActive = false, onGuidedTourComplete, onGuided
                   <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-center gap-2 text-sm"><span className="font-semibold text-text-primary">{getAuthorName(comment.authorName)}</span><span className="text-[11px] text-text-tertiary">{getPostedAgo(comment.createdAt, copy, true)}</span></div>
                     <div className="mt-1 text-sm leading-6 text-text-primary">{comment.text}</div>
-                    <button type="button" className="mt-2 text-[11px] text-accent transition-colors hover:text-text-primary" onClick={() => { const name = getAuthorName(comment.authorName); const prefix = `@${name}`; setReplyToComment({ id: comment.id, name }); setNewCommentText((prev) => prev.trim().startsWith(prefix) ? prev : `${prefix} `); requestAnimationFrame(() => { commentInputRef.current?.focus(); }); }}>Reply</button>
+                    <button type="button" className="mt-2 text-[11px] text-accent transition-colors hover:text-text-primary" onClick={() => { const name = getAuthorName(comment.authorName); const prefix = `@${name}`; setReplyToComment({ id: comment.id, name }); setNewCommentText((prev) => prev.trim().startsWith(prefix) ? prev : `${prefix} `); requestAnimationFrame(() => { commentInputRef.current?.focus(); }); }}>{copy.reply}</button>
                   </div>
                 </div>
               ))}

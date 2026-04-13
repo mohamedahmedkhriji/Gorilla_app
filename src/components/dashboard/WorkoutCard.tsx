@@ -3,6 +3,7 @@ import { motion } from 'framer-motion';
 import { Clock3 } from 'lucide-react';
 import { emojiGymWallpaper, emojiRestDayBg } from '../../services/emojiTheme';
 import { AppLanguage, getActiveLanguage, getStoredLanguage, pickLanguage, repairMojibakeText } from '../../services/language';
+import { HOME_CARD_OVERLAY_CLASS } from '../home/homeCardStyles';
 
 type WorkoutExercise = {
   exerciseName?: unknown;
@@ -545,12 +546,8 @@ export function WorkoutCard({
         aria-hidden="true"
       />
       <div
-        className="absolute inset-0 bg-gradient-to-r from-background/65 via-background/45 to-background/25"
+        className={HOME_CARD_OVERLAY_CLASS}
         data-coachmark-target={coachmarkGradientTargetId}
-        aria-hidden="true"
-      />
-      <div
-        className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.05),transparent)] pointer-events-none"
         aria-hidden="true"
       />
 

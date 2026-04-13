@@ -3,10 +3,13 @@ import { ChevronRight, Trophy } from 'lucide-react';
 import { Header } from '../ui/Header';
 import { Card } from '../ui/Card';
 import { LeaderboardScreen } from './LeaderboardScreen';
+import { InsightStack, NextActionCard, TriggerPills } from '../gamification/GamificationCards';
 import { api } from '../../services/api';
+import { normalizeGamificationSummary } from '../../services/gamificationEvents';
 import { offlineCacheKeys, readOfflineCacheValue } from '../../services/offlineCache';
 import { getRankBadgeImage } from '../../services/rankTheme';
-import { AppLanguage, LocalizedLanguageRecord, getActiveLanguage, getLanguageLocale, pickLanguage } from '../../services/language';
+import { LocalizedLanguageRecord, getActiveLanguage, getLanguageLocale, pickLanguage } from '../../services/language';
+import type { GamificationSummaryResponse } from '../../types/gamification';
 import {
   emojiChallenges,
   emojiDone,
@@ -289,19 +292,6 @@ const isNewWithin24Hours = (dateValue?: string | null) => {
   return Date.now() - timestamp <= NEW_ITEM_WINDOW_MS;
 };
 
-const CATEGORY_PROGRESS_SEGMENT_COLORS = [
-  'rgb(233, 233, 12)',
-  'rgb(208, 233, 12)',
-  'rgb(184, 233, 12)',
-  'rgb(159, 233, 12)',
-  'rgb(135, 233, 12)',
-  'rgb(110, 233, 12)',
-  'rgb(86, 233, 12)',
-  'rgb(61, 233, 12)',
-  'rgb(37, 233, 12)',
-  'rgb(12, 233, 12)',
-];
-
 function CardLoadingSkeleton({ tone = 'accent' }: { tone?: 'accent' | 'blue' }) {
   const barTone = tone === 'blue' ? 'bg-blue-400/45' : 'bg-accent/45';
   return (
@@ -563,6 +553,93 @@ export function RankingsRewardsScreen({ onBack }: RankingsRewardsScreenProps) {
       categoryEngagement: 'Engagement',
     },
   });
+  const experienceCopy = pickLanguage(language, {
+    en: {
+      heroLabel: 'Current rank',
+      rankProgress: (current: number, target: number, rank: string) => `${current} / ${target} pts to ${rank}`,
+      nextStepLabel: 'Your next step',
+      nextStepStarter: 'Complete 1 mission to start climbing the ranks.',
+      nextStepMomentum: (category: string) => `Complete 1 ${category.toLowerCase()} mission to keep progressing.`,
+      nextStepFallback: 'Open a dashboard card to review active missions and recent wins.',
+      nextStepHint: 'Rewards move faster when you stack consistent actions.',
+      sectionHint: 'Track where you are winning and where to push next.',
+      progressSummary: (completed: number, total: number) => `${completed} / ${total} completed`,
+      emptyProgress: 'No tracked items yet',
+      cardStatus: (active: number, completed: number) => {
+        if (active > 0) return `${active} active now`;
+        if (completed > 0) return 'Completed items are holding your momentum';
+        return 'No active items yet';
+      },
+    },
+    ar: {
+      heroLabel: 'رتبتك الحالية',
+      rankProgress: (current: number, target: number, rank: string) => `${current} / ${target} نقطة للوصول إلى ${rank}`,
+      nextStepLabel: 'خطوتك التالية',
+      nextStepStarter: 'أكمل مهمة واحدة لتبدأ الصعود.',
+      nextStepMomentum: (category: string) => `أكمل مهمة واحدة في ${category} لتواصل التقدم.`,
+      nextStepFallback: 'افتح بطاقة من لوحة الأداء لمراجعة المهام النشطة وآخر الإنجازات.',
+      nextStepHint: 'المكافآت تتحرك أسرع عندما تحافظ على الاستمرارية.',
+      sectionHint: 'تابع أين تتقدم وأين يجب أن تضغط أكثر.',
+      progressSummary: (completed: number, total: number) => `${completed} / ${total} مكتمل`,
+      emptyProgress: 'لا توجد عناصر متتبعة بعد',
+      cardStatus: (active: number, completed: number) => {
+        if (active > 0) return `${active} نشط الآن`;
+        if (completed > 0) return 'العناصر المكتملة تحافظ على زخمك';
+        return 'لا توجد عناصر نشطة بعد';
+      },
+    },
+    it: {
+      heroLabel: 'Rango attuale',
+      rankProgress: (current: number, target: number, rank: string) => `${current} / ${target} pt per ${rank}`,
+      nextStepLabel: 'Il tuo prossimo passo',
+      nextStepStarter: 'Completa 1 missione per iniziare a salire di rango.',
+      nextStepMomentum: (category: string) => `Completa 1 missione di ${category.toLowerCase()} per continuare a progredire.`,
+      nextStepFallback: 'Apri una card della dashboard per rivedere missioni attive e vittorie recenti.',
+      nextStepHint: 'Le ricompense arrivano piu in fretta con costanza.',
+      sectionHint: 'Controlla dove stai vincendo e dove spingere di piu.',
+      progressSummary: (completed: number, total: number) => `${completed} / ${total} completate`,
+      emptyProgress: 'Nessun elemento monitorato',
+      cardStatus: (active: number, completed: number) => {
+        if (active > 0) return `${active} attive ora`;
+        if (completed > 0) return 'Gli elementi completati sostengono il tuo slancio';
+        return 'Nessun elemento attivo';
+      },
+    },
+    de: {
+      heroLabel: 'Aktueller Rang',
+      rankProgress: (current: number, target: number, rank: string) => `${current} / ${target} Pkt bis ${rank}`,
+      nextStepLabel: 'Dein naechster Schritt',
+      nextStepStarter: 'Schliesse 1 Mission ab, um mit dem Aufstieg zu starten.',
+      nextStepMomentum: (category: string) => `Schliesse 1 ${category.toLowerCase()}-Mission ab, um weiterzukommen.`,
+      nextStepFallback: 'Oeffne eine Dashboard-Karte, um aktive Missionen und letzte Erfolge zu sehen.',
+      nextStepHint: 'Belohnungen kommen schneller, wenn du konstant bleibst.',
+      sectionHint: 'Sieh sofort, wo du gewinnst und wo du als Naechstes pushen solltest.',
+      progressSummary: (completed: number, total: number) => `${completed} / ${total} abgeschlossen`,
+      emptyProgress: 'Noch keine getrackten Eintraege',
+      cardStatus: (active: number, completed: number) => {
+        if (active > 0) return `${active} gerade aktiv`;
+        if (completed > 0) return 'Abgeschlossene Aufgaben tragen dein Momentum';
+        return 'Noch keine aktiven Eintraege';
+      },
+    },
+    fr: {
+      heroLabel: 'Rang actuel',
+      rankProgress: (current: number, target: number, rank: string) => `${current} / ${target} pts pour ${rank}`,
+      nextStepLabel: 'Ta prochaine etape',
+      nextStepStarter: 'Termine 1 mission pour commencer a grimper.',
+      nextStepMomentum: (category: string) => `Termine 1 mission de ${category.toLowerCase()} pour continuer a progresser.`,
+      nextStepFallback: 'Ouvre une carte du tableau pour voir tes missions actives et tes dernieres victoires.',
+      nextStepHint: 'Les recompenses arrivent plus vite avec de la regularite.',
+      sectionHint: 'Vois tout de suite ou tu progresses et ou pousser ensuite.',
+      progressSummary: (completed: number, total: number) => `${completed} / ${total} termines`,
+      emptyProgress: 'Aucun element suivi pour le moment',
+      cardStatus: (active: number, completed: number) => {
+        if (active > 0) return `${active} actifs maintenant`;
+        if (completed > 0) return 'Les elements termines entretiennent ton elan';
+        return 'Aucun element actif';
+      },
+    },
+  });
 
   const translateText = (value: string, map: Record<string, LocalizedLanguageRecord<string>>) => {
     const key = value.trim().toLowerCase();
@@ -590,6 +667,7 @@ export function RankingsRewardsScreen({ onBack }: RankingsRewardsScreenProps) {
     rank: 'Bronze',
     nextRank: null,
   });
+  const [gamificationSummary, setGamificationSummary] = useState<GamificationSummaryResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [selectedCategory, setSelectedCategory] = useState<DashboardCategory>('consistency');
   const [showCategoryDetail, setShowCategoryDetail] = useState(false);
@@ -612,11 +690,13 @@ export function RankingsRewardsScreen({ onBack }: RankingsRewardsScreenProps) {
       if (cachedChallenges && Array.isArray(cachedChallenges.weekly)) setWeeklyChallenges(cachedChallenges.weekly);
       if (Array.isArray(cachedChallengeHistory)) setChallengeHistory(cachedChallengeHistory);
       if (cachedSummary && !cachedSummary.error) {
+        const normalizedSummary = normalizeGamificationSummary(cachedSummary);
         setSummary({
           totalPoints: Number(cachedSummary.totalPoints || 0),
           rank: String(cachedSummary.rank || 'Bronze'),
           nextRank: cachedSummary.nextRank || null,
         });
+        setGamificationSummary(normalizedSummary);
       }
       if (cachedMissions || cachedMissionHistory || cachedChallenges || cachedChallengeHistory || cachedSummary) {
         setLoading(false);
@@ -646,11 +726,13 @@ export function RankingsRewardsScreen({ onBack }: RankingsRewardsScreenProps) {
         if (challengesData && Array.isArray(challengesData.weekly)) setWeeklyChallenges(challengesData.weekly);
 
         if (summaryData && !summaryData.error) {
+          const normalizedSummary = normalizeGamificationSummary(summaryData);
           setSummary({
             totalPoints: Number(summaryData.totalPoints || 0),
             rank: String(summaryData.rank || 'Bronze'),
             nextRank: summaryData.nextRank || null,
           });
+          setGamificationSummary(normalizedSummary);
         }
       } catch (error) {
         console.error('Error fetching gamification:', error);
@@ -684,6 +766,15 @@ export function RankingsRewardsScreen({ onBack }: RankingsRewardsScreenProps) {
   const nextRankKey = String(summary.nextRank?.name || '').trim().toLowerCase();
   const nextRankName = summary.nextRank ? (RANK_NAME_MAP[language]?.[nextRankKey] || RANK_NAME_MAP.en?.[nextRankKey] || summary.nextRank.name) : '';
   const nextRankText = summary.nextRank ? copy.nextRank(nextRankName, summary.nextRank.pointsNeeded) : copy.topRank;
+  const nextRankRequirement = summary.nextRank?.minPoints ?? summary.totalPoints;
+  const rankProgressPercent = summary.nextRank
+    ? Math.max(0, Math.min(Math.round((summary.totalPoints / Math.max(1, nextRankRequirement)) * 100), 100))
+    : 100;
+  const rewardsAvailable = gamificationSummary?.rewardsAvailable || [];
+  const summaryNextAction = gamificationSummary?.nextAction || gamificationSummary?.progress?.nextAction || null;
+  const summaryTriggers = gamificationSummary?.notificationTriggers || gamificationSummary?.progress?.notificationTriggers || [];
+  const summaryInsights = gamificationSummary?.weeklyNarrative || gamificationSummary?.progress?.summaryInsights || [];
+  const rivalry = gamificationSummary?.progress?.rivalry || null;
 
   const missionHistoryByPeriod = useMemo(
     () =>
@@ -787,6 +878,9 @@ export function RankingsRewardsScreen({ onBack }: RankingsRewardsScreenProps) {
       cardClassName: 'border-emerald-400/20 bg-emerald-500/[0.05]',
       selectedClassName: 'border-emerald-400/45 bg-emerald-500/[0.10]',
       accentClassName: 'text-emerald-300',
+      progressBarClassName: 'bg-gradient-to-r from-emerald-300 via-emerald-400 to-lime-300',
+      hoverClassName: 'hover:border-emerald-300/40 hover:bg-emerald-500/[0.11] hover:shadow-[0_18px_38px_rgba(16,185,129,0.16)]',
+      glowClassName: 'bg-emerald-400/20',
     },
     strength: {
       iconSrc: emojiStrength,
@@ -794,6 +888,9 @@ export function RankingsRewardsScreen({ onBack }: RankingsRewardsScreenProps) {
       cardClassName: 'border-rose-400/20 bg-rose-500/[0.05]',
       selectedClassName: 'border-rose-400/45 bg-rose-500/[0.10]',
       accentClassName: 'text-rose-300',
+      progressBarClassName: 'bg-gradient-to-r from-rose-300 via-rose-400 to-orange-300',
+      hoverClassName: 'hover:border-rose-300/40 hover:bg-rose-500/[0.11] hover:shadow-[0_18px_38px_rgba(244,63,94,0.16)]',
+      glowClassName: 'bg-rose-400/20',
     },
     recovery: {
       iconSrc: emojiRecovery,
@@ -801,6 +898,9 @@ export function RankingsRewardsScreen({ onBack }: RankingsRewardsScreenProps) {
       cardClassName: 'border-sky-400/20 bg-sky-500/[0.05]',
       selectedClassName: 'border-sky-400/45 bg-sky-500/[0.10]',
       accentClassName: 'text-sky-300',
+      progressBarClassName: 'bg-gradient-to-r from-sky-300 via-cyan-300 to-blue-300',
+      hoverClassName: 'hover:border-sky-300/40 hover:bg-sky-500/[0.11] hover:shadow-[0_18px_38px_rgba(56,189,248,0.16)]',
+      glowClassName: 'bg-sky-400/20',
     },
     engagement: {
       iconSrc: emojiEngagement,
@@ -808,6 +908,9 @@ export function RankingsRewardsScreen({ onBack }: RankingsRewardsScreenProps) {
       cardClassName: 'border-violet-400/20 bg-violet-500/[0.05]',
       selectedClassName: 'border-violet-400/45 bg-violet-500/[0.10]',
       accentClassName: 'text-violet-300',
+      progressBarClassName: 'bg-gradient-to-r from-violet-300 via-fuchsia-300 to-pink-300',
+      hoverClassName: 'hover:border-violet-300/40 hover:bg-violet-500/[0.11] hover:shadow-[0_18px_38px_rgba(168,85,247,0.16)]',
+      glowClassName: 'bg-violet-400/20',
     },
   } satisfies Record<
     DashboardCategory,
@@ -817,6 +920,9 @@ export function RankingsRewardsScreen({ onBack }: RankingsRewardsScreenProps) {
       cardClassName: string;
       selectedClassName: string;
       accentClassName: string;
+      progressBarClassName: string;
+      hoverClassName: string;
+      glowClassName: string;
     }
   >;
 
@@ -840,10 +946,13 @@ export function RankingsRewardsScreen({ onBack }: RankingsRewardsScreenProps) {
           activeCount: missionItems.length + challengeItems.length,
           completedCount: historyItems.length,
           averageProgress,
-          remainingPercent: progressItems.length ? Math.max(0, 100 - averageProgress) : 0,
+          completionPercent: progressItems.length + historyItems.length
+            ? Math.round((historyItems.length / (progressItems.length + historyItems.length)) * 100)
+            : 0,
+          trackedCount: progressItems.length + historyItems.length,
         };
         return acc;
-      }, {} as Record<DashboardCategory, { activeCount: number; completedCount: number; averageProgress: number; remainingPercent: number }>),
+      }, {} as Record<DashboardCategory, { activeCount: number; completedCount: number; averageProgress: number; completionPercent: number; trackedCount: number }>),
     [categorizedActiveChallenges, categorizedActiveMissions, categorizedHistory],
   );
 
@@ -1097,48 +1206,117 @@ export function RankingsRewardsScreen({ onBack }: RankingsRewardsScreenProps) {
         <Header title={copy.title} onBack={onBack} compact />
       </div>
 
-      <div className="mt-1 space-y-2.5 px-4 sm:px-6">
-        <div className="flex flex-col items-center py-1.5">
-          <div className="mb-2 flex h-20 w-20 items-center justify-center rounded-full border-2 border-accent/30 bg-accent/10">
-            <img src={rankBadgeImage} alt={rankNameDisplay} className="h-12 w-12 object-contain" />
+      <div className="mt-2 space-y-5 px-4 pb-6 sm:px-6">
+        <div className="relative overflow-hidden rounded-[2rem] border border-white/10 bg-card/75 p-5 shadow-[0_18px_48px_rgba(0,0,0,0.28)] sm:p-6">
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(191,255,0,0.14),transparent_34%),linear-gradient(180deg,rgba(255,255,255,0.08),rgba(7,11,17,0.78))]" aria-hidden="true" />
+          <div className="pointer-events-none absolute -right-10 top-4 h-32 w-32 rounded-full bg-accent/10 blur-3xl" aria-hidden="true" />
+
+          <div className="relative z-10 space-y-5">
+            <div className="flex items-start justify-between gap-4">
+              <div className="min-w-0 flex-1">
+                <div className="inline-flex items-center rounded-full border border-white/10 bg-white/5 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-text-tertiary">
+                  {experienceCopy.heroLabel}
+                </div>
+                <h2 className="mt-3 text-[2rem] font-semibold leading-none tracking-tight text-white sm:text-[2.3rem]">
+                  {rankNameDisplay}
+                </h2>
+                <p className="mt-2 text-base font-medium text-text-primary">{copy.points(summary.totalPoints)}</p>
+                <p className="mt-1 text-sm text-text-secondary">
+                  {summary.nextRank ? experienceCopy.rankProgress(summary.totalPoints, nextRankRequirement, nextRankName) : nextRankText}
+                </p>
+              </div>
+
+              <div className="relative shrink-0">
+                <div className="absolute inset-0 rounded-full bg-accent/20 blur-2xl animate-pulse" aria-hidden="true" />
+                <div className="relative flex h-28 w-28 items-center justify-center rounded-full border border-accent/30 bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.12),rgba(191,255,0,0.08)_45%,rgba(7,11,17,0.86))] shadow-[0_0_0_1px_rgba(255,255,255,0.04),0_20px_40px_rgba(0,0,0,0.32)]">
+                  <img src={rankBadgeImage} alt={rankNameDisplay} className="h-16 w-16 object-contain" />
+                </div>
+              </div>
+            </div>
+
+            <div className="space-y-2.5">
+              <div className="flex items-center justify-between gap-3 text-[11px] font-semibold uppercase tracking-[0.16em] text-text-tertiary">
+                <span>{rankNameDisplay}</span>
+                <span>{summary.nextRank ? nextRankName : copy.topRank}</span>
+              </div>
+              <div className="h-3 overflow-hidden rounded-full border border-white/10 bg-white/5 p-[3px]">
+                <div
+                  className="h-full rounded-full bg-[linear-gradient(90deg,rgba(191,255,0,0.7),rgba(235,255,140,0.95))] shadow-[0_0_20px_rgba(191,255,0,0.22)] transition-[width] duration-700 ease-out"
+                  style={{ width: `${rankProgressPercent}%` }}
+                />
+              </div>
+              <div className="flex items-center justify-between gap-3 text-xs text-text-secondary">
+                <span>{nextRankText}</span>
+                <span>{rankProgressPercent}%</span>
+              </div>
+            </div>
           </div>
-          <h2 className="text-lg font-bold text-white">{rankNameDisplay}</h2>
-          <p className="mt-0.5 text-sm text-text-secondary">{copy.points(summary.totalPoints)}</p>
-          <p className="mt-0.5 text-xs text-text-secondary">{nextRankText}</p>
         </div>
 
-        <button
-          onClick={() => setShowLeaderboard(true)}
-          className="flex w-full items-center justify-between rounded-lg border border-white/5 bg-card p-3 transition-colors hover:border-accent/20"
-        >
-          <div className="flex items-center gap-3">
-            <img src={emojiViewLeaderboard} alt={copy.viewLeaderboard} className="h-5 w-5 object-contain" />
-            <div className="text-left">
-              <h4 className="text-sm font-semibold text-white">{copy.viewLeaderboard}</h4>
-              <p className="text-xs text-text-secondary">{copy.seeRankings}</p>
-            </div>
-          </div>
-          <span className="text-accent">&rarr;</span>
-        </button>
+        <NextActionCard action={summaryNextAction} eyebrow={experienceCopy.nextStepLabel} />
 
-        <button
-          onClick={() => setShowHistory(true)}
-          className="flex w-full items-center justify-between rounded-lg border border-white/5 bg-card p-3 transition-colors hover:border-accent/20"
-        >
-          <div className="flex items-center gap-3">
-            <img src={emojiChallenges} alt={copy.challengesAlt} className="h-5 w-5 object-contain" />
-            <div className="text-left">
-              <h4 className="text-sm font-semibold text-white">{copy.missionChallengeHistory}</h4>
-              <p className="text-xs text-text-secondary">{copy.viewCompleted}</p>
+        <div className="space-y-3">
+          <TriggerPills triggers={summaryTriggers} />
+          <InsightStack insights={summaryInsights} />
+          {rivalry?.nextPlayerName && (
+            <div className="rounded-[1.4rem] border border-violet-400/20 bg-violet-500/10 px-4 py-3 text-sm text-violet-100 shadow-[0_12px_28px_rgba(0,0,0,0.16)]">
+              {`${Math.max(0, Number(rivalry.deltaToNextPlayer || 0))} ${copy.pointsShort} to pass ${rivalry.nextPlayerName}`}
             </div>
-          </div>
-          <span className="text-accent">&rarr;</span>
-        </button>
+          )}
+          {rewardsAvailable.length > 0 && (
+            <div className="rounded-[1.4rem] border border-amber-400/20 bg-amber-500/10 px-4 py-3 text-sm text-amber-100 shadow-[0_12px_28px_rgba(0,0,0,0.16)]">
+              {`Unlocked rewards ready: ${rewardsAvailable.slice(0, 2).map((reward) => reward.name).join(' • ')}`}
+            </div>
+          )}
+        </div>
 
-        <div className="space-y-2">
-          <div className="flex items-center gap-2">
-            <img src={emojiMissions} alt={copy.missionsAlt} className="h-4 w-4 object-contain" />
-            <h3 className="text-xs font-bold uppercase tracking-wider text-text-secondary">{dashboardCopy.dashboard}</h3>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <button
+            onClick={() => setShowLeaderboard(true)}
+            className="group relative flex min-h-[92px] w-full items-center justify-between overflow-hidden rounded-[1.6rem] border border-white/10 bg-card/75 p-4 text-left transition-all duration-300 hover:scale-[1.02] hover:border-accent/35 hover:shadow-[0_18px_36px_rgba(191,255,0,0.12)] active:scale-[0.985]"
+          >
+            <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(191,255,0,0.10),transparent_32%),linear-gradient(180deg,rgba(255,255,255,0.05),rgba(7,11,17,0.7))]" aria-hidden="true" />
+            <div className="relative z-10 flex items-center gap-4">
+              <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-accent/25 bg-accent/10 shadow-[0_0_24px_rgba(191,255,0,0.14)] transition-transform duration-300 group-hover:scale-105">
+                <img src={emojiViewLeaderboard} alt={copy.viewLeaderboard} className="h-6 w-6 object-contain" />
+              </div>
+              <div className="text-left">
+                <h4 className="text-sm font-semibold text-white">{copy.viewLeaderboard}</h4>
+                <p className="mt-1 text-xs text-text-secondary">
+                  {rivalry?.nextPlayerName
+                    ? `${Math.max(0, Number(rivalry.deltaToNextPlayer || 0))} ${copy.pointsShort} to pass ${rivalry.nextPlayerName}`
+                    : copy.seeRankings}
+                </p>
+              </div>
+            </div>
+            <span className="relative z-10 text-accent transition-transform duration-300 group-hover:translate-x-0.5">&rarr;</span>
+          </button>
+
+          <button
+            onClick={() => setShowHistory(true)}
+            className="group relative flex min-h-[92px] w-full items-center justify-between overflow-hidden rounded-[1.6rem] border border-white/10 bg-card/75 p-4 text-left transition-all duration-300 hover:scale-[1.02] hover:border-white/20 hover:shadow-[0_18px_36px_rgba(255,255,255,0.08)] active:scale-[0.985]"
+          >
+            <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(96,165,250,0.10),transparent_32%),linear-gradient(180deg,rgba(255,255,255,0.05),rgba(7,11,17,0.7))]" aria-hidden="true" />
+            <div className="relative z-10 flex items-center gap-4">
+              <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-sky-300/20 bg-sky-400/10 shadow-[0_0_24px_rgba(56,189,248,0.14)] transition-transform duration-300 group-hover:scale-105">
+                <img src={emojiChallenges} alt={copy.challengesAlt} className="h-6 w-6 object-contain" />
+              </div>
+              <div className="text-left">
+                <h4 className="text-sm font-semibold text-white">{copy.missionChallengeHistory}</h4>
+                <p className="mt-1 text-xs text-text-secondary">{copy.viewCompleted}</p>
+              </div>
+            </div>
+            <span className="relative z-10 text-sky-300 transition-transform duration-300 group-hover:translate-x-0.5">&rarr;</span>
+          </button>
+        </div>
+
+        <div className="space-y-3">
+          <div className="space-y-1">
+            <div className="flex items-center gap-2">
+              <img src={emojiMissions} alt={copy.missionsAlt} className="h-4 w-4 object-contain" />
+              <h3 className="text-xs font-bold uppercase tracking-wider text-text-secondary">{dashboardCopy.dashboard}</h3>
+            </div>
+            <p className="text-sm text-text-secondary">{experienceCopy.sectionHint}</p>
           </div>
 
           {loading ? (
@@ -1150,65 +1328,63 @@ export function RankingsRewardsScreen({ onBack }: RankingsRewardsScreenProps) {
               </div>
             </div>
           ) : (
-            <>
-              <div className="grid grid-cols-2 gap-3">
-                {CATEGORY_ORDER.map((category) => {
-                  const meta = categoryMeta[category];
-                  const stats = categoryStats[category];
-                  const isSelected = selectedCategory === category;
+            <div className="grid grid-cols-2 gap-3">
+              {CATEGORY_ORDER.map((category) => {
+                const meta = categoryMeta[category];
+                const stats = categoryStats[category];
+                const isSelected = selectedCategory === category;
+                const completionDenominator = Math.max(stats.trackedCount, stats.completedCount);
+                const completionText = completionDenominator > 0
+                  ? experienceCopy.progressSummary(stats.completedCount, completionDenominator)
+                  : experienceCopy.emptyProgress;
+                const progressValue = stats.trackedCount > 0
+                  ? stats.completionPercent
+                  : stats.averageProgress;
 
-                  return (
-                    <button
-                      key={category}
-                      type="button"
-                      onClick={() => handleCategorySelect(category)}
-                      className={`rounded-2xl border p-4 text-left transition-all ${
-                        isSelected ? meta.selectedClassName : meta.cardClassName
-                      }`}
-                      >
+                return (
+                  <button
+                    key={category}
+                    type="button"
+                    onClick={() => handleCategorySelect(category)}
+                    className={`group relative overflow-hidden rounded-[1.6rem] border p-4 text-left transition-all duration-300 hover:scale-[1.02] active:scale-[0.985] ${
+                      isSelected
+                        ? `${meta.selectedClassName} shadow-[0_18px_38px_rgba(0,0,0,0.26)]`
+                        : `${meta.cardClassName} ${meta.hoverClassName}`
+                    }`}
+                  >
+                    <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(255,255,255,0.08),transparent_32%),linear-gradient(180deg,rgba(255,255,255,0.05),rgba(7,11,17,0.76))]" aria-hidden="true" />
+                    <div className={`pointer-events-none absolute -right-6 top-3 h-20 w-20 rounded-full blur-3xl transition-opacity duration-300 ${meta.glowClassName} ${isSelected ? 'opacity-80' : 'opacity-0 group-hover:opacity-70'}`} aria-hidden="true" />
+
+                    <div className="relative z-10">
                       <div className="flex items-center justify-between gap-3">
-                        <div className={`flex h-10 w-10 items-center justify-center rounded-2xl border ${meta.iconWrapClassName}`}>
+                        <div className={`flex h-12 w-12 items-center justify-center rounded-2xl border shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] transition-transform duration-300 group-hover:scale-105 ${meta.iconWrapClassName}`}>
                           <img src={meta.iconSrc} alt={categoryName(category)} className="h-6 w-6 object-contain" />
                         </div>
-                        <ChevronRight size={16} className={`${meta.accentClassName} ${isSelected ? 'opacity-100' : 'opacity-60'}`} />
+                        <ChevronRight size={18} className={`${meta.accentClassName} transition-all duration-300 ${isSelected ? 'translate-x-0.5 opacity-100' : 'opacity-70 group-hover:translate-x-0.5 group-hover:opacity-100'}`} />
                       </div>
 
-                      <div className="mt-3">
-                        <h4 className="text-sm font-semibold text-white">{categoryName(category)}</h4>
+                      <div className="mt-4">
+                        <h4 className="text-base font-semibold text-white">{categoryName(category)}</h4>
+                        <p className="mt-1 text-sm text-text-secondary">{completionText}</p>
                       </div>
 
-                      <div className="mt-3 space-y-1.5 text-xs text-text-secondary">
-                        <p>
-                          <span className={meta.accentClassName}>{dashboardCopy.activeLabel}:</span>{' '}
-                          {stats.activeCount}
-                        </p>
-                        <div className="pt-0.5">
-                          <p className={meta.accentClassName}>{dashboardCopy.progressLabel}</p>
-                          <div className="mt-1 rounded-md border border-white/10 bg-white/[0.02] p-1">
-                            <div className="flex h-2 items-center gap-1">
-                              {CATEGORY_PROGRESS_SEGMENT_COLORS.map((color, index) => {
-                                const threshold = ((index + 1) / CATEGORY_PROGRESS_SEGMENT_COLORS.length) * 100;
-                                const isFilled = stats.remainingPercent >= threshold;
-                                return (
-                                  <div
-                                    key={`${category}-progress-${color}`}
-                                    className="h-full flex-1 rounded-[2px] transition-colors duration-300"
-                                    style={{
-                                      backgroundColor: isFilled ? color : 'rgba(255,255,255,0.08)',
-                                    }}
-                                  />
-                                );
-                              })}
-                            </div>
-                          </div>
+                      <div className="mt-4 space-y-2.5">
+                        <div className="flex items-center justify-between gap-3 text-xs">
+                          <span className="text-text-tertiary">{experienceCopy.cardStatus(stats.activeCount, stats.completedCount)}</span>
+                          <span className={meta.accentClassName}>{progressValue}%</span>
+                        </div>
+                        <div className="h-2.5 overflow-hidden rounded-full border border-white/10 bg-white/[0.04] p-[2px]">
+                          <div
+                            className={`h-full rounded-full ${meta.progressBarClassName} shadow-[0_0_18px_rgba(255,255,255,0.12)] transition-[width] duration-700 ease-out`}
+                            style={{ width: `${Math.max(progressValue, stats.activeCount > 0 ? 8 : 0)}%` }}
+                          />
                         </div>
                       </div>
-                    </button>
-                  );
-                })}
-              </div>
-
-            </>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
           )}
         </div>
       </div>

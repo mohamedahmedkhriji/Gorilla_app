@@ -19,6 +19,7 @@ import { ExerciseVideoScreen } from '../components/workout/ExerciseVideoScreen';
 import { MuscleRecoveryScreen } from '../components/progress/MuscleRecoveryScreen';
 import { RankingsRewardsScreen } from '../components/profile/RankingsRewardsScreen';
 import { FriendChallengeScreen } from '../components/profile/FriendChallengeScreen';
+import { NextActionCard, TriggerPills } from '../components/gamification/GamificationCards';
 import { api } from '../services/api';
 import {
   getCoachmarkUserScope,
@@ -40,8 +41,11 @@ import {
 } from '../services/todayWorkoutSelection';
 import { offlineCacheKeys, readOfflineCacheValue } from '../services/offlineCache';
 import { OPEN_PICKED_WORKOUT_PLAN } from '../services/workoutNavigation';
+import { normalizeGamificationSummary } from '../services/gamificationEvents';
+import type { GamificationSummaryResponse } from '../types/gamification';
 import { useScrollToTopOnChange } from '../shared/scroll';
 import { ScreenSection, ScreenTransition, getNavigationDirection } from '../components/ui/ScreenTransition';
+import { HOME_CARD_OVERLAY_CLASS } from '../components/home/homeCardStyles';
 interface HomeProps {
   onNavigate: (tab: string, day?: string) => void;
   onTabBarVisibilityChange?: (visible: boolean) => void;
@@ -495,6 +499,7 @@ export function Home({
   const [userProgram, setUserProgram] = useState<any>(null);
   const [todayWorkoutData, setTodayWorkoutData] = useState<any>(null);
   const [weekPlanWorkouts, setWeekPlanWorkouts] = useState<WeekPlanWorkoutChoice[]>([]);
+  const [gamificationSummary, setGamificationSummary] = useState<GamificationSummaryResponse | null>(null);
   const [todayWorkoutSelection, setTodayWorkoutSelection] = useState<TodayWorkoutSelection | null>(
     () => readTodayWorkoutSelection(workoutStorageScope),
   );
@@ -727,6 +732,12 @@ export function Home({
 
   const rankName = String(programProgress?.rank || 'Bronze');
   const rankBadgeImage = getRankBadgeImage(rankName);
+  const primaryHeroInsight = gamificationSummary?.weeklyNarrative?.[0] || gamificationSummary?.progress?.summaryInsights?.[0] || null;
+  const homeNextAction = gamificationSummary?.nextAction || gamificationSummary?.progress?.nextAction || null;
+  const homeTriggers = gamificationSummary?.notificationTriggers || gamificationSummary?.progress?.notificationTriggers || [];
+  const homeRivalry = gamificationSummary?.progress?.rivalry || null;
+  const homeRank = gamificationSummary?.progress?.rank || null;
+  const homeStreakRisk = gamificationSummary?.progress?.streaks?.risk || null;
   const coachmarkScope = getCoachmarkUserScope(currentUser);
   const coachmarkDefaultSeenSteps = useMemo(
     () => ({
@@ -768,6 +779,11 @@ export function Home({
         challenge: 'Challenge',
         challengePlaceholder: (name: string) => `Challenge screen placeholder for ${name}.`,
         defaultFriendName: 'this friend',
+        heroDefaultTitle: 'Keep your streak moving',
+        heroDefaultBody: 'One smart action today keeps your momentum alive.',
+        heroStatPoints: 'pts to next rank',
+        rivalryPrefix: 'Rivalry',
+        actionLabel: 'Behavior engine',
       },
       ar: {
         tagline: '\u062c\u0627\u0647\u0632 \u0644\u062a\u062d\u0642\u064a\u0642 \u0623\u0647\u062f\u0627\u0641\u0643 \u0627\u0644\u064a\u0648\u0645\u061f',
@@ -785,6 +801,11 @@ export function Home({
         challenge: '\u0627\u0644\u062a\u062d\u062f\u064a',
         challengePlaceholder: (name: string) => `\u0647\u0630\u0647 \u0634\u0627\u0634\u0629 \u062a\u062c\u0631\u064a\u0628\u064a\u0629 \u0644\u0644\u062a\u062d\u062f\u064a \u0645\u0639 ${name}.`,
         defaultFriendName: '\u0647\u0630\u0627 \u0627\u0644\u0635\u062f\u064a\u0642',
+        heroDefaultTitle: '\u062d\u0627\u0641\u0638 \u0639\u0644\u0649 \u0632\u062e\u0645\u0643',
+        heroDefaultBody: '\u062e\u0637\u0648\u0629 \u0630\u0643\u064a\u0629 \u0627\u0644\u064a\u0648\u0645 \u062a\u062d\u0627\u0641\u0638 \u0639\u0644\u0649 \u062a\u0642\u062f\u0645\u0643.',
+        heroStatPoints: '\u0646\u0642\u0637\u0629 \u0644\u0644\u0631\u062a\u0628\u0629 \u0627\u0644\u062a\u0627\u0644\u064a\u0629',
+        rivalryPrefix: '\u0627\u0644\u0645\u0646\u0627\u0641\u0633\u0629',
+        actionLabel: '\u0645\u062d\u0631\u0643 \u0627\u0644\u0633\u0644\u0648\u0643',
       },
       it: {
         tagline: 'Pronto a raggiungere i tuoi obiettivi oggi?',
@@ -802,6 +823,11 @@ export function Home({
         challenge: 'Sfida',
         challengePlaceholder: (name: string) => `Schermata segnaposto della sfida per ${name}.`,
         defaultFriendName: 'questo amico',
+        heroDefaultTitle: 'Proteggi il tuo slancio',
+        heroDefaultBody: 'Una buona azione oggi mantiene viva la tua progressione.',
+        heroStatPoints: 'pt al prossimo grado',
+        rivalryPrefix: 'Rivalita',
+        actionLabel: 'Motore di progresso',
       },
       de: {
         tagline: 'Bereit, heute deine Ziele zu erreichen?',
@@ -819,6 +845,11 @@ export function Home({
         challenge: 'Challenge',
         challengePlaceholder: (name: string) => `Challenge-Platzhalter fur ${name}.`,
         defaultFriendName: 'dieser Freund',
+        heroDefaultTitle: 'Halte deinen Lauf am Leben',
+        heroDefaultBody: 'Eine kluge Aktion heute haelt deinen Fortschritt in Bewegung.',
+        heroStatPoints: 'Pkt bis zum naechsten Rang',
+        rivalryPrefix: 'Rivale',
+        actionLabel: 'Momentum',
       },
       fr: {
         tagline: 'Pret a atteindre tes objectifs aujourd hui ?',
@@ -836,6 +867,11 @@ export function Home({
         challenge: 'Defi',
         challengePlaceholder: (name: string) => `Ecran de demonstration du defi pour ${name}.`,
         defaultFriendName: 'cet ami',
+        heroDefaultTitle: 'Garde ton elan',
+        heroDefaultBody: 'Une bonne action aujourd hui entretient ta progression.',
+        heroStatPoints: 'pts vers le prochain rang',
+        rivalryPrefix: 'Rivalite',
+        actionLabel: 'Moteur de progression',
       },
     }),
     [language],
@@ -1257,6 +1293,11 @@ export function Home({
         setProgramProgress(cachedProgress.summary || null);
       }
 
+      const cachedGamificationSummary = readOfflineCacheValue<any>(offlineCacheKeys.gamificationSummary(currentUserId));
+      if (cachedGamificationSummary) {
+        setGamificationSummary(normalizeGamificationSummary(cachedGamificationSummary));
+      }
+
       const cachedRecovery = readOfflineCacheValue<any>(offlineCacheKeys.recoveryStatus(currentUserId));
       if (cachedRecovery) {
         applyRecoverySnapshot(cachedRecovery);
@@ -1303,6 +1344,18 @@ export function Home({
         console.error('Failed to fetch program progress:', error);
       }
     };
+    const fetchGamificationSummary = async () => {
+      if (!currentUserId) {
+        setGamificationSummary(null);
+        return;
+      }
+      try {
+        const summary = normalizeGamificationSummary(await api.getGamificationSummary(currentUserId));
+        setGamificationSummary(summary);
+      } catch (error) {
+        console.error('Failed to fetch gamification summary:', error);
+      }
+    };
     // Fetch recovery status from API (same data shown on the recovery page)
     const fetchRecovery = async () => {
       const user = JSON.parse(localStorage.getItem('appUser') || localStorage.getItem('user') || '{}');
@@ -1325,6 +1378,7 @@ export function Home({
         fetchProgram(),
         fetchProgramProgress(),
         fetchRecovery(),
+        fetchGamificationSummary(),
       ]);
       if (isMounted) {
         setIsHomeLoading(false);
@@ -1363,6 +1417,12 @@ export function Home({
     };
     window.addEventListener('program-updated', handleProgramUpdated);
 
+    const handleGamificationUpdated = () => {
+      void fetchGamificationSummary();
+      void fetchProgramProgress();
+    };
+    window.addEventListener('gamification-updated', handleGamificationUpdated);
+
     const handleTodayWorkoutSelectionUpdated = () => {
       setTodayWorkoutSelection(readTodayWorkoutSelection(workoutStorageScope));
     };
@@ -1391,6 +1451,7 @@ export function Home({
       window.removeEventListener('workout-progress-updated', handleWorkoutProgressUpdated);
       window.removeEventListener('workout-extra-exercises-updated', handleExtraExercisesUpdated);
       window.removeEventListener('program-updated', handleProgramUpdated);
+      window.removeEventListener('gamification-updated', handleGamificationUpdated);
       window.removeEventListener(TODAY_WORKOUT_SELECTION_UPDATED_EVENT, handleTodayWorkoutSelectionUpdated);
       clearInterval(recoveryInterval);
       clearInterval(periodicRecoveryRefresh);
@@ -1750,41 +1811,60 @@ export function Home({
         <header
           data-coachmark-target="home_header_card"
           onClick={() => onNavigate('profile')}
-          className="mb-7 surface-card relative overflow-hidden rounded-2xl border border-white/12 px-4 py-3 flex items-start justify-between gap-4 cursor-pointer shadow-card transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_12px_32px_rgba(0,0,0,0.45),0_0_14px_rgba(191,255,0,0.07)]">
+          className="mb-7 surface-card relative overflow-hidden rounded-2xl border border-white/12 px-4 py-4 cursor-pointer shadow-card transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_12px_32px_rgba(0,0,0,0.45),0_0_14px_rgba(191,255,0,0.07)]">
           <div
             className="absolute inset-0 bg-cover bg-center opacity-60"
             style={{ backgroundImage: `url(${emojiProfile})` }}
             aria-hidden="true"
           />
           <div
-            className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.05),transparent)] pointer-events-none"
+            className={HOME_CARD_OVERLAY_CLASS}
             aria-hidden="true"
           />
-          <div className="relative z-10">
-            <h1 className="text-3xl font-electrolize font-bold text-text-primary">
-              {greeting}
-            </h1>
-            <p className="text-text-secondary mt-1 text-sm max-w-[200px] leading-snug">
-              {homeCopy.tagline}
-            </p>
+          <div className="relative z-10 flex items-start justify-between gap-4">
+            <div className="min-w-0">
+              <h1 className="text-3xl font-electrolize font-bold text-text-primary">
+                {greeting}
+              </h1>
+              <p className="mt-1 text-sm leading-snug text-text-secondary">
+                {primaryHeroInsight?.title || homeCopy.tagline}
+              </p>
+            </div>
+
+            <button
+              type="button"
+              onClick={(event) => {
+                event.stopPropagation();
+                setView('rank');
+              }}
+              className="relative z-10 shrink-0 rounded-2xl border border-white/15 surface-glass px-3.5 py-2"
+            >
+              <div className="flex items-center gap-2">
+                <div className="flex h-8 w-8 items-center justify-center rounded-xl border border-accent/35 bg-accent/15">
+                  <img src={rankBadgeImage} alt={rankNameDisplay} className="h-5 w-5 object-contain" />
+                </div>
+                <div>
+                  <div className="text-[10px] uppercase tracking-[0.1em] text-text-secondary">{homeCopy.rank}</div>
+                  <div className="text-sm font-semibold text-accent">{rankNameDisplay}</div>
+                </div>
+              </div>
+            </button>
           </div>
 
-          <button
-            type="button"
-            onClick={(event) => {
-              event.stopPropagation();
-              setView('rank');
-            }}
-            className="relative z-10 flex items-center gap-2 surface-glass px-3.5 py-2 rounded-2xl border border-white/15 shrink-0"
-          >
-            <div className="w-8 h-8 rounded-xl bg-accent/15 border border-accent/35 flex items-center justify-center">
-              <img src={rankBadgeImage} alt={rankNameDisplay} className="h-5 w-5 object-contain" />
+          <div className="relative z-10 mt-4 space-y-3">
+            <p className="max-w-[34rem] text-sm text-text-secondary">
+              {primaryHeroInsight?.detail || homeCopy.heroDefaultBody}
+            </p>
+
+            <div className="grid grid-cols-1 gap-2">
+              <div className="rounded-2xl border border-white/10 bg-white/[0.04] px-3.5 py-3">
+                <div className="text-[10px] uppercase tracking-[0.14em] text-text-tertiary">{homeCopy.actionLabel}</div>
+                <div className="mt-1 text-sm font-semibold text-white">{homeNextAction?.title || homeCopy.heroDefaultTitle}</div>
+              </div>
             </div>
-            <div>
-              <div className="text-[10px] uppercase tracking-[0.1em] text-text-secondary">{homeCopy.rank}</div>
-              <div className="text-sm font-semibold text-accent">{rankNameDisplay}</div>
-            </div>
-          </button>
+
+            <TriggerPills triggers={homeTriggers} />
+          </div>
         </header>
       </ScreenSection>
 
@@ -1812,18 +1892,44 @@ export function Home({
           </div>
         </ScreenSection>
 
-        {/* Rank & Recovery */}
         <ScreenSection index={2}>
+          <NextActionCard
+            action={homeNextAction}
+            onClick={() => {
+              if (homeNextAction?.type === 'leaderboard' || homeNextAction?.type === 'rank') {
+                setView('rank');
+                return;
+              }
+              if (homeNextAction?.type === 'recovery') {
+                setView('recovery');
+                return;
+              }
+              if (homeNextAction?.type === 'workout') {
+                handleOpenWorkoutCard();
+                return;
+              }
+              setView('rank');
+            }}
+          />
+        </ScreenSection>
+
+        {/* Rank & Recovery */}
+        <ScreenSection index={3}>
           <div className="grid grid-cols-1 gap-5">
             <div onClick={() => setView('rank')} className="cursor-pointer">
-              <RankDisplay coachmarkTargetId="home_rank_card" points={programProgress?.totalPoints || 0} />
+              <RankDisplay
+                coachmarkTargetId="home_rank_card"
+                points={programProgress?.totalPoints || 0}
+                rankProgress={homeRank}
+                streakRisk={homeStreakRisk}
+              />
             </div>
             <RecoveryIndicator coachmarkTargetId="home_recovery_card" percentage={overallRecovery} onClick={() => setView('recovery')} />
           </div>
         </ScreenSection>
 
         {/* Quick Actions */}
-        <ScreenSection index={3} className="grid grid-cols-2 gap-4">
+        <ScreenSection index={4} className="grid grid-cols-2 gap-4">
 
           <GhostButton coachmarkTargetId="home_nutrition_card" onClick={() => setView('nutrition')} className="justify-between">
             <span className="flex items-center gap-2">
@@ -1866,7 +1972,7 @@ export function Home({
         )}
 
         {/* Education */}
-        <ScreenSection index={4}>
+        <ScreenSection index={5}>
           <EducationSection
             onExercises={() => setView('exercises')}
             onBooks={() => setView('books')}
@@ -1877,7 +1983,7 @@ export function Home({
 
 
         {/* Calculators */}
-        <ScreenSection index={5}>
+        <ScreenSection index={6}>
           <CalculatorCard onClick={() => setView('calculator')} />
         </ScreenSection>
       </div>

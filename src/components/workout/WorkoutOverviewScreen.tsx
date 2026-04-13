@@ -2,8 +2,9 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { CheckCircle2, Dumbbell, Lock, Sparkles } from 'lucide-react';
 import { Header } from '../ui/Header';
 import { AgendaSection } from '../home/AgendaSection';
+import { HOME_CARD_OVERLAY_CLASS } from '../home/homeCardStyles';
 import { getBodyPartImage } from '../../services/bodyPartTheme';
-import { AppLanguage, LocalizedLanguageRecord, getActiveLanguage, getStoredLanguage, normalizeLocalizedValue } from '../../services/language';
+import { AppLanguage, LocalizedLanguageRecord, getActiveLanguage, normalizeLocalizedValue } from '../../services/language';
 import { translateProgramText } from '../../services/programI18n';
 import type { WorkoutAssignmentHistoryEntry } from '../../services/todayWorkoutSelection';
 import { formatWorkoutDayLabel } from '../../services/workoutDayLabel';
@@ -455,6 +456,165 @@ const LOCALIZED_COPY: LocalizedLanguageRecord<typeof COPY.en> = {
   },
 };
 
+const WORKOUT_OVERVIEW_COPY_OVERRIDES: LocalizedLanguageRecord<Partial<typeof COPY.en>> = {
+  en: {
+    heroLabelToday: 'Today',
+    heroLabelStatus: 'Status',
+    heroLabelNext: 'Next',
+    heroStatusNoPlan: 'No plan selected',
+    heroStatusPicked: 'Scheduled for today',
+    heroStatusLocked: 'In progress',
+    heroStatusCompleted: 'Completed today',
+    heroNextFallback: 'Choose a session to see what is next.',
+    heroCtaStartToday: 'Start Today',
+    heroCtaContinueToday: 'Continue Today',
+    heroCtaViewNext: 'View Next Session',
+    heroCtaPickRecommended: 'Use As Today',
+    heroCtaBrowse: 'Browse Plan',
+    progressTitle: 'Plan Progress',
+    progressSummary: (completed: number, total: number) => `${completed} of ${total} sessions completed`,
+    progressHint: 'Keep momentum without overloading recovery.',
+    agendaTitle: '30-Day Agenda',
+    agendaSubtitle: 'Your training timeline with clear today and next states.',
+    recommendedReason: 'Optimized for recovery balance.',
+    completedReason: 'Logged and recovery updated.',
+    lockedReason: 'Unlocks after today\'s session.',
+    futureReason: 'Ready when you are.',
+    todayReason: 'Set for today.',
+    nextUpLabel: 'Next up',
+    recommendedNextBadge: 'Recommended Next',
+    pickedBadge: 'Today',
+    completedBadge: 'Completed',
+    lockedBadge: 'Locked',
+    pickForToday: 'Use as today',
+    pickedForToday: 'Picked for today',
+    completedForToday: 'Completed today',
+  },
+  ar: {
+    heroLabelToday: 'اليوم',
+    heroLabelStatus: 'الحالة',
+    heroLabelNext: 'التالي',
+    heroStatusNoPlan: 'لا توجد خطة مختارة',
+    heroStatusPicked: 'مجدول لليوم',
+    heroStatusLocked: 'قيد التنفيذ',
+    heroStatusCompleted: 'مكتمل اليوم',
+    heroNextFallback: 'اختر حصة لمعرفة التالي.',
+    heroCtaStartToday: 'ابدأ اليوم',
+    heroCtaContinueToday: 'أكمل اليوم',
+    heroCtaViewNext: 'عرض الجلسة التالية',
+    heroCtaPickRecommended: 'اجعلها خطة اليوم',
+    heroCtaBrowse: 'تصفح الخطة',
+    progressTitle: 'تقدم الخطة',
+    progressSummary: (completed: number, total: number) => `${completed} من ${total} جلسات مكتملة`,
+    progressHint: 'حافظ على الزخم دون إرهاق التعافي.',
+    agendaTitle: 'أجندة 30 يوماً',
+    agendaSubtitle: 'جدول تدريبك مع وضوح اليوم وما التالي.',
+    recommendedReason: 'مُحسّن لتوازن التعافي.',
+    completedReason: 'تم تسجيله وتحديث التعافي.',
+    lockedReason: 'يفتح بعد جلسة اليوم.',
+    futureReason: 'جاهز عندما تكون.',
+    todayReason: 'مُعد لليوم.',
+    nextUpLabel: 'التالي',
+    recommendedNextBadge: 'المقترح التالي',
+    pickedBadge: 'اليوم',
+    completedBadge: 'مكتمل',
+    lockedBadge: 'مقفل',
+    pickForToday: 'اخترها لليوم',
+    pickedForToday: 'محفوظ لليوم',
+    completedForToday: 'مكتمل اليوم',
+  },
+  it: {
+    heroLabelToday: 'Oggi',
+    heroLabelStatus: 'Stato',
+    heroLabelNext: 'Prossimo',
+    heroStatusNoPlan: 'Nessun piano selezionato',
+    heroStatusPicked: 'Programmato per oggi',
+    heroStatusLocked: 'In corso',
+    heroStatusCompleted: 'Completato oggi',
+    heroNextFallback: 'Scegli una sessione per vedere la prossima.',
+    heroCtaStartToday: 'Inizia oggi',
+    heroCtaContinueToday: 'Continua oggi',
+    heroCtaViewNext: 'Vedi prossima sessione',
+    heroCtaPickRecommended: 'Usa per oggi',
+    heroCtaBrowse: 'Sfoglia piano',
+    progressTitle: 'Progresso del piano',
+    progressHint: 'Mantieni lo slancio senza sovraccaricare il recupero.',
+    agendaTitle: 'Agenda di 30 giorni',
+    agendaSubtitle: 'La tua timeline di allenamento con stato chiaro di oggi e del prossimo.',
+    recommendedReason: 'Ottimizzato per l equilibrio del recupero.',
+    completedReason: 'Registrato e recupero aggiornato.',
+    lockedReason: 'Si sblocca dopo la sessione di oggi.',
+    futureReason: 'Pronto quando lo sei tu.',
+    todayReason: 'Impostato per oggi.',
+    nextUpLabel: 'Prossimo',
+    recommendedNextBadge: 'Prossimo consigliato',
+    pickedBadge: 'Oggi',
+    completedBadge: 'Completato',
+    lockedBadge: 'Bloccato',
+    pickForToday: 'Scegli per oggi',
+  },
+  de: {
+    heroLabelToday: 'Heute',
+    heroLabelStatus: 'Status',
+    heroLabelNext: 'Als Nächstes',
+    heroStatusNoPlan: 'Kein Plan ausgewählt',
+    heroStatusPicked: 'Für heute geplant',
+    heroStatusLocked: 'In Arbeit',
+    heroStatusCompleted: 'Heute erledigt',
+    heroNextFallback: 'Wähle eine Einheit, um zu sehen, was als Nächstes kommt.',
+    heroCtaStartToday: 'Heute starten',
+    heroCtaContinueToday: 'Heute fortsetzen',
+    heroCtaViewNext: 'Nächste Einheit ansehen',
+    heroCtaPickRecommended: 'Für heute nutzen',
+    heroCtaBrowse: 'Plan ansehen',
+    progressTitle: 'Planfortschritt',
+    progressHint: 'Halte den Schwung, ohne die Erholung zu überlasten.',
+    agendaTitle: '30-Tage-Plan',
+    agendaSubtitle: 'Dein Trainingsverlauf mit klarem Status für heute und als Nächstes.',
+    recommendedReason: 'Für die Erholungsbalance optimiert.',
+    completedReason: 'Protokolliert und Erholung aktualisiert.',
+    lockedReason: 'Wird nach der heutigen Einheit freigeschaltet.',
+    futureReason: 'Bereit, wenn du es bist.',
+    todayReason: 'Für heute festgelegt.',
+    nextUpLabel: 'Als Nächstes',
+    recommendedNextBadge: 'Nächste Empfehlung',
+    pickedBadge: 'Heute',
+    completedBadge: 'Erledigt',
+    lockedBadge: 'Gesperrt',
+    pickForToday: 'Für heute wählen',
+  },
+  fr: {
+    heroLabelToday: 'Aujourd\'hui',
+    heroLabelStatus: 'Statut',
+    heroLabelNext: 'Suivant',
+    heroStatusNoPlan: 'Aucun plan sélectionné',
+    heroStatusPicked: 'Programmé pour aujourd\'hui',
+    heroStatusLocked: 'En cours',
+    heroStatusCompleted: 'Terminé aujourd\'hui',
+    heroNextFallback: 'Choisis une séance pour voir la suivante.',
+    heroCtaStartToday: 'Commencer aujourd\'hui',
+    heroCtaContinueToday: 'Continuer aujourd\'hui',
+    heroCtaViewNext: 'Voir la prochaine séance',
+    heroCtaPickRecommended: 'Utiliser pour aujourd\'hui',
+    heroCtaBrowse: 'Voir le plan',
+    progressTitle: 'Progression du plan',
+    progressHint: 'Garde l élan sans surcharger la récupération.',
+    agendaTitle: 'Agenda 30 jours',
+    agendaSubtitle: 'Ton calendrier d entraînement avec un état clair pour aujourd hui et la suite.',
+    recommendedReason: 'Optimisé pour l équilibre de récupération.',
+    completedReason: 'Enregistré et récupération mise à jour.',
+    lockedReason: 'Se débloque après la séance du jour.',
+    futureReason: 'Prêt quand tu l es.',
+    todayReason: 'Prévu pour aujourd hui.',
+    nextUpLabel: 'Suivant',
+    recommendedNextBadge: 'Prochaine suggestion',
+    pickedBadge: 'Aujourd\'hui',
+    completedBadge: 'Terminé',
+    lockedBadge: 'Verrouillé',
+    pickForToday: 'Choisir pour aujourd\'hui',
+  },
+};
+
 const MUSCLE_LABELS: LocalizedLanguageRecord<Record<string, string>> = {
   en: {},
   ar: {
@@ -566,7 +726,7 @@ export function WorkoutOverviewScreen({
     setLanguage(getActiveLanguage());
 
     const handleLanguageChanged = () => {
-      setLanguage(getStoredLanguage());
+      setLanguage(getActiveLanguage());
     };
 
     window.addEventListener('app-language-changed', handleLanguageChanged);
@@ -577,10 +737,14 @@ export function WorkoutOverviewScreen({
     };
   }, []);
 
-  const copy = useMemo(
-    () => normalizeLocalizedValue(LOCALIZED_COPY[language] || LOCALIZED_COPY.en),
-    [language],
-  );
+  const copy = useMemo(() => {
+    const localizedCopy = normalizeLocalizedValue(LOCALIZED_COPY[language] || LOCALIZED_COPY.en);
+    const overrideCopy = normalizeLocalizedValue(WORKOUT_OVERVIEW_COPY_OVERRIDES[language] || {});
+    return {
+      ...localizedCopy,
+      ...overrideCopy,
+    };
+  }, [language]);
   const isArabic = language === 'ar';
   const localizedMuscleLabels = useMemo(
     () => normalizeLocalizedValue(MUSCLE_LABELS[language] || {}),
@@ -772,9 +936,8 @@ export function WorkoutOverviewScreen({
           data-coachmark-target="my_plan_current_day_card"
           className="relative overflow-hidden rounded-[1.8rem] border border-white/10 bg-card/70 p-5"
         >
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(191,255,0,0.16),transparent_45%),radial-gradient(circle_at_bottom_right,rgba(255,255,255,0.08),transparent_40%)]" aria-hidden="true" />
           <div
-            className="absolute inset-0 bg-gradient-to-r from-background/65 via-background/45 to-background/25"
+            className={HOME_CARD_OVERLAY_CLASS}
             data-coachmark-target="my_plan_current_day_gradient"
             aria-hidden="true"
           />
@@ -830,8 +993,9 @@ export function WorkoutOverviewScreen({
           </div>
         </div>
 
-        <div className="rounded-[1.4rem] border border-white/10 bg-card/60 p-4">
-          <div className={`flex flex-wrap items-center justify-between gap-2 ${isArabic ? 'text-right' : 'text-left'}`}>
+        <div className="relative overflow-hidden rounded-[1.4rem] border border-white/10 bg-card/60 p-4">
+          <div className={HOME_CARD_OVERLAY_CLASS} aria-hidden="true" />
+          <div className={`relative z-10 flex flex-wrap items-center justify-between gap-2 ${isArabic ? 'text-right' : 'text-left'}`}>
             <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-text-tertiary">
               {copy.progressTitle}
             </div>
@@ -839,13 +1003,13 @@ export function WorkoutOverviewScreen({
               {copy.progressSummary(completedCount, cards.length)}
             </div>
           </div>
-          <div className="mt-3 h-2 w-full rounded-full bg-white/10">
+          <div className="relative z-10 mt-3 h-2 w-full rounded-full bg-white/10">
             <div
               className="h-full rounded-full bg-accent/70 transition-all"
               style={{ width: `${progressRatio * 100}%` }}
             />
           </div>
-          <div className="mt-2 text-xs text-text-secondary">
+          <div className="relative z-10 mt-2 text-xs text-text-secondary">
             {copy.progressHint}
           </div>
         </div>
@@ -979,13 +1143,14 @@ export function WorkoutOverviewScreen({
                 <div
                   key={workout.key}
                   data-coachmark-target={index === 0 ? 'my_plan_first_week_card' : undefined}
-                  className={`w-full rounded-[1.6rem] border p-4 transition-colors ${cardTone} ${isArabic ? 'text-right' : 'text-left'}`}
+                  className={`relative w-full overflow-hidden rounded-[1.6rem] border p-4 transition-colors ${cardTone} ${isArabic ? 'text-right' : 'text-left'}`}
                   dir={isArabic ? 'rtl' : 'ltr'}
                 >
+                  <div className={HOME_CARD_OVERLAY_CLASS} aria-hidden="true" />
                   <button
                     type="button"
                     onClick={() => onSelectWorkout(workout.key)}
-                    className="w-full text-inherit"
+                    className="relative z-10 w-full text-inherit"
                     aria-label={localizeWorkoutText(workout.premiumMeta?.displayTitle || workout.workoutName)}
                   >
                     <div className={`flex items-start justify-between gap-3 ${isArabic ? 'flex-row-reverse' : ''}`}>
@@ -1066,7 +1231,7 @@ export function WorkoutOverviewScreen({
                     )}
                   </button>
                   {cardState === 'completed' && workout.isCompletedToday && recommendedCard && (
-                    <div className={`mt-3 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-[11px] text-text-secondary ${isArabic ? 'text-right' : 'text-left'}`}>
+                    <div className={`relative z-10 mt-3 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-[11px] text-text-secondary ${isArabic ? 'text-right' : 'text-left'}`}>
                       <span className="mr-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-text-tertiary">
                         {copy.nextUpLabel}
                       </span>
@@ -1074,7 +1239,7 @@ export function WorkoutOverviewScreen({
                     </div>
                   )}
 
-                  <div className={`mt-4 flex ${isArabic ? 'justify-start' : 'justify-end'}`}>
+                  <div className={`relative z-10 mt-4 flex ${isArabic ? 'justify-start' : 'justify-end'}`}>
                     <button
                       type="button"
                       data-coachmark-target={index === 0 ? 'my_plan_first_action_button' : undefined}

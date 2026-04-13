@@ -1,5 +1,6 @@
 import React, { ReactNode } from 'react';
 import { motion } from 'framer-motion';
+import { HOME_CARD_OVERLAY_CLASS } from '../home/homeCardStyles';
 
 interface GhostButtonProps {
   children: ReactNode;
@@ -22,6 +23,7 @@ export function GhostButton({ children, onClick, className = '', coachmarkTarget
       className={`
         ghost-button
         surface-glass
+        relative overflow-hidden
         w-full py-3.5 px-5 rounded-xl
         text-accent font-medium text-sm
         border border-accent/25
@@ -31,7 +33,10 @@ export function GhostButton({ children, onClick, className = '', coachmarkTarget
         ${className}
       `}
     >
-      {children}
+      <span className={HOME_CARD_OVERLAY_CLASS} aria-hidden="true" />
+      <span className="relative z-10 flex w-full items-center justify-center">
+        {children}
+      </span>
     </motion.button>
   );
 }

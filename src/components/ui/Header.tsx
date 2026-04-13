@@ -1,6 +1,7 @@
 import React from 'react';
 import { ArrowLeft } from 'lucide-react';
 import { motion } from 'framer-motion';
+import { getActiveLanguage, getStoredLanguage } from '../../services/language';
 
 interface HeaderProps {
   title?: string;
@@ -21,9 +22,15 @@ export function Header({
   backButtonCoachmarkTargetId,
   titleCoachmarkTargetId,
 }: HeaderProps) {
+  const language = getActiveLanguage(getStoredLanguage());
+  const isArabic = language === 'ar';
+
   return (
-    <div className={`flex items-center justify-between ${compact ? 'py-2 mb-2' : 'py-4 mb-6'}`}>
-      <div className={`flex items-center min-w-0 ${compact ? 'gap-3' : 'gap-4'}`}>
+    <div
+      dir={isArabic ? 'rtl' : 'ltr'}
+      className={`flex items-center justify-between ${compact ? 'py-2 mb-2' : 'py-4 mb-6'}`}
+    >
+      <div className={`flex items-center min-w-0 ${compact ? 'gap-3' : 'gap-4'} ${isArabic ? 'flex-row-reverse' : ''}`}>
         {onBack && (
           <motion.button
             data-coachmark-target={backButtonCoachmarkTargetId}
@@ -33,13 +40,13 @@ export function Header({
             onClick={onBack}
             className="w-10 h-10 rounded-xl surface-glass flex items-center justify-center text-text-primary hover:border-accent/40 transition-colors"
           >
-            <ArrowLeft size={18} />
+            <ArrowLeft size={18} className={isArabic ? 'rotate-180' : ''} />
           </motion.button>
         )}
         {title && (
           <h1
             data-coachmark-target={titleCoachmarkTargetId}
-            className={`flex-1 text-xl leading-tight text-text-primary ${titleClassName}`}
+            className={`flex-1 text-xl leading-tight text-text-primary ${isArabic ? 'text-right' : ''} ${titleClassName}`}
           >
             {title}
           </h1>

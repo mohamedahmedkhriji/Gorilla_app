@@ -36,6 +36,9 @@ import {
   hasAnthropicConfig,
 } from './services/claudeCoach.js';
 import { processGamificationProgression } from './services/progressionService.js';
+import { buildGamificationSummary } from './services/gamification/summaryService.js';
+import { getLeaderboardBundle } from './services/gamification/rivalryService.js';
+import { enrichMissionCollection } from './services/gamification/missionEngine.js';
 import { getExerciseFallbackMuscleRows } from './services/exerciseMuscleProfiles.js';
 import { hasOpenAIConfig, requestOpenAIChatCompletion } from './services/openaiProxy.js';
 
@@ -11316,115 +11319,18 @@ router.get('/leaderboard/:userId', requireAuth('user'), requireUserAccess('userI
     }
 
     const period = String(req.query.period || 'alltime').toLowerCase();
-    if (!['monthly', 'alltime'].includes(period)) {
-      return res.status(400).json({ error: "Invalid period. Use 'monthly' or 'alltime'" });
+    if (!['weekly', 'monthly', 'alltime'].includes(period)) {
+      return res.status(400).json({ error: "Invalid period. Use 'weekly', 'monthly' or 'alltime'" });
     }
 
-    const profileImageColumn = await getProfileImageColumn();
-    if (!profileImageColumn) {
-      return res.status(500).json({ error: 'No profile image column found on users table' });
-    }
-
-    const [userRows] = await pool.execute(
-      `SELECT id, gym_id
-       FROM users
-       WHERE id = ?
-       LIMIT 1`,
-      [userId],
-    );
-
-    if (!userRows.length) {
-      return res.status(404).json({ error: 'User not found' });
-    }
-
-    const gymId = userRows[0].gym_id;
-    const scopeWhere = gymId
-      ? `u.role = 'user' AND u.is_active = 1 AND u.gym_id = ?`
-      : `u.role = 'user' AND u.is_active = 1`;
-    const scopeParams = gymId ? [gymId] : [];
-
-    let query = '';
-    if (period === 'monthly') {
-      query = `
-        SELECT
-          u.id,
-          u.name,
-          u.gym_id,
-          ${profileImageColumn} AS profile_picture,
-          COALESCE(monthly_missions.points, 0)
-            + COALESCE(monthly_challenges.points, 0)
-            + COALESCE(monthly_friend_challenges.points, 0)
-            + COALESCE(monthly_blogs.points, 0) AS points,
-          COALESCE(u.total_points, 0) AS total_points
-        FROM users u
-        LEFT JOIN (
-          SELECT um.user_id, SUM(m.points_reward) AS points
-          FROM user_missions um
-          JOIN missions m ON m.id = um.mission_id
-          WHERE um.status = 'completed'
-            AND um.completed_at >= DATE_FORMAT(NOW(), '%Y-%m-01')
-            AND um.completed_at < DATE_ADD(DATE_FORMAT(NOW(), '%Y-%m-01'), INTERVAL 1 MONTH)
-          GROUP BY um.user_id
-        ) monthly_missions ON monthly_missions.user_id = u.id
-        LEFT JOIN (
-          SELECT uc.user_id, SUM(ct.points_reward) AS points
-          FROM user_challenges uc
-          JOIN challenge_templates ct ON ct.id = uc.challenge_template_id
-          WHERE uc.status = 'completed'
-            AND uc.completed_at >= DATE_FORMAT(NOW(), '%Y-%m-01')
-            AND uc.completed_at < DATE_ADD(DATE_FORMAT(NOW(), '%Y-%m-01'), INTERVAL 1 MONTH)
-          GROUP BY uc.user_id
-        ) monthly_challenges ON monthly_challenges.user_id = u.id
-        LEFT JOIN (
-          SELECT challenge_points.user_id, SUM(challenge_points.points) AS points
-          FROM (
-            SELECT fcr.participant_a_id AS user_id, fcr.participant_a_points AS points, fcr.completed_at
-            FROM friend_challenge_results fcr
-            UNION ALL
-            SELECT fcr.participant_b_id AS user_id, fcr.participant_b_points AS points, fcr.completed_at
-            FROM friend_challenge_results fcr
-          ) challenge_points
-          WHERE challenge_points.completed_at >= DATE_FORMAT(NOW(), '%Y-%m-01')
-            AND challenge_points.completed_at < DATE_ADD(DATE_FORMAT(NOW(), '%Y-%m-01'), INTERVAL 1 MONTH)
-          GROUP BY challenge_points.user_id
-        ) monthly_friend_challenges ON monthly_friend_challenges.user_id = u.id
-        LEFT JOIN (
-          SELECT bp.user_id, COUNT(*) * ${BLOG_POST_UPLOAD_POINTS} AS points
-          FROM blog_posts bp
-          WHERE bp.created_at >= DATE_FORMAT(NOW(), '%Y-%m-01')
-            AND bp.created_at < DATE_ADD(DATE_FORMAT(NOW(), '%Y-%m-01'), INTERVAL 1 MONTH)
-          GROUP BY bp.user_id
-        ) monthly_blogs ON monthly_blogs.user_id = u.id
-        WHERE ${scopeWhere}
-        ORDER BY points DESC, u.id ASC
-      `;
-    } else {
-      query = `
-        SELECT
-          u.id,
-          u.name,
-          u.gym_id,
-          ${profileImageColumn} AS profile_picture,
-          COALESCE(u.total_points, 0) AS points,
-          COALESCE(u.total_points, 0) AS total_points
-        FROM users u
-        WHERE ${scopeWhere}
-        ORDER BY points DESC, u.id ASC
-      `;
-    }
-
-    const [rows] = await pool.execute(query, scopeParams);
-
-    const leaderboard = rows.map((row, index) => ({
-      id: Number(row.id),
-      name: row.name || 'User',
-      profile_picture: row.profile_picture || null,
-      points: Number(row.points || 0),
-      total_points: Number(row.total_points || 0),
-      rank: index + 1,
-    }));
-
-    return res.json({ period, leaderboard });
+    const bundle = await getLeaderboardBundle({ userId, period });
+    return res.json({
+      period: bundle.period,
+      leaderboard: bundle.leaderboard,
+      preview: bundle.preview,
+      rivalry: bundle.rivalry,
+      currentUser: bundle.currentUser,
+    });
   } catch (error) {
     return res.status(500).json({ error: error.message });
   }
@@ -15285,7 +15191,9 @@ router.get('/missions/:userId', requireAuth('user', 'coach', 'gym_owner'), requi
     }
 
     const refreshed = await refreshGamificationForUser(userId);
-    const missions = (refreshed?.missions || []).filter((mission) => mission?.status !== 'expired');
+    const missions = await enrichMissionCollection(
+      (refreshed?.missions || []).filter((mission) => mission?.status !== 'expired'),
+    );
     return res.json(missions);
   } catch (error) {
     return res.status(500).json({ error: error.message });
@@ -15399,8 +15307,15 @@ router.get('/gamification/:userId/summary', requireAuth('user', 'coach', 'gym_ow
       gamification: refreshed,
     });
     const progressionSnapshot = await getUserProgressionSnapshot(userId);
+    const summary = await buildGamificationSummary({
+      userId,
+      refreshedGamification: refreshed,
+      progressionSnapshot,
+      leaderboardPeriod: String(req.query?.leaderboardPeriod || 'weekly').trim().toLowerCase(),
+    });
 
     return res.json({
+      ...summary,
       userId: refreshed.userId,
       totalPoints: refreshed.totalPoints,
       missionPoints: refreshed.missionPoints,
@@ -15417,8 +15332,79 @@ router.get('/gamification/:userId/summary', requireAuth('user', 'coach', 'gym_ow
       completedMissions: refreshed.completedMissions,
       completedChallenges: refreshed.completedChallenges,
       activeMissions: refreshed.missions.filter((m) => m.status === 'active').length,
+      activeMissionCount: refreshed.missions.filter((m) => m.status === 'active').length,
       activeChallenges: refreshed.challenges.filter((c) => c.status === 'active').length,
       progression,
+    });
+  } catch (error) {
+    return res.status(500).json({ error: error.message });
+  }
+});
+
+router.get('/user-rank/:userId', requireAuth('user', 'coach', 'gym_owner'), requireUserAccess('userId', {
+  allowSelf: true,
+  allowAssignedCoach: true,
+  allowGymOwner: true,
+}), async (req, res) => {
+  try {
+    const userId = toNumber(req.params.userId);
+    if (!userId || userId <= 0) {
+      return res.status(400).json({ error: 'Invalid userId' });
+    }
+
+    const refreshed = await refreshGamificationForUser(userId);
+    if (!refreshed) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    const progressionSnapshot = await getUserProgressionSnapshot(userId);
+    const summary = await buildGamificationSummary({
+      userId,
+      refreshedGamification: refreshed,
+      progressionSnapshot,
+      leaderboardPeriod: 'weekly',
+    });
+
+    return res.json({
+      userId,
+      rank: summary.progress.rank,
+      level: summary.progress.level,
+      streaks: summary.progress.streaks,
+      rivalry: summary.progress.rivalry,
+      nextAction: summary.nextAction,
+      notificationTriggers: summary.notificationTriggers,
+    });
+  } catch (error) {
+    return res.status(500).json({ error: error.message });
+  }
+});
+
+router.post('/mission-progress', authMutationRateLimit, requireAuth('user'), requireUserAccess((req) => req.body?.userId, { allowSelf: true }), async (req, res) => {
+  try {
+    const userId = toNumber(req.body?.userId);
+    if (!userId || userId <= 0) {
+      return res.status(400).json({ error: 'Invalid userId' });
+    }
+
+    const refreshed = await refreshGamificationForUser(userId);
+    if (!refreshed) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    const progressionSnapshot = await getUserProgressionSnapshot(userId);
+    const summary = await buildGamificationSummary({
+      userId,
+      refreshedGamification: refreshed,
+      progressionSnapshot,
+      leaderboardPeriod: 'weekly',
+    });
+
+    return res.json({
+      success: true,
+      activeMissionList: summary.activeMissionList,
+      missionChains: summary.missionChains,
+      nextAction: summary.nextAction,
+      notificationTriggers: summary.notificationTriggers,
     });
   } catch (error) {
     return res.status(500).json({ error: error.message });
