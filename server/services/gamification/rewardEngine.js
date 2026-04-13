@@ -2,21 +2,25 @@
 
 import pool from '../../database.js';
 import { REWARD_RARITY_BY_TYPE } from './config.js';
+import { ensureColumnExists } from './schemaCompat.js';
 
 let rewardIdentityInfrastructurePromise = null;
 
 const ensureRewardIdentityInfrastructure = async () => {
-  await pool.execute(
-    `ALTER TABLE rewards
-     ADD COLUMN IF NOT EXISTS rarity ENUM('common', 'rare', 'epic', 'legendary') NOT NULL DEFAULT 'common' AFTER value_json`,
+  await ensureColumnExists(
+    'rewards',
+    'rarity',
+    "ALTER TABLE rewards ADD COLUMN rarity ENUM('common', 'rare', 'epic', 'legendary') NOT NULL DEFAULT 'common' AFTER value_json",
   );
-  await pool.execute(
-    `ALTER TABLE rewards
-     ADD COLUMN IF NOT EXISTS identity_key VARCHAR(120) NULL AFTER rarity`,
+  await ensureColumnExists(
+    'rewards',
+    'identity_key',
+    'ALTER TABLE rewards ADD COLUMN identity_key VARCHAR(120) NULL AFTER rarity',
   );
-  await pool.execute(
-    `ALTER TABLE rewards
-     ADD COLUMN IF NOT EXISTS visual_variant VARCHAR(120) NULL AFTER identity_key`,
+  await ensureColumnExists(
+    'rewards',
+    'visual_variant',
+    'ALTER TABLE rewards ADD COLUMN visual_variant VARCHAR(120) NULL AFTER identity_key',
   );
 };
 

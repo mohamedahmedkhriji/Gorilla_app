@@ -2,17 +2,18 @@
 
 import pool from '../../database.js';
 import { GAMIFICATION_CONFIG, clamp } from './config.js';
+import { ensureColumnExists } from './schemaCompat.js';
 
 let missionChainInfrastructurePromise = null;
 
 const ensureMissionChainInfrastructure = async () => {
-  await pool.execute(`ALTER TABLE missions ADD COLUMN IF NOT EXISTS chain_id VARCHAR(80) NULL AFTER metric_key`);
-  await pool.execute(`ALTER TABLE missions ADD COLUMN IF NOT EXISTS chain_step INT NULL AFTER chain_id`);
-  await pool.execute(`ALTER TABLE missions ADD COLUMN IF NOT EXISTS chain_length INT NULL AFTER chain_step`);
-  await pool.execute(`ALTER TABLE missions ADD COLUMN IF NOT EXISTS chain_bonus_xp INT NOT NULL DEFAULT 0 AFTER chain_length`);
-  await pool.execute(`ALTER TABLE missions ADD COLUMN IF NOT EXISTS chain_bonus_points INT NOT NULL DEFAULT 0 AFTER chain_bonus_xp`);
-  await pool.execute(`ALTER TABLE missions ADD COLUMN IF NOT EXISTS unlock_level INT NULL AFTER chain_bonus_points`);
-  await pool.execute(`ALTER TABLE missions ADD COLUMN IF NOT EXISTS unlock_rank VARCHAR(50) NULL AFTER unlock_level`);
+  await ensureColumnExists('missions', 'chain_id', 'ALTER TABLE missions ADD COLUMN chain_id VARCHAR(80) NULL AFTER metric_key');
+  await ensureColumnExists('missions', 'chain_step', 'ALTER TABLE missions ADD COLUMN chain_step INT NULL AFTER chain_id');
+  await ensureColumnExists('missions', 'chain_length', 'ALTER TABLE missions ADD COLUMN chain_length INT NULL AFTER chain_step');
+  await ensureColumnExists('missions', 'chain_bonus_xp', 'ALTER TABLE missions ADD COLUMN chain_bonus_xp INT NOT NULL DEFAULT 0 AFTER chain_length');
+  await ensureColumnExists('missions', 'chain_bonus_points', 'ALTER TABLE missions ADD COLUMN chain_bonus_points INT NOT NULL DEFAULT 0 AFTER chain_bonus_xp');
+  await ensureColumnExists('missions', 'unlock_level', 'ALTER TABLE missions ADD COLUMN unlock_level INT NULL AFTER chain_bonus_points');
+  await ensureColumnExists('missions', 'unlock_rank', 'ALTER TABLE missions ADD COLUMN unlock_rank VARCHAR(50) NULL AFTER unlock_level');
 };
 
 const ensureMissionChainInfrastructureOnce = async () => {
