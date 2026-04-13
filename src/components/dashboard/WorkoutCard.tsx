@@ -640,9 +640,6 @@ export function WorkoutCard({
             </div>
           </div>
 
-          <span className="mt-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-text-tertiary">
-            {resolvedProgressCaption}
-          </span>
         </div>
       </div>
     </motion.div>

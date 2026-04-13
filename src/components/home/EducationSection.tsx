@@ -26,9 +26,9 @@ export function EducationSection({
   const copy = pickLanguage(language, {
     en: {
       learningHub: 'Learning Hub',
-      exercises: 'Exercises',
+      exercises: 'Library',
       browse: 'Browse',
-      books: 'Books',
+      books: 'Plan',
       comingSoon: 'Coming Soon',
     },
     ar: {
@@ -40,30 +40,35 @@ export function EducationSection({
     },
     it: {
       learningHub: 'Centro Formazione',
-      exercises: 'Esercizi',
+      exercises: 'Libreria',
       browse: 'Esplora',
-      books: 'Libri',
+      books: 'Piano',
       comingSoon: 'In arrivo',
     },
     de: {
       learningHub: 'Lernzentrum',
-      exercises: 'Ubungen',
+      exercises: 'Bibliothek',
       browse: 'Ansehen',
-      books: 'Bucher',
+      books: 'Plan',
       comingSoon: 'Demnachst',
     },
     fr: {
       learningHub: 'Centre d apprentissage',
-      exercises: 'Exercices',
+      exercises: 'Bibliotheque',
       browse: 'Explorer',
-      books: 'Livres',
+      books: 'Plan',
       comingSoon: 'Bientot disponible',
     },
   });
 
   return (
     <div className="space-y-3">
-      <h3 className="text-[11px] font-semibold text-text-secondary uppercase tracking-[0.15em] px-1">{copy.learningHub}</h3>
+      <div className="flex items-end gap-3 px-1">
+        <h3 className="text-base font-electrolize font-bold uppercase tracking-[0.12em] text-text-primary">
+          {copy.learningHub}
+        </h3>
+        <div className="mb-[0.18rem] h-px flex-1 bg-gradient-to-r from-white/20 via-white/10 to-transparent" aria-hidden="true" />
+      </div>
 
       <div className="grid grid-cols-2 gap-4">
         <Card
@@ -91,10 +96,7 @@ export function EducationSection({
             </div>
             <div className="flex items-end justify-between gap-3">
               <div>
-                <div className="text-xl leading-none text-white mb-1">{copy.exercises}</div>
-                <div className="text-[11px] text-text-secondary uppercase tracking-[0.09em]">
-                  {copy.browse}
-                </div>
+                <h4 className="truncate text-[1.9rem] font-electrolize font-bold leading-none text-text-primary">{copy.exercises}</h4>
               </div>
               <img
                 src={emojiRightArrow}
@@ -131,10 +133,7 @@ export function EducationSection({
             </div>
             <div className="flex items-end justify-between gap-3">
               <div>
-                <div className="text-xl leading-none text-white mb-1">{copy.books}</div>
-                <div className="text-[11px] text-text-secondary uppercase tracking-[0.09em]">
-                  {copy.browse}
-                </div>
+                <h4 className="truncate text-[1.9rem] font-electrolize font-bold leading-none text-text-primary">{copy.books}</h4>
               </div>
               <img
                 src={emojiRightArrow}

@@ -111,8 +111,8 @@ export function RecoveryIndicator({ percentage, onClick, coachmarkTargetId }: Re
             <img src={emojiMuscleRecovery} alt={copy.alt} className="h-6 w-6 object-contain" />
           </div>
         </div>
-        <div className="flex items-center justify-center text-center">
-          <span className="text-[1.05rem] font-electrolize font-extrabold uppercase tracking-[0.16em] text-text-primary">{copy.title}</span>
+        <div className="flex min-w-0 items-center justify-center text-center">
+          <h4 className="truncate text-[1.9rem] font-electrolize font-bold leading-none text-text-primary">{copy.title}</h4>
         </div>
         <span className="text-3xl leading-none text-text-primary font-electrolize">{safePercentage}%</span>
       </div>

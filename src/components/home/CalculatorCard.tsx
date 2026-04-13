@@ -12,7 +12,6 @@ export function CalculatorCard({ onClick }: CalculatorCardProps) {
   const copy = pickLanguage(language, {
     en: {
       title: 'Auto Nutrition',
-      subtitle: 'Calories and protein targets',
     },
     ar: {
       title: 'التغذية الذكية',
@@ -20,15 +19,12 @@ export function CalculatorCard({ onClick }: CalculatorCardProps) {
     },
     it: {
       title: 'Nutrizione Smart',
-      subtitle: 'Obiettivi di calorie e proteine',
     },
     de: {
       title: 'Smarte Ernahrung',
-      subtitle: 'Kalorien- und Proteinziele',
     },
     fr: {
       title: 'Nutrition Auto',
-      subtitle: 'Objectifs de calories et de proteines',
     },
   });
 
@@ -55,9 +51,8 @@ export function CalculatorCard({ onClick }: CalculatorCardProps) {
         <div className="w-10 h-10 rounded-2xl bg-info/15 border border-info/30 flex items-center justify-center text-info group-hover:text-accent transition-colors">
           <img src={emojiMyNutrition} alt={copy.title} className="h-7 w-7 object-contain" />
         </div>
-        <div>
-          <div className="text-xl leading-none text-white">{copy.title}</div>
-          <div className="text-[11px] uppercase tracking-[0.09em] text-text-secondary mt-1">{copy.subtitle}</div>
+        <div className="min-w-0 flex items-center">
+          <h4 className="truncate text-[1.9rem] font-electrolize font-bold leading-none text-text-primary">{copy.title}</h4>
         </div>
       </div>
       <img
