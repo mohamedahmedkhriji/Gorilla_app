@@ -1761,10 +1761,10 @@ export function Home({
             aria-hidden="true"
           />
           <div className="relative z-10">
-            <h1 className="mt-1 text-3xl font-electrolize font-bold text-text-primary">
+            <h1 className="text-3xl font-electrolize font-bold text-text-primary">
               {greeting}
             </h1>
-            <p className="text-text-secondary mt-2 text-sm max-w-[200px] leading-snug">
+            <p className="text-text-secondary mt-1 text-sm max-w-[200px] leading-snug">
               {homeCopy.tagline}
             </p>
           </div>

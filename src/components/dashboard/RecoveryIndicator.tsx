@@ -90,7 +90,7 @@ export function RecoveryIndicator({ percentage, onClick, coachmarkTargetId }: Re
       }}
       whileHover={onClick ? { y: -2 } : undefined}
       onClick={onClick}
-      className={`surface-card relative overflow-hidden rounded-2xl p-5 border border-white/15 shadow-card ${HOME_CARD_HOVER_CLASS} ${onClick ? 'cursor-pointer hover:border-accent/30' : ''}`}
+      className={`surface-card relative overflow-hidden rounded-2xl p-4 border border-white/15 shadow-card ${HOME_CARD_HOVER_CLASS} ${onClick ? 'cursor-pointer hover:border-accent/30' : ''}`}
     >
       <div
         className="absolute inset-0 bg-cover bg-center opacity-60"
@@ -106,7 +106,7 @@ export function RecoveryIndicator({ percentage, onClick, coachmarkTargetId }: Re
         aria-hidden="true"
       />
 
-      <div className="relative z-10 grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 mb-4">
+      <div className="relative z-10 grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 mb-3">
         <div className="flex items-center justify-center">
           <div className="flex h-10 w-10 items-center justify-center rounded-2xl border border-accent/30 bg-accent/12 p-1.5">
             <img src={emojiMuscleRecovery} alt={copy.alt} className="h-6 w-6 object-contain" />
