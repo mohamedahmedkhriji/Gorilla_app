@@ -128,30 +128,33 @@ export function FriendsCard({ onClick, coachmarkTargetId }: FriendsCardProps) {
     <Card
       onClick={onClick}
       coachmarkTargetId={coachmarkTargetId}
-      className="relative overflow-hidden p-4 flex flex-col justify-between h-full cursor-pointer border border-white/15 hover:border-accent/35 transition-colors group"
+      className="relative h-full cursor-pointer overflow-hidden rounded-[24px] border border-white/10 p-4 shadow-[0_18px_40px_-28px_rgba(0,0,0,0.9)] ring-1 ring-inset ring-white/[0.03] transition-all duration-300 group hover:-translate-y-1 hover:border-accent/25 active:scale-[0.985]"
     >
       <div
-        className="absolute inset-0 bg-cover bg-center opacity-45 transition-transform duration-300 group-hover:scale-105"
+        className="absolute inset-0 bg-cover bg-center opacity-50 transition-transform duration-300 group-hover:scale-105"
         style={{ backgroundImage: `url(${emojiGymFriendsBg})` }}
       />
-      <div className="absolute inset-0 bg-gradient-to-b from-black/45 via-black/50 to-black/70" />
+      <div className="absolute inset-x-4 top-0 h-px bg-gradient-to-r from-transparent via-white/25 to-transparent" />
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(205,255,88,0.14),transparent_30%),linear-gradient(180deg,rgba(7,11,17,0.28),rgba(7,11,17,0.74))]" />
 
       <div className="relative z-10 flex justify-between items-start">
-        <div className="w-10 h-10 rounded-2xl bg-accent/10 border border-accent/35 flex items-center justify-center text-accent group-hover:shadow-glow transition-all">
+        <div className="relative flex h-11 w-11 items-center justify-center rounded-[18px] border border-accent/20 bg-white/[0.08] text-accent shadow-[inset_0_1px_0_rgba(255,255,255,0.07)] transition-all duration-300 group-hover:border-accent/35">
+          <div className="absolute inset-x-2 top-0 h-px bg-gradient-to-r from-transparent via-white/20 to-transparent" />
           <img src={emojiFriends} alt={copy.friendsLogoAlt} className="h-7 w-7 object-contain" />
         </div>
-        <img src={emojiRightArrow} alt="" aria-hidden="true" className="h-4 w-4 object-contain opacity-70 group-hover:opacity-100 transition-opacity" />
+        <img src={emojiRightArrow} alt="" aria-hidden="true" className="h-4 w-4 object-contain opacity-70 transition-all duration-300 group-hover:translate-x-0.5 group-hover:opacity-100" />
       </div>
 
       <div className="relative z-10 mt-4">
-        <div className="text-2xl font-electrolize leading-none text-white">{copy.friends}</div>
+        <div className="text-[11px] font-medium uppercase tracking-[0.16em] text-white/52">Community</div>
+        <div className="mt-2 text-[22px] font-semibold leading-none tracking-[-0.03em] text-white">{copy.friends}</div>
       </div>
 
       <div className="relative z-10 flex -space-x-2 mt-3">
         {visibleFriends.map((friend) => (
           <div
             key={friend.id}
-            className="w-7 h-7 rounded-full bg-white/10 border border-card overflow-hidden flex items-center justify-center text-[9px] text-white"
+            className="flex h-8 w-8 items-center justify-center overflow-hidden rounded-full border border-[#11161f] bg-white/10 text-[9px] text-white shadow-[0_8px_16px_-12px_rgba(0,0,0,0.8)]"
           >
             {friend.profile_picture ? (
               <img src={friend.profile_picture} alt={`${friend.name} ${copy.profileSuffix}`} className="w-full h-full object-cover" />
@@ -160,7 +163,7 @@ export function FriendsCard({ onClick, coachmarkTargetId }: FriendsCardProps) {
             )}
           </div>
         ))}
-        {hiddenCount > 0 && <div className="w-7 h-7 rounded-full bg-white/5 border border-card flex items-center justify-center text-[9px] text-text-secondary">+{hiddenCount}</div>}
+        {hiddenCount > 0 && <div className="flex h-8 w-8 items-center justify-center rounded-full border border-[#11161f] bg-white/[0.06] text-[9px] text-text-secondary">+{hiddenCount}</div>}
       </div>
     </Card>
   );

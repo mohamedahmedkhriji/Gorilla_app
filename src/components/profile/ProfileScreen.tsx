@@ -215,6 +215,18 @@ const PROFILE_I18N = {
   },
 } as const;
 
+const profilePanelClassName =
+  'relative overflow-hidden rounded-[28px] border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.06),rgba(255,255,255,0.015))] shadow-[0_20px_50px_-28px_rgba(0,0,0,0.85)] ring-1 ring-inset ring-white/[0.03] backdrop-blur-sm';
+
+const statCardClassName =
+  `${profilePanelClassName} px-3 py-4 text-center transition-all duration-300 hover:-translate-y-0.5 hover:border-white/15 active:scale-[0.985]`;
+
+const featureCardClassName =
+  `${profilePanelClassName} group flex h-full cursor-pointer flex-col justify-between p-4 text-left transition-all duration-300 hover:-translate-y-1 active:scale-[0.985]`;
+
+const featureIconClassName =
+  'relative flex h-11 w-11 items-center justify-center rounded-[18px] border border-white/12 bg-white/[0.07] shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]';
+
 export function ProfileScreen({ onNavigate, onLogout }: ProfileScreenProps) {
   const user = getStoredAppUser() || { name: 'Moha' };
   const userName = String(user?.name || 'Moha');
@@ -501,11 +513,13 @@ export function ProfileScreen({ onNavigate, onLogout }: ProfileScreenProps) {
   
   return (
     <div className="space-y-6 pb-24">
-      <div className="flex items-center gap-4 pt-4">
+      <div className={`${profilePanelClassName} flex items-center gap-4 px-4 py-4 pt-5`}>
+        <div className="absolute inset-x-6 top-0 h-px bg-gradient-to-r from-transparent via-white/20 to-transparent" />
+        <div className="absolute -right-10 top-0 h-24 w-24 rounded-full bg-accent/10 blur-3xl" />
         <div className="relative">
           <div
             data-coachmark-target="profile_avatar_button"
-            className="w-20 h-20 rounded-full bg-white/10 flex items-center justify-center text-text-tertiary overflow-hidden"
+            className="flex h-20 w-20 items-center justify-center overflow-hidden rounded-full border border-white/15 bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.18),rgba(255,255,255,0.04)_58%,rgba(255,255,255,0.02))] text-text-tertiary shadow-[0_16px_36px_-22px_rgba(0,0,0,0.85)] ring-1 ring-inset ring-white/10"
           >
             <button
               type="button"
@@ -526,9 +540,9 @@ export function ProfileScreen({ onNavigate, onLogout }: ProfileScreenProps) {
           </div>
           <label
             data-coachmark-target="profile_avatar_upload_button"
-            className="absolute bottom-0 right-0 w-6 h-6 bg-accent rounded-full flex items-center justify-center cursor-pointer hover:bg-accent/80 transition-colors"
+            className="absolute bottom-0 right-0 flex h-7 w-7 cursor-pointer items-center justify-center rounded-full border border-black/15 bg-accent text-black shadow-[0_10px_20px_-12px_rgba(205,255,88,0.7)] transition-all duration-200 hover:scale-105 hover:bg-accent/90 active:scale-95"
           >
-            <Camera size={12} className="text-white" />
+            <Camera size={12} className="text-black" />
             <input
               ref={avatarInputRef}
               type="file"
@@ -539,19 +553,20 @@ export function ProfileScreen({ onNavigate, onLogout }: ProfileScreenProps) {
           </label>
         </div>
 
-        <div>
-          <h1 className="text-2xl font-bold text-white">{userName}</h1>
-          <p className="text-text-secondary">{memberSinceText}</p>
+        <div className="min-w-0">
+          <h1 className="truncate text-[28px] font-semibold tracking-[-0.04em] text-white">{userName}</h1>
+          <p className="mt-1 text-[11px] font-medium uppercase tracking-[0.18em] text-text-secondary">{memberSinceText}</p>
         </div>
       </div>
 
       <div className="grid grid-cols-3 gap-3">
         <div
           data-coachmark-target="profile_exercises_card"
-          className="bg-card rounded-xl p-3 text-center border border-white/5"
+          className={statCardClassName}
         >
-          <div className="text-xl font-bold text-white">{completedExercises ?? '-'}</div>
-          <div className="text-[10px] text-text-secondary uppercase">
+          <div className="mx-auto mb-3 h-px w-10 bg-gradient-to-r from-transparent via-white/25 to-transparent" />
+          <div className="text-[23px] font-semibold tracking-[-0.04em] text-white">{completedExercises ?? '-'}</div>
+          <div className="mt-2 text-[10px] font-medium uppercase tracking-[0.16em] text-text-secondary">
             {copy.exercises}
           </div>
         </div>
@@ -559,23 +574,25 @@ export function ProfileScreen({ onNavigate, onLogout }: ProfileScreenProps) {
           data-coachmark-target="profile_rank_card"
           type="button"
           onClick={() => onNavigate('rank')}
-          className="bg-card rounded-xl p-3 text-center border border-white/5 hover:bg-white/5 transition-colors"
+          className={statCardClassName}
         >
-          <div className="text-xl font-bold text-white">{rankPosition > 0 ? `#${rankPosition}` : '0'}</div>
-          <div className="text-[10px] text-text-secondary uppercase">
+          <div className="mx-auto mb-3 h-px w-10 bg-gradient-to-r from-transparent via-accent/40 to-transparent" />
+          <div className="text-[23px] font-semibold tracking-[-0.04em] text-white">{rankPosition > 0 ? `#${rankPosition}` : '0'}</div>
+          <div className="mt-2 text-[10px] font-medium uppercase tracking-[0.16em] text-text-secondary">
             {copy.classification}
           </div>
-          <div className="text-[10px] text-text-tertiary mt-1">{copy.of} {Math.max(0, rankTotalMembers)}</div>
+          <div className="mt-1 text-[10px] font-medium text-text-tertiary">{copy.of} {Math.max(0, rankTotalMembers)}</div>
         </button>
         <div
           data-coachmark-target="profile_days_left_card"
-          className="bg-card rounded-xl p-3 text-center border border-white/5"
+          className={statCardClassName}
         >
-          <div className="text-xl font-bold text-white">{Math.max(0, planDaysLeft)}</div>
-          <div className="text-[10px] text-text-secondary uppercase">
+          <div className="mx-auto mb-3 h-px w-10 bg-gradient-to-r from-transparent via-white/25 to-transparent" />
+          <div className="text-[23px] font-semibold tracking-[-0.04em] text-white">{Math.max(0, planDaysLeft)}</div>
+          <div className="mt-2 text-[10px] font-medium uppercase tracking-[0.16em] text-text-secondary">
             {copy.daysLeft}
           </div>
-          <div className="text-[10px] text-text-tertiary mt-1">{planSessionsLeft} {copy.sessions}</div>
+          <div className="mt-1 text-[10px] font-medium text-text-tertiary">{planSessionsLeft} {copy.sessions}</div>
         </div>
       </div>
 
@@ -595,44 +612,48 @@ export function ProfileScreen({ onNavigate, onLogout }: ProfileScreenProps) {
           data-coachmark-target="profile_posts_card"
           type="button"
           onClick={() => onNavigate('posts')}
-          className="surface-card rounded-2xl p-5 relative overflow-hidden p-4 flex flex-col justify-between h-full cursor-pointer border border-white/15 hover:border-emerald-400/35 transition-colors group text-left"
+          className={`${featureCardClassName} hover:border-emerald-400/30`}
         >
-          <div className="absolute inset-0 bg-gradient-to-b from-black/45 via-black/50 to-black/70" />
+          <div className="absolute inset-x-4 top-0 h-px bg-gradient-to-r from-transparent via-white/25 to-transparent" />
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(16,185,129,0.16),transparent_34%),linear-gradient(180deg,rgba(0,0,0,0.2),rgba(0,0,0,0.52))]" />
           <div className="relative z-10 flex justify-between items-start">
-            <div className="w-10 h-10 rounded-2xl bg-emerald-500/10 border border-emerald-400/30 flex items-center justify-center text-emerald-400">
+            <div className={`${featureIconClassName} text-emerald-300`}>
+              <div className="absolute inset-x-2 top-0 h-px bg-gradient-to-r from-transparent via-white/20 to-transparent" />
               <FileText size={20} />
             </div>
-            <img src={emojiRightArrow} alt="" aria-hidden="true" className="h-4 w-4 object-contain opacity-70 group-hover:opacity-100 transition-opacity" />
+            <img src={emojiRightArrow} alt="" aria-hidden="true" className="h-4 w-4 object-contain opacity-70 transition-all duration-300 group-hover:translate-x-0.5 group-hover:opacity-100" />
           </div>
           <div className="relative z-10 mt-4 min-w-0">
-            <div className="text-lg leading-none text-white">
+            <div className="text-xl font-semibold leading-none tracking-[-0.03em] text-white">
               <div>{copy.myBlogPostsLine1}</div>
               <div>{copy.myBlogPostsLine2}</div>
             </div>
           </div>
-          <div className="relative z-10 mt-3 text-[11px] text-emerald-300 font-semibold uppercase tracking-[0.1em]">{copy.open}</div>
+          <div className="relative z-10 mt-3 text-[11px] font-medium uppercase tracking-[0.16em] text-emerald-300">{copy.open}</div>
         </button>
 
         <button
           data-coachmark-target="profile_plan_builder_card"
           type="button"
           onClick={() => setIsPlanChoiceOpen(true)}
-          className="surface-card rounded-2xl p-5 relative overflow-hidden p-4 flex flex-col justify-between h-full cursor-pointer border border-white/15 hover:border-accent/35 transition-colors group text-left"
+          className={`${featureCardClassName} hover:border-accent/30`}
         >
-          <div className="absolute inset-0 bg-gradient-to-b from-black/45 via-black/50 to-black/70" />
+          <div className="absolute inset-x-4 top-0 h-px bg-gradient-to-r from-transparent via-white/25 to-transparent" />
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(205,255,88,0.16),transparent_34%),linear-gradient(180deg,rgba(0,0,0,0.2),rgba(0,0,0,0.52))]" />
           <div className="relative z-10 flex justify-between items-start">
-            <div className="w-10 h-10 rounded-2xl bg-accent/10 border border-accent/35 flex items-center justify-center text-accent">
+            <div className={`${featureIconClassName} text-accent`}>
+              <div className="absolute inset-x-2 top-0 h-px bg-gradient-to-r from-transparent via-white/20 to-transparent" />
               <Dumbbell size={20} />
             </div>
-            <img src={emojiRightArrow} alt="" aria-hidden="true" className="h-4 w-4 object-contain opacity-70 group-hover:opacity-100 transition-opacity" />
+            <img src={emojiRightArrow} alt="" aria-hidden="true" className="h-4 w-4 object-contain opacity-70 transition-all duration-300 group-hover:translate-x-0.5 group-hover:opacity-100" />
           </div>
           <div className="relative z-10 mt-4 min-w-0">
-            <div className="text-lg leading-none text-white">
+            <div className="text-xl font-semibold leading-none tracking-[-0.03em] text-white">
               <div>{copy.createWorkoutPlanLine1}</div>
               <div>{copy.createWorkoutPlanLine2}</div>
             </div>
           </div>
-          <div className="relative z-10 mt-3 text-[11px] text-accent font-semibold uppercase tracking-[0.1em]">{copy.start}</div>
+          <div className="relative z-10 mt-3 text-[11px] font-medium uppercase tracking-[0.16em] text-accent">{copy.start}</div>
         </button>
       </div>
 
@@ -640,7 +661,7 @@ export function ProfileScreen({ onNavigate, onLogout }: ProfileScreenProps) {
         data-coachmark-target="profile_logout_button"
         type="button"
         onClick={() => setIsLogoutOpen(true)}
-        className="w-full p-4 rounded-2xl bg-red-500/10 text-red-500 font-marker flex items-center justify-center gap-2 hover:bg-red-500/20 transition-colors"
+        className={`${profilePanelClassName} flex w-full items-center justify-center gap-2 rounded-[24px] border-red-500/15 bg-[linear-gradient(180deg,rgba(239,68,68,0.12),rgba(239,68,68,0.04))] p-4 text-red-300 transition-all duration-300 hover:-translate-y-0.5 hover:bg-red-500/15 active:scale-[0.99]`}
       >
         <LogOut size={20} />
         {copy.logOut}
@@ -648,26 +669,27 @@ export function ProfileScreen({ onNavigate, onLogout }: ProfileScreenProps) {
 
       {isPlanChoiceOpen && (
         <div
-          className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-[2px]"
           onClick={() => setIsPlanChoiceOpen(false)}
         >
           <div
-            className="w-full max-w-sm bg-card border border-white/10 rounded-2xl p-4 space-y-3"
+            className={`${profilePanelClassName} w-full max-w-sm space-y-3 p-5`}
             onClick={(e) => e.stopPropagation()}
           >
-            <h3 className="text-white font-semibold text-lg">{copy.choosePlanTitle}</h3>
-            <p className="text-sm text-text-secondary">{copy.choosePlanSubtitle}</p>
+            <div className="absolute inset-x-6 top-0 h-px bg-gradient-to-r from-transparent via-white/20 to-transparent" />
+            <h3 className="text-lg font-semibold tracking-[-0.03em] text-white">{copy.choosePlanTitle}</h3>
+            <p className="text-sm leading-6 text-text-secondary">{copy.choosePlanSubtitle}</p>
             <button
               type="button"
               onClick={() => handlePlanChoice('alone')}
-              className="w-full bg-white/5 hover:bg-white/10 transition-colors rounded-xl p-3 text-left text-white border border-white/10"
+              className="w-full rounded-[18px] border border-white/10 bg-white/[0.04] p-3 text-left text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] transition-all duration-200 hover:border-accent/25 hover:bg-white/[0.08] active:scale-[0.99]"
             >
               {copy.createAlone}
             </button>
             <button
               type="button"
               onClick={() => handlePlanChoice('coach')}
-              className="w-full bg-white/5 hover:bg-white/10 transition-colors rounded-xl p-3 text-left text-white border border-white/10"
+              className="w-full rounded-[18px] border border-white/10 bg-white/[0.04] p-3 text-left text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] transition-all duration-200 hover:border-accent/25 hover:bg-white/[0.08] active:scale-[0.99]"
             >
               {copy.withCoach}
             </button>
@@ -677,18 +699,19 @@ export function ProfileScreen({ onNavigate, onLogout }: ProfileScreenProps) {
 
       {isLogoutOpen && (
         <div
-          className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-[2px]"
           onClick={() => setIsLogoutOpen(false)}
         >
           <div
-            className="w-full max-w-sm bg-card border border-white/10 rounded-3xl p-5 shadow-card"
+            className={`${profilePanelClassName} w-full max-w-sm rounded-[28px] p-5 shadow-card`}
             onClick={(e) => e.stopPropagation()}
           >
+            <div className="absolute inset-x-6 top-0 h-px bg-gradient-to-r from-transparent via-white/20 to-transparent" />
             <div className="flex items-center justify-between">
               <button
                 type="button"
                 onClick={() => setIsLogoutOpen(false)}
-                className="w-9 h-9 rounded-full bg-white/10 text-text-secondary hover:bg-white/20 transition-colors flex items-center justify-center"
+                className="flex h-9 w-9 items-center justify-center rounded-full border border-white/10 bg-white/[0.05] text-text-secondary transition-all duration-200 hover:bg-white/[0.12] active:scale-95"
                 aria-label={copy.closeLogoutDialog}
               >
                 <X size={18} />
@@ -706,7 +729,7 @@ export function ProfileScreen({ onNavigate, onLogout }: ProfileScreenProps) {
               <button
                 type="button"
                 onClick={() => setIsLogoutOpen(false)}
-                className="w-full rounded-full border border-success/30 bg-success/10 py-2.5 text-sm font-semibold text-success hover:bg-success/20 transition-colors"
+                className="w-full rounded-full border border-success/30 bg-success/10 py-2.5 text-sm font-semibold text-success transition-all duration-200 hover:bg-success/20 active:scale-[0.99]"
               >
                 {copy.cancel}
               </button>
@@ -716,7 +739,7 @@ export function ProfileScreen({ onNavigate, onLogout }: ProfileScreenProps) {
                   setIsLogoutOpen(false);
                   onLogout();
                 }}
-                className="w-full rounded-full bg-success py-2.5 text-sm font-semibold text-text-primary hover:bg-success/90 transition-colors"
+                className="w-full rounded-full bg-success py-2.5 text-sm font-semibold text-text-primary shadow-[0_12px_24px_-16px_rgba(34,197,94,0.8)] transition-all duration-200 hover:bg-success/90 active:scale-[0.99]"
               >
                 {copy.yesLogout}
               </button>
@@ -727,15 +750,16 @@ export function ProfileScreen({ onNavigate, onLogout }: ProfileScreenProps) {
 
       {isCoachPickerOpen && (
         <div
-          className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-[2px]"
           onClick={() => setIsCoachPickerOpen(false)}
         >
           <div
-            className="w-full max-w-sm bg-card border border-white/10 rounded-2xl p-4 space-y-3 max-h-[80vh] overflow-y-auto"
+            className={`${profilePanelClassName} max-h-[80vh] w-full max-w-sm space-y-3 overflow-y-auto p-5`}
             onClick={(e) => e.stopPropagation()}
           >
-            <h3 className="text-white font-semibold text-lg">{copy.chooseCoach}</h3>
-            <p className="text-sm text-text-secondary">{copy.chooseCoachSubtitle}</p>
+            <div className="absolute inset-x-6 top-0 h-px bg-gradient-to-r from-transparent via-white/20 to-transparent" />
+            <h3 className="text-lg font-semibold tracking-[-0.03em] text-white">{copy.chooseCoach}</h3>
+            <p className="text-sm leading-6 text-text-secondary">{copy.chooseCoachSubtitle}</p>
 
             {coachesLoading && (
               <div className="text-sm text-text-secondary">{copy.loadingCoaches}</div>
@@ -751,7 +775,7 @@ export function ProfileScreen({ onNavigate, onLogout }: ProfileScreenProps) {
                 type="button"
                 disabled={coachRequestingId !== null}
                 onClick={() => void handleSelectCoach(coach)}
-                className="w-full bg-white/5 hover:bg-white/10 transition-colors rounded-xl p-3 text-left text-white border border-white/10 disabled:opacity-50"
+                className="w-full rounded-[18px] border border-white/10 bg-white/[0.04] p-3 text-left text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] transition-all duration-200 hover:border-accent/25 hover:bg-white/[0.08] disabled:opacity-50"
               >
                 <div className="font-medium">
                   {coach.name}
@@ -768,12 +792,12 @@ export function ProfileScreen({ onNavigate, onLogout }: ProfileScreenProps) {
 
       {isPreviewOpen && profilePicture && (
         <div
-          className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-4"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 p-4 backdrop-blur-[2px]"
           onClick={() => setIsPreviewOpen(false)}
         >
           <button
             type="button"
-            className="absolute top-4 right-4 text-white text-sm px-3 py-1 rounded bg-white/10 hover:bg-white/20"
+            className="absolute right-4 top-4 rounded-full border border-white/10 bg-white/10 px-4 py-2 text-sm text-white transition-all duration-200 hover:bg-white/20 active:scale-95"
             onClick={() => setIsPreviewOpen(false)}
           >
             {copy.close}

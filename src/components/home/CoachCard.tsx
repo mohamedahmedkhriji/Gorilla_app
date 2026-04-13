@@ -81,34 +81,36 @@ export function CoachCard({ onClick, coachmarkTargetId }: CoachCardProps) {
     <Card
       onClick={onClick}
       coachmarkTargetId={coachmarkTargetId}
-      className="relative overflow-hidden p-4 flex flex-col justify-between h-full cursor-pointer border border-white/15 hover:border-info/35 transition-colors group"
+      className="relative h-full cursor-pointer overflow-hidden rounded-[24px] border border-white/10 p-4 shadow-[0_18px_40px_-28px_rgba(0,0,0,0.9)] ring-1 ring-inset ring-white/[0.03] transition-all duration-300 group hover:-translate-y-1 hover:border-info/25 active:scale-[0.985]"
     >
       <div
-        className="absolute inset-0 bg-cover bg-center opacity-45 transition-transform duration-300 group-hover:scale-105"
+        className="absolute inset-0 bg-cover bg-center opacity-50 transition-transform duration-300 group-hover:scale-105"
         style={{ backgroundImage: `url(${emojiCoachSupportBg})` }}
       />
-      <div className="absolute inset-0 bg-gradient-to-b from-black/45 via-black/50 to-black/70" />
+      <div className="absolute inset-x-4 top-0 h-px bg-gradient-to-r from-transparent via-white/25 to-transparent" />
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(255,255,255,0.1),transparent_32%),linear-gradient(180deg,rgba(7,11,17,0.28),rgba(7,11,17,0.74))]" />
 
       <div className="relative z-10 flex justify-between items-start">
         <div className="relative">
-          <div className="w-10 h-10 rounded-2xl bg-white/10 border border-white/15 flex items-center justify-center text-text-secondary overflow-hidden">
+          <div className="relative flex h-11 w-11 items-center justify-center overflow-hidden rounded-[18px] border border-white/14 bg-white/[0.08] text-text-secondary shadow-[inset_0_1px_0_rgba(255,255,255,0.07)]">
+            <div className="absolute inset-x-2 top-0 h-px bg-gradient-to-r from-transparent via-white/20 to-transparent" />
             <img src={coachSupportLogo} alt={copy.coachSupportLogoAlt} className="w-full h-full object-cover" />
           </div>
-          <div className="absolute -top-1 -right-1 w-3 h-3 bg-accent rounded-full border-2 border-card shadow-glow" />
+          <div className="absolute -top-1 -right-1 h-3 w-3 rounded-full border-2 border-card bg-accent shadow-[0_0_0_3px_rgba(205,255,88,0.12)]" />
         </div>
-        <img src={emojiRightArrow} alt="" aria-hidden="true" className="h-4 w-4 object-contain opacity-70 group-hover:opacity-100 transition-opacity" />
+        <img src={emojiRightArrow} alt="" aria-hidden="true" className="h-4 w-4 object-contain opacity-70 transition-all duration-300 group-hover:translate-x-0.5 group-hover:opacity-100" />
       </div>
 
       <div className="relative z-10 mt-4 min-w-0">
-        <div className="text-lg leading-none text-white truncate">{copy.title}</div>
-        <div className="text-[10px] text-text-secondary uppercase tracking-[0.12em] mt-1">{copy.subtitle}</div>
+        <div className="text-[11px] font-medium uppercase tracking-[0.16em] text-white/52">{copy.subtitle}</div>
+        <div className="mt-2 text-[20px] font-semibold leading-none tracking-[-0.03em] text-white truncate">{copy.title}</div>
       </div>
 
-      <div className="relative z-10 mt-3 flex items-center gap-2 text-accent text-[11px] font-semibold uppercase tracking-[0.1em]">
+      <div className="relative z-10 mt-3 flex items-center gap-2 text-accent text-[11px] font-medium uppercase tracking-[0.16em]">
         <MessageSquare size={12} />
         <span>{copy.cta}</span>
         {unreadCount > 0 && (
-          <span className="absolute -top-2 -right-2 bg-red-500 text-white text-[10px] w-5 h-5 rounded-full flex items-center justify-center font-bold">{unreadCount}</span>
+          <span className="absolute -top-2 -right-2 flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white shadow-[0_10px_20px_-12px_rgba(239,68,68,0.9)]">{unreadCount}</span>
         )}
       </div>
     </Card>

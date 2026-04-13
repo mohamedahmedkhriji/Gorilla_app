@@ -408,7 +408,6 @@ export function Blogs({ guidedTourActive = false, onGuidedTourComplete, onGuided
     return next;
   }, [deferredCategory, deferredTab, engagedAuthorIds, posts, userId]);
 
-  const tabItems = useMemo(() => TAB_OPTIONS.map((tab) => ({ key: tab, label: copy.tabs[tab] || tab })), [copy.tabs]);
   const resolvePostAvatar = useCallback((post: Post) => (post.userId === userId && userProfileImage) || post.avatarUrl || DEFAULT_AVATAR, [userId, userProfileImage]);
   const resolveCommentAvatar = useCallback((comment: BlogComment) => (comment.userId === userId && userProfileImage) || comment.avatarUrl || DEFAULT_AVATAR, [userId, userProfileImage]);
   const getLatestCommentAvatarUrl = useCallback((comments: BlogComment[]) => {
@@ -849,7 +848,6 @@ export function Blogs({ guidedTourActive = false, onGuidedTourComplete, onGuided
   const localComments = activeCommentsPostId ? commentsByPost[activeCommentsPostId] || [] : [];
   const canPublish = Boolean(newDescription.trim()) && Boolean(newMediaUrl) && !isPublishing;
   const selectCategory = useCallback((category: FeedCategory) => startTransition(() => setActiveCategory(category)), []);
-  const selectTab = useCallback((tab: FeedTab) => startTransition(() => setActiveTab(tab)), []);
   const closeCreateModal = useCallback(() => {
     setIsCreateOpen(false);
     setCreateError('');
@@ -859,7 +857,7 @@ export function Blogs({ guidedTourActive = false, onGuidedTourComplete, onGuided
   return (
     <div className="blogs-page relative flex min-h-screen flex-1 flex-col pb-24">
       <FeedPage
-        header={<FeedHeader title={copy.feedTitle} subtitle={copy.feedSubtitle} tabs={tabItems} activeTab={activeTab} onTabChange={selectTab} onRefresh={() => { void loadInitialFeed('refresh'); }} onCreate={() => { setIsCreateOpen(true); setCreateError(''); }} refreshAria={copy.refreshFeedAria} createAria={copy.createPostAria} refreshing={refreshing} />}
+        header={<FeedHeader onRefresh={() => { void loadInitialFeed('refresh'); }} onCreate={() => { setIsCreateOpen(true); setCreateError(''); }} refreshAria={copy.refreshFeedAria} createAria={copy.createPostAria} refreshing={refreshing} />}
         filters={<CategoryFilters filters={categoryFilters} activeCategory={activeCategory} onSelect={selectCategory} getLabel={getCategoryLabel} getCount={(category) => categoryCounts[category]} />}
         error={error}
       >

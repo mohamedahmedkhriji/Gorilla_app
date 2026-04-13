@@ -801,7 +801,7 @@ export function Profile({
           <button
             data-coachmark-target="profile_settings_button"
             onClick={() => setView('settings')}
-            className="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center text-white hover:bg-white/20 transition-colors"
+            className="flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.12),rgba(255,255,255,0.05))] text-white shadow-[0_12px_24px_-18px_rgba(0,0,0,0.8)] ring-1 ring-inset ring-white/[0.04] transition-all duration-200 hover:-translate-y-0.5 hover:bg-white/15 active:scale-95"
             aria-label={copy.openSettings}
           >
             <Settings size={20} />
@@ -810,7 +810,7 @@ export function Profile({
           <button
             data-coachmark-target="profile_notifications_button"
             onClick={() => setView('notifications')}
-            className="relative w-10 h-10 rounded-full bg-white/10 flex items-center justify-center text-white hover:bg-white/20 transition-colors"
+            className="relative flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.12),rgba(255,255,255,0.05))] text-white shadow-[0_12px_24px_-18px_rgba(0,0,0,0.8)] ring-1 ring-inset ring-white/[0.04] transition-all duration-200 hover:-translate-y-0.5 hover:bg-white/15 active:scale-95"
             aria-label={copy.openNotifications}
           >
             <Bell size={20} />
