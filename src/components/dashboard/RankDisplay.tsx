@@ -97,7 +97,8 @@ export function RankDisplay({ points = 420, coachmarkTargetId }: RankDisplayProp
         duration: 0.5,
         delay: 0.4,
       }}
-      className="surface-card relative overflow-hidden rounded-2xl p-4 border border-accent/25 shadow-card"
+      whileHover={{ y: -4 }}
+      className="surface-card relative overflow-hidden rounded-2xl p-4 border border-accent/25 shadow-card transition-shadow duration-300 hover:shadow-[0_12px_32px_rgba(0,0,0,0.45),0_0_14px_rgba(191,255,0,0.07)]"
     >
       <div
         className="absolute inset-0 bg-cover bg-center opacity-60"
@@ -108,16 +109,18 @@ export function RankDisplay({ points = 420, coachmarkTargetId }: RankDisplayProp
         className="absolute inset-0 bg-gradient-to-r from-background/65 via-background/45 to-background/25"
         aria-hidden="true"
       />
+      <div
+        className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.05),transparent)] pointer-events-none"
+        aria-hidden="true"
+      />
 
-      <div className="relative z-10 flex items-center justify-between">
-        <div className="flex items-center gap-3 min-w-0">
-          <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-accent/30 to-info/25 flex items-center justify-center border border-accent/35 shrink-0">
-            <img src={rankBadgeImage} alt={rankNameDisplay} className="h-10 w-10 object-contain" />
-          </div>
-          <div className="min-w-0">
-            <h4 className="text-2xl leading-none text-white truncate">{rankNameDisplay}</h4>
-            <p className="text-text-secondary text-xs uppercase tracking-[0.1em] mt-2">{copy.pointsLabel}</p>
-          </div>
+      <div className="relative z-10 grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3">
+        <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-accent/30 to-info/25 flex items-center justify-center border border-accent/35 shrink-0">
+          <img src={rankBadgeImage} alt={rankNameDisplay} className="h-10 w-10 object-contain" />
+        </div>
+        <div className="min-w-0 flex items-center justify-center gap-3 text-center">
+          <h4 className="truncate text-[1.9rem] font-electrolize font-bold leading-none text-text-primary">{rankNameDisplay}</h4>
+          <p className="shrink-0 text-[1.35rem] leading-none text-text-primary font-electrolize">{copy.pointsLabel}</p>
         </div>
         <img src={rankCardIcon} alt={copy.iconAlt} className="h-8 w-8 shrink-0 object-contain" />
       </div>

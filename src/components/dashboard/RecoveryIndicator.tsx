@@ -65,13 +65,6 @@ export function RecoveryIndicator({ percentage, onClick, coachmarkTargetId }: Re
     },
   });
 
-  const getRecoveryStatus = (value: number) => {
-    if (value >= 90) return copy.statuses.high;
-    if (value >= 70) return copy.statuses.solid;
-    if (value >= 50) return copy.statuses.moderate;
-    return copy.statuses.low;
-  };
-
   const getBarClass = (value: number) => {
     if (value >= 90) return 'from-success to-accent';
     if (value >= 70) return 'from-accent to-info';
@@ -94,8 +87,9 @@ export function RecoveryIndicator({ percentage, onClick, coachmarkTargetId }: Re
         duration: 0.5,
         delay: 0.2,
       }}
+      whileHover={onClick ? { y: -4 } : undefined}
       onClick={onClick}
-      className={`surface-card relative overflow-hidden rounded-2xl p-5 border border-white/15 ${onClick ? 'cursor-pointer hover:border-accent/30 transition-colors' : ''}`}
+      className={`surface-card relative overflow-hidden rounded-2xl p-5 border border-white/15 shadow-card transition-all duration-300 hover:shadow-[0_12px_32px_rgba(0,0,0,0.45),0_0_14px_rgba(191,255,0,0.07)] ${onClick ? 'cursor-pointer hover:border-accent/30' : ''}`}
     >
       <div
         className="absolute inset-0 bg-cover bg-center opacity-60"
@@ -106,16 +100,19 @@ export function RecoveryIndicator({ percentage, onClick, coachmarkTargetId }: Re
         className="absolute inset-0 bg-gradient-to-r from-background/65 via-background/45 to-background/25"
         aria-hidden="true"
       />
+      <div
+        className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.05),transparent)] pointer-events-none"
+        aria-hidden="true"
+      />
 
-      <div className="relative z-10 flex justify-between items-start mb-4">
-        <div className="flex items-center gap-2">
+      <div className="relative z-10 grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 mb-4">
+        <div className="flex items-center justify-center">
           <div className="w-10 h-10 rounded-xl bg-accent/12 border border-accent/30 p-1.5 flex items-center justify-center">
             <img src={emojiMuscleRecovery} alt={copy.alt} className="h-6 w-6 object-contain" />
           </div>
-          <div>
-            <span className="text-[15px] font-electrolize font-extrabold uppercase tracking-[0.14em] text-text-primary">{copy.title}</span>
-            <p className="text-sm font-semibold text-text-tertiary mt-1">{getRecoveryStatus(safePercentage)}</p>
-          </div>
+        </div>
+        <div className="flex items-center justify-center text-center">
+          <span className="text-[1.05rem] font-electrolize font-extrabold uppercase tracking-[0.16em] text-text-primary">{copy.title}</span>
         </div>
         <span className="text-3xl leading-none text-text-primary font-electrolize">{safePercentage}%</span>
       </div>

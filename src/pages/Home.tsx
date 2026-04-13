@@ -1750,10 +1750,14 @@ export function Home({
         <header
           data-coachmark-target="home_header_card"
           onClick={() => onNavigate('profile')}
-          className="mb-7 surface-card relative overflow-hidden rounded-2xl border border-white/12 px-4 py-3 flex items-start justify-between gap-4 cursor-pointer">
+          className="mb-7 surface-card relative overflow-hidden rounded-2xl border border-white/12 px-4 py-3 flex items-start justify-between gap-4 cursor-pointer shadow-card transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_12px_32px_rgba(0,0,0,0.45),0_0_14px_rgba(191,255,0,0.07)]">
           <div
             className="absolute inset-0 bg-cover bg-center opacity-60"
             style={{ backgroundImage: `url(${emojiProfile})` }}
+            aria-hidden="true"
+          />
+          <div
+            className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.05),transparent)] pointer-events-none"
             aria-hidden="true"
           />
           <div className="relative z-10">
@@ -1799,7 +1803,7 @@ export function Home({
               exerciseCount={todayWorkoutExerciseCount}
               progress={shouldChooseWorkoutToday ? 0 : workoutProgress}
               isRestDay={isWorkoutCardRestDay}
-              subtitleOverride={workoutCardSubtitleDisplay}
+              subtitleOverride={null}
               detailLines={workoutCardDetailLinesDisplay}
               actionLabel={workoutCardActionLabelDisplay}
               progressCaption={workoutCardProgressCaptionDisplay}

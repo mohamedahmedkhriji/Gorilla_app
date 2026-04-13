@@ -68,8 +68,9 @@ export function EducationSection({
       <div className="grid grid-cols-2 gap-4">
         <Card
           onClick={onExercises}
+          whileHover={{ y: -4 }}
           coachmarkTargetId={exercisesCoachmarkTargetId}
-          className="p-4 relative overflow-hidden cursor-pointer border border-white/15 hover:border-info/35 transition-colors group"
+          className="p-4 relative overflow-hidden cursor-pointer border border-white/15 shadow-card transition-all duration-300 hover:border-info/35 hover:shadow-[0_12px_32px_rgba(0,0,0,0.45),0_0_14px_rgba(191,255,0,0.05)] group"
         >
           <div
             className="absolute inset-0 bg-cover bg-center opacity-60"
@@ -78,6 +79,10 @@ export function EducationSection({
           />
           <div
             className="absolute inset-0 bg-gradient-to-r from-background/65 via-background/45 to-background/25"
+            aria-hidden="true"
+          />
+          <div
+            className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.05),transparent)] pointer-events-none"
             aria-hidden="true"
           />
           <div className="relative z-10">
@@ -103,8 +108,9 @@ export function EducationSection({
 
         <Card
           onClick={onBooks}
+          whileHover={{ y: -4 }}
           coachmarkTargetId={booksCoachmarkTargetId}
-          className="p-4 relative overflow-hidden cursor-pointer border border-white/15 hover:border-accent/35 transition-colors group"
+          className="p-4 relative overflow-hidden cursor-pointer border border-white/15 shadow-card transition-all duration-300 hover:border-accent/35 hover:shadow-[0_12px_32px_rgba(0,0,0,0.45),0_0_14px_rgba(191,255,0,0.07)] group"
         >
           <div
             className="absolute inset-0 bg-cover bg-center opacity-60"
@@ -113,6 +119,10 @@ export function EducationSection({
           />
           <div
             className="absolute inset-0 bg-gradient-to-r from-background/65 via-background/45 to-background/25"
+            aria-hidden="true"
+          />
+          <div
+            className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.05),transparent)] pointer-events-none"
             aria-hidden="true"
           />
           <div className="relative z-10">

@@ -29,7 +29,7 @@ export default {
       },
       boxShadow: {
         glow: '0 0 16px rgb(var(--color-accent) / 0.18)',
-        card: '0 8px 22px rgb(7 12 24 / 0.14)',
+        card: '0 8px 24px rgb(0 0 0 / 0.35), 0 2px 6px rgb(0 0 0 / 0.25), 0 0 10px rgb(var(--color-accent) / 0.05)',
         inset: 'inset 0 1px 0 rgb(255 255 255 / 0.05)',
       }
     },

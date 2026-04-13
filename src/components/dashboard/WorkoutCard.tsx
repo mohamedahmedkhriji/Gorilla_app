@@ -536,7 +536,8 @@ export function WorkoutCard({
         duration: 0.5,
         delay: 0.1,
       }}
-      className="surface-card relative overflow-hidden rounded-2xl border border-white/12 p-5"
+      whileHover={{ y: -4 }}
+      className="surface-card relative overflow-hidden rounded-2xl border border-white/12 p-5 shadow-card transition-shadow duration-300 hover:shadow-[0_12px_32px_rgba(0,0,0,0.45),0_0_14px_rgba(191,255,0,0.07)]"
     >
       <div
         className="absolute inset-0 bg-cover bg-center opacity-60"
@@ -546,6 +547,10 @@ export function WorkoutCard({
       <div
         className="absolute inset-0 bg-gradient-to-r from-background/65 via-background/45 to-background/25"
         data-coachmark-target={coachmarkGradientTargetId}
+        aria-hidden="true"
+      />
+      <div
+        className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.05),transparent)] pointer-events-none"
         aria-hidden="true"
       />
 
@@ -590,7 +595,7 @@ export function WorkoutCard({
           {!isResolvedRestDay && resolvedActionLabel && (
             <button
               type="button"
-              className="mt-5 mx-auto flex w-fit items-center justify-center whitespace-nowrap rounded-full border border-accent/30 bg-accent/20 px-7 py-2.5 text-center text-sm font-marker text-text-primary shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_8px_18px_rgba(0,0,0,0.18)]"
+              className="mt-5 mx-auto flex w-fit items-center justify-center whitespace-nowrap rounded-full border border-accent/30 bg-accent/20 px-7 py-2.5 text-center text-[1rem] font-electrolize font-bold leading-none text-text-primary shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_8px_18px_rgba(0,0,0,0.18)]"
             >
               {resolvedActionLabel}
             </button>
