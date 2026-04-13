@@ -1,7 +1,8 @@
 import React, { useEffect, useMemo, useState, useCallback, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { Header } from '../ui/Header';
 import { api } from '../../services/api';
-import { Bookmark, CalendarX2, Check, Plus, Play, Search, Square, TriangleAlert, X } from 'lucide-react';
+import { CalendarX2, Check, Plus, Play, Search, Square, TriangleAlert, X } from 'lucide-react';
 import { getBodyPartImage } from '../../services/bodyPartTheme';
 import { resolveExerciseVideo } from '../../services/exerciseVideos';
 import { AppLanguage, LocalizedLanguageRecord, getActiveLanguage, getStoredLanguage } from '../../services/language';
@@ -992,21 +993,6 @@ export function WorkoutPlanScreen({
         </button>
       )}
 
-      {onOpenLatestSummary && (
-        <button
-          data-coachmark-target="workout_plan_latest_summary_button"
-          type="button"
-          onClick={onOpenLatestSummary}
-          className={`flex h-10 w-10 items-center justify-center rounded-xl border transition-colors ${
-            hasLatestSummary
-              ? 'border-accent/35 bg-accent/10 text-accent hover:bg-accent/20'
-              : 'border-white/10 bg-card/60 text-text-tertiary hover:text-text-secondary'
-          }`}
-          aria-label={copy.openLatestSummaryAria}
-        >
-          <Bookmark size={17} />
-        </button>
-      )}
     </div>
   );
 
@@ -1710,9 +1696,9 @@ export function WorkoutPlanScreen({
         </div>
       )}
 
-      {isMarkDoneModalOpen && (
+      {isMarkDoneModalOpen && typeof document !== 'undefined' && createPortal(
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4"
+          className="fixed inset-0 z-[160] flex items-center justify-center bg-black/80 p-4"
           onClick={() => setIsMarkDoneModalOpen(false)}
         >
           <div
@@ -1777,12 +1763,13 @@ export function WorkoutPlanScreen({
               </div>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body,
       )}
 
-      {isMissModalOpen && (
+      {isMissModalOpen && typeof document !== 'undefined' && createPortal(
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4"
+          className="fixed inset-0 z-[160] flex items-center justify-center bg-black/80 p-4"
           onClick={() => setIsMissModalOpen(false)}
         >
           <div
@@ -1847,7 +1834,8 @@ export function WorkoutPlanScreen({
               </div>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body,
       )}
 
       <style>{`

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { Header } from '../ui/Header';
 import { SlidersHorizontal, ChevronDown, X } from 'lucide-react';
 import { api } from '../../services/api';
@@ -645,10 +646,16 @@ export function MuscleRecoveryScreen({ onBack }: MuscleRecoveryScreenProps) {
         />
       </div>
 
-      {showFactors && (
-        <div className="fixed inset-0 z-50 bg-black/80 p-4 sm:p-6">
+      {showFactors && typeof document !== 'undefined' && createPortal(
+        <div
+          className="fixed inset-0 z-[160] bg-black/80 p-4 sm:p-6"
+          onClick={() => setShowFactors(false)}
+        >
           <div className="flex min-h-full items-center justify-center">
-            <div className={`relative flex max-h-[90dvh] w-full max-w-md flex-col overflow-hidden rounded-2xl border border-white/10 bg-card ${isArabic ? 'text-right' : 'text-left'}`}>
+            <div
+              className={`relative flex max-h-[90dvh] w-full max-w-md flex-col overflow-hidden rounded-2xl border border-white/10 bg-card ${isArabic ? 'text-right' : 'text-left'}`}
+              onClick={(event) => event.stopPropagation()}
+            >
               <button
                 onClick={() => setShowFactors(false)}
                 className="absolute right-4 top-4 z-10 text-text-secondary transition-colors hover:text-white"
@@ -734,7 +741,8 @@ export function MuscleRecoveryScreen({ onBack }: MuscleRecoveryScreenProps) {
               </div>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body,
       )}
 
       <div className="px-4 sm:px-6 space-y-6 mt-4">

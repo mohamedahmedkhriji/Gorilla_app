@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { Button } from '../ui/Button';
 import { StrengthChart } from './StrengthChart';
 import { Card } from '../ui/Card';
@@ -776,14 +777,14 @@ export function ProgressDashboard({ onViewReport, onViewStrengthScore }: Progres
         </Button>
       </div>
 
-      {showPageInfo && (
+      {showPageInfo && typeof document !== 'undefined' && createPortal(
         <div
-          className="fixed inset-0 z-[120] flex items-center justify-center bg-black/60 px-4"
+          className="fixed inset-0 z-[160] flex items-start justify-center overflow-y-auto bg-black/60 px-4 pb-6 pt-[calc(env(safe-area-inset-top,0px)+0.75rem)] sm:pt-8"
           onClick={() => setShowPageInfo(false)}
           role="presentation"
         >
           <div
-            className="w-full max-w-md rounded-2xl border border-white/10 bg-card p-5"
+            className="w-full max-w-md max-h-[calc(100dvh-1.5rem)] overflow-y-auto rounded-2xl border border-white/10 bg-card p-5"
             onClick={(event) => event.stopPropagation()}
             role="dialog"
             aria-modal="true"
@@ -808,7 +809,8 @@ export function ProgressDashboard({ onViewReport, onViewStrengthScore }: Progres
               <p>{copy.infoLine5}</p>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body,
       )}
     </div>);
 

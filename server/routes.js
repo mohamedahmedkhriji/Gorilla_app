@@ -2018,6 +2018,49 @@ const deriveVolumeFromSetCount = (setCount) => {
   return 'moderate';
 };
 
+const deriveVolumeFromWorkoutLoad = ({
+  setCount = 0,
+  totalReps = 0,
+  totalLoad = 0,
+  heaviestWeight = 0,
+  bodyweightKg = null,
+}) => {
+  const safeSetCount = Math.max(0, Number(setCount || 0));
+  const safeTotalReps = Math.max(0, Number(totalReps || 0));
+  const safeTotalLoad = Math.max(0, Number(totalLoad || 0));
+  const safeHeaviestWeight = Math.max(0, Number(heaviestWeight || 0));
+  const safeBodyweight = Math.max(0, Number(bodyweightKg || 0));
+
+  if (!safeSetCount && !safeTotalReps && !safeTotalLoad) {
+    return 'low';
+  }
+
+  let score = 0;
+
+  if (safeSetCount >= 6) score += 2;
+  else if (safeSetCount >= 3) score += 1;
+
+  if (safeTotalReps >= 40) score += 2;
+  else if (safeTotalReps >= 18) score += 1;
+
+  const normalizedLoad = safeTotalLoad > 0
+    ? (safeBodyweight > 0 ? safeTotalLoad / safeBodyweight : safeTotalLoad / 100)
+    : 0;
+  if (normalizedLoad >= 16) score += 2;
+  else if (normalizedLoad >= 6) score += 1;
+
+  const relativeTopLoad = safeBodyweight > 0
+    ? safeHeaviestWeight / safeBodyweight
+    : 0;
+  if (relativeTopLoad >= 1.35 || (!safeBodyweight && safeHeaviestWeight >= 80)) {
+    score += 1;
+  }
+
+  if (score >= 4) return 'high';
+  if (score <= 1) return deriveVolumeFromSetCount(safeSetCount);
+  return 'moderate';
+};
+
 const computeCatalogRecoveryLoadMultiplier = (profile = {}, loadFactor = 1) => {
   const systemic = Number(profile.systemicStressScore ?? 1);
   const cns = Number(profile.cnsLoadScore ?? 1);
@@ -14204,6 +14247,8 @@ const rebuildTodayRecoveryStatusFromSets = async (userId) => {
         id,
         exercise_name,
         exercise_catalog_id,
+        COALESCE(weight, 0) AS weight,
+        COALESCE(reps, 0) AS reps,
         COALESCE(rpe, 7) AS rpe,
         created_at
      FROM workout_sets
@@ -14252,14 +14297,22 @@ const rebuildTodayRecoveryStatusFromSets = async (userId) => {
         setCount: 0,
         totalRpe: 0,
         rpeSamples: 0,
+        totalReps: 0,
+        totalLoad: 0,
+        heaviestWeight: 0,
         lastLoggedAt: row.created_at,
       });
     }
 
     const summary = exercisesByKey.get(key);
+    const rowReps = Math.max(0, Number(row.reps || 0));
+    const rowWeight = Math.max(0, Number(row.weight || 0));
     summary.setCount += 1;
     summary.totalRpe += Number(row.rpe || 7);
     summary.rpeSamples += 1;
+    summary.totalReps += rowReps;
+    summary.totalLoad += rowWeight > 0 && rowReps > 0 ? rowWeight * rowReps : 0;
+    summary.heaviestWeight = Math.max(Number(summary.heaviestWeight || 0), rowWeight);
     if (
       !summary.lastLoggedAt
       || new Date(row.created_at).getTime() > new Date(summary.lastLoggedAt).getTime()
@@ -14329,7 +14382,13 @@ const rebuildTodayRecoveryStatusFromSets = async (userId) => {
       ? (exercise.totalRpe / exercise.rpeSamples)
       : 7;
     const inferredIntensity = deriveIntensityFromRpe(avgRpe);
-    const inferredVolume = deriveVolumeFromSetCount(exercise.setCount);
+    const inferredVolume = deriveVolumeFromWorkoutLoad({
+      setCount: exercise.setCount,
+      totalReps: exercise.totalReps,
+      totalLoad: exercise.totalLoad,
+      heaviestWeight: exercise.heaviestWeight,
+      bodyweightKg: factors.latest_bodyweight_kg ?? null,
+    });
     const eccentricFocus = Number(context.profile.eccentricBiasScore || 1) >= 1.05;
 
     context.muscles.forEach((muscleEntry) => {
@@ -16765,6 +16824,179 @@ router.post('/workout-sets', authMutationRateLimit, requireAuth('user'), require
       progression,
     });
   } catch (error) {
+    return res.status(500).json({ error: error.message });
+  }
+});
+
+router.post('/workout-sets/sync-day', authMutationRateLimit, requireAuth('user'), requireUserAccess((req) => req.body?.userId, { allowSelf: true }), async (req, res) => {
+  let connection = null;
+
+  try {
+    const normalizedUserId = toNumber(req.body?.userId);
+    const requestedSets = Array.isArray(req.body?.sets) ? req.body.sets : [];
+    if (!normalizedUserId || !requestedSets.length) {
+      return res.status(400).json({ error: 'userId and a non-empty sets array are required' });
+    }
+
+    const requestedDate = String(req.body?.summaryDate || '').trim();
+    const parsedDate = requestedDate ? new Date(requestedDate) : new Date();
+    if (Number.isNaN(parsedDate.getTime())) {
+      return res.status(400).json({ error: 'summaryDate must be a valid date' });
+    }
+
+    const summaryDate = formatDateISO(parsedDate);
+    const syncTimestamp = `${summaryDate} ${new Date().toTimeString().slice(0, 8)}`;
+    const sanitizedSets = requestedSets
+      .map((entry) => {
+        const exerciseName = String(entry?.exerciseName || '').trim();
+        const setNumber = Math.max(0, Math.round(Number(entry?.setNumber || 0)));
+        const explicitCatalogId = toNumber(entry?.exerciseCatalogId, null);
+        const workoutExerciseId = toNumber(entry?.workoutExerciseId, null);
+        const sessionId = toNumber(entry?.sessionId, null);
+        const reps = Number.isFinite(Number(entry?.reps))
+          ? Math.max(0, Math.round(Number(entry.reps)))
+          : null;
+        const weight = Number.isFinite(Number(entry?.weight))
+          ? Number(Number(entry.weight).toFixed(2))
+          : null;
+        const rpe = Number.isFinite(Number(entry?.rpe))
+          ? Number(Number(entry.rpe).toFixed(2))
+          : null;
+        const duration = Number.isFinite(Number(entry?.duration))
+          ? Math.max(0, Math.round(Number(entry.duration)))
+          : null;
+        const restTime = Number.isFinite(Number(entry?.restTime))
+          ? Math.max(0, Math.round(Number(entry.restTime)))
+          : null;
+        const completed = entry?.completed !== false;
+        const notes = entry?.notes == null ? null : String(entry.notes);
+
+        return {
+          exerciseName,
+          normalizedExerciseName: normalizeExerciseLookupName(exerciseName),
+          exerciseCatalogId: explicitCatalogId && explicitCatalogId > 0 ? explicitCatalogId : null,
+          workoutExerciseId: workoutExerciseId && workoutExerciseId > 0 ? workoutExerciseId : null,
+          sessionId: sessionId && sessionId > 0 ? sessionId : null,
+          setNumber,
+          reps,
+          weight,
+          rpe,
+          duration,
+          restTime,
+          completed,
+          notes,
+        };
+      })
+      .filter((entry) => entry.exerciseName && entry.setNumber > 0);
+
+    if (!sanitizedSets.length) {
+      return res.status(400).json({ error: 'No valid workout sets were provided for sync' });
+    }
+
+    const unresolvedNames = [
+      ...new Set(
+        sanitizedSets
+          .filter((entry) => !entry.exerciseCatalogId && entry.normalizedExerciseName)
+          .map((entry) => entry.normalizedExerciseName)
+          .filter(Boolean),
+      ),
+    ];
+    const catalogIdByName = unresolvedNames.length
+      ? await resolveCatalogIdsByNormalizedNames(unresolvedNames)
+      : new Map();
+
+    connection = await pool.getConnection();
+    await connection.beginTransaction();
+
+    for (const entry of sanitizedSets) {
+      const resolvedCatalogId = entry.exerciseCatalogId
+        || catalogIdByName.get(entry.normalizedExerciseName)
+        || null;
+
+      const [existingRows] = await connection.execute(
+        `SELECT id
+         FROM workout_sets
+         WHERE user_id = ?
+           AND exercise_name = ?
+           AND set_number = ?
+           AND DATE(created_at) = ?
+         ORDER BY created_at DESC, id DESC
+         LIMIT 1`,
+        [normalizedUserId, entry.exerciseName, entry.setNumber, summaryDate],
+      );
+
+      if (existingRows.length) {
+        await connection.execute(
+          `UPDATE workout_sets
+           SET session_id = COALESCE(?, session_id),
+               workout_exercise_id = COALESCE(?, workout_exercise_id),
+               exercise_catalog_id = COALESCE(?, exercise_catalog_id),
+               weight = ?,
+               reps = ?,
+               rpe = ?,
+               duration_seconds = ?,
+               rest_seconds = ?,
+               completed = ?,
+               notes = ?
+           WHERE id = ?`,
+          [
+            entry.sessionId,
+            entry.workoutExerciseId,
+            resolvedCatalogId,
+            entry.weight,
+            entry.reps,
+            entry.rpe,
+            entry.duration,
+            entry.restTime,
+            entry.completed ? 1 : 0,
+            entry.notes,
+            existingRows[0].id,
+          ],
+        );
+        continue;
+      }
+
+      await connection.execute(
+        `INSERT INTO workout_sets
+           (user_id, session_id, workout_exercise_id, exercise_name, exercise_catalog_id, set_number, weight, reps, rpe, duration_seconds, rest_seconds, completed, notes, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          normalizedUserId,
+          entry.sessionId,
+          entry.workoutExerciseId,
+          entry.exerciseName,
+          resolvedCatalogId,
+          entry.setNumber,
+          entry.weight,
+          entry.reps,
+          entry.rpe,
+          entry.duration,
+          entry.restTime,
+          entry.completed ? 1 : 0,
+          entry.notes,
+          syncTimestamp,
+        ],
+      );
+    }
+
+    await connection.commit();
+    connection.release();
+    connection = null;
+
+    return res.json({
+      success: true,
+      syncedCount: sanitizedSets.length,
+      summaryDate,
+    });
+  } catch (error) {
+    if (connection) {
+      try {
+        await connection.rollback();
+      } catch (rollbackError) {
+        console.error('Failed to rollback workout day set sync:', rollbackError);
+      }
+      connection.release();
+    }
     return res.status(500).json({ error: error.message });
   }
 });

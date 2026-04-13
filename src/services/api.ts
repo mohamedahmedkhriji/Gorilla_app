@@ -1265,7 +1265,16 @@ export const api = {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data)
     });
-    return res.json();
+    return parseApiResponse(res, 'Failed to save workout set');
+  },
+
+  syncWorkoutDaySets: async (data: any) => {
+    const res = await fetch(`${API_URL}/workout-sets/sync-day`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
+    return parseApiResponse(res, 'Failed to sync workout day sets');
   },
 
   getWorkoutHistory: async (userId: number, exerciseName: string) => {

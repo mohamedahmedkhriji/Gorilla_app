@@ -1974,13 +1974,73 @@ export function Workout({
     window.dispatchEvent(new CustomEvent('workout-progress-updated'));
   };
 
-  const buildWorkoutSummary = async (setsByExercise: Record<string, any[]>): Promise<WorkoutDaySummaryData | null> => {
+  const buildExerciseMetaByName = () => {
     const exerciseMetaByName = new Map<string, any>();
     todayExercises.forEach((exercise: any) => {
       const normalized = normalizeExerciseLookupName(exercise.exerciseName || exercise.name || '');
       if (!normalized || exerciseMetaByName.has(normalized)) return;
       exerciseMetaByName.set(normalized, exercise);
     });
+    return exerciseMetaByName;
+  };
+
+  const buildPersistableCompletedWorkoutSets = (setsByExercise: Record<string, any[]>) => {
+    const exerciseMetaByName = buildExerciseMetaByName();
+    const completedSets: any[] = [];
+
+    Object.entries(setsByExercise).forEach(([exerciseName, rows]) => {
+      const safeName = String(exerciseName || '').trim();
+      if (!safeName || !Array.isArray(rows)) return;
+
+      const normalizedName = normalizeExerciseLookupName(safeName);
+      const meta = exerciseMetaByName.get(normalizedName) || null;
+
+      rows
+        .filter((row) => isSetCompleted(row))
+        .forEach((row: any, index: number) => {
+          const setNumber = Math.max(1, Math.round(Number(row?.set || index + 1)));
+          const reps = Math.max(0, Math.round(Number(row?.reps || 0)));
+          const weight = Number(Number(row?.weight || 0).toFixed(2));
+          const duration = Number(row?.duration);
+          const restTime = Number(row?.restTime);
+          const rpe = Number(row?.rpe ?? meta?.rpeTarget);
+
+          completedSets.push({
+            exerciseName: safeName,
+            exerciseCatalogId: Number(meta?.exerciseCatalogId || 0) || null,
+            workoutExerciseId: Number(meta?.id || 0) || null,
+            setNumber,
+            reps,
+            weight,
+            rpe: Number.isFinite(rpe) && rpe > 0 ? Number(rpe.toFixed(2)) : null,
+            duration: Number.isFinite(duration) && duration > 0 ? Math.round(duration) : null,
+            restTime: Number.isFinite(restTime) && restTime >= 0 ? Math.round(restTime) : null,
+            completed: true,
+            notes: meta?.notes ? String(meta.notes) : null,
+          });
+        });
+    });
+
+    return completedSets;
+  };
+
+  const persistCompletedWorkoutSetsToServer = async (setsByExercise: Record<string, any[]>) => {
+    if (!userId) return 0;
+
+    const completedSets = buildPersistableCompletedWorkoutSets(setsByExercise);
+    if (!completedSets.length) return 0;
+
+    await api.syncWorkoutDaySets({
+      userId,
+      summaryDate: formatDateISO(new Date()),
+      sets: completedSets,
+    });
+
+    return completedSets.length;
+  };
+
+  const buildWorkoutSummary = async (setsByExercise: Record<string, any[]>): Promise<WorkoutDaySummaryData | null> => {
+    const exerciseMetaByName = buildExerciseMetaByName();
 
     const summaryExercises: SummaryExercise[] = [];
     const completedMuscleCount = new Map<string, number>();
@@ -2137,7 +2197,7 @@ export function Workout({
     openAfterSave: boolean,
     options: { syncRecoveryAfterSave?: boolean } = {},
   ) => {
-    if (!userId) return;
+    if (!userId) return false;
     const syncRecoveryAfterSave = options.syncRecoveryAfterSave === true;
     setSummaryLoading(true);
     setSummaryError(null);
@@ -2146,7 +2206,7 @@ export function Workout({
       if (!generated) {
         setSummaryError('No completed workout sets were found for today.');
         if (openAfterSave) setView('summary');
-        return;
+        return false;
       }
 
       const summaryText = buildSummaryShareText(generated);
@@ -2162,6 +2222,8 @@ export function Workout({
         exercises: generated.exercises,
         summaryText,
       };
+      await persistCompletedWorkoutSetsToServer(setsByExercise);
+
       let didPersistWorkoutSession = false;
 
       try {
@@ -2199,10 +2261,12 @@ export function Workout({
       setSummary(normalizedSummary);
       setHasLatestSummary(true);
       if (openAfterSave) setView('summary');
+      return true;
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Failed to save workout summary.';
       setSummaryError(message);
       if (openAfterSave) setView('summary');
+      return false;
     } finally {
       setSummaryLoading(false);
     }
@@ -2439,6 +2503,14 @@ export function Workout({
       );
     });
 
+    const summarySaved = await saveAndShowWorkoutSummary(nextExerciseSets, false, { syncRecoveryAfterSave: true });
+    if (!summarySaved) {
+      return {
+        completed: false,
+        reason: 'Could not save today\'s workout data. Please try again.',
+      };
+    }
+
     setExerciseSets(nextExerciseSets);
     localStorage.setItem(workoutStorageKeys.exerciseSets, JSON.stringify(nextExerciseSets));
 
@@ -2454,7 +2526,6 @@ export function Workout({
 
     const summaryKey = `${formatDateISO(new Date())}:${String(currentWorkoutName || '').trim().toLowerCase()}`;
     setLastAutoSummaryKey(summaryKey);
-    await saveAndShowWorkoutSummary(nextExerciseSets, false, { syncRecoveryAfterSave: true });
 
     return { completed: true };
   };

@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { createPortal } from 'react-dom';
 import {
   Activity,
   BarChart3,
@@ -1432,13 +1433,13 @@ export function StrengthScoreScreen({ onBack }: StrengthScoreScreenProps) {
         </div>
       </div>
 
-      {showInfo && (
+      {showInfo && typeof document !== 'undefined' && createPortal(
         <div
-          className="fixed inset-0 z-50 flex items-end justify-center bg-black/70 p-4 sm:items-center"
+          className="fixed inset-0 z-[160] flex items-start justify-center overflow-y-auto bg-black/70 px-4 pb-6 pt-[calc(env(safe-area-inset-top,0px)+0.75rem)] sm:pt-8"
           onClick={() => setShowInfo(false)}
         >
           <div
-            className="flex max-h-[85vh] w-full max-w-lg flex-col rounded-3xl border border-white/10 bg-card p-5 shadow-2xl"
+            className="flex max-h-[calc(100dvh-1.5rem)] w-full max-w-lg flex-col overflow-y-auto rounded-3xl border border-white/10 bg-card p-5 shadow-2xl"
             onClick={(event) => event.stopPropagation()}
             role="dialog"
             aria-modal="true"
@@ -1496,7 +1497,8 @@ export function StrengthScoreScreen({ onBack }: StrengthScoreScreenProps) {
               </div>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body,
       )}
     </div>
   );

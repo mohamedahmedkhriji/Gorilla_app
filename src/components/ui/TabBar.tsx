@@ -2,7 +2,6 @@ import React, { useEffect, useState } from 'react';
 import { Home, Activity, Dumbbell, User, Film } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { AppLanguage, LocalizedLanguageRecord, getActiveLanguage, getStoredLanguage } from '../../services/language';
-import { AppTheme, getActiveTheme, getStoredTheme } from '../../services/theme';
 
 interface TabBarProps {
   activeTab: string;
@@ -49,7 +48,6 @@ const TAB_LABELS: LocalizedLanguageRecord<Record<string, string>> = {
 
 export function TabBar({ activeTab, onTabChange }: TabBarProps) {
   const [language, setLanguage] = useState<AppLanguage>('en');
-  const [theme, setTheme] = useState<AppTheme>('dark');
 
   useEffect(() => {
     setLanguage(getActiveLanguage());
@@ -63,21 +61,6 @@ export function TabBar({ activeTab, onTabChange }: TabBarProps) {
     return () => {
       window.removeEventListener('app-language-changed', handleLanguageChanged);
       window.removeEventListener('storage', handleLanguageChanged);
-    };
-  }, []);
-
-  useEffect(() => {
-    setTheme(getActiveTheme());
-
-    const handleThemeChanged = () => {
-      setTheme(getStoredTheme());
-    };
-
-    window.addEventListener('app-theme-changed', handleThemeChanged);
-    window.addEventListener('storage', handleThemeChanged);
-    return () => {
-      window.removeEventListener('app-theme-changed', handleThemeChanged);
-      window.removeEventListener('storage', handleThemeChanged);
     };
   }, []);
 
@@ -111,16 +94,16 @@ export function TabBar({ activeTab, onTabChange }: TabBarProps) {
     },
   ];
 
-  const shellClassName = theme === 'light'
-    ? 'relative border-t border-white/20 bg-[linear-gradient(180deg,rgba(255,255,255,0.95)_0%,rgba(236,243,250,0.98)_100%)] px-3 pt-2.5 pb-[calc(env(safe-area-inset-bottom,0px)+0.8rem)] shadow-[0_-10px_30px_rgba(23,36,55,0.12)] backdrop-blur-2xl'
-    : 'relative border-t border-white/10 bg-[linear-gradient(180deg,rgba(12,20,44,0.92)_0%,rgba(9,15,35,0.98)_100%)] px-3 pt-2.5 pb-[calc(env(safe-area-inset-bottom,0px)+0.8rem)] shadow-[0_-12px_40px_rgba(0,0,0,0.34)] backdrop-blur-2xl';
-
   return (
     <div className="fixed inset-x-0 bottom-0 z-50 pointer-events-none">
       <div className="w-full pointer-events-auto">
-        <div data-coachmark-target="nav_bar" className={shellClassName}>
-          <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/20 to-transparent" />
-          <div className="grid grid-cols-5 gap-1">
+        <div
+          data-coachmark-target="nav_bar"
+          className="relative overflow-hidden border-t border-[#f4d17f]/18 bg-[linear-gradient(180deg,rgba(9,9,11,0.98)_0%,rgba(4,4,6,0.98)_100%)] px-2.5 pt-2.5 pb-[calc(env(safe-area-inset-bottom,0px)+0.8rem)] shadow-[0_-18px_60px_rgba(0,0,0,0.45)] backdrop-blur-2xl"
+        >
+          <div className="absolute inset-x-8 top-0 h-px bg-gradient-to-r from-transparent via-[#f4d17f]/55 to-transparent" />
+          <div className="absolute inset-x-0 bottom-0 h-px bg-gradient-to-r from-transparent via-white/10 to-transparent" />
+          <div className="grid grid-cols-5 gap-1.5">
             {tabs.map((tab) => {
               const Icon = tab.icon;
               const isActive = activeTab === tab.id;
@@ -129,27 +112,29 @@ export function TabBar({ activeTab, onTabChange }: TabBarProps) {
                 <motion.button
                   key={tab.id}
                   onClick={() => onTabChange(tab.id)}
-                  whileTap={{ scale: 0.95 }}
+                  whileTap={{ scale: 0.97 }}
                   data-coachmark-target={`nav_${tab.id}`}
                   aria-label={tab.label}
-                  className="relative flex min-h-[4.2rem] flex-col items-center justify-center gap-1 rounded-2xl py-2"
+                  className="relative flex min-h-[4.1rem] flex-col items-center justify-center gap-1 rounded-[1.4rem] px-1 py-2"
                 >
                   {isActive && (
                     <motion.div
                       layoutId="activeTab"
-                      transition={{ type: 'spring', stiffness: 500, damping: 36 }}
-                      className="absolute inset-0 rounded-2xl border border-white/10 bg-white/5"
+                      transition={{ type: 'spring', stiffness: 520, damping: 38, mass: 0.8 }}
+                      className="absolute inset-0 rounded-[1.4rem] border border-[#f7e2ab]/55 bg-[linear-gradient(180deg,rgba(255,236,183,0.98)_0%,rgba(242,192,73,0.96)_100%)] shadow-[0_10px_24px_rgba(242,192,73,0.28)]"
                     />
                   )}
 
                   <Icon
                     size={19}
                     strokeWidth={isActive ? 2.2 : 1.8}
-                    className={`relative transition-colors duration-300 ${isActive ? 'text-accent' : 'text-text-tertiary'}`}
+                    className={`relative transition-[color,transform] duration-300 ${
+                      isActive ? 'text-[#1f1400] -translate-y-[1px]' : 'text-white/68'
+                    }`}
                   />
                   <span
-                    className={`relative text-[11px] font-medium transition-colors duration-300 ${
-                      isActive ? 'text-text-primary' : 'text-text-tertiary'
+                    className={`relative text-[11px] font-semibold tracking-[0.01em] transition-[color,transform] duration-300 ${
+                      isActive ? 'text-[#1f1400] -translate-y-[1px]' : 'text-white/70'
                     }`}
                   >
                     {tab.label}
