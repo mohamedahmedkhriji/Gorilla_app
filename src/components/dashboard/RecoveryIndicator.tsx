@@ -1,6 +1,7 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 import { emojiMuscleRecovery, emojiRecoveryBg } from '../../services/emojiTheme';
+import { HOME_CARD_HOVER_CLASS, HOME_CARD_TITLE_CLASS } from '../home/homeCardStyles';
 import { getActiveLanguage, getStoredLanguage, pickLanguage } from '../../services/language';
 
 interface RecoveryIndicatorProps {
@@ -87,9 +88,9 @@ export function RecoveryIndicator({ percentage, onClick, coachmarkTargetId }: Re
         duration: 0.5,
         delay: 0.2,
       }}
-      whileHover={onClick ? { y: -4 } : undefined}
+      whileHover={onClick ? { y: -2 } : undefined}
       onClick={onClick}
-      className={`surface-card relative overflow-hidden rounded-2xl p-5 border border-white/15 shadow-card transition-all duration-300 hover:shadow-[0_12px_32px_rgba(0,0,0,0.45),0_0_14px_rgba(191,255,0,0.07)] ${onClick ? 'cursor-pointer hover:border-accent/30' : ''}`}
+      className={`surface-card relative overflow-hidden rounded-2xl p-5 border border-white/15 shadow-card ${HOME_CARD_HOVER_CLASS} ${onClick ? 'cursor-pointer hover:border-accent/30' : ''}`}
     >
       <div
         className="absolute inset-0 bg-cover bg-center opacity-60"
@@ -107,12 +108,12 @@ export function RecoveryIndicator({ percentage, onClick, coachmarkTargetId }: Re
 
       <div className="relative z-10 grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 mb-4">
         <div className="flex items-center justify-center">
-          <div className="w-10 h-10 rounded-xl bg-accent/12 border border-accent/30 p-1.5 flex items-center justify-center">
+          <div className="flex h-10 w-10 items-center justify-center rounded-2xl border border-accent/30 bg-accent/12 p-1.5">
             <img src={emojiMuscleRecovery} alt={copy.alt} className="h-6 w-6 object-contain" />
           </div>
         </div>
-        <div className="flex min-w-0 items-center justify-center text-center">
-          <h4 className="truncate text-[1.9rem] font-electrolize font-bold leading-none text-text-primary">{copy.title}</h4>
+        <div className="min-w-0 flex items-center justify-center text-center">
+          <h4 className={HOME_CARD_TITLE_CLASS}>{copy.title}</h4>
         </div>
         <span className="text-3xl leading-none text-text-primary font-electrolize">{safePercentage}%</span>
       </div>

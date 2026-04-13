@@ -3,6 +3,7 @@ import { motion } from 'framer-motion';
 import { getUserRankBadge } from '../../services/missions';
 import { getRankBadgeImage, rankCardIcon } from '../../services/rankTheme';
 import { emojiLevelUpBg } from '../../services/emojiTheme';
+import { HOME_CARD_HOVER_CLASS, HOME_CARD_TITLE_CLASS } from '../home/homeCardStyles';
 import { getActiveLanguage, getStoredLanguage, pickLanguage, repairMojibakeText } from '../../services/language';
 
 interface RankDisplayProps {
@@ -97,8 +98,8 @@ export function RankDisplay({ points = 420, coachmarkTargetId }: RankDisplayProp
         duration: 0.5,
         delay: 0.4,
       }}
-      whileHover={{ y: -4 }}
-      className="surface-card relative overflow-hidden rounded-2xl p-4 border border-accent/25 shadow-card transition-shadow duration-300 hover:shadow-[0_12px_32px_rgba(0,0,0,0.45),0_0_14px_rgba(191,255,0,0.07)]"
+      whileHover={{ y: -2 }}
+      className={`surface-card relative overflow-hidden rounded-2xl p-4 border border-accent/25 shadow-card ${HOME_CARD_HOVER_CLASS}`}
     >
       <div
         className="absolute inset-0 bg-cover bg-center opacity-60"
@@ -119,7 +120,7 @@ export function RankDisplay({ points = 420, coachmarkTargetId }: RankDisplayProp
           <img src={rankBadgeImage} alt={rankNameDisplay} className="h-10 w-10 object-contain" />
         </div>
         <div className="min-w-0 flex items-center justify-center gap-3 text-center">
-          <h4 className="truncate text-[1.9rem] font-electrolize font-bold leading-none text-text-primary">{rankNameDisplay}</h4>
+          <h4 className={HOME_CARD_TITLE_CLASS}>{rankNameDisplay}</h4>
           <p className="shrink-0 text-[1.35rem] leading-none text-text-primary font-electrolize">{copy.pointsLabel}</p>
         </div>
         <img src={rankCardIcon} alt={copy.iconAlt} className="h-8 w-8 shrink-0 object-contain" />

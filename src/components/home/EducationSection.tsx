@@ -8,6 +8,7 @@ import {
   emojiRightArrow,
 } from '../../services/emojiTheme';
 import { getActiveLanguage, getStoredLanguage, pickLanguage } from '../../services/language';
+import { HOME_CARD_HOVER_CLASS, HOME_CARD_TITLE_CLASS } from './homeCardStyles';
 
 interface EducationSectionProps {
   onExercises: () => void;
@@ -27,37 +28,27 @@ export function EducationSection({
     en: {
       learningHub: 'Learning Hub',
       exercises: 'Library',
-      browse: 'Browse',
       books: 'Plan',
-      comingSoon: 'Coming Soon',
     },
     ar: {
       learningHub: 'مركز التعلّم',
       exercises: 'التمارين',
-      browse: 'استعراض',
       books: 'الكتب',
-      comingSoon: 'قريبًا',
     },
     it: {
       learningHub: 'Centro Formazione',
       exercises: 'Libreria',
-      browse: 'Esplora',
       books: 'Piano',
-      comingSoon: 'In arrivo',
     },
     de: {
       learningHub: 'Lernzentrum',
       exercises: 'Bibliothek',
-      browse: 'Ansehen',
       books: 'Plan',
-      comingSoon: 'Demnachst',
     },
     fr: {
       learningHub: 'Centre d apprentissage',
       exercises: 'Bibliotheque',
-      browse: 'Explorer',
       books: 'Plan',
-      comingSoon: 'Bientot disponible',
     },
   });
 
@@ -67,15 +58,18 @@ export function EducationSection({
         <h3 className="text-base font-electrolize font-bold uppercase tracking-[0.12em] text-text-primary">
           {copy.learningHub}
         </h3>
-        <div className="mb-[0.18rem] h-px flex-1 bg-gradient-to-r from-white/20 via-white/10 to-transparent" aria-hidden="true" />
+        <div
+          className="mb-[0.18rem] h-px flex-1 bg-gradient-to-r from-white/20 via-white/10 to-transparent"
+          aria-hidden="true"
+        />
       </div>
 
       <div className="grid grid-cols-2 gap-4">
         <Card
           onClick={onExercises}
-          whileHover={{ y: -4 }}
+          whileHover={{ y: -2 }}
           coachmarkTargetId={exercisesCoachmarkTargetId}
-          className="p-4 relative overflow-hidden cursor-pointer border border-white/15 shadow-card transition-all duration-300 hover:border-info/35 hover:shadow-[0_12px_32px_rgba(0,0,0,0.45),0_0_14px_rgba(191,255,0,0.05)] group"
+          className={`group relative overflow-hidden border border-white/15 p-4 shadow-card ${HOME_CARD_HOVER_CLASS} cursor-pointer hover:border-info/35`}
         >
           <div
             className="absolute inset-0 bg-cover bg-center opacity-60"
@@ -91,18 +85,18 @@ export function EducationSection({
             aria-hidden="true"
           />
           <div className="relative z-10">
-            <div className="w-10 h-10 rounded-2xl bg-info/15 border border-info/35 flex items-center justify-center text-info mb-3">
+            <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-2xl border border-info/35 bg-info/15 text-info">
               <img src={emojiExercises} alt={copy.exercises} className="h-7 w-7 object-contain" />
             </div>
             <div className="flex items-end justify-between gap-3">
-              <div>
-                <h4 className="truncate text-[1.9rem] font-electrolize font-bold leading-none text-text-primary">{copy.exercises}</h4>
+              <div className="min-w-0">
+                <h4 className={HOME_CARD_TITLE_CLASS}>{copy.exercises}</h4>
               </div>
               <img
                 src={emojiRightArrow}
                 alt=""
                 aria-hidden="true"
-                className="mb-1 h-[18px] w-[18px] shrink-0 object-contain opacity-70"
+                className="mb-0.5 h-[18px] w-[18px] shrink-0 object-contain opacity-70 transition-opacity group-hover:opacity-100"
               />
             </div>
           </div>
@@ -110,9 +104,9 @@ export function EducationSection({
 
         <Card
           onClick={onBooks}
-          whileHover={{ y: -4 }}
+          whileHover={{ y: -2 }}
           coachmarkTargetId={booksCoachmarkTargetId}
-          className="p-4 relative overflow-hidden cursor-pointer border border-white/15 shadow-card transition-all duration-300 hover:border-accent/35 hover:shadow-[0_12px_32px_rgba(0,0,0,0.45),0_0_14px_rgba(191,255,0,0.07)] group"
+          className={`group relative overflow-hidden border border-white/15 p-4 shadow-card ${HOME_CARD_HOVER_CLASS} cursor-pointer hover:border-accent/35`}
         >
           <div
             className="absolute inset-0 bg-cover bg-center opacity-60"
@@ -128,18 +122,18 @@ export function EducationSection({
             aria-hidden="true"
           />
           <div className="relative z-10">
-            <div className="w-10 h-10 rounded-2xl bg-accent/15 border border-accent/35 flex items-center justify-center text-accent mb-3">
+            <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-2xl border border-accent/35 bg-accent/15 text-accent">
               <img src={emojiBooks} alt={copy.books} className="h-7 w-7 object-contain" />
             </div>
             <div className="flex items-end justify-between gap-3">
-              <div>
-                <h4 className="truncate text-[1.9rem] font-electrolize font-bold leading-none text-text-primary">{copy.books}</h4>
+              <div className="min-w-0">
+                <h4 className={HOME_CARD_TITLE_CLASS}>{copy.books}</h4>
               </div>
               <img
                 src={emojiRightArrow}
                 alt=""
                 aria-hidden="true"
-                className="mb-1 h-[18px] w-[18px] shrink-0 object-contain opacity-70"
+                className="mb-0.5 h-[18px] w-[18px] shrink-0 object-contain opacity-70 transition-opacity group-hover:opacity-100"
               />
             </div>
           </div>

@@ -2,6 +2,7 @@ import React from 'react';
 import { Card } from '../ui/Card';
 import { emojiMyNutrition, emojiNutritionBg, emojiRightArrow } from '../../services/emojiTheme';
 import { getActiveLanguage, getStoredLanguage, pickLanguage } from '../../services/language';
+import { HOME_CARD_HOVER_CLASS, HOME_CARD_TITLE_CLASS } from './homeCardStyles';
 
 interface CalculatorCardProps {
   onClick: () => void;
@@ -15,7 +16,6 @@ export function CalculatorCard({ onClick }: CalculatorCardProps) {
     },
     ar: {
       title: 'التغذية الذكية',
-      subtitle: 'أهداف السعرات والبروتين',
     },
     it: {
       title: 'Nutrizione Smart',
@@ -31,8 +31,8 @@ export function CalculatorCard({ onClick }: CalculatorCardProps) {
   return (
     <Card
       onClick={onClick}
-      whileHover={{ y: -4 }}
-      className="p-4 relative overflow-hidden flex items-center justify-between cursor-pointer border border-white/15 shadow-card transition-all duration-300 hover:border-accent/35 hover:shadow-[0_12px_32px_rgba(0,0,0,0.45),0_0_14px_rgba(191,255,0,0.07)] group"
+      whileHover={{ y: -2 }}
+      className={`group relative flex items-center justify-between overflow-hidden border border-white/15 p-4 shadow-card ${HOME_CARD_HOVER_CLASS} cursor-pointer hover:border-accent/35`}
     >
       <div
         className="absolute inset-0 bg-cover bg-center opacity-60"
@@ -48,18 +48,18 @@ export function CalculatorCard({ onClick }: CalculatorCardProps) {
         aria-hidden="true"
       />
       <div className="relative z-10 flex items-center gap-4">
-        <div className="w-10 h-10 rounded-2xl bg-info/15 border border-info/30 flex items-center justify-center text-info group-hover:text-accent transition-colors">
+        <div className="flex h-10 w-10 items-center justify-center rounded-2xl border border-info/30 bg-info/15 text-info transition-colors group-hover:text-accent">
           <img src={emojiMyNutrition} alt={copy.title} className="h-7 w-7 object-contain" />
         </div>
         <div className="min-w-0 flex items-center">
-          <h4 className="truncate text-[1.9rem] font-electrolize font-bold leading-none text-text-primary">{copy.title}</h4>
+          <h4 className={HOME_CARD_TITLE_CLASS}>{copy.title}</h4>
         </div>
       </div>
       <img
         src={emojiRightArrow}
         alt=""
         aria-hidden="true"
-        className="relative z-10 h-[18px] w-[18px] object-contain opacity-70 group-hover:opacity-100 transition-opacity"
+        className="relative z-10 h-[18px] w-[18px] shrink-0 object-contain opacity-70 transition-opacity group-hover:opacity-100"
       />
     </Card>
   );
