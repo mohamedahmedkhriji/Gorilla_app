@@ -99,9 +99,9 @@ export function TabBar({ activeTab, onTabChange }: TabBarProps) {
       <div className="w-full pointer-events-auto">
         <div
           data-coachmark-target="nav_bar"
-          className="relative overflow-hidden border-t border-[#f4d17f]/18 bg-[linear-gradient(180deg,rgba(9,9,11,0.985)_0%,rgba(4,4,6,0.99)_100%)] px-2.5 pt-2.5 pb-[calc(env(safe-area-inset-bottom,0px)+0.8rem)] shadow-[0_-18px_60px_rgba(0,0,0,0.45)] backdrop-blur-2xl"
+          className="relative overflow-hidden border-t border-white/10 bg-[linear-gradient(180deg,rgba(12,20,44,0.92)_0%,rgba(9,15,35,0.98)_100%)] px-2.5 pt-2.5 pb-[calc(env(safe-area-inset-bottom,0px)+0.8rem)] shadow-[0_-18px_60px_rgba(0,0,0,0.38)] backdrop-blur-2xl"
         >
-          <div className="absolute inset-x-8 top-0 h-px bg-gradient-to-r from-transparent via-[#f4d17f]/55 to-transparent" />
+          <div className="absolute inset-x-8 top-0 h-px bg-gradient-to-r from-transparent via-white/20 to-transparent" />
           <div className="absolute inset-x-0 bottom-0 h-px bg-gradient-to-r from-transparent via-white/10 to-transparent" />
           <div className="flex items-center justify-between gap-1.5">
             {tabs.map((tab) => {
@@ -125,7 +125,7 @@ export function TabBar({ activeTab, onTabChange }: TabBarProps) {
                     <motion.div
                       layoutId="activeTabPill"
                       transition={{ type: 'spring', stiffness: 520, damping: 38, mass: 0.82 }}
-                      className="absolute inset-0 rounded-full border border-[#f8e4ae]/70 bg-[linear-gradient(180deg,rgba(255,239,198,0.98)_0%,rgba(246,201,91,0.98)_100%)] shadow-[0_10px_24px_rgba(242,192,73,0.24)]"
+                      className="absolute inset-0 rounded-full border border-accent/35 bg-accent/12 shadow-[0_10px_24px_rgba(0,0,0,0.2)]"
                     />
                   )}
 
@@ -134,7 +134,7 @@ export function TabBar({ activeTab, onTabChange }: TabBarProps) {
                       size={19}
                       strokeWidth={isActive ? 2.25 : 1.9}
                       className={`transition-[color,transform] duration-300 ${
-                        isActive ? 'text-[#1f1400]' : 'text-white/68'
+                        isActive ? 'text-accent' : 'text-text-tertiary'
                       }`}
                     />
                     <AnimatePresence initial={false}>
@@ -145,7 +145,7 @@ export function TabBar({ activeTab, onTabChange }: TabBarProps) {
                           animate={{ opacity: 1, width: 'auto', x: 0 }}
                           exit={{ opacity: 0, width: 0, x: -8 }}
                           transition={{ duration: 0.22, ease: 'easeOut' }}
-                          className="overflow-hidden text-[0.82rem] font-semibold tracking-[0.01em] text-[#1f1400]"
+                          className="overflow-hidden text-[0.82rem] font-semibold tracking-[0.01em] text-text-primary"
                         >
                           {tab.label}
                         </motion.span>
