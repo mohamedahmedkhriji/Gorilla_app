@@ -1,5 +1,8 @@
 /* eslint-env node */
 
+import { generateAiTrainingPlan } from './ai/claudePlanService.js';
+
+/* eslint-disable @typescript-eslint/no-unused-vars */
 const ANTHROPIC_API_URL = 'https://api.anthropic.com/v1/messages';
 const DEFAULT_ANTHROPIC_MODEL = process.env.ANTHROPIC_MODEL || 'claude-3-7-sonnet-latest';
 const MAX_INCLUDED_IMAGES = 3;
@@ -803,221 +806,38 @@ const buildClaudeHttpErrorDetails = ({ statusCode, rawBody, parsedBody }) => {
   const safeMessage = normalizedParsedMessage || normalizedRawText || 'Unknown Claude API error';
   return safeMessage.slice(0, 300);
 };
+/* eslint-enable @typescript-eslint/no-unused-vars */
 
 export const generateTwoMonthPlanWithClaude = async ({ profile = {}, bodyImages = [] } = {}) => {
-  const apiKey = String(process.env.ANTHROPIC_API_KEY || '').trim();
-  if (!apiKey) {
-    throw new Error('ANTHROPIC_API_KEY is not configured');
-  }
-
-  const model = String(process.env.ANTHROPIC_MODEL || DEFAULT_ANTHROPIC_MODEL).trim() || DEFAULT_ANTHROPIC_MODEL;
-  const preparedImages = (Array.isArray(bodyImages) ? bodyImages : [])
-    .map((image) => parseDataUriImage(image))
-    .filter(Boolean)
-    .slice(0, MAX_INCLUDED_IMAGES);
-  const requestTimeoutMs = getClaudeRequestTimeoutMs();
   const requestUserId = getClaudeRequestUserId(profile);
+  const startedAt = Date.now();
 
-  let lastError = null;
+  try {
+    const generation = await generateAiTrainingPlan(profile, { bodyImages });
 
-  for (let attempt = 1; attempt <= CLAUDE_MAX_ATTEMPTS; attempt += 1) {
-    const attemptStartedAt = Date.now();
-    const retryInstruction = attempt > 1
-      ? '\n\nIMPORTANT: Return one valid JSON object only. No markdown, no commentary, no partial output.'
-      : '';
-
-    const content = [
-      {
-        type: 'text',
-        text: `${buildUserPrompt(profile, preparedImages.length)}${retryInstruction}`,
-      },
-      ...preparedImages.map((image) => ({
-        type: 'image',
-        source: {
-          type: 'base64',
-          media_type: image.mediaType,
-          data: image.data,
-        },
-      })),
-    ];
-
-    const requestBody = {
-      model,
-      max_tokens: attempt === 1 ? 4096 : 6144,
-      temperature: attempt === 1 ? 0.3 : 0.1,
-      system: buildSystemPrompt(),
-      messages: [
-        {
-          role: 'user',
-          content,
-        },
-      ],
-    };
-
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), requestTimeoutMs);
-
-    let response;
-    let rawBody = '';
-    let parsedResponse = null;
-
-    try {
-      response = await fetch(ANTHROPIC_API_URL, {
-        method: 'POST',
-        headers: {
-          'content-type': 'application/json',
-          'x-api-key': apiKey,
-          'anthropic-version': '2023-06-01',
-        },
-        body: JSON.stringify(requestBody),
-        signal: controller.signal,
-      });
-
-      rawBody = await response.text();
-      try {
-        parsedResponse = rawBody ? JSON.parse(rawBody) : null;
-      } catch {
-        parsedResponse = null;
-      }
-    } catch (error) {
-      const timedOut = error?.name === 'AbortError';
-      const durationMs = Date.now() - attemptStartedAt;
-      lastError = timedOut
-        ? new Error('Claude API request timed out')
-        : new Error(error?.message || 'Claude API request failed');
-
-      if (attempt < CLAUDE_MAX_ATTEMPTS) {
-        console.warn('[claude:onboarding] request attempt failed, retrying', {
-          userId: requestUserId,
-          model,
-          attempt,
-          maxAttempts: CLAUDE_MAX_ATTEMPTS,
-          durationMs,
-          timeoutMs: requestTimeoutMs,
-          usedImages: preparedImages.length,
-          reason: timedOut ? 'timeout' : 'request_error',
-          message: lastError.message,
-        });
-        await wait(400 * attempt);
-        continue;
-      }
-      console.warn('[claude:onboarding] request failed', {
+    if (Number(generation?.attemptsUsed || 0) > 1) {
+      console.info('[claude:onboarding] request succeeded after retry', {
         userId: requestUserId,
-        model,
-        attempt,
+        model: generation.model,
+        attempt: generation.attemptsUsed,
         maxAttempts: CLAUDE_MAX_ATTEMPTS,
-        durationMs,
-        timeoutMs: requestTimeoutMs,
-        usedImages: preparedImages.length,
-        reason: timedOut ? 'timeout' : 'request_error',
-        message: lastError.message,
+        durationMs: Date.now() - startedAt,
+        timeoutMs: generation.requestTimeoutMs,
+        usedImages: generation.usedImages,
       });
-      throw lastError;
-    } finally {
-      clearTimeout(timeout);
     }
 
-    if (!response.ok) {
-      const durationMs = Date.now() - attemptStartedAt;
-      const details = buildClaudeHttpErrorDetails({
-        statusCode: response.status,
-        rawBody,
-        parsedBody: parsedResponse,
-      });
-      lastError = new Error(`Claude API request failed (${response.status}): ${details}`);
-
-      if (attempt < CLAUDE_MAX_ATTEMPTS && isRetryableClaudeStatus(response.status)) {
-        console.warn('[claude:onboarding] request attempt returned retryable status, retrying', {
-          userId: requestUserId,
-          model,
-          attempt,
-          maxAttempts: CLAUDE_MAX_ATTEMPTS,
-          durationMs,
-          timeoutMs: requestTimeoutMs,
-          usedImages: preparedImages.length,
-          statusCode: Number(response.status || 0),
-          message: lastError.message,
-        });
-        await wait(500 * attempt);
-        continue;
-      }
-      console.warn('[claude:onboarding] request returned non-success status', {
-        userId: requestUserId,
-        model,
-        attempt,
-        maxAttempts: CLAUDE_MAX_ATTEMPTS,
-        durationMs,
-        timeoutMs: requestTimeoutMs,
-        usedImages: preparedImages.length,
-        statusCode: Number(response.status || 0),
-        message: lastError.message,
-      });
-      throw lastError;
-    }
-
-    try {
-      const durationMs = Date.now() - attemptStartedAt;
-      const rawText = parseClaudeText(parsedResponse);
-      const json = extractJsonObject(rawText);
-      const plan = normalizePlan(json, profile);
-
-      if (attempt > 1) {
-        console.info('[claude:onboarding] request succeeded after retry', {
-          userId: requestUserId,
-          model,
-          attempt,
-          maxAttempts: CLAUDE_MAX_ATTEMPTS,
-          durationMs,
-          timeoutMs: requestTimeoutMs,
-          usedImages: preparedImages.length,
-        });
-      }
-
-      return {
-        plan,
-        rawText,
-        model,
-        usedImages: preparedImages.length,
-        attemptsUsed: attempt,
-        requestTimeoutMs,
-      };
-    } catch (error) {
-      const durationMs = Date.now() - attemptStartedAt;
-      lastError = error instanceof Error ? error : new Error(String(error || 'Claude response parsing failed'));
-      const wasTruncated = String(parsedResponse?.stop_reason || '').toLowerCase() === 'max_tokens';
-
-      if (attempt < CLAUDE_MAX_ATTEMPTS && (wasTruncated || isRetryableClaudeParseError(lastError))) {
-        console.warn('[claude:onboarding] response parsing failed, retrying', {
-          userId: requestUserId,
-          model,
-          attempt,
-          maxAttempts: CLAUDE_MAX_ATTEMPTS,
-          durationMs,
-          timeoutMs: requestTimeoutMs,
-          usedImages: preparedImages.length,
-          stopReason: String(parsedResponse?.stop_reason || '').trim() || null,
-          message: lastError.message,
-        });
-        await wait(450 * attempt);
-        continue;
-      }
-
-      console.warn('[claude:onboarding] response parsing failed', {
-        userId: requestUserId,
-        model,
-        attempt,
-        maxAttempts: CLAUDE_MAX_ATTEMPTS,
-        durationMs,
-        timeoutMs: requestTimeoutMs,
-        usedImages: preparedImages.length,
-        stopReason: String(parsedResponse?.stop_reason || '').trim() || null,
-        message: lastError.message,
-      });
-      throw lastError;
-    }
+    return generation;
+  } catch (error) {
+    console.warn('[claude:onboarding] request failed', {
+      userId: requestUserId,
+      durationMs: Date.now() - startedAt,
+      timeoutMs: getClaudeRequestTimeoutMs(),
+      usedImages: Array.isArray(bodyImages) ? bodyImages.filter(Boolean).length : 0,
+      message: error?.message || 'Claude onboarding generation failed',
+    });
+    throw error;
   }
-
-  throw lastError || new Error('Claude onboarding generation failed');
 };
 
 export const buildCustomProgramPayloadFromClaudePlan = (plan = {}, options = {}) => {

@@ -1,14 +1,15 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
 import { CheckCircle2, Circle } from 'lucide-react';
-import { api } from '../../services/api';
+import { generateAiTrainingPlan } from '../../services/aiTrainingPlan';
 import { persistStoredUser } from '../../shared/authStorage';
 import { BrandLogo } from '../ui/BrandLogo';
 import { getOnboardingLanguage } from './onboardingI18n';
+import type { AiPlanGenerationResponse, AiPlanOnboardingPayload } from '../../ai/types';
 
 interface AIAnalysisScreenProps {
   onComplete: () => void;
-  onboardingData?: any;
+  onboardingData?: AiPlanOnboardingPayload;
   userId?: number;
 }
 
@@ -105,11 +106,9 @@ export function AIAnalysisScreen({ onComplete, onboardingData, userId }: AIAnaly
         localStorage.removeItem('onboardingCustomAdvice');
         localStorage.removeItem('assignedProgramTemplate');
 
-        const data = await api.saveOnboarding(Number(userId || 0), {
+        const data: AiPlanGenerationResponse = await generateAiTrainingPlan(Number(userId || 0), {
           ...(onboardingData || {}),
           language,
-          useClaude: true,
-          disableClaude: false,
         });
 
         if (data?.user && typeof data.user === 'object') {

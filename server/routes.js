@@ -9994,17 +9994,12 @@ router.post('/user/onboarding', authMutationRateLimit, requireAuth('user'), asyn
           assignmentInfo = persisted.assignment;
           planSource = 'claude';
           claudePlan = {
+            ...claudeGeneration.plan,
             model: claudeGeneration.model,
             usedImages: claudeGeneration.usedImages,
-            planName: claudeGeneration.plan.planName,
-            summary: claudeGeneration.plan.summary,
-            goalMatch: claudeGeneration.plan.goalMatch,
-            durationWeeks: claudeGeneration.plan.durationWeeks,
-            weeklySchedule: claudeGeneration.plan.weeklySchedule,
-            progressionRules: claudeGeneration.plan.progressionRules,
-            recoveryRules: claudeGeneration.plan.recoveryRules,
-            nutritionGuidance: claudeGeneration.plan.nutritionGuidance,
-            checkpoints: claudeGeneration.plan.checkpoints,
+            attemptsUsed: claudeGeneration.attemptsUsed,
+            requestTimeoutMs: claudeGeneration.requestTimeoutMs,
+            generatedAt: claudeGeneration.generatedAt,
           };
         } catch (claudeError) {
           await conn.query('ROLLBACK TO SAVEPOINT onboarding_claude_plan');
