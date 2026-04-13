@@ -12,9 +12,9 @@ interface BodyImageUploadScreenProps {
 
 const COPY = {
   en: {
-    title: 'Body Analysis',
-    subtitle: 'Upload photos for AI body composition analysis.',
-    note: 'Note: Importing images here is not required. It only helps our AI analyze your body better.',
+    title: 'Optional AI body scan',
+    subtitle: 'Add photos to improve AI precision.',
+    note: 'Optional step. You can continue without photos anytime.',
     front: 'Front',
     side: 'Side',
     back: 'Back',
@@ -25,6 +25,7 @@ const COPY = {
     guide4: 'Face is not required',
     privacy: 'Photos are encrypted and private',
     cta: 'Analyze Photos',
+    ctaSkip: 'Continue without photos',
   },
   ar: {
     title: '\u062a\u062d\u0644\u064a\u0644 \u0627\u0644\u062c\u0633\u0645',
@@ -112,6 +113,8 @@ export function BodyImageUploadScreen({ onNext, onDataChange, onboardingData }: 
     onNext(validImages);
   };
 
+  const ctaLabel = images.filter((img) => img).length > 0 ? copy.cta : (copy as any).ctaSkip || copy.cta;
+
   return (
     <div className="flex-1 flex flex-col space-y-6">
       <div className="space-y-2">
@@ -145,7 +148,7 @@ export function BodyImageUploadScreen({ onNext, onDataChange, onboardingData }: 
 
       <div className="flex-1" />
 
-      <Button onClick={handleNext}>{copy.cta}</Button>
+      <Button onClick={handleNext}>{ctaLabel}</Button>
     </div>
   );
 }

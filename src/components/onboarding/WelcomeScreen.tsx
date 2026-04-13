@@ -9,34 +9,34 @@ interface WelcomeScreenProps {
 
 const COPY = {
   en: {
-    tagline: 'Train Smart. Train Strong.',
-    intro: 'Your AI gym trainer wherever you go.',
-    detail: 'Build muscle with clear guidance and better recovery.',
-    cta: 'Start Setup',
+    tagline: 'Your AI training system',
+    intro: 'Build a plan that adapts to you.',
+    detail: 'Fast setup • personalized program',
+    cta: 'Create My Plan',
   },
   ar: {
-    tagline: '\u062a\u062f\u0631\u0628 \u0628\u0630\u0643\u0627\u0621. \u062a\u062f\u0631\u0628 \u0628\u0642\u0648\u0629.',
-    intro: '\u0645\u062f\u0631\u0628\u0643 \u0627\u0644\u0630\u0643\u064a \u0644\u0644\u062c\u064a\u0645 \u0645\u0639\u0643 \u0641\u064a \u0643\u0644 \u0645\u0643\u0627\u0646.',
-    detail: '\u0627\u0628\u0646\u0650 \u0627\u0644\u0639\u0636\u0644\u0627\u062a \u0628\u062a\u0648\u062c\u064a\u0647 \u0648\u0627\u0636\u062d \u0648\u062a\u0639\u0627\u0641\u064d \u0623\u0641\u0636\u0644.',
-    cta: '\u0627\u0628\u062f\u0623 \u0627\u0644\u0625\u0639\u062f\u0627\u062f',
+    tagline: '\u0646\u0638\u0627\u0645 \u062a\u062f\u0631\u064a\u0628 \u0630\u0643\u064a',
+    intro: '\u0627\u0628\u0646\u0650 \u062e\u0637\u0629 \u062a\u062a\u0643\u064a\u0641 \u0645\u0639\u0643.',
+    detail: '\u062a\u062c\u0647\u064a\u0632 \u0633\u0631\u064a\u0639 \u2022 \u0628\u0631\u0646\u0627\u0645\u062c \u0645\u062e\u0635\u0635',
+    cta: '\u0627\u0646\u0634\u0626 \u062e\u0637\u062a\u064a',
   },
   it: {
-    tagline: 'Allenati meglio. Allenati forte.',
-    intro: 'Il tuo coach AI da palestra, ovunque tu sia.',
-    detail: 'Costruisci muscoli con guida chiara e recupero migliore.',
-    cta: 'Inizia configurazione',
+    tagline: 'Il tuo sistema di allenamento AI',
+    intro: 'Un piano che si adatta a te.',
+    detail: 'Setup rapido • programma personalizzato',
+    cta: 'Crea il mio piano',
   },
   de: {
-    tagline: 'Trainiere smart. Trainiere stark.',
-    intro: 'Dein KI-Gym-Coach, egal wo du bist.',
-    detail: 'Baue Muskeln auf mit klarer Anleitung und besserer Erholung.',
-    cta: 'Setup starten',
+    tagline: 'Dein KI-Trainingssystem',
+    intro: 'Ein Plan, der sich dir anpasst.',
+    detail: 'Schneller Start • persoenliches Programm',
+    cta: 'Meinen Plan erstellen',
   },
   fr: {
-    tagline: 'Entraine-toi mieux. Entraine-toi plus fort.',
-    intro: 'Ton coach de salle IA partout avec toi.',
-    detail: 'Construis du muscle avec des consignes claires et une meilleure recuperation.',
-    cta: 'Commencer',
+    tagline: 'Ton systeme d entrainement IA',
+    intro: 'Un plan qui s adapte a toi.',
+    detail: 'Profil rapide • programme personnalise',
+    cta: 'Creer mon plan',
   },
 } as const;
 
@@ -59,9 +59,8 @@ export function WelcomeScreen({ onNext }: WelcomeScreenProps) {
         <h2 className="text-sm font-semibold uppercase tracking-[0.26em] text-accent">{copy.tagline}</h2>
         <p className="text-text-secondary text-sm max-w-xs mx-auto leading-relaxed">
           {copy.intro}
-          <br />
-          {copy.detail}
         </p>
+        <p className="text-[11px] uppercase tracking-[0.18em] text-text-tertiary">{copy.detail}</p>
       </div>
 
       <div className="flex-1" />

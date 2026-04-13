@@ -18,12 +18,13 @@ interface GoalsAvailabilityScreenProps {
 
 const COPY = {
   en: {
-    title: 'Availability',
-    subtitle: 'How often can you train?',
+    title: 'Let\u2019s fit your real life',
+    subtitle: 'Choose a schedule you can actually sustain.',
     days: 'Days Per Week',
     duration: 'Session Duration',
     time: 'Preferred Time',
-    cta: 'Next Step',
+    optional: 'Optional',
+    cta: 'Continue',
   },
   ar: {
     title: '\u0627\u0644\u0648\u0642\u062a \u0627\u0644\u0645\u062a\u0627\u062d',
@@ -186,7 +187,12 @@ export function GoalsAvailabilityScreen({
         </div>
 
         <div className="space-y-2">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.1em] text-text-secondary ml-1">{copy.time}</p>
+          <div className="flex items-center justify-between">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.1em] text-text-secondary ml-1">{copy.time}</p>
+            {'optional' in copy ? (
+              <span className="text-[10px] uppercase tracking-[0.12em] text-text-tertiary">{copy.optional as string}</span>
+            ) : null}
+          </div>
           <div className="grid grid-cols-3 gap-2">
             {localizedTimes.map((option) => {
               const optionValue = String(option.value || '').trim().toLowerCase();

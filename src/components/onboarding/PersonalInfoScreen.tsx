@@ -15,13 +15,14 @@ interface PersonalInfoScreenProps {
 
 const COPY = {
   en: {
-    title: 'Tell us about yourself',
-    subtitle: 'We use this to calibrate your initial plan.',
+    title: 'Quick body calibration',
+    subtitle: 'This helps us set safer loads and smarter recovery.',
     age: 'Age',
     gender: 'Gender',
     height: 'Height',
     weight: 'Weight',
-    next: 'Next Step',
+    next: 'Continue',
+    privacy: 'Private • used only to personalize your plan',
     ageRequired: 'Age is required',
     genderRequired: 'Gender is required',
     heightRequired: 'Height is required',
@@ -193,6 +194,9 @@ export function PersonalInfoScreen({
       <div className="space-y-2">
         <h2 className="text-2xl font-light text-white">{copy.title}</h2>
         <p className="text-text-secondary">{copy.subtitle}</p>
+        {'privacy' in copy ? (
+          <p className="text-xs text-text-tertiary">{copy.privacy as string}</p>
+        ) : null}
       </div>
 
       <div className="space-y-4">

@@ -193,30 +193,77 @@ export function ExerciseLibrary({
   const copy = pickLanguage(language, {
     en: {
       title: 'Exercise Library',
+      pageTitle: 'What do you want to train today?',
+      pageSubtitle: 'Select a muscle group to explore exercises.',
+      pageHelper: 'Select a muscle group to continue.',
+      sectionUpper: 'Upper Body',
+      sectionLower: 'Lower Body',
+      sectionCore: 'Core',
+      sectionOther: 'Other',
+      selectedBadge: 'Selected',
       buildStronger: (label: string) => `Build Stronger ${label}`,
       loadError: 'Failed to load exercises',
       empty: 'No videos added for this muscle yet.',
     },
     ar: {
       title: '\u0645\u0643\u062a\u0628\u0629 \u0627\u0644\u062a\u0645\u0627\u0631\u064a\u0646',
+      pageTitle: '\u0645\u0627 \u0627\u0644\u0630\u064a \u062a\u0631\u064a\u062f \u062a\u062f\u0631\u064a\u0628\u0647 \u0627\u0644\u064a\u0648\u0645\u061f',
+      pageSubtitle: '\u0627\u062e\u062a\u0631 \u0645\u062c\u0645\u0648\u0639\u0629 \u0639\u0636\u0644\u064a\u0629 \u0644\u0627\u0633\u062a\u0639\u0631\u0627\u0636 \u0627\u0644\u062a\u0645\u0627\u0631\u064a\u0646.',
+      pageHelper: '\u0627\u062e\u062a\u0631 \u0645\u062c\u0645\u0648\u0639\u0629 \u0639\u0636\u0644\u064a\u0629 \u0644\u0644\u0645\u062a\u0627\u0628\u0639\u0629.',
+      sectionUpper: '\u0627\u0644\u062c\u0632\u0621 \u0627\u0644\u0639\u0644\u0648\u064a',
+      sectionLower: '\u0627\u0644\u062c\u0632\u0621 \u0627\u0644\u0633\u0641\u0644\u064a',
+      sectionCore: '\u0627\u0644\u062c\u0630\u0639',
+      sectionOther: '\u0623\u062e\u0631\u0649',
+      selectedBadge: '\u0645\u062e\u062a\u0627\u0631\u0629',
       buildStronger: (label: string) => `\u0642\u0648\u0651\u0650 \u0639\u0636\u0644\u0627\u062a ${label}`,
       loadError: '\u062a\u0639\u0630\u0631 \u062a\u062d\u0645\u064a\u0644 \u0627\u0644\u062a\u0645\u0627\u0631\u064a\u0646',
       empty: '\u0644\u0627 \u062a\u0648\u062c\u062f \u0641\u064a\u062f\u064a\u0648\u0647\u0627\u062a \u0644\u0647\u0630\u0647 \u0627\u0644\u0639\u0636\u0644\u0629 \u0628\u0639\u062f.',
     },
     it: {
       title: 'Libreria Esercizi',
+      pageTitle: 'Cosa vuoi allenare oggi?',
+      pageSubtitle: 'Seleziona un gruppo muscolare per esplorare gli esercizi.',
+      pageHelper: 'Seleziona un gruppo muscolare per continuare.',
+      sectionUpper: 'Parte superiore',
+      sectionLower: 'Parte inferiore',
+      sectionCore: 'Core',
+      sectionOther: 'Altro',
+      selectedBadge: 'Selezionato',
       buildStronger: (label: string) => `Allena meglio ${label}`,
       loadError: 'Impossibile caricare gli esercizi',
       empty: 'Non ci sono ancora video per questo gruppo muscolare.',
     },
     de: {
       title: 'Ubungsbibliothek',
+      pageTitle: 'Was willst du heute trainieren?',
+      pageSubtitle: 'Waehle eine Muskelgruppe, um Uebungen zu sehen.',
+      pageHelper: 'Waehle eine Muskelgruppe, um fortzufahren.',
+      sectionUpper: 'Oberkoerper',
+      sectionLower: 'Unterkoerper',
+      sectionCore: 'Core',
+      sectionOther: 'Weitere',
+      selectedBadge: 'Ausgewaehlt',
       buildStronger: (label: string) => `Starkere ${label}`,
       loadError: 'Ubungen konnten nicht geladen werden',
       empty: 'Fur diese Muskelgruppe gibt es noch keine Videos.',
     },
+    fr: {
+      title: 'Bibliotheque des exercices',
+      pageTitle: 'Que veux-tu entrainer aujourd hui ?',
+      pageSubtitle: 'Selectionne un groupe musculaire pour explorer les exercices.',
+      pageHelper: 'Selectionne un groupe musculaire pour continuer.',
+      sectionUpper: 'Haut du corps',
+      sectionLower: 'Bas du corps',
+      sectionCore: 'Sangle abdominale',
+      sectionOther: 'Autres',
+      selectedBadge: 'Selectionne',
+      buildStronger: (label: string) => `Renforce ${label}`,
+      loadError: 'Impossible de charger les exercices',
+      empty: 'Aucune video pour ce groupe musculaire pour le moment.',
+    },
   });
   const [selectedFilter, setSelectedFilter] = useState(initialFilter || 'All');
+  const [lastSelectedFilter, setLastSelectedFilter] = useState<string | null>(null);
   const [filters, setFilters] = useState<string[]>(['All', 'Chest', 'Back', 'Quadriceps', 'Hamstrings', 'Glutes', 'Calves', 'Shoulders', 'Biceps', 'Triceps', 'Abs']);
   const [exercises, setExercises] = useState<CatalogExercise[]>([]);
   const [loading, setLoading] = useState(true);
@@ -578,6 +625,7 @@ export function ExerciseLibrary({
 
   const handleFilterSelect = (filter: string) => {
     setSelectedFilter(filter);
+    setLastSelectedFilter(filter);
     const introVideo = getIntroVideoForFilter(filter);
     setActiveIntroFilter(introVideo ? filter : null);
   };
@@ -617,6 +665,43 @@ export function ExerciseLibrary({
     });
   }, [exercisesWithVideo, selectedFilter]);
 
+  const isRtl = language === 'ar';
+  const groupedMuscleSections = useMemo(() => {
+    const upperSet = new Set(['chest', 'back', 'shoulders', 'biceps', 'triceps', 'forearms', 'arms']);
+    const lowerSet = new Set(['quadriceps', 'hamstrings', 'glutes', 'calves', 'adductors', 'legs']);
+    const coreSet = new Set(['abs', 'core']);
+    const groups = {
+      upper: [] as string[],
+      lower: [] as string[],
+      core: [] as string[],
+      other: [] as string[],
+    };
+
+    visibleMuscleFilters.forEach((filter) => {
+      const key = normalizeFilterKey(filter);
+      if (coreSet.has(key)) {
+        groups.core.push(filter);
+        return;
+      }
+      if (upperSet.has(key)) {
+        groups.upper.push(filter);
+        return;
+      }
+      if (lowerSet.has(key)) {
+        groups.lower.push(filter);
+        return;
+      }
+      groups.other.push(filter);
+    });
+
+    return [
+      { id: 'upper', label: copy.sectionUpper, items: groups.upper },
+      { id: 'lower', label: copy.sectionLower, items: groups.lower },
+      { id: 'core', label: copy.sectionCore, items: groups.core },
+      { id: 'other', label: copy.sectionOther, items: groups.other },
+    ].filter((section) => section.items.length > 0);
+  }, [copy.sectionCore, copy.sectionLower, copy.sectionOther, copy.sectionUpper, visibleMuscleFilters]);
+
   return (
     <div className="flex min-h-screen flex-1 flex-col bg-background pb-24">
       <div className="px-4 pt-2 sm:px-6">
@@ -628,37 +713,77 @@ export function ExerciseLibrary({
       </div>
 
       {selectedFilter === 'All' && !loading && (
-        <div className="mb-6 space-y-3 px-4 sm:px-6">
-          <div className="grid grid-cols-3 gap-3 sm:grid-cols-6">
-            {visibleMuscleFilters.map((filter) => {
-              const label = getMuscleLabel(filter);
-              return (
-                <button
-                  key={filter}
-                    onClick={() => handleFilterSelect(filter)}
-                    className="overflow-hidden rounded-2xl border border-white/10 bg-card p-3 text-center transition-all hover:border-accent/30 hover:bg-white/[0.03]"
-                  >
-                  <div className="-mx-3 -mt-1 overflow-hidden">
-                    <img
-                      src={getBodyPartImage(filter)}
-                      alt={label}
-                      className="h-28 w-full object-cover sm:h-32"
-                    />
-                  </div>
-                  <div className="-mx-3 mt-1 border-t border-white/10" />
-                  <div className="mt-3">
-                    <div className="text-sm font-bold text-text-primary">{label}</div>
-                  </div>
-                </button>
-              );
-            })}
+        <div className="mb-8 space-y-6 px-4 sm:px-6">
+          <div className={isRtl ? 'space-y-2 text-right' : 'space-y-2'}>
+            <h2 className="text-[1.65rem] font-electrolize font-bold text-text-primary">
+              {copy.pageTitle}
+            </h2>
+            <p className="text-sm text-text-secondary">{copy.pageSubtitle}</p>
+            <p className="text-xs text-text-tertiary">{copy.pageHelper}</p>
           </div>
+
+          {groupedMuscleSections.map((section) => (
+            <div key={section.id} className="space-y-3">
+              <div className={isRtl ? 'flex items-center gap-3 text-right' : 'flex items-center gap-3'}>
+                <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-text-tertiary">
+                  {section.label}
+                </div>
+                <div className="h-px flex-1 bg-white/10" />
+              </div>
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+                {section.items.map((filter) => {
+                  const label = getMuscleLabel(filter);
+                  const isSelected = lastSelectedFilter === filter;
+                  return (
+                    <button
+                      key={filter}
+                      onClick={() => handleFilterSelect(filter)}
+                      aria-pressed={isSelected}
+                      className={[
+                        'group relative overflow-hidden rounded-2xl border p-3 transition-all duration-200 focus:outline-none',
+                        'focus-visible:ring-2 focus-visible:ring-accent/50 active:scale-[0.98]',
+                        isRtl ? 'text-right' : 'text-left',
+                        isSelected
+                          ? 'border-accent/45 bg-accent/10 shadow-[0_10px_24px_rgba(0,0,0,0.28)]'
+                          : 'border-white/10 bg-card/70 hover:border-accent/25 hover:bg-white/[0.03]',
+                      ].join(' ')}
+                    >
+                      <div
+                        className={[
+                          'rounded-xl border p-3',
+                          isSelected ? 'border-accent/35 bg-accent/10' : 'border-white/10 bg-black/30',
+                        ].join(' ')}
+                      >
+                        <div className="flex h-20 items-center justify-center sm:h-24">
+                          <img
+                            src={getBodyPartImage(filter)}
+                            alt={label}
+                            className="h-full w-full object-contain"
+                          />
+                        </div>
+                      </div>
+                      <div className="mt-3 flex items-center justify-between gap-2">
+                        <div className={isSelected ? 'text-sm font-semibold text-text-primary' : 'text-sm font-semibold text-text-secondary'}>
+                          {label}
+                        </div>
+                        {isSelected && (
+                          <span className="rounded-full border border-accent/35 bg-accent/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-accent">
+                            {copy.selectedBadge}
+                          </span>
+                        )}
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
         </div>
       )}
 
       {loading && selectedFilter === 'All' && (
         <div className="mb-6 px-4 sm:px-6">
-          <div className="grid grid-cols-3 gap-3 sm:grid-cols-6">
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
             {bodyPartSkeletons.map((key) => (
               <div
                 key={key}

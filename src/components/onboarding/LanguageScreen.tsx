@@ -61,36 +61,36 @@ export function LanguageScreen({ onNext, onDataChange, onboardingData }: Languag
   const displayLanguage = selectedLanguage || activeLanguage;
   const copy = pickLanguage(displayLanguage, {
     en: {
-      title: 'Choose your language',
-      subtitle: 'You can change this later in Settings.',
+      title: 'Choose the language for your experience',
+      subtitle: 'You can change this anytime later.',
       welcome: 'Welcome!',
       greeting: '\u0645\u0631\u062d\u0628\u0627',
       cta: 'Continue',
     },
     ar: {
-      title: '\u0627\u062e\u062a\u0631 \u0644\u063a\u062a\u0643',
-      subtitle: '\u064a\u0645\u0643\u0646\u0643 \u062a\u063a\u064a\u064a\u0631\u0647\u0627 \u0644\u0627\u062d\u0642\u064b\u0627 \u0645\u0646 \u0627\u0644\u0625\u0639\u062f\u0627\u062f\u0627\u062a.',
+      title: '\u0627\u062e\u062a\u0631 \u0644\u063a\u0629 \u062a\u062c\u0631\u0628\u062a\u0643',
+      subtitle: '\u064a\u0645\u0643\u0646\u0643 \u062a\u063a\u064a\u064a\u0631\u0647\u0627 \u0644\u0627\u062d\u0642\u064b\u0627 \u0628\u0623\u064a \u0648\u0642\u062a.',
       welcome: '\u0645\u0631\u062d\u0628\u064b\u0627',
       greeting: '\u0645\u0631\u062d\u0628\u0627',
       cta: '\u0645\u062a\u0627\u0628\u0639\u0629',
     },
     it: {
-      title: 'Scegli la tua lingua',
-      subtitle: 'Potrai cambiarla piu tardi nelle Impostazioni.',
+      title: 'Scegli la lingua della tua esperienza',
+      subtitle: 'Potrai cambiarla in qualsiasi momento.',
       welcome: 'Benvenuto!',
       greeting: '\u0645\u0631\u062d\u0628\u0627',
       cta: 'Continua',
     },
     de: {
-      title: 'Wahle deine Sprache',
-      subtitle: 'Du kannst sie spater in den Einstellungen andern.',
+      title: 'Waehle die Sprache deiner Erfahrung',
+      subtitle: 'Du kannst sie spaeter jederzeit aendern.',
       welcome: 'Willkommen!',
       greeting: 'Hallo',
       cta: 'Weiter',
     },
     fr: {
-      title: 'Choisis ta langue',
-      subtitle: 'Tu pourras la changer plus tard dans les Parametres.',
+      title: 'Choisis la langue de ton experience',
+      subtitle: 'Tu pourras la changer quand tu veux.',
       welcome: 'Bienvenue !',
       greeting: 'Salut',
       cta: 'Continuer',
@@ -101,6 +101,9 @@ export function LanguageScreen({ onNext, onDataChange, onboardingData }: Languag
     setSelectedLanguage(language);
     applyLanguage(language, true);
     onDataChange?.({ language });
+    window.setTimeout(() => {
+      onNext();
+    }, 200);
   };
 
   const buttonLabel = pickLanguage(selectedLanguage, {

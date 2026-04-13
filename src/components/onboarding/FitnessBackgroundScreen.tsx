@@ -11,14 +11,14 @@ interface FitnessBackgroundScreenProps {
 
 const COPY = {
   en: {
-    title: 'Fitness Background',
-    subtitle: 'Help us understand your starting point.',
-    label: 'Experience Level',
-    cta: 'Next Step',
+    title: 'Where are you starting from?',
+    subtitle: 'This calibrates intensity and progression.',
+    label: 'Choose the closest fit',
+    cta: 'Continue',
     levels: {
-      Beginner: { label: 'Beginner', desc: 'New to lifting' },
-      Intermediate: { label: 'Intermediate', desc: '1-2 years experience' },
-      Advanced: { label: 'Advanced', desc: '3+ years experience' },
+      Beginner: { label: 'I am new or returning', desc: 'Learning the basics again' },
+      Intermediate: { label: 'I train regularly', desc: 'Consistent for a while' },
+      Advanced: { label: 'I am experienced', desc: 'High confidence with training' },
     },
   },
   ar: {
@@ -104,6 +104,7 @@ export function FitnessBackgroundScreen({
                   onClick={() => {
                     setLevel(entry.id);
                     onDataChange?.({ experienceLevel: entry.id });
+                    window.setTimeout(() => onNext(), 200);
                   }}
                   className={`
                     w-full p-4 rounded-xl border text-left transition-all duration-200 flex justify-between items-center

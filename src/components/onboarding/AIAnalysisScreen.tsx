@@ -14,15 +14,15 @@ interface AIAnalysisScreenProps {
 
 const COPY = {
   en: {
-    title: 'Generating your daily schedule...',
-    subtitle: 'This can take a little time while we build your personalized plan.',
+    title: 'Building your AI program...',
+    subtitle: 'We are tailoring sessions, recovery, and progression to your profile.',
     checkpoints: [
-      'Analyzing your profile and activity level',
-      'Building your personalized training schedule',
-      'Finalizing plan and recovery targets',
+      'Reading your goals and schedule',
+      'Designing your training split',
+      'Balancing recovery and progression',
     ],
-    finalizing: 'Finalizing your plan...',
-    preparing: 'This can take a little time. We are preparing everything for you...',
+    finalizing: 'Locking in your program...',
+    preparing: 'We are building the smartest starting plan for you...',
   },
   ar: {
     title: '\u062c\u0627\u0631\u064a \u0625\u0646\u0634\u0627\u0621 \u062c\u062f\u0648\u0644\u0643 \u0627\u0644\u064a\u0648\u0645\u064a...',
@@ -74,6 +74,12 @@ export function AIAnalysisScreen({ onComplete, onboardingData, userId }: AIAnaly
   const language = getOnboardingLanguage();
   const copy = COPY[language as keyof typeof COPY] ?? COPY.en;
   const checkpoints = copy.checkpoints;
+  const days = Number(onboardingData?.workoutDays || 0);
+  const daysLabel = Number.isFinite(days) && days > 0 ? `${days}-day` : '';
+  const rawLevel = String(onboardingData?.experienceLevel || '').trim().toLowerCase();
+  const levelLabel = rawLevel ? rawLevel : '';
+  const goalLabel = String(onboardingData?.appMotivationLabel || onboardingData?.fitnessGoal || '').trim();
+  const contextLine = [daysLabel, levelLabel, goalLabel].filter(Boolean).join(' • ');
   const [isGenerationDone, setIsGenerationDone] = useState(false);
   const [progress, setProgress] = useState(0);
   const [completedSteps, setCompletedSteps] = useState<boolean[]>(() => checkpoints.map(() => false));
@@ -226,6 +232,9 @@ export function AIAnalysisScreen({ onComplete, onboardingData, userId }: AIAnaly
         </h2>
 
         <p className="mt-3 text-center text-sm text-text-secondary">{copy.subtitle}</p>
+        {contextLine ? (
+          <p className="mt-2 text-center text-[11px] uppercase tracking-[0.16em] text-text-tertiary">{contextLine}</p>
+        ) : null}
 
         <div className="mt-10 flex justify-center">
           <div className="relative w-48 h-48 flex items-center justify-center">

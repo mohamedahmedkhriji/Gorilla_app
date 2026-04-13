@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Dumbbell } from 'lucide-react';
+import { CheckCircle2, Dumbbell, Lock, Sparkles } from 'lucide-react';
 import { Header } from '../ui/Header';
 import { AgendaSection } from '../home/AgendaSection';
 import { getBodyPartImage } from '../../services/bodyPartTheme';
@@ -122,20 +122,45 @@ const COPY = {
   en: {
     title: 'My Plan',
     heroEyebrow: 'Current Day',
-    heroBody: 'Pick one card below to save it as today plan.',
+    heroBody: 'No session selected yet. Choose the best fit for today.',
     heroSelectedEyebrow: 'Saved For Today',
-    heroSelectedBody: 'This is the workout currently saved for today.',
-    heroLockedBody: 'You already started today\'s workout, so today\'s plan is locked.',
-    heroCompletedBody: 'Today workout is marked done. Use the next suggestion below when you are ready.',
+    heroSelectedBody: 'This session is set for today.',
+    heroLockedBody: 'Today is in progress. Complete it to unlock the rest.',
+    heroCompletedBody: 'Today is completed. Use the next suggestion when you are ready.',
+    heroLabelToday: 'اليوم',
+    heroLabelStatus: 'الحالة',
+    heroLabelNext: 'التالي',
+    heroStatusNoPlan: 'لا توجد خطة مختارة',
+    heroStatusPicked: 'مجدول لليوم',
+    heroStatusLocked: 'قيد التنفيذ',
+    heroStatusCompleted: 'مكتمل اليوم',
+    heroNextFallback: 'اختر حصة لمعرفة التالي.',
+    heroCtaStartToday: 'ابدأ اليوم',
+    heroCtaContinueToday: 'أكمل اليوم',
+    heroCtaViewNext: 'عرض الجلسة التالية',
+    heroCtaPickRecommended: 'اجعلها خطة اليوم',
+    heroCtaBrowse: 'تصفح الخطة',
+    progressTitle: 'تقدم الخطة',
+    progressSummary: (completed: number, total: number) => `${completed} من ${total} جلسات مكتملة`,
+    progressHint: 'حافظ على الزخم دون إرهاق التعافي.',
+    agendaTitle: 'أجندة 30 يوماً',
+    agendaSubtitle: 'جدول تدريبك مع وضوح اليوم وما التالي.',
+    recommendedReason: 'مُحسّن لتوازن التعافي.',
+    completedReason: 'تم تسجيله وتحديث التعافي.',
+    lockedReason: 'يفتح بعد جلسة اليوم.',
+    futureReason: 'جاهز عندما تكون.',
+    todayReason: 'مُعد لليوم.',
+    nextUpLabel: 'التالي',
     sectionTitle: 'Week Plan',
     recommendationTitle: 'Recommended Next',
     loading: 'Loading your week plan...',
     empty: 'No workout plan was found for this week yet.',
     error: 'Could not load your week plan.',
-    recommendedNextBadge: 'Recommended Next Day',
-    pickedBadge: 'Picked',
-    completedBadge: 'Done',
-    pickForToday: 'Pick for today',
+    recommendedNextBadge: 'المقترح التالي',
+    pickedBadge: 'اليوم',
+    completedBadge: 'مكتمل',
+    lockedBadge: 'مقفل',
+    pickForToday: 'اخترها لليوم',
     startMyWorkout: 'Start My Workout',
     planLocked: 'Plan Locked',
     pickedForToday: 'Picked for today',
@@ -157,15 +182,40 @@ const COPY = {
     heroSelectedBody: 'هذه هي الحصة المحفوظة لليوم حاليًا.',
     heroLockedBody: 'لقد بدأت تمرين اليوم بالفعل، لذلك أصبحت خطة اليوم مقفلة.',
     heroCompletedBody: 'تم تعليم حصة اليوم كمكتملة. اطلع على الاقتراح التالي عندما تكون جاهزًا.',
+    heroLabelToday: 'Today',
+    heroLabelStatus: 'Status',
+    heroLabelNext: 'Next',
+    heroStatusNoPlan: 'No plan selected',
+    heroStatusPicked: 'Scheduled for today',
+    heroStatusLocked: 'In progress',
+    heroStatusCompleted: 'Completed today',
+    heroNextFallback: 'Choose a session to see what is next.',
+    heroCtaStartToday: 'Start Today',
+    heroCtaContinueToday: 'Continue Today',
+    heroCtaViewNext: 'View Next Session',
+    heroCtaPickRecommended: 'Use As Today',
+    heroCtaBrowse: 'Browse Plan',
+    progressTitle: 'Plan Progress',
+    progressSummary: (completed: number, total: number) => `${completed} of ${total} sessions completed`,
+    progressHint: 'Keep momentum without overloading recovery.',
+    agendaTitle: '30-Day Agenda',
+    agendaSubtitle: 'Your training timeline with clear today and next states.',
+    recommendedReason: 'Optimized for recovery balance.',
+    completedReason: 'Logged and recovery updated.',
+    lockedReason: 'Unlocks after today\'s session.',
+    futureReason: 'Ready when you are.',
+    todayReason: 'Set for today.',
+    nextUpLabel: 'Next up',
     sectionTitle: 'خطة الأسبوع',
     recommendationTitle: 'الاقتراح التالي',
     loading: 'جارٍ تحميل خطة الأسبوع...',
     empty: 'لا توجد خطة تمارين لهذا الأسبوع بعد.',
     error: 'تعذر تحميل خطة الأسبوع.',
-    recommendedNextBadge: 'المقترح لليوم التالي',
-    pickedBadge: 'محفوظ',
-    completedBadge: 'تم',
-    pickForToday: 'اختره لليوم',
+    recommendedNextBadge: 'Recommended Next',
+    pickedBadge: 'Today',
+    completedBadge: 'Completed',
+    lockedBadge: 'Locked',
+    pickForToday: 'Use as today',
     startMyWorkout: 'ابدأ تمريني',
     planLocked: 'الخطة مقفلة',
     pickedForToday: 'محفوظ لليوم',
@@ -191,15 +241,40 @@ const LOCALIZED_COPY: LocalizedLanguageRecord<typeof COPY.en> = {
     heroSelectedBody: 'هذه هي الحصة المحفوظة لليوم حالياً.',
     heroLockedBody: 'لقد بدأت تمرين اليوم بالفعل، لذلك أصبحت خطة اليوم مقفلة.',
     heroCompletedBody: 'تم تعليم حصة اليوم كمكتملة. اطلع على الاقتراح التالي عندما تكون جاهزاً.',
+    heroLabelToday: 'Today',
+    heroLabelStatus: 'Status',
+    heroLabelNext: 'Next',
+    heroStatusNoPlan: 'No plan selected',
+    heroStatusPicked: 'Scheduled for today',
+    heroStatusLocked: 'In progress',
+    heroStatusCompleted: 'Completed today',
+    heroNextFallback: 'Choose a session to see what is next.',
+    heroCtaStartToday: 'Start Today',
+    heroCtaContinueToday: 'Continue Today',
+    heroCtaViewNext: 'View Next Session',
+    heroCtaPickRecommended: 'Use As Today',
+    heroCtaBrowse: 'Browse Plan',
+    progressTitle: 'Plan Progress',
+    progressSummary: (completed: number, total: number) => `${completed} of ${total} sessions completed`,
+    progressHint: 'Keep momentum without overloading recovery.',
+    agendaTitle: '30-Day Agenda',
+    agendaSubtitle: 'Your training timeline with clear today and next states.',
+    recommendedReason: 'Optimized for recovery balance.',
+    completedReason: 'Logged and recovery updated.',
+    lockedReason: 'Unlocks after today\'s session.',
+    futureReason: 'Ready when you are.',
+    todayReason: 'Set for today.',
+    nextUpLabel: 'Next up',
     sectionTitle: 'خطة الأسبوع',
     recommendationTitle: 'الاقتراح التالي',
     loading: 'جارٍ تحميل خطة الأسبوع...',
     empty: 'لا توجد خطة تمارين لهذا الأسبوع بعد.',
     error: 'تعذر تحميل خطة الأسبوع.',
-    recommendedNextBadge: 'المقترح لليوم التالي',
-    pickedBadge: 'محفوظ',
-    completedBadge: 'تم',
-    pickForToday: 'اختره لليوم',
+    recommendedNextBadge: 'Recommended Next',
+    pickedBadge: 'Today',
+    completedBadge: 'Completed',
+    lockedBadge: 'Locked',
+    pickForToday: 'Use as today',
     startMyWorkout: 'ابدأ تمريني',
     planLocked: 'الخطة مقفلة',
     pickedForToday: 'محفوظ لليوم',
@@ -221,15 +296,40 @@ const LOCALIZED_COPY: LocalizedLanguageRecord<typeof COPY.en> = {
     heroSelectedBody: 'Questo e il workout attualmente salvato per oggi.',
     heroLockedBody: 'Hai gia iniziato il workout di oggi, quindi il piano di oggi e bloccato.',
     heroCompletedBody: 'Il workout di oggi e segnato come completato. Usa il suggerimento seguente quando sei pronto.',
+    heroLabelToday: 'Today',
+    heroLabelStatus: 'Status',
+    heroLabelNext: 'Next',
+    heroStatusNoPlan: 'No plan selected',
+    heroStatusPicked: 'Scheduled for today',
+    heroStatusLocked: 'In progress',
+    heroStatusCompleted: 'Completed today',
+    heroNextFallback: 'Choose a session to see what is next.',
+    heroCtaStartToday: 'Start Today',
+    heroCtaContinueToday: 'Continue Today',
+    heroCtaViewNext: 'View Next Session',
+    heroCtaPickRecommended: 'Use As Today',
+    heroCtaBrowse: 'Browse Plan',
+    progressTitle: 'Plan Progress',
+    progressSummary: (completed: number, total: number) => `${completed} of ${total} sessions completed`,
+    progressHint: 'Keep momentum without overloading recovery.',
+    agendaTitle: '30-Day Agenda',
+    agendaSubtitle: 'Your training timeline with clear today and next states.',
+    recommendedReason: 'Optimized for recovery balance.',
+    completedReason: 'Logged and recovery updated.',
+    lockedReason: 'Unlocks after today\'s session.',
+    futureReason: 'Ready when you are.',
+    todayReason: 'Set for today.',
+    nextUpLabel: 'Next up',
     sectionTitle: 'Piano Settimanale',
     recommendationTitle: 'Prossimo Consigliato',
     loading: 'Caricamento del tuo piano settimanale...',
     empty: 'Nessun piano di allenamento trovato per questa settimana.',
     error: 'Impossibile caricare il tuo piano settimanale.',
-    recommendedNextBadge: 'Consigliato Per Il Prossimo Giorno',
-    pickedBadge: 'Scelto',
-    completedBadge: 'Fatto',
-    pickForToday: 'Scegli per oggi',
+    recommendedNextBadge: 'Recommended Next',
+    pickedBadge: 'Today',
+    completedBadge: 'Completed',
+    lockedBadge: 'Locked',
+    pickForToday: 'Use as today',
     startMyWorkout: 'Inizia Il Mio Workout',
     planLocked: 'Piano Bloccato',
     pickedForToday: 'Scelto per oggi',
@@ -251,15 +351,40 @@ const LOCALIZED_COPY: LocalizedLanguageRecord<typeof COPY.en> = {
     heroSelectedBody: 'Dies ist das Workout, das aktuell fuer heute gespeichert ist.',
     heroLockedBody: 'Du hast das heutige Workout bereits begonnen, deshalb ist der heutige Plan gesperrt.',
     heroCompletedBody: 'Das heutige Workout ist als erledigt markiert. Nutze den naechsten Vorschlag, wenn du bereit bist.',
+    heroLabelToday: 'Today',
+    heroLabelStatus: 'Status',
+    heroLabelNext: 'Next',
+    heroStatusNoPlan: 'No plan selected',
+    heroStatusPicked: 'Scheduled for today',
+    heroStatusLocked: 'In progress',
+    heroStatusCompleted: 'Completed today',
+    heroNextFallback: 'Choose a session to see what is next.',
+    heroCtaStartToday: 'Start Today',
+    heroCtaContinueToday: 'Continue Today',
+    heroCtaViewNext: 'View Next Session',
+    heroCtaPickRecommended: 'Use As Today',
+    heroCtaBrowse: 'Browse Plan',
+    progressTitle: 'Plan Progress',
+    progressSummary: (completed: number, total: number) => `${completed} of ${total} sessions completed`,
+    progressHint: 'Keep momentum without overloading recovery.',
+    agendaTitle: '30-Day Agenda',
+    agendaSubtitle: 'Your training timeline with clear today and next states.',
+    recommendedReason: 'Optimized for recovery balance.',
+    completedReason: 'Logged and recovery updated.',
+    lockedReason: 'Unlocks after today\'s session.',
+    futureReason: 'Ready when you are.',
+    todayReason: 'Set for today.',
+    nextUpLabel: 'Next up',
     sectionTitle: 'Wochenplan',
     recommendationTitle: 'Naechste Empfehlung',
     loading: 'Dein Wochenplan wird geladen...',
     empty: 'Fuer diese Woche wurde noch kein Trainingsplan gefunden.',
     error: 'Dein Wochenplan konnte nicht geladen werden.',
-    recommendedNextBadge: 'Empfohlen Fuer Den Naechsten Tag',
-    pickedBadge: 'Gewaehlt',
-    completedBadge: 'Erledigt',
-    pickForToday: 'Fuer heute waehlen',
+    recommendedNextBadge: 'Recommended Next',
+    pickedBadge: 'Today',
+    completedBadge: 'Completed',
+    lockedBadge: 'Locked',
+    pickForToday: 'Use as today',
     startMyWorkout: 'Mein Workout Starten',
     planLocked: 'Plan Gesperrt',
     pickedForToday: 'Fuer heute gewaehlt',
@@ -281,15 +406,40 @@ const LOCALIZED_COPY: LocalizedLanguageRecord<typeof COPY.en> = {
     heroSelectedBody: 'C est l entrainement actuellement enregistre pour aujourd hui.',
     heroLockedBody: 'Tu as deja commence l entrainement du jour, donc le plan d aujourd hui est verrouille.',
     heroCompletedBody: 'L entrainement du jour est marque comme termine. Utilise la suggestion suivante quand tu es pret.',
+    heroLabelToday: 'Today',
+    heroLabelStatus: 'Status',
+    heroLabelNext: 'Next',
+    heroStatusNoPlan: 'No plan selected',
+    heroStatusPicked: 'Scheduled for today',
+    heroStatusLocked: 'In progress',
+    heroStatusCompleted: 'Completed today',
+    heroNextFallback: 'Choose a session to see what is next.',
+    heroCtaStartToday: 'Start Today',
+    heroCtaContinueToday: 'Continue Today',
+    heroCtaViewNext: 'View Next Session',
+    heroCtaPickRecommended: 'Use As Today',
+    heroCtaBrowse: 'Browse Plan',
+    progressTitle: 'Plan Progress',
+    progressSummary: (completed: number, total: number) => `${completed} of ${total} sessions completed`,
+    progressHint: 'Keep momentum without overloading recovery.',
+    agendaTitle: '30-Day Agenda',
+    agendaSubtitle: 'Your training timeline with clear today and next states.',
+    recommendedReason: 'Optimized for recovery balance.',
+    completedReason: 'Logged and recovery updated.',
+    lockedReason: 'Unlocks after today\'s session.',
+    futureReason: 'Ready when you are.',
+    todayReason: 'Set for today.',
+    nextUpLabel: 'Next up',
     sectionTitle: 'Plan de la semaine',
     recommendationTitle: 'Prochain recommande',
     loading: 'Chargement de ton plan de la semaine...',
     empty: 'Aucun plan d entrainement n a encore ete trouve pour cette semaine.',
     error: 'Impossible de charger ton plan de la semaine.',
-    recommendedNextBadge: 'Recommande pour le prochain jour',
-    pickedBadge: 'Choisi',
-    completedBadge: 'Termine',
-    pickForToday: 'Choisir pour aujourd hui',
+    recommendedNextBadge: 'Recommended Next',
+    pickedBadge: 'Today',
+    completedBadge: 'Completed',
+    lockedBadge: 'Locked',
+    pickForToday: 'Use as today',
     startMyWorkout: 'Commencer mon entrainement',
     planLocked: 'Plan verrouille',
     pickedForToday: 'Choisi pour aujourd hui',
@@ -484,11 +634,10 @@ export function WorkoutOverviewScreen({
     return latestByKey;
   }, [assignmentHistory]);
   const premiumConfig = useMemo(() => getActiveT2PremiumConfig(userProgram), [userProgram]);
-  const heroEyebrow = hasTodaySelection ? copy.heroSelectedEyebrow : copy.heroEyebrow;
   const heroTitle = hasTodaySelection
     ? localizeWorkoutText(String(selectedTodayWorkoutName || '').trim()) || localizeDay(selectedTodayWorkoutDayLabel || currentDayLabel)
     : localizeDay(currentDayLabel);
-  const heroBody = hasTodaySelection
+  const heroSupportLine = hasTodaySelection
     ? (isTodaySelectionCompleted
         ? copy.heroCompletedBody
         : isTodayPlanLocked
@@ -520,6 +669,93 @@ export function WorkoutOverviewScreen({
     })),
     [language, latestAssignmentByWorkoutKey, localizeMuscle, localizeWorkoutText, premiumConfig, selectableWorkouts],
   );
+  const todayCard = useMemo(
+    () => cards.find((workout) => workout.isPickedForToday) || null,
+    [cards],
+  );
+  const recommendedCard = useMemo(
+    () => cards.find((workout) => workout.isRecommendedNext) || null,
+    [cards],
+  );
+  const nextRecommendation = useMemo(() => {
+    if (recommendedCard) {
+      return {
+        title: localizeWorkoutText(recommendedCard.workoutName),
+        dayLabel: localizeDay(recommendedCard.dayLabel),
+      };
+    }
+    if (recommendedWorkout) {
+      return {
+        title: localizeWorkoutText(recommendedWorkout.workoutName),
+        dayLabel: localizeDay(recommendedWorkout.dayLabel),
+      };
+    }
+    return null;
+  }, [localizeDay, localizeWorkoutText, recommendedCard, recommendedWorkout]);
+  const heroStatus = isTodaySelectionCompleted
+    ? copy.heroStatusCompleted
+    : isTodayPlanLocked
+      ? copy.heroStatusLocked
+      : hasTodaySelection
+        ? copy.heroStatusPicked
+        : copy.heroStatusNoPlan;
+  const heroStatusTone = isTodaySelectionCompleted
+    ? 'border-emerald-400/30 bg-emerald-500/10 text-emerald-200'
+    : isTodayPlanLocked
+      ? 'border-rose-400/30 bg-rose-500/10 text-rose-200'
+      : hasTodaySelection
+        ? 'border-accent/30 bg-accent/15 text-accent'
+        : 'border-white/15 bg-white/5 text-text-secondary';
+  const completedCount = useMemo(
+    () => cards.filter((workout) => workout.isCompleted).length,
+    [cards],
+  );
+  const progressRatio = cards.length > 0 ? Math.min(1, completedCount / cards.length) : 0;
+  const primaryAction = useMemo(() => {
+    if (todayCard && !isTodaySelectionCompleted) {
+      return {
+        label: isTodayPlanLocked ? copy.heroCtaContinueToday : copy.heroCtaStartToday,
+        onClick: () => onSelectWorkout(todayCard.key),
+        tone: 'primary',
+      };
+    }
+    if (recommendedCard) {
+      if (!hasTodaySelection && !isTodayPlanLocked) {
+        return {
+          label: copy.heroCtaPickRecommended,
+          onClick: () => onPickWorkoutForToday(recommendedCard.key),
+          tone: 'primary',
+        };
+      }
+      return {
+        label: copy.heroCtaViewNext,
+        onClick: () => onSelectWorkout(recommendedCard.key),
+        tone: 'secondary',
+      };
+    }
+    if (cards.length > 0) {
+      return {
+        label: copy.heroCtaBrowse,
+        onClick: () => onSelectWorkout(cards[0].key),
+        tone: 'secondary',
+      };
+    }
+    return null;
+  }, [
+    cards,
+    copy.heroCtaBrowse,
+    copy.heroCtaContinueToday,
+    copy.heroCtaPickRecommended,
+    copy.heroCtaStartToday,
+    copy.heroCtaViewNext,
+    hasTodaySelection,
+    isTodayPlanLocked,
+    isTodaySelectionCompleted,
+    onPickWorkoutForToday,
+    onSelectWorkout,
+    recommendedCard,
+    todayCard,
+  ]);
   return (
     <div className="flex-1 flex flex-col h-full bg-background overflow-y-auto pb-24">
       <div className="px-4 sm:px-6 pt-2">
@@ -534,7 +770,7 @@ export function WorkoutOverviewScreen({
       <div className="px-4 sm:px-6 space-y-5">
         <div
           data-coachmark-target="my_plan_current_day_card"
-          className="relative overflow-hidden rounded-[1.75rem] border border-white/10 bg-card/70 p-5"
+          className="relative overflow-hidden rounded-[1.8rem] border border-white/10 bg-card/70 p-5"
         >
           <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(191,255,0,0.16),transparent_45%),radial-gradient(circle_at_bottom_right,rgba(255,255,255,0.08),transparent_40%)]" aria-hidden="true" />
           <div
@@ -542,34 +778,82 @@ export function WorkoutOverviewScreen({
             data-coachmark-target="my_plan_current_day_gradient"
             aria-hidden="true"
           />
-          <div className={`relative z-10 ${isArabic ? 'text-right' : 'text-left'}`}>
-            <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-text-tertiary">
-              {heroEyebrow}
+          <div className={`relative z-10 space-y-4 ${isArabic ? 'text-right' : 'text-left'}`}>
+            <div className="space-y-4">
+              <div>
+                <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-text-tertiary">
+                  {copy.heroLabelToday}
+                </div>
+                <h2 className="mt-2 text-[1.7rem] font-semibold text-white">
+                  {heroTitle}
+                </h2>
+                <p className="mt-2 max-w-md text-sm text-text-secondary">
+                  {heroSupportLine}
+                </p>
+                <div className={`mt-3 inline-flex items-center gap-2 rounded-full border px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] ${heroStatusTone}`}>
+                  <span>{copy.heroLabelStatus}</span>
+                  <span className="text-[11px] font-bold text-white/90">•</span>
+                  <span>{heroStatus}</span>
+                </div>
+              </div>
+
+              {nextRecommendation && (
+                <div className="rounded-2xl border border-white/10 bg-background/40 p-3">
+                  <div className="mt-2 text-base font-semibold text-white">
+                    {nextRecommendation.title}
+                  </div>
+                  <div className="mt-1 text-xs text-text-secondary">
+                    {nextRecommendation.dayLabel}
+                  </div>
+                  <div className="mt-2 text-[11px] text-text-tertiary">
+                    {copy.recommendedReason}
+                  </div>
+                </div>
+              )}
             </div>
-            <h2 className="mt-2 text-3xl font-semibold text-white">
-              {heroTitle}
-            </h2>
-            <p className="mt-2 max-w-md text-sm text-text-secondary">
-              {heroBody}
-            </p>
+
+            {primaryAction && (
+              <div className={`flex ${isArabic ? 'justify-start' : 'justify-end'}`}>
+                <button
+                  type="button"
+                  onClick={primaryAction.onClick}
+                  className={`font-marker inline-flex min-w-[12rem] items-center justify-center rounded-full border px-4 py-2.5 text-xs font-semibold uppercase tracking-[0.12em] transition-colors ${
+                    primaryAction.tone === 'primary'
+                      ? 'border-accent/30 bg-accent text-black hover:bg-[#aee600]'
+                      : 'border-white/15 bg-white/5 text-text-primary hover:border-accent/30 hover:bg-white/10'
+                  }`}
+                >
+                  {primaryAction.label}
+                </button>
+              </div>
+            )}
           </div>
         </div>
 
-        {recommendedWorkout && (
-          <div className={`rounded-[1.4rem] border border-accent/20 bg-accent/8 px-4 py-4 ${isArabic ? 'text-right' : 'text-left'}`}>
-            <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-accent">
-              {copy.recommendationTitle}
+        <div className="rounded-[1.4rem] border border-white/10 bg-card/60 p-4">
+          <div className={`flex flex-wrap items-center justify-between gap-2 ${isArabic ? 'text-right' : 'text-left'}`}>
+            <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-text-tertiary">
+              {copy.progressTitle}
             </div>
-            <div className="mt-2 text-base font-semibold text-white">
-              {localizeWorkoutText(recommendedWorkout.workoutName)}
-            </div>
-            <div className="mt-1 text-sm text-text-secondary">
-              {localizeDay(recommendedWorkout.dayLabel)}
+            <div className="text-xs text-text-secondary">
+              {copy.progressSummary(completedCount, cards.length)}
             </div>
           </div>
-        )}
+          <div className="mt-3 h-2 w-full rounded-full bg-white/10">
+            <div
+              className="h-full rounded-full bg-accent/70 transition-all"
+              style={{ width: `${progressRatio * 100}%` }}
+            />
+          </div>
+          <div className="mt-2 text-xs text-text-secondary">
+            {copy.progressHint}
+          </div>
+        </div>
 
-        <div data-coachmark-target="my_plan_agenda_card">
+        <div data-coachmark-target="my_plan_agenda_card" className="space-y-3">
+          <div className={`text-xs text-text-tertiary ${isArabic ? 'text-right' : 'text-left'}`}>
+            {copy.agendaSubtitle}
+          </div>
           <AgendaSection
             userProgram={userProgram}
             assignmentHistory={assignmentHistory}
@@ -638,20 +922,64 @@ export function WorkoutOverviewScreen({
               {cards.map((workout, index) => {
                 const isCompleted = !!workout.isCompleted;
                 const isLockedForSelection = isTodayPlanLocked && hasTodaySelection && !workout.isPickedForToday;
+                const cardState = isCompleted
+                  ? 'completed'
+                  : workout.isPickedForToday
+                    ? 'today'
+                    : workout.isRecommendedNext
+                      ? 'recommended'
+                      : isLockedForSelection
+                        ? 'locked'
+                        : 'future';
+                const stateBadge = cardState === 'completed'
+                  ? copy.completedBadge
+                  : cardState === 'today'
+                    ? copy.pickedBadge
+                    : cardState === 'recommended'
+                      ? copy.recommendedNextBadge
+                      : cardState === 'locked'
+                        ? copy.lockedBadge
+                        : null;
+                const stateReason = cardState === 'completed'
+                  ? copy.completedReason
+                  : cardState === 'recommended'
+                    ? copy.recommendedReason
+                    : cardState === 'locked'
+                      ? copy.lockedReason
+                      : cardState === 'today'
+                        ? copy.todayReason
+                        : copy.futureReason;
+                const detailLine = workout.premiumMeta?.insight || stateReason;
+                const cardTone = cardState === 'completed'
+                  ? 'border-emerald-500/25 bg-emerald-500/[0.06] hover:border-emerald-400/35'
+                  : cardState === 'today'
+                    ? 'border-accent/35 bg-accent/10 shadow-[0_8px_20px_rgba(0,0,0,0.22)]'
+                    : cardState === 'recommended'
+                      ? 'border-accent/45 bg-accent/14 shadow-[0_10px_24px_rgba(0,0,0,0.24)]'
+                      : cardState === 'locked'
+                        ? 'border-white/8 bg-white/[0.04]'
+                        : 'border-white/10 bg-card/60 hover:border-accent/20 hover:bg-card/75';
+                const iconTone = cardState === 'completed'
+                  ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-200'
+                  : cardState === 'recommended' || cardState === 'today'
+                    ? 'border-accent/35 bg-accent/15 text-accent'
+                    : cardState === 'locked'
+                      ? 'border-white/10 bg-white/5 text-text-tertiary'
+                      : 'border-white/10 bg-white/5 text-text-secondary';
+                const Icon = cardState === 'completed'
+                  ? CheckCircle2
+                  : cardState === 'recommended'
+                    ? Sparkles
+                    : cardState === 'locked'
+                      ? Lock
+                      : Dumbbell;
+                const isPrimaryAction = cardState === 'today' || cardState === 'recommended';
 
                 return (
                 <div
                   key={workout.key}
                   data-coachmark-target={index === 0 ? 'my_plan_first_week_card' : undefined}
-                  className={`w-full rounded-[1.6rem] border p-4 transition-colors ${
-                    isCompleted
-                      ? 'border-emerald-500/25 bg-emerald-500/[0.07] hover:border-emerald-400/35'
-                      : workout.isPickedForToday
-                      ? 'border-accent/35 bg-accent/8 shadow-[0_14px_32px_rgba(191,255,0,0.08)]'
-                      : workout.isRecommendedNext && premiumConfig
-                        ? 'border-emerald-500/25 bg-emerald-500/[0.07] hover:border-emerald-400/35'
-                      : 'border-white/10 bg-card/60 hover:border-accent/20 hover:bg-card/75'
-                  } ${isArabic ? 'text-right' : 'text-left'}`}
+                  className={`w-full rounded-[1.6rem] border p-4 transition-colors ${cardTone} ${isArabic ? 'text-right' : 'text-left'}`}
                   dir={isArabic ? 'rtl' : 'ltr'}
                 >
                   <button
@@ -662,8 +990,8 @@ export function WorkoutOverviewScreen({
                   >
                     <div className={`flex items-start justify-between gap-3 ${isArabic ? 'flex-row-reverse' : ''}`}>
                       <div className={`flex items-start gap-3 min-w-0 ${isArabic ? 'flex-row-reverse' : ''}`}>
-                        <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-white/10 bg-white/5 text-accent">
-                          <Dumbbell size={18} />
+                        <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border ${iconTone}`}>
+                          <Icon size={18} />
                         </div>
                         <div className="min-w-0">
                           {workout.premiumMeta?.weekLabel && (
@@ -676,30 +1004,35 @@ export function WorkoutOverviewScreen({
                               </span>
                             </div>
                           )}
-                          <div className="truncate text-base font-semibold text-white">
-                            {localizeWorkoutText(workout.premiumMeta?.displayTitle || workout.localizedWorkoutName || workout.workoutName)}
+                          <div className={`flex items-center justify-between gap-2 ${isArabic ? 'flex-row-reverse' : ''}`}>
+                            <div className="truncate text-base font-semibold text-white">
+                              {localizeWorkoutText(workout.premiumMeta?.displayTitle || workout.localizedWorkoutName || workout.workoutName)}
+                            </div>
+                            <div className="text-[10px] uppercase tracking-[0.18em] text-text-tertiary">
+                              {localizeDay(workout.dayLabel)}
+                            </div>
                           </div>
                           <div className="mt-1 text-xs text-text-secondary">
                             {workout.premiumMeta
                               ? `${copy.exerciseCount(workout.exerciseCount)} • ${workout.premiumMeta.durationLabel}`
                               : copy.exerciseCount(workout.exerciseCount)}
                           </div>
-                          {workout.premiumMeta?.insight && (
-                            <div className="mt-2 text-[11px] leading-relaxed text-text-tertiary">
-                              {workout.premiumMeta.insight}
-                            </div>
-                          )}
+                          <div className="mt-2 text-[11px] leading-relaxed text-text-tertiary">
+                            {detailLine}
+                          </div>
                         </div>
                       </div>
 
                       <div className={`flex items-center gap-2 ${isArabic ? 'flex-row-reverse' : ''}`}>
-                        {(isCompleted || workout.isPickedForToday) && (
+                        {stateBadge && (
                           <span className={`rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] ${
-                            isCompleted
+                            cardState === 'completed'
                               ? 'bg-emerald-500/15 text-emerald-200'
-                              : 'bg-accent/15 text-accent'
+                              : cardState === 'recommended' || cardState === 'today'
+                                ? 'bg-accent/15 text-accent'
+                                : 'bg-white/10 text-text-tertiary'
                           }`}>
-                            {isCompleted ? copy.completedBadge : copy.pickedBadge}
+                            {stateBadge}
                           </span>
                         )}
                         <img
@@ -715,7 +1048,7 @@ export function WorkoutOverviewScreen({
                       </div>
                     </div>
                     {workout.localizedMuscles.length > 0 && (
-                      <div className="mt-3 flex items-center justify-center gap-2">
+                      <div className={`mt-3 flex items-center gap-2 ${isArabic ? 'justify-end' : 'justify-start'}`}>
                         {workout.localizedMuscles.map((muscle) => (
                           <div
                             key={`${workout.key}-${muscle.label}`}
@@ -732,6 +1065,14 @@ export function WorkoutOverviewScreen({
                       </div>
                     )}
                   </button>
+                  {cardState === 'completed' && workout.isCompletedToday && recommendedCard && (
+                    <div className={`mt-3 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-[11px] text-text-secondary ${isArabic ? 'text-right' : 'text-left'}`}>
+                      <span className="mr-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-text-tertiary">
+                        {copy.nextUpLabel}
+                      </span>
+                      {localizeWorkoutText(recommendedCard.workoutName)}
+                    </div>
+                  )}
 
                   <div className={`mt-4 flex ${isArabic ? 'justify-start' : 'justify-end'}`}>
                     <button
@@ -755,9 +1096,9 @@ export function WorkoutOverviewScreen({
                           ? 'cursor-default border-emerald-500/25 bg-emerald-500/10 text-emerald-200'
                           : isLockedForSelection
                             ? 'cursor-not-allowed border-white/10 bg-white/5 text-text-tertiary'
-                          : workout.isPickedForToday
-                            ? 'border-accent/30 bg-accent text-black hover:bg-[#aee600]'
-                          : 'border-accent/30 bg-accent/20 text-text-primary hover:bg-accent/25'
+                            : isPrimaryAction
+                              ? 'border-accent/30 bg-accent text-black hover:bg-[#aee600]'
+                              : 'border-accent/30 bg-accent/20 text-text-primary hover:bg-accent/25'
                       }`}
                     >
                       {isCompleted

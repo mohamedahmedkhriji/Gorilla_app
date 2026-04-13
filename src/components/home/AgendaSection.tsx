@@ -23,14 +23,6 @@ type AgendaDay = {
   isRestDay: boolean;
 };
 
-const AGENDA_TITLE: LocalizedLanguageRecord<string> = {
-  en: '30 Day Agenda',
-  ar: 'أجندة 30 يوماً',
-  it: 'Agenda di 30 Giorni',
-  de: '30-Tage-Agenda',
-  fr: 'Agenda 30 jours',
-};
-
 const AGENDA_COPY: LocalizedLanguageRecord<{
   exercises: string;
   recoveryDay: string;
@@ -175,7 +167,6 @@ export function AgendaSection({
   const [selectedDay, setSelectedDay] = useState<AgendaDay | null>(null);
   const language = getActiveLanguage(getStoredLanguage()) as AppLanguage;
   const isArabic = language === 'ar';
-  const agendaTitle = AGENDA_TITLE[language] || AGENDA_TITLE.en;
   const copy = {
     weeklyAgenda: isArabic ? 'أجندة الأسبوع' : 'Weekly Agenda',
     exercises: isArabic ? 'التمارين' : 'Exercises',
@@ -484,10 +475,6 @@ export function AgendaSection({
 
   return (
     <div className="space-y-3">
-      <div className="flex items-end px-1">
-        <h3 className="text-[11px] font-semibold text-text-secondary uppercase tracking-[0.15em]">{agendaTitle}</h3>
-      </div>
-
       <div className="rounded-2xl surface-card border border-white/15 px-2 py-3 relative overflow-hidden">
         <div
           className="absolute inset-0 bg-cover bg-center opacity-60"

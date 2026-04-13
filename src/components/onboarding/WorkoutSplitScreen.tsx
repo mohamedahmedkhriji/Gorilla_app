@@ -18,12 +18,13 @@ interface WorkoutSplitScreenProps {
 
 const COPY = {
   en: {
-    title: 'Choose your plan type',
-    customBadge: 'Create + AI Feedback',
-    recommendedBadge: 'Recommended for you',
-    cta: 'Next Step',
+    title: 'Your AI-selected program',
+    customBadge: 'Custom Build',
+    recommendedBadge: 'AI Recommended',
+    cta: 'Use this program',
+    altCta: 'See other options',
     summary: (days: number, level: string, profile: string) =>
-      `Based on ${days} training day${days > 1 ? 's' : ''}, ${level} level, and ${profile} profile, these are your best-fit options.`,
+      `Built for ${days} day${days > 1 ? 's' : ''} per week, ${level} level, ${profile} profile.`,
   },
   ar: {
     title: '\u0627\u062e\u062a\u0631 \u0646\u0648\u0639 \u062e\u0637\u062a\u0643',
@@ -527,6 +528,7 @@ export function WorkoutSplitScreen({
   }, [availableOptions, onboardingData?.workoutSplitPreference, recommendedId]);
 
   const [selectedId, setSelectedId] = useState(initialSelection);
+  const [showAlternatives, setShowAlternatives] = useState(false);
 
   const persistSelection = (optionId: string) => {
     const selectedOption = availableOptions.find((option) => option.id === optionId);
@@ -554,6 +556,9 @@ export function WorkoutSplitScreen({
     onNext();
   };
 
+  const recommendedOption = availableOptions.find((option) => option.id === recommendedId);
+  const alternativeOptions = availableOptions.filter((option) => option.id !== recommendedId);
+
   return (
     <div className="flex-1 flex flex-col space-y-6">
       <div className="space-y-2">
@@ -562,65 +567,105 @@ export function WorkoutSplitScreen({
       </div>
 
       <div className="space-y-3">
-        {availableOptions.map((option) => {
-          const isSelected = selectedId === option.id;
-          const isRecommended = option.id === recommendedId;
-          return (
-            <button
-              key={option.id}
-              type="button"
-              onClick={() => {
-                setSelectedId(option.id);
-                const selectedOption = persistSelection(option.id);
-                if (option.id === 'custom' && selectedOption) {
-                  advanceToNextStep();
-                }
-              }}
-              className={`w-full rounded-xl border p-4 text-left transition-colors ${
-                isSelected
-                  ? 'bg-accent/12 border-accent text-white'
-                  : 'bg-card border-white/10 text-text-secondary hover:bg-white/5'
-              }`}
-            >
-              <div className="flex items-start justify-between gap-3">
-                <div className="space-y-1">
-                  {option.id === 'custom' && (
-                    <span className="inline-flex items-center rounded-full bg-accent/20 text-accent px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide">
-                      {copy.customBadge}
-                    </span>
-                  )}
-                  {isRecommended && (
-                    <span className="inline-flex items-center rounded-full bg-accent px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-black">
-                      {copy.recommendedBadge}
-                    </span>
-                  )}
-                  <p className="text-sm font-semibold text-white">{option.title}</p>
-                  <p className="text-xs text-text-secondary">{option.summary}</p>
-                  <p className="text-[11px] text-text-tertiary">{option.detail}</p>
-                </div>
-                <SelectionCheck selected={isSelected} className="mt-0.5 shrink-0" />
+        {recommendedOption && (
+          <button
+            type="button"
+            onClick={() => {
+              setSelectedId(recommendedOption.id);
+              persistSelection(recommendedOption.id);
+            }}
+            className="w-full rounded-xl border border-accent/40 bg-accent/12 p-4 text-left transition-colors"
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div className="space-y-1">
+                <span className="inline-flex items-center rounded-full bg-accent px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-black">
+                  {copy.recommendedBadge}
+                </span>
+                <p className="text-sm font-semibold text-white">{recommendedOption.title}</p>
+                <p className="text-xs text-text-secondary">{recommendedOption.summary}</p>
+                <p className="text-[11px] text-text-tertiary">{recommendedOption.detail}</p>
               </div>
-            </button>
-          );
-        })}
+              <SelectionCheck selected={selectedId === recommendedOption.id} className="mt-0.5 shrink-0" />
+            </div>
+          </button>
+        )}
+
+        {showAlternatives && alternativeOptions.length > 0 && (
+          <div className="space-y-3">
+            {alternativeOptions.map((option) => {
+              const isSelected = selectedId === option.id;
+              const isRecommended = option.id === recommendedId;
+              return (
+                <button
+                  key={option.id}
+                  type="button"
+                  onClick={() => {
+                    setSelectedId(option.id);
+                    const selectedOption = persistSelection(option.id);
+                    if (option.id === 'custom' && selectedOption) {
+                      advanceToNextStep();
+                    }
+                  }}
+                  className={`w-full rounded-xl border p-4 text-left transition-colors ${
+                    isSelected
+                      ? 'bg-accent/12 border-accent text-white'
+                      : 'bg-card border-white/10 text-text-secondary hover:bg-white/5'
+                  }`}
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="space-y-1">
+                      {option.id === 'custom' && (
+                        <span className="inline-flex items-center rounded-full bg-accent/20 text-accent px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide">
+                          {copy.customBadge}
+                        </span>
+                      )}
+                      {isRecommended && (
+                        <span className="inline-flex items-center rounded-full bg-accent px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-black">
+                          {copy.recommendedBadge}
+                        </span>
+                      )}
+                      <p className="text-sm font-semibold text-white">{option.title}</p>
+                      <p className="text-xs text-text-secondary">{option.summary}</p>
+                      <p className="text-[11px] text-text-tertiary">{option.detail}</p>
+                    </div>
+                    <SelectionCheck selected={isSelected} className="mt-0.5 shrink-0" />
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       <div className="flex-1" />
 
-      <Button
-        onClick={() => {
-          const selectedOption = persistSelection(selectedId);
-          if (!selectedOption) return;
-          if (selectedOption.id === 'custom') {
-            advanceToNextStep();
-            return;
-          }
-          onNext();
-        }}
-        disabled={!selectedId}
-      >
-        {copy.cta}
-      </Button>
+      <div className="space-y-3">
+        {!showAlternatives && alternativeOptions.length > 0 && (
+          <button
+            type="button"
+            onClick={() => setShowAlternatives(true)}
+            className="w-full rounded-full border border-white/15 bg-white/5 px-4 py-2 text-xs font-semibold uppercase tracking-[0.12em] text-text-primary transition-colors hover:border-accent/30 hover:bg-white/10"
+          >
+            {copy.altCta}
+          </button>
+        )}
+        <Button
+          onClick={() => {
+            const selectedOption = persistSelection(selectedId);
+            if (!selectedOption) return;
+            if (selectedOption.id === 'custom') {
+              advanceToNextStep();
+              return;
+            }
+            onNext();
+          }}
+          disabled={!selectedId}
+        >
+          {copy.cta}
+        </Button>
+      </div>
+
+      <div className="flex-1" />
     </div>
   );
 }

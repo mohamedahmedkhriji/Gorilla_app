@@ -14,39 +14,44 @@ interface FirstNameScreenProps {
 
 const COPY = {
   en: {
-    intro: "Let's get started!",
-    title: 'What would you like us to call you?',
-    label: 'First name',
-    placeholder: 'Your name',
-    cta: 'Next',
+    intro: 'Let\u2019s personalize your plan',
+    title: 'What should we call you?',
+    label: 'Name',
+    placeholder: 'Your first name',
+    cta: 'Continue',
+    feedback: (name: string) => `Great to meet you, ${name}.`,
   },
   ar: {
-    intro: '\u0644\u0646\u0628\u062f\u0623!',
+    intro: '\u0644\u0646\u062e\u0635\u0635 \u062e\u0637\u062a\u0643',
     title: '\u0628\u0623\u064a \u0627\u0633\u0645 \u062a\u062d\u0628 \u0623\u0646 \u0646\u0646\u0627\u062f\u064a\u0643\u061f',
-    label: '\u0627\u0644\u0627\u0633\u0645 \u0627\u0644\u0623\u0648\u0644',
+    label: '\u0627\u0644\u0627\u0633\u0645',
     placeholder: '\u0627\u0633\u0645\u0643',
-    cta: '\u0627\u0644\u062a\u0627\u0644\u064a',
+    cta: '\u0645\u062a\u0627\u0628\u0639\u0629',
+    feedback: (name: string) => `\u0645\u0633\u0631\u0648\u0631\u0648\u0646 \u0628\u0645\u0639\u0631\u0641\u062a\u0643\u060c ${name}.`,
   },
   it: {
-    intro: 'Iniziamo!',
+    intro: 'Personalizziamo il tuo piano',
     title: 'Come vuoi che ti chiamiamo?',
     label: 'Nome',
     placeholder: 'Il tuo nome',
-    cta: 'Avanti',
+    cta: 'Continua',
+    feedback: (name: string) => `Piacere di conoscerti, ${name}.`,
   },
   de: {
-    intro: 'Los gehts!',
+    intro: 'Wir personalisieren deinen Plan',
     title: 'Wie sollen wir dich nennen?',
-    label: 'Vorname',
-    placeholder: 'Dein Name',
+    label: 'Name',
+    placeholder: 'Dein Vorname',
     cta: 'Weiter',
+    feedback: (name: string) => `Schoen dich kennenzulernen, ${name}.`,
   },
   fr: {
-    intro: 'Commencons !',
+    intro: 'On personnalise ton programme',
     title: 'Comment veux-tu que nous t appelions ?',
     label: 'Prenom',
     placeholder: 'Ton prenom',
-    cta: 'Suivant',
+    cta: 'Continuer',
+    feedback: (name: string) => `Ravi de te rencontrer, ${name}.`,
   },
 } as const;
 
@@ -86,6 +91,10 @@ export function FirstNameScreen({ onNext, onDataChange, onboardingData }: FirstN
         }}
         required
       />
+
+      {trimmedName ? (
+        <p className="text-center text-sm text-text-secondary">{copy.feedback(trimmedName)}</p>
+      ) : null}
 
       <div className="flex-1" />
 

@@ -217,7 +217,7 @@ export function BodyAnalysisResultsScreen({
     || normalize(coachPlan?.summary)
     || (isArabic
       ? `خطة ${goal.toLowerCase()} مخصصة مبنية على روتينك وتعافيك.`
-      : `A personalized ${goal.toLowerCase()} plan built around your routine and recovery.`);
+      : `A personalized ${goal.toLowerCase()} plan built from your answers and schedule.`);
   const planLabel = normalize(coachPlan?.planName) || 'RepSet AI';
   const planHeadline = isArabic
     ? (goal === 'بناء العضلات' ? 'بناء وشد العضلات' : goal)
@@ -233,7 +233,7 @@ export function BodyAnalysisResultsScreen({
             </>
           ) : (
             <>
-              Congratulations, {firstName}! Your <span className="text-accent">AI-powered</span> coach is ready.
+              {firstName}, your <span className="text-accent">AI training system</span> is ready.
             </>
           )}
         </h2>
@@ -337,7 +337,7 @@ export function BodyAnalysisResultsScreen({
       <div className="flex-1" />
 
       <Button onClick={onNext} className="uppercase tracking-[0.11em]">
-        {isArabic ? 'احصل على خطتي' : 'Get My Plan'}
+        {isArabic ? 'ابدأ برنامجي' : 'Start My Program'}
       </Button>
     </div>
   );

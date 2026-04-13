@@ -7,3 +7,4 @@ class BridgeViewController: CAPBridgeViewController {
         bridge?.registerPluginType(ScreenshotSecurityPlugin.self)
     }
 }
+d

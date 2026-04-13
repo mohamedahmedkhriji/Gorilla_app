@@ -13,9 +13,10 @@ interface AppMotivationScreenProps {
 
 const COPY = {
   en: {
-    title: 'What brings you to RepSet?',
-    subtitle: 'Pick the main reason so we can tailor your onboarding and first plan.',
+    title: 'What do you want to change first?',
+    subtitle: 'Choose one focus so we can tailor your plan.',
     cta: 'Continue',
+    feedback: 'Perfect. We will build around this.',
   },
   ar: {
     title: '\u0645\u0627 \u0627\u0644\u0630\u064a \u062c\u0627\u0621 \u0628\u0643 \u0625\u0644\u0649 RepSet\u061f',
@@ -86,6 +87,7 @@ export function AppMotivationScreen({
               onClick={() => {
                 setSelectedId(option.id);
                 persistMotivation(option.id);
+                window.setTimeout(() => onNext(), 200);
               }}
               className={`w-full min-h-[108px] rounded-2xl border px-5 py-4 text-left transition-colors ${
                 isSelected
@@ -106,6 +108,10 @@ export function AppMotivationScreen({
       </div>
 
       <div className="flex-1" />
+
+      {selectedId && copy.feedback ? (
+        <p className="text-center text-sm text-text-secondary">{copy.feedback}</p>
+      ) : null}
 
       <Button onClick={onNext} disabled={!selectedId}>
         {copy.cta}
