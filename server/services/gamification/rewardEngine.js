@@ -6,6 +6,12 @@ import { ensureColumnExists } from './schemaCompat.js';
 
 let rewardIdentityInfrastructurePromise = null;
 
+const normalizeLimit = (value, fallback = 8) => {
+  const normalized = Math.floor(Number(value || fallback));
+  if (!Number.isFinite(normalized) || normalized <= 0) return Math.max(1, Math.floor(fallback));
+  return normalized;
+};
+
 const ensureRewardIdentityInfrastructure = async () => {
   await ensureColumnExists(
     'rewards',
@@ -79,6 +85,7 @@ export const normalizeRewardEntries = (rewards = []) =>
 export const fetchAvailableRewards = async (userId, limit = 8) => {
   const normalizedUserId = Number(userId);
   if (!Number.isInteger(normalizedUserId) || normalizedUserId <= 0) return [];
+  const normalizedLimit = Math.max(1, Math.min(20, normalizeLimit(limit, 8)));
 
   await ensureRewardIdentityInfrastructureOnce();
 
@@ -103,8 +110,8 @@ export const fetchAvailableRewards = async (userId, limit = 8) => {
      WHERE ur.user_id = ?
        AND ur.status = 'available'
      ORDER BY ur.granted_at DESC, ur.id DESC
-     LIMIT ?`,
-    [normalizedUserId, Math.max(1, Math.min(20, Number(limit || 8)))],
+     LIMIT ${normalizedLimit}`,
+    [normalizedUserId],
   );
 
   return normalizeRewardEntries(rows.map((row) => ({

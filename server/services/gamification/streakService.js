@@ -5,6 +5,14 @@ import { GAMIFICATION_CONFIG, formatDateISO, getEndOfDay } from './config.js';
 
 let streakInfrastructurePromise = null;
 
+const normalizeLimit = (value, fallback) => {
+  const normalized = Math.floor(Number(value || fallback));
+  if (!Number.isFinite(normalized) || normalized <= 0) {
+    return Math.max(1, Math.floor(Number(fallback || 1)));
+  }
+  return normalized;
+};
+
 const toDateKey = (value) => {
   if (!value) return '';
   if (typeof value === 'string') return value.slice(0, 10);
@@ -64,30 +72,33 @@ const computeConsecutiveRun = (dateKeys, stepDays = 1) => {
 };
 
 const getRecentWorkoutDays = async (userId) => {
+  const limit = normalizeLimit(GAMIFICATION_CONFIG.streaks.maxLookbackDays, 45);
   const [rows] = await pool.execute(
     `SELECT DISTINCT DATE(created_at) AS activity_day
      FROM workout_sets
      WHERE user_id = ? AND completed = 1
      ORDER BY activity_day DESC
-     LIMIT ?`,
-    [userId, GAMIFICATION_CONFIG.streaks.maxLookbackDays],
+     LIMIT ${limit}`,
+    [userId],
   );
   return rows.map((row) => toDateKey(row.activity_day)).filter(Boolean);
 };
 
 const getRecentRecoveryDays = async (userId) => {
+  const limit = normalizeLimit(GAMIFICATION_CONFIG.streaks.maxLookbackDays, 45);
   const [rows] = await pool.execute(
     `SELECT DISTINCT DATE(recorded_at) AS activity_day
      FROM recovery_history
      WHERE user_id = ?
      ORDER BY activity_day DESC
-     LIMIT ?`,
-    [userId, GAMIFICATION_CONFIG.streaks.maxLookbackDays],
+     LIMIT ${limit}`,
+    [userId],
   );
   return rows.map((row) => toDateKey(row.activity_day)).filter(Boolean);
 };
 
 const getRecentActivityDays = async (userId) => {
+  const limit = normalizeLimit(GAMIFICATION_CONFIG.streaks.maxLookbackDays, 45);
   const [rows] = await pool.execute(
     `SELECT activity_day
      FROM (
@@ -100,20 +111,21 @@ const getRecentActivityDays = async (userId) => {
        WHERE user_id = ?
      ) activity
      ORDER BY activity_day DESC
-     LIMIT ?`,
-    [userId, userId, GAMIFICATION_CONFIG.streaks.maxLookbackDays],
+     LIMIT ${limit}`,
+    [userId, userId],
   );
   return rows.map((row) => toDateKey(row.activity_day)).filter(Boolean);
 };
 
 const getRecentWorkoutWeeks = async (userId) => {
+  const limit = normalizeLimit(GAMIFICATION_CONFIG.streaks.maxLookbackWeeks, 16);
   const [rows] = await pool.execute(
     `SELECT DISTINCT DATE_SUB(DATE(created_at), INTERVAL WEEKDAY(created_at) DAY) AS week_start
      FROM workout_sets
      WHERE user_id = ? AND completed = 1
      ORDER BY week_start DESC
-     LIMIT ?`,
-    [userId, GAMIFICATION_CONFIG.streaks.maxLookbackWeeks],
+     LIMIT ${limit}`,
+    [userId],
   );
   return rows.map((row) => toDateKey(row.week_start)).filter(Boolean);
 };
