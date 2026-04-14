@@ -560,8 +560,10 @@ export function ProfileScreen({ onNavigate, onLogout }: ProfileScreenProps) {
       </div>
 
       <div className="grid grid-cols-3 gap-3">
-        <div
+        <button
           data-coachmark-target="profile_exercises_card"
+          type="button"
+          onClick={() => onNavigate('weeklyPlan')}
           className={statCardClassName}
         >
           <div className="mx-auto mb-3 h-px w-10 bg-gradient-to-r from-transparent via-white/25 to-transparent" />
@@ -569,7 +571,7 @@ export function ProfileScreen({ onNavigate, onLogout }: ProfileScreenProps) {
           <div className="mt-2 text-[10px] font-medium uppercase tracking-[0.16em] text-text-secondary">
             {copy.exercises}
           </div>
-        </div>
+        </button>
         <button
           data-coachmark-target="profile_rank_card"
           type="button"

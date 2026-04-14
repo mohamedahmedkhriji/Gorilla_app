@@ -3,7 +3,6 @@ import { ChevronRight, Trophy } from 'lucide-react';
 import { Header } from '../ui/Header';
 import { Card } from '../ui/Card';
 import { LeaderboardScreen } from './LeaderboardScreen';
-import { InsightStack, NextActionCard, TriggerPills } from '../gamification/GamificationCards';
 import { api } from '../../services/api';
 import { normalizeGamificationSummary } from '../../services/gamificationEvents';
 import { offlineCacheKeys, readOfflineCacheValue } from '../../services/offlineCache';
@@ -773,11 +772,7 @@ export function RankingsRewardsScreen({ onBack }: RankingsRewardsScreenProps) {
     ? Math.max(0, Math.min(Math.round((summary.totalPoints / Math.max(1, nextRankRequirement)) * 100), 100))
     : 100;
   const rewardsAvailable = gamificationSummary?.rewardsAvailable || [];
-  const summaryNextAction = gamificationSummary?.nextAction || gamificationSummary?.progress?.nextAction || null;
-  const summaryTriggers = gamificationSummary?.notificationTriggers || gamificationSummary?.progress?.notificationTriggers || [];
-  const summaryInsights = gamificationSummary?.weeklyNarrative || gamificationSummary?.progress?.summaryInsights || [];
   const rivalry = gamificationSummary?.progress?.rivalry || null;
-  const rewardsLabel = rewardsAvailable.slice(0, 2).map((reward) => reward.name).filter(Boolean).join(' • ');
   const passPlayerLabel = (points: number, name: string) =>
     pickLanguage(language, {
       en: `${points} ${copy.pointsShort} to pass ${name}`,
@@ -786,15 +781,6 @@ export function RankingsRewardsScreen({ onBack }: RankingsRewardsScreenProps) {
       de: `${points} ${copy.pointsShort} bis vor ${name}`,
       fr: `${points} ${copy.pointsShort} pour depasser ${name}`,
     });
-  const rewardsReadyLabel = (names: string) =>
-    pickLanguage(language, {
-      en: `Unlocked rewards ready: ${names}`,
-      ar: `المكافآت الجاهزة: ${names}`,
-      it: `Ricompense sbloccate pronte: ${names}`,
-      de: `Freigeschaltete Belohnungen bereit: ${names}`,
-      fr: `Recompenses debloquees pretes : ${names}`,
-    });
-
   const missionHistoryByPeriod = useMemo(
     () =>
       missionHistory.reduce((acc, item) => {
@@ -1269,23 +1255,6 @@ export function RankingsRewardsScreen({ onBack }: RankingsRewardsScreenProps) {
               </div>
             </div>
           </div>
-        </div>
-
-        <NextActionCard action={summaryNextAction} eyebrow={experienceCopy.nextStepLabel} />
-
-        <div className="space-y-3">
-          <TriggerPills triggers={summaryTriggers} />
-          <InsightStack insights={summaryInsights} />
-          {rivalry?.nextPlayerName && (
-            <div className="rounded-[1.4rem] border border-violet-400/20 bg-violet-500/10 px-4 py-3 text-sm text-violet-100 shadow-[0_12px_28px_rgba(0,0,0,0.16)]">
-              {passPlayerLabel(Math.max(0, Number(rivalry.deltaToNextPlayer || 0)), rivalry.nextPlayerName)}
-            </div>
-          )}
-          {rewardsAvailable.length > 0 && (
-            <div className="rounded-[1.4rem] border border-amber-400/20 bg-amber-500/10 px-4 py-3 text-sm text-amber-100 shadow-[0_12px_28px_rgba(0,0,0,0.16)]">
-              {rewardsReadyLabel(rewardsLabel)}
-            </div>
-          )}
         </div>
 
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
