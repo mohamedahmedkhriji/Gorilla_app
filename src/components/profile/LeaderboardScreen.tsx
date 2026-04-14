@@ -4,7 +4,8 @@ import { Award, Crown, Medal, Swords, Trophy, UserRound } from 'lucide-react';
 import { api } from '../../services/api';
 import { offlineCacheKeys, readOfflineCacheValue } from '../../services/offlineCache';
 import { rankTopScoreIcon } from '../../services/rankTheme';
-import { getActiveLanguage, getStoredLanguage, pickLanguage } from '../../services/language';
+import { pickLanguage } from '../../services/language';
+import { useAppLanguage } from '../../hooks/useAppLanguage';
 import type { GamificationLeaderboardEntry, GamificationRivalry } from '../../types/gamification';
 
 interface LeaderboardScreenProps {
@@ -52,8 +53,7 @@ const mapLeaderboardRows = (result: any): LeaderboardUser[] => {
 };
 
 export function LeaderboardScreen({ onBack }: LeaderboardScreenProps) {
-  const language = getActiveLanguage(getStoredLanguage());
-  const isArabic = language === 'ar';
+  const { language, isArabic } = useAppLanguage();
   const copy = pickLanguage(language, {
     en: {
       title: 'Leaderboard',
@@ -241,7 +241,6 @@ export function LeaderboardScreen({ onBack }: LeaderboardScreenProps) {
 
         {(rivalry?.nextPlayerName || currentUserPreview) && (
           <div className="relative overflow-hidden rounded-[1.7rem] border border-white/10 bg-card/75 p-4 shadow-[0_18px_38px_rgba(0,0,0,0.24)]">
-            <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(191,255,0,0.12),transparent_34%),linear-gradient(180deg,rgba(255,255,255,0.04),rgba(7,11,17,0.76))]" aria-hidden="true" />
             <div className="relative z-10 grid gap-3 sm:grid-cols-2">
               <div>
                 <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-text-tertiary">

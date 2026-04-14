@@ -1,6 +1,7 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import { getActiveLanguage, getStoredLanguage, pickLanguage } from '../../services/language';
+import { pickLanguage } from '../../services/language';
+import { useAppLanguage } from '../../hooks/useAppLanguage';
 
 interface ProgressStepsProps {
   currentStep: number;
@@ -8,8 +9,7 @@ interface ProgressStepsProps {
 }
 
 export function ProgressSteps({ currentStep, totalSteps }: ProgressStepsProps) {
-  const language = getActiveLanguage(getStoredLanguage());
-  const isArabic = language === 'ar';
+  const { language, isArabic } = useAppLanguage();
   const copy = pickLanguage(language, {
     en: { step: 'Step', of: 'of' },
     ar: { step: 'الخطوة', of: 'من' },

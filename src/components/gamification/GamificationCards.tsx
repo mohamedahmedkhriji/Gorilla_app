@@ -1,6 +1,7 @@
 import React from 'react';
 import { BellRing, Crown, Flame, Sparkles, Swords, Target, Trophy, Zap } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useAppLanguage } from '../../hooks/useAppLanguage';
 import type {
   GamificationDelta,
   GamificationNextAction,
@@ -64,6 +65,7 @@ interface NextActionCardProps {
 }
 
 export function NextActionCard({ action, eyebrow = 'Next step', compact = false, onClick }: NextActionCardProps) {
+  const { isArabic } = useAppLanguage();
   if (!action) return null;
   const Icon = getActionIcon(action.reasonCode);
   const accentClass = accentClassMap[action.accent || 'accent'] || accentClassMap.accent;
@@ -74,12 +76,12 @@ export function NextActionCard({ action, eyebrow = 'Next step', compact = false,
       {...(onClick ? { type: 'button', onClick } : {})}
       whileHover={{ scale: 1.01 }}
       {...(onClick ? { whileTap: { scale: 0.99 } } : {})}
-      className={`group relative w-full overflow-hidden rounded-[1.6rem] border border-white/10 bg-card/75 text-left shadow-[0_16px_40px_rgba(0,0,0,0.22)] transition-all duration-300 ${compact ? 'p-4' : 'p-5'}`}
+      dir={isArabic ? 'rtl' : 'ltr'}
+      className={`group relative w-full overflow-hidden rounded-[1.6rem] border border-white/10 bg-card/75 shadow-[0_16px_40px_rgba(0,0,0,0.22)] transition-all duration-300 ${compact ? 'p-4' : 'p-5'} ${isArabic ? 'text-right' : 'text-left'}`}
     >
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(191,255,0,0.14),transparent_34%),linear-gradient(180deg,rgba(255,255,255,0.05),rgba(7,11,17,0.76))]" aria-hidden="true" />
       <div className="pointer-events-none absolute -right-8 top-2 h-24 w-24 rounded-full bg-accent/15 blur-3xl transition-opacity duration-300 group-hover:opacity-100" aria-hidden="true" />
       <div className="relative z-10">
-        <div className="flex items-start justify-between gap-3">
+        <div className={`flex items-start justify-between gap-3 ${isArabic ? 'flex-row-reverse' : ''}`}>
           <div className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] ${accentClass}`}>
             <Icon size={12} />
             <span>{eyebrow}</span>
@@ -88,9 +90,11 @@ export function NextActionCard({ action, eyebrow = 'Next step', compact = false,
         </div>
         <h3 className={`mt-3 font-semibold text-white ${compact ? 'text-base' : 'text-lg'}`}>{action.title}</h3>
         <p className={`mt-1 max-w-[32rem] text-text-secondary ${compact ? 'text-sm' : 'text-[0.95rem]'}`}>{action.description}</p>
-        <div className="mt-4 inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-3.5 py-2 text-xs font-semibold uppercase tracking-[0.12em] text-text-primary transition-all duration-300 group-hover:border-white/20 group-hover:bg-white/[0.08]">
+        <div className={`mt-4 inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-3.5 py-2 text-xs font-semibold uppercase tracking-[0.12em] text-text-primary transition-all duration-300 group-hover:border-white/20 group-hover:bg-white/[0.08] ${isArabic ? 'flex-row-reverse' : ''}`}>
           <span>{action.ctaLabel}</span>
-          <span className="transition-transform duration-300 group-hover:translate-x-0.5">→</span>
+          <span className={`transition-transform duration-300 ${isArabic ? 'group-hover:-translate-x-0.5' : 'group-hover:translate-x-0.5'}`}>
+            {isArabic ? '<-' : '->'}
+          </span>
         </div>
       </div>
     </Wrapper>
@@ -158,6 +162,7 @@ interface DeltaFeedbackOverlayProps {
 }
 
 export function DeltaFeedbackOverlay({ delta, onClose }: DeltaFeedbackOverlayProps) {
+  const { isArabic } = useAppLanguage();
   if (!delta || (!delta.xpGained && !delta.pointsGained && !delta.leveledUp && !delta.rankedUp && !(delta.unlockedRewards || []).length)) {
     return null;
   }
@@ -173,10 +178,12 @@ export function DeltaFeedbackOverlay({ delta, onClose }: DeltaFeedbackOverlayPro
         exit={{ opacity: 0, y: 24 }}
         className="fixed inset-x-4 bottom-[calc(env(safe-area-inset-bottom,0px)+1rem)] z-[170]"
       >
-        <div className="relative overflow-hidden rounded-[1.8rem] border border-accent/25 bg-card/90 p-5 shadow-[0_22px_52px_rgba(0,0,0,0.34)] backdrop-blur-md">
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(191,255,0,0.16),transparent_36%),linear-gradient(180deg,rgba(255,255,255,0.06),rgba(7,11,17,0.8))]" aria-hidden="true" />
+        <div
+          dir={isArabic ? 'rtl' : 'ltr'}
+          className={`relative overflow-hidden rounded-[1.8rem] border border-accent/25 bg-card/90 p-5 shadow-[0_22px_52px_rgba(0,0,0,0.34)] backdrop-blur-md ${isArabic ? 'text-right' : 'text-left'}`}
+        >
           <div className="relative z-10">
-            <div className="flex items-start justify-between gap-3">
+            <div className={`flex items-start justify-between gap-3 ${isArabic ? 'flex-row-reverse' : ''}`}>
               <div>
                 <div className="inline-flex items-center gap-2 rounded-full border border-accent/25 bg-accent/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-accent">
                   <Sparkles size={12} />

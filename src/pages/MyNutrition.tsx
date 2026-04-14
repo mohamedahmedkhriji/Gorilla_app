@@ -723,7 +723,7 @@ export function MyNutrition({ onBack }: MyNutritionProps) {
     setExpandedMeals((prev) => ({ ...prev, [mealKey]: !prev[mealKey] }));
 
   return (
-    <div className="flex-1 flex flex-col bg-background min-h-screen pb-24">
+    <div dir={isArabic ? 'rtl' : 'ltr'} className={`flex-1 flex flex-col bg-background min-h-screen pb-24 ${isArabic ? 'text-right' : 'text-left'}`}>
       <div className="px-4 sm:px-6 pt-2">
         <Header title={copy.title} onBack={onBack} />
       </div>
@@ -869,7 +869,7 @@ export function MyNutrition({ onBack }: MyNutritionProps) {
                     <div key={mealKey} className="overflow-hidden rounded-2xl border border-white/5 bg-card/95">
                       <button
                         onClick={() => toggleMeal(mealKey)}
-                        className="flex w-full items-center justify-between gap-2 px-4 py-4 text-left">
+                        className={`flex w-full items-center justify-between gap-2 px-4 py-4 ${isArabic ? 'text-right' : 'text-left'}`}>
                         <div className="flex min-w-0 flex-1 items-center gap-2.5">
                           <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-cyan-400/10 text-cyan-400">
                             <MealIcon size={18} />

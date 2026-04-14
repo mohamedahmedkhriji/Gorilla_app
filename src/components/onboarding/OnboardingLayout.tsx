@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { ProgressSteps } from '../ui/ProgressSteps';
 import { ArrowLeft } from 'lucide-react';
 import { useScrollToTopOnChange } from '../../shared/scroll';
-import { getActiveLanguage, getStoredLanguage } from '../../services/language';
+import { useAppLanguage } from '../../hooks/useAppLanguage';
 
 interface OnboardingLayoutProps {
   children: React.ReactNode;
@@ -27,8 +27,7 @@ export function OnboardingLayout({
   showProgress = true,
 }: OnboardingLayoutProps) {
   useScrollToTopOnChange([currentStep]);
-  const language = getActiveLanguage(getStoredLanguage());
-  const isArabic = language === 'ar';
+  const { isArabic } = useAppLanguage();
 
   return (
     <div dir={isArabic ? 'rtl' : 'ltr'} className="min-h-screen px-4 py-6 sm:px-6 relative overflow-hidden">

@@ -1,7 +1,7 @@
 import React from 'react';
 import { ArrowLeft } from 'lucide-react';
 import { motion } from 'framer-motion';
-import { getActiveLanguage, getStoredLanguage } from '../../services/language';
+import { useAppLanguage } from '../../hooks/useAppLanguage';
 
 interface HeaderProps {
   title?: string;
@@ -22,15 +22,14 @@ export function Header({
   backButtonCoachmarkTargetId,
   titleCoachmarkTargetId,
 }: HeaderProps) {
-  const language = getActiveLanguage(getStoredLanguage());
-  const isArabic = language === 'ar';
+  const { isArabic } = useAppLanguage();
 
   return (
     <div
       dir={isArabic ? 'rtl' : 'ltr'}
       className={`flex items-center justify-between ${compact ? 'py-2 mb-2' : 'py-4 mb-6'}`}
     >
-      <div className={`flex items-center min-w-0 ${compact ? 'gap-3' : 'gap-4'} ${isArabic ? 'flex-row-reverse' : ''}`}>
+      <div className={`flex items-center min-w-0 ${compact ? 'gap-3' : 'gap-4'}`}>
         {onBack && (
           <motion.button
             data-coachmark-target={backButtonCoachmarkTargetId}

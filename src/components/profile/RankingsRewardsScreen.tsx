@@ -8,7 +8,8 @@ import { api } from '../../services/api';
 import { normalizeGamificationSummary } from '../../services/gamificationEvents';
 import { offlineCacheKeys, readOfflineCacheValue } from '../../services/offlineCache';
 import { getRankBadgeImage } from '../../services/rankTheme';
-import { LocalizedLanguageRecord, getActiveLanguage, getLanguageLocale, pickLanguage } from '../../services/language';
+import { LocalizedLanguageRecord, getLanguageLocale, pickLanguage } from '../../services/language';
+import { useAppLanguage } from '../../hooks/useAppLanguage';
 import type { GamificationSummaryResponse } from '../../types/gamification';
 import {
   emojiChallenges,
@@ -338,7 +339,7 @@ function CategoryGridSkeleton() {
 }
 
 export function RankingsRewardsScreen({ onBack }: RankingsRewardsScreenProps) {
-  const language = getActiveLanguage();
+  const { language, isArabic } = useAppLanguage();
   const copy = pickLanguage(language, {
     en: {
       title: 'Rank & Rewards',
@@ -761,10 +762,11 @@ export function RankingsRewardsScreen({ onBack }: RankingsRewardsScreenProps) {
   const activeChallenges = [...activeDailyChallenges, ...activeWeeklyChallenges];
 
   const rankBadgeImage = getRankBadgeImage(summary.rank);
+  const rankNames = pickLanguage(language, RANK_NAME_MAP);
   const rankKey = String(summary.rank || '').trim().toLowerCase();
-  const rankNameDisplay = RANK_NAME_MAP[language]?.[rankKey] || RANK_NAME_MAP.en?.[rankKey] || summary.rank;
+  const rankNameDisplay = rankNames[rankKey] || RANK_NAME_MAP.en?.[rankKey] || summary.rank;
   const nextRankKey = String(summary.nextRank?.name || '').trim().toLowerCase();
-  const nextRankName = summary.nextRank ? (RANK_NAME_MAP[language]?.[nextRankKey] || RANK_NAME_MAP.en?.[nextRankKey] || summary.nextRank.name) : '';
+  const nextRankName = summary.nextRank ? (rankNames[nextRankKey] || RANK_NAME_MAP.en?.[nextRankKey] || summary.nextRank.name) : '';
   const nextRankText = summary.nextRank ? copy.nextRank(nextRankName, summary.nextRank.pointsNeeded) : copy.topRank;
   const nextRankRequirement = summary.nextRank?.minPoints ?? summary.totalPoints;
   const rankProgressPercent = summary.nextRank
@@ -775,6 +777,23 @@ export function RankingsRewardsScreen({ onBack }: RankingsRewardsScreenProps) {
   const summaryTriggers = gamificationSummary?.notificationTriggers || gamificationSummary?.progress?.notificationTriggers || [];
   const summaryInsights = gamificationSummary?.weeklyNarrative || gamificationSummary?.progress?.summaryInsights || [];
   const rivalry = gamificationSummary?.progress?.rivalry || null;
+  const rewardsLabel = rewardsAvailable.slice(0, 2).map((reward) => reward.name).filter(Boolean).join(' • ');
+  const passPlayerLabel = (points: number, name: string) =>
+    pickLanguage(language, {
+      en: `${points} ${copy.pointsShort} to pass ${name}`,
+      ar: `${points} ${copy.pointsShort} لتتجاوز ${name}`,
+      it: `${points} ${copy.pointsShort} per superare ${name}`,
+      de: `${points} ${copy.pointsShort} bis vor ${name}`,
+      fr: `${points} ${copy.pointsShort} pour depasser ${name}`,
+    });
+  const rewardsReadyLabel = (names: string) =>
+    pickLanguage(language, {
+      en: `Unlocked rewards ready: ${names}`,
+      ar: `المكافآت الجاهزة: ${names}`,
+      it: `Ricompense sbloccate pronte: ${names}`,
+      de: `Freigeschaltete Belohnungen bereit: ${names}`,
+      fr: `Recompenses debloquees pretes : ${names}`,
+    });
 
   const missionHistoryByPeriod = useMemo(
     () =>
@@ -982,7 +1001,7 @@ export function RankingsRewardsScreen({ onBack }: RankingsRewardsScreenProps) {
 
   if (showHistory) {
     return (
-      <div className="flex-1 flex min-h-screen flex-col bg-background pb-24">
+      <div dir={isArabic ? 'rtl' : 'ltr'} className={`flex-1 flex min-h-screen flex-col bg-background pb-24 ${isArabic ? 'text-right' : 'text-left'}`}>
         <div className="px-4 pt-2 sm:px-6">
           <Header title={copy.history} onBack={() => setShowHistory(false)} compact />
         </div>
@@ -1052,7 +1071,7 @@ export function RankingsRewardsScreen({ onBack }: RankingsRewardsScreenProps) {
 
   if (showCategoryDetail) {
     return (
-      <div className="flex-1 flex min-h-screen flex-col bg-background pb-24">
+      <div dir={isArabic ? 'rtl' : 'ltr'} className={`flex-1 flex min-h-screen flex-col bg-background pb-24 ${isArabic ? 'text-right' : 'text-left'}`}>
         <div className="px-4 pt-2 sm:px-6">
           <Header
             title={categoryName(selectedCategory)}
@@ -1201,14 +1220,13 @@ export function RankingsRewardsScreen({ onBack }: RankingsRewardsScreenProps) {
   }
 
   return (
-    <div className="flex-1 flex min-h-screen flex-col bg-background pb-24">
+    <div dir={isArabic ? 'rtl' : 'ltr'} className={`flex-1 flex min-h-screen flex-col bg-background pb-24 ${isArabic ? 'text-right' : 'text-left'}`}>
       <div className="px-4 pt-2 sm:px-6">
         <Header title={copy.title} onBack={onBack} compact />
       </div>
 
       <div className="mt-2 space-y-5 px-4 pb-6 sm:px-6">
         <div className="relative overflow-hidden rounded-[2rem] border border-white/10 bg-card/75 p-5 shadow-[0_18px_48px_rgba(0,0,0,0.28)] sm:p-6">
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(191,255,0,0.14),transparent_34%),linear-gradient(180deg,rgba(255,255,255,0.08),rgba(7,11,17,0.78))]" aria-hidden="true" />
           <div className="pointer-events-none absolute -right-10 top-4 h-32 w-32 rounded-full bg-accent/10 blur-3xl" aria-hidden="true" />
 
           <div className="relative z-10 space-y-5">
@@ -1260,12 +1278,12 @@ export function RankingsRewardsScreen({ onBack }: RankingsRewardsScreenProps) {
           <InsightStack insights={summaryInsights} />
           {rivalry?.nextPlayerName && (
             <div className="rounded-[1.4rem] border border-violet-400/20 bg-violet-500/10 px-4 py-3 text-sm text-violet-100 shadow-[0_12px_28px_rgba(0,0,0,0.16)]">
-              {`${Math.max(0, Number(rivalry.deltaToNextPlayer || 0))} ${copy.pointsShort} to pass ${rivalry.nextPlayerName}`}
+              {passPlayerLabel(Math.max(0, Number(rivalry.deltaToNextPlayer || 0)), rivalry.nextPlayerName)}
             </div>
           )}
           {rewardsAvailable.length > 0 && (
             <div className="rounded-[1.4rem] border border-amber-400/20 bg-amber-500/10 px-4 py-3 text-sm text-amber-100 shadow-[0_12px_28px_rgba(0,0,0,0.16)]">
-              {`Unlocked rewards ready: ${rewardsAvailable.slice(0, 2).map((reward) => reward.name).join(' • ')}`}
+              {rewardsReadyLabel(rewardsLabel)}
             </div>
           )}
         </div>
@@ -1273,40 +1291,40 @@ export function RankingsRewardsScreen({ onBack }: RankingsRewardsScreenProps) {
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <button
             onClick={() => setShowLeaderboard(true)}
-            className="group relative flex min-h-[92px] w-full items-center justify-between overflow-hidden rounded-[1.6rem] border border-white/10 bg-card/75 p-4 text-left transition-all duration-300 hover:scale-[1.02] hover:border-accent/35 hover:shadow-[0_18px_36px_rgba(191,255,0,0.12)] active:scale-[0.985]"
+            className={`group relative flex min-h-[92px] w-full items-center justify-between overflow-hidden rounded-[1.6rem] border border-white/10 bg-card/75 p-4 transition-all duration-300 hover:scale-[1.02] hover:border-accent/35 hover:shadow-[0_18px_36px_rgba(191,255,0,0.12)] active:scale-[0.985] ${isArabic ? 'text-right' : 'text-left'}`}
           >
-            <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(191,255,0,0.10),transparent_32%),linear-gradient(180deg,rgba(255,255,255,0.05),rgba(7,11,17,0.7))]" aria-hidden="true" />
             <div className="relative z-10 flex items-center gap-4">
               <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-accent/25 bg-accent/10 shadow-[0_0_24px_rgba(191,255,0,0.14)] transition-transform duration-300 group-hover:scale-105">
                 <img src={emojiViewLeaderboard} alt={copy.viewLeaderboard} className="h-6 w-6 object-contain" />
               </div>
-              <div className="text-left">
+              <div className={isArabic ? 'text-right' : 'text-left'}>
                 <h4 className="text-sm font-semibold text-white">{copy.viewLeaderboard}</h4>
                 <p className="mt-1 text-xs text-text-secondary">
                   {rivalry?.nextPlayerName
-                    ? `${Math.max(0, Number(rivalry.deltaToNextPlayer || 0))} ${copy.pointsShort} to pass ${rivalry.nextPlayerName}`
+                    ? passPlayerLabel(Math.max(0, Number(rivalry.deltaToNextPlayer || 0)), rivalry.nextPlayerName)
                     : copy.seeRankings}
                 </p>
               </div>
             </div>
-            <span className="relative z-10 text-accent transition-transform duration-300 group-hover:translate-x-0.5">&rarr;</span>
+            <span className={`relative z-10 text-accent transition-transform duration-300 ${isArabic ? 'group-hover:-translate-x-0.5' : 'group-hover:translate-x-0.5'}`}>{isArabic ? '<-' : '->'}</span>
+
           </button>
 
           <button
             onClick={() => setShowHistory(true)}
-            className="group relative flex min-h-[92px] w-full items-center justify-between overflow-hidden rounded-[1.6rem] border border-white/10 bg-card/75 p-4 text-left transition-all duration-300 hover:scale-[1.02] hover:border-white/20 hover:shadow-[0_18px_36px_rgba(255,255,255,0.08)] active:scale-[0.985]"
+            className={`group relative flex min-h-[92px] w-full items-center justify-between overflow-hidden rounded-[1.6rem] border border-white/10 bg-card/75 p-4 transition-all duration-300 hover:scale-[1.02] hover:border-white/20 hover:shadow-[0_18px_36px_rgba(255,255,255,0.08)] active:scale-[0.985] ${isArabic ? 'text-right' : 'text-left'}`}
           >
-            <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(96,165,250,0.10),transparent_32%),linear-gradient(180deg,rgba(255,255,255,0.05),rgba(7,11,17,0.7))]" aria-hidden="true" />
             <div className="relative z-10 flex items-center gap-4">
               <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-sky-300/20 bg-sky-400/10 shadow-[0_0_24px_rgba(56,189,248,0.14)] transition-transform duration-300 group-hover:scale-105">
                 <img src={emojiChallenges} alt={copy.challengesAlt} className="h-6 w-6 object-contain" />
               </div>
-              <div className="text-left">
+              <div className={isArabic ? 'text-right' : 'text-left'}>
                 <h4 className="text-sm font-semibold text-white">{copy.missionChallengeHistory}</h4>
                 <p className="mt-1 text-xs text-text-secondary">{copy.viewCompleted}</p>
               </div>
             </div>
-            <span className="relative z-10 text-sky-300 transition-transform duration-300 group-hover:translate-x-0.5">&rarr;</span>
+            <span className={`relative z-10 text-sky-300 transition-transform duration-300 ${isArabic ? 'group-hover:-translate-x-0.5' : 'group-hover:translate-x-0.5'}`}>{isArabic ? '<-' : '->'}</span>
+
           </button>
         </div>
 
@@ -1346,13 +1364,12 @@ export function RankingsRewardsScreen({ onBack }: RankingsRewardsScreenProps) {
                     key={category}
                     type="button"
                     onClick={() => handleCategorySelect(category)}
-                    className={`group relative overflow-hidden rounded-[1.6rem] border p-4 text-left transition-all duration-300 hover:scale-[1.02] active:scale-[0.985] ${
+                    className={`group relative overflow-hidden rounded-[1.6rem] border p-4 transition-all duration-300 hover:scale-[1.02] active:scale-[0.985] ${isArabic ? 'text-right' : 'text-left'} ${
                       isSelected
                         ? `${meta.selectedClassName} shadow-[0_18px_38px_rgba(0,0,0,0.26)]`
                         : `${meta.cardClassName} ${meta.hoverClassName}`
                     }`}
                   >
-                    <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(255,255,255,0.08),transparent_32%),linear-gradient(180deg,rgba(255,255,255,0.05),rgba(7,11,17,0.76))]" aria-hidden="true" />
                     <div className={`pointer-events-none absolute -right-6 top-3 h-20 w-20 rounded-full blur-3xl transition-opacity duration-300 ${meta.glowClassName} ${isSelected ? 'opacity-80' : 'opacity-0 group-hover:opacity-70'}`} aria-hidden="true" />
 
                     <div className="relative z-10">
@@ -1360,7 +1377,7 @@ export function RankingsRewardsScreen({ onBack }: RankingsRewardsScreenProps) {
                         <div className={`flex h-12 w-12 items-center justify-center rounded-2xl border shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] transition-transform duration-300 group-hover:scale-105 ${meta.iconWrapClassName}`}>
                           <img src={meta.iconSrc} alt={categoryName(category)} className="h-6 w-6 object-contain" />
                         </div>
-                        <ChevronRight size={18} className={`${meta.accentClassName} transition-all duration-300 ${isSelected ? 'translate-x-0.5 opacity-100' : 'opacity-70 group-hover:translate-x-0.5 group-hover:opacity-100'}`} />
+                        <ChevronRight size={18} className={`${meta.accentClassName} transition-all duration-300 ${isArabic ? 'rotate-180' : ''} ${isSelected ? (isArabic ? '-translate-x-0.5 opacity-100' : 'translate-x-0.5 opacity-100') : (isArabic ? 'opacity-70 group-hover:-translate-x-0.5 group-hover:opacity-100' : 'opacity-70 group-hover:translate-x-0.5 group-hover:opacity-100')}`} />
                       </div>
 
                       <div className="mt-4">
