@@ -3,17 +3,12 @@ import { createPortal } from 'react-dom';
 import { Button } from '../ui/Button';
 import { StrengthChart } from './StrengthChart';
 import { Card } from '../ui/Card';
-import { InsightStack, NextActionCard, TriggerPills } from '../gamification/GamificationCards';
-import { Activity, CircleQuestionMark, TrendingUp, X } from 'lucide-react';
+import { Activity, CircleQuestionMark, X } from 'lucide-react';
 import { api } from '../../services/api';
-import { normalizeGamificationSummary } from '../../services/gamificationEvents';
 import { emojiFire, emojiRightArrow } from '../../services/emojiTheme';
 import { getBodyPartImage } from '../../services/bodyPartTheme';
 import { AppLanguage, getActiveLanguage, getStoredLanguage } from '../../services/language';
 import { offlineCacheKeys, readOfflineCacheValue } from '../../services/offlineCache';
-import { buildT2PremiumProgressInsight, getActiveT2PremiumConfig } from '../../services/premiumPlan';
-import { getLatestT2WorkoutCheckIn, T2_CHECKIN_UPDATED_EVENT } from '../../services/t2CheckIn';
-import type { GamificationSummaryResponse } from '../../types/gamification';
 interface ProgressDashboardProps {
   onViewReport: () => void;
   onViewStrengthScore: () => void;
@@ -378,8 +373,6 @@ export function ProgressDashboard({ onViewReport, onViewStrengthScore }: Progres
   const [muscleDistribution, setMuscleDistribution] = useState<MuscleDistributionItem[]>([]);
   const [showPageInfo, setShowPageInfo] = useState(false);
   const [language, setLanguage] = useState<AppLanguage>('en');
-  const [activeProgramData, setActiveProgramData] = useState<any>(null);
-  const [gamificationSummary, setGamificationSummary] = useState<GamificationSummaryResponse | null>(null);
   const copy = PROGRESS_DASHBOARD_I18N[language as keyof typeof PROGRESS_DASHBOARD_I18N] || PROGRESS_DASHBOARD_I18N.en;
 
   useEffect(() => {
@@ -480,7 +473,6 @@ export function ProgressDashboard({ onViewReport, onViewStrengthScore }: Progres
     const cachedProgramData = readOfflineCacheValue<any>(offlineCacheKeys.userProgram(userId));
     const cachedPlanDistribution = readOfflineCacheValue<any>(offlineCacheKeys.planMuscleDistribution(userId));
     const cachedHistoryDistribution = readOfflineCacheValue<any>(offlineCacheKeys.muscleDistribution(userId, 30));
-    const cachedGamificationSummary = readOfflineCacheValue<any>(offlineCacheKeys.gamificationSummary(userId));
     if (cachedProgress || cachedProgramData || cachedPlanDistribution || cachedHistoryDistribution) {
       applySnapshot(
         cachedProgress || {},
@@ -489,10 +481,6 @@ export function ProgressDashboard({ onViewReport, onViewStrengthScore }: Progres
         cachedHistoryDistribution,
       );
     }
-    if (cachedGamificationSummary) {
-      setGamificationSummary(normalizeGamificationSummary(cachedGamificationSummary));
-    }
-
     let consistency = 0;
     let currentStreak = 0;
     let totalVolumeTons = 0;
@@ -502,13 +490,6 @@ export function ProgressDashboard({ onViewReport, onViewStrengthScore }: Progres
     let workoutsMissedThisWeek = 0;
     let workoutsRemainingThisWeek = 0;
     let activeProgramData: any = null;
-
-    try {
-      const summary = await api.getGamificationSummary(userId);
-      setGamificationSummary(normalizeGamificationSummary(summary));
-    } catch (summaryError) {
-      console.error('Failed to fetch gamification summary for progress dashboard:', summaryError);
-    }
 
     try {
       const progress = await api.getProgramProgress(userId);
@@ -572,7 +553,6 @@ export function ProgressDashboard({ onViewReport, onViewStrengthScore }: Progres
       workoutsMissedThisWeek,
       workoutsRemainingThisWeek,
     });
-    setActiveProgramData(activeProgramData);
   }, []);
 
   useEffect(() => {
@@ -585,8 +565,6 @@ export function ProgressDashboard({ onViewReport, onViewStrengthScore }: Progres
     window.addEventListener('gamification-updated', handleProgressRefresh);
     window.addEventListener('recovery-updated', handleProgressRefresh);
     window.addEventListener('program-updated', handleProgressRefresh);
-    window.addEventListener(T2_CHECKIN_UPDATED_EVENT, handleProgressRefresh);
-
     const intervalId = window.setInterval(() => {
       void loadStats();
     }, 30000);
@@ -595,7 +573,6 @@ export function ProgressDashboard({ onViewReport, onViewStrengthScore }: Progres
       window.removeEventListener('gamification-updated', handleProgressRefresh);
       window.removeEventListener('recovery-updated', handleProgressRefresh);
       window.removeEventListener('program-updated', handleProgressRefresh);
-      window.removeEventListener(T2_CHECKIN_UPDATED_EVENT, handleProgressRefresh);
       window.clearInterval(intervalId);
     };
   }, [loadStats]);
@@ -615,35 +592,6 @@ export function ProgressDashboard({ onViewReport, onViewStrengthScore }: Progres
       : language === 'de'
         ? `${completedThisWeek} / ${plannedThisWeek} Tage`
         : `${completedThisWeek} / ${plannedThisWeek} days`;
-  const premiumConfig = useMemo(
-    () => getActiveT2PremiumConfig(activeProgramData),
-    [activeProgramData],
-  );
-  const latestT2CheckIn = getLatestT2WorkoutCheckIn();
-  const premiumInsight = useMemo(
-    () => (
-      premiumConfig
-        ? buildT2PremiumProgressInsight({
-            language,
-            config: premiumConfig,
-            completionPercent,
-            workoutsRemainingThisWeek: stats.workoutsRemainingThisWeek,
-            latestCheckIn: latestT2CheckIn,
-          })
-        : null
-    ),
-    [completionPercent, language, latestT2CheckIn, premiumConfig, stats.workoutsRemainingThisWeek],
-  );
-  const premiumInsightToneClass = premiumInsight?.tone === 'good'
-    ? 'border-emerald-400/25 bg-[linear-gradient(145deg,rgba(28,36,30,0.96),rgba(12,16,22,0.98))]'
-    : premiumInsight?.tone === 'watch'
-      ? 'border-amber-400/25 bg-[linear-gradient(145deg,rgba(38,30,20,0.96),rgba(14,16,22,0.98))]'
-      : 'border-sky-400/20 bg-[linear-gradient(145deg,rgba(18,24,34,0.96),rgba(12,16,22,0.98))]';
-  const progressNextAction = gamificationSummary?.nextAction || gamificationSummary?.progress?.nextAction || null;
-  const progressInsights = gamificationSummary?.weeklyNarrative || gamificationSummary?.progress?.summaryInsights || [];
-  const progressTriggers = gamificationSummary?.notificationTriggers || gamificationSummary?.progress?.notificationTriggers || [];
-  const heroInsight = progressInsights[0] || null;
-
   return (
     <div data-coachmark-target="progress_dashboard" className="space-y-6">
       <div className="flex items-center justify-between">
@@ -659,58 +607,11 @@ export function ProgressDashboard({ onViewReport, onViewStrengthScore }: Progres
         </button>
       </div>
 
-      {heroInsight && (
-        <div className="relative overflow-hidden rounded-[1.75rem] border border-white/10 bg-card/80 p-5 shadow-[0_18px_42px_rgba(0,0,0,0.24)]">
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(191,255,0,0.14),transparent_38%),linear-gradient(180deg,rgba(255,255,255,0.04),rgba(7,11,17,0.76))]" aria-hidden="true" />
-          <div className="relative z-10">
-            <div className="inline-flex items-center gap-2 rounded-full border border-accent/20 bg-accent/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-accent">
-              <TrendingUp size={12} />
-              <span>Performance insight</span>
-            </div>
-            <h2 className="mt-3 text-[1.8rem] font-semibold leading-tight text-white">{heroInsight.title}</h2>
-            <p className="mt-2 text-sm leading-relaxed text-text-secondary">{heroInsight.detail}</p>
-            <div className="mt-4">
-              <TriggerPills triggers={progressTriggers} />
-            </div>
-          </div>
-        </div>
-      )}
 
       <StrengthChart coachmarkTargetId="progress_strength_chart" />
 
-      <NextActionCard action={progressNextAction} />
 
-      <InsightStack insights={progressInsights.slice(1)} />
 
-      <div className={`relative overflow-hidden rounded-[1.75rem] border p-5 shadow-[0_18px_44px_rgba(0,0,0,0.18)] ${premiumInsightToneClass}`}>
-        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(191,255,0,0.14),transparent_38%),radial-gradient(circle_at_bottom_right,rgba(255,255,255,0.08),transparent_42%)]" />
-        <div className="relative">
-          <div className="mb-4 flex items-start justify-between gap-4">
-            <div>
-              <div className="inline-flex rounded-full border border-white/10 bg-white/6 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-accent">
-                T-2 Premium
-              </div>
-              <h3 className="mt-3 text-lg font-semibold text-white">{premiumInsight?.title}</h3>
-              <p className="mt-2 max-w-2xl text-sm leading-relaxed text-text-secondary">{premiumInsight?.body}</p>
-            </div>
-            <div className="rounded-2xl border border-white/10 bg-black/20 px-3 py-2 text-right">
-              <div className="text-[10px] uppercase tracking-[0.14em] text-text-tertiary">
-                {language === 'ar' ? 'الحالة' : language === 'it' ? 'Stato' : language === 'fr' ? 'Statut' : language === 'de' ? 'Status' : 'Status'}
-              </div>
-              <div className="mt-1 text-sm font-semibold text-white">{consistencyLabel}</div>
-            </div>
-          </div>
-
-          <div className="grid gap-3 sm:grid-cols-3">
-            {premiumInsight?.stats?.map((item) => (
-              <div key={item.label} className="rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3">
-                <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-text-tertiary">{item.label}</div>
-                <div className="mt-2 text-sm font-semibold text-white">{item.value}</div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
 
       <div className="grid grid-cols-2 gap-4">
         <Card coachmarkTargetId="progress_consistency_card" className="relative overflow-hidden p-4">

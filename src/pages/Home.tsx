@@ -19,7 +19,6 @@ import { ExerciseVideoScreen } from '../components/workout/ExerciseVideoScreen';
 import { MuscleRecoveryScreen } from '../components/progress/MuscleRecoveryScreen';
 import { RankingsRewardsScreen } from '../components/profile/RankingsRewardsScreen';
 import { FriendChallengeScreen } from '../components/profile/FriendChallengeScreen';
-import { NextActionCard, TriggerPills } from '../components/gamification/GamificationCards';
 import { api } from '../services/api';
 import {
   getCoachmarkUserScope,
@@ -734,7 +733,6 @@ export function Home({
   const rankBadgeImage = getRankBadgeImage(rankName);
   const primaryHeroInsight = gamificationSummary?.weeklyNarrative?.[0] || gamificationSummary?.progress?.summaryInsights?.[0] || null;
   const homeNextAction = gamificationSummary?.nextAction || gamificationSummary?.progress?.nextAction || null;
-  const homeTriggers = gamificationSummary?.notificationTriggers || gamificationSummary?.progress?.notificationTriggers || [];
   const homeRivalry = gamificationSummary?.progress?.rivalry || null;
   const homeRank = gamificationSummary?.progress?.rank || null;
   const homeStreakRisk = gamificationSummary?.progress?.streaks?.risk || null;
@@ -1374,15 +1372,13 @@ export function Home({
     
     const loadInitialHomeData = async () => {
       setIsHomeLoading(true);
-      await Promise.allSettled([
-        fetchProgram(),
-        fetchProgramProgress(),
-        fetchRecovery(),
-        fetchGamificationSummary(),
-      ]);
+      await fetchProgram();
       if (isMounted) {
         setIsHomeLoading(false);
       }
+      void fetchProgramProgress();
+      void fetchRecovery();
+      void fetchGamificationSummary();
     };
     void loadInitialHomeData();
     
@@ -1852,18 +1848,12 @@ export function Home({
           </div>
 
           <div className="relative z-10 mt-4 space-y-3">
-            <p className="max-w-[34rem] text-sm text-text-secondary">
-              {primaryHeroInsight?.detail || homeCopy.heroDefaultBody}
-            </p>
-
             <div className="grid grid-cols-1 gap-2">
               <div className="rounded-2xl border border-white/10 bg-white/[0.04] px-3.5 py-3">
                 <div className="text-[10px] uppercase tracking-[0.14em] text-text-tertiary">{homeCopy.actionLabel}</div>
                 <div className="mt-1 text-sm font-semibold text-white">{homeNextAction?.title || homeCopy.heroDefaultTitle}</div>
               </div>
             </div>
-
-            <TriggerPills triggers={homeTriggers} />
           </div>
         </header>
       </ScreenSection>
@@ -1892,29 +1882,8 @@ export function Home({
           </div>
         </ScreenSection>
 
-        <ScreenSection index={2}>
-          <NextActionCard
-            action={homeNextAction}
-            onClick={() => {
-              if (homeNextAction?.type === 'leaderboard' || homeNextAction?.type === 'rank') {
-                setView('rank');
-                return;
-              }
-              if (homeNextAction?.type === 'recovery') {
-                setView('recovery');
-                return;
-              }
-              if (homeNextAction?.type === 'workout') {
-                handleOpenWorkoutCard();
-                return;
-              }
-              setView('rank');
-            }}
-          />
-        </ScreenSection>
-
         {/* Rank & Recovery */}
-        <ScreenSection index={3}>
+        <ScreenSection index={2}>
           <div className="grid grid-cols-1 gap-5">
             <div onClick={() => setView('rank')} className="cursor-pointer">
               <RankDisplay
@@ -1929,7 +1898,7 @@ export function Home({
         </ScreenSection>
 
         {/* Quick Actions */}
-        <ScreenSection index={4} className="grid grid-cols-2 gap-4">
+        <ScreenSection index={3} className="grid grid-cols-2 gap-4">
 
           <GhostButton coachmarkTargetId="home_nutrition_card" onClick={() => setView('nutrition')} className="justify-between">
             <span className="flex items-center gap-2">
@@ -1972,7 +1941,7 @@ export function Home({
         )}
 
         {/* Education */}
-        <ScreenSection index={5}>
+        <ScreenSection index={4}>
           <EducationSection
             onExercises={() => setView('exercises')}
             onBooks={() => setView('books')}
@@ -1983,7 +1952,7 @@ export function Home({
 
 
         {/* Calculators */}
-        <ScreenSection index={6}>
+        <ScreenSection index={5}>
           <CalculatorCard onClick={() => setView('calculator')} />
         </ScreenSection>
       </div>
