@@ -1,31 +1,32 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { AnimatePresence, motion } from 'framer-motion';
+import { Bell, LoaderCircle } from 'lucide-react';
 import challengeHeroImage from '../../../assets/Workout/CHALLENGE.png';
-import { Header } from '../ui/Header';
-import { Card } from '../ui/Card';
-import { Bell, Dumbbell, MessageSquare, Trophy, Gift, TrendingUp } from 'lucide-react';
 import { api } from '../../services/api';
-import { AppLanguage, getActiveLanguage, getStoredLanguage, pickLanguage } from '../../services/language';
-
-interface NotificationsScreenProps {
-  onBack: () => void;
-  onOpenAcceptedChallenge?: (challenge: {
-    friendId: number;
-    friendName: string;
-    challengeKey: string;
-    challengeTitle: string;
-    challengeSessionId: number;
-  }) => void;
-}
-
-interface AppNotification {
-  id: number;
-  type: string;
-  title: string;
-  message: string;
-  created_at: string;
-  data?: unknown;
-  unread?: boolean;
-}
+import { useAppLanguage } from '../../hooks/useAppLanguage';
+import { Card } from '../ui/Card';
+import { Header } from '../ui/Header';
+import { NotificationCard } from './NotificationCard';
+import {
+  buildNotificationMetadata,
+  formatNotificationTime,
+  getNotificationResponseStatus,
+  getNotificationVisual,
+  getNotificationsCopy,
+  isFriendRequestNotification,
+  localizeNotificationText,
+  parseNotificationData,
+  readStoredUserId,
+  resolveNotificationType,
+  toPositiveInt,
+} from './notificationUtils';
+import type {
+  AcceptedChallengePayload,
+  AppNotification,
+  NotificationActionId,
+  NotificationCardModel,
+  NotificationsScreenProps,
+} from './types';
 
 type FriendshipTerminalStatus = 'accepted' | 'declined';
 type ChallengeInviteTerminalStatus = 'accepted' | 'declined' | 'cancelled';
@@ -35,77 +36,20 @@ type ApiLikeError = Error & {
   data?: unknown;
 };
 
-const iconByType: Record<string, { icon: React.ComponentType<{ size?: number; className?: string }>; color: string; bg: string }> = {
-  message: { icon: MessageSquare, color: 'text-blue-500', bg: 'bg-blue-500/10' },
-  coach_message: { icon: Bell, color: 'text-emerald-600', bg: 'bg-emerald-500/10' },
-  coach_session_note: { icon: Bell, color: 'text-emerald-600', bg: 'bg-emerald-500/10' },
-  friend_request: { icon: Dumbbell, color: 'text-accent', bg: 'bg-accent/10' },
-  friend_accept: { icon: Trophy, color: 'text-green-500', bg: 'bg-green-500/10' },
-  plan_review_request: { icon: Bell, color: 'text-yellow-500', bg: 'bg-yellow-500/10' },
-  plan_coach_request_sent: { icon: Bell, color: 'text-yellow-500', bg: 'bg-yellow-500/10' },
-  plan_created_by_coach: { icon: Trophy, color: 'text-green-500', bg: 'bg-green-500/10' },
-  plan_review_approved: { icon: Trophy, color: 'text-green-500', bg: 'bg-green-500/10' },
-  plan_review_rejected: { icon: Gift, color: 'text-red-500', bg: 'bg-red-500/10' },
-  friend_challenge_invite: { icon: TrendingUp, color: 'text-accent', bg: 'bg-accent/10' },
-};
+const POLL_INTERVAL_MS = 10000;
 
-const toPositiveInt = (value: unknown) => {
-  const parsed = Number(value);
-  if (!Number.isInteger(parsed) || parsed <= 0) return null;
-  return parsed;
-};
-
-const parseNotificationData = (rawValue: unknown): Record<string, unknown> => {
-  if (!rawValue) return {};
-  if (typeof rawValue === 'object') return rawValue as Record<string, unknown>;
-  if (typeof rawValue !== 'string') return {};
-  try {
-    const parsed = JSON.parse(rawValue);
-    if (parsed && typeof parsed === 'object') return parsed as Record<string, unknown>;
-    return {};
-  } catch {
-    return {};
-  }
-};
-
-const resolveNotificationType = (notification: AppNotification, data: Record<string, unknown>) => {
-  const normalizedType = String(notification.type || '').trim().toLowerCase();
-  if (normalizedType) return normalizedType;
-
-  const title = String(notification.title || '').trim();
-  if (
-    title === 'New Challenge'
-    && Number(data.senderUserId || 0) > 0
-    && String(data.challengeKey || '').trim()
-  ) {
-    return 'friend_challenge_invite';
-  }
-
-  if (
-    (title === 'Challenge Accepted' || title === 'Challenge Declined' || title === 'Challenge Cancelled')
-    && Number(data.receiverNotificationId || 0) > 0
-    && String(data.challengeKey || '').trim()
-  ) {
-    return 'friend_challenge_response';
-  }
-
-  return normalizedType;
-};
-
-const getErrorMessage = (error: unknown, fallback: string) =>
-  error instanceof Error ? error.message : fallback;
+const cx = (...values: Array<string | false | null | undefined>) => values.filter(Boolean).join(' ');
 
 const toFriendshipTerminalStatus = (value: unknown): FriendshipTerminalStatus | null => {
   const status = String(value || '').trim().toLowerCase();
-  if (status === 'accepted' || status === 'declined') return status;
-  return null;
+  return status === 'accepted' || status === 'declined' ? status : null;
 };
 
 const getFriendshipConflictStatus = (error: unknown): FriendshipTerminalStatus | null => {
   const apiError = error as ApiLikeError;
   if (apiError?.status !== 409) return null;
-  const data = (apiError?.data && typeof apiError.data === 'object')
-    ? (apiError.data as Record<string, unknown>)
+  const data = apiError?.data && typeof apiError.data === 'object'
+    ? apiError.data as Record<string, unknown>
     : {};
   return toFriendshipTerminalStatus(data.status);
 };
@@ -117,403 +61,176 @@ const isFriendshipConflictError = (error: unknown) => {
 
 const toChallengeInviteTerminalStatus = (value: unknown): ChallengeInviteTerminalStatus | null => {
   const status = String(value || '').trim().toLowerCase();
-  if (status === 'accepted' || status === 'declined' || status === 'cancelled') return status;
-  return null;
+  return status === 'accepted' || status === 'declined' || status === 'cancelled' ? status : null;
 };
 
 const getChallengeInviteConflictStatus = (error: unknown): ChallengeInviteTerminalStatus | null => {
   const apiError = error as ApiLikeError;
   if (apiError?.status !== 409) return null;
-  const data = (apiError?.data && typeof apiError.data === 'object')
-    ? (apiError.data as Record<string, unknown>)
+  const data = apiError?.data && typeof apiError.data === 'object'
+    ? apiError.data as Record<string, unknown>
     : {};
   return toChallengeInviteTerminalStatus(data.status);
 };
 
-const NOTIFICATIONS_I18N = {
-  en: {
-    title: 'Notifications',
-    noActiveSession: 'No active user session found.',
-    failedLoadNotifications: 'Failed to load notifications',
-    failedAcceptRequest: 'Failed to accept friend request',
-    failedDeclineRequest: 'Failed to decline friend request',
-    acceptedFriendRequestMessage: 'You accepted this friend request.',
-    declinedFriendRequestMessage: 'You declined this friend request.',
-    failedClearNotifications: 'Failed to clear notifications',
-    clearing: 'Clearing...',
-    clearAll: 'Clear All',
-    loadingNotifications: 'Loading notifications...',
-    noNotificationsYet: 'No notifications yet.',
-    processing: 'Processing...',
-    accept: 'Accept',
-    decline: 'Decline',
-    requestAccepted: 'Request accepted',
-    requestDeclined: 'Request declined',
-    clearDialogTitle: 'Remove all notifications?',
-    clearDialogMessage: 'This will permanently delete all notifications.',
-    cancel: 'Cancel',
-    removing: 'Removing...',
-    removeAll: 'Remove All',
-    justNow: 'Just now',
-    minutesAgo: 'm ago',
-    hoursAgo: 'h ago',
-    daysAgo: 'd ago',
-    failedAcceptChallengeInvite: 'Failed to accept challenge invite',
-    failedDeclineChallengeInvite: 'Failed to decline challenge invite',
-    acceptedChallengeInviteMessage: 'You accepted this challenge invite.',
-    declinedChallengeInviteMessage: 'You declined this challenge invite.',
-    cancelledChallengeInviteMessage: 'This challenge invite expired after 5 minutes.',
-    challengeInviteAccepted: 'Challenge accepted',
-    challengeInviteDeclined: 'Challenge declined',
-    challengeInviteCancelled: 'Challenge cancelled',
-    challengeInvitePendingNote: 'If you accept, both of you count only your own turn.',
-    challengeInviteAcceptButton: 'Accept',
-    challengeInviteRefuseButton: 'Refuse',
-  },
-  ar: {
-    title: 'الإشعارات',
-    noActiveSession: 'لا توجد جلسة مستخدم نشطة.',
-    failedLoadNotifications: 'فشل تحميل الإشعارات',
-    failedAcceptRequest: 'فشل قبول طلب الصداقة',
-    failedDeclineRequest: 'فشل رفض طلب الصداقة',
-    acceptedFriendRequestMessage: 'لقد قبلت طلب الصداقة هذا.',
-    declinedFriendRequestMessage: 'لقد رفضت طلب الصداقة هذا.',
-    failedClearNotifications: 'فشل مسح الإشعارات',
-    clearing: 'جارٍ المسح...',
-    clearAll: 'مسح الكل',
-    loadingNotifications: 'جارٍ تحميل الإشعارات...',
-    noNotificationsYet: 'لا توجد إشعارات بعد.',
-    processing: 'جارٍ المعالجة...',
-    accept: 'قبول',
-    decline: 'رفض',
-    requestAccepted: 'تم قبول الطلب',
-    requestDeclined: 'تم رفض الطلب',
-    clearDialogTitle: 'إزالة كل الإشعارات؟',
-    clearDialogMessage: 'سيؤدي هذا إلى حذف جميع الإشعارات نهائيًا.',
-    cancel: 'إلغاء',
-    removing: 'جارٍ الإزالة...',
-    removeAll: 'إزالة الكل',
-    justNow: 'الآن',
-    minutesAgo: 'د قبل',
-    hoursAgo: 'س قبل',
-    daysAgo: 'ي قبل',
-  },
-  it: {
-    title: 'Notifiche',
-    noActiveSession: 'Nessuna sessione utente attiva trovata.',
-    failedLoadNotifications: 'Impossibile caricare le notifiche',
-    failedAcceptRequest: 'Impossibile accettare la richiesta di amicizia',
-    failedDeclineRequest: 'Impossibile rifiutare la richiesta di amicizia',
-    acceptedFriendRequestMessage: 'Hai accettato questa richiesta di amicizia.',
-    declinedFriendRequestMessage: 'Hai rifiutato questa richiesta di amicizia.',
-    failedClearNotifications: 'Impossibile cancellare le notifiche',
-    clearing: 'Pulizia...',
-    clearAll: 'Cancella Tutto',
-    loadingNotifications: 'Caricamento notifiche...',
-    noNotificationsYet: 'Nessuna notifica ancora.',
-    processing: 'Elaborazione...',
-    accept: 'Accetta',
-    decline: 'Rifiuta',
-    requestAccepted: 'Richiesta accettata',
-    requestDeclined: 'Richiesta rifiutata',
-    clearDialogTitle: 'Rimuovere tutte le notifiche?',
-    clearDialogMessage: 'Questo eliminera permanentemente tutte le notifiche.',
-    cancel: 'Annulla',
-    removing: 'Rimozione...',
-    removeAll: 'Rimuovi Tutto',
-    justNow: 'Ora',
-    minutesAgo: 'm fa',
-    hoursAgo: 'h fa',
-    daysAgo: 'g fa',
-  },
-  de: {
-    title: 'Benachrichtigungen',
-    noActiveSession: 'Keine aktive Benutzersitzung gefunden.',
-    failedLoadNotifications: 'Benachrichtigungen konnten nicht geladen werden',
-    failedAcceptRequest: 'Freundschaftsanfrage konnte nicht angenommen werden',
-    failedDeclineRequest: 'Freundschaftsanfrage konnte nicht abgelehnt werden',
-    acceptedFriendRequestMessage: 'Du hast diese Freundschaftsanfrage angenommen.',
-    declinedFriendRequestMessage: 'Du hast diese Freundschaftsanfrage abgelehnt.',
-    failedClearNotifications: 'Benachrichtigungen konnten nicht geloescht werden',
-    clearing: 'Loeschen...',
-    clearAll: 'Alle Loeschen',
-    loadingNotifications: 'Benachrichtigungen werden geladen...',
-    noNotificationsYet: 'Noch keine Benachrichtigungen.',
-    processing: 'Verarbeitung...',
-    accept: 'Annehmen',
-    decline: 'Ablehnen',
-    requestAccepted: 'Anfrage angenommen',
-    requestDeclined: 'Anfrage abgelehnt',
-    clearDialogTitle: 'Alle Benachrichtigungen entfernen?',
-    clearDialogMessage: 'Dadurch werden alle Benachrichtigungen dauerhaft geloescht.',
-    cancel: 'Abbrechen',
-    removing: 'Wird entfernt...',
-    removeAll: 'Alle Entfernen',
-    justNow: 'Gerade eben',
-    minutesAgo: ' Min',
-    hoursAgo: ' Std',
-    daysAgo: ' Tg',
-  },
-} as const;
+const getErrorMessage = (error: unknown, fallback: string) =>
+  error instanceof Error && error.message.trim() ? error.message : fallback;
 
-const NOTIFICATION_TYPE_AR_COPY: Record<string, { title?: string; message?: string }> = {
-  message: {
-    title: 'رسالة جديدة',
-    message: 'لديك رسالة جديدة.',
-  },
-  friend_request: {
-    title: 'طلب صداقة جديد',
-    message: 'لديك طلب صداقة جديد.',
-  },
-  friend_accept: {
-    title: 'تم قبول طلب الصداقة',
-    message: 'تم قبول طلب الصداقة الخاص بك.',
-  },
-  plan_review_request: {
-    title: 'طلب مراجعة الخطة',
-    message: 'تم إرسال خطة جديدة للمراجعة.',
-  },
-  plan_coach_request_sent: {
-    title: 'تم إرسال طلب الخطة',
-    message: 'تم إرسال طلبك إلى المدرب.',
-  },
-  plan_created_by_coach: {
-    title: 'خطة جديدة من مدربك',
-    message: 'أنشأ مدربك خطة تدريب جديدة وفعّلها لك.',
-  },
-  plan_review_approved: {
-    title: 'تمت الموافقة على الخطة',
-    message: 'تمت الموافقة على خطتك الجديدة.',
-  },
-  plan_review_rejected: {
-    title: 'تم رفض الخطة',
-    message: 'تم رفض الخطة. راجع التفاصيل وأعد الإرسال.',
-  },
-};
+function NotificationEmptyState({
+  title,
+  body,
+  isRtl,
+}: {
+  title: string;
+  body: string;
+  isRtl: boolean;
+}) {
+  return (
+    <Card className="rounded-[1.8rem] border-white/10 bg-card/70 p-0">
+      <div className={cx('flex flex-col items-center px-6 py-10 text-center', isRtl && 'text-right')}>
+        <div className="flex h-16 w-16 items-center justify-center rounded-[1.4rem] border border-white/10 bg-white/5 text-text-secondary">
+          <Bell size={24} />
+        </div>
+        <h2 className="mt-4 text-lg font-semibold text-white">{title}</h2>
+        <p className="mt-2 max-w-xs text-sm leading-6 text-text-secondary">{body}</p>
+      </div>
+    </Card>
+  );
+}
 
-const EXACT_NOTIFICATION_TEXT_AR: Record<string, string> = {
-  'New plan from your coach': 'خطة جديدة من مدربك',
-  'Your coach created and activated a new training plan for you.': 'أنشأ مدربك خطة تدريب جديدة وفعّلها لك.',
-};
+function ClearNotificationsDialog({
+  open,
+  title,
+  message,
+  cancelLabel,
+  confirmLabel,
+  busyLabel,
+  busy,
+  isRtl,
+  onCancel,
+  onConfirm,
+}: {
+  open: boolean;
+  title: string;
+  message: string;
+  cancelLabel: string;
+  confirmLabel: string;
+  busyLabel: string;
+  busy: boolean;
+  isRtl: boolean;
+  onCancel: () => void;
+  onConfirm: () => void;
+}) {
+  if (!open) return null;
 
-const localizeNotificationText = (notif: AppNotification, language: AppLanguage) => {
-  const data = parseNotificationData(notif.data);
-  const notificationType = resolveNotificationType(notif, data);
-  const challengeTitle = String(data.challengeTitle || 'Challenge').trim() || 'Challenge';
-  const senderName = String(data.senderName || 'Friend').trim() || 'Friend';
-  const responseStatus = String(data.responseStatus || '').trim().toLowerCase();
+  return (
+    <AnimatePresence>
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4 backdrop-blur-sm"
+        onClick={() => {
+          if (!busy) onCancel();
+        }}
+      >
+        <motion.div
+          initial={{ opacity: 0, y: 20, scale: 0.98 }}
+          animate={{ opacity: 1, y: 0, scale: 1 }}
+          exit={{ opacity: 0, y: 10, scale: 0.98 }}
+          transition={{ duration: 0.2, ease: 'easeOut' }}
+          dir={isRtl ? 'rtl' : 'ltr'}
+          className="w-full max-w-sm rounded-[1.8rem] border border-white/10 bg-card/95 p-5 shadow-[0_30px_80px_rgba(0,0,0,0.5)]"
+          onClick={(event) => event.stopPropagation()}
+        >
+          <h2 className={cx('text-lg font-semibold text-white', isRtl ? 'text-right' : 'text-left')}>{title}</h2>
+          <p className={cx('mt-2 text-sm leading-6 text-text-secondary', isRtl ? 'text-right' : 'text-left')}>{message}</p>
 
-  if (notificationType === 'friend_challenge_invite') {
-    const localized = pickLanguage(language, {
-      en: {
-        title: 'New Challenge',
-        message: `${senderName} challenged you to ${challengeTitle}`,
-      },
-      ar: {
-        title: 'تحدٍ جديد',
-        message: `${senderName} تحداك في ${challengeTitle}`,
-      },
-      it: {
-        title: 'Nuova sfida',
-        message: `${senderName} ti ha sfidato in ${challengeTitle}`,
-      },
-      de: {
-        title: 'Neue Challenge',
-        message: `${senderName} hat dich zu ${challengeTitle} herausgefordert`,
-      },
-    });
-
-    return localized;
-  }
-
-  if (notificationType === 'friend_challenge_response') {
-    const localized = pickLanguage(language, {
-      en: {
-        accepted: { title: 'Challenge Accepted', message: `${challengeTitle} was accepted.` },
-        declined: { title: 'Challenge Declined', message: `${challengeTitle} was declined.` },
-        cancelled: { title: 'Challenge Cancelled', message: `${challengeTitle} expired after 5 minutes.` },
-      },
-      ar: {
-        accepted: { title: 'تم قبول التحدي', message: `تم قبول ${challengeTitle}.` },
-        declined: { title: 'تم رفض التحدي', message: `تم رفض ${challengeTitle}.` },
-        cancelled: { title: 'تم إلغاء التحدي', message: `انتهى ${challengeTitle} بعد 5 دقائق.` },
-      },
-      it: {
-        accepted: { title: 'Sfida accettata', message: `${challengeTitle} e stata accettata.` },
-        declined: { title: 'Sfida rifiutata', message: `${challengeTitle} e stata rifiutata.` },
-        cancelled: { title: 'Sfida annullata', message: `${challengeTitle} e scaduta dopo 5 minuti.` },
-      },
-      de: {
-        accepted: { title: 'Challenge angenommen', message: `${challengeTitle} wurde angenommen.` },
-        declined: { title: 'Challenge abgelehnt', message: `${challengeTitle} wurde abgelehnt.` },
-        cancelled: { title: 'Challenge abgebrochen', message: `${challengeTitle} ist nach 5 Minuten abgelaufen.` },
-      },
-    });
-
-    if (responseStatus === 'accepted' || responseStatus === 'declined' || responseStatus === 'cancelled') {
-      return localized[responseStatus];
-    }
-  }
-
-  if (language !== 'ar') {
-    return { title: notif.title, message: notif.message };
-  }
-
-  const byType = NOTIFICATION_TYPE_AR_COPY[notif.type] || {};
-  const localizedTitle = byType.title || EXACT_NOTIFICATION_TEXT_AR[notif.title] || notif.title;
-  const localizedMessage = byType.message || EXACT_NOTIFICATION_TEXT_AR[notif.message] || notif.message;
-  return {
-    title: localizedTitle,
-    message: localizedMessage,
-  };
-};
-
-const formatTimeAgo = (value: string, language: AppLanguage) => {
-  const ts = new Date(value).getTime();
-  if (!Number.isFinite(ts)) return '';
-  const diffMs = Date.now() - ts;
-  const diffMin = Math.floor(diffMs / (1000 * 60));
-  const copy = NOTIFICATIONS_I18N[language as keyof typeof NOTIFICATIONS_I18N] || NOTIFICATIONS_I18N.en;
-  if (diffMin < 1) return copy.justNow;
-  if (diffMin < 60) return `${diffMin}${copy.minutesAgo}`;
-  const diffHr = Math.floor(diffMin / 60);
-  if (diffHr < 24) return `${diffHr}${copy.hoursAgo}`;
-  const diffDay = Math.floor(diffHr / 24);
-  if (diffDay < 7) return `${diffDay}${copy.daysAgo}`;
-  return new Date(value).toLocaleDateString();
-};
+          <div className="mt-5 grid grid-cols-2 gap-2">
+            <button
+              type="button"
+              disabled={busy}
+              onClick={onCancel}
+              className="min-h-11 rounded-2xl border border-white/10 bg-white/5 px-4 text-sm font-semibold text-text-primary transition-colors hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {cancelLabel}
+            </button>
+            <button
+              type="button"
+              disabled={busy}
+              onClick={onConfirm}
+              className="min-h-11 rounded-2xl border border-rose-500/20 bg-rose-500/12 px-4 text-sm font-semibold text-rose-200 transition-colors hover:bg-rose-500/16 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {busy ? busyLabel : confirmLabel}
+            </button>
+          </div>
+        </motion.div>
+      </motion.div>
+    </AnimatePresence>
+  );
+}
 
 export function NotificationsScreen({ onBack, onOpenAcceptedChallenge }: NotificationsScreenProps) {
+  const { language, isArabic } = useAppLanguage();
+  const copy = getNotificationsCopy(language);
+
+  const [items, setItems] = useState<AppNotification[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
   const [clearing, setClearing] = useState(false);
   const [showClearConfirm, setShowClearConfirm] = useState(false);
-  const [error, setError] = useState('');
-  const [items, setItems] = useState<AppNotification[]>([]);
   const [actioningNotificationId, setActioningNotificationId] = useState<number | null>(null);
   const [actioningFriendshipId, setActioningFriendshipId] = useState<number | null>(null);
   const [challengeIntroTitle, setChallengeIntroTitle] = useState('');
-  const [acceptedChallenge, setAcceptedChallenge] = useState<{
-    friendId: number;
-    friendName: string;
-    challengeKey: string;
-    challengeTitle: string;
-    challengeSessionId: number;
-  } | null>(null);
+  const [acceptedChallenge, setAcceptedChallenge] = useState<AcceptedChallengePayload | null>(null);
   const pendingFriendshipIdsRef = useRef<Set<number>>(new Set());
-  const [language, setLanguage] = useState<AppLanguage>('en');
-  const copy = NOTIFICATIONS_I18N[language as keyof typeof NOTIFICATIONS_I18N] || NOTIFICATIONS_I18N.en;
-  const copyWithFallbacks = copy as typeof copy & {
-    failedAcceptChallengeInvite?: string;
-    failedDeclineChallengeInvite?: string;
-    acceptedChallengeInviteMessage?: string;
-    declinedChallengeInviteMessage?: string;
-    cancelledChallengeInviteMessage?: string;
-    challengeInviteAccepted?: string;
-    challengeInviteDeclined?: string;
-    challengeInviteCancelled?: string;
-    challengeInvitePendingNote?: string;
-    challengeInviteAcceptButton?: string;
-    challengeInviteRefuseButton?: string;
-  };
-  const localizedChallengeInviteCopy = useMemo(
-    () => pickLanguage(language, {
-      en: {
-        failedAcceptChallengeInvite: 'Failed to accept challenge invite',
-        failedDeclineChallengeInvite: 'Failed to decline challenge invite',
-        acceptedChallengeInviteMessage: 'You accepted this challenge invite.',
-        declinedChallengeInviteMessage: 'You declined this challenge invite.',
-        cancelledChallengeInviteMessage: 'This challenge invite expired after 5 minutes.',
-        challengeInviteAccepted: 'Challenge accepted',
-        challengeInviteDeclined: 'Challenge declined',
-        challengeInviteCancelled: 'Challenge cancelled',
-        challengeInvitePendingNote: 'If you accept, both of you count only your own turn.',
-        challengeInviteAcceptButton: 'Accept',
-        challengeInviteRefuseButton: 'Refuse',
-      },
-      ar: {
-        failedAcceptChallengeInvite: 'فشل قبول دعوة التحدي',
-        failedDeclineChallengeInvite: 'فشل رفض دعوة التحدي',
-        acceptedChallengeInviteMessage: 'لقد قبلت دعوة التحدي هذه.',
-        declinedChallengeInviteMessage: 'لقد رفضت دعوة التحدي هذه.',
-        cancelledChallengeInviteMessage: 'انتهت دعوة التحدي بعد 5 دقائق.',
-        challengeInviteAccepted: 'تم قبول التحدي',
-        challengeInviteDeclined: 'تم رفض التحدي',
-        challengeInviteCancelled: 'تم إلغاء التحدي',
-        challengeInvitePendingNote: 'إذا قبلت، فكل واحد منكما يسجل دوره فقط.',
-        challengeInviteAcceptButton: 'قبول',
-        challengeInviteRefuseButton: 'رفض',
-      },
-      it: {
-        failedAcceptChallengeInvite: 'Impossibile accettare l invito alla sfida',
-        failedDeclineChallengeInvite: 'Impossibile rifiutare l invito alla sfida',
-        acceptedChallengeInviteMessage: 'Hai accettato questo invito alla sfida.',
-        declinedChallengeInviteMessage: 'Hai rifiutato questo invito alla sfida.',
-        cancelledChallengeInviteMessage: 'Questo invito alla sfida e scaduto dopo 5 minuti.',
-        challengeInviteAccepted: 'Sfida accettata',
-        challengeInviteDeclined: 'Sfida rifiutata',
-        challengeInviteCancelled: 'Sfida annullata',
-        challengeInvitePendingNote: 'Se accetti, ognuno di voi conta solo il proprio turno.',
-        challengeInviteAcceptButton: 'Accetta',
-        challengeInviteRefuseButton: 'Rifiuta',
-      },
-      de: {
-        failedAcceptChallengeInvite: 'Die Challenge-Einladung konnte nicht angenommen werden',
-        failedDeclineChallengeInvite: 'Die Challenge-Einladung konnte nicht abgelehnt werden',
-        acceptedChallengeInviteMessage: 'Du hast diese Challenge-Einladung angenommen.',
-        declinedChallengeInviteMessage: 'Du hast diese Challenge-Einladung abgelehnt.',
-        cancelledChallengeInviteMessage: 'Diese Challenge-Einladung ist nach 5 Minuten abgelaufen.',
-        challengeInviteAccepted: 'Challenge angenommen',
-        challengeInviteDeclined: 'Challenge abgelehnt',
-        challengeInviteCancelled: 'Challenge abgebrochen',
-        challengeInvitePendingNote: 'Wenn du annimmst, zahlt jeder nur seinen eigenen Zug.',
-        challengeInviteAcceptButton: 'Annehmen',
-        challengeInviteRefuseButton: 'Ablehnen',
-      },
-    }),
-    [language],
+
+  const userId = useMemo(() => readStoredUserId(), []);
+  const unreadCount = useMemo(
+    () => items.filter((item) => Boolean(item.unread)).length,
+    [items],
   );
-  const failedAcceptChallengeInvite =
-    copyWithFallbacks.failedAcceptChallengeInvite || localizedChallengeInviteCopy.failedAcceptChallengeInvite;
-  const failedDeclineChallengeInvite =
-    copyWithFallbacks.failedDeclineChallengeInvite || localizedChallengeInviteCopy.failedDeclineChallengeInvite;
-  const acceptedChallengeInviteMessage =
-    copyWithFallbacks.acceptedChallengeInviteMessage || localizedChallengeInviteCopy.acceptedChallengeInviteMessage;
-  const declinedChallengeInviteMessage =
-    copyWithFallbacks.declinedChallengeInviteMessage || localizedChallengeInviteCopy.declinedChallengeInviteMessage;
-  const cancelledChallengeInviteMessage =
-    copyWithFallbacks.cancelledChallengeInviteMessage || localizedChallengeInviteCopy.cancelledChallengeInviteMessage;
-  const challengeInviteAcceptedLabel =
-    copyWithFallbacks.challengeInviteAccepted || localizedChallengeInviteCopy.challengeInviteAccepted;
-  const challengeInviteDeclinedLabel =
-    copyWithFallbacks.challengeInviteDeclined || localizedChallengeInviteCopy.challengeInviteDeclined;
-  const challengeInviteCancelledLabel =
-    copyWithFallbacks.challengeInviteCancelled || localizedChallengeInviteCopy.challengeInviteCancelled;
-  const challengeInvitePendingNote =
-    copyWithFallbacks.challengeInvitePendingNote || localizedChallengeInviteCopy.challengeInvitePendingNote;
-  const challengeInviteAcceptButton =
-    copyWithFallbacks.challengeInviteAcceptButton || localizedChallengeInviteCopy.challengeInviteAcceptButton;
-  const challengeInviteRefuseButton =
-    copyWithFallbacks.challengeInviteRefuseButton || localizedChallengeInviteCopy.challengeInviteRefuseButton;
+
+  const updateNotification = useCallback(
+    (notificationId: number, updater: (notification: AppNotification) => AppNotification) => {
+      setItems((current) => current.map((item) => (item.id === notificationId ? updater(item) : item)));
+    },
+    [],
+  );
+
+  const fetchNotifications = useCallback(async () => {
+    if (!userId) {
+      setError(copy.noActiveSession);
+      setLoading(false);
+      return;
+    }
+
+    try {
+      setError('');
+      const response = await api.getNotifications(userId);
+      setItems(Array.isArray(response) ? response : []);
+    } catch (requestError) {
+      setError(getErrorMessage(requestError, copy.failedLoadNotifications));
+    } finally {
+      setLoading(false);
+    }
+  }, [copy.failedLoadNotifications, copy.noActiveSession, userId]);
 
   useEffect(() => {
-    setLanguage(getActiveLanguage());
+    setLoading(true);
+    void fetchNotifications();
 
-    const handleLanguageChanged = () => {
-      setLanguage(getStoredLanguage());
-    };
+    const interval = window.setInterval(() => {
+      void fetchNotifications();
+    }, POLL_INTERVAL_MS);
 
-    window.addEventListener('app-language-changed', handleLanguageChanged);
-    window.addEventListener('storage', handleLanguageChanged);
-    return () => {
-      window.removeEventListener('app-language-changed', handleLanguageChanged);
-      window.removeEventListener('storage', handleLanguageChanged);
-    };
-  }, []);
+    return () => window.clearInterval(interval);
+  }, [fetchNotifications]);
 
   useEffect(() => {
     if (!challengeIntroTitle) return undefined;
 
-    const timer = window.setTimeout(() => {
+    const timeout = window.setTimeout(() => {
       setChallengeIntroTitle('');
       if (acceptedChallenge && onOpenAcceptedChallenge) {
         onOpenAcceptedChallenge(acceptedChallenge);
@@ -521,112 +238,72 @@ export function NotificationsScreen({ onBack, onOpenAcceptedChallenge }: Notific
       setAcceptedChallenge(null);
     }, 1800);
 
-    return () => window.clearTimeout(timer);
+    return () => window.clearTimeout(timeout);
   }, [acceptedChallenge, challengeIntroTitle, onOpenAcceptedChallenge]);
 
-  const userId = useMemo(() => {
-    try {
-      const user = JSON.parse(localStorage.getItem('appUser') || localStorage.getItem('user') || '{}');
-      return Number(localStorage.getItem('appUserId') || localStorage.getItem('userId') || user?.id || 0);
-    } catch {
-      return 0;
-    }
-  }, []);
-
-  const fetchNotifications = useCallback(async () => {
-    const currentCopy = NOTIFICATIONS_I18N[language as keyof typeof NOTIFICATIONS_I18N] || NOTIFICATIONS_I18N.en;
-    if (!userId) {
-      setError(currentCopy.noActiveSession);
-      setLoading(false);
-      return;
-    }
-    try {
-      setError('');
-      const data = await api.getNotifications(userId);
-      setItems(Array.isArray(data) ? data : []);
-    } catch (e) {
-      setError(getErrorMessage(e, currentCopy.failedLoadNotifications));
-    } finally {
-      setLoading(false);
-    }
-  }, [language, userId]);
-
-  useEffect(() => {
-    setLoading(true);
-    void fetchNotifications();
-    const refresh = window.setInterval(() => {
-      void fetchNotifications();
-    }, 10000);
-    return () => window.clearInterval(refresh);
-  }, [fetchNotifications]);
-
-  const markAsRead = async (notificationId: number) => {
+  const markAsRead = useCallback(async (notificationId: number) => {
     try {
       await api.markNotificationRead(notificationId);
-      setItems((prev) => prev.map((item) => (
-        item.id === notificationId ? { ...item, unread: false } : item
-      )));
-    } catch (e) {
-      console.error('Failed to mark notification as read:', e);
+      updateNotification(notificationId, (item) => ({ ...item, unread: false }));
+    } catch (requestError) {
+      console.error('Failed to mark notification as read:', requestError);
     }
-  };
+  }, [updateNotification]);
 
-  const handleFriendRequestResponse = async (
+  const handleFriendRequestResponse = useCallback(async (
     notification: AppNotification,
     action: 'accept' | 'decline',
   ) => {
     if (!userId) return;
+
     const data = parseNotificationData(notification.data);
     const friendshipId = toPositiveInt(data.friendshipId);
-    if (!friendshipId) return;
-    if (pendingFriendshipIdsRef.current.has(friendshipId)) return;
+    if (!friendshipId || pendingFriendshipIdsRef.current.has(friendshipId)) return;
 
     setError('');
     pendingFriendshipIdsRef.current.add(friendshipId);
     setActioningNotificationId(notification.id);
     setActioningFriendshipId(friendshipId);
+
     try {
       let resolvedStatus: FriendshipTerminalStatus = action === 'accept' ? 'accepted' : 'declined';
+
       try {
         const response = await api.respondToFriendRequest(userId, friendshipId, action);
-        const responseData = (response && typeof response === 'object')
-          ? (response as Record<string, unknown>)
-          : {};
-        resolvedStatus = toFriendshipTerminalStatus(responseData.status) || resolvedStatus;
-      } catch (e) {
-        const conflictStatus = getFriendshipConflictStatus(e);
+        resolvedStatus = toFriendshipTerminalStatus((response as Record<string, unknown> | null)?.status) || resolvedStatus;
+      } catch (requestError) {
+        const conflictStatus = getFriendshipConflictStatus(requestError);
         if (!conflictStatus) {
-          if (isFriendshipConflictError(e)) {
-            // Backend confirmed request is no longer pending; refresh local state quietly.
+          if (isFriendshipConflictError(requestError)) {
             await fetchNotifications();
             return;
           }
-          setError(
-            getErrorMessage(
-              e,
-              action === 'accept' ? copy.failedAcceptRequest : copy.failedDeclineRequest,
-            ),
-          );
+
+          setError(getErrorMessage(
+            requestError,
+            action === 'accept' ? copy.failedAcceptRequest : copy.failedDeclineRequest,
+          ));
           return;
         }
+
         resolvedStatus = conflictStatus;
       }
 
       try {
         await api.markNotificationRead(notification.id);
-      } catch (e) {
-        console.error('Failed to mark notification as read:', e);
+      } catch (requestError) {
+        console.error('Failed to mark notification as read:', requestError);
       }
 
       if (resolvedStatus === 'accepted') {
         window.dispatchEvent(new Event('friends-updated'));
       }
 
-      setItems((prev) => prev.map((item) => {
+      setItems((current) => current.map((item) => {
         const itemData = parseNotificationData(item.data);
         const itemFriendshipId = toPositiveInt(itemData.friendshipId);
-        const isSameFriendRequest = item.type === 'friend_request' && itemFriendshipId === friendshipId;
-        if (!isSameFriendRequest && item.id !== notification.id) return item;
+        const sameFriendRequest = item.type === 'friend_request' && itemFriendshipId === friendshipId;
+        if (!sameFriendRequest && item.id !== notification.id) return item;
 
         if (item.type !== 'friend_request') {
           return {
@@ -652,9 +329,16 @@ export function NotificationsScreen({ onBack, onOpenAcceptedChallenge }: Notific
       setActioningNotificationId(null);
       setActioningFriendshipId(null);
     }
-  };
+  }, [
+    copy.acceptedFriendRequestMessage,
+    copy.declinedFriendRequestMessage,
+    copy.failedAcceptRequest,
+    copy.failedDeclineRequest,
+    fetchNotifications,
+    userId,
+  ]);
 
-  const handleChallengeInviteResponse = async (
+  const handleChallengeInviteResponse = useCallback(async (
     notification: AppNotification,
     action: 'accept' | 'decline',
   ) => {
@@ -663,6 +347,7 @@ export function NotificationsScreen({ onBack, onOpenAcceptedChallenge }: Notific
     const notificationData = parseNotificationData(notification.data);
     setError('');
     setActioningNotificationId(notification.id);
+
     try {
       let resolvedStatus: ChallengeInviteTerminalStatus = action === 'accept' ? 'accepted' : 'declined';
       let resolvedTitle = String(notificationData.challengeTitle || 'Challenge').trim() || 'Challenge';
@@ -673,37 +358,35 @@ export function NotificationsScreen({ onBack, onOpenAcceptedChallenge }: Notific
 
       try {
         const response = await api.respondToFriendChallengeInvite(userId, notification.id, action);
-        resolvedStatus = toChallengeInviteTerminalStatus(response?.status) || resolvedStatus;
-        resolvedTitle = String(response?.challengeTitle || resolvedTitle).trim() || resolvedTitle;
-        resolvedChallengeKey = String(response?.challengeKey || resolvedChallengeKey).trim().toLowerCase();
-        resolvedSenderId = toPositiveInt(response?.senderUserId) || resolvedSenderId;
-        resolvedSenderName = String(response?.senderName || resolvedSenderName).trim() || resolvedSenderName;
-        resolvedSessionId = toPositiveInt(response?.sessionId) || resolvedSessionId;
-      } catch (e) {
-        const conflictStatus = getChallengeInviteConflictStatus(e);
+        const payload = response as Record<string, unknown> | null;
+        resolvedStatus = toChallengeInviteTerminalStatus(payload?.status) || resolvedStatus;
+        resolvedTitle = String(payload?.challengeTitle || resolvedTitle).trim() || resolvedTitle;
+        resolvedChallengeKey = String(payload?.challengeKey || resolvedChallengeKey).trim().toLowerCase();
+        resolvedSenderId = toPositiveInt(payload?.senderUserId) || resolvedSenderId;
+        resolvedSenderName = String(payload?.senderName || resolvedSenderName).trim() || resolvedSenderName;
+        resolvedSessionId = toPositiveInt(payload?.sessionId) || resolvedSessionId;
+      } catch (requestError) {
+        const conflictStatus = getChallengeInviteConflictStatus(requestError);
         if (!conflictStatus) {
-          setError(
-            getErrorMessage(
-              e,
-              action === 'accept' ? failedAcceptChallengeInvite : failedDeclineChallengeInvite,
-            ),
-          );
+          setError(getErrorMessage(
+            requestError,
+            action === 'accept' ? copy.failedAcceptChallengeInvite : copy.failedDeclineChallengeInvite,
+          ));
           return;
         }
         resolvedStatus = conflictStatus;
       }
 
-      setItems((prev) => prev.map((item) => {
-        if (item.id !== notification.id) return item;
+      updateNotification(notification.id, (item) => {
         const itemData = parseNotificationData(item.data);
         return {
           ...item,
           unread: false,
           message: resolvedStatus === 'accepted'
-            ? acceptedChallengeInviteMessage
+            ? copy.acceptedChallengeInviteMessage
             : resolvedStatus === 'cancelled'
-              ? cancelledChallengeInviteMessage
-              : declinedChallengeInviteMessage,
+              ? copy.cancelledChallengeInviteMessage
+              : copy.declinedChallengeInviteMessage,
           data: {
             ...itemData,
             responseStatus: resolvedStatus,
@@ -711,7 +394,7 @@ export function NotificationsScreen({ onBack, onOpenAcceptedChallenge }: Notific
             sessionId: resolvedSessionId,
           },
         };
-      }));
+      });
 
       if (resolvedStatus === 'accepted') {
         if (resolvedSenderId && resolvedChallengeKey && resolvedSessionId) {
@@ -728,9 +411,38 @@ export function NotificationsScreen({ onBack, onOpenAcceptedChallenge }: Notific
     } finally {
       setActioningNotificationId(null);
     }
-  };
+  }, [
+    copy.acceptedChallengeInviteMessage,
+    copy.cancelledChallengeInviteMessage,
+    copy.declinedChallengeInviteMessage,
+    copy.failedAcceptChallengeInvite,
+    copy.failedDeclineChallengeInvite,
+    updateNotification,
+    userId,
+  ]);
 
-  const handleClearAll = async () => {
+  const handleNotificationAction = useCallback((notificationId: number, actionId: NotificationActionId) => {
+    const notification = items.find((item) => item.id === notificationId);
+    if (!notification) return;
+
+    const type = resolveNotificationType(notification, parseNotificationData(notification.data));
+    if (type === 'friend_request' && (actionId === 'accept' || actionId === 'decline')) {
+      void handleFriendRequestResponse(notification, actionId);
+      return;
+    }
+
+    if (type === 'friend_challenge_invite' && (actionId === 'accept' || actionId === 'decline')) {
+      void handleChallengeInviteResponse(notification, actionId);
+    }
+  }, [handleChallengeInviteResponse, handleFriendRequestResponse, items]);
+
+  const handleOpenNotification = useCallback((notificationId: number) => {
+    const notification = items.find((item) => item.id === notificationId);
+    if (!notification?.unread) return;
+    void markAsRead(notificationId);
+  }, [items, markAsRead]);
+
+  const handleClearAll = useCallback(async () => {
     if (!userId || !items.length || clearing) return;
 
     try {
@@ -738,200 +450,205 @@ export function NotificationsScreen({ onBack, onOpenAcceptedChallenge }: Notific
       await api.clearNotifications(userId);
       setItems([]);
       setShowClearConfirm(false);
-    } catch (e) {
-      setError(getErrorMessage(e, copy.failedClearNotifications));
+    } catch (requestError) {
+      setError(getErrorMessage(requestError, copy.failedClearNotifications));
     } finally {
       setClearing(false);
     }
-  };
+  }, [clearing, copy.failedClearNotifications, items.length, userId]);
+
+  const notificationCards = useMemo<NotificationCardModel[]>(() => (
+    items.map((notification) => {
+      const data = parseNotificationData(notification.data);
+      const type = resolveNotificationType(notification, data);
+      const visual = getNotificationVisual(type);
+      const localizedText = localizeNotificationText(notification, language);
+      const responseStatus = getNotificationResponseStatus(data);
+      const friendshipId = toPositiveInt(data.friendshipId);
+      const isChallengeInvite = type === 'friend_challenge_invite';
+      const showFriendRequestActions = isFriendRequestNotification(type, data) && !responseStatus;
+      const showChallengeInviteActions = isChallengeInvite && !responseStatus;
+      const actionBusy = actioningNotificationId === notification.id
+        || (!!friendshipId && actioningFriendshipId === friendshipId);
+
+      return {
+        id: notification.id,
+        type,
+        title: localizedText.title,
+        message: localizedText.message,
+        timeLabel: formatNotificationTime(notification.created_at, language),
+        unread: Boolean(notification.unread),
+        visual,
+        metadata: buildNotificationMetadata(type, data, language),
+        note: showChallengeInviteActions ? copy.challengeInvitePendingNote : undefined,
+        statusLabel: responseStatus
+          ? {
+            label: isChallengeInvite
+              ? (
+                responseStatus === 'accepted'
+                  ? copy.challengeInviteAccepted
+                  : responseStatus === 'cancelled'
+                    ? copy.challengeInviteCancelled
+                    : copy.challengeInviteDeclined
+              )
+              : (responseStatus === 'accepted' ? copy.requestAccepted : copy.requestDeclined),
+            tone: responseStatus === 'accepted'
+              ? 'success'
+              : responseStatus === 'cancelled'
+                ? 'warning'
+                : 'neutral',
+          }
+          : undefined,
+        actions: showFriendRequestActions
+          ? [
+            {
+              id: 'accept',
+              label: actionBusy ? copy.processing : copy.accept,
+              tone: 'primary',
+              disabled: actionBusy,
+            },
+            {
+              id: 'decline',
+              label: copy.decline,
+              tone: 'secondary',
+              disabled: actionBusy,
+            },
+          ]
+          : showChallengeInviteActions
+            ? [
+              {
+                id: 'accept',
+                label: actionBusy ? copy.processing : copy.challengeInviteAcceptButton,
+                tone: 'primary',
+                disabled: actionBusy,
+              },
+              {
+                id: 'decline',
+                label: copy.challengeInviteRefuseButton,
+                tone: 'secondary',
+                disabled: actionBusy,
+              },
+            ]
+            : undefined,
+      };
+    })
+  ), [
+    actioningFriendshipId,
+    actioningNotificationId,
+    copy.accept,
+    copy.challengeInviteAcceptButton,
+    copy.challengeInviteAccepted,
+    copy.challengeInviteCancelled,
+    copy.challengeInviteDeclined,
+    copy.challengeInvitePendingNote,
+    copy.challengeInviteRefuseButton,
+    copy.decline,
+    copy.processing,
+    copy.requestAccepted,
+    copy.requestDeclined,
+    items,
+    language,
+  ]);
 
   return (
-    <div className="flex-1 flex flex-col bg-background min-h-screen pb-24">
-      <div className="px-4 sm:px-6 pt-2">
+    <div dir={isArabic ? 'rtl' : 'ltr'} className="flex min-h-screen flex-1 flex-col bg-background pb-24">
+      <div className="px-4 pt-2 sm:px-6">
         <Header
           title={copy.title}
           onBack={onBack}
-          rightElement={
+          rightElement={(
             <button
               type="button"
               onClick={() => setShowClearConfirm(true)}
               disabled={clearing || items.length === 0}
-              className="text-[11px] sm:text-xs px-2.5 sm:px-3 py-1.5 rounded-lg border border-red-500/30 text-red-400 hover:bg-red-500/10 disabled:opacity-40 disabled:cursor-not-allowed"
+              className="min-h-10 rounded-xl border border-rose-500/20 bg-rose-500/10 px-3 text-[11px] font-semibold text-rose-200 transition-colors hover:bg-rose-500/15 disabled:cursor-not-allowed disabled:opacity-40 sm:text-xs"
             >
               {clearing ? copy.clearing : copy.clearAll}
             </button>
-          }
+          )}
         />
       </div>
 
-      <div className="px-4 sm:px-6 space-y-3">
-        {loading && <div className="text-sm text-text-secondary">{copy.loadingNotifications}</div>}
-        {!loading && error && (
-          <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-3 text-sm text-red-400">{error}</div>
-        )}
-        {!loading && !error && items.length === 0 && (
-          <div className="text-sm text-text-secondary">{copy.noNotificationsYet}</div>
-        )}
-
-        {!loading && !error && items.map((notif) => {
-          const data = parseNotificationData(notif.data);
-          const notificationType = resolveNotificationType(notif, data);
-          const visual = iconByType[notificationType] || { icon: TrendingUp, color: 'text-accent', bg: 'bg-accent/10' };
-          const Icon = visual.icon;
-          const friendshipId = toPositiveInt(data.friendshipId);
-          const requestType = String(data.requestType || '').trim().toLowerCase();
-          const responseStatus = String(data.responseStatus || '').trim().toLowerCase();
-          const isHandled = responseStatus === 'accepted' || responseStatus === 'declined' || responseStatus === 'cancelled';
-          const isFriendRequest =
-            notificationType === 'friend_request'
-            && !!friendshipId
-            && (!requestType || requestType === 'friendship');
-          const showFriendRequestActions = isFriendRequest && !isHandled;
-          const isChallengeInvite = notificationType === 'friend_challenge_invite';
-          const showChallengeInviteActions = isChallengeInvite && !isHandled;
-          const actionBusy =
-            actioningNotificationId === notif.id
-            || (!!friendshipId && actioningFriendshipId === friendshipId);
-          const localizedNotif = localizeNotificationText(notif, language);
-
-          return (
-            <Card
-              key={notif.id}
-              onClick={() => {
-                if (notif.unread) {
-                  void markAsRead(notif.id);
-                }
-              }}
-              className={`p-3 sm:p-4 flex gap-3 sm:gap-4 transition-colors ${notif.unread ? 'border-accent/30 cursor-pointer' : ''}`}
-            >
-              <div className={`w-9 h-9 sm:w-10 sm:h-10 rounded-full ${visual.bg} flex items-center justify-center ${visual.color} shrink-0`}>
-                <Icon size={18} />
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="flex justify-between items-start gap-2">
-                  <h4 className="font-bold text-white text-sm leading-snug break-words [overflow-wrap:anywhere]">
-                    {localizedNotif.title}
-                  </h4>
-                  <span className="text-[10px] text-text-tertiary shrink-0">{formatTimeAgo(notif.created_at, language)}</span>
-                </div>
-                <p className="text-xs sm:text-sm text-text-secondary mt-1 leading-relaxed break-words [overflow-wrap:anywhere]">
-                  {localizedNotif.message}
+      <div className="space-y-4 px-4 sm:px-6">
+        <Card className="overflow-hidden rounded-[1.8rem] border-white/10 bg-card/75 p-0">
+          <div className="relative px-5 py-5">
+            <div
+              className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(188,255,0,0.12),transparent_45%)]"
+              aria-hidden="true"
+            />
+            <div className={cx('relative z-10 flex items-start justify-between gap-4', isArabic && 'flex-row-reverse')}>
+              <div className={cx('space-y-2', isArabic ? 'text-right' : 'text-left')}>
+                <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-text-tertiary">
+                  RepSet
                 </p>
-
-                {showFriendRequestActions && (
-                  <div className="flex items-center gap-2 mt-3">
-                    <button
-                      type="button"
-                      disabled={actionBusy}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        void handleFriendRequestResponse(notif, 'accept');
-                      }}
-                      className="px-3 py-2 rounded-lg text-xs font-semibold bg-accent text-black hover:bg-accent/90 disabled:opacity-60"
-                    >
-                      {actionBusy ? copy.processing : copy.accept}
-                    </button>
-                    <button
-                      type="button"
-                      disabled={actionBusy}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        void handleFriendRequestResponse(notif, 'decline');
-                      }}
-                      className="px-3 py-2 rounded-lg text-xs font-semibold border border-white/15 text-text-secondary hover:bg-white/5 disabled:opacity-60"
-                    >
-                      {copy.decline}
-                    </button>
-                  </div>
-                )}
-
-                {showChallengeInviteActions && (
-                  <div className="mt-3">
-                    <div className="grid grid-cols-2 gap-2">
-                      <button
-                        type="button"
-                        disabled={actionBusy}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          void handleChallengeInviteResponse(notif, 'accept');
-                        }}
-                        className="w-full px-3 py-2.5 rounded-xl text-xs font-semibold bg-accent text-black hover:bg-accent/90 disabled:opacity-60"
-                      >
-                        {actionBusy ? copy.processing : challengeInviteAcceptButton}
-                      </button>
-                      <button
-                        type="button"
-                        disabled={actionBusy}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          void handleChallengeInviteResponse(notif, 'decline');
-                        }}
-                        className="w-full px-3 py-2.5 rounded-xl text-xs font-semibold border border-white/15 text-text-secondary hover:bg-white/5 disabled:opacity-60"
-                      >
-                        {challengeInviteRefuseButton}
-                      </button>
-                    </div>
-                    <div className="mt-2 text-[11px] text-text-tertiary">
-                      {challengeInvitePendingNote}
-                    </div>
-                  </div>
-                )}
-
-                {isHandled && (
-                  <div className="mt-2 text-[11px] text-text-tertiary">
-                    {isChallengeInvite
-                      ? (
-                        responseStatus === 'accepted'
-                          ? challengeInviteAcceptedLabel
-                          : responseStatus === 'cancelled'
-                            ? challengeInviteCancelledLabel
-                            : challengeInviteDeclinedLabel
-                      )
-                      : (responseStatus === 'accepted' ? copy.requestAccepted : copy.requestDeclined)}
-                  </div>
-                )}
+                <h2 className="text-base font-semibold text-white">{copy.subtitle}</h2>
               </div>
-            </Card>
-          );
-        })}
-      </div>
 
-      {showClearConfirm && (
-        <div
-          className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4"
-          onClick={() => {
-            if (!clearing) setShowClearConfirm(false);
-          }}
-        >
-          <div
-            className="w-full max-w-sm bg-card border border-white/10 rounded-2xl p-4 space-y-3"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <h3 className="text-white font-semibold text-base">{copy.clearDialogTitle}</h3>
-            <p className="text-sm text-text-secondary">
-              {copy.clearDialogMessage}
-            </p>
-            <div className="grid grid-cols-2 gap-2 pt-1">
-              <button
-                type="button"
-                disabled={clearing}
-                onClick={() => setShowClearConfirm(false)}
-                className="w-full rounded-xl py-2.5 bg-white/5 border border-white/10 text-text-primary hover:bg-white/10 disabled:opacity-50"
-              >
-                {copy.cancel}
-              </button>
-              <button
-                type="button"
-                disabled={clearing}
-                onClick={() => void handleClearAll()}
-                className="w-full rounded-xl py-2.5 bg-accent text-black border border-accent/40 hover:bg-accent/90 disabled:opacity-50"
-              >
-                {clearing ? copy.removing : copy.removeAll}
-              </button>
+              <div className={cx('shrink-0 rounded-2xl border px-3 py-2 text-center', unreadCount > 0 ? 'border-accent/20 bg-accent/10' : 'border-white/10 bg-white/5')}>
+                <div className={cx('text-lg font-semibold', unreadCount > 0 ? 'text-accent' : 'text-white')}>
+                  {unreadCount}
+                </div>
+                <div className="text-[10px] text-text-tertiary">
+                  {unreadCount > 0 ? copy.unreadCount(unreadCount) : copy.allCaughtUp}
+                </div>
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        </Card>
+
+        {loading ? (
+          <Card className="rounded-[1.8rem] border-white/10 bg-card/70">
+            <div className={cx('flex items-center gap-3', isArabic && 'flex-row-reverse')}>
+              <div className="flex h-11 w-11 items-center justify-center rounded-2xl border border-white/10 bg-white/5">
+                <LoaderCircle size={20} className="animate-spin text-text-secondary" />
+              </div>
+              <div className={cx('space-y-1', isArabic ? 'text-right' : 'text-left')}>
+                <div className="text-sm font-semibold text-white">{copy.loadingTitle}</div>
+                <div className="text-sm text-text-secondary">{copy.loadingBody}</div>
+              </div>
+            </div>
+          </Card>
+        ) : null}
+
+        {!loading && error ? (
+          <Card className="rounded-[1.8rem] border border-rose-500/20 bg-rose-500/10 text-sm text-rose-200">
+            <div className={isArabic ? 'text-right' : 'text-left'}>{error}</div>
+          </Card>
+        ) : null}
+
+        {!loading && !error && items.length === 0 ? (
+          <NotificationEmptyState title={copy.emptyTitle} body={copy.emptyBody} isRtl={isArabic} />
+        ) : null}
+
+        {!loading && !error && items.length > 0 ? (
+          <motion.section layout aria-live="polite" className="space-y-3">
+            <AnimatePresence initial={false}>
+              {notificationCards.map((notification) => (
+                <NotificationCard
+                  key={notification.id}
+                  notification={notification}
+                  isRtl={isArabic}
+                  onOpen={handleOpenNotification}
+                  onAction={handleNotificationAction}
+                />
+              ))}
+            </AnimatePresence>
+          </motion.section>
+        ) : null}
+      </div>
+
+      <ClearNotificationsDialog
+        open={showClearConfirm}
+        title={copy.clearDialogTitle}
+        message={copy.clearDialogMessage}
+        cancelLabel={copy.cancel}
+        confirmLabel={copy.removeAll}
+        busyLabel={copy.removing}
+        busy={clearing}
+        isRtl={isArabic}
+        onCancel={() => setShowClearConfirm(false)}
+        onConfirm={() => void handleClearAll()}
+      />
 
       {challengeIntroTitle ? (
         <div className="fixed inset-0 z-[70] bg-black">

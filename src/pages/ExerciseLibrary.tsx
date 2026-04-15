@@ -39,6 +39,7 @@ interface ExerciseLibraryProps {
   }) => void;
   initialFilter?: string;
   onFilterChange?: (filter: string) => void;
+  onTabBarVisibilityChange?: (visible: boolean) => void;
 }
 
 interface CatalogExercise {
@@ -186,6 +187,7 @@ export function ExerciseLibrary({
   onExerciseClick,
   initialFilter = 'All',
   onFilterChange,
+  onTabBarVisibilityChange,
 }: ExerciseLibraryProps) {
   useScreenshotProtection();
   const introVideoRef = useRef<HTMLVideoElement>(null);
@@ -605,6 +607,14 @@ export function ExerciseLibrary({
     }
   }, [activeIntroVideoUrl]);
 
+  useEffect(() => {
+    onTabBarVisibilityChange?.(!activeIntroVideoUrl);
+
+    return () => {
+      onTabBarVisibilityChange?.(true);
+    };
+  }, [activeIntroVideoUrl, onTabBarVisibilityChange]);
+
   const closeIntroPlayer = () => {
     const video = introVideoRef.current;
     if (video) {
@@ -762,15 +772,10 @@ export function ExerciseLibrary({
                           />
                         </div>
                       </div>
-                      <div className="mt-3 flex items-center justify-between gap-2">
+                      <div className="mt-3">
                         <div className={isSelected ? 'text-sm font-semibold text-text-primary' : 'text-sm font-semibold text-text-secondary'}>
                           {label}
                         </div>
-                        {isSelected && (
-                          <span className="rounded-full border border-accent/35 bg-accent/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-accent">
-                            {copy.selectedBadge}
-                          </span>
-                        )}
                       </div>
                     </button>
                   );
@@ -911,7 +916,7 @@ export function ExerciseLibrary({
             ref={introVideoRef}
             key={activeIntroVideoUrl}
             src={activeIntroVideoUrl}
-            className="h-screen w-screen bg-black object-contain"
+            className="h-[100dvh] w-screen bg-black object-cover"
             autoPlay
             playsInline
             preload="auto"

@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { Button } from '../ui/Button';
 import { StrengthChart } from './StrengthChart';
 import { Card } from '../ui/Card';
-import { Activity, CircleQuestionMark, X } from 'lucide-react';
+import { Activity, CircleQuestionMark, TrendingUp, X } from 'lucide-react';
 import { api } from '../../services/api';
 import { emojiFire, emojiRightArrow } from '../../services/emojiTheme';
 import { getBodyPartImage } from '../../services/bodyPartTheme';

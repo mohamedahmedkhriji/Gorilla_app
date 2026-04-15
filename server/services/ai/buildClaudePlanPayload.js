@@ -57,7 +57,11 @@ const normalizeLanguage = (value) => {
 
 const normalizeSplit = (value) => {
   const normalized = String(value || '').trim().toLowerCase().replace(/\s+/g, '_');
-  if (['auto', 'full_body', 'upper_lower', 'push_pull_legs', 'hybrid', 'custom'].includes(normalized)) {
+  if (['upperlower', 'ul'].includes(normalized)) return 'upper_lower';
+  if (['ppl', 'pushpulllegs'].includes(normalized)) return 'push_pull_legs';
+  if (['ppl_ul', 'pplul'].includes(normalized)) return 'hybrid';
+  if (['splitpush', 'split_push', 'sp'].includes(normalized)) return 'split_push';
+  if (['auto', 'full_body', 'upper_lower', 'push_pull_legs', 'hybrid', 'split_push', 'custom'].includes(normalized)) {
     return normalized;
   }
   return 'auto';

@@ -266,7 +266,11 @@ const levelRank = (level) => {
 
 const normalizeSplitPreference = (value) => {
   const key = String(value || '').trim().toLowerCase().replace(/\s+/g, '_');
-  if (['auto', 'full_body', 'upper_lower', 'push_pull_legs', 'hybrid', 'custom'].includes(key)) {
+  if (['upperlower', 'ul'].includes(key)) return 'upper_lower';
+  if (['ppl', 'pushpulllegs'].includes(key)) return 'push_pull_legs';
+  if (['ppl_ul', 'pplul'].includes(key)) return 'hybrid';
+  if (['splitpush', 'split_push', 'sp'].includes(key)) return 'split_push';
+  if (['auto', 'full_body', 'upper_lower', 'push_pull_legs', 'hybrid', 'split_push', 'custom'].includes(key)) {
     return key;
   }
   return 'auto';
@@ -360,6 +364,7 @@ const resolveStrengthScheduleKind = ({ splitPreference, femaleProfile, daysPerWe
   const normalizedSplit = normalizeSplitPreference(splitPreference);
   if (normalizedSplit === 'upper_lower') return 'ul';
   if (normalizedSplit === 'push_pull_legs') return 'ppl';
+  if (normalizedSplit === 'split_push') return 'sp';
   if (normalizedSplit === 'hybrid') return Number(daysPerWeek || 0) >= 5 ? 'ppl_ul' : 'hybrid';
   if (normalizedSplit === 'full_body') return 'full_body';
   if (Number(daysPerWeek || 0) <= 3) return 'full_body';

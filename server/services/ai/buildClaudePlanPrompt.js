@@ -24,8 +24,20 @@ const titleCase = (value) => {
     .join(' ');
 };
 
+const normalizeSplitPreference = (value) => {
+  const normalized = String(value || '').trim().toLowerCase().replace(/\s+/g, '_');
+  if (['upperlower', 'ul'].includes(normalized)) return 'upper_lower';
+  if (['ppl', 'pushpulllegs'].includes(normalized)) return 'push_pull_legs';
+  if (['ppl_ul', 'pplul'].includes(normalized)) return 'hybrid';
+  if (['splitpush', 'split_push', 'sp'].includes(normalized)) return 'split_push';
+  if (['auto', 'full_body', 'upper_lower', 'push_pull_legs', 'hybrid', 'split_push', 'custom'].includes(normalized)) {
+    return normalized;
+  }
+  return 'auto';
+};
+
 const buildSplitDirective = (payload) => {
-  const split = String(payload?.split_preference || 'auto').trim().toLowerCase();
+  const split = normalizeSplitPreference(payload?.split_preference || 'auto');
   if (split === 'full_body') {
     return 'Use a full-body structure across all training days.';
   }
@@ -34,6 +46,9 @@ const buildSplitDirective = (payload) => {
   }
   if (split === 'push_pull_legs') {
     return 'Use a push/pull/legs structure and sequence it across the available weekly days.';
+  }
+  if (split === 'split_push') {
+    return 'Use a split-push structure with Push, Pull, Legs, Push Hypertrophy, and Upper Balance sequencing.';
   }
   if (split === 'hybrid') {
     return 'Use a hybrid split that combines upper/lower and push/pull/legs when helpful.';

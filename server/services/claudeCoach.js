@@ -181,7 +181,11 @@ const normalizeDayName = (value) => {
 
 const normalizeSplitPreference = (value) => {
   const key = String(value || '').trim().toLowerCase().replace(/\s+/g, '_');
-  if (['auto', 'full_body', 'upper_lower', 'push_pull_legs', 'hybrid', 'custom'].includes(key)) {
+  if (['upperlower', 'ul'].includes(key)) return 'upper_lower';
+  if (['ppl', 'pushpulllegs'].includes(key)) return 'push_pull_legs';
+  if (['ppl_ul', 'pplul'].includes(key)) return 'hybrid';
+  if (['splitpush', 'split_push', 'sp'].includes(key)) return 'split_push';
+  if (['auto', 'full_body', 'upper_lower', 'push_pull_legs', 'hybrid', 'split_push', 'custom'].includes(key)) {
     return key;
   }
   return 'auto';
@@ -707,6 +711,8 @@ const buildUserPrompt = (profile, imageCount) => {
     lines.push('Important: Preferred split is Upper/Lower, so workoutType must use only "Upper Body" and "Lower Body" in rotation.');
   } else if (preferredSplit === 'push_pull_legs') {
     lines.push('Important: Preferred split is Push/Pull/Legs, so workoutType must use only "Push", "Pull", and "Legs" in rotation.');
+  } else if (preferredSplit === 'split_push') {
+    lines.push('Important: Preferred split is Split Push, so sequence a 5-day split with Push, Pull, Legs, Push Hypertrophy, and Upper Balance logic.');
   } else if (preferredSplit === 'hybrid') {
     lines.push('Important: Preferred split is Hybrid, so combine Push/Pull/Legs and Upper/Lower structure logically.');
   }

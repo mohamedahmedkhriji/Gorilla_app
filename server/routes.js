@@ -2485,7 +2485,11 @@ const ensureWorkoutSessionScheduleInfrastructure = async () => {
 
 const normalizeSplitPreference = (value) => {
   const key = String(value || '').trim().toLowerCase().replace(/\s+/g, '_');
-  if (['auto', 'full_body', 'upper_lower', 'push_pull_legs', 'hybrid', 'custom'].includes(key)) {
+  if (['upperlower', 'ul'].includes(key)) return 'upper_lower';
+  if (['ppl', 'pushpulllegs'].includes(key)) return 'push_pull_legs';
+  if (['ppl_ul', 'pplul'].includes(key)) return 'hybrid';
+  if (['splitpush', 'split_push', 'sp'].includes(key)) return 'split_push';
+  if (['auto', 'full_body', 'upper_lower', 'push_pull_legs', 'hybrid', 'split_push', 'custom'].includes(key)) {
     return key;
   }
   return 'auto';
@@ -7086,19 +7090,31 @@ const assignProgramToUser = async (
   };
 };
 
-const findTemplateProgramBySplit = async (conn, splitPreference) => {
+const findTemplateProgramBySplit = async (conn, splitPreference, daysPerWeek = 4) => {
   const normalized = normalizeSplitPreference(splitPreference);
+  const clampedDays = clampWorkoutDays(daysPerWeek, 4);
   const candidates = [];
 
   if (normalized === 'full_body') {
     candidates.push({ sql: `program_type = 'full_body'` });
   } else if (normalized === 'upper_lower') {
     candidates.push({ sql: `program_type = 'upper_lower'` });
+    candidates.push({ sql: `program_type = 'custom' AND LOWER(name) LIKE '%upper%' AND LOWER(name) LIKE '%lower%'` });
   } else if (normalized === 'push_pull_legs') {
+    if (clampedDays >= 6) {
+      candidates.push({ sql: `program_type = 'push_pull_legs'` });
+    } else {
+      candidates.push({ sql: `program_type = 'custom' AND (LOWER(name) LIKE '%ppl ul%' OR (LOWER(name) LIKE '%push%' AND LOWER(name) LIKE '%pull%' AND LOWER(name) LIKE '%legs%' AND LOWER(name) LIKE '%upper%' AND LOWER(name) LIKE '%lower%'))` });
+      candidates.push({ sql: `program_type = 'custom' AND (LOWER(name) LIKE '%split push%' OR LOWER(name) = 'sp' OR LOWER(name) LIKE 'sp %')` });
+    }
     candidates.push({ sql: `program_type = 'push_pull_legs'` });
-    candidates.push({ sql: `program_type = 'custom' AND LOWER(name) LIKE '%body part split%'` });
     candidates.push({ sql: `program_type = 'custom' AND LOWER(name) LIKE '%push%' AND LOWER(name) LIKE '%pull%'` });
-  } else if (normalized === 'custom' || normalized === 'hybrid') {
+  } else if (normalized === 'hybrid') {
+    candidates.push({ sql: `program_type = 'custom' AND (LOWER(name) LIKE '%ppl ul%' OR (LOWER(name) LIKE '%push%' AND LOWER(name) LIKE '%pull%' AND LOWER(name) LIKE '%legs%' AND LOWER(name) LIKE '%upper%' AND LOWER(name) LIKE '%lower%'))` });
+    candidates.push({ sql: `program_type = 'custom' AND LOWER(name) LIKE '%upper%' AND LOWER(name) LIKE '%lower%'` });
+  } else if (normalized === 'split_push') {
+    candidates.push({ sql: `program_type = 'custom' AND (LOWER(name) LIKE '%split push%' OR LOWER(name) = 'sp' OR LOWER(name) LIKE 'sp %')` });
+  } else if (normalized === 'custom') {
     candidates.push({ sql: `program_type = 'custom'` });
   } else {
     return null;
@@ -7127,7 +7143,7 @@ const buildTemplateExerciseAnchorsForSplit = async (
     daysPerWeek = 4,
   } = {},
 ) => {
-  const templateProgram = await findTemplateProgramBySplit(conn, splitPreference);
+  const templateProgram = await findTemplateProgramBySplit(conn, splitPreference, daysPerWeek);
   if (!templateProgram) return [];
 
   const normalizedDays = Math.max(2, Math.min(6, Number(daysPerWeek || 4)));
@@ -7306,10 +7322,11 @@ const assignTemplateProgramFromLibrary = async (
   {
     userId,
     splitPreference,
+    daysPerWeek = 4,
     note = null,
   },
 ) => {
-  const templateProgram = await findTemplateProgramBySplit(conn, splitPreference);
+  const templateProgram = await findTemplateProgramBySplit(conn, splitPreference, daysPerWeek);
   if (!templateProgram) return null;
 
   const clonedProgram = await cloneTemplateProgramForUser(conn, userId, templateProgram);
@@ -10043,6 +10060,7 @@ router.post('/user/onboarding', authMutationRateLimit, requireAuth('user'), asyn
         const templateResult = await assignTemplateProgramFromLibrary(conn, {
           userId: normalizedUserId,
           splitPreference: normalizedSplitPreference,
+          daysPerWeek: normalizedDays,
           note: `Template onboarding plan: goal=${normalizedGoal}, days=${normalizedDays}, level=${normalizedExperience || 'unknown'}${normalizedOnboardingReason ? `, reason=${normalizedOnboardingReason}` : ''}${hasExplicitSplitPreference ? `, split=${normalizedSplitPreference}` : ''}`,
         });
         if (templateResult) {

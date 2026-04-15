@@ -1773,6 +1773,7 @@ export function Home({
       onBack={() => setView('main')}
       initialFilter={exerciseLibraryFilter}
       onFilterChange={setExerciseLibraryFilter}
+      onTabBarVisibilityChange={onTabBarVisibilityChange}
       onExerciseClick={(exercise) => {
         setSelectedExercise(exercise);
         setView('video');

@@ -965,12 +965,6 @@ export function WorkoutOverviewScreen({
                   <div className="mt-2 text-base font-semibold text-white">
                     {nextRecommendation.title}
                   </div>
-                  <div className="mt-1 text-xs text-text-secondary">
-                    {nextRecommendation.dayLabel}
-                  </div>
-                  <div className="mt-2 text-[11px] text-text-tertiary">
-                    {copy.recommendedReason}
-                  </div>
                 </div>
               )}
             </div>
@@ -990,27 +984,6 @@ export function WorkoutOverviewScreen({
                 </button>
               </div>
             )}
-          </div>
-        </div>
-
-        <div className="relative overflow-hidden rounded-[1.4rem] border border-white/10 bg-card/60 p-4">
-          <div className={HOME_CARD_OVERLAY_CLASS} aria-hidden="true" />
-          <div className={`relative z-10 flex flex-wrap items-center justify-between gap-2 ${isArabic ? 'text-right' : 'text-left'}`}>
-            <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-text-tertiary">
-              {copy.progressTitle}
-            </div>
-            <div className="text-xs text-text-secondary">
-              {copy.progressSummary(completedCount, cards.length)}
-            </div>
-          </div>
-          <div className="relative z-10 mt-3 h-2 w-full rounded-full bg-white/10">
-            <div
-              className="h-full rounded-full bg-accent/70 transition-all"
-              style={{ width: `${progressRatio * 100}%` }}
-            />
-          </div>
-          <div className="relative z-10 mt-2 text-xs text-text-secondary">
-            {copy.progressHint}
           </div>
         </div>
 
