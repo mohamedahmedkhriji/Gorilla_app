@@ -18194,11 +18194,11 @@ router.post('/blogs', authMutationRateLimit, requireAuth('user'), requireUserAcc
   }
 });
 
-router.put('/blogs/:postId', authMutationRateLimit, requireAuth('user'), requireUserAccess((req) => req.body?.userId, { allowSelf: true }), async (req, res) => {
+const handleUpdateBlogPost = async (req, res) => {
   let conn;
   try {
     const postId = toPositiveInteger(req.params?.postId);
-    const userId = toPositiveInteger(req.body?.userId);
+    const userId = toPositiveInteger(req.body?.userId || req.query?.userId);
 
     if (!postId) {
       return res.status(400).json({ error: 'postId must be a positive integer' });
@@ -18302,9 +18302,9 @@ router.put('/blogs/:postId', authMutationRateLimit, requireAuth('user'), require
   } finally {
     if (conn) conn.release();
   }
-});
+};
 
-router.delete('/blogs/:postId', authMutationRateLimit, requireAuth('user'), requireUserAccess((req) => req.body?.userId || req.query?.userId, { allowSelf: true }), async (req, res) => {
+const handleDeleteBlogPost = async (req, res) => {
   let conn;
   try {
     const postId = toPositiveInteger(req.params?.postId);
@@ -18371,7 +18371,13 @@ router.delete('/blogs/:postId', authMutationRateLimit, requireAuth('user'), requ
   } finally {
     if (conn) conn.release();
   }
-});
+};
+
+router.put('/blogs/:postId', authMutationRateLimit, requireAuth('user'), requireUserAccess((req) => req.body?.userId || req.query?.userId, { allowSelf: true }), handleUpdateBlogPost);
+router.post('/blogs/:postId/update', authMutationRateLimit, requireAuth('user'), requireUserAccess((req) => req.body?.userId || req.query?.userId, { allowSelf: true }), handleUpdateBlogPost);
+
+router.delete('/blogs/:postId', authMutationRateLimit, requireAuth('user'), requireUserAccess((req) => req.body?.userId || req.query?.userId, { allowSelf: true }), handleDeleteBlogPost);
+router.post('/blogs/:postId/delete', authMutationRateLimit, requireAuth('user'), requireUserAccess((req) => req.body?.userId || req.query?.userId, { allowSelf: true }), handleDeleteBlogPost);
 
 router.post('/blogs/:postId/like/toggle', authMutationRateLimit, requireAuth('user'), requireUserAccess((req) => req.body?.userId, { allowSelf: true }), async (req, res) => {
   try {

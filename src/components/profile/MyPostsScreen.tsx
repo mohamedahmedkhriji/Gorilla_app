@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Loader2, Pencil, Trash2 } from 'lucide-react';
+import { Eye, Heart, Loader2, MessageSquare, Pencil, Sparkles, Trash2 } from 'lucide-react';
 import { Header } from '../ui/Header';
 import { Card } from '../ui/Card';
 import { api } from '../../services/api';
@@ -46,6 +46,16 @@ type BlogPostApiRow = {
 const CATEGORY_OPTIONS: PostCategory[] = ['Training', 'Nutrition', 'Recovery', 'Mindset'];
 const FEED_PAGE_LIMIT = 20;
 const DESCRIPTION_MAX_LENGTH = 5000;
+const LOCALE_BY_LANGUAGE: Record<AppLanguage, string> = {
+  en: 'en-US',
+  ar: 'ar',
+  it: 'it-IT',
+  fr: 'fr-FR',
+  de: 'de-DE',
+};
+const SURFACE_CARD_CLASS = 'rounded-2xl border border-white/10 bg-white/[0.03] shadow-[0_18px_42px_rgba(0,0,0,0.28)] backdrop-blur-sm';
+const META_PILL_CLASS = 'inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.04] px-3 py-1.5 text-[11px] font-medium text-text-secondary';
+const ACTION_BUTTON_CLASS = 'inline-flex items-center justify-center gap-2 rounded-xl border px-3.5 py-2 text-xs font-medium transition-all duration-200 active:scale-[0.98] disabled:opacity-60';
 
 const MY_POSTS_I18N = {
   en: {
@@ -261,6 +271,110 @@ const formatRelativeDay = (value: string | null, language: AppLanguage) => {
   return date.toLocaleDateString(locale);
 };
 
+const getRelativeDayMeta = (value: string | null, language: AppLanguage) => {
+  const copy = MY_POSTS_I18N[language as keyof typeof MY_POSTS_I18N] || MY_POSTS_I18N.en;
+  if (!value) {
+    return {
+      label: copy.recently,
+      dayDiff: Number.POSITIVE_INFINITY,
+      isFresh: false,
+      sortStamp: 0,
+    };
+  }
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return {
+      label: copy.recently,
+      dayDiff: Number.POSITIVE_INFINITY,
+      isFresh: false,
+      sortStamp: 0,
+    };
+  }
+
+  const now = new Date();
+  const startNow = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+  const startThen = new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
+  const dayDiff = Math.floor((startNow - startThen) / (24 * 60 * 60 * 1000));
+
+  return {
+    label: formatRelativeDay(value, language),
+    dayDiff,
+    isFresh: dayDiff <= 0,
+    sortStamp: startThen,
+  };
+};
+
+const formatPostCount = (value: number, language: AppLanguage) =>
+  new Intl.NumberFormat(LOCALE_BY_LANGUAGE[language] || 'en-US').format(value);
+
+const groupPostsByDay = (posts: BlogPost[], language: AppLanguage) => {
+  const groups = new Map<string, { label: string; sortStamp: number; posts: Array<BlogPost & { isFresh: boolean }> }>();
+
+  for (const post of posts) {
+    const meta = getRelativeDayMeta(post.createdAt, language);
+    const key = `${meta.sortStamp}:${meta.label}`;
+    const existing = groups.get(key);
+    if (existing) {
+      existing.posts.push({ ...post, isFresh: meta.isFresh });
+      continue;
+    }
+
+    groups.set(key, {
+      label: meta.label,
+      sortStamp: meta.sortStamp,
+      posts: [{ ...post, isFresh: meta.isFresh }],
+    });
+  }
+
+  return Array.from(groups.values()).sort((a, b) => b.sortStamp - a.sortStamp);
+};
+
+function PostStat({
+  icon: Icon,
+  value,
+  label,
+}: {
+  icon: typeof Heart;
+  value: string;
+  label: string;
+}) {
+  return (
+    <span className={META_PILL_CLASS}>
+      <Icon size={13} className="text-text-tertiary" />
+      <span className="text-text-primary">{value}</span>
+      <span>{label}</span>
+    </span>
+  );
+}
+
+function PostMedia({ post }: { post: BlogPost }) {
+  if (!post.mediaUrl) return null;
+
+  return (
+    <div className="overflow-hidden rounded-2xl border border-white/10 bg-black/30">
+      <div className="relative aspect-[4/3] w-full bg-black">
+        {post.mediaType === 'video' ? (
+          <video
+            src={post.mediaUrl}
+            className="h-full w-full object-cover"
+            controls
+            playsInline
+            preload="metadata"
+          />
+        ) : (
+          <img
+            src={post.mediaUrl}
+            alt={post.mediaAlt}
+            className="h-full w-full object-cover"
+            loading="lazy"
+          />
+        )}
+      </div>
+    </div>
+  );
+}
+
 interface MyPostsScreenProps {
   onBack: () => void;
 }
@@ -269,6 +383,7 @@ export function MyPostsScreen({ onBack }: MyPostsScreenProps) {
   const userId = useMemo(() => resolveUserId(), []);
   const [language, setLanguage] = useState<AppLanguage>('en');
   const copy = MY_POSTS_I18N[language as keyof typeof MY_POSTS_I18N] || MY_POSTS_I18N.en;
+  const isRtl = language === 'ar';
 
   const [posts, setPosts] = useState<BlogPost[]>([]);
   const [loading, setLoading] = useState(true);
@@ -284,6 +399,7 @@ export function MyPostsScreen({ onBack }: MyPostsScreenProps) {
   const [editError, setEditError] = useState('');
 
   const [deletingPostId, setDeletingPostId] = useState<number | null>(null);
+  const groupedPosts = useMemo(() => groupPostsByDay(posts, language), [language, posts]);
 
   useEffect(() => {
     setLanguage(getActiveLanguage());
@@ -430,80 +546,107 @@ export function MyPostsScreen({ onBack }: MyPostsScreenProps) {
   };
 
   return (
-    <div className="flex-1 flex flex-col min-h-screen bg-background pb-24">
+    <div dir={isRtl ? 'rtl' : 'ltr'} className="flex min-h-screen flex-1 flex-col bg-background pb-24">
       <div className="px-4 sm:px-6 pt-2">
         <Header title={copy.title} onBack={onBack} />
       </div>
 
-      <div className="px-4 sm:px-6 space-y-3">
+      <div className="space-y-4 px-4 sm:px-6">
         {error && (
-          <Card className="!p-3 text-sm text-red-300 border border-red-400/30 bg-red-500/10">{error}</Card>
+          <Card className="!p-4 rounded-2xl border border-red-400/25 bg-red-500/10 text-sm text-red-200">
+            {error}
+          </Card>
         )}
 
         {loading ? (
-          <Card className="!p-3 text-sm text-text-secondary">{copy.loadingPosts}</Card>
+          <Card className={`!p-4 ${SURFACE_CARD_CLASS}`}>
+            <div className="flex items-center gap-3 text-sm text-text-secondary">
+              <Loader2 size={16} className="animate-spin text-accent" />
+              <span>{copy.loadingPosts}</span>
+            </div>
+          </Card>
         ) : posts.length === 0 ? (
-          <Card className="!p-3 text-sm text-text-secondary">{copy.noPostsYet}</Card>
+          <Card className={`!p-0 overflow-hidden ${SURFACE_CARD_CLASS}`}>
+            <div className="flex flex-col items-center justify-center gap-4 px-6 py-12 text-center">
+              <div className="flex h-14 w-14 items-center justify-center rounded-2xl border border-accent/25 bg-accent/10 text-accent">
+                <Sparkles size={24} />
+              </div>
+              <div className="space-y-2">
+                <h2 className="text-lg font-semibold tracking-tight text-text-primary">{copy.title}</h2>
+                <p className="mx-auto max-w-xs text-sm leading-6 text-text-secondary">{copy.noPostsYet}</p>
+              </div>
+            </div>
+          </Card>
         ) : (
-          <div className="space-y-3">
-            {posts.map((post) => (
-              <Card key={post.id} className="!p-3 space-y-2">
-                <div className="flex items-center justify-between gap-3">
-                  <div className="text-xs text-text-secondary">{formatRelativeDay(post.createdAt, language)}</div>
-                  <div className="inline-flex items-center rounded-full bg-white/5 border border-white/10 px-2 py-1 text-[11px] text-text-secondary">
-                    {post.category}
-                  </div>
+          <div className="space-y-5">
+            {groupedPosts.map((group) => (
+              <section key={`${group.sortStamp}-${group.label}`} className="space-y-3">
+                <div className="flex items-center gap-3 px-1">
+                  <h2 className="text-[11px] font-semibold uppercase tracking-[0.24em] text-text-tertiary">
+                    {group.label}
+                  </h2>
+                  <div className="h-px flex-1 bg-white/10" />
                 </div>
 
-                {post.mediaUrl && (
-                  post.mediaType === 'video' ? (
-                    <video
-                      src={post.mediaUrl}
-                      className="block w-full rounded-xl border border-white/10 bg-black max-h-72 object-contain sm:max-h-80"
-                      controls
-                      playsInline
-                      preload="metadata"
-                    />
-                  ) : (
-                    <img
-                      src={post.mediaUrl}
-                      alt={post.mediaAlt}
-                      className="w-full rounded-xl border border-white/10 bg-black/20 max-h-72 object-contain"
-                      loading="lazy"
-                    />
-                  )
-                )}
+                <div className="space-y-3">
+                  {group.posts.map((post) => (
+                    <Card
+                      key={post.id}
+                      className={`group !p-0 overflow-hidden ${SURFACE_CARD_CLASS} transition-all duration-200 hover:border-accent/30 hover:bg-white/[0.045]`}
+                    >
+                      <div className="space-y-4 p-4">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0 space-y-2">
+                            <div className="flex items-center gap-2">
+                              <span className={`inline-flex items-center rounded-full border px-3 py-1 text-[11px] font-medium ${post.isFresh ? 'border-accent/25 bg-accent/10 text-accent' : 'border-white/10 bg-white/[0.04] text-text-secondary'}`}>
+                                {post.category}
+                              </span>
+                              {post.isFresh && <span className="h-2.5 w-2.5 rounded-full bg-accent shadow-[0_0_12px_rgba(163,230,53,0.65)]" />}
+                            </div>
+                            {post.description.trim() && (
+                              <p className="text-base font-medium leading-7 text-text-primary whitespace-pre-wrap">
+                                {post.description.trim()}
+                              </p>
+                            )}
+                          </div>
 
-                {post.description.trim() && (
-                  <div className="text-sm text-white leading-relaxed whitespace-pre-wrap">{post.description}</div>
-                )}
+                          <div className="shrink-0 text-[11px] font-medium text-text-tertiary">
+                            {formatRelativeDay(post.createdAt, language)}
+                          </div>
+                        </div>
 
-                <div className="text-xs text-text-tertiary">
-                  {new Intl.NumberFormat(language === 'ar' ? 'ar' : language === 'it' ? 'it-IT' : language === 'fr' ? 'fr-FR' : language === 'de' ? 'de-DE' : 'en-US').format(post.likes)} {copy.likes} - {' '}
-                  {new Intl.NumberFormat(language === 'ar' ? 'ar' : language === 'it' ? 'it-IT' : language === 'fr' ? 'fr-FR' : language === 'de' ? 'de-DE' : 'en-US').format(post.comments)} {copy.comments} - {' '}
-                  {new Intl.NumberFormat(language === 'ar' ? 'ar' : language === 'it' ? 'it-IT' : language === 'fr' ? 'fr-FR' : language === 'de' ? 'de-DE' : 'en-US').format(post.views)} {copy.views}
+                        <PostMedia post={post} />
+
+                        <div className="flex flex-wrap items-center gap-2 border-t border-white/10 pt-3">
+                          <PostStat icon={Heart} value={formatPostCount(post.likes, language)} label={copy.likes} />
+                          <PostStat icon={MessageSquare} value={formatPostCount(post.comments, language)} label={copy.comments} />
+                          <PostStat icon={Eye} value={formatPostCount(post.views, language)} label={copy.views} />
+                        </div>
+
+                        <div className="flex items-center gap-2 pt-1">
+                          <button
+                            type="button"
+                            onClick={() => openEdit(post)}
+                            className={`${ACTION_BUTTON_CLASS} border-white/10 bg-white/[0.04] text-text-primary hover:border-accent/30 hover:bg-white/[0.08]`}
+                          >
+                            <Pencil size={14} />
+                            {copy.edit}
+                          </button>
+                          <button
+                            type="button"
+                            disabled={deletingPostId === post.id}
+                            onClick={() => { void deletePost(post.id); }}
+                            className={`${ACTION_BUTTON_CLASS} border-red-400/25 bg-red-500/10 text-red-200 hover:bg-red-500/18`}
+                          >
+                            {deletingPostId === post.id ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
+                            {deletingPostId === post.id ? copy.deleting : copy.delete}
+                          </button>
+                        </div>
+                      </div>
+                    </Card>
+                  ))}
                 </div>
-
-                <div className="pt-1 flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => openEdit(post)}
-                    className="inline-flex items-center gap-1.5 rounded-lg border border-white/15 bg-white/5 px-3 py-1.5 text-xs text-white hover:bg-white/10 transition-colors"
-                  >
-                    <Pencil size={14} />
-                    {copy.edit}
-                  </button>
-                  <button
-                    type="button"
-                    disabled={deletingPostId === post.id}
-                    onClick={() => { void deletePost(post.id); }}
-                    className="inline-flex items-center gap-1.5 rounded-lg border border-red-400/30 bg-red-500/10 px-3 py-1.5 text-xs text-red-300 hover:bg-red-500/20 transition-colors disabled:opacity-60"
-                  >
-                    {deletingPostId === post.id ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
-                    {deletingPostId === post.id ? copy.deleting : copy.delete}
-                  </button>
-                </div>
-              </Card>
+              </section>
             ))}
           </div>
         )}
@@ -513,7 +656,7 @@ export function MyPostsScreen({ onBack }: MyPostsScreenProps) {
             type="button"
             disabled={loadingMore}
             onClick={() => { void loadMore(); }}
-            className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white hover:bg-white/10 transition-colors disabled:opacity-60"
+            className="w-full rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3.5 text-sm font-medium text-text-primary transition-all duration-200 hover:border-accent/25 hover:bg-white/[0.08] active:scale-[0.99] disabled:opacity-60"
           >
             {loadingMore ? copy.loadingMore : copy.loadMore}
           </button>
@@ -522,23 +665,26 @@ export function MyPostsScreen({ onBack }: MyPostsScreenProps) {
 
       {editingPost && (
         <div
-          className="fixed inset-0 z-50 bg-black/80 p-4 flex items-center justify-center"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4"
           onClick={closeEdit}
         >
           <div
-            className="w-full max-w-md bg-card border border-white/10 rounded-2xl p-4 space-y-3"
+            className={`w-full max-w-md space-y-4 rounded-2xl border border-white/10 bg-card p-4 shadow-[0_24px_60px_rgba(0,0,0,0.45)] ${isRtl ? 'text-right' : 'text-left'}`}
             onClick={(event) => event.stopPropagation()}
           >
-            <h3 className="text-lg font-semibold text-white">{copy.editPost}</h3>
+            <div className="space-y-1">
+              <h3 className="text-lg font-semibold tracking-tight text-white">{copy.editPost}</h3>
+              <div className="text-xs text-text-tertiary">{formatRelativeDay(editingPost.createdAt, language)}</div>
+            </div>
 
             <textarea
               value={editDescription}
               onChange={(event) => setEditDescription(event.target.value.slice(0, DESCRIPTION_MAX_LENGTH))}
               rows={5}
               placeholder={copy.updateDescription}
-              className="w-full bg-background border border-white/10 rounded-xl px-3 py-2 text-white placeholder:text-text-secondary focus:outline-none focus:border-accent/60"
+              className="min-h-[132px] w-full rounded-2xl border border-white/10 bg-background px-4 py-3 text-sm leading-6 text-white placeholder:text-text-secondary focus:border-accent/60 focus:outline-none"
             />
-            <div className="text-[11px] text-text-secondary text-right">
+            <div className={`text-[11px] text-text-secondary ${isRtl ? 'text-left' : 'text-right'}`}>
               {editDescription.length}/{DESCRIPTION_MAX_LENGTH}
             </div>
 
@@ -549,7 +695,7 @@ export function MyPostsScreen({ onBack }: MyPostsScreenProps) {
             />
 
             {editError && (
-              <div className="text-sm text-red-300">{editError}</div>
+              <div className="rounded-2xl border border-red-400/25 bg-red-500/10 px-3 py-2 text-sm text-red-200">{editError}</div>
             )}
 
             <div className="flex items-center gap-2 pt-1">
@@ -557,7 +703,7 @@ export function MyPostsScreen({ onBack }: MyPostsScreenProps) {
                 type="button"
                 onClick={closeEdit}
                 disabled={savingEdit}
-                className="flex-1 rounded-xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm text-white hover:bg-white/10 transition-colors disabled:opacity-60"
+                className="flex-1 rounded-xl border border-white/10 bg-white/[0.04] px-4 py-2.5 text-sm font-medium text-text-primary transition-colors hover:bg-white/[0.08] disabled:opacity-60"
               >
                 {copy.cancel}
               </button>
@@ -565,7 +711,7 @@ export function MyPostsScreen({ onBack }: MyPostsScreenProps) {
                 type="button"
                 onClick={() => { void saveEdit(); }}
                 disabled={savingEdit || !editDescription.trim()}
-                className="flex-1 rounded-xl bg-accent px-4 py-2.5 text-sm font-semibold text-black hover:opacity-90 transition-opacity disabled:opacity-60"
+                className="flex-1 rounded-xl bg-accent px-4 py-2.5 text-sm font-semibold text-black transition-opacity hover:opacity-90 disabled:opacity-60"
               >
                 {savingEdit ? copy.saving : copy.saveChanges}
               </button>

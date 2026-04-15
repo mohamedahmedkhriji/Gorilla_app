@@ -238,6 +238,11 @@ const withTransientReadRetry = async <T>(
   throw lastError;
 };
 
+const shouldRetryBlogMutationViaPost = (error: unknown) => {
+  const status = Number((error as ApiError)?.status || 0);
+  return [404, 405, 501].includes(status);
+};
+
 export const api = {
   login: async (email: string, password: string, role: string) => {
     const res = await fetchWithContext(`${API_URL}/auth/login`, {
@@ -621,21 +626,54 @@ export const api = {
       mediaAlt?: string;
     },
   ) => {
-    const res = await fetch(`${API_URL}/blogs/${postId}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(input),
-    });
-    return parseApiResponse(res, 'Failed to update blog post');
+    const params = new URLSearchParams();
+    params.set('userId', String(input.userId));
+
+    try {
+      const res = await fetch(`${API_URL}/blogs/${postId}?${params.toString()}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(input),
+      });
+      return parseApiResponse(res, 'Failed to update blog post');
+    } catch (error) {
+      if (!shouldRetryBlogMutationViaPost(error)) {
+        throw error;
+      }
+
+      const fallbackRes = await fetch(`${API_URL}/blogs/${postId}/update?${params.toString()}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(input),
+      });
+      return parseApiResponse(fallbackRes, 'Failed to update blog post');
+    }
   },
 
   deleteBlogPost: async (postId: number, userId: number) => {
-    const res = await fetch(`${API_URL}/blogs/${postId}`, {
-      method: 'DELETE',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ userId }),
-    });
-    return parseApiResponse(res, 'Failed to delete blog post');
+    const params = new URLSearchParams();
+    params.set('userId', String(userId));
+    const body = JSON.stringify({ userId });
+
+    try {
+      const res = await fetch(`${API_URL}/blogs/${postId}?${params.toString()}`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body,
+      });
+      return parseApiResponse(res, 'Failed to delete blog post');
+    } catch (error) {
+      if (!shouldRetryBlogMutationViaPost(error)) {
+        throw error;
+      }
+
+      const fallbackRes = await fetch(`${API_URL}/blogs/${postId}/delete?${params.toString()}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body,
+      });
+      return parseApiResponse(fallbackRes, 'Failed to delete blog post');
+    }
   },
 
   toggleBlogLike: async (
