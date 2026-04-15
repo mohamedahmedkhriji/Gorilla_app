@@ -9,9 +9,10 @@ import { LoginPage } from './pages/LoginPage';
 import { PublicLandingPage } from './pages/PublicLandingPage';
 import { TabBar } from './components/ui/TabBar';
 import { SplashScreen } from './components/ui/SplashScreen';
+import { ScrollToTop } from './components/ui/ScrollToTop';
 import { ScreenTransition, getNavigationDirection } from './components/ui/ScreenTransition';
 import { OPEN_PICKED_WORKOUT_PLAN } from './services/workoutNavigation';
-import { useManualScrollRestoration, useScrollToTopOnChange } from './shared/scroll';
+import { useManualScrollRestoration } from './shared/scroll';
 import { clearStoredUserSession, getStoredAppUser, getStoredUserId, getStoredUserAuthToken, persistStoredUserSession } from './shared/authStorage';
 import { api } from './services/api';
 import { isOfflineApiError } from './services/offlineCache';
@@ -41,6 +42,13 @@ export function App() {
   const [workoutLaunchMode, setWorkoutLaunchMode] = useState<'default' | 'picked-plan'>('default');
   const [guidedTourStage, setGuidedTourStage] = useState<GuidedTourStage>('done');
   const previousTabRef = useRef(activeTab);
+  const scrollRootRef = useRef<HTMLDivElement | null>(null);
+  const navigationScrollKey = useMemo(() => {
+    if (isLoading || !isSessionReady) return 'splash';
+    if (!isLoggedIn) return showLogin ? 'login' : 'landing';
+    if (!hasOnboarded) return 'onboarding';
+    return `app:${activeTab}:${tabResetSignal}`;
+  }, [activeTab, hasOnboarded, isLoading, isLoggedIn, isSessionReady, showLogin, tabResetSignal]);
 
   const coachmarkScope = useMemo(() => getCoachmarkUserScope(getStoredAppUser()), [isLoggedIn, hasOnboarded]);
   const guidedTourOptions = useMemo(
@@ -120,15 +128,6 @@ export function App() {
       cancelled = true;
     };
   }, []);
-
-  useScrollToTopOnChange([
-    isLoading,
-    isLoggedIn,
-    hasOnboarded,
-    showLogin,
-    activeTab,
-    tabResetSignal,
-  ]);
 
   useEffect(() => {
     if (!isSessionReady || !isLoggedIn || !hasOnboarded) {
@@ -330,7 +329,14 @@ export function App() {
         activeTab === 'blogs' ? 'bg-background' : ''
       }`}
     >
+      <ScrollToTop
+        navigationKey={navigationScrollKey}
+        containerRef={scrollRootRef}
+      />
+
       <div
+        ref={scrollRootRef}
+        data-scroll-root
         className={`min-h-screen pb-6 pt-4 ${
           activeTab === 'blogs'
             ? `bg-background px-4 sm:px-6 ${isTabBarVisible ? 'pb-[calc(env(safe-area-inset-bottom,0px)+6rem)]' : 'pb-6'}`

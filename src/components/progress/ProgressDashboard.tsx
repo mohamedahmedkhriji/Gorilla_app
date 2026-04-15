@@ -416,7 +416,6 @@ export function ProgressDashboard({ onViewReport, onViewStrengthScore }: Progres
         workoutsRemainingThisWeek: 0,
       });
       setMuscleDistribution([]);
-      setActiveProgramData(null);
       return;
     }
 
@@ -442,8 +441,6 @@ export function ProgressDashboard({ onViewReport, onViewStrengthScore }: Progres
         workoutsMissedThisWeek,
         workoutsRemainingThisWeek: Math.max(0, workoutsPlannedThisWeek - workoutsCompletedThisWeek - workoutsMissedThisWeek),
       });
-      setActiveProgramData(programData || null);
-
       const topPlanDistribution = Array.isArray(planDistributionData?.distribution)
         ? planDistributionData.distribution.slice(0, 3)
         : [];
