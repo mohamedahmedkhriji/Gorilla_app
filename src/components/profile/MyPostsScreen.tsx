@@ -1,10 +1,11 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Eye, Heart, Loader2, MessageSquare, Pencil, Sparkles, Trash2 } from 'lucide-react';
 import { Header } from '../ui/Header';
 import { Card } from '../ui/Card';
 import { api } from '../../services/api';
 import { ModernSelect } from '../ui/ModernSelect';
 import { AppLanguage, getActiveLanguage, getStoredLanguage } from '../../services/language';
+import { offlineCacheKeys, readOfflineCacheValue } from '../../services/offlineCache';
 
 type PostCategory = 'Training' | 'Nutrition' | 'Recovery' | 'Mindset';
 
@@ -384,6 +385,7 @@ export function MyPostsScreen({ onBack }: MyPostsScreenProps) {
   const [language, setLanguage] = useState<AppLanguage>('en');
   const copy = MY_POSTS_I18N[language as keyof typeof MY_POSTS_I18N] || MY_POSTS_I18N.en;
   const isRtl = language === 'ar';
+  const hydratedFromCacheRef = useRef(false);
 
   const [posts, setPosts] = useState<BlogPost[]>([]);
   const [loading, setLoading] = useState(true);
@@ -423,7 +425,9 @@ export function MyPostsScreen({ onBack }: MyPostsScreenProps) {
       return;
     }
 
-    setLoading(true);
+    if (!hydratedFromCacheRef.current) {
+      setLoading(true);
+    }
     setError('');
     try {
       const response = await api.getBlogsFeed(userId, { limit: FEED_PAGE_LIMIT, authorId: userId });
@@ -469,6 +473,28 @@ export function MyPostsScreen({ onBack }: MyPostsScreenProps) {
       setLoadingMore(false);
     }
   }, [copy.failedLoadMorePosts, hasMore, loadingMore, nextCursor, userId]);
+
+  useEffect(() => {
+    if (!userId) return;
+
+    const cachedFeed = readOfflineCacheValue<any>(
+      offlineCacheKeys.blogsFeed(userId, { limit: FEED_PAGE_LIMIT, authorId: userId }),
+    );
+    if (!cachedFeed) return;
+
+    const loadedPosts = Array.isArray(cachedFeed?.posts)
+      ? cachedFeed.posts.map((row: BlogPostApiRow) => mapPost(row)).filter((post: BlogPost) => post.id > 0 && post.userId === userId)
+      : [];
+    const cursor = parseCursor(cachedFeed?.nextCursor);
+    if (!loadedPosts.length) return;
+
+    hydratedFromCacheRef.current = true;
+    setPosts(loadedPosts);
+    setNextCursor(cursor);
+    setHasMore(Boolean(cachedFeed?.hasMore) && Boolean(cursor));
+    setError('');
+    setLoading(false);
+  }, [userId]);
 
   useEffect(() => {
     void loadInitial();

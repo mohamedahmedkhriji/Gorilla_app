@@ -18010,57 +18010,21 @@ router.get('/blogs', requireAuth('user', 'coach', 'gym_owner'), async (req, res)
       `SELECT
           bp.id,
           bp.user_id,
-         bp.category,
-         bp.description,
-         bp.media_type,
-         bp.media_url,
-         bp.media_alt,
-         COALESCE(bp.women_only, 0) AS women_only,
-         bp.created_at,
-         u.name AS author_name,
-         COALESCE(u.gender, '') AS author_gender,
-         ${avatarSelect},
-         ${latestCommentAvatarSelect},
-         COALESCE(r.love_count, 0) + COALESCE(l.legacy_like_count, 0) AS love_count,
-         COALESCE(r.fire_count, 0) AS fire_count,
-         COALESCE(r.power_count, 0) AS power_count,
-         COALESCE(r.wow_count, 0) AS wow_count,
-         COALESCE(r.reaction_count, 0) + COALESCE(l.legacy_like_count, 0) AS reactions_total,
-         COALESCE(r.reaction_count, 0) + COALESCE(l.legacy_like_count, 0) AS likes_count,
-         COALESCE(v.view_count, 0) AS views_count,
-         COALESCE(c.comment_count, 0) AS comments_count,
-         COALESCE(ur.reaction_type, CASE WHEN ul.user_id IS NULL THEN NULL ELSE 'love' END) AS reaction_by_viewer,
-         CASE WHEN ur.user_id IS NULL AND ul.user_id IS NULL THEN 0 ELSE 1 END AS liked_by_viewer
+          bp.category,
+          bp.description,
+          bp.media_type,
+          bp.media_url,
+          bp.media_alt,
+          COALESCE(bp.women_only, 0) AS women_only,
+          bp.created_at,
+          u.name AS author_name,
+          COALESCE(u.gender, '') AS author_gender,
+          ${avatarSelect},
+          ${latestCommentAvatarSelect},
+          COALESCE(ur.reaction_type, CASE WHEN ul.user_id IS NULL THEN NULL ELSE 'love' END) AS reaction_by_viewer,
+          CASE WHEN ur.user_id IS NULL AND ul.user_id IS NULL THEN 0 ELSE 1 END AS liked_by_viewer
        FROM blog_posts bp
-     INNER JOIN users u ON u.id = bp.user_id
-       LEFT JOIN (
-         SELECT post_id, COUNT(*) AS legacy_like_count
-         FROM blog_post_likes
-         GROUP BY post_id
-       ) l ON l.post_id = bp.id
-       LEFT JOIN (
-         SELECT
-           post_id,
-           SUM(reaction_type = 'love') AS love_count,
-           SUM(reaction_type = 'fire') AS fire_count,
-           SUM(reaction_type = 'power') AS power_count,
-           SUM(reaction_type = 'wow') AS wow_count,
-           COUNT(*) AS reaction_count
-         FROM blog_post_reactions
-         GROUP BY post_id
-       ) r ON r.post_id = bp.id
-       LEFT JOIN (
-         SELECT post_id, COUNT(*) AS view_count
-         FROM blog_post_views
-         GROUP BY post_id
-       ) v ON v.post_id = bp.id
-        LEFT JOIN (
-          SELECT c.post_id, COUNT(*) AS comment_count
-          FROM blog_post_comments c
-          INNER JOIN users cu ON cu.id = c.user_id
-          WHERE ${buildVisibleUserClause('cu')}
-          GROUP BY c.post_id
-        ) c ON c.post_id = bp.id
+       INNER JOIN users u ON u.id = bp.user_id
        LEFT JOIN blog_post_reactions ur
          ON ur.post_id = bp.id
         AND ur.user_id = ?
@@ -18069,11 +18033,81 @@ router.get('/blogs', requireAuth('user', 'coach', 'gym_owner'), async (req, res)
         AND ul.user_id = ?
        ${whereClause}
        ORDER BY bp.created_at DESC, bp.id DESC
-       LIMIT ${limit}`,
-      params,
+       LIMIT ?`,
+      [...params, limit],
     );
 
-    const posts = rows.map(mapBlogPostRow);
+    const postIds = rows.map((row) => Number(row.id || 0)).filter((id) => id > 0);
+    if (!postIds.length) {
+      return res.json({
+        posts: [],
+        nextCursor: null,
+        hasMore: false,
+      });
+    }
+
+    const postPlaceholders = postIds.map(() => '?').join(', ');
+
+    const [reactionRows, legacyLikeRows, viewRows, commentRows] = await Promise.all([
+      pool.query(
+        `SELECT
+           post_id,
+           SUM(reaction_type = 'love') AS love_count,
+           SUM(reaction_type = 'fire') AS fire_count,
+           SUM(reaction_type = 'power') AS power_count,
+           SUM(reaction_type = 'wow') AS wow_count,
+           COUNT(*) AS reaction_count
+         FROM blog_post_reactions
+         WHERE post_id IN (${postPlaceholders})
+         GROUP BY post_id`,
+        postIds,
+      ),
+      pool.query(
+        `SELECT post_id, COUNT(*) AS legacy_like_count
+         FROM blog_post_likes
+         WHERE post_id IN (${postPlaceholders})
+         GROUP BY post_id`,
+        postIds,
+      ),
+      pool.query(
+        `SELECT post_id, COUNT(*) AS view_count
+         FROM blog_post_views
+         WHERE post_id IN (${postPlaceholders})
+         GROUP BY post_id`,
+        postIds,
+      ),
+      pool.query(
+        `SELECT c.post_id, COUNT(*) AS comment_count
+         FROM blog_post_comments c
+         INNER JOIN users cu ON cu.id = c.user_id
+         WHERE c.post_id IN (${postPlaceholders})
+           AND ${buildVisibleUserClause('cu')}
+         GROUP BY c.post_id`,
+        postIds,
+      ),
+    ]);
+
+    const reactionMap = new Map(reactionRows[0].map((row) => [Number(row.post_id || 0), row]));
+    const legacyLikeMap = new Map(legacyLikeRows[0].map((row) => [Number(row.post_id || 0), Number(row.legacy_like_count || 0)]));
+    const viewMap = new Map(viewRows[0].map((row) => [Number(row.post_id || 0), Number(row.view_count || 0)]));
+    const commentMap = new Map(commentRows[0].map((row) => [Number(row.post_id || 0), Number(row.comment_count || 0)]));
+
+    const posts = rows.map((row) => {
+      const postId = Number(row.id || 0);
+      const reactionRow = reactionMap.get(postId);
+      const legacyLikes = legacyLikeMap.get(postId) || 0;
+      return mapBlogPostRow({
+        ...row,
+        love_count: Number(reactionRow?.love_count || 0) + legacyLikes,
+        fire_count: Number(reactionRow?.fire_count || 0),
+        power_count: Number(reactionRow?.power_count || 0),
+        wow_count: Number(reactionRow?.wow_count || 0),
+        reactions_total: Number(reactionRow?.reaction_count || 0) + legacyLikes,
+        likes_count: Number(reactionRow?.reaction_count || 0) + legacyLikes,
+        views_count: viewMap.get(postId) || 0,
+        comments_count: commentMap.get(postId) || 0,
+      });
+    });
     const lastPost = posts[posts.length - 1] || null;
     const nextCursor = lastPost
       ? {
