@@ -13,6 +13,18 @@
     <meta name="theme-color" content="#1A1A1A" />
     <meta name="description" content="RepSet builds each workout from your goals, recovery, and schedule so you always know your next best session." />
     <title>RepSet - Fitness Tracker</title>
+    <script>
+      (function () {
+        var key = 'appThemePreference';
+        var theme = 'dark';
+        try {
+          var saved = localStorage.getItem(key);
+          if (saved === 'light' || saved === 'dark') theme = saved;
+        } catch (error) {}
+        document.documentElement.setAttribute('data-theme', theme);
+        document.documentElement.style.colorScheme = theme;
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

@@ -30,7 +30,7 @@ const GUIDED_TOUR_ORDER: GuidedTourStage[] = ['home', 'my_plan', 'blogs', 'progr
 const TAB_NAV_ORDER = ['home', 'workout', 'blogs', 'progress', 'profile'] as const;
 
 export function App() {
-  const [isLoading, setIsLoading] = useState(true);
+  const [isSplashComplete, setIsSplashComplete] = useState(false);
   const [isSessionReady, setIsSessionReady] = useState(false);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [hasOnboarded, setHasOnboarded] = useState(false);
@@ -44,11 +44,11 @@ export function App() {
   const previousTabRef = useRef(activeTab);
   const scrollRootRef = useRef<HTMLDivElement | null>(null);
   const navigationScrollKey = useMemo(() => {
-    if (isLoading || !isSessionReady) return 'splash';
+    if (!isSplashComplete || !isSessionReady) return 'splash';
     if (!isLoggedIn) return showLogin ? 'login' : 'landing';
     if (!hasOnboarded) return 'onboarding';
     return `app:${activeTab}:${tabResetSignal}`;
-  }, [activeTab, hasOnboarded, isLoading, isLoggedIn, isSessionReady, showLogin, tabResetSignal]);
+  }, [activeTab, hasOnboarded, isLoggedIn, isSessionReady, isSplashComplete, showLogin, tabResetSignal]);
 
   const coachmarkScope = useMemo(() => getCoachmarkUserScope(getStoredAppUser()), [isLoggedIn, hasOnboarded]);
   const guidedTourOptions = useMemo(
@@ -221,8 +221,12 @@ export function App() {
     setTabResetSignal((prev) => prev + 1);
   };
 
-  if (isLoading || !isSessionReady) {
-    return <SplashScreen onComplete={() => setIsLoading(false)} />;
+  if (!isSplashComplete) {
+    return <SplashScreen ready={isSessionReady} onComplete={() => setIsSplashComplete(true)} />;
+  }
+
+  if (!isSessionReady) {
+    return <div className="min-h-screen bg-background" />;
   }
 
   if (!isLoggedIn) {

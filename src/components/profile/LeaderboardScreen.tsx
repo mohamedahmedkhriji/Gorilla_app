@@ -12,8 +12,14 @@ interface LeaderboardScreenProps {
   onBack: () => void;
 }
 
-type Period = 'weekly' | 'monthly' | 'alltime';
+type Period = 'monthly' | 'alltime';
 type LeaderboardUser = GamificationLeaderboardEntry;
+type LeaderboardPayload = {
+  leaderboard?: unknown[];
+  preview?: unknown[];
+  rivalry?: GamificationRivalry | null;
+  currentUser?: unknown;
+} | null;
 
 const getLevelFromPoints = (points: number) => {
   if (points >= 2200) return 6;
@@ -50,6 +56,14 @@ const mapLeaderboardRows = (result: any): LeaderboardUser[] => {
       isCurrentUser: !!row?.isCurrentUser,
     };
   });
+};
+
+const mapCurrentUserPreview = (result: LeaderboardPayload) =>
+  result?.currentUser ? mapLeaderboardRows({ preview: [result.currentUser] })[0] || null : null;
+
+const readCachedLeaderboardBundle = (userId: number, period: Period): LeaderboardPayload => {
+  if (!userId) return null;
+  return readOfflineCacheValue<LeaderboardPayload>(offlineCacheKeys.leaderboard(userId, period));
 };
 
 export function LeaderboardScreen({ onBack }: LeaderboardScreenProps) {
@@ -151,25 +165,25 @@ export function LeaderboardScreen({ onBack }: LeaderboardScreenProps) {
       deltaLabel: 'Pkt zum Naechsten',
     },
   });
-  const [tab, setTab] = useState<Period>('weekly');
-  const [leaderboard, setLeaderboard] = useState<LeaderboardUser[]>([]);
-  const [rivalry, setRivalry] = useState<GamificationRivalry | null>(null);
-  const [currentUserPreview, setCurrentUserPreview] = useState<LeaderboardUser | null>(null);
+  const currentUser = JSON.parse(localStorage.getItem('appUser') || localStorage.getItem('user') || '{}');
+  const currentUserId = Number(currentUser?.id || 0);
+  const initialTab: Period = 'monthly';
+  const initialCachedLeaderboard = readCachedLeaderboardBundle(currentUserId, initialTab);
+
+  const [tab, setTab] = useState<Period>(initialTab);
+  const [leaderboard, setLeaderboard] = useState<LeaderboardUser[]>(() => mapLeaderboardRows(initialCachedLeaderboard));
+  const [rivalry, setRivalry] = useState<GamificationRivalry | null>(() => initialCachedLeaderboard?.rivalry || null);
+  const [currentUserPreview, setCurrentUserPreview] = useState<LeaderboardUser | null>(() => mapCurrentUserPreview(initialCachedLeaderboard));
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const currentUser = JSON.parse(localStorage.getItem('appUser') || localStorage.getItem('user') || '{}');
-  const currentUserId = Number(currentUser?.id || 0);
-
   useEffect(() => {
+    const cachedLeaderboard = readCachedLeaderboardBundle(currentUserId, tab);
     if (currentUserId) {
-      const cachedLeaderboard = readOfflineCacheValue<any>(
-        offlineCacheKeys.leaderboard(currentUserId, tab),
-      );
       if (cachedLeaderboard) {
         setLeaderboard(mapLeaderboardRows(cachedLeaderboard));
         setRivalry(cachedLeaderboard?.rivalry || null);
-        setCurrentUserPreview(cachedLeaderboard?.currentUser ? mapLeaderboardRows({ preview: [cachedLeaderboard.currentUser] })[0] || null : null);
+        setCurrentUserPreview(mapCurrentUserPreview(cachedLeaderboard));
       }
     }
 
@@ -181,19 +195,21 @@ export function LeaderboardScreen({ onBack }: LeaderboardScreenProps) {
         return;
       }
 
-      setLoading(true);
+      setLoading(!cachedLeaderboard);
       setError(null);
       try {
         const result = await api.getLeaderboard(currentUserId, tab);
         setLeaderboard(mapLeaderboardRows(result));
         setRivalry(result?.rivalry || null);
-        setCurrentUserPreview(result?.currentUser ? mapLeaderboardRows({ preview: [result.currentUser] })[0] || null : null);
+        setCurrentUserPreview(mapCurrentUserPreview(result));
       } catch (err) {
         console.error('Failed to load leaderboard:', err);
         setError(copy.loadError);
-        setLeaderboard([]);
-        setRivalry(null);
-        setCurrentUserPreview(null);
+        if (!cachedLeaderboard) {
+          setLeaderboard([]);
+          setRivalry(null);
+          setCurrentUserPreview(null);
+        }
       } finally {
         setLoading(false);
       }
@@ -217,6 +233,7 @@ export function LeaderboardScreen({ onBack }: LeaderboardScreenProps) {
   };
 
   const podium = leaderboard.slice(0, 3);
+  const hasVisibleContent = leaderboard.length > 0 || !!currentUserPreview || !!rivalry;
 
   return (
     <div dir={isArabic ? 'rtl' : 'ltr'} className="flex-1 flex flex-col min-h-screen bg-background pb-24">
@@ -226,7 +243,7 @@ export function LeaderboardScreen({ onBack }: LeaderboardScreenProps) {
 
       <div className="space-y-5 px-4 pt-4 sm:px-6">
         <div className="flex gap-2 rounded-xl border border-white/5 bg-card p-1">
-          {(['weekly', 'monthly', 'alltime'] as Period[]).map((period) => (
+          {(['monthly', 'alltime'] as Period[]).map((period) => (
             <button
               key={period}
               onClick={() => setTab(period)}
@@ -234,7 +251,7 @@ export function LeaderboardScreen({ onBack }: LeaderboardScreenProps) {
                 tab === period ? 'bg-accent text-black' : 'text-text-secondary'
               }`}
             >
-              {period === 'weekly' ? copy.weekly : period === 'monthly' ? copy.monthly : copy.allTime}
+              {period === 'monthly' ? copy.monthly : copy.allTime}
             </button>
           ))}
         </div>
@@ -299,7 +316,7 @@ export function LeaderboardScreen({ onBack }: LeaderboardScreenProps) {
           </div>
         )}
 
-        {loading && <p className="text-sm text-text-secondary">{copy.loading}</p>}
+        {loading && !hasVisibleContent && <p className="text-sm text-text-secondary">{copy.loading}</p>}
         {!loading && error && <p className="text-sm text-red-400">{error}</p>}
         {!loading && !error && leaderboard.length === 0 && (
           <p className="text-sm text-text-secondary">{copy.empty}</p>

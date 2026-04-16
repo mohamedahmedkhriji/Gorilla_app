@@ -4,6 +4,52 @@ import pool from '../../database.js';
 import { GAMIFICATION_CONFIG, getRankFromPoints, getStartOfWeek } from './config.js';
 
 let profileImageColumnCache;
+const LEADERBOARD_CACHE_TTL_MS = 30 * 1000;
+const LEADERBOARD_CACHE_MAX_ENTRIES = 24;
+const leaderboardQueryCache = new Map();
+
+const getLeaderboardCacheKey = ({ period, gymId, profileImageColumn }) =>
+  `${period}:${gymId == null ? 'global' : gymId}:${profileImageColumn || 'none'}`;
+
+const readLeaderboardCache = (key) => {
+  const cached = leaderboardQueryCache.get(key);
+  if (!cached) return null;
+  if (cached.expiresAt <= Date.now()) {
+    leaderboardQueryCache.delete(key);
+    return null;
+  }
+  return cached.value;
+};
+
+const writeLeaderboardCache = (key, value) => {
+  const now = Date.now();
+  leaderboardQueryCache.set(key, {
+    value,
+    expiresAt: now + LEADERBOARD_CACHE_TTL_MS,
+    updatedAt: now,
+  });
+
+  for (const [entryKey, entry] of leaderboardQueryCache.entries()) {
+    if (entry.expiresAt <= now) {
+      leaderboardQueryCache.delete(entryKey);
+    }
+  }
+
+  if (leaderboardQueryCache.size <= LEADERBOARD_CACHE_MAX_ENTRIES) return;
+
+  let oldestKey = null;
+  let oldestUpdatedAt = Number.POSITIVE_INFINITY;
+  for (const [entryKey, entry] of leaderboardQueryCache.entries()) {
+    if (entry.updatedAt < oldestUpdatedAt) {
+      oldestUpdatedAt = entry.updatedAt;
+      oldestKey = entryKey;
+    }
+  }
+
+  if (oldestKey) {
+    leaderboardQueryCache.delete(oldestKey);
+  }
+};
 
 const getProfileImageColumn = async () => {
   if (profileImageColumnCache !== undefined) return profileImageColumnCache;
@@ -209,22 +255,32 @@ export const getLeaderboardBundle = async ({
     ? `u.role = 'user' AND u.is_active = 1 AND u.gym_id = ?`
     : `u.role = 'user' AND u.is_active = 1`;
   const scopeParams = context.gymId ? [context.gymId] : [];
-  const query = getLeaderboardQuery({
+  const cacheKey = getLeaderboardCacheKey({
     period: normalizedPeriod,
+    gymId: context.gymId,
     profileImageColumn,
-    scopeWhere,
   });
+  let leaderboard = readLeaderboardCache(cacheKey);
 
-  const [rows] = await pool.execute(query, scopeParams);
-  const leaderboard = rows.map((row, index) => ({
-    id: Number(row.id || 0),
-    name: row.name || 'User',
-    profile_picture: row.profile_picture || null,
-    points: Number(row.points || 0),
-    total_points: Number(row.total_points || 0),
-    rank: index + 1,
-    rankName: getRankFromPoints(Number(row.total_points || row.points || 0)),
-  }));
+  if (!leaderboard) {
+    const query = getLeaderboardQuery({
+      period: normalizedPeriod,
+      profileImageColumn,
+      scopeWhere,
+    });
+
+    const [rows] = await pool.execute(query, scopeParams);
+    leaderboard = rows.map((row, index) => ({
+      id: Number(row.id || 0),
+      name: row.name || 'User',
+      profile_picture: row.profile_picture || null,
+      points: Number(row.points || 0),
+      total_points: Number(row.total_points || 0),
+      rank: index + 1,
+      rankName: getRankFromPoints(Number(row.total_points || row.points || 0)),
+    }));
+    writeLeaderboardCache(cacheKey, leaderboard);
+  }
 
   const currentIndex = leaderboard.findIndex((entry) => entry.id === normalizedUserId);
   const currentUser = currentIndex >= 0 ? leaderboard[currentIndex] : null;

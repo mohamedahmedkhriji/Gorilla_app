@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { BrandLogo } from './BrandLogo';
 
 interface SplashScreenProps {
+  ready?: boolean;
   onComplete: () => void;
 }
 
@@ -18,20 +19,35 @@ const forcedDarkThemeVars: React.CSSProperties = {
   '--color-text-tertiary': '131 149 171',
 } as React.CSSProperties;
 
-export function SplashScreen({ onComplete }: SplashScreenProps) {
+const MIN_SPLASH_MS = 650;
+const MAX_SPLASH_MS = 2500;
+const EXIT_ANIMATION_MS = 220;
+
+export function SplashScreen({ ready = false, onComplete }: SplashScreenProps) {
   const [isVisible, setIsVisible] = useState(true);
   const closeSplash = useCallback(() => {
     setIsVisible((prev) => (prev ? false : prev));
   }, []);
 
   useEffect(() => {
-    const fallbackTimer = window.setTimeout(closeSplash, 8000);
-    return () => window.clearTimeout(fallbackTimer);
-  }, [closeSplash]);
+    const startedAt = Date.now();
+    let minTimer: number | null = null;
+    const maxTimer = window.setTimeout(closeSplash, MAX_SPLASH_MS);
+
+    if (ready) {
+      const remaining = Math.max(0, MIN_SPLASH_MS - (Date.now() - startedAt));
+      minTimer = window.setTimeout(closeSplash, remaining);
+    }
+
+    return () => {
+      window.clearTimeout(maxTimer);
+      if (minTimer != null) window.clearTimeout(minTimer);
+    };
+  }, [closeSplash, ready]);
 
   useEffect(() => {
     if (!isVisible) {
-      const exitTimer = window.setTimeout(onComplete, 500);
+      const exitTimer = window.setTimeout(onComplete, EXIT_ANIMATION_MS);
       return () => window.clearTimeout(exitTimer);
     }
     return;
@@ -48,7 +64,7 @@ export function SplashScreen({ onComplete }: SplashScreenProps) {
             opacity: 0,
           }}
           transition={{
-            duration: 0.5,
+            duration: EXIT_ANIMATION_MS / 1000,
           }}
           className="fixed inset-0 z-[100] bg-[#050505] flex items-center justify-center overflow-hidden"
           style={forcedDarkThemeVars}

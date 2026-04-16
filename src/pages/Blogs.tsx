@@ -5,6 +5,7 @@ import { CoachmarkOverlay, type CoachmarkStep } from '../components/coachmarks/C
 import FeedPage from '../components/feed/FeedPage';
 import FeedHeader from '../components/feed/FeedHeader';
 import CategoryFilters from '../components/feed/CategoryFilters';
+import FeedList from '../components/feed/FeedList';
 import PostSkeleton from '../components/feed/PostSkeleton';
 import { getStoredAppUser, getStoredUserId } from '../shared/authStorage';
 import { AppLanguage, getActiveLanguage, getStoredLanguage, pickLanguage } from '../services/language';
@@ -13,13 +14,12 @@ import { BLOGS_COACHMARK_TOUR_ID, BLOGS_COACHMARK_VERSION, getCoachmarkUserScope
 import { useScreenshotProtection } from '../shared/useScreenshotProtection';
 import type { BlogComment, FeedCategory, FeedCursor, FeedTab, Post, PostCategory, ReactionOption, ReactionType, ShareDestination } from '../components/feed/types';
 
-const FeedList = lazy(() => import('../components/feed/FeedList'));
 const ReelsViewer = lazy(() => import('../components/feed/ReelsViewer'));
 
 const CATEGORY_OPTIONS: PostCategory[] = ['Training', 'Nutrition', 'Recovery', 'Mindset'];
 const TAB_OPTIONS: FeedTab[] = ['For You', 'Following', 'Latest'];
-const INITIAL_PAGE_LIMIT = 5;
-const FEED_PAGE_LIMIT = 5;
+const INITIAL_PAGE_LIMIT = 8;
+const FEED_PAGE_LIMIT = 8;
 const DESCRIPTION_MAX_LENGTH = 5000;
 const MEDIA_PAYLOAD_LIMIT = 8000000;
 const DEFAULT_AVATAR = 'https://images.unsplash.com/photo-1633332755192-727a05c4013d?auto=format&fit=crop&w=120&q=80';
@@ -965,36 +965,34 @@ export function Blogs({ guidedTourActive = false, onGuidedTourComplete, onGuided
             {posts.length > 0 ? <button type="button" onClick={() => selectCategory('All')} className="mt-4 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm font-medium text-text-primary transition-all duration-200 hover:border-accent/20 hover:bg-white/10 active:scale-95">{copy.showAllCategories}</button> : null}
           </div>
         ) : (
-          <Suspense fallback={<div className="space-y-5">{Array.from({ length: 2 }).map((_, index) => <PostSkeleton key={`fallback-${index}`} />)}</div>}>
-            <FeedList
-              posts={visiblePosts}
-              currentUserId={userId}
-              savedPostIds={savedPostIds}
-              reactionOptions={reactionOptions}
-              openMenuId={openPostMenuId}
-              openReactionPostId={openReactionPostId}
-              loadingMore={loadingMore}
-              hasMore={hasMore}
-              caughtUpLabel={copy.caughtUp}
-              loadingMoreLabel={copy.loadingMorePosts}
-              copy={{ avatarAlt: copy.avatarAlt, mediaAlt: copy.mediaAlt, womenOnly: copy.womenOnly, postOptions: copy.postOptions, deletePost: copy.deletePost, hidePost: copy.hidePost, reactToPost: copy.reactToPost, save: copy.save, saved: copy.saved, share: copy.share }}
-              getAuthorName={getAuthorName}
-              getPostedAgo={(createdAt, short = false) => getPostedAgo(createdAt, copy, short)}
-              resolveAvatar={resolvePostAvatar}
-              formatCount={formatCount}
-              onLoadMore={() => { void loadMoreFeed(); }}
-              onOpenPost={openReelAt}
-              onDoubleLike={handleDoubleLike}
-              onToggleMenu={(postId) => setOpenPostMenuId((current) => current === postId ? null : postId)}
-              onToggleReactions={(postId) => setOpenReactionPostId((current) => current === postId ? null : postId)}
-              onReact={(postId, reactionType) => { setOpenReactionPostId(null); void setReaction(postId, reactionType); }}
-              onComments={openComments}
-              onShare={openShareModal}
-              onSave={toggleSavedPost}
-              onDelete={(postId) => { setOpenPostMenuId(null); setPendingDeletePostId(postId); }}
-              onHide={hidePost}
-            />
-          </Suspense>
+          <FeedList
+            posts={visiblePosts}
+            currentUserId={userId}
+            savedPostIds={savedPostIds}
+            reactionOptions={reactionOptions}
+            openMenuId={openPostMenuId}
+            openReactionPostId={openReactionPostId}
+            loadingMore={loadingMore}
+            hasMore={hasMore}
+            caughtUpLabel={copy.caughtUp}
+            loadingMoreLabel={copy.loadingMorePosts}
+            copy={{ avatarAlt: copy.avatarAlt, mediaAlt: copy.mediaAlt, womenOnly: copy.womenOnly, postOptions: copy.postOptions, deletePost: copy.deletePost, hidePost: copy.hidePost, reactToPost: copy.reactToPost, save: copy.save, saved: copy.saved, share: copy.share }}
+            getAuthorName={getAuthorName}
+            getPostedAgo={(createdAt, short = false) => getPostedAgo(createdAt, copy, short)}
+            resolveAvatar={resolvePostAvatar}
+            formatCount={formatCount}
+            onLoadMore={() => { void loadMoreFeed(); }}
+            onOpenPost={openReelAt}
+            onDoubleLike={handleDoubleLike}
+            onToggleMenu={(postId) => setOpenPostMenuId((current) => current === postId ? null : postId)}
+            onToggleReactions={(postId) => setOpenReactionPostId((current) => current === postId ? null : postId)}
+            onReact={(postId, reactionType) => { setOpenReactionPostId(null); void setReaction(postId, reactionType); }}
+            onComments={openComments}
+            onShare={openShareModal}
+            onSave={toggleSavedPost}
+            onDelete={(postId) => { setOpenPostMenuId(null); setPendingDeletePostId(postId); }}
+            onHide={hidePost}
+          />
         )}
       </FeedPage>
 

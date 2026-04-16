@@ -258,6 +258,6 @@ export const offlineCacheKeys = {
     makeOfflineCacheKey('user', userId, 'challenge-history'),
   gamificationSummary: (userId: number) =>
     makeOfflineCacheKey('user', userId, 'gamification-summary'),
-  leaderboard: (userId: number, period: 'monthly' | 'alltime' = 'alltime') =>
+  leaderboard: (userId: number, period: 'weekly' | 'monthly' | 'alltime' = 'alltime') =>
     makeOfflineCacheKey('user', userId, 'leaderboard', period),
 };
