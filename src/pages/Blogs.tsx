@@ -1069,8 +1069,8 @@ export function Blogs({ guidedTourActive = false, onGuidedTourComplete, onGuided
       ) : null}
 
       {isCreateOpen ? (
-        <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/80 px-4 pb-6 pt-[calc(env(safe-area-inset-top,0px)+0.75rem)] sm:pt-8" onClick={closeCreateModal}>
-          <div className={`w-full max-w-md rounded-[28px] border border-white/10 bg-card p-5 shadow-2xl ${isArabic ? 'text-right' : 'text-left'}`} dir={isArabic ? 'rtl' : 'ltr'} onClick={(event) => event.stopPropagation()}>
+        <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto overscroll-contain bg-black/80 px-4 pb-6 pt-[calc(env(safe-area-inset-top,0px)+0.5rem)] sm:px-6 sm:pt-[calc(env(safe-area-inset-top,0px)+0.75rem)]" onClick={closeCreateModal}>
+          <div className={`w-full max-w-md self-start rounded-[28px] border border-white/10 bg-card p-5 shadow-2xl ${isArabic ? 'text-right' : 'text-left'}`} dir={isArabic ? 'rtl' : 'ltr'} onClick={(event) => event.stopPropagation()}>
             <div className={`flex items-center justify-between ${isArabic ? 'flex-row-reverse' : ''}`}>
               <h3 className="font-electrolize text-xl text-text-primary">{copy.newPostTitle}</h3>
               <button type="button" onClick={closeCreateModal} className="flex h-9 w-9 items-center justify-center rounded-full bg-white/10 text-text-primary"><X size={16} /></button>
