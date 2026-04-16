@@ -1,10 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Card } from '../ui/Card';
 import { MessageSquare } from 'lucide-react';
 import { api } from '../../services/api';
 import { emojiCoachSupportBg, emojiRightArrow } from '../../services/emojiTheme';
 import coachSupportLogo from '../../../assets/emoji/coach.png';
-import { AppLanguage, getActiveLanguage, getStoredLanguage } from '../../services/language';
+import { pickLanguage } from '../../services/language';
+import { useAppLanguage } from '../../hooks/useAppLanguage';
 
 interface CoachCardProps {
   onClick: () => void;
@@ -46,23 +47,8 @@ const COACH_CARD_I18N = {
 
 export function CoachCard({ onClick, coachmarkTargetId }: CoachCardProps) {
   const [unreadCount, setUnreadCount] = useState(0);
-  const [language, setLanguage] = useState<AppLanguage>('en');
-  const copy = COACH_CARD_I18N[language as keyof typeof COACH_CARD_I18N] || COACH_CARD_I18N.en;
-
-  useEffect(() => {
-    setLanguage(getActiveLanguage());
-
-    const handleLanguageChanged = () => {
-      setLanguage(getStoredLanguage());
-    };
-
-    window.addEventListener('app-language-changed', handleLanguageChanged);
-    window.addEventListener('storage', handleLanguageChanged);
-    return () => {
-      window.removeEventListener('app-language-changed', handleLanguageChanged);
-      window.removeEventListener('storage', handleLanguageChanged);
-    };
-  }, []);
+  const { language } = useAppLanguage();
+  const copy = pickLanguage(language, COACH_CARD_I18N);
 
   useEffect(() => {
     loadUnreadCount();

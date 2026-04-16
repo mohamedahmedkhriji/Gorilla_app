@@ -1,7 +1,8 @@
 import React from 'react';
 import { Card } from '../ui/Card';
 import { emojiMyNutrition, emojiNutritionBg, emojiRightArrow } from '../../services/emojiTheme';
-import { getActiveLanguage, getStoredLanguage, pickLanguage } from '../../services/language';
+import { pickLanguage } from '../../services/language';
+import { useAppLanguage } from '../../hooks/useAppLanguage';
 import { HOME_CARD_HOVER_CLASS, HOME_CARD_OVERLAY_CLASS, HOME_CARD_TITLE_CLASS } from './homeCardStyles';
 
 interface CalculatorCardProps {
@@ -9,7 +10,7 @@ interface CalculatorCardProps {
 }
 
 export function CalculatorCard({ onClick }: CalculatorCardProps) {
-  const language = getActiveLanguage(getStoredLanguage());
+  const { language } = useAppLanguage();
   const copy = pickLanguage(language, {
     en: {
       title: 'Auto Nutrition',

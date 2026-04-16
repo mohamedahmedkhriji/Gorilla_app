@@ -321,26 +321,101 @@ type WeekPlanWorkoutChoice = {
   dayOrder: number;
 };
 
-const resolveWeekPlanWorkoutName = (raw: unknown, exercises: any[]) => {
+const getGenericWorkoutLabels = (language: AppLanguage) =>
+  pickLanguage(language, {
+    en: {
+      workout: 'Workout',
+      pushDay: 'Push Day',
+      pullDay: 'Pull Day',
+      legDay: 'Leg Day',
+      restDay: 'Rest Day',
+      day: 'Day',
+    },
+    ar: {
+      workout: '\u062a\u0645\u0631\u064a\u0646',
+      pushDay: '\u064a\u0648\u0645 \u0627\u0644\u062f\u0641\u0639',
+      pullDay: '\u064a\u0648\u0645 \u0627\u0644\u0633\u062d\u0628',
+      legDay: '\u064a\u0648\u0645 \u0627\u0644\u0623\u0631\u062c\u0644',
+      restDay: '\u064a\u0648\u0645 \u0631\u0627\u062d\u0629',
+      day: '\u0627\u0644\u064a\u0648\u0645',
+    },
+    it: {
+      workout: 'Allenamento',
+      pushDay: 'Giorno Push',
+      pullDay: 'Giorno Pull',
+      legDay: 'Giorno Gambe',
+      restDay: 'Giorno di riposo',
+      day: 'Giorno',
+    },
+    de: {
+      workout: 'Workout',
+      pushDay: 'Push-Tag',
+      pullDay: 'Pull-Tag',
+      legDay: 'Bein-Tag',
+      restDay: 'Ruhetag',
+      day: 'Tag',
+    },
+    fr: {
+      workout: 'Entrainement',
+      pushDay: 'Jour Push',
+      pullDay: 'Jour Pull',
+      legDay: 'Jour Jambes',
+      restDay: 'Jour de repos',
+      day: 'Jour',
+    },
+  });
+
+const getDayFallbackLabel = (order: number, language: AppLanguage) =>
+  `${getGenericWorkoutLabels(language).day} ${order}`;
+
+const localizeGenericWorkoutName = (value: unknown, language: AppLanguage) => {
+  const trimmed = String(value || '').trim();
+  if (!trimmed) return getGenericWorkoutLabels(language).workout;
+
+  const normalized = trimmed
+    .toLowerCase()
+    .replace(/[_-]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  const labels = getGenericWorkoutLabels(language);
+
+  if (normalized === 'workout') return labels.workout;
+  if (normalized.includes('rest') || normalized.includes('recovery')) return labels.restDay;
+  if (/\bpush\b/.test(normalized)) return labels.pushDay;
+  if (/\bpull\b/.test(normalized)) return labels.pullDay;
+  if (/\blegs?\b/.test(normalized)) return labels.legDay;
+  return trimmed;
+};
+
+const resolveWeekPlanWorkoutName = (raw: unknown, exercises: any[], language: AppLanguage) => {
   const trimmed = String(raw || '').trim();
-  if (trimmed) return trimmed;
+  if (trimmed) return localizeGenericWorkoutName(trimmed, language);
 
   const muscles = exercises
     .flatMap((exercise: any) => parseTargetMuscles(exercise?.targetMuscles ?? exercise?.muscles ?? exercise?.muscleGroup))
     .map((entry) => String(entry || '').trim().toLowerCase());
 
-  if (muscles.some((muscle) => ['chest', 'triceps', 'shoulders'].includes(muscle))) return 'Push Day';
-  if (muscles.some((muscle) => ['back', 'biceps', 'forearms'].includes(muscle))) return 'Pull Day';
-  if (muscles.some((muscle) => ['quadriceps', 'hamstrings', 'glutes', 'calves'].includes(muscle))) return 'Leg Day';
-  return 'Workout';
+  if (muscles.some((muscle) => ['chest', 'triceps', 'shoulders'].includes(muscle))) {
+    return getGenericWorkoutLabels(language).pushDay;
+  }
+  if (muscles.some((muscle) => ['back', 'biceps', 'forearms'].includes(muscle))) {
+    return getGenericWorkoutLabels(language).pullDay;
+  }
+  if (muscles.some((muscle) => ['quadriceps', 'hamstrings', 'glutes', 'calves'].includes(muscle))) {
+    return getGenericWorkoutLabels(language).legDay;
+  }
+  return getGenericWorkoutLabels(language).workout;
 };
 
-const buildWeekPlanWorkoutChoices = (weeklyWorkouts: any[]): WeekPlanWorkoutChoice[] =>
+const buildWeekPlanWorkoutChoices = (
+  weeklyWorkouts: any[],
+  language: AppLanguage,
+): WeekPlanWorkoutChoice[] =>
   (Array.isArray(weeklyWorkouts) ? weeklyWorkouts : [])
     .map((workout: any, index: number) => {
       const exercises = normalizeTodayWorkoutExercises(workout?.exercises);
       const dayKey = normalizeWorkoutDayKey(workout?.day_name);
-      const workoutName = resolveWeekPlanWorkoutName(workout?.workout_name, exercises);
+      const workoutName = resolveWeekPlanWorkoutName(workout?.workout_name, exercises, language);
       const estimatedDurationMinutes =
         Number(workout?.estimated_duration_minutes ?? workout?.estimatedDurationMinutes ?? 0) || null;
 
@@ -350,7 +425,11 @@ const buildWeekPlanWorkoutChoices = (weeklyWorkouts: any[]): WeekPlanWorkoutChoi
         workoutType: String(workout?.workout_type || '').trim(),
         estimatedDurationMinutes,
         exercises,
-        dayLabel: formatWorkoutDayLabel(dayKey, `Day ${Number(workout?.day_order || index + 1)}`),
+        dayLabel: formatWorkoutDayLabel(
+          dayKey,
+          getDayFallbackLabel(Number(workout?.day_order || index + 1), language),
+          language,
+        ),
         dayOrder: Number(workout?.day_order || index + 1) || (index + 1),
       };
     })
@@ -565,12 +644,7 @@ export function Home({
     todayWorkoutSelection?.completed
     && Number(overallRecovery || 0) < 60
   );
-  const restDayLabel = pickLanguage(language, {
-    en: 'Rest Day',
-    ar: '\u064a\u0648\u0645 \u0631\u0627\u062d\u0629',
-    it: 'Giorno di riposo',
-    de: 'Ruhetag',
-  });
+  const restDayLabel = getGenericWorkoutLabels(language).restDay;
   const customWorkoutLabel = pickLanguage(language, {
     en: 'Custom Workout',
     ar: '\u062a\u0645\u0631\u064a\u0646 \u0645\u062e\u0635\u0635',
@@ -684,7 +758,9 @@ export function Home({
   const isWorkoutCardRestDay = !shouldChooseWorkoutToday && todayWorkout === 'Rest Day' && !hasAnyTodayExercises;
   const workoutCardTitle = shouldChooseWorkoutToday
     ? workoutCardCopy.chooseTraining
-    : (todayWorkout === 'Rest Day' && hasAnyTodayExercises ? customWorkoutLabel : todayWorkout);
+    : (todayWorkout === 'Rest Day' && hasAnyTodayExercises
+      ? customWorkoutLabel
+      : localizeGenericWorkoutName(todayWorkout, language));
   const workoutCardSubtitle = shouldChooseWorkoutToday
     ? null
     : (workoutRecommendation?.detail ?? null);
@@ -1251,7 +1327,7 @@ export function Home({
         : Array.isArray(programData?.workouts)
           ? programData.workouts
           : [];
-      const normalizedWeekPlan = buildWeekPlanWorkoutChoices(weeklyWorkouts);
+      const normalizedWeekPlan = buildWeekPlanWorkoutChoices(weeklyWorkouts, language);
       const storedSelection = readTodayWorkoutSelection(workoutStorageScope);
       const matchedSelection = storedSelection
         ? normalizedWeekPlan.find((workout) => workout.key === storedSelection.workoutKey) || null
@@ -1280,26 +1356,43 @@ export function Home({
       updateRecovery(100);
     };
 
-    if (currentUserId) {
-      const cachedProgram = readOfflineCacheValue<any>(offlineCacheKeys.userProgram(currentUserId));
-      if (cachedProgram) {
-        applyProgramSnapshot(cachedProgram);
-      }
+    const cachedProgram = currentUserId
+      ? readOfflineCacheValue<any>(offlineCacheKeys.userProgram(currentUserId))
+      : null;
+    const cachedProgress = currentUserId
+      ? readOfflineCacheValue<any>(offlineCacheKeys.programProgress(currentUserId))
+      : null;
+    const cachedGamificationSummary = currentUserId
+      ? readOfflineCacheValue<any>(offlineCacheKeys.gamificationSummary(currentUserId))
+      : null;
+    const cachedRecovery = currentUserId
+      ? readOfflineCacheValue<any>(offlineCacheKeys.recoveryStatus(currentUserId))
+      : null;
 
-      const cachedProgress = readOfflineCacheValue<any>(offlineCacheKeys.programProgress(currentUserId));
-      if (cachedProgress?.summary) {
-        setProgramProgress(cachedProgress.summary || null);
-      }
+    if (cachedProgram) {
+      applyProgramSnapshot(cachedProgram);
+    }
 
-      const cachedGamificationSummary = readOfflineCacheValue<any>(offlineCacheKeys.gamificationSummary(currentUserId));
-      if (cachedGamificationSummary) {
-        setGamificationSummary(normalizeGamificationSummary(cachedGamificationSummary));
-      }
+    if (cachedProgress?.summary) {
+      setProgramProgress(cachedProgress.summary || null);
+    }
 
-      const cachedRecovery = readOfflineCacheValue<any>(offlineCacheKeys.recoveryStatus(currentUserId));
-      if (cachedRecovery) {
-        applyRecoverySnapshot(cachedRecovery);
-      }
+    if (cachedGamificationSummary) {
+      setGamificationSummary(normalizeGamificationSummary(cachedGamificationSummary));
+    }
+
+    if (cachedRecovery) {
+      applyRecoverySnapshot(cachedRecovery);
+    }
+
+    const hasCachedHomeSnapshot = !!(
+      cachedProgram
+      || cachedProgress?.summary
+      || cachedGamificationSummary
+      || cachedRecovery
+    );
+    if (!currentUserId || hasCachedHomeSnapshot) {
+      setIsHomeLoading(false);
     }
 
     // Fetch user program
@@ -1371,14 +1464,30 @@ export function Home({
     };
     
     const loadInitialHomeData = async () => {
-      setIsHomeLoading(true);
-      await fetchProgram();
+      const shouldWaitForProgram = !!currentUserId && !hasCachedHomeSnapshot;
+      if (shouldWaitForProgram) {
+        setIsHomeLoading(true);
+      }
+
+      const programPromise = fetchProgram();
+      const progressPromise = fetchProgramProgress();
+      const recoveryPromise = fetchRecovery();
+      const gamificationPromise = fetchGamificationSummary();
+
+      if (shouldWaitForProgram) {
+        await programPromise;
+      }
+
       if (isMounted) {
         setIsHomeLoading(false);
       }
-      void fetchProgramProgress();
-      void fetchRecovery();
-      void fetchGamificationSummary();
+
+      void Promise.allSettled([
+        programPromise,
+        progressPromise,
+        recoveryPromise,
+        gamificationPromise,
+      ]);
     };
     void loadInitialHomeData();
     
@@ -1453,7 +1562,7 @@ export function Home({
       clearInterval(periodicRecoveryRefresh);
       clearInterval(progressRefresh);
     };
-  }, [currentUser.name, currentUserId, workoutStorageScope]);
+  }, [currentUser.name, currentUserId, language, workoutStorageScope]);
 
   useEffect(() => {
     if (selectedTodayWorkout) {
@@ -1705,7 +1814,9 @@ export function Home({
     
     // Get today's workout exercises
     const exercises = todayWorkoutExercises;
-    const workoutDetailTitle = todayWorkout === 'Rest Day' ? customWorkoutLabel : todayWorkout;
+    const workoutDetailTitle = todayWorkout === 'Rest Day'
+      ? customWorkoutLabel
+      : localizeGenericWorkoutName(todayWorkout, language);
     
     return renderTransitionedView(
       <div className="pb-24 pt-4">

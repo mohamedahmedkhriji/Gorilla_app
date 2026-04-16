@@ -7,7 +7,8 @@ import {
   emojiExercisesBg,
   emojiRightArrow,
 } from '../../services/emojiTheme';
-import { getActiveLanguage, getStoredLanguage, pickLanguage } from '../../services/language';
+import { pickLanguage } from '../../services/language';
+import { useAppLanguage } from '../../hooks/useAppLanguage';
 import { HOME_CARD_HOVER_CLASS, HOME_CARD_OVERLAY_CLASS, HOME_CARD_TITLE_CLASS } from './homeCardStyles';
 
 interface EducationSectionProps {
@@ -23,7 +24,7 @@ export function EducationSection({
   exercisesCoachmarkTargetId,
   booksCoachmarkTargetId,
 }: EducationSectionProps) {
-  const language = getActiveLanguage(getStoredLanguage());
+  const { language } = useAppLanguage();
   const copy = pickLanguage(language, {
     en: {
       learningHub: 'Learning Hub',

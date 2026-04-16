@@ -22,7 +22,7 @@ import {
 } from '../services/coachmarks';
 import { resolveExerciseVideoUrl } from '../services/exerciseVideos';
 import { formatWorkoutDayLabel, normalizeWorkoutDayKey } from '../services/workoutDayLabel';
-import { AppLanguage, getActiveLanguage, getStoredLanguage } from '../services/language';
+import { AppLanguage, getActiveLanguage, getStoredLanguage, pickLanguage } from '../services/language';
 import {
   clearTodayWorkoutSelection,
   markTodayWorkoutSelectionCompleted,
@@ -560,7 +560,100 @@ const serializeTodayExercisesSnapshot = (exercises: TodayWorkoutExercise[]) =>
     isExtra: exercise.isExtra,
   }));
 
-const inferWorkoutLabelFromExercises = (exercises: TodayWorkoutExercise[]) => {
+const getGenericWorkoutLabels = (language: AppLanguage) =>
+  pickLanguage(language, {
+    en: {
+      workout: 'Workout',
+      pushDay: 'Push Day',
+      pullDay: 'Pull Day',
+      legDay: 'Leg Day',
+      upperBody: 'Upper Body',
+      fullBody: 'Full Body',
+      coreDay: 'Core Day',
+      restDay: 'Rest Day',
+      today: 'Today',
+      day: 'Day',
+    },
+    ar: {
+      workout: '\u062a\u0645\u0631\u064a\u0646',
+      pushDay: '\u064a\u0648\u0645 \u0627\u0644\u062f\u0641\u0639',
+      pullDay: '\u064a\u0648\u0645 \u0627\u0644\u0633\u062d\u0628',
+      legDay: '\u064a\u0648\u0645 \u0627\u0644\u0623\u0631\u062c\u0644',
+      upperBody: '\u0627\u0644\u062c\u0632\u0621 \u0627\u0644\u0639\u0644\u0648\u064a',
+      fullBody: '\u0627\u0644\u062c\u0633\u0645 \u0643\u0627\u0645\u0644',
+      coreDay: '\u064a\u0648\u0645 \u0627\u0644\u0628\u0637\u0646',
+      restDay: '\u064a\u0648\u0645 \u0631\u0627\u062d\u0629',
+      today: '\u0627\u0644\u064a\u0648\u0645',
+      day: '\u0627\u0644\u064a\u0648\u0645',
+    },
+    it: {
+      workout: 'Allenamento',
+      pushDay: 'Giorno Push',
+      pullDay: 'Giorno Pull',
+      legDay: 'Giorno Gambe',
+      upperBody: 'Parte superiore',
+      fullBody: 'Corpo intero',
+      coreDay: 'Giorno Core',
+      restDay: 'Giorno di riposo',
+      today: 'Oggi',
+      day: 'Giorno',
+    },
+    de: {
+      workout: 'Workout',
+      pushDay: 'Push-Tag',
+      pullDay: 'Pull-Tag',
+      legDay: 'Bein-Tag',
+      upperBody: 'Oberkoerper',
+      fullBody: 'Ganzkoerper',
+      coreDay: 'Core-Tag',
+      restDay: 'Ruhetag',
+      today: 'Heute',
+      day: 'Tag',
+    },
+    fr: {
+      workout: 'Entrainement',
+      pushDay: 'Jour Push',
+      pullDay: 'Jour Pull',
+      legDay: 'Jour Jambes',
+      upperBody: 'Haut du corps',
+      fullBody: 'Corps entier',
+      coreDay: 'Jour Core',
+      restDay: 'Jour de repos',
+      today: 'Aujourd hui',
+      day: 'Jour',
+    },
+  });
+
+const getDayFallbackLabel = (order: number, language: AppLanguage) =>
+  `${getGenericWorkoutLabels(language).day} ${order}`;
+
+const localizeGenericWorkoutName = (value: unknown, language: AppLanguage) => {
+  const trimmed = String(value || '').trim();
+  if (!trimmed) return getGenericWorkoutLabels(language).workout;
+
+  const normalized = trimmed
+    .toLowerCase()
+    .replace(/[_-]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  const labels = getGenericWorkoutLabels(language);
+
+  if (normalized === 'workout') return labels.workout;
+  if (normalized.includes('rest') || normalized.includes('recovery')) return labels.restDay;
+  if (normalized.includes('upper')) return labels.upperBody;
+  if (normalized.includes('full body') || normalized.includes('fullbody')) return labels.fullBody;
+  if (normalized.includes('core')) return labels.coreDay;
+  if (/\bpush\b/.test(normalized)) return labels.pushDay;
+  if (/\bpull\b/.test(normalized)) return labels.pullDay;
+  if (/\blegs?\b/.test(normalized)) return labels.legDay;
+  return trimmed;
+};
+
+const inferWorkoutLabelFromExercises = (
+  exercises: TodayWorkoutExercise[],
+  language: AppLanguage,
+) => {
+  const labels = getGenericWorkoutLabels(language);
   const bucketScores = {
     push: 0,
     pull: 0,
@@ -588,35 +681,39 @@ const inferWorkoutLabelFromExercises = (exercises: TodayWorkoutExercise[]) => {
   });
 
   if (bucketScores.legs > 0 && bucketScores.push === 0 && bucketScores.pull === 0) {
-    return 'Leg Day';
+    return labels.legDay;
   }
   if (bucketScores.push > 0 && bucketScores.pull === 0 && bucketScores.legs === 0) {
-    return 'Push Day';
+    return labels.pushDay;
   }
   if (bucketScores.pull > 0 && bucketScores.push === 0 && bucketScores.legs === 0) {
-    return 'Pull Day';
+    return labels.pullDay;
   }
   if (bucketScores.push > 0 && bucketScores.pull > 0 && bucketScores.legs === 0) {
-    return 'Upper Body';
+    return labels.upperBody;
   }
   if (bucketScores.push > 0 && bucketScores.pull > 0 && bucketScores.legs > 0) {
-    return 'Full Body';
+    return labels.fullBody;
   }
   if (bucketScores.core > 0 && bucketScores.push === 0 && bucketScores.pull === 0 && bucketScores.legs === 0) {
-    return 'Core Day';
+    return labels.coreDay;
   }
 
   return '';
 };
 
-const resolveWorkoutDisplayName = (rawName: unknown, exercises: TodayWorkoutExercise[]) => {
+const resolveWorkoutDisplayName = (
+  rawName: unknown,
+  exercises: TodayWorkoutExercise[],
+  language: AppLanguage,
+) => {
   const trimmedName = String(rawName || '').trim();
-  const inferredLabel = inferWorkoutLabelFromExercises(exercises);
-  if (!trimmedName) return inferredLabel || 'Workout';
+  const inferredLabel = inferWorkoutLabelFromExercises(exercises, language);
+  if (!trimmedName) return inferredLabel || getGenericWorkoutLabels(language).workout;
 
   const normalizedName = trimmedName.toLowerCase();
   const isGenericSplitName = /(push|pull|leg|legs|upper|lower|full body|rest|recovery|core)/.test(normalizedName);
-  if (!isGenericSplitName || !inferredLabel) return trimmedName;
+  if (!isGenericSplitName || !inferredLabel) return localizeGenericWorkoutName(trimmedName, language);
 
   const normalizedInferred = inferredLabel.toLowerCase();
   if (normalizedName.includes(normalizedInferred)) return trimmedName;
@@ -628,7 +725,7 @@ const resolveWorkoutDisplayName = (rawName: unknown, exercises: TodayWorkoutExer
   return inferredKey && !normalizedName.includes(inferredKey) ? inferredLabel : trimmedName;
 };
 
-const resolveTodayWorkoutPayload = (program: any) => {
+const resolveTodayWorkoutPayload = (program: any, language: AppLanguage) => {
   if (String(program?.missedTodayWorkoutName || '').trim()) {
     return null;
   }
@@ -690,21 +787,26 @@ const resolveTodayWorkoutPayload = (program: any) => {
 
   return {
     exercises,
-    dayLabel: formatWorkoutDayLabel(resolvedDayKey, 'Rest Day'),
+    dayLabel: formatWorkoutDayLabel(
+      resolvedDayKey,
+      getGenericWorkoutLabels(language).restDay,
+      language,
+    ),
     name: resolveWorkoutDisplayName(
       (shouldUseTodayPayload ? todayWorkout?.name : '') || resolvedWorkout?.workout_name || todayWorkout?.name || '',
       exercises,
+      language,
     ),
   };
 };
 
-const buildWeekPlanWorkouts = (program: any): WeekPlanWorkout[] => {
+const buildWeekPlanWorkouts = (program: any, language: AppLanguage): WeekPlanWorkout[] => {
   const weeklyWorkouts = Array.isArray(program?.currentWeekWorkouts)
     ? program.currentWeekWorkouts
     : Array.isArray(program?.workouts)
       ? program.workouts
       : [];
-  const todayPayload = resolveTodayWorkoutPayload(program);
+  const todayPayload = resolveTodayWorkoutPayload(program, language);
   const clientWeekdayKey = normalizeWorkoutDayKey(new Date().toLocaleDateString('en-US', { weekday: 'long' }));
   const todayNameKey = normalizeExerciseLookupName(todayPayload?.name || program?.todayWorkout?.name || '');
 
@@ -712,7 +814,7 @@ const buildWeekPlanWorkouts = (program: any): WeekPlanWorkout[] => {
     .map((workout: any, index: number) => {
       const exercises = parseWorkoutExercisesPayload(workout?.exercises, false);
       const dayKey = normalizeWorkoutDayKey(workout?.day_name);
-      const workoutName = resolveWorkoutDisplayName(workout?.workout_name || '', exercises);
+      const workoutName = resolveWorkoutDisplayName(workout?.workout_name || '', exercises, language);
       const isToday = !!(
         (dayKey && dayKey === clientWeekdayKey)
         || (!dayKey && normalizeExerciseLookupName(workoutName) === todayNameKey)
@@ -722,7 +824,11 @@ const buildWeekPlanWorkouts = (program: any): WeekPlanWorkout[] => {
         key: String(workout?.id || `${dayKey || 'day'}-${index}`),
         id: Number(workout?.id || 0) || null,
         dayKey,
-        dayLabel: formatWorkoutDayLabel(dayKey, `Day ${Number(workout?.day_order || index + 1)}`),
+        dayLabel: formatWorkoutDayLabel(
+          dayKey,
+          getDayFallbackLabel(Number(workout?.day_order || index + 1), language),
+          language,
+        ),
         workoutName,
         exercises,
         isToday,
@@ -843,7 +949,11 @@ export function Workout({
   const [selectedExercise, setSelectedExercise] = useState('Bench Press');
   const [currentWorkoutName, setCurrentWorkoutName] = useState(initialWorkoutDay);
   const [currentWorkoutDayLabel, setCurrentWorkoutDayLabel] = useState(
-    formatWorkoutDayLabel(new Date().toLocaleDateString('en-US', { weekday: 'long' }), initialWorkoutDay),
+    formatWorkoutDayLabel(
+      new Date().toLocaleDateString('en-US', { weekday: 'long' }),
+      localizeGenericWorkoutName(initialWorkoutDay, getActiveLanguage()),
+      getActiveLanguage(),
+    ),
   );
   const [todayExercises, setTodayExercises] = useState<TodayWorkoutExercise[]>([]);
   const [weekPlanWorkouts, setWeekPlanWorkouts] = useState<WeekPlanWorkout[]>([]);
@@ -1118,11 +1228,17 @@ export function Workout({
     [recoveryStatuses, selectableWeekPlanWorkouts, todayWorkoutSelection?.workoutKey],
   );
   const detailWorkoutName = isSelectedWorkoutPickedForToday
-    ? currentWorkoutName
-    : String(selectedWeekWorkout?.workoutName || currentWorkoutName || workoutDay).trim() || 'Workout';
+    ? localizeGenericWorkoutName(currentWorkoutName, language)
+    : localizeGenericWorkoutName(
+      String(selectedWeekWorkout?.workoutName || currentWorkoutName || workoutDay).trim() || 'Workout',
+      language,
+    );
   const detailWorkoutDayLabel = isSelectedWorkoutPickedForToday
-    ? currentWorkoutDayLabel
-    : String(selectedWeekWorkout?.dayLabel || currentWorkoutDayLabel || workoutDay).trim() || 'Workout';
+    ? localizeGenericWorkoutName(currentWorkoutDayLabel, language)
+    : localizeGenericWorkoutName(
+      String(selectedWeekWorkout?.dayLabel || currentWorkoutDayLabel || workoutDay).trim() || 'Workout',
+      language,
+    );
   const detailExercises = isSelectedWorkoutPickedForToday
     ? todayExercises
     : (selectedWeekWorkout?.exercises || []);
@@ -1608,7 +1724,7 @@ export function Workout({
 
       const hydrateWorkoutSnapshot = (program: any, progress: any) => {
         const nextProgramProgress = progress && typeof progress === 'object' ? progress : null;
-        const nextWeekPlanWorkouts = buildWeekPlanWorkouts(program);
+        const nextWeekPlanWorkouts = buildWeekPlanWorkouts(program, language);
         const nextSelectableWorkouts = nextWeekPlanWorkouts.filter(hasWorkoutExercises);
         const storedSelection = readTodayWorkoutSelection(workoutStorageScope);
         const nextSelectedWorkout = storedSelection
@@ -1677,7 +1793,11 @@ export function Workout({
           setExerciseSets({});
           setCurrentWorkoutName('Rest Day');
           setCurrentWorkoutDayLabel(
-            formatWorkoutDayLabel(new Date().toLocaleDateString('en-US', { weekday: 'long' }), 'Today'),
+            formatWorkoutDayLabel(
+              new Date().toLocaleDateString('en-US', { weekday: 'long' }),
+              getGenericWorkoutLabels(language).today,
+              language,
+            ),
           );
           localStorage.setItem(homeMetricStorageKeys.homeWorkoutProgress, '0');
           localStorage.setItem(workoutStorageKeys.exerciseCount, '0');
@@ -1741,6 +1861,7 @@ export function Workout({
     }
   }, [
     homeMetricStorageKeys.homeWorkoutProgress,
+    language,
     renewalCopy.completedSubtitle,
     renewalCopy.completedTitle,
     userId,
@@ -2639,8 +2760,14 @@ export function Workout({
             isPickedForToday: workout.key === todayWorkoutSelection?.workoutKey,
             isCompletedToday: workout.key === todayWorkoutSelection?.workoutKey && !!todayWorkoutSelection?.completed,
           }))}
-          selectedTodayWorkoutName={todayWorkoutSelection?.workoutName || currentWorkoutName}
-          selectedTodayWorkoutDayLabel={todayWorkoutSelection?.dayLabel || currentWorkoutDayLabel}
+          selectedTodayWorkoutName={localizeGenericWorkoutName(
+            todayWorkoutSelection?.workoutName || currentWorkoutName,
+            language,
+          )}
+          selectedTodayWorkoutDayLabel={localizeGenericWorkoutName(
+            todayWorkoutSelection?.dayLabel || currentWorkoutDayLabel,
+            language,
+          )}
           hasTodaySelection={!!todayWorkoutSelection?.workoutKey}
           isTodaySelectionCompleted={!!todayWorkoutSelection?.completed}
           isTodayPlanLocked={hasStartedTodayWorkout}

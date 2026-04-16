@@ -2,7 +2,8 @@ import React, { useEffect, useState } from 'react';
 import { Card } from '../ui/Card';
 import { api } from '../../services/api';
 import { emojiFriends, emojiGymFriendsBg, emojiRightArrow } from '../../services/emojiTheme';
-import { AppLanguage, getActiveLanguage, getStoredLanguage } from '../../services/language';
+import { pickLanguage } from '../../services/language';
+import { useAppLanguage } from '../../hooks/useAppLanguage';
 
 interface FriendsCardProps {
   onClick: () => void;
@@ -21,26 +22,31 @@ const FRIENDS_CARD_I18N = {
     friends: 'Friends',
     friendsLogoAlt: 'Friends',
     profileSuffix: 'profile',
+    community: 'Community',
   },
   ar: {
-    friends: 'الأصدقاء',
-    friendsLogoAlt: 'الأصدقاء',
-    profileSuffix: 'الملف الشخصي',
+    friends: '\u0627\u0644\u0623\u0635\u062f\u0642\u0627\u0621',
+    friendsLogoAlt: '\u0627\u0644\u0623\u0635\u062f\u0642\u0627\u0621',
+    profileSuffix: '\u0627\u0644\u0645\u0644\u0641 \u0627\u0644\u0634\u062e\u0635\u064a',
+    community: '\u0627\u0644\u0645\u062c\u062a\u0645\u0639',
   },
   it: {
     friends: 'Amici',
     friendsLogoAlt: 'Amici',
     profileSuffix: 'profilo',
+    community: 'Comunita',
   },
   fr: {
     friends: 'Amis',
     friendsLogoAlt: 'Amis',
     profileSuffix: 'profil',
+    community: 'Communaute',
   },
   de: {
     friends: 'Freunde',
     friendsLogoAlt: 'Freunde',
     profileSuffix: 'Profil',
+    community: 'Community',
   },
 } as const;
 
@@ -65,23 +71,8 @@ const getActiveUserId = () => {
 
 export function FriendsCard({ onClick, coachmarkTargetId }: FriendsCardProps) {
   const [friends, setFriends] = useState<FriendProfile[]>([]);
-  const [language, setLanguage] = useState<AppLanguage>('en');
-  const copy = FRIENDS_CARD_I18N[language as keyof typeof FRIENDS_CARD_I18N] || FRIENDS_CARD_I18N.en;
-
-  useEffect(() => {
-    setLanguage(getActiveLanguage());
-
-    const handleLanguageChanged = () => {
-      setLanguage(getStoredLanguage());
-    };
-
-    window.addEventListener('app-language-changed', handleLanguageChanged);
-    window.addEventListener('storage', handleLanguageChanged);
-    return () => {
-      window.removeEventListener('app-language-changed', handleLanguageChanged);
-      window.removeEventListener('storage', handleLanguageChanged);
-    };
-  }, []);
+  const { language } = useAppLanguage();
+  const copy = pickLanguage(language, FRIENDS_CARD_I18N);
 
   useEffect(() => {
     const loadFriends = async () => {
@@ -146,7 +137,7 @@ export function FriendsCard({ onClick, coachmarkTargetId }: FriendsCardProps) {
       </div>
 
       <div className="relative z-10 mt-4">
-        <div className="text-[11px] font-medium uppercase tracking-[0.16em] text-white/52">Community</div>
+        <div className="text-[11px] font-medium uppercase tracking-[0.16em] text-white/52">{copy.community}</div>
         <div className="mt-2 text-[22px] font-semibold leading-none tracking-[-0.03em] text-white">{copy.friends}</div>
       </div>
 
