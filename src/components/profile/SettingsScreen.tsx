@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Header } from '../ui/Header';
-import { Bell, Shield, User, Moon, Sun, Database, Lock, SlidersHorizontal, Share2, MapPin, CreditCard, KeyRound, Scale, Mail, ChevronDown, ChevronRight, Eye, EyeOff, Languages } from 'lucide-react';
+import { Bell, Shield, User, Moon, Sun, MapPin, ChevronDown, ChevronRight, Eye, EyeOff, Languages } from 'lucide-react';
 import { applyTheme, getActiveTheme, getStoredTheme } from '../../services/theme';
 import { AppLanguage, applyLanguage, getActiveLanguage, getStoredLanguage, normalizeLocalizedValue } from '../../services/language';
 import { api } from '../../services/api';
@@ -644,6 +644,105 @@ const SETTINGS_I18N_WITH_DE = {
   },
 } as const;
 
+const PRIVACY_POLICY_DOCUMENT = {
+  appName: 'RepSet',
+  title: 'Privacy Policy & Terms Summary',
+  metadata: ['Last updated: April 2026', 'English', 'Applies to all accounts'],
+  importantNotice:
+    'By creating an account or continuing to use RepSet, you agree to this policy in full. Existing account holders are bound by these terms. Any future changes to this policy will be considered accepted by continued use of the app.',
+  sections: [
+    {
+      heading: '1. Data we collect',
+      points: [
+        'Personal info: name, email address, age, and gender.',
+        'Fitness data: workouts, goals, progress, and body metrics.',
+        'Optional health data: calorie intake and heart-rate related inputs.',
+        'Technical data: app usage patterns and crash diagnostics.',
+        'Payment data: handled exclusively by secure third-party payment providers.',
+        'Product improvement: The RepSet development team may use your personal data (including usage patterns and fitness data) to analyze, improve, and develop new features within the app. This data is processed internally and used solely to enhance your experience.',
+      ],
+    },
+    {
+      heading: '2. How we protect your data',
+      points: [
+        'Encrypted transport (HTTPS) for all data in transit.',
+        'Secure cloud and database access controls.',
+        'Staff access limited strictly by role and operational need.',
+        'Regular security audits and routine system hardening updates.',
+      ],
+    },
+    {
+      heading: '3. Your privacy controls',
+      points: [
+        'Manage notification permissions at any time from app settings.',
+        'Request an export of your account data (feature in progress).',
+        'Request permanent deletion of your account and associated data.',
+        'Control your profile visibility and data-sharing preferences.',
+      ],
+    },
+    {
+      heading: '4. Data sharing policy',
+      points: [
+        'We do not sell your personal data to any third party.',
+        'Data is shared only as necessary with: payment processors, analytics providers, and where required by law.',
+      ],
+    },
+    {
+      heading: '5. Location & tracking',
+      points: [
+        'Location is used only to power location-based fitness features, if you have enabled them.',
+        'You can disable location tracking at any time via app or device settings.',
+        'Location data is stored only for the minimum period necessary.',
+      ],
+    },
+    {
+      heading: '6. Payment & subscriptions',
+      points: [
+        'Payments are processed by trusted third-party providers. We do not store card numbers on our servers.',
+        'Auto-renewal: All RepSet subscriptions automatically renew at the end of each billing period. You will be charged the applicable subscription fee unless you cancel before the renewal date. You can manage or cancel your subscription at any time through your app store account settings.',
+      ],
+    },
+    {
+      heading: '7. Account security',
+      points: [
+        'Strong password requirements are enforced on all accounts.',
+        'Suspicious login detection and account protection controls are active.',
+        'Two-factor authentication (2FA) support planned for a future release.',
+      ],
+    },
+    {
+      heading: '8. Dispute resolution & liability',
+      points: [
+        'Mandatory arbitration: Any dispute, claim, or controversy arising out of or relating to your use of RepSet shall be resolved exclusively through binding individual arbitration, not through court litigation or class action proceedings. By using this app, you waive the right to a jury trial or participation in any class action lawsuit to the fullest extent permitted by applicable law.',
+        'RepSet\'s liability is limited to the maximum extent permitted by applicable law.',
+        'Nothing in this clause limits rights you may have under mandatory consumer protection laws in your jurisdiction.',
+      ],
+    },
+    {
+      heading: '9. Legal compliance',
+      points: [
+        'Designed in accordance with GDPR-style privacy principles.',
+        'Respects applicable data protection and age-related legal requirements.',
+      ],
+    },
+    {
+      heading: '10. Changes to this policy',
+      points: [
+        'We may update this policy at any time. Continued use of RepSet after any changes constitutes your acceptance of the revised policy. We recommend reviewing this page periodically.',
+      ],
+    },
+    {
+      heading: '11. Contact & support',
+      points: [
+        'Privacy concerns: privacy@repset.app',
+        'General support: In-app support / contact channel',
+      ],
+    },
+  ],
+  footer:
+    'RepSet © 2026. This document constitutes the complete privacy policy and governs your use of the RepSet application. Existing account holders are considered to have accepted these terms. All rights reserved.',
+} as const;
+
 export function SettingsScreen({ onBack, onOpenGym, onOpenHomeTour }: SettingsScreenProps) {
   const [theme, setTheme] = useState<'dark' | 'light'>('dark');
   const [language, setLanguage] = useState<AppLanguage>('en');
@@ -870,44 +969,62 @@ export function SettingsScreen({ onBack, onOpenGym, onOpenHomeTour }: SettingsSc
   ] as const;
 
   if (activePage === 'privacy') {
-    const privacyIcons = [Database, Lock, SlidersHorizontal, Share2, MapPin, CreditCard, KeyRound, Scale, Mail];
-    const cards = copy.privacyCards.map((card, index) => ({
-      icon: privacyIcons[index] || Shield,
-      title: card.title,
-      points: card.points,
-    }));
-
     return (
       <div className="flex-1 flex flex-col bg-background min-h-screen pb-24">
         <div className="px-4 sm:px-6 pt-2">
           <Header title={copy.privacyAndSecurity} onBack={() => setActivePage('settings')} compact />
         </div>
-        <div className="px-4 sm:px-6 space-y-3">
-          <div className="bg-card rounded-2xl border border-white/5 p-4">
-            <p className="text-sm text-text-secondary leading-relaxed">
-              {copy.privacyIntro}
-            </p>
-          </div>
-
-          {cards.map((card) => (
-            <div key={card.title} className="bg-card rounded-2xl border border-white/5 p-4">
-              <div className="flex items-start gap-3">
-                <div className="w-9 h-9 rounded-lg bg-accent/10 text-accent flex items-center justify-center shrink-0">
-                  <card.icon size={18} />
-                </div>
-                <div className="min-w-0">
-                  <h3 className="text-sm sm:text-base font-semibold text-white">{card.title}</h3>
-                  <ul className="mt-2 space-y-1.5">
-                    {card.points.map((point) => (
-                      <li key={point} className="text-xs sm:text-sm text-text-secondary leading-relaxed break-words [overflow-wrap:anywhere]">
-                        - {point}
-                      </li>
-                    ))}
-                  </ul>
+        <div className="px-4 sm:px-6 pb-8">
+          <article className="mx-auto max-w-3xl space-y-8 text-left">
+            <header className="space-y-3">
+              <p className="text-sm font-medium uppercase tracking-[0.18em] text-accent/80">
+                {PRIVACY_POLICY_DOCUMENT.appName}
+              </p>
+              <div className="space-y-2">
+                <h2 className="text-2xl font-semibold leading-tight text-text-primary sm:text-3xl">
+                  {PRIVACY_POLICY_DOCUMENT.title}
+                </h2>
+                <div className="flex flex-wrap gap-x-4 gap-y-2 text-xs uppercase tracking-[0.14em] text-text-tertiary sm:text-sm">
+                  {PRIVACY_POLICY_DOCUMENT.metadata.map((item) => (
+                    <span key={item}>{item}</span>
+                  ))}
                 </div>
               </div>
-            </div>
-          ))}
+            </header>
+
+            <section className="space-y-2">
+              <h3 className="text-sm font-semibold uppercase tracking-[0.14em] text-text-primary">
+                Important notice
+              </h3>
+              <p className="text-sm leading-7 text-text-secondary sm:text-base">
+                {PRIVACY_POLICY_DOCUMENT.importantNotice}
+              </p>
+            </section>
+
+            {PRIVACY_POLICY_DOCUMENT.sections.map((section) => (
+              <section key={section.heading} className="space-y-3">
+                <h3 className="text-base font-semibold text-text-primary sm:text-lg">
+                  {section.heading}
+                </h3>
+                <ul className="space-y-3">
+                  {section.points.map((point) => (
+                    <li
+                      key={point}
+                      className="text-sm leading-7 text-text-secondary break-words [overflow-wrap:anywhere] sm:text-base"
+                    >
+                      {point}
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            ))}
+
+            <footer className="border-t border-white/10 pt-6">
+              <p className="text-sm leading-7 text-text-secondary sm:text-base">
+                {PRIVACY_POLICY_DOCUMENT.footer}
+              </p>
+            </footer>
+          </article>
         </div>
       </div>
     );
