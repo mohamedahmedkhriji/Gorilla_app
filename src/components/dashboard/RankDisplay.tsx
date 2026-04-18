@@ -1,7 +1,7 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 import { getUserRankBadge } from '../../services/missions';
-import { getRankBadgeImage, rankCardIcon } from '../../services/rankTheme';
+import { getRankBadgeImage } from '../../services/rankTheme';
 import { HOME_CARD_HOVER_CLASS, HOME_CARD_OVERLAY_CLASS, HOME_CARD_TITLE_CLASS } from '../home/homeCardStyles';
 import { getActiveLanguage, getStoredLanguage, pickLanguage, repairMojibakeText } from '../../services/language';
 import type { GamificationRankProgress, GamificationStreakRisk } from '../../types/gamification';
@@ -113,7 +113,7 @@ export function RankDisplay({
       <div className={HOME_CARD_OVERLAY_CLASS} aria-hidden="true" />
 
       <div className="relative z-10 space-y-4">
-        <div className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3">
+        <div className="grid grid-cols-[auto_minmax(0,1fr)] items-center gap-3">
           <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-accent/35 bg-gradient-to-br from-accent/30 to-info/25">
             <img src={rankBadgeImage} alt={rankNameDisplay} className="h-10 w-10 object-contain" />
           </div>
@@ -121,7 +121,6 @@ export function RankDisplay({
             <h4 className={HOME_CARD_TITLE_CLASS}>{rankNameDisplay}</h4>
             <p className="shrink-0 font-electrolize text-[1.35rem] leading-none text-text-primary">{copy.pointsLabel}</p>
           </div>
-          <img src={rankCardIcon} alt={copy.iconAlt} className="h-8 w-8 shrink-0 object-contain" />
         </div>
 
         <div className="space-y-2">
