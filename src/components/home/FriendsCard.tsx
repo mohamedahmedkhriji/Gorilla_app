@@ -131,7 +131,7 @@ export function FriendsCard({ onClick, coachmarkTargetId }: FriendsCardProps) {
       <div className="relative z-10 flex justify-between items-start">
         <div className="relative flex h-11 w-11 items-center justify-center rounded-[18px] border border-accent/20 bg-white/[0.08] text-accent shadow-[inset_0_1px_0_rgba(255,255,255,0.07)] transition-all duration-300 group-hover:border-accent/35">
           <div className="absolute inset-x-2 top-0 h-px bg-gradient-to-r from-transparent via-white/20 to-transparent" />
-          <img src={emojiFriends} alt={copy.friendsLogoAlt} className="h-7 w-7 object-contain" />
+          <img src={emojiFriends} alt={copy.friendsLogoAlt} className="h-8 w-8 object-contain" />
         </div>
         <img src={emojiRightArrow} alt="" aria-hidden="true" className="h-4 w-4 object-contain opacity-70 transition-all duration-300 group-hover:translate-x-0.5 group-hover:opacity-100" />
       </div>

@@ -621,7 +621,7 @@ export function ProfileScreen({ onNavigate, onLogout }: ProfileScreenProps) {
           <div className="relative z-10 flex justify-between items-start">
             <div className={`${featureIconClassName} text-emerald-300`}>
               <div className="absolute inset-x-2 top-0 h-px bg-gradient-to-r from-transparent via-white/20 to-transparent" />
-              <FileText size={20} />
+              <FileText size={22} />
             </div>
             <img src={emojiRightArrow} alt="" aria-hidden="true" className="h-4 w-4 object-contain opacity-70 transition-all duration-300 group-hover:translate-x-0.5 group-hover:opacity-100" />
           </div>
@@ -645,7 +645,7 @@ export function ProfileScreen({ onNavigate, onLogout }: ProfileScreenProps) {
           <div className="relative z-10 flex justify-between items-start">
             <div className={`${featureIconClassName} text-accent`}>
               <div className="absolute inset-x-2 top-0 h-px bg-gradient-to-r from-transparent via-white/20 to-transparent" />
-              <Dumbbell size={20} />
+              <Dumbbell size={22} />
             </div>
             <img src={emojiRightArrow} alt="" aria-hidden="true" className="h-4 w-4 object-contain opacity-70 transition-all duration-300 group-hover:translate-x-0.5 group-hover:opacity-100" />
           </div>
