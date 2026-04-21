@@ -15,6 +15,7 @@ import { Calculator } from './Calculator';
 import { ExerciseLibrary } from './ExerciseLibrary';
 import { BooksLibrary } from './BooksLibrary';
 import { MyNutrition } from './MyNutrition';
+import { Shop } from './Shop';
 import { ExerciseVideoScreen } from '../components/workout/ExerciseVideoScreen';
 import { MuscleRecoveryScreen } from '../components/progress/MuscleRecoveryScreen';
 import { RankingsRewardsScreen } from '../components/profile/RankingsRewardsScreen';
@@ -29,7 +30,7 @@ import {
   readCoachmarkProgress,
 } from '../services/coachmarks';
 import { getRankBadgeImage } from '../services/rankTheme';
-import { emojiComingSoon, emojiMyNutrition, emojiProfile, emojiRightArrow, emojiShop } from '../services/emojiTheme';
+import { emojiProfile, emojiRightArrow, emojiShop } from '../services/emojiTheme';
 import { AppLanguage, getActiveLanguage, pickLanguage } from '../services/language';
 import { formatWorkoutDayLabel, normalizeWorkoutDayKey } from '../services/workoutDayLabel';
 import {
@@ -524,12 +525,14 @@ type HomeView =
 'recovery' |
 'rank' |
 'workoutDetail' |
-'nutrition';
+'nutrition' |
+'shop';
 
 const HOME_VIEW_ORDER: HomeView[] = [
   'main',
   'workoutDetail',
   'nutrition',
+  'shop',
   'friends',
   'friendProfile',
   'friendChallenge',
@@ -558,6 +561,7 @@ export function Home({
   const todayKey = new Date().toDateString();
 
   const [view, setView] = useState<HomeView>('main');
+  const [isComingSoonOpen, setIsComingSoonOpen] = useState(false);
   const [selectedExercise, setSelectedExercise] = useState<{
     name: string;
     muscle: string;
@@ -588,7 +592,6 @@ export function Home({
   });
   const [programProgress, setProgramProgress] = useState<any>(null);
   const [isHomeLoading, setIsHomeLoading] = useState(true);
-  const [showShopComingSoon, setShowShopComingSoon] = useState(false);
   const [extraTodayExercises, setExtraTodayExercises] = useState<any[]>(
     () => loadTodayExtraExercises(workoutStorageKeys),
   );
@@ -1273,7 +1276,7 @@ export function Home({
   }, [resetSignal]);
 
   useEffect(() => {
-    if (view !== 'main' || isHomeLoading || showShopComingSoon) return;
+    if (view !== 'main' || isHomeLoading) return;
     if (hasTrackedHomeVisitRef.current) return;
 
     hasTrackedHomeVisitRef.current = true;
@@ -1281,12 +1284,11 @@ export function Home({
   }, [
     coachmarkStorageOptions,
     isHomeLoading,
-    showShopComingSoon,
     view,
   ]);
 
   useEffect(() => {
-    if (view !== 'main' || isHomeLoading || showShopComingSoon || isCoachmarkOpen) {
+    if (view !== 'main' || isHomeLoading || isCoachmarkOpen) {
       return;
     }
 
@@ -1311,11 +1313,14 @@ export function Home({
     homeCoachmarkSteps,
     isCoachmarkOpen,
     isHomeLoading,
-    showShopComingSoon,
     view,
   ]);
 
   useEffect(() => {
+    if (view === 'shop') {
+      return undefined;
+    }
+
     let isMounted = true;
     const userName = currentUser.name || 'Moha';
     
@@ -1562,7 +1567,7 @@ export function Home({
       clearInterval(periodicRecoveryRefresh);
       clearInterval(progressRefresh);
     };
-  }, [currentUser.name, currentUserId, language, workoutStorageScope]);
+  }, [currentUser.name, currentUserId, language, view, workoutStorageScope]);
 
   useEffect(() => {
     if (selectedTodayWorkout) {
@@ -1589,6 +1594,10 @@ export function Home({
   }, [selectedTodayWorkout, weekPlanWorkouts]);
 
   useEffect(() => {
+    if (view === 'shop') {
+      return undefined;
+    }
+
     if (!todayWorkoutData || todayWorkout === 'Rest Day') {
       if (todayWorkout === 'Rest Day') updateWorkoutProgress(100);
       return;
@@ -1776,7 +1785,7 @@ export function Home({
       document.removeEventListener('visibilitychange', handleVisibilityChange);
       window.clearInterval(interval);
     };
-  }, [todayWorkoutData, todayWorkout, currentUserId]);
+  }, [currentUserId, todayWorkout, todayWorkoutData, view]);
 
   const homeMotionDirection = getNavigationDirection(
     view,
@@ -1792,6 +1801,9 @@ export function Home({
 
   if (view === 'nutrition') {
     return renderTransitionedView(<MyNutrition onBack={() => setView('main')} />);
+  }
+  if (view === 'shop') {
+    return renderTransitionedView(<Shop onBack={() => setView('main')} />);
   }
   if (view === 'workoutDetail') {
     if (todayWorkout === 'Rest Day' && !hasAnyTodayExercises) {
@@ -2012,45 +2024,20 @@ export function Home({
         {/* Quick Actions */}
         <ScreenSection index={3} className="grid grid-cols-2 gap-4">
 
-          <GhostButton coachmarkTargetId="home_nutrition_card" onClick={() => setView('nutrition')} className="justify-between">
+          <GhostButton coachmarkTargetId="home_nutrition_card" onClick={() => setIsComingSoonOpen(true)} className="justify-between">
             <span className="flex items-center gap-2">
-              <img src={emojiMyNutrition} alt={homeCopy.myNutrition} className="h-4 w-4 object-contain" />
-              <span>{homeCopy.myNutrition}</span>
+              <img src={emojiShop} alt={homeCopy.shop} className="h-4 w-4 object-contain" />
+              <span>{homeCopy.shop}</span>
             </span>
             <img src={emojiRightArrow} alt="" aria-hidden="true" className="mb-1 h-[18px] w-[18px] shrink-0 object-contain opacity-70" />
           </GhostButton>
-          <GhostButton onClick={() => setShowShopComingSoon(true)}>
+          <GhostButton onClick={() => setView('shop')} className="justify-between">
             <span className="flex items-center gap-2">
-              <img src={emojiComingSoon} alt={homeCopy.comingSoon} className="h-4 w-4 object-contain" />
-              <span>{homeCopy.shop}</span>
+              <span>Repy ai</span>
             </span>
+            <img src={emojiRightArrow} alt="" aria-hidden="true" className="mb-1 h-[18px] w-[18px] shrink-0 object-contain opacity-70" />
           </GhostButton>
         </ScreenSection>
-
-        {showShopComingSoon && (
-          <div
-            className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-6"
-            onClick={() => setShowShopComingSoon(false)}
-          >
-            <div
-              className="w-full max-w-sm surface-glass border border-white/15 rounded-2xl p-5 text-center"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <h3 className="text-xl font-semibold text-white inline-flex items-center gap-2">
-                <img src={emojiShop} alt={homeCopy.shop} className="h-6 w-6 object-contain" />
-                <span>{homeCopy.shop}</span>
-              </h3>
-              <p className="text-sm text-text-secondary mt-2">{homeCopy.comingSoon}</p>
-              <button
-                type="button"
-                onClick={() => setShowShopComingSoon(false)}
-                className="mt-4 w-full bg-accent text-black py-2.5 rounded-xl font-semibold hover:bg-accent/90 transition-colors"
-              >
-                {homeCopy.ok}
-              </button>
-            </div>
-          </div>
-        )}
 
         {/* Education */}
         <ScreenSection index={4}>
@@ -2081,6 +2068,37 @@ export function Home({
       onSkip={handleCoachmarkSkip}
       onTargetAction={null}
     />
+    {isComingSoonOpen ? (
+      <div
+        className="fixed inset-0 z-[150] flex items-center justify-center bg-black/75 px-4 backdrop-blur-sm"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="home-coming-soon-title"
+        onClick={() => setIsComingSoonOpen(false)}
+      >
+        <div
+          className="w-full max-w-sm rounded-[28px] border border-accent/25 bg-[#080d14] p-6 text-center shadow-[0_24px_80px_rgba(0,0,0,0.45)]"
+          onClick={(event) => event.stopPropagation()}
+        >
+          <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-3xl border border-accent/30 bg-accent/10">
+            <img src={emojiShop} alt="" aria-hidden="true" className="h-8 w-8 object-contain" />
+          </div>
+          <h2 id="home-coming-soon-title" className="mt-5 text-2xl font-electrolize text-text-primary">
+            {homeCopy.comingSoon}
+          </h2>
+          <p className="mt-2 text-sm leading-6 text-text-secondary">
+            {homeCopy.shop}
+          </p>
+          <button
+            type="button"
+            onClick={() => setIsComingSoonOpen(false)}
+            className="mt-6 w-full rounded-xl bg-accent px-5 py-3.5 font-marker font-semibold tracking-[0.08em] text-black transition hover:bg-accent/90"
+          >
+            {homeCopy.ok}
+          </button>
+        </div>
+      </div>
+    ) : null}
     </div>);
 
 }
