@@ -2210,13 +2210,20 @@ const getCatalogRecoveryContexts = async (catalogIds = []) => {
        ec.body_part,
        ecm.muscle_group,
        COALESCE(ecm.load_factor, 1) AS load_factor,
+       ecm.role,
+       COALESCE(ecm.is_primary, 0) AS is_primary,
        COALESCE(erp.systemic_stress_score, 1) AS systemic_stress_score,
        COALESCE(erp.cns_load_score, 1) AS cns_load_score,
        COALESCE(erp.eccentric_bias_score, 1) AS eccentric_bias_score
      FROM exercise_catalog ec
      LEFT JOIN exercise_catalog_muscles ecm ON ecm.exercise_catalog_id = ec.id
      LEFT JOIN exercise_recovery_profile erp ON erp.exercise_catalog_id = ec.id
-     WHERE ec.id IN (${placeholders})`,
+     WHERE ec.id IN (${placeholders})
+       AND (
+         ecm.id IS NULL
+         OR ecm.role IN ('target', 'secondary')
+         OR ecm.is_primary = 1
+       )`,
     ids,
   );
 
@@ -13738,7 +13745,11 @@ const upsertMuscleLoadMetrics = (byMuscle, muscleName, patch = {}) => {
 const resolveMuscleLoadEntries = ({ context, fallbackMuscle, exerciseName }) => {
   const entries = [];
 
-  if (context && Array.isArray(context.muscles)) {
+  normalizeRecoveryMuscleTargets(fallbackMuscle, 4).forEach((muscle) => {
+    entries.push({ muscle, loadFactor: 1 });
+  });
+
+  if (!entries.length && context && Array.isArray(context.muscles)) {
     context.muscles.forEach((entry) => {
       const normalizedMuscle = normalizeCatalogRecoveryMuscle(entry.muscle);
       if (!normalizedMuscle) return;
@@ -13747,12 +13758,6 @@ const resolveMuscleLoadEntries = ({ context, fallbackMuscle, exerciseName }) => 
         muscle: normalizedMuscle,
         loadFactor: Number.isFinite(loadFactor) && loadFactor > 0 ? loadFactor : 1,
       });
-    });
-  }
-
-  if (!entries.length) {
-    normalizeRecoveryMuscleTargets(fallbackMuscle, 4).forEach((muscle) => {
-      entries.push({ muscle, loadFactor: 1 });
     });
   }
 
@@ -14163,15 +14168,18 @@ const rebuildTodayRecoveryStatusFromSets = async (userId) => {
 
   const [setRows] = await pool.execute(
     `SELECT
-        id,
-        exercise_name,
-        exercise_catalog_id,
-        COALESCE(weight, 0) AS weight,
-        COALESCE(reps, 0) AS reps,
-        COALESCE(rpe, 7) AS rpe,
-        created_at
-     FROM workout_sets
-     WHERE user_id = ? AND DATE(created_at) = CURDATE() AND completed = 1`,
+        ws.id,
+        ws.exercise_name,
+        ws.exercise_catalog_id,
+        ws.workout_exercise_id,
+        we.muscle_group_snapshot,
+        COALESCE(ws.weight, 0) AS weight,
+        COALESCE(ws.reps, 0) AS reps,
+        COALESCE(ws.rpe, 7) AS rpe,
+        ws.created_at
+     FROM workout_sets ws
+     LEFT JOIN workout_exercises we ON we.id = ws.workout_exercise_id
+     WHERE ws.user_id = ? AND DATE(ws.created_at) = CURDATE() AND ws.completed = 1`,
     [normalizedUserId],
   );
 
@@ -14213,6 +14221,7 @@ const rebuildTodayRecoveryStatusFromSets = async (userId) => {
     if (!exercisesByKey.has(key)) {
       exercisesByKey.set(key, {
         catalogId: resolvedCatalogId,
+        exerciseName: row.exercise_name,
         setCount: 0,
         totalRpe: 0,
         rpeSamples: 0,
@@ -14220,6 +14229,7 @@ const rebuildTodayRecoveryStatusFromSets = async (userId) => {
         totalLoad: 0,
         heaviestWeight: 0,
         lastLoggedAt: row.created_at,
+        fallbackMuscle: row.muscle_group_snapshot || null,
       });
     }
 
@@ -14239,6 +14249,7 @@ const rebuildTodayRecoveryStatusFromSets = async (userId) => {
       summary.lastLoggedAt = row.created_at;
     }
     summary.catalogId = summary.catalogId || resolvedCatalogId;
+    summary.fallbackMuscle = summary.fallbackMuscle || row.muscle_group_snapshot || null;
   });
 
   if (workoutSetBackfills.length) {
@@ -14260,11 +14271,9 @@ const rebuildTodayRecoveryStatusFromSets = async (userId) => {
     ),
   ];
 
-  if (!catalogIds.length) {
-    return rebuildTodayRecoveryStatusFromLatestSession();
-  }
-
-  const recoveryContextByCatalogId = await getCatalogRecoveryContexts(catalogIds);
+  const recoveryContextByCatalogId = catalogIds.length
+    ? await getCatalogRecoveryContexts(catalogIds)
+    : new Map();
 
   const [factorRows] = await pool.execute(
     `SELECT
@@ -14292,10 +14301,13 @@ const rebuildTodayRecoveryStatusFromSets = async (userId) => {
   const byMuscle = new Map();
 
   exercisesByKey.forEach((exercise) => {
-    if (!exercise.catalogId) return;
-
-    const context = recoveryContextByCatalogId.get(Number(exercise.catalogId));
-    if (!context || !context.muscles.length) return;
+    const context = exercise.catalogId ? recoveryContextByCatalogId.get(Number(exercise.catalogId)) : null;
+    const muscleEntries = resolveMuscleLoadEntries({
+      context,
+      fallbackMuscle: exercise.fallbackMuscle,
+      exerciseName: exercise.exerciseName,
+    });
+    if (!muscleEntries.length) return;
 
     const avgRpe = exercise.rpeSamples
       ? (exercise.totalRpe / exercise.rpeSamples)
@@ -14308,11 +14320,11 @@ const rebuildTodayRecoveryStatusFromSets = async (userId) => {
       heaviestWeight: exercise.heaviestWeight,
       bodyweightKg: factors.latest_bodyweight_kg ?? null,
     });
-    const eccentricFocus = Number(context.profile.eccentricBiasScore || 1) >= 1.05;
+    const eccentricFocus = Number(context?.profile?.eccentricBiasScore || 1) >= 1.05;
 
-    context.muscles.forEach((muscleEntry) => {
+    muscleEntries.forEach((muscleEntry) => {
       const loadMultiplier = computeCatalogRecoveryLoadMultiplier(
-        context.profile,
+        context?.profile,
         muscleEntry.loadFactor,
       );
 
@@ -14377,6 +14389,26 @@ const rebuildTodayRecoveryStatusFromSets = async (userId) => {
       ),
     );
   });
+
+  if (byMuscle.size) {
+    const activeMuscles = Array.from(byMuscle.keys());
+    const placeholders = activeMuscles.map(() => '?').join(', ');
+    updates.push(
+      pool.execute(
+        `UPDATE muscle_recovery_status
+         SET recovery_percentage = 100,
+             hours_needed = 0,
+             hours_elapsed = 0,
+             overtraining_risk = 0,
+             last_worked = NULL
+         WHERE user_id = ?
+           AND last_worked IS NOT NULL
+           AND DATE(last_worked) = CURDATE()
+           AND muscle_group NOT IN (${placeholders})`,
+        [normalizedUserId, ...activeMuscles],
+      ),
+    );
+  }
 
   await Promise.all(updates);
 
