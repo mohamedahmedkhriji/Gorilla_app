@@ -50,7 +50,7 @@ const BOOKS_LIBRARY_I18N: LocalizedLanguageRecord<BooksLibraryCopy> = {
     tank1Description: 'Tank-1 is a RepSet bodybuilding plan with Month 1 and Month 2 progression, exact pairings, technique instructions, and RepSet coaching comments for every day.',
     t2Badge: 'RepSet Cutting Template',
     t2Author: 'By RepSet',
-    t2Description: 'T-2 is a fixed weekly cutting plan with 5 lift days for hamstrings, upper chest and triceps, back width and thickness, heavy legs, shoulders, arms, and recovery.',
+    t2Description: 'T-2 is an elite cutting plan for posterior thickness, upper chest fullness, 3D back density, Tom Platz-style legs, round delts, clean arms, and recovery.',
     t2BulkBadge: 'RepSet Bulking Template',
     t2BulkAuthor: 'By RepSet',
     t2BulkDescription: 'T-2 Bulking is a 2-week rotating mass plan with a strength week, a hypertrophy stretch week, and smart overload built around chest, back, and leg growth.',
