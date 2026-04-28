@@ -68,7 +68,7 @@ const COPY: LocalizedLanguageRecord<{
   en: {
     title: 'T-2 Cutting Plan',
     badge: 'RepSet Cutting Template',
-    summary: 'Weekly cutting rotation prioritizing hamstrings, glutes, upper chest, lats, side delts, and fatigue-aware cardio control.',
+    summary: 'Phase 1 cutting rotation with 5 lifting days focused on hamstrings, glutes, upper chest, V-taper back, big legs, and 3D back thickness.',
     usePlan: 'Use As My Plan',
     usingPlan: 'Saving...',
     activePlan: 'Active In My Plan',
@@ -583,27 +583,27 @@ const DAY_NAME: Record<string, string> = {
   'Day 7': 'sunday',
 };
 
-const HEAVY = /(hack squat|smith press|barbell row|romanian deadlift|db press|machine press|t-bar row|hip thrust|chest supported row|incline machine press)/i;
+const HEAVY = /(squat|deadlift|rack pull|barbell row|barbell press|romanian deadlift|db press|machine press|t-bar row|hip thrust|chest supported row|incline machine press|leg press|hack squat|shoulder press)/i;
 
 const progressionPhases = [
-  'Repeat weekly: Day 1 Hamstrings + Glutes -> Day 2 Upper Chest + Side Delts -> Day 3 Back Width + Abs -> Day 4 Rest / Cardio -> Day 5 Shoulders + Arms -> Day 6 Back Thickness + Chest Pump -> Day 7 Quads + Calves',
-  'Priority 1: Upper chest / lats / hamstrings',
-  'Priority 2: Side delts',
-  'Maintenance: Quads',
+  'Repeat weekly: Day 1 Hamstrings + Glutes -> Day 2 Upper Chest + Side Delts -> Day 3 Back + Abs -> Day 4 Rest -> Day 5 Quads + Calves -> Day 6 Back Thickness + Chest Pump + Shoulders -> Day 7 Rest',
+  'Priority 1: Hamstrings / glutes / upper chest / back',
+  'Priority 2: Quads / side delts / calves',
+  'Execution: compounds stay 1-2 reps in tank, last sets close to failure',
 ];
 
 const mainRows: Row[] = [
-  { signal: 'Top reps achieved on compound lifts', action: '+2.5% weight' },
-  { signal: 'Compound target missed slightly', action: 'Repeat load' },
-  { signal: 'Compound target missed badly', action: '-5% weight' },
-  { signal: 'Form breakdown', action: 'Reduce weight now' },
+  { signal: 'Hit top reps', action: 'Increase weight next week' },
+  { signal: 'Miss badly', action: 'Reduce slightly' },
+  { signal: 'Compounds feel heavy', action: 'Leave 1-2 reps in tank' },
+  { signal: 'Last set', action: 'Close to failure' },
 ];
 
 const isoRows: Row[] = [
-  { signal: 'Isolation lifts progressing', action: 'Increase reps before weight' },
-  { signal: 'Pump 9-10', action: 'Keep load or add reps' },
-  { signal: 'Pump below target', action: 'Reduce weight or add volume' },
-  { signal: 'Joint stress appears', action: 'Change angle or exercise' },
+  { signal: 'Pump < 8/10', action: 'Adjust weight or control' },
+  { signal: 'Chest work', action: 'Stretch plus squeeze' },
+  { signal: 'Lat work', action: 'Elbows down, not arms' },
+  { signal: 'Rows', action: 'Pull with back, not biceps' },
 ];
 
 const fstRows: Row[] = [
@@ -628,129 +628,125 @@ const cardioRows: Row[] = [
 ];
 
 const pumpRows: Row[] = [
-  { signal: 'Chest target', action: '9/10 pump' },
-  { signal: 'Lats target', action: '9/10 pump' },
-  { signal: 'Delts target', action: '9-10/10 pump' },
-  { signal: 'Hamstrings target', action: 'Deep stretch + pump, not just burn' },
+  { signal: 'Hamstrings', action: 'Deeper and thicker' },
+  { signal: 'Quads', action: 'Fuller' },
+  { signal: 'Chest', action: 'More visible and denser' },
+  { signal: 'Back and waist', action: 'V-taper, early thickness, tighter waist' },
 ];
 
 const cnsSymptoms = ['Motivation drop', 'Strength crash', 'Poor pump', 'Bad sleep'];
-const prioritySystem = ['Priority 1: Upper chest / lats / hamstrings', 'Priority 2: Side delts', 'Priority 3: Back thickness', 'Maintenance: Quads'];
+const prioritySystem = ['Priority 1: Hamstrings / glutes / upper chest / back', 'Priority 2: Quads / side delts / calves', 'Priority 3: Chest density / rear delts', 'Rest days protect recovery and waist control'];
 const aiInputs = ['Pump score', 'Strength trend', 'Fatigue', 'Sleep', 'Weight', 'Mood'];
 const aiOutputs = ['Load', 'Volume', 'Cardio', 'Rest'];
 
 const weeks: WeekPlan[] = [
   {
     key: 'weekly',
-    title: 'Weekly Structure',
-    subtitle: 'Priority Cutting Rotation',
-    goal: 'A repeatable 7-day cutting split prioritizing hamstrings, glutes, upper chest, lats, and side delts.',
-    tempo: 'Compounds use controlled strength tempos. Isolations chase pump, stretch, and clean execution.',
-    note: 'Repeat weekly: Day 1 -> Day 2 -> Day 3 -> Day 4 -> Day 5 -> Day 6 -> Day 7',
+    title: 'Phase 1 - Cut',
+    subtitle: '5 Day Cutting Program',
+    goal: 'A repeatable 7-day rotation with 5 lifting days and 2 rest days to build visible muscle while cutting.',
+    tempo: 'Eccentrics stay 2-3 seconds. Stretch every rep, control compounds, and chase clean pump on isolations.',
+    note: 'Repeat weekly for 8-10 weeks: 5 lift days, 2 recovery days.',
     days: [
       {
         dayLabel: 'Day 1',
         focus: 'Hamstrings + Glutes',
-        summary: 'Posterior chain priority with hinge strength and hamstring pump work.',
+        summary: 'Goal: Posterior thickness and hamstring depth.',
         targetMuscles: ['Hamstrings', 'Glutes', 'Calves'],
-        notes: ['Tags: posterior_chain / priority / hinge_focus'],
+        notes: ['Tags: priority / posterior_thickness / hamstring_depth'],
         exercises: [
-          { name: 'Romanian Deadlift', prescription: '4 x 6-8', tempo: '3-1-1-0', comment: 'Main strength driver.' },
-          { name: 'Seated Leg Curl', prescription: '4 x 10-12', tempo: '2-1-2-1', comment: 'Stretch emphasis.' },
-          { name: 'Lying Leg Curl', prescription: '3 x 12-15', comment: 'Last set drop. Fatigue finisher.' },
-          { name: 'Hip Thrust', prescription: '3 x 10-12', tempo: '2-1-2-1' },
-          { name: 'FST-7 Leg Curl', prescription: '7 x 10-12', rest: '30-40 sec', comment: 'Fascia expansion.' },
-          { name: 'Standing Calf Raise', prescription: '5 sets' },
-          { name: 'Seated Calf Raise', prescription: '4 sets' },
+          { name: 'Romanian Deadlift', prescription: '4 x 6-8', tempo: '3-1-1', comment: 'Main posterior-chain strength driver.' },
+          { name: 'Seated Leg Curl', prescription: '4 x 10-12', comment: 'Full stretch.' },
+          { name: 'Lying Leg Curl', prescription: '3 x 12-15', comment: 'Last set drop.' },
+          { name: 'Hip Thrust', prescription: '3 x 8-10', comment: 'Pause at top.' },
+          { name: 'Walking Lunges', prescription: '3 x 12 each leg' },
+          { name: 'FST-7 Seated Leg Curl', prescription: '7 x 10-12', rest: '30-40 sec' },
+          { name: 'Standing Calf Raise', prescription: '4 x 12-15' },
         ],
       },
       {
         dayLabel: 'Day 2',
         focus: 'Upper Chest + Side Delts',
-        summary: 'Upper chest priority with width-focused delts.',
+        summary: 'Goal: Fix chest and build width.',
         targetMuscles: ['Upper Chest', 'Chest', 'Side Delts'],
-        notes: ['Tags: upper_priority / width_builder'],
+        notes: ['Tags: priority / chest_density / width_builder'],
         exercises: [
-          { name: 'Incline Smith Press', prescription: '4 x 6-8', tempo: '3-1-1-1' },
+          { name: 'Incline Barbell Press', prescription: '4 x 6-8', comment: 'Pause plus slow eccentric.' },
           { name: 'Incline DB Press', prescription: '3 x 8-10', comment: 'Last set drop.' },
-          { name: 'Low-to-High Cable Fly', prescription: '3 x 12-15' },
-          { name: 'Machine Press', prescription: '3 x 10-12' },
-          { name: 'FST-7 Chest Fly', prescription: '7 x 10-12' },
+          { name: 'Low-to-High Cable Fly', prescription: '3 x 12-15', comment: 'Deep stretch.' },
+          { name: 'Machine Chest Press', prescription: '3 x 10-12' },
+          { name: 'FST-7 Chest Fly (Cable/Pec Deck)', prescription: '7 x 10-12' },
           { name: 'DB Lateral Raise', prescription: '4 x 15-20', comment: 'Last set partials.' },
           { name: 'Cable Lateral Raise', prescription: '3 x 15' },
         ],
       },
       {
         dayLabel: 'Day 3',
-        focus: 'Back Width + Abs',
-        summary: 'V-taper lat focus with abs and vacuum control.',
+        focus: 'Back Width + Light Thickness + Abs',
+        summary: 'Goal: Build V-taper and connect it to thickness.',
         targetMuscles: ['Back', 'Lats', 'Abs'],
-        notes: ['Tags: v_taper / lat_focus'],
+        notes: ['Tags: v_taper / width / light_thickness'],
         exercises: [
+          { name: 'Pull-ups (or Assisted)', prescription: '4 x 6-10' },
           { name: 'Wide Grip Pulldown', prescription: '4 x 8-10' },
           { name: 'Single Arm Pulldown', prescription: '3 x 10 each' },
-          { name: 'Neutral Pulldown', prescription: '3 x 10-12' },
+          { name: 'Neutral Grip Pulldown', prescription: '3 x 10-12' },
           { name: 'Straight Arm Pulldown', prescription: '3 x 12-15', comment: 'Last set drop.' },
-          { name: 'FST-7 Pullover', prescription: '7 x 12' },
-          { name: 'Hanging Leg Raise', prescription: '4 x 15' },
+          { name: 'Chest Supported Row', prescription: '3 x 10-12', comment: 'Controlled.' },
+          { name: 'FST-7 DB Pullover', prescription: '7 x 10-12' },
+          { name: 'Hanging Leg Raise', prescription: '4 x 12-15' },
           { name: 'Vacuum', prescription: '5-10 min' },
         ],
       },
       {
         dayLabel: 'Day 4',
-        focus: 'Rest / Cardio',
-        summary: 'Recovery and fat-loss control day.',
-        targetMuscles: ['Core'],
-        notes: ['Tags: recovery / fat_loss'],
-        exercises: [
-          { name: 'LISS Cardio', prescription: '30-40 min' },
-          { name: 'Vacuum', prescription: 'Optional' },
-        ],
+        focus: 'Rest',
+        summary: 'No lifting. Recovery focus.',
+        notes: ['Tags: recovery / no_lifting'],
+        isRest: true,
+        exercises: [],
       },
       {
         dayLabel: 'Day 5',
-        focus: 'Shoulders + Arms',
-        summary: 'Width and aesthetics with lateral-delt priority.',
-        targetMuscles: ['Shoulders', 'Biceps', 'Triceps'],
-        notes: ['Tags: width / aesthetics'],
+        focus: 'Quads + Calves',
+        summary: 'Goal: Build big legs, not maintenance anymore.',
+        targetMuscles: ['Quadriceps', 'Calves', 'Glutes'],
+        notes: ['Tags: upgraded / big_legs / quad_priority'],
         exercises: [
-          { name: 'Seated DB Press', prescription: '3 x 8-10' },
-          { name: 'Machine Lateral Raise', prescription: '4 x 12-15', comment: 'Last set drop.' },
-          { name: 'Cable Lateral Raise', prescription: '4 x 15-20' },
-          { name: 'Rear Delt Machine', prescription: '4 x 15-20' },
-          { name: 'FST-7 Cable Lateral', prescription: '7 x 12' },
-          { name: 'EZ Curl + Rope Pushdown', prescription: '4 supersets' },
-          { name: 'Incline Curl + Overhead Extension', prescription: '3 supersets' },
+          { name: 'Barbell Squat', prescription: '4 x 6-8', comment: 'Deep and controlled.' },
+          { name: 'Leg Press', prescription: '4 x 10-12', comment: 'Full range.' },
+          { name: 'Hack Squat', prescription: '3 x 8-10' },
+          { name: 'Bulgarian Split Squat', prescription: '3 x 10 each leg' },
+          { name: 'FST-7 Leg Extension', prescription: '7 x 12-15' },
+          { name: 'Seated Calf Raise', prescription: '4 x 12-15' },
         ],
       },
       {
         dayLabel: 'Day 6',
-        focus: 'Back Thickness + Chest Pump',
-        summary: 'Density and balance with back-thickness work plus chest pump.',
-        targetMuscles: ['Back', 'Chest'],
-        notes: ['Tags: density / balance'],
+        focus: 'Back Thickness + Chest Pump + Shoulders',
+        summary: 'Goal: Build 3D back and add chest density.',
+        targetMuscles: ['Back', 'Chest', 'Shoulders'],
+        notes: ['Tags: thickness / chest_density / shoulder_finish'],
         exercises: [
-          { name: 'Chest Supported Row', prescription: '4 x 8-10' },
-          { name: 'T-Bar Row', prescription: '3 x 10-12' },
-          { name: 'Machine Row', prescription: '3 x 12' },
+          { name: 'Barbell Row', prescription: '4 x 6-8', comment: 'Strict, no ego.' },
+          { name: 'T-Bar Row', prescription: '4 x 8-10' },
+          { name: 'Chest Supported Row', prescription: '3 x 10-12' },
+          { name: 'Rack Pull / Deadlift', prescription: '3 x 5-6', comment: 'Controlled.' },
           { name: 'Incline Machine Press', prescription: '3 x 12-15' },
-          { name: 'Cable Fly', prescription: '3 x 15' },
-          { name: 'FST-7 Chest Fly OR Pullover', prescription: '7 x 12', comment: 'Alternate weekly.' },
+          { name: 'Cable Fly', prescription: '3 x 15', comment: 'Stretch plus squeeze.' },
+          { name: 'FST-7 Chest Fly OR Pullover', prescription: '7 x 12' },
+          { name: 'Shoulder Press', prescription: '3 x 6-8' },
+          { name: 'Lateral Raise', prescription: '3 x 15' },
+          { name: 'Rear Delt Fly', prescription: '3 x 15' },
         ],
       },
       {
         dayLabel: 'Day 7',
-        focus: 'Quads + Calves',
-        summary: 'Maintenance and symmetry work for quads and calves.',
-        targetMuscles: ['Quadriceps', 'Calves'],
-        notes: ['Tags: maintain / symmetry'],
-        exercises: [
-          { name: 'Hack Squat', prescription: '4 x 6-8' },
-          { name: 'Leg Press', prescription: '3 x 10-12' },
-          { name: 'Bulgarian Split Squat', prescription: '3 x 10' },
-          { name: 'Leg Extension', prescription: '3 x 12-15', comment: 'Last set drop.' },
-          { name: 'Calves', prescription: '6-8 sets' },
-        ],
+        focus: 'Rest',
+        summary: 'No lifting. Recovery focus.',
+        notes: ['Tags: recovery / no_lifting'],
+        isRest: true,
+        exercises: [],
       },
     ],
   },
@@ -830,8 +826,8 @@ const buildPayload = (language: AppLanguage, premiumConfig: T2PremiumConfig) => 
     description: copy.payloadDescription,
     premiumPlanConfig: premiumConfig,
     cycleWeeks: 8,
-    templateWeekCount: 2,
-    selectedDays: Object.values(DAY_NAME),
+    templateWeekCount: 1,
+    selectedDays: weeks[0]?.days.filter((day) => !day.isRest).map((day) => DAY_NAME[day.dayLabel] || 'monday') || [],
     weeklyWorkouts: weekPlans[0]?.weeklyWorkouts || [],
     weekPlans,
   };
@@ -989,8 +985,8 @@ export function T2PlanScreen({ onBack }: T2PlanScreenProps) {
             </div>
             <div className="flex flex-wrap gap-2">
               <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-text-secondary">{translateT2Text(language, 'Weekly Repeat')}</span>
-              <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-text-secondary">{translateT2Text(language, 'Priority Split')}</span>
-              <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-text-secondary">{translateT2Text(language, 'Adaptive Cutting')}</span>
+              <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-text-secondary">{translateT2Text(language, '5 Lift Days')}</span>
+              <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-text-secondary">{translateT2Text(language, '8-10 Weeks')}</span>
             </div>
           </div>
         </Card>
@@ -1000,16 +996,16 @@ export function T2PlanScreen({ onBack }: T2PlanScreenProps) {
           <div className="mt-4 grid gap-4 sm:grid-cols-2">
             <div className="rounded-2xl border border-white/10 bg-black/10 p-4">
               <p className="text-xs uppercase tracking-[0.14em] text-text-tertiary">{translateT2Text(language, 'Priority Days')}</p>
-              <p className="mt-2 text-lg font-semibold text-white">{translateT2Text(language, 'Hamstrings / Upper Chest / Lats')}</p>
+              <p className="mt-2 text-lg font-semibold text-white">{translateT2Text(language, 'Hamstrings / Upper Chest / Back')}</p>
             </div>
             <div className="rounded-2xl border border-white/10 bg-black/10 p-4">
               <p className="text-xs uppercase tracking-[0.14em] text-text-tertiary">{translateT2Text(language, 'Support Days')}</p>
-              <p className="mt-2 text-lg font-semibold text-white">{translateT2Text(language, 'Delts / Back Thickness / Quads')}</p>
+              <p className="mt-2 text-lg font-semibold text-white">{translateT2Text(language, 'Quads / Calves / Shoulders')}</p>
             </div>
           </div>
           <div className="mt-4 rounded-2xl border border-white/10 bg-black/10 p-4">
             <p className="text-xs uppercase tracking-[0.14em] text-text-tertiary">{translateT2Text(language, 'Repeat')}</p>
-            <p className="mt-2 text-sm text-text-secondary">{translateT2Text(language, 'Repeat weekly: Day 1 -> Day 2 -> Day 3 -> Day 4 -> Day 5 -> Day 6 -> Day 7')}</p>
+            <p className="mt-2 text-sm text-text-secondary">{translateT2Text(language, 'Repeat weekly: Day 1 -> Day 2 -> Day 3 -> Day 4 Rest -> Day 5 -> Day 6 -> Day 7 Rest')}</p>
           </div>
         </Card>
 
@@ -1107,12 +1103,12 @@ export function T2PlanScreen({ onBack }: T2PlanScreenProps) {
           </div>
         </Card>
 
-        <DecisionTable title="Main Progression Table" rows={mainRows} language={language} />
-        <DecisionTable title="Isolation Exercise Progression" rows={isoRows} language={language} />
+        <DecisionTable title="Execution Rules" rows={mainRows} language={language} />
+        <DecisionTable title="Mind-Muscle Focus" rows={isoRows} language={language} />
         <DecisionTable title="FST-7 Progression Model" rows={fstRows} language={language} />
         <DecisionTable title="Fatigue Rules" rows={fatigueRows} language={language} />
         <DecisionTable title="Cardio Adaptive Model" rows={cardioRows} language={language} />
-        <DecisionTable title="Pump Tracking" rows={pumpRows} language={language} />
+        <DecisionTable title="What This Program Builds" rows={pumpRows} language={language} />
 
         <Card className="border border-white/12 bg-white/5 p-5">
           <h3 className="text-sm font-semibold uppercase tracking-[0.14em] text-text-secondary">{translateT2Text(language, 'CNS Fatigue Model')}</h3>
