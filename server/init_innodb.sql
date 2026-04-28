@@ -14,6 +14,7 @@ CREATE TABLE IF NOT EXISTS users (
   profile_photo VARCHAR(500),
   total_workouts INT DEFAULT 0,
   rank VARCHAR(50) DEFAULT 'Beginner',
+  is_premium TINYINT(1) NOT NULL DEFAULT 1,
   subscription_status ENUM('active', 'inactive') DEFAULT 'active',
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB;

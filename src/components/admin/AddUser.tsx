@@ -11,7 +11,8 @@ export const AddUser: React.FC<AddUserProps> = ({ onBack, onSuccess }) => {
   const [formData, setFormData] = useState({
     email: '',
     password: '',
-    confirmPassword: ''
+    confirmPassword: '',
+    isPremium: true
   });
   const [loading, setLoading] = useState(false);
   const [successMessage, setSuccessMessage] = useState('');
@@ -46,11 +47,12 @@ export const AddUser: React.FC<AddUserProps> = ({ onBack, onSuccess }) => {
         email: formData.email,
         password: formData.password,
         coach_id: coachId,
-        gym_id: gymId
+        gym_id: gymId,
+        is_premium: formData.isPremium
       });
 
       setSuccessMessage('User account created successfully!');
-      setFormData({ email: '', password: '', confirmPassword: '' });
+      setFormData({ email: '', password: '', confirmPassword: '', isPremium: true });
       setTimeout(() => {
         setSuccessMessage('');
         if (onSuccess) {
@@ -152,11 +154,25 @@ export const AddUser: React.FC<AddUserProps> = ({ onBack, onSuccess }) => {
               </div>
             </div>
 
+            <label className="flex items-start gap-3 rounded-2xl border border-slate-200 bg-white p-4 text-sm text-slate-700">
+              <input
+                type="checkbox"
+                checked={formData.isPremium}
+                onChange={(e) => setFormData({ ...formData, isPremium: e.target.checked })}
+                className="mt-1 h-4 w-4 rounded border-slate-300 text-[#10b981] focus:ring-[#10b981]"
+              />
+              <span>
+                <span className="block font-semibold text-slate-900">Premium user</span>
+                <span className="mt-1 block text-slate-500">Enable premium features for this account.</span>
+              </span>
+            </label>
+
             <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200">
               <p className="text-sm text-slate-600 font-semibold">Note</p>
               <ul className="text-sm text-slate-600 mt-2 space-y-1">
                 <li>- User will login with this email and password</li>
                 <li>- User will complete onboarding process</li>
+                <li>- Existing users are premium by default</li>
                 <li>- You will receive notification when onboarding is done</li>
                 <li>- User data will be automatically sent to your profile</li>
               </ul>

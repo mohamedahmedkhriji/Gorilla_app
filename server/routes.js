@@ -472,6 +472,33 @@ const normalizeUser = (user) => {
   return safeUser;
 };
 
+let userPremiumColumnReadyPromise;
+const ensureUserPremiumColumn = async () => {
+  if (!userPremiumColumnReadyPromise) {
+    userPremiumColumnReadyPromise = (async () => {
+      const [rows] = await pool.execute(
+        `SELECT 1
+         FROM information_schema.columns
+         WHERE table_schema = DATABASE()
+           AND table_name = 'users'
+           AND column_name = 'is_premium'
+         LIMIT 1`,
+      );
+
+      if (!rows.length) {
+        await pool.execute('ALTER TABLE users ADD COLUMN is_premium TINYINT(1) NOT NULL DEFAULT 1');
+      }
+
+      await pool.execute('UPDATE users SET is_premium = 1 WHERE is_premium IS NULL');
+    })().catch((error) => {
+      userPremiumColumnReadyPromise = null;
+      throw error;
+    });
+  }
+
+  return userPremiumColumnReadyPromise;
+};
+
 const getExistingTableColumns = async (conn, tableName, candidateColumns) => {
   const normalizedColumns = [...new Set(
     (Array.isArray(candidateColumns) ? candidateColumns : [])
@@ -8074,7 +8101,7 @@ router.get('/auth/session', requireAuth(), async (req, res) => {
 router.post('/auth/register', authMutationRateLimit, requireAuth('coach', 'gym_owner'), async (req, res) => {
   try {
     const actor = req.authUser;
-    const { email, password, name, role = 'user', coach_id = null, gym_id = null } = req.body;
+    const { email, password, name, role = 'user', coach_id = null, gym_id = null, is_premium = true } = req.body;
 
     if (!email || !password) {
       return res.status(400).json({ error: 'Email and password are required' });
@@ -8105,10 +8132,13 @@ router.post('/auth/register', authMutationRateLimit, requireAuth('coach', 'gym_o
       return res.status(403).json({ error: 'Gym owners can only create accounts inside their own gym' });
     }
 
+    await ensureUserPremiumColumn();
+    const premiumValue = is_premium === false || is_premium === 0 || is_premium === '0' ? 0 : 1;
+
     const [result] = await pool.execute(
-      `INSERT INTO users (email, password, name, role, coach_id, gym_id, onboarding_completed, first_login)
-       VALUES (?, ?, ?, ?, ?, ?, 0, 1)`,
-      [String(email).trim().toLowerCase(), hashedPassword, derivedName, normalizedRole, normalizedCoachId, normalizedGymId]
+      `INSERT INTO users (email, password, name, role, coach_id, gym_id, is_premium, onboarding_completed, first_login)
+       VALUES (?, ?, ?, ?, ?, ?, ?, 0, 1)`,
+      [String(email).trim().toLowerCase(), hashedPassword, derivedName, normalizedRole, normalizedCoachId, normalizedGymId, premiumValue]
     );
 
     const [rows] = await pool.execute('SELECT * FROM users WHERE id = ?', [result.insertId]);
