@@ -68,7 +68,7 @@ const COPY: LocalizedLanguageRecord<{
   en: {
     title: 'T-2 Cutting Plan',
     badge: 'RepSet Cutting Template',
-    summary: 'Phase 1 cutting rotation with 5 lifting days focused on hamstrings, glutes, upper chest, V-taper back, big legs, and 3D back thickness.',
+    summary: 'Fixed weekly cutting rotation with hamstrings, upper chest and triceps, back width plus thickness, heavy legs, shoulders, arms, and recovery.',
     usePlan: 'Use As My Plan',
     usingPlan: 'Saving...',
     activePlan: 'Active In My Plan',
@@ -586,24 +586,24 @@ const DAY_NAME: Record<string, string> = {
 const HEAVY = /(squat|deadlift|rack pull|barbell row|barbell press|romanian deadlift|db press|machine press|t-bar row|hip thrust|chest supported row|incline machine press|leg press|hack squat|shoulder press)/i;
 
 const progressionPhases = [
-  'Repeat weekly: Day 1 Hamstrings + Glutes -> Day 2 Upper Chest + Side Delts -> Day 3 Back + Abs -> Day 4 Rest -> Day 5 Quads + Calves -> Day 6 Back Thickness + Chest Pump + Shoulders -> Day 7 Rest',
-  'Priority 1: Hamstrings / glutes / upper chest / back',
-  'Priority 2: Quads / side delts / calves',
-  'Execution: compounds stay 1-2 reps in tank, last sets close to failure',
+  'Day 1 Hamstrings + Glutes -> Day 2 Upper Chest + Triceps -> Day 3 Back -> Day 4 Rest -> Day 5 Quads + Calves -> Day 6 Shoulders + Arms + Back Thickness -> Day 7 Rest',
+  'Priority 1: Hamstrings / glutes / upper chest',
+  'Priority 2: Back width / back thickness / quads',
+  'Execution: tempo and control before weight',
 ];
 
 const mainRows: Row[] = [
-  { signal: 'Hit top reps', action: 'Increase weight next week' },
-  { signal: 'Miss badly', action: 'Reduce slightly' },
-  { signal: 'Compounds feel heavy', action: 'Leave 1-2 reps in tank' },
-  { signal: 'Last set', action: 'Close to failure' },
+  { signal: 'Compounds', action: '3 sec eccentric' },
+  { signal: 'Every rep', action: 'Full stretch' },
+  { signal: 'Last set', action: '0-1 reps from failure' },
+  { signal: 'No ego lifting', action: 'Control > weight' },
 ];
 
 const isoRows: Row[] = [
-  { signal: 'Pump < 8/10', action: 'Adjust weight or control' },
-  { signal: 'Chest work', action: 'Stretch plus squeeze' },
-  { signal: 'Lat work', action: 'Elbows down, not arms' },
-  { signal: 'Rows', action: 'Pull with back, not biceps' },
+  { signal: 'Weekly goal', action: '+1 rep or +2.5 kg' },
+  { signal: 'Performance drops', action: 'Keep weight and improve control' },
+  { signal: 'Pump target', action: '9/10' },
+  { signal: 'Strength drops', action: 'Reduce cardio' },
 ];
 
 const fstRows: Row[] = [
@@ -628,74 +628,71 @@ const cardioRows: Row[] = [
 ];
 
 const pumpRows: Row[] = [
-  { signal: 'Hamstrings', action: 'Deeper and thicker' },
-  { signal: 'Quads', action: 'Fuller' },
-  { signal: 'Chest', action: 'More visible and denser' },
-  { signal: 'Back and waist', action: 'V-taper, early thickness, tighter waist' },
+  { signal: 'Legs', action: 'Fuller and stronger' },
+  { signal: 'Chest', action: 'Visible improvement' },
+  { signal: 'Back', action: 'Width and early thickness' },
+  { signal: 'Waist and physique', action: 'Tighter waist and stage direction' },
 ];
 
 const cnsSymptoms = ['Motivation drop', 'Strength crash', 'Poor pump', 'Bad sleep'];
-const prioritySystem = ['Priority 1: Hamstrings / glutes / upper chest / back', 'Priority 2: Quads / side delts / calves', 'Priority 3: Chest density / rear delts', 'Rest days protect recovery and waist control'];
+const prioritySystem = ['Priority 1: Hamstrings / glutes / upper chest', 'Priority 2: Back width and thickness', 'Priority 3: Quads / calves / shoulders', 'Rest days protect recovery and waist control'];
 const aiInputs = ['Pump score', 'Strength trend', 'Fatigue', 'Sleep', 'Weight', 'Mood'];
 const aiOutputs = ['Load', 'Volume', 'Cardio', 'Rest'];
 
 const weeks: WeekPlan[] = [
   {
     key: 'weekly',
-    title: 'Phase 1 - Cut',
-    subtitle: '5 Day Cutting Program',
-    goal: 'A repeatable 7-day rotation with 5 lifting days and 2 rest days to build visible muscle while cutting.',
-    tempo: 'Eccentrics stay 2-3 seconds. Stretch every rep, control compounds, and chase clean pump on isolations.',
-    note: 'Repeat weekly for 8-10 weeks: 5 lift days, 2 recovery days.',
+    title: 'Weekly Structure',
+    subtitle: 'Fixed T-2 Cutting Rotation',
+    goal: 'A fixed 7-day split with 5 lifting days and 2 rest days for upper chest, posterior chain, back width, heavy legs, shoulders, and arms.',
+    tempo: 'Tempo is non-negotiable: compounds use a 3 second eccentric and every rep must hit a full stretch.',
+    note: 'Repeat weekly for 8-10 weeks.',
     days: [
       {
         dayLabel: 'Day 1',
         focus: 'Hamstrings + Glutes',
-        summary: 'Goal: Posterior thickness and hamstring depth.',
+        summary: 'Goal: Build density, hamstrings, and lower back tie-in.',
         targetMuscles: ['Hamstrings', 'Glutes', 'Calves'],
-        notes: ['Tags: priority / posterior_thickness / hamstring_depth'],
+        notes: ['Tags: priority / posterior_thickness / lower_back_tie_in'],
         exercises: [
-          { name: 'Romanian Deadlift', prescription: '4 x 6-8', tempo: '3-1-1', comment: 'Main posterior-chain strength driver.' },
-          { name: 'Seated Leg Curl', prescription: '4 x 10-12', comment: 'Full stretch.' },
+          { name: 'Romanian Deadlift', prescription: '4 x 6-8', tempo: '3-1-1' },
+          { name: 'Seated Leg Curl', prescription: '4 x 10-12', comment: 'Full stretch, slow negative.' },
           { name: 'Lying Leg Curl', prescription: '3 x 12-15', comment: 'Last set drop.' },
-          { name: 'Hip Thrust', prescription: '3 x 8-10', comment: 'Pause at top.' },
+          { name: 'Hip Thrust', prescription: '4 x 8-10' },
           { name: 'Walking Lunges', prescription: '3 x 12 each leg' },
-          { name: 'FST-7 Seated Leg Curl', prescription: '7 x 10-12', rest: '30-40 sec' },
+          { name: 'Seated Leg Curl', prescription: '7 x 10-12', rest: '30-40 sec', comment: 'FST-7.' },
           { name: 'Standing Calf Raise', prescription: '4 x 12-15' },
         ],
       },
       {
         dayLabel: 'Day 2',
-        focus: 'Upper Chest + Side Delts',
-        summary: 'Goal: Fix chest and build width.',
-        targetMuscles: ['Upper Chest', 'Chest', 'Side Delts'],
-        notes: ['Tags: priority / chest_density / width_builder'],
+        focus: 'Upper Chest + Triceps',
+        summary: 'Goal: Add chest thickness and upper chest dominance.',
+        targetMuscles: ['Upper Chest', 'Chest', 'Triceps'],
+        notes: ['Tags: weak_point_fix / upper_chest / triceps'],
         exercises: [
-          { name: 'Incline Barbell Press', prescription: '4 x 6-8', comment: 'Pause plus slow eccentric.' },
-          { name: 'Incline DB Press', prescription: '3 x 8-10', comment: 'Last set drop.' },
-          { name: 'Low-to-High Cable Fly', prescription: '3 x 12-15', comment: 'Deep stretch.' },
-          { name: 'Machine Chest Press', prescription: '3 x 10-12' },
-          { name: 'FST-7 Chest Fly (Cable/Pec Deck)', prescription: '7 x 10-12' },
-          { name: 'DB Lateral Raise', prescription: '4 x 15-20', comment: 'Last set partials.' },
-          { name: 'Cable Lateral Raise', prescription: '3 x 15' },
+          { name: 'Incline Barbell Press', prescription: '4 x 6-8', tempo: '3-1-1', comment: 'Pause at bottom.' },
+          { name: 'Incline DB Press', prescription: '4 x 8-10' },
+          { name: 'Chest Dips', prescription: '3 x 8-12', comment: 'Lean forward.' },
+          { name: 'Low-to-High Cable Fly', prescription: '3 x 12-15' },
+          { name: 'Pec Deck', prescription: '7 x 10-12', rest: '30-40 sec', comment: 'FST-7.' },
+          { name: 'Skullcrusher', prescription: '3 x 10-12' },
+          { name: 'Rope Pushdown', prescription: '3 x 12-15' },
         ],
       },
       {
         dayLabel: 'Day 3',
-        focus: 'Back Width + Light Thickness + Abs',
-        summary: 'Goal: Build V-taper and connect it to thickness.',
-        targetMuscles: ['Back', 'Lats', 'Abs'],
-        notes: ['Tags: v_taper / width / light_thickness'],
+        focus: 'Back Width + Thickness Hybrid',
+        summary: 'Goal: Build V-taper and start density work.',
+        targetMuscles: ['Back', 'Lats', 'Upper Back'],
+        notes: ['Tags: v_taper / width / thickness_hybrid'],
         exercises: [
-          { name: 'Pull-ups (or Assisted)', prescription: '4 x 6-10' },
-          { name: 'Wide Grip Pulldown', prescription: '4 x 8-10' },
-          { name: 'Single Arm Pulldown', prescription: '3 x 10 each' },
+          { name: 'Pull-Ups', prescription: '4 x 6-10', comment: 'Weighted if possible.' },
+          { name: 'Wide Grip Pulldown', prescription: '3 x 8-10' },
           { name: 'Neutral Grip Pulldown', prescription: '3 x 10-12' },
-          { name: 'Straight Arm Pulldown', prescription: '3 x 12-15', comment: 'Last set drop.' },
-          { name: 'Chest Supported Row', prescription: '3 x 10-12', comment: 'Controlled.' },
-          { name: 'FST-7 DB Pullover', prescription: '7 x 10-12' },
-          { name: 'Hanging Leg Raise', prescription: '4 x 12-15' },
-          { name: 'Vacuum', prescription: '5-10 min' },
+          { name: 'Straight Arm Pulldown', prescription: '3 x 12-15' },
+          { name: 'Chest Supported Row', prescription: '3 x 10-12', comment: 'Strict, slow.' },
+          { name: 'Dumbbell Pullover', prescription: '7 x 10-12', rest: '30-40 sec', comment: 'FST-7.' },
         ],
       },
       {
@@ -709,35 +706,36 @@ const weeks: WeekPlan[] = [
       {
         dayLabel: 'Day 5',
         focus: 'Quads + Calves',
-        summary: 'Goal: Build big legs, not maintenance anymore.',
+        summary: 'Goal: Build leg size, not maintenance.',
         targetMuscles: ['Quadriceps', 'Calves', 'Glutes'],
-        notes: ['Tags: upgraded / big_legs / quad_priority'],
+        notes: ['Tags: heavy / big_leg_day / quad_priority'],
         exercises: [
           { name: 'Barbell Squat', prescription: '4 x 6-8', comment: 'Deep and controlled.' },
           { name: 'Leg Press', prescription: '4 x 10-12', comment: 'Full range.' },
           { name: 'Hack Squat', prescription: '3 x 8-10' },
           { name: 'Bulgarian Split Squat', prescription: '3 x 10 each leg' },
-          { name: 'FST-7 Leg Extension', prescription: '7 x 12-15' },
+          { name: 'Leg Extension', prescription: '7 x 12-15', rest: '30-40 sec', comment: 'FST-7.' },
           { name: 'Seated Calf Raise', prescription: '4 x 12-15' },
         ],
       },
       {
         dayLabel: 'Day 6',
-        focus: 'Back Thickness + Chest Pump + Shoulders',
-        summary: 'Goal: Build 3D back and add chest density.',
-        targetMuscles: ['Back', 'Chest', 'Shoulders'],
-        notes: ['Tags: thickness / chest_density / shoulder_finish'],
+        focus: 'Shoulders + Arms + Back Thickness',
+        summary: 'Goal: Build width and add final thickness layer.',
+        targetMuscles: ['Shoulders', 'Arms', 'Back'],
+        notes: ['Tags: width / arms / back_thickness'],
         exercises: [
-          { name: 'Barbell Row', prescription: '4 x 6-8', comment: 'Strict, no ego.' },
-          { name: 'T-Bar Row', prescription: '4 x 8-10' },
-          { name: 'Chest Supported Row', prescription: '3 x 10-12' },
-          { name: 'Rack Pull / Deadlift', prescription: '3 x 5-6', comment: 'Controlled.' },
-          { name: 'Incline Machine Press', prescription: '3 x 12-15' },
-          { name: 'Cable Fly', prescription: '3 x 15', comment: 'Stretch plus squeeze.' },
-          { name: 'FST-7 Chest Fly OR Pullover', prescription: '7 x 12' },
-          { name: 'Shoulder Press', prescription: '3 x 6-8' },
-          { name: 'Lateral Raise', prescription: '3 x 15' },
-          { name: 'Rear Delt Fly', prescription: '3 x 15' },
+          { name: 'Seated DB Shoulder Press', prescription: '4 x 6-8' },
+          { name: 'Dumbbell Lateral Raise', prescription: '4 x 12-15', comment: 'Last set partials.' },
+          { name: 'Cable Lateral Raise', prescription: '3 x 15-20' },
+          { name: 'Rear Delt Machine', prescription: '3 x 15-20' },
+          { name: 'Barbell Row', prescription: '4 x 6-8', comment: 'Heavy and strict.' },
+          { name: 'T-Bar Row', prescription: '3 x 8-10' },
+          { name: 'Barbell Curl', prescription: '3 x 8-10' },
+          { name: 'Incline DB Curl', prescription: '3 x 10-12' },
+          { name: 'Rope Pushdown', prescription: '3 x 12-15' },
+          { name: 'Overhead Extension', prescription: '3 x 12-15' },
+          { name: 'Standing Calf Raise', prescription: '4 x 12-15' },
         ],
       },
       {
@@ -1000,12 +998,12 @@ export function T2PlanScreen({ onBack }: T2PlanScreenProps) {
             </div>
             <div className="rounded-2xl border border-white/10 bg-black/10 p-4">
               <p className="text-xs uppercase tracking-[0.14em] text-text-tertiary">{translateT2Text(language, 'Support Days')}</p>
-              <p className="mt-2 text-lg font-semibold text-white">{translateT2Text(language, 'Quads / Calves / Shoulders')}</p>
+              <p className="mt-2 text-lg font-semibold text-white">{translateT2Text(language, 'Triceps / Quads / Shoulders + Arms')}</p>
             </div>
           </div>
           <div className="mt-4 rounded-2xl border border-white/10 bg-black/10 p-4">
             <p className="text-xs uppercase tracking-[0.14em] text-text-tertiary">{translateT2Text(language, 'Repeat')}</p>
-            <p className="mt-2 text-sm text-text-secondary">{translateT2Text(language, 'Repeat weekly: Day 1 -> Day 2 -> Day 3 -> Day 4 Rest -> Day 5 -> Day 6 -> Day 7 Rest')}</p>
+            <p className="mt-2 text-sm text-text-secondary">{translateT2Text(language, 'Repeat weekly: Day 1 Hamstrings + Glutes -> Day 2 Upper Chest + Triceps -> Day 3 Back -> Day 4 Rest -> Day 5 Quads + Calves -> Day 6 Shoulders + Arms -> Day 7 Rest')}</p>
           </div>
         </Card>
 
