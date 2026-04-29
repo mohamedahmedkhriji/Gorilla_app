@@ -863,11 +863,10 @@ export function T2PlanScreen({ onBack }: T2PlanScreenProps) {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [assignedPlan, setAssignedPlan] = useState(() => getAssignedBookPlan());
-  const [premiumConfig, setPremiumConfig] = useState<T2PremiumConfig>(
+  const [premiumConfig] = useState<T2PremiumConfig>(
     () => getActiveT2PremiumConfig() || DEFAULT_T2_PREMIUM_CONFIG,
   );
   const copy = useMemo(() => COPY[language] || COPY.en, [language]);
-  const premiumCopy = useMemo(() => PREMIUM_UI_COPY[language] || PREMIUM_UI_COPY.en, [language]);
   const isArabic = language === 'ar';
   const isCurrentPlanActive = assignedPlan.id === 't-2';
   const modalCopy = useMemo(() => {
@@ -1187,93 +1186,6 @@ export function T2PlanScreen({ onBack }: T2PlanScreenProps) {
               {modalCopy.hint}
             </div>
 
-              <div className="mt-2 rounded-2xl border border-white/10 bg-black/10 p-4">
-                <div className="text-sm font-semibold text-white">{premiumCopy.setupTitle}</div>
-                <p className="mt-1 text-xs text-text-secondary">{premiumCopy.setupBody}</p>
-
-                <div className="mt-2 space-y-2">
-                  <div>
-                    <div className="mb-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-text-tertiary">{premiumCopy.cutIntensity}</div>
-                    <div className="grid grid-cols-3 gap-2">
-                      {[
-                        ['conservative', premiumCopy.conservative],
-                        ['balanced', premiumCopy.balanced],
-                        ['aggressive', premiumCopy.aggressive],
-                      ].map(([value, label]) => {
-                        const active = premiumConfig.cutIntensity === value;
-                        return (
-                          <button
-                            key={value}
-                            type="button"
-                            onClick={() => setPremiumConfig((current) => ({ ...current, cutIntensity: value as T2PremiumConfig['cutIntensity'] }))}
-                            className={`rounded-xl border px-3 py-2 text-xs font-semibold transition-colors ${
-                              active
-                                ? 'border-accent/40 bg-accent/15 text-accent'
-                                : 'border-white/10 bg-white/5 text-text-secondary hover:border-accent/25'
-                            }`}
-                          >
-                            {label}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-
-                  <div>
-                    <div className="mb-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-text-tertiary">{premiumCopy.cardioStyle}</div>
-                    <div className="grid grid-cols-3 gap-2">
-                      {[
-                        ['incline_walk', premiumCopy.inclineWalk],
-                        ['bike', premiumCopy.bike],
-                        ['mixed', premiumCopy.mixed],
-                      ].map(([value, label]) => {
-                        const active = premiumConfig.cardioPreference === value;
-                        return (
-                          <button
-                            key={value}
-                            type="button"
-                            onClick={() => setPremiumConfig((current) => ({ ...current, cardioPreference: value as T2PremiumConfig['cardioPreference'] }))}
-                            className={`rounded-xl border px-3 py-2 text-xs font-semibold transition-colors ${
-                              active
-                                ? 'border-accent/40 bg-accent/15 text-accent'
-                                : 'border-white/10 bg-white/5 text-text-secondary hover:border-accent/25'
-                            }`}
-                          >
-                            {label}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-
-                  <div>
-                    <div className="mb-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-text-tertiary">{premiumCopy.recoveryMode}</div>
-                    <div className="grid grid-cols-3 gap-2">
-                      {[
-                        ['protect', premiumCopy.protect],
-                        ['balanced', premiumCopy.balanced],
-                        ['performance', premiumCopy.performance],
-                      ].map(([value, label]) => {
-                        const active = premiumConfig.recoveryMode === value;
-                        return (
-                          <button
-                            key={value}
-                            type="button"
-                            onClick={() => setPremiumConfig((current) => ({ ...current, recoveryMode: value as T2PremiumConfig['recoveryMode'] }))}
-                            className={`rounded-xl border px-3 py-2 text-xs font-semibold transition-colors ${
-                              active
-                                ? 'border-accent/40 bg-accent/15 text-accent'
-                                : 'border-white/10 bg-white/5 text-text-secondary hover:border-accent/25'
-                            }`}
-                          >
-                            {label}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                </div>
-              </div>
             </div>
 
             <div className="sticky bottom-0 mt-0 flex shrink-0 gap-3 border-t border-white/10 bg-card/95 pt-2 pb-1 backdrop-blur">
