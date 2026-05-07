@@ -142,7 +142,7 @@ export const DEFAULT_ONBOARDING_CONFIG: OnboardingConfig = {
     defaultTrack: 'sport',
   },
   steps: {
-    intro: ['welcome', 'language', 'first_name', 'personal_info', 'app_motivation', 'athlete_identity'],
+    intro: ['welcome', 'language', 'first_name', 'personal_info', 'body_type', 'app_motivation', 'athlete_identity'],
     bodybuilding: [
       'fitness_background',
       'goals_availability',

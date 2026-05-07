@@ -5,11 +5,10 @@
     "defaultTrack": "sport"
   },
   "steps": {
-    "intro": ["welcome", "first_name", "personal_info", "app_motivation", "athlete_identity"],
+    "intro": ["welcome", "first_name", "personal_info", "body_type", "app_motivation", "athlete_identity"],
     "bodybuilding": [
       "fitness_background",
       "fitness_goals",
-      "body_type",
       "goals_availability",
       "workout_split"
     ],
