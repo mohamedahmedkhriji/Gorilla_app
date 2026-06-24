@@ -454,16 +454,6 @@ export function Profile({
         cornerRadius: 16,
       },
       {
-        id: 'days_left',
-        targetId: 'profile_days_left_card',
-        title: profileCoachmarkCopy.daysLeftTitle,
-        body: profileCoachmarkCopy.daysLeftBody,
-        placement: 'bottom',
-        shape: 'rounded',
-        padding: 8,
-        cornerRadius: 16,
-      },
-      {
         id: 'friends',
         targetId: 'profile_friends_card',
         title: profileCoachmarkCopy.friendsTitle,

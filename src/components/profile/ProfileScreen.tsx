@@ -242,8 +242,6 @@ export function ProfileScreen({ onNavigate, onLogout }: ProfileScreenProps) {
   const [completedExercises, setCompletedExercises] = useState(0);
   const [rankPosition, setRankPosition] = useState(0);
   const [rankTotalMembers, setRankTotalMembers] = useState(0);
-  const [planDaysLeft, setPlanDaysLeft] = useState(0);
-  const [planSessionsLeft, setPlanSessionsLeft] = useState(0);
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
   const [isPlanChoiceOpen, setIsPlanChoiceOpen] = useState(false);
   const [isCoachPickerOpen, setIsCoachPickerOpen] = useState(false);
@@ -357,21 +355,6 @@ export function ProfileScreen({ onNavigate, onLogout }: ProfileScreenProps) {
         setRankPosition(position > 0 ? position : 0);
         setRankTotalMembers(totalMembers > 0 ? totalMembers : 0);
 
-        const statsSessionsLeft = Number(
-          stats?.planSessionsLeft
-          ?? (
-            Number(stats?.planPlannedWorkouts || 0)
-            - Number(stats?.planCompletedWorkouts || 0)
-          )
-          ?? 0,
-        );
-        const statsDaysLeft = Number(stats?.planDaysLeft ?? 0);
-        if (Number.isFinite(statsSessionsLeft)) {
-          setPlanSessionsLeft(Math.max(0, Math.round(statsSessionsLeft)));
-        }
-        if (Number.isFinite(statsDaysLeft)) {
-          setPlanDaysLeft(Math.max(0, Math.round(statsDaysLeft)));
-        }
       } catch (error) {
         console.error('Failed to load profile stats:', error);
         setCompletedExercises(0);
@@ -380,42 +363,11 @@ export function ProfileScreen({ onNavigate, onLogout }: ProfileScreenProps) {
       }
     };
 
-    const fetchProgramProgress = async () => {
-      try {
-        const progress = await api.getProgramProgress(userId);
-        if (!progress?.hasActiveProgram) {
-          setPlanDaysLeft(0);
-          setPlanSessionsLeft(0);
-          return;
-        }
-
-        const summary = progress?.summary || {};
-        const program = progress?.program || {};
-        const planned = Number(summary.plannedWorkouts || 0);
-        const completed = Number(summary.completedWorkouts || 0);
-        const sessionsLeft = Math.max(planned - completed, 0);
-        const calendarDaysLeft = Number(summary.calendarDaysLeft);
-        const daysPerWeekRaw = Number(program.daysPerWeek || summary.workoutsPlannedThisWeek || 0);
-        const daysPerWeek = daysPerWeekRaw > 0 ? daysPerWeekRaw : 4;
-        const estimatedDaysLeft = sessionsLeft > 0 ? Math.ceil((sessionsLeft / daysPerWeek) * 7) : 0;
-        const daysLeft = Number.isFinite(calendarDaysLeft) && calendarDaysLeft >= 0
-          ? Math.round(calendarDaysLeft)
-          : estimatedDaysLeft;
-
-        setPlanSessionsLeft(sessionsLeft);
-        setPlanDaysLeft(daysLeft);
-      } catch (error) {
-        console.error('Failed to load program progress:', error);
-      }
-    };
-
     fetchProfilePicture();
     void fetchProfileStats();
-    void fetchProgramProgress();
 
     const statsRefresh = setInterval(() => {
       void fetchProfileStats();
-      void fetchProgramProgress();
     }, 15 * 1000);
 
     return () => clearInterval(statsRefresh);
@@ -559,7 +511,7 @@ export function ProfileScreen({ onNavigate, onLogout }: ProfileScreenProps) {
         </div>
       </div>
 
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid grid-cols-2 gap-3">
         <button
           data-coachmark-target="profile_exercises_card"
           type="button"
@@ -585,17 +537,6 @@ export function ProfileScreen({ onNavigate, onLogout }: ProfileScreenProps) {
           </div>
           <div className="mt-1 text-[10px] font-medium text-text-tertiary">{copy.of} {Math.max(0, rankTotalMembers)}</div>
         </button>
-        <div
-          data-coachmark-target="profile_days_left_card"
-          className={statCardClassName}
-        >
-          <div className="mx-auto mb-3 h-px w-10 bg-gradient-to-r from-transparent via-white/25 to-transparent" />
-          <div className="text-[23px] font-semibold tracking-[-0.04em] text-white">{Math.max(0, planDaysLeft)}</div>
-          <div className="mt-2 text-[10px] font-medium uppercase tracking-[0.16em] text-text-secondary">
-            {copy.daysLeft}
-          </div>
-          <div className="mt-1 text-[10px] font-medium text-text-tertiary">{planSessionsLeft} {copy.sessions}</div>
-        </div>
       </div>
 
       <div className="grid grid-cols-2 gap-4">
