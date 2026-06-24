@@ -654,7 +654,7 @@ export function WorkoutSplitScreen({
           <button
             type="button"
             onClick={() => setShowAlternatives(true)}
-            className="w-full rounded-full border border-white/15 bg-white/5 px-4 py-2 text-xs font-semibold uppercase tracking-[0.12em] text-text-primary transition-colors hover:border-accent/30 hover:bg-white/10"
+            className="w-full rounded-xl border border-white/15 bg-white/5 px-6 py-3.5 text-base font-semibold uppercase tracking-[0.08em] text-text-primary transition-colors hover:border-accent/30 hover:bg-white/10"
           >
             {copy.altCta}
           </button>

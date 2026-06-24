@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Mars, Venus } from 'lucide-react';
+import { emojiFemme, emojiHomme } from '../../services/emojiTheme';
 import { getOnboardingLanguage } from './onboardingI18n';
 
 type Gender = 'man' | 'woman' | '';
@@ -493,9 +493,9 @@ export function PersonalInfoScreen({ onNext, onDataChange, onboardingData }: Per
               <ScreenHeader title={copy.genderTitle} subtitle={copy.genderSubtitle} />
               <div className="grid grid-cols-2 gap-3">
                 {[
-                  { value: 'man' as const, label: copy.genderMan, Icon: Mars },
-                  { value: 'woman' as const, label: copy.genderWoman, Icon: Venus },
-                ].map(({ value, label, Icon }) => {
+                  { value: 'man' as const, label: copy.genderMan, image: emojiHomme },
+                  { value: 'woman' as const, label: copy.genderWoman, image: emojiFemme },
+                ].map(({ value, label, image }) => {
                   const selected = values.gender === value;
                   return (
                     <button
@@ -509,7 +509,7 @@ export function PersonalInfoScreen({ onNext, onDataChange, onboardingData }: Per
                           : 'border-white/15 bg-white/[0.03] text-text-secondary hover:border-white/25 hover:bg-white/[0.05]'
                       }`}
                     >
-                      <Icon size={28} strokeWidth={2.1} />
+                      <img src={image} alt="" aria-hidden="true" className="h-12 w-12 object-contain" />
                       <span>{label}</span>
                     </button>
                   );
