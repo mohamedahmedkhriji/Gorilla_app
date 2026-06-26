@@ -510,7 +510,7 @@ export function PersonalInfoScreen({ onNext, onDataChange, onboardingData }: Per
                       }`}
                     >
                       <img src={image} alt="" aria-hidden="true" className="h-12 w-12 object-contain" />
-                      <span>{label}</span>
+                      <span className="text-base font-bold">{label}</span>
                     </button>
                   );
                 })}
