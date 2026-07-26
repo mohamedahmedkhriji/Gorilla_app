@@ -315,6 +315,8 @@ export const advanceStablePhase = (
     : 1;
   const requiredFrames = toPhaseFramesRequired(rawPhase, thresholds);
 
+  // Candidate phases must persist for their configured dwell frames before becoming stable,
+  // which prevents single-frame landmark noise or brief occlusion spikes from flipping phases.
   if (candidateFrames >= requiredFrames) {
     return {
       stablePhase: rawPhase,

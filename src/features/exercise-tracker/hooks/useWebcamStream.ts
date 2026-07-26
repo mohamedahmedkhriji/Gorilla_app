@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { CAMERA_CONSTRAINTS } from '../logic/constants';
 import type { CameraState } from '../types/tracking';
 
@@ -30,6 +30,10 @@ export function useWebcamStream(enabled: boolean) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const [cameraState, setCameraState] = useState<CameraState>(createIdleCameraState);
+  const [retryNonce, setRetryNonce] = useState(0);
+  const retry = useCallback(() => {
+    setRetryNonce((value) => value + 1);
+  }, []);
 
   useEffect(() => {
     const stopStream = () => {
@@ -166,10 +170,11 @@ export function useWebcamStream(enabled: boolean) {
       detachVideoListeners?.();
       stopStream();
     };
-  }, [enabled]);
+  }, [enabled, retryNonce]);
 
   return {
     videoRef,
     cameraState,
+    retry,
   };
 }

@@ -1,9 +1,6 @@
 import { RefObject, useCallback, useEffect, useRef, useState, useTransition } from 'react';
 import type { PoseLandmarker } from '@mediapipe/tasks-vision';
-import {
-  LANDMARK_SMOOTHING_ALPHA,
-  UI_STATE_THROTTLE_MS,
-} from '../logic/constants';
+import { UI_STATE_THROTTLE_MS } from '../logic/constants';
 import { createPoseLandmarker } from '../logic/poseLandmarker';
 import { clearCanvas, drawPoseOverlay } from '../logic/poseRenderer';
 import { TRACKER_CONFIG } from '../logic/trackerConfig';
@@ -20,7 +17,7 @@ import {
   calculateTorsoSize,
   getBodyReferenceSize,
 } from '../utils/normalization';
-import { smoothLandmarks } from '../logic/smoothing';
+import { createLandmarkSmoother } from '../logic/smoothing';
 import { midpoint } from '../utils/geometry';
 import { POSE_INDICES } from '../logic/constants';
 
@@ -31,6 +28,7 @@ interface UsePoseTrackingArgs {
   videoRef: RefObject<HTMLVideoElement>;
   canvasRef: RefObject<HTMLCanvasElement>;
   onFrame?: (frame: PoseTrackingFrame) => void;
+  resetKey?: number;
 }
 
 const createInitialTrackingState = (
@@ -107,6 +105,7 @@ export function usePoseTracking({
   videoRef,
   canvasRef,
   onFrame,
+  resetKey = 0,
 }: UsePoseTrackingArgs) {
   const [trackingState, setTrackingState] = useState<TrackingState>(
     createInitialTrackingState(selectedExercise, cameraState),
@@ -116,7 +115,9 @@ export function usePoseTracking({
   const landmarkerRef = useRef<PoseLandmarker | null>(null);
   const landmarkerPromiseRef = useRef<Promise<void> | null>(null);
   const previousLandmarksRef = useRef<ReturnType<typeof toPoseLandmarks> | null>(null);
+  const landmarkSmootherRef = useRef(createLandmarkSmoother());
   const lastProcessedVideoTimeRef = useRef(-1);
+  const lastDetectionTimestampRef = useRef(-1);
   const lastUiCommitRef = useRef(0);
   const startedAtRef = useRef<number | null>(null);
   const processedFramesRef = useRef(0);
@@ -153,7 +154,9 @@ export function usePoseTracking({
 
   const resetTrackingRuntime = useCallback(() => {
     previousLandmarksRef.current = null;
+    landmarkSmootherRef.current.reset();
     lastProcessedVideoTimeRef.current = -1;
+    lastDetectionTimestampRef.current = -1;
     startedAtRef.current = null;
     processedFramesRef.current = 0;
     clearCanvas(canvasRef.current);
@@ -187,6 +190,14 @@ export function usePoseTracking({
       landmarkerPromiseRef.current = null;
     };
   }, []);
+
+  useEffect(() => {
+    landmarkerRef.current?.close();
+    landmarkerRef.current = null;
+    landmarkerPromiseRef.current = null;
+    processingModeRef.current = null;
+    resetTrackingRuntime();
+  }, [resetKey, resetTrackingRuntime]);
 
   useEffect(() => {
     const nextState = {
@@ -334,12 +345,23 @@ export function usePoseTracking({
     lastProcessedVideoTimeRef.current = videoElement.currentTime;
 
     try {
+      if (timestampMs <= lastDetectionTimestampRef.current) {
+        if (import.meta.env.DEV) {
+          console.warn('Skipping non-monotonic pose timestamp.', {
+            previous: lastDetectionTimestampRef.current,
+            next: timestampMs,
+          });
+        }
+        return;
+      }
+
+      lastDetectionTimestampRef.current = timestampMs;
       const result = poseLandmarker.detectForVideo(videoElement, timestampMs);
       const rawLandmarks = toPoseLandmarks(result.landmarks[0]);
-      const smoothedLandmarks = smoothLandmarks(
+      const smoothedLandmarks = landmarkSmootherRef.current.smooth(
         rawLandmarks,
+        timestampMs,
         previousLandmarksRef.current,
-        LANDMARK_SMOOTHING_ALPHA,
       );
 
       previousLandmarksRef.current = smoothedLandmarks;

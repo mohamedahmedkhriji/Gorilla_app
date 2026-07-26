@@ -6,6 +6,7 @@ import type { SetStatus } from '../types/tracking';
 interface TrackerControlsProps {
   status: SetStatus;
   canStart: boolean;
+  startDisabledReason?: string;
   onStart: () => void;
   onPause: () => void;
   onResume: () => void;
@@ -16,6 +17,7 @@ interface TrackerControlsProps {
 export const TrackerControls = memo(function TrackerControls({
   status,
   canStart,
+  startDisabledReason,
   onStart,
   onPause,
   onResume,
@@ -50,15 +52,23 @@ export const TrackerControls = memo(function TrackerControls({
 
   return (
     <div className="grid grid-cols-2 gap-3">
-      <Button
-        type="button"
-        variant={primaryAction.variant}
-        onClick={primaryAction.action}
-        disabled={primaryAction.disabled}
-      >
-        <PrimaryIcon size={18} />
-        <span>{primaryAction.label}</span>
-      </Button>
+      <div className="space-y-1">
+        <Button
+          type="button"
+          variant={primaryAction.variant}
+          onClick={primaryAction.action}
+          disabled={primaryAction.disabled}
+          title={primaryAction.disabled ? startDisabledReason : undefined}
+        >
+          <PrimaryIcon size={18} />
+          <span>{primaryAction.label}</span>
+        </Button>
+        {primaryAction.disabled && startDisabledReason ? (
+          <div className="px-1 text-center text-[11px] text-text-secondary">
+            {startDisabledReason}
+          </div>
+        ) : null}
+      </div>
 
       <Button type="button" variant="ghost" onClick={onReset}>
         <RotateCcw size={18} />
@@ -78,4 +88,3 @@ export const TrackerControls = memo(function TrackerControls({
     </div>
   );
 });
-

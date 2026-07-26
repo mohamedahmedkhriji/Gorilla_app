@@ -10,6 +10,9 @@ export const TRACKER_CONFIG = {
     bodyScaleTooClose: 0.4,
     // Run the expensive pose detector on a capped cadence instead of every paint.
     poseDetectionFps: 20,
+    // One Euro filter tuning: minCutoff controls still-position smoothing, beta reduces smoothing as motion speed rises.
+    landmarkFilterMinCutoff: 1.0,
+    landmarkFilterBeta: 0.3,
     // Keep React commits on a slower cadence than the raw detector.
     uiCommitFps: 10,
     // Debounce rep completion so a shaky top or bottom position does not double-count.

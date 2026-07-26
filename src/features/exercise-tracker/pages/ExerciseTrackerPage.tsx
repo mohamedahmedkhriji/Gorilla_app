@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { AnimatePresence, motion } from 'framer-motion';
 import { Header } from '../../../components/ui/Header';
 import { CameraPreview } from '../components/CameraPreview';
 import { RepCounter } from '../components/RepCounter';
@@ -37,7 +38,8 @@ function ActiveTrackerScreen({
   } = useExerciseTrackerRuntime({
     selectedExercise,
   });
-  const { videoRef, cameraState } = useWebcamStream(true);
+  const [trackerResetKey, setTrackerResetKey] = useState(0);
+  const { videoRef, cameraState, retry: retryCamera } = useWebcamStream(true);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const { trackingState } = usePoseTracking({
     enabled: true,
@@ -46,6 +48,7 @@ function ActiveTrackerScreen({
     videoRef,
     canvasRef,
     onFrame: handlePoseFrame,
+    resetKey: trackerResetKey,
   });
 
   useEffect(() => {
@@ -55,7 +58,18 @@ function ActiveTrackerScreen({
   const selectedLabel = EXERCISE_OPTIONS.find((option) => option.name === selectedExercise)?.label
     || 'Exercise';
   const canStartSet = trackingState.isCameraReady && trackingState.isModelReady;
+  const startDisabledReason = trackingState.status === 'requesting-camera'
+    ? 'Waiting for camera...'
+    : trackingState.status === 'loading-model'
+      ? 'Loading pose model...'
+      : !canStartSet
+        ? 'Waiting for tracker...'
+        : undefined;
   const showDebug = import.meta.env.DEV;
+  const retryTracker = () => {
+    retryCamera();
+    setTrackerResetKey((value) => value + 1);
+  };
 
   return (
     <div className="mx-auto max-w-3xl space-y-5 pb-20">
@@ -70,6 +84,7 @@ function ActiveTrackerScreen({
         canvasRef={canvasRef}
         cameraState={cameraState}
         trackingState={trackingState}
+        onRetry={retryTracker}
       />
 
       <StatusIndicator
@@ -85,21 +100,32 @@ function ActiveTrackerScreen({
               value={ui.repCount}
               label="Reps"
               hint={`Set ${ui.setNumber}`}
+              pulse={ui.debug.repJustCompleted}
             />
 
             <div className="rounded-[24px] border border-white/10 bg-black/20 px-4 py-4 sm:min-w-[180px]">
               <div className="text-[11px] uppercase tracking-[0.16em] text-text-tertiary">
                 Phase
               </div>
-              <div className="mt-2 text-lg font-semibold text-text-primary">
-                {ui.phaseLabel}
-              </div>
+              <AnimatePresence mode="wait" initial={false}>
+                <motion.div
+                  key={ui.phaseLabel}
+                  initial={{ opacity: 0, y: 6 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -6 }}
+                  transition={{ duration: 0.18, ease: 'easeOut' }}
+                  className="mt-2 text-lg font-semibold text-text-primary"
+                >
+                  {ui.phaseLabel}
+                </motion.div>
+              </AnimatePresence>
             </div>
           </div>
 
           <TrackerControls
             status={ui.trackerStatus}
             canStart={canStartSet}
+            startDisabledReason={startDisabledReason}
             onStart={start}
             onPause={pause}
             onResume={start}
@@ -108,16 +134,20 @@ function ActiveTrackerScreen({
           />
 
           {ui.trackerStatus === 'finished' && ui.summary ? (
-            <SetSummaryCard summary={ui.summary} />
+            <SetSummaryCard
+              summary={ui.summary}
+              onBackToExercises={onBackToSelection}
+            />
           ) : null}
 
           {showDebug ? (
-            <div className="rounded-[20px] border border-white/10 bg-black/20 px-4 py-3 text-xs text-text-tertiary">
-              phase: {ui.debug.stablePhase || 'n/a'} | raw: {ui.debug.rawPhase || 'n/a'} | confidence:{' '}
-              {ui.debug.confidence?.toFixed(2) ?? 'n/a'} | rep complete:{' '}
-              {ui.debug.repJustCompleted ? 'yes' : 'no'} | fatigue:{' '}
-              {ui.debug.fatigueDetected ? 'yes' : 'no'} | coach:{' '}
-              {ui.debug.coachCandidateCode || 'silent'}
+            <div className="grid grid-cols-2 gap-2 rounded-[20px] border border-white/10 bg-black/25 px-4 py-3 font-mono text-[11px] text-text-secondary sm:grid-cols-3">
+              <div><span className="text-text-tertiary">phase</span><br />{ui.debug.stablePhase || 'n/a'}</div>
+              <div><span className="text-text-tertiary">raw</span><br />{ui.debug.rawPhase || 'n/a'}</div>
+              <div><span className="text-text-tertiary">confidence</span><br />{ui.debug.confidence?.toFixed(2) ?? 'n/a'}</div>
+              <div><span className="text-text-tertiary">rep</span><br />{ui.debug.repJustCompleted ? 'complete' : 'no'}</div>
+              <div><span className="text-text-tertiary">fatigue</span><br />{ui.debug.fatigueDetected ? 'yes' : 'no'}</div>
+              <div><span className="text-text-tertiary">coach</span><br />{ui.debug.coachCandidateCode || 'silent'}</div>
             </div>
           ) : null}
         </div>
@@ -132,8 +162,15 @@ export function ExerciseTrackerPage({ onBack }: ExerciseTrackerPageProps) {
 
   return (
     <div className="pb-20 pt-4">
-      {screen === 'selection' ? (
-        <>
+      <AnimatePresence mode="wait" initial={false}>
+        {screen === 'selection' ? (
+        <motion.div
+          key="selection"
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -10 }}
+          transition={{ duration: 0.18, ease: 'easeOut' }}
+        >
           <Header
             onBack={onBack}
             compact
@@ -147,13 +184,22 @@ export function ExerciseTrackerPage({ onBack }: ExerciseTrackerPageProps) {
               }
             }}
           />
-        </>
+        </motion.div>
       ) : selectedExercise ? (
-        <ActiveTrackerScreen
-          selectedExercise={selectedExercise}
-          onBackToSelection={() => setScreen('selection')}
-        />
+        <motion.div
+          key="tracker"
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -10 }}
+          transition={{ duration: 0.18, ease: 'easeOut' }}
+        >
+          <ActiveTrackerScreen
+            selectedExercise={selectedExercise}
+            onBackToSelection={() => setScreen('selection')}
+          />
+        </motion.div>
       ) : null}
+      </AnimatePresence>
     </div>
   );
 }

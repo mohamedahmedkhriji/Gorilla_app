@@ -13,6 +13,7 @@ export function useTrackingLoop({
 }: UseTrackingLoopArgs) {
   const frameRef = useRef<number | null>(null);
   const lastTickRef = useRef(0);
+  const lastEmittedTimestampRef = useRef(0);
   const onTickRef = useRef(onTick);
 
   onTickRef.current = onTick;
@@ -24,6 +25,7 @@ export function useTrackingLoop({
         frameRef.current = null;
       }
       lastTickRef.current = 0;
+      lastEmittedTimestampRef.current = 0;
       return undefined;
     }
 
@@ -43,7 +45,11 @@ export function useTrackingLoop({
       }
 
       lastTickRef.current = timestampMs;
-      onTickRef.current(timestampMs);
+      const monotonicTimestampMs = timestampMs <= lastEmittedTimestampRef.current
+        ? lastEmittedTimestampRef.current + 0.001
+        : timestampMs;
+      lastEmittedTimestampRef.current = monotonicTimestampMs;
+      onTickRef.current(monotonicTimestampMs);
     };
 
     frameRef.current = window.requestAnimationFrame(loop);
@@ -55,6 +61,7 @@ export function useTrackingLoop({
         frameRef.current = null;
       }
       lastTickRef.current = 0;
+      lastEmittedTimestampRef.current = 0;
     };
   }, [enabled, targetFps]);
 }

@@ -160,7 +160,7 @@ const buildFeedback = (
     return {
       tone: 'warning',
       title: 'Adjust position',
-      message: 'Hold still',
+      message: "I can't see your joints clearly",
     };
   }
 
@@ -172,6 +172,7 @@ const buildFeedback = (
     };
   }
 
+  // Corrective coaching is only shown after pose confidence/framing checks pass.
   if (snapshot.coach?.activeInstruction && snapshot.coach.shouldDisplay) {
     return {
       tone: snapshot.coach.status,

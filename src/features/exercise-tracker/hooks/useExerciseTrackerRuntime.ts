@@ -53,6 +53,18 @@ const shallowEqualUi = (left: TrackerUiViewModel, right: TrackerUiViewModel) => 
   && left.debug.coachCandidateCode === right.debug.coachCandidateCode
 );
 
+const hasPriorityUiChange = (
+  previous: TrackerUiViewModel,
+  next: TrackerUiViewModel,
+) => (
+  previous.repCount !== next.repCount
+  || previous.phaseLabel !== next.phaseLabel
+  || previous.trackerStatus !== next.trackerStatus
+  || previous.feedback.message !== next.feedback.message
+  || previous.debug.repJustCompleted !== next.debug.repJustCompleted
+  || previous.debug.fatigueDetected !== next.debug.fatigueDetected
+);
+
 const buildEmptySnapshot = (selectedExercise: ExerciseName): TrackerRuntimeSnapshot => ({
   exercise: mapExerciseNameToEngineType(selectedExercise),
   status: INITIAL_RUNTIME_STATUS,
@@ -119,28 +131,21 @@ export function useExerciseTrackerRuntime({
   const lastPublishRef = useRef(0);
   const [ui, setUi] = useState<TrackerUiViewModel>(publishedUiRef.current);
 
+  // Priority changes bypass the throttle so transient rep/phase/coach events reach the UI.
   const publishUi = useCallback((force = false) => {
     const nextUi = mapTrackerUi(snapshotRef.current, trackingStateRef.current);
     const now = performance.now();
+    const priorityChange = hasPriorityUiChange(publishedUiRef.current, nextUi);
 
-    if (
-      !force
-      && now - lastPublishRef.current < UI_STATE_THROTTLE_MS
-      && shallowEqualUi(nextUi, publishedUiRef.current)
-    ) {
+    if (!force && !priorityChange && now - lastPublishRef.current < UI_STATE_THROTTLE_MS) {
       return;
     }
-
-    if (!force && now - lastPublishRef.current < UI_STATE_THROTTLE_MS) {
-      return;
-    }
-
-    lastPublishRef.current = now;
 
     if (shallowEqualUi(nextUi, publishedUiRef.current)) {
       return;
     }
 
+    lastPublishRef.current = now;
     publishedUiRef.current = nextUi;
     startTransition(() => {
       setUi(nextUi);
