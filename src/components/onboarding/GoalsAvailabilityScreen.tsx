@@ -60,6 +60,23 @@ const COPY = {
   },
 } as const;
 
+const radioCardClasses = (selected: boolean, compact = false) =>
+  [
+    'group relative flex min-h-[3.1rem] w-full items-center overflow-hidden rounded-[13px] border text-left backdrop-blur-xl transition-all duration-300',
+    compact ? 'justify-center gap-2 px-2 py-2.5' : 'gap-3 px-3 py-3',
+    selected
+      ? 'translate-x-[3px] border-accent/40 bg-accent/[0.07] text-white shadow-[0_0_0_1px_rgb(var(--color-accent)/0.16),inset_0_1px_0_rgb(var(--color-accent)/0.1)]'
+      : 'border-white/[0.08] bg-white/[0.04] text-text-secondary hover:translate-x-[3px] hover:border-white/15 hover:bg-white/[0.07]',
+  ].join(' ');
+
+const radioCircleClasses = (selected: boolean) =>
+  [
+    'relative z-10 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 transition-all duration-300',
+    selected
+      ? 'border-accent/70 bg-accent/10 shadow-[0_0_0_3px_rgb(var(--color-accent)/0.12)]'
+      : 'border-white/15 bg-white/[0.04]',
+  ].join(' ');
+
 export function GoalsAvailabilityScreen({
   onNext,
   onDataChange,
@@ -129,6 +146,33 @@ export function GoalsAvailabilityScreen({
     });
   }, [days, duration, onDataChange, time]);
 
+  const renderRadioVisual = (selected: boolean, label: string, compact = false) => (
+    <>
+      <span
+        className={`pointer-events-none absolute inset-0 bg-[linear-gradient(135deg,rgb(var(--color-accent)/0.08),transparent)] transition-opacity duration-300 ${
+          selected ? 'opacity-100' : 'opacity-0 group-hover:opacity-60'
+        }`}
+        aria-hidden="true"
+      />
+      <span className={radioCircleClasses(selected)} aria-hidden="true">
+        <span
+          className={`h-2 w-2 rounded-full bg-accent shadow-[0_0_8px_rgb(var(--color-accent)/0.6)] transition-transform duration-300 ${
+            selected ? 'scale-100' : 'scale-0'
+          }`}
+        />
+      </span>
+      <span className={`relative z-10 min-w-0 ${compact ? 'text-center' : ''}`}>
+        <span
+          className={`block truncate text-sm font-semibold leading-tight transition-colors duration-300 ${
+            selected ? 'text-white' : 'text-white/60 group-hover:text-white/75'
+          }`}
+        >
+          {label}
+        </span>
+      </span>
+    </>
+  );
+
   return (
     <div className="flex-1 flex flex-col space-y-8">
       <div className="space-y-2">
@@ -148,13 +192,9 @@ export function GoalsAvailabilityScreen({
                   type="button"
                   aria-pressed={selected}
                   onClick={() => setDays(value)}
-                  className={`rounded-xl border px-3 py-2.5 text-sm font-medium transition-all duration-200 ${
-                    selected
-                      ? 'border-accent bg-accent/15 text-white'
-                      : 'border-white/15 bg-white/[0.03] text-text-secondary hover:border-white/25 hover:bg-white/[0.05]'
-                  }`}
+                  className={radioCardClasses(selected, true)}
                 >
-                  {value}
+                  {renderRadioVisual(selected, String(value), true)}
                 </button>
               );
             })}
@@ -173,13 +213,9 @@ export function GoalsAvailabilityScreen({
                   type="button"
                   aria-pressed={selected}
                   onClick={() => setDuration(optionValue)}
-                  className={`rounded-xl border px-3 py-2.5 text-sm font-medium transition-all duration-200 ${
-                    selected
-                      ? 'border-accent bg-accent/15 text-white'
-                      : 'border-white/15 bg-white/[0.03] text-text-secondary hover:border-white/25 hover:bg-white/[0.05]'
-                  }`}
+                  className={radioCardClasses(selected)}
                 >
-                  {String(option.label || optionValue)}
+                  {renderRadioVisual(selected, String(option.label || optionValue))}
                 </button>
               );
             })}
@@ -203,13 +239,9 @@ export function GoalsAvailabilityScreen({
                   type="button"
                   aria-pressed={selected}
                   onClick={() => setTime(optionValue)}
-                  className={`rounded-xl border px-3 py-2.5 text-sm font-medium transition-all duration-200 ${
-                    selected
-                      ? 'border-accent bg-accent/15 text-white'
-                      : 'border-white/15 bg-white/[0.03] text-text-secondary hover:border-white/25 hover:bg-white/[0.05]'
-                  }`}
+                  className={radioCardClasses(selected, true)}
                 >
-                  {String(option.label || optionValue)}
+                  {renderRadioVisual(selected, String(option.label || optionValue), true)}
                 </button>
               );
             })}

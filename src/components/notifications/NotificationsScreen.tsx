@@ -186,10 +186,6 @@ export function NotificationsScreen({ onBack, onOpenAcceptedChallenge }: Notific
   const pendingFriendshipIdsRef = useRef<Set<number>>(new Set());
 
   const userId = useMemo(() => readStoredUserId(), []);
-  const unreadCount = useMemo(
-    () => items.filter((item) => Boolean(item.unread)).length,
-    [items],
-  );
 
   const updateNotification = useCallback(
     (notificationId: number, updater: (notification: AppNotification) => AppNotification) => {
@@ -574,32 +570,6 @@ export function NotificationsScreen({ onBack, onOpenAcceptedChallenge }: Notific
       </div>
 
       <div className="space-y-4 px-4 sm:px-6">
-        <Card className="overflow-hidden rounded-[1.8rem] border-white/10 bg-card/75 p-0">
-          <div className="relative px-5 py-5">
-            <div
-              className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(188,255,0,0.12),transparent_45%)]"
-              aria-hidden="true"
-            />
-            <div className={cx('relative z-10 flex items-start justify-between gap-4', isArabic && 'flex-row-reverse')}>
-              <div className={cx('space-y-2', isArabic ? 'text-right' : 'text-left')}>
-                <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-text-tertiary">
-                  RepSet
-                </p>
-                <h2 className="text-base font-semibold text-white">{copy.subtitle}</h2>
-              </div>
-
-              <div className={cx('shrink-0 rounded-2xl border px-3 py-2 text-center', unreadCount > 0 ? 'border-accent/20 bg-accent/10' : 'border-white/10 bg-white/5')}>
-                <div className={cx('text-lg font-semibold', unreadCount > 0 ? 'text-accent' : 'text-white')}>
-                  {unreadCount}
-                </div>
-                <div className="text-[10px] text-text-tertiary">
-                  {unreadCount > 0 ? copy.unreadCount(unreadCount) : copy.allCaughtUp}
-                </div>
-              </div>
-            </div>
-          </div>
-        </Card>
-
         {loading ? (
           <Card className="rounded-[1.8rem] border-white/10 bg-card/70">
             <div className={cx('flex items-center gap-3', isArabic && 'flex-row-reverse')}>
