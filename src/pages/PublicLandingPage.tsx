@@ -1,12 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { motion } from 'framer-motion';
 
-import logoA from '../../assets/gym_logo/646379168_914347981380799_6938641763717116038_n.jpg';
-import logoB from '../../assets/gym_logo/841cc033449a0efdbfc315de6a29a52a.jpg';
-import logoC from '../../assets/gym_logo/9d631105-f60d-4f63-8ec8-a353b8f6b7e9.png';
-import logoD from '../../assets/gym_logo/a17097fedf53f8b861c7a5457c8a1f17.jpg';
-import logoE from '../../assets/gym_logo/Screenshot 2026-03-01 000834.png';
-import logoF from '../../assets/gym_logo/gymlogo.png';
 import { AppLanguage, getActiveLanguage, getStoredLanguage, pickLanguage } from '../services/language';
 
 interface PublicLandingPageProps {
@@ -34,13 +27,61 @@ const forcedDarkThemeVars: React.CSSProperties = {
   '--color-text-tertiary': '131 149 171',
 } as React.CSSProperties;
 
-const logos = [logoA, logoB, logoC, logoD, logoE, logoF];
-const loopedLogos = [...logos, ...logos, ...logos];
+const logoModules = import.meta.glob('../../assets/gym_logo/*.{jpg,jpeg,png,webp,avif,gif,svg}', {
+  eager: true,
+  import: 'default',
+}) as Record<string, string>;
+
+const logos = Object.entries(logoModules)
+  .sort(([pathA], [pathB]) => pathA.localeCompare(pathB))
+  .map(([, src]) => src);
+const repeatedLogos = [...logos, ...logos];
+
+const marqueeEdgeFade: React.CSSProperties = {
+  WebkitMaskImage: 'linear-gradient(90deg, transparent, #000 12%, #000 88%, transparent)',
+  maskImage: 'linear-gradient(90deg, transparent, #000 12%, #000 88%, transparent)',
+};
+
+const renderLogoStrip = (
+  direction: 'forward' | 'backward',
+  duration: number,
+  altText: string,
+) => (
+  <div className="overflow-hidden py-1" style={marqueeEdgeFade}>
+    <div
+      className={`flex w-max items-center gap-10 will-change-transform ${direction === 'forward' ? 'animate-logo-marquee' : 'animate-logo-marquee-reverse'}`}
+      style={{ animationDuration: `${duration}s` }}
+    >
+      {repeatedLogos.map((logo, index) => (
+        <div key={`${direction}-${duration}-${index}`} className="flex h-[72px] w-[104px] shrink-0 items-center justify-center">
+          <img src={logo} alt={altText} className="max-h-[72px] max-w-[104px] object-contain opacity-90 drop-shadow-[0_12px_28px_rgb(0_0_0_/_0.28)]" loading="lazy" />
+        </div>
+      ))}
+    </div>
+  </div>
+);
+
+const renderPhantomLetters = (text: string) =>
+  Array.from(text).map((letter, index) => {
+    if (letter.trim() === '') {
+      return <span key={`space-${index}`} className="phantom-spacer" aria-hidden="true" />;
+    }
+
+    return (
+      <span
+        key={`${letter}-${index}`}
+        className={`phantom-note ${index % 2 === 0 ? 'phantom-note-light' : 'phantom-note-dark'}`}
+        style={{ '--i': index } as React.CSSProperties}
+        aria-hidden="true"
+      >
+        <span className="phantom-text">{letter}</span>
+      </span>
+    );
+  });
 
 export const PublicLandingPage: React.FC<PublicLandingPageProps> = ({ onGetStarted }) => {
   const [deferredPrompt, setDeferredPrompt] = useState<InstallPromptEvent | null>(null);
   const [isStandalone, setIsStandalone] = useState(false);
-  const [showIosInstallHint, setShowIosInstallHint] = useState(false);
   const [language, setLanguage] = useState<AppLanguage>('en');
 
   const copy = pickLanguage(language, {
@@ -52,7 +93,6 @@ export const PublicLandingPage: React.FC<PublicLandingPageProps> = ({ onGetStart
       body: 'RepSet builds each workout from your goals, recovery, and schedule so you always know your next best session.',
       logoAlt: 'Gym partner logo',
       install: 'Install on your phone',
-      iosHint: 'On iPhone, tap the Share button in Safari, then choose Add to Home Screen.',
       start: 'Start Now',
       footer: 'Join RepSet to get adaptive workouts that fit your goals.',
     },
@@ -64,7 +104,6 @@ export const PublicLandingPage: React.FC<PublicLandingPageProps> = ({ onGetStart
       body: '\u064a\u0628\u0646\u064a RepSet \u0643\u0644 \u062d\u0635\u0629 \u0628\u0646\u0627\u0621\u064b \u0639\u0644\u0649 \u0623\u0647\u062f\u0627\u0641\u0643 \u0648\u062a\u0639\u0627\u0641\u064a\u0643 \u0648\u062c\u062f\u0648\u0644\u0643 \u062d\u062a\u0649 \u062a\u0639\u0631\u0641 \u062f\u0627\u0626\u0645\u064b\u0627 \u0645\u0627 \u0647\u064a \u0623\u0641\u0636\u0644 \u062d\u0635\u0629 \u062a\u0627\u0644\u064a\u0629 \u0644\u0643.',
       logoAlt: '\u0634\u0639\u0627\u0631 \u0635\u0627\u0644\u0629 \u0634\u0631\u064a\u0643\u0629',
       install: '\u062b\u0628\u062a \u0627\u0644\u062a\u0637\u0628\u064a\u0642 \u0639\u0644\u0649 \u0647\u0627\u062a\u0641\u0643',
-      iosHint: '\u0639\u0644\u0649 iPhone\u060c \u0627\u0636\u063a\u0637 \u0632\u0631 Share \u0641\u064a Safari \u062b\u0645 \u0627\u062e\u062a\u0631 Add to Home Screen.',
       start: '\u0627\u0628\u062f\u0623 \u0627\u0644\u0622\u0646',
       footer: '\u0627\u0646\u0636\u0645 \u0625\u0644\u0649 RepSet \u0644\u062a\u062d\u0635\u0644 \u0639\u0644\u0649 \u062a\u0645\u0627\u0631\u064a\u0646 \u0645\u062a\u0643\u064a\u0641\u0629 \u062a\u0646\u0627\u0633\u0628 \u0623\u0647\u062f\u0627\u0641\u0643.',
     },
@@ -76,7 +115,6 @@ export const PublicLandingPage: React.FC<PublicLandingPageProps> = ({ onGetStart
       body: 'RepSet costruisce ogni allenamento in base ai tuoi obiettivi, al recupero e al tuo programma, cosi sai sempre quale sessione fare dopo.',
       logoAlt: 'Logo palestra partner',
       install: 'Installa sul tuo telefono',
-      iosHint: 'Su iPhone, tocca il pulsante Condividi in Safari e poi scegli Aggiungi alla schermata Home.',
       start: 'Inizia Ora',
       footer: 'Unisciti a RepSet per ricevere allenamenti adattivi che seguono i tuoi obiettivi.',
     },
@@ -88,7 +126,6 @@ export const PublicLandingPage: React.FC<PublicLandingPageProps> = ({ onGetStart
       body: 'RepSet baut jedes Training aus deinen Zielen, deiner Erholung und deinem Zeitplan auf, damit du immer deine beste nachste Einheit kennst.',
       logoAlt: 'Logo des Partnerstudios',
       install: 'Auf deinem Handy installieren',
-      iosHint: 'Tippe auf dem iPhone in Safari auf Teilen und dann auf Zum Home-Bildschirm.',
       start: 'Jetzt starten',
       footer: 'Komm zu RepSet und erhalte adaptive Workouts, die zu deinen Zielen passen.',
     },
@@ -112,10 +149,8 @@ export const PublicLandingPage: React.FC<PublicLandingPageProps> = ({ onGetStart
   useEffect(() => {
     const nav = navigator as NavigatorWithStandalone;
     const standalone = window.matchMedia('(display-mode: standalone)').matches || Boolean(nav.standalone);
-    const isIos = /iphone|ipad|ipod/i.test(window.navigator.userAgent);
 
     setIsStandalone(standalone);
-    setShowIosInstallHint(isIos && !standalone);
 
     const handleBeforeInstallPrompt = (event: Event) => {
       event.preventDefault();
@@ -124,7 +159,6 @@ export const PublicLandingPage: React.FC<PublicLandingPageProps> = ({ onGetStart
 
     const handleAppInstalled = () => {
       setDeferredPrompt(null);
-      setShowIosInstallHint(false);
       setIsStandalone(true);
     };
 
@@ -179,48 +213,10 @@ export const PublicLandingPage: React.FC<PublicLandingPageProps> = ({ onGetStart
           </p>
         </section>
 
-        <section className="space-y-3 my-auto">
-          <div className="overflow-hidden">
-            <motion.div
-              className="flex w-max gap-3"
-              animate={{ x: ['0%', '-50%'] }}
-              transition={{ duration: 24, ease: 'linear', repeat: Infinity }}
-            >
-              {loopedLogos.map((logo, index) => (
-                <div key={`forward-${index}`} className="h-[72px] w-[72px] shrink-0 overflow-hidden rounded-2xl border border-white/10 bg-black/35">
-                  <img src={logo} alt={copy.logoAlt} className="h-full w-full object-cover" loading="lazy" />
-                </div>
-              ))}
-            </motion.div>
-          </div>
-
-          <div className="overflow-hidden">
-            <motion.div
-              className="flex w-max gap-3"
-              animate={{ x: ['-50%', '0%'] }}
-              transition={{ duration: 22, ease: 'linear', repeat: Infinity }}
-            >
-              {loopedLogos.map((logo, index) => (
-                <div key={`backward-${index}`} className="h-[72px] w-[72px] shrink-0 overflow-hidden rounded-2xl border border-white/10 bg-black/35">
-                  <img src={logo} alt={copy.logoAlt} className="h-full w-full object-cover" loading="lazy" />
-                </div>
-              ))}
-            </motion.div>
-          </div>
-
-          <div className="overflow-hidden">
-            <motion.div
-              className="flex w-max gap-3"
-              animate={{ x: ['0%', '-50%'] }}
-              transition={{ duration: 26, ease: 'linear', repeat: Infinity }}
-            >
-              {loopedLogos.map((logo, index) => (
-                <div key={`forward-bottom-${index}`} className="h-[72px] w-[72px] shrink-0 overflow-hidden rounded-2xl border border-white/10 bg-black/35">
-                  <img src={logo} alt={copy.logoAlt} className="h-full w-full object-cover" loading="lazy" />
-                </div>
-              ))}
-            </motion.div>
-          </div>
+        <section className="my-auto -mx-4 space-y-5 sm:-mx-6">
+          {renderLogoStrip('forward', 24, copy.logoAlt)}
+          {renderLogoStrip('backward', 22, copy.logoAlt)}
+          {renderLogoStrip('forward', 26, copy.logoAlt)}
         </section>
 
         <footer className="mt-10">
@@ -234,18 +230,39 @@ export const PublicLandingPage: React.FC<PublicLandingPageProps> = ({ onGetStart
             </button>
           ) : null}
 
-          {!isStandalone && showIosInstallHint ? (
-            <p className="mb-3 rounded-xl border border-white/10 bg-black/20 px-4 py-3 text-center text-xs leading-relaxed text-text-secondary">
-              {copy.iosHint}
-            </p>
-          ) : null}
+          <button type="button" onClick={onGetStarted} className="phantom-btn w-full" aria-label={copy.start}>
+            {Array.from({ length: 9 }, (_, index) => (
+              <span key={`trigger-${index}`} className={`phantom-trigger phantom-trigger-${index + 1}`} aria-hidden="true" />
+            ))}
 
-          <button
-            type="button"
-            onClick={onGetStarted}
-            className="w-full rounded-xl bg-accent text-black py-3.5 text-xl font-marker hover:bg-accent/90 transition-colors"
-          >
-            {copy.start}
+            <span className="phantom-wrapper">
+              <span className="phantom-shard phantom-shard-shadow" aria-hidden="true" />
+              <span className="phantom-shard phantom-shard-accent" aria-hidden="true" />
+              <span className="phantom-shard phantom-shard-face" aria-hidden="true" />
+              <span className="phantom-action-star" aria-hidden="true" />
+
+              <span className="phantom-content">
+                <span className="phantom-ransom-row" aria-hidden="true">
+                  {renderPhantomLetters(copy.start)}
+                </span>
+
+                <span className="phantom-card-socket" aria-hidden="true">
+                  <span className="phantom-calling-card">
+                    <span className="phantom-card-face phantom-card-front">
+                      <svg className="phantom-mask-icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M2 12C2 12 5 5 12 5C19 5 22 12 22 12C22 12 19 19 12 19C5 19 2 12 2 12Z" stroke="currentColor" strokeWidth="3" fill="rgb(var(--color-accent))" />
+                        <circle cx="12" cy="12" r="3" fill="currentColor" />
+                      </svg>
+                    </span>
+                    <span className="phantom-card-face phantom-card-back">
+                      <svg className="phantom-star-icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z" fill="rgb(var(--color-background))" stroke="currentColor" strokeWidth="2" />
+                      </svg>
+                    </span>
+                  </span>
+                </span>
+              </span>
+            </span>
           </button>
           <p className="mt-3 text-center text-xs text-text-secondary">
             {copy.footer}

@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Button } from '../ui/Button';
 import { Card } from '../ui/Card';
 import { CalendarDays, Clock3, Dumbbell, Layers3, MapPin } from 'lucide-react';
@@ -156,6 +156,7 @@ export function BodyAnalysisResultsScreen({
   onboardingData,
   userData,
 }: BodyAnalysisResultsScreenProps) {
+  const [showCelebration, setShowCelebration] = useState(true);
   const language = getOnboardingLanguage();
   const isArabic = language === 'ar';
   const input = onboardingData || userData || {};
@@ -223,8 +224,24 @@ export function BodyAnalysisResultsScreen({
     ? (goal === 'بناء العضلات' ? 'بناء وشد العضلات' : goal)
     : (goal === 'Build muscle' ? 'Build and tone muscle' : goal);
 
+  useEffect(() => {
+    const celebrationTimer = window.setTimeout(() => {
+      setShowCelebration(false);
+    }, 5000);
+
+    return () => window.clearTimeout(celebrationTimer);
+  }, []);
+
   return (
-    <div className="flex-1 flex flex-col space-y-6">
+    <div className="relative flex-1 flex flex-col space-y-6 overflow-hidden">
+      {showCelebration && (
+        <div className="results-celebration-confetti" aria-hidden="true">
+          {Array.from({ length: 19 }).map((_, index) => (
+            <div key={index} className="results-celebration-piece" />
+          ))}
+        </div>
+      )}
+
       <div className="space-y-2">
         <h2 className="text-[1.9rem] leading-tight font-semibold text-white">
           {isArabic ? (
