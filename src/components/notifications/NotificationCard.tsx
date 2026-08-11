@@ -7,6 +7,7 @@ interface NotificationCardProps {
   isRtl?: boolean;
   onOpen?: (notificationId: number) => void;
   onAction?: (notificationId: number, actionId: NotificationActionId) => void;
+  onDismiss?: (notificationId: number) => void;
 }
 
 const cx = (...values: Array<string | false | null | undefined>) => values.filter(Boolean).join(' ');
@@ -38,10 +39,12 @@ export function NotificationCard({
   isRtl = false,
   onOpen,
   onAction,
+  onDismiss,
 }: NotificationCardProps) {
   const isInteractive = typeof onOpen === 'function';
   const { visual } = notification;
   const Icon = visual.icon;
+  const gradientId = `notification-grad-${notification.id}`;
 
   const handleKeyDown: React.KeyboardEventHandler<HTMLElement> = (event) => {
     if (!isInteractive) return;
@@ -55,34 +58,62 @@ export function NotificationCard({
       layout
       initial={{ opacity: 0, y: 18 }}
       animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: -12 }}
+      exit={{ opacity: 0, x: -80, height: 0, marginBottom: 0 }}
       transition={{ duration: 0.24, ease: 'easeOut' }}
+      drag="x"
+      dragDirectionLock
+      dragConstraints={{ left: -120, right: 0 }}
+      dragElastic={{ left: 0.18, right: 0 }}
+      onDragEnd={(_, info) => {
+        if (info.offset.x < -88 || info.velocity.x < -650) {
+          onDismiss?.(notification.id);
+        }
+      }}
       role={isInteractive ? 'button' : undefined}
       tabIndex={isInteractive ? 0 : -1}
       onKeyDown={handleKeyDown}
       onClick={isInteractive ? () => onOpen?.(notification.id) : undefined}
       className={cx(
-        'group relative overflow-hidden rounded-[1.6rem] border bg-card/75 p-4 shadow-[0_18px_45px_rgba(0,0,0,0.22)] backdrop-blur-sm transition-all duration-200 sm:p-5',
+        'group relative overflow-hidden rounded-[1.6rem] p-0 shadow-[0_18px_45px_rgba(0,0,0,0.24)] backdrop-blur-xl transition-all duration-300 active:scale-[0.985] sm:rounded-[1.8rem]',
         notification.unread
-          ? 'border-accent/25 hover:border-accent/35 hover:bg-card'
-          : 'border-white/10 hover:border-white/15 hover:bg-card/90',
+          ? 'hover:-translate-y-1'
+          : 'opacity-90 hover:-translate-y-1 hover:opacity-100',
         isInteractive && 'cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/35',
       )}
       dir={isRtl ? 'rtl' : 'ltr'}
     >
+      <svg
+        className="pointer-events-none absolute inset-0 h-full w-full"
+        viewBox="0 0 380 104"
+        preserveAspectRatio="none"
+        aria-hidden="true"
+      >
+        <defs>
+          <linearGradient id={gradientId} x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stopColor="rgba(255,255,255,0.08)" />
+            <stop offset="50%" stopColor="rgba(255,255,255,0.04)" />
+            <stop offset="100%" stopColor="rgba(255,255,255,0.02)" />
+          </linearGradient>
+        </defs>
+        <path
+          d="M 0,28 C 0,0 0,0 30,0 L 350,0 C 380,0 380,0 380,28 L 380,76 C 380,104 380,104 350,104 L 30,104 C 0,104 0,104 0,76 Z"
+          fill={`url(#${gradientId})`}
+          stroke="rgba(255,255,255,0.15)"
+          strokeWidth="1"
+          className="transition-all duration-300 group-hover:[stroke:rgba(255,255,255,0.25)]"
+        />
+      </svg>
+
       <div
-        className={cx(
-          'pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.05),transparent_48%)] opacity-70 transition-opacity duration-200',
-          notification.unread && 'group-hover:opacity-100',
-        )}
+        className="pointer-events-none absolute inset-0 bg-[linear-gradient(135deg,rgba(255,255,255,0.035),rgba(255,255,255,0.01))]"
         aria-hidden="true"
       />
 
-      <div className={cx('relative z-10 flex items-start gap-3 sm:gap-4', isRtl && 'flex-row-reverse')}>
+      <div className={cx('relative z-10 flex items-start gap-3 px-4 py-4 sm:gap-4 sm:px-5', isRtl && 'flex-row-reverse')}>
         <div className="relative shrink-0">
           <div
             className={cx(
-              'flex h-11 w-11 items-center justify-center rounded-2xl border border-white/8 sm:h-12 sm:w-12',
+              'flex h-10 w-10 items-center justify-center rounded-[1.1rem] border border-white/15 bg-white/[0.08] shadow-inner backdrop-blur-md sm:h-11 sm:w-11',
               visual.backgroundClassName,
             )}
           >
@@ -101,7 +132,7 @@ export function NotificationCard({
 
         <div className="min-w-0 flex-1">
           <div className={cx('flex items-start justify-between gap-3', isRtl && 'flex-row-reverse')}>
-            <div className="min-w-0 space-y-1 text-right">
+            <div className={cx('min-w-0 space-y-1', isRtl ? 'text-right' : 'text-left')}>
               <h3 className="break-words text-sm font-semibold leading-6 text-white [overflow-wrap:anywhere] sm:text-[0.95rem]">
                 {notification.title}
               </h3>

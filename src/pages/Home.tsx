@@ -2024,7 +2024,7 @@ export function Home({
         {/* Quick Actions */}
         <ScreenSection index={3} className="grid grid-cols-2 gap-4">
 
-          <GhostButton coachmarkTargetId="home_nutrition_card" onClick={() => setIsComingSoonOpen(true)} className="justify-between">
+          <GhostButton coachmarkTargetId="home_nutrition_card" onClick={() => setView('shop')} className="justify-between">
             <span className="flex items-center gap-2">
               <img src={emojiShop} alt={homeCopy.shop} className="h-4 w-4 object-contain" />
               <span>{homeCopy.shop}</span>

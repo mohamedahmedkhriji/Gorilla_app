@@ -442,6 +442,10 @@ export function NotificationsScreen({ onBack, onOpenAcceptedChallenge }: Notific
     void markAsRead(notificationId);
   }, [items, markAsRead]);
 
+  const handleDismissNotification = useCallback((notificationId: number) => {
+    setItems((current) => current.filter((item) => item.id !== notificationId));
+  }, []);
+
   const handleClearAll = useCallback(async () => {
     if (!userId || !items.length || clearing) return;
 
@@ -630,6 +634,7 @@ export function NotificationsScreen({ onBack, onOpenAcceptedChallenge }: Notific
                   isRtl={isArabic}
                   onOpen={handleOpenNotification}
                   onAction={handleNotificationAction}
+                  onDismiss={handleDismissNotification}
                 />
               ))}
             </AnimatePresence>

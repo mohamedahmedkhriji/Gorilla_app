@@ -145,6 +145,58 @@ const formatBookUsage = (language: AppLanguage, count: number, emptyLabel: strin
   }
 };
 
+const getPremiumOfferCopy = (language: AppLanguage) => {
+  switch (language) {
+    case 'ar':
+      return { top: 'Premium plans', bottom: 'Tap to open', button: 'Get Offer' };
+    case 'it':
+      return { top: 'Piani Premium', bottom: 'Tocca per aprire', button: 'Get Offer' };
+    case 'de':
+      return { top: 'Premium-Plaene', bottom: 'Tippen zum Oeffnen', button: 'Get Offer' };
+    case 'fr':
+      return { top: 'Plans Premium', bottom: 'Appuie pour ouvrir', button: 'Get Offer' };
+    case 'en':
+    default:
+      return { top: 'Premium plans', bottom: 'Tap to open', button: 'Get Offer' };
+  }
+};
+
+function PremiumOfferButton({
+  topLabel,
+  bottomLabel,
+  buttonLabel,
+  expanded,
+  onClick,
+}: {
+  topLabel: string;
+  bottomLabel: string;
+  buttonLabel: string;
+  expanded: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <div className={`premium-offer-btn-container ${expanded ? 'premium-offer-btn-container--open' : ''}`}>
+      <div className="premium-offer-btn-drawer premium-offer-transition-top">{topLabel}</div>
+      <div className="premium-offer-btn-drawer premium-offer-transition-bottom">{bottomLabel}</div>
+
+      <button type="button" className="premium-offer-btn" onClick={onClick} aria-expanded={expanded}>
+        <span className="premium-offer-btn-text">{buttonLabel}</span>
+      </button>
+
+      {Array.from({ length: 4 }).map((_, index) => (
+        <svg
+          key={index}
+          className="premium-offer-btn-corner"
+          viewBox="0 0 32 32"
+          aria-hidden="true"
+        >
+          <path d="M32,32C14.355,32,0,17.645,0,0h.985c0,17.102,13.913,31.015,31.015,31.015v.985Z" />
+        </svg>
+      ))}
+    </div>
+  );
+}
+
 function PremiumCover({
   title,
   subtitle,
@@ -252,10 +304,12 @@ function BookCard({
 
 export function BooksLibrary({ onBack }: BooksLibraryProps) {
   const [activePlan, setActivePlan] = useState<'tank-1' | 't-2' | 't-2-bulk' | null>(null);
+  const [showPremiumPlans, setShowPremiumPlans] = useState(false);
   const [language, setLanguage] = useState<AppLanguage>(() => getActiveLanguage());
   const [usage, setUsage] = useState<BookUsageMap>(() => readBookUsage());
   const [assignedPlanId, setAssignedPlanId] = useState(() => getAssignedBookPlan().id);
   const copy = useMemo(() => BOOKS_LIBRARY_I18N[language] || BOOKS_LIBRARY_I18N.en, [language]);
+  const premiumOfferCopy = useMemo(() => getPremiumOfferCopy(language), [language]);
 
   useScrollToTopOnChange([activePlan]);
 
@@ -318,6 +372,18 @@ export function BooksLibrary({ onBack }: BooksLibraryProps) {
           )}
         />
 
+        <div className="py-3">
+          <PremiumOfferButton
+            topLabel={premiumOfferCopy.top}
+            bottomLabel={premiumOfferCopy.bottom}
+            buttonLabel={premiumOfferCopy.button}
+            expanded={showPremiumPlans}
+            onClick={() => setShowPremiumPlans(true)}
+          />
+        </div>
+
+        {showPremiumPlans && (
+          <div className="space-y-4 animate-premium-plan-reveal">
         <BookCard
           title="T-2"
           badge={copy.t2Badge}
@@ -367,6 +433,8 @@ export function BooksLibrary({ onBack }: BooksLibraryProps) {
             />
           )}
         />
+          </div>
+        )}
       </div>
     </div>
   );
