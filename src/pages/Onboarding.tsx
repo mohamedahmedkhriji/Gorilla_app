@@ -22,7 +22,7 @@ import { CustomPlanOnboardingScreen } from '../components/onboarding/CustomPlanO
 import { CustomPlanAdviceScreen } from '../components/onboarding/CustomPlanAdviceScreen';
 import { api } from '../services/api';
 import { getOnboardingLanguage, resolveOnboardingTitle } from '../components/onboarding/onboardingI18n';
-import { applyLanguage, getStoredLanguage } from '../services/language';
+import { applyLanguage, getStoredLanguage, type AppLanguage } from '../services/language';
 import {
   DEFAULT_ONBOARDING_CONFIG,
   mergeOnboardingConfig,
@@ -43,9 +43,12 @@ const toSafeNumber = (value: unknown) => {
   return Number.isFinite(parsed) ? parsed : null;
 };
 
-const resolveOnboardingLanguage = (value: unknown) => {
+const isSupportedOnboardingLanguage = (value: unknown): value is AppLanguage =>
+  value === 'ar' || value === 'en' || value === 'it' || value === 'de' || value === 'fr';
+
+const resolveOnboardingLanguage = (value: unknown): AppLanguage | '' => {
   const normalized = String(value || '').trim().toLowerCase();
-  return normalized === 'ar' || normalized === 'en' || normalized === 'it' || normalized === 'de' ? normalized : '';
+  return isSupportedOnboardingLanguage(normalized) ? normalized : '';
 };
 
 const mergeOnboardingIntoUser = (user: Record<string, any>, patch: Record<string, any>) => {
@@ -264,7 +267,7 @@ export function Onboarding({ onComplete }: OnboardingProps) {
       const selectedLanguage = resolveOnboardingLanguage(onboardingData?.language)
         || resolveOnboardingLanguage(mergedUser?.language)
         || getStoredLanguage();
-      if (selectedLanguage === 'ar' || selectedLanguage === 'en' || selectedLanguage === 'it' || selectedLanguage === 'de') {
+      if (isSupportedOnboardingLanguage(selectedLanguage)) {
         applyLanguage(selectedLanguage, true);
       }
 
@@ -382,7 +385,7 @@ export function Onboarding({ onComplete }: OnboardingProps) {
       setOnboardingData((prev: any) => ({ ...parsed, ...prev }));
 
       const savedLanguage = resolveOnboardingLanguage((parsed as { language?: unknown }).language);
-      if (savedLanguage === 'ar' || savedLanguage === 'en' || savedLanguage === 'it' || savedLanguage === 'de') {
+      if (isSupportedOnboardingLanguage(savedLanguage)) {
         applyLanguage(savedLanguage, true);
       }
     } catch (storageError) {

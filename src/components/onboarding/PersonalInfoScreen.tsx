@@ -237,14 +237,14 @@ function AgePicker({
   };
 
   return (
-    <div className="flex flex-1 flex-col items-center justify-center gap-8">
+    <div className="flex flex-1 flex-col items-center justify-center gap-10">
       <div className="text-center">
         <div className="text-[72px] font-bold leading-none tracking-[-3px] text-white">{value}</div>
-        <div className="mt-2 text-xs uppercase tracking-widest text-text-tertiary">{unitLabel}</div>
+        <div className="mt-3 text-[11px] font-medium uppercase tracking-[0.32em] text-white/40">{unitLabel}</div>
       </div>
 
       <div
-        className="relative h-44 w-full max-w-[220px] touch-none overflow-hidden"
+        className="relative h-[292px] w-full max-w-[360px] touch-none overflow-hidden rounded-[28px] border border-white/10 bg-card/20 p-4 shadow-[0_20px_60px_rgba(0,0,0,0.16)] backdrop-blur-md"
         onWheel={(event) => {
           event.preventDefault();
           setAge(value + (event.deltaY > 0 ? 1 : -1));
@@ -254,29 +254,46 @@ function AgePicker({
         onPointerUp={handlePointerUp}
         onPointerCancel={handlePointerUp}
       >
-        <div className="pointer-events-none absolute left-1/2 top-1/2 z-0 h-11 w-28 -translate-x-1/2 -translate-y-1/2 rounded-2xl border border-accent/30" />
-        <div className="pointer-events-none absolute inset-x-0 top-0 z-10 h-16 bg-gradient-to-b from-black/80 to-transparent" />
-        <div className="pointer-events-none absolute inset-x-0 bottom-0 z-10 h-16 bg-gradient-to-t from-black/80 to-transparent" />
-        <div className="absolute inset-0 flex flex-col items-center justify-center">
+        <div className="pointer-events-none absolute left-1/2 top-1/2 h-24 w-[86%] -translate-x-1/2 -translate-y-1/2 rounded-full bg-accent/[0.035] blur-2xl" />
+        <div className="pointer-events-none absolute left-1/2 top-1/2 z-[2] h-[62px] w-[86%] -translate-x-1/2 -translate-y-1/2 rounded-[24px] border border-accent/45 bg-transparent shadow-[0_0_30px_rgba(139,155,69,0.05)]" />
+        <div className="pointer-events-none absolute left-4 top-1/2 z-10 h-7 w-[3px] -translate-y-1/2 rounded-full bg-accent/85 shadow-[0_0_10px_rgba(163,180,76,0.35)]" />
+        <div className="pointer-events-none absolute right-4 top-1/2 z-10 h-7 w-[3px] -translate-y-1/2 rounded-full bg-accent/85 shadow-[0_0_10px_rgba(163,180,76,0.35)]" />
+        <div className="pointer-events-none absolute inset-x-0 top-0 z-20 h-[92px] bg-gradient-to-b from-background/85 via-background/45 to-transparent" />
+        <div className="pointer-events-none absolute inset-x-0 bottom-0 z-20 h-[92px] bg-gradient-to-t from-background/85 via-background/45 to-transparent" />
+        <div className="absolute inset-4 flex flex-col items-center justify-center">
           {ages.map((age) => {
             const offset = age - value;
             const distance = Math.abs(offset);
-            const hidden = distance > 2;
+            const hidden = distance > 3;
+            const opacity = distance === 0
+              ? 1
+              : distance === 1
+                ? 0.48
+                : distance === 2
+                  ? 0.22
+                  : distance === 3
+                    ? 0.06
+                    : 0;
+            const scale = distance === 0
+              ? 1
+              : distance === 1
+                ? 0.9
+                : distance === 2
+                  ? 0.82
+                  : 0.76;
             return (
               <button
                 key={age}
                 type="button"
                 onClick={() => setAge(age)}
-                className={`absolute h-9 w-24 bg-transparent text-center transition-all duration-150 ${
+                className={`absolute z-[3] flex h-[52px] w-28 items-center justify-center bg-transparent text-center transition-all duration-200 ease-out ${
                   distance === 0
-                    ? 'text-[26px] font-bold text-white'
-                    : distance === 1
-                      ? 'text-lg font-medium text-white/45'
-                      : 'text-lg font-medium text-white/22'
+                    ? 'text-[34px] font-bold text-white/90'
+                    : 'text-[21px] font-medium text-white/70'
                 }`}
                 style={{
-                  transform: `translateY(${offset * 36}px)`,
-                  opacity: hidden ? 0 : 1,
+                  transform: `translateY(${offset * 54}px) scale(${scale})`,
+                  opacity: hidden ? 0 : opacity,
                   pointerEvents: hidden ? 'none' : 'auto',
                 }}
               >
@@ -503,9 +520,9 @@ export function PersonalInfoScreen({ onNext, onDataChange, onboardingData }: Per
                       type="button"
                       aria-pressed={selected}
                       onClick={() => updateValues({ gender: value })}
-                      className={`flex min-h-32 flex-col items-center justify-center gap-3 rounded-2xl border px-4 py-5 text-sm font-medium transition-all duration-200 ${
+                      className={`gender-choice-bubble flex min-h-32 flex-col items-center justify-center gap-3 rounded-2xl border px-4 py-5 text-sm font-medium transition-all duration-200 ${
                         selected
-                          ? 'border-accent bg-accent/15 text-white'
+                          ? 'gender-choice-bubble--selected border-accent bg-accent/15 text-white shadow-[0_0_24px_rgba(191,255,0,0.08)]'
                           : 'border-white/15 bg-white/[0.03] text-text-secondary hover:border-white/25 hover:bg-white/[0.05]'
                       }`}
                     >

@@ -1093,7 +1093,7 @@ export const api = {
   },
 
   getNotificationSettings: async (userId: number) => {
-    const res = await fetch(`${API_URL}/notification-settings/${userId}`);
+    const res = await fetch(`${API_URL}/notification-settings/${userId}`, withAuthHeaders());
     let data: any = null;
     try {
       data = await res.json();
@@ -1117,11 +1117,11 @@ export const api = {
     userId: number,
     data: { coachMessages: boolean; restTimer: boolean; missionChallenge: boolean },
   ) => {
-    const res = await fetch(`${API_URL}/notification-settings/${userId}`, {
+    const res = await fetch(`${API_URL}/notification-settings/${userId}`, withAuthHeaders({
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data),
-    });
+    }));
     let body: any = null;
     try {
       body = await res.json();

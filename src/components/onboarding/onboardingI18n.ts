@@ -1,4 +1,4 @@
-import { AppLanguage, getActiveLanguage, getStoredLanguage } from '../../services/language';
+import { AppLanguage, getActiveLanguage, getStoredLanguage, normalizeLocalizedValue } from '../../services/language';
 import type {
   AthleteOption,
   AthleteSubGroup,
@@ -32,6 +32,8 @@ export const getOnboardingLanguage = (): AppLanguage => {
 };
 
 export const isArabicLanguage = (language: AppLanguage) => language === 'ar';
+
+const cleanLocalized = <T,>(value: T): T => normalizeLocalizedValue(value);
 
 const STEP_TITLES_AR: Partial<Record<OnboardingStepId, string>> = {
   language: 'اللغة',
@@ -134,7 +136,7 @@ export const resolveOnboardingTitle = (
   fallback: string,
   language: AppLanguage,
 ) => {
-  if (language === 'ar') return STEP_TITLES_AR[stepId] ?? fallback;
+  if (language === 'ar') return cleanLocalized(STEP_TITLES_AR[stepId] ?? fallback);
   if (language === 'it') return STEP_TITLES_IT[stepId] ?? fallback;
   if (language === 'de') return STEP_TITLES_DE[stepId] ?? fallback;
   if (language === 'fr') return STEP_TITLES_FR[stepId] ?? fallback;
@@ -259,11 +261,11 @@ export const localizeMotivationOptions = (
     });
   }
   if (language !== 'ar') return options;
-  return options.map((option) => {
+  return cleanLocalized(options.map((option) => {
     const ar = APP_MOTIVATION_AR[option.id];
     if (!ar) return option;
     return { ...option, title: ar.title, description: ar.description };
-  });
+  }));
 };
 
 const ATHLETE_IDENTITY_AR: Record<string, {
@@ -1314,11 +1316,11 @@ export const localizeAthleteOptions = (
 
   const normalizedGender = String(gender || '').trim().toLowerCase();
   if (normalizedGender !== 'female' && normalizedGender !== 'woman' && normalizedGender !== 'f') {
-    return localizedOptions;
+    return cleanLocalized(localizedOptions);
   }
 
   const overrides = FEMALE_ATHLETE_OVERRIDES[language] || FEMALE_ATHLETE_OVERRIDES.en;
-  return localizedOptions.map((option) => {
+  return cleanLocalized(localizedOptions.map((option) => {
     const override = overrides[option.id as 'bodybuilding' | 'cardio'];
     if (!override) return option;
     return {
@@ -1330,7 +1332,7 @@ export const localizeAthleteOptions = (
         items: group.items.map((item) => ({ ...item })),
       })),
     };
-  });
+  }));
 };
 
 const FITNESS_GOALS_AR: Record<string, { title: string; description: string; tag?: string }> = {
@@ -1459,7 +1461,7 @@ export const localizeFitnessGoals = (options: GoalOption[], language: AppLanguag
     });
   }
   if (language !== 'ar') return options;
-  return options.map((option) => {
+  return cleanLocalized(options.map((option) => {
     const ar = FITNESS_GOALS_AR[option.id];
     if (!ar) return option;
     return {
@@ -1468,7 +1470,7 @@ export const localizeFitnessGoals = (options: GoalOption[], language: AppLanguag
       description: ar.description || option.description,
       tag: ar.tag ?? option.tag,
     };
-  });
+  }));
 };
 
 const WORKOUT_SPLIT_AR: Record<string, { title: string; summary: string; detail: string }> = {
@@ -1626,7 +1628,7 @@ export const localizeWorkoutSplitOptions = (options: SplitOption[], language: Ap
     });
   }
   if (language !== 'ar') return options;
-  return options.map((option) => {
+  return cleanLocalized(options.map((option) => {
     const ar = WORKOUT_SPLIT_AR[option.id];
     if (!ar) return option;
     return {
@@ -1635,7 +1637,7 @@ export const localizeWorkoutSplitOptions = (options: SplitOption[], language: Ap
       summary: ar.summary || option.summary,
       detail: ar.detail || option.detail,
     };
-  });
+  }));
 };
 
 const SPORT_PLAN_AR: Record<string, { title: string; description: string }> = {
@@ -1705,11 +1707,11 @@ export const localizeSportPlanOptions = (options: PlanOption[], language: AppLan
     });
   }
   if (language !== 'ar') return options;
-  return options.map((option) => {
+  return cleanLocalized(options.map((option) => {
     const ar = SPORT_PLAN_AR[option.id];
     if (!ar) return option;
     return { ...option, title: ar.title, description: ar.description };
-  });
+  }));
 };
 
 const TRAINING_FOCUS_AR: Record<string, string> = {
@@ -1784,10 +1786,10 @@ export const localizeTrainingFocusOptions = (options: SimpleOption[], language: 
     }));
   }
   if (language !== 'ar') return options;
-  return options.map((option) => ({
+  return cleanLocalized(options.map((option) => ({
     ...option,
     label: TRAINING_FOCUS_AR[option.value] || option.label,
-  }));
+  })));
 };
 
 export const localizeRecoveryOptions = (options: SimpleOption[], language: AppLanguage) => {
@@ -1810,10 +1812,10 @@ export const localizeRecoveryOptions = (options: SimpleOption[], language: AppLa
     }));
   }
   if (language !== 'ar') return options;
-  return options.map((option) => ({
+  return cleanLocalized(options.map((option) => ({
     ...option,
     label: RECOVERY_PRIORITY_AR[option.value] || option.label,
-  }));
+  })));
 };
 
 const GENDER_LABEL_AR: Record<string, string> = {
@@ -1904,7 +1906,7 @@ export const localizeGenderButtonLabel = (value: string, language: AppLanguage) 
     if (normalized === 'female') return 'Woman';
     return normalized || value;
   }
-  return GENDER_LABEL_AR[normalized] || (normalized ? 'غير محدد' : value);
+  return cleanLocalized(GENDER_LABEL_AR[normalized] || (normalized ? 'غير محدد' : value));
 };
 
 export const localizeSelectOptions = (
@@ -1958,10 +1960,10 @@ export const localizeSelectOptions = (
     }
   }
   if (language !== 'ar') return options;
-  return options.map((option) => ({
+  return cleanLocalized(options.map((option) => ({
     ...option,
     label: map[String(option.value || '').trim().toLowerCase()] || option.label,
-  }));
+  })));
 };
 
 export const localizeSessionDurationOptions = (
@@ -1998,10 +2000,12 @@ export const localizeExperienceLevel = (value: string, language: AppLanguage) =>
     if (value.toLowerCase() === 'advanced') return 'Avance';
     return value;
   }
-  if (language !== 'ar') return value;
-  if (value.toLowerCase() === 'beginner') return 'مبتدئ';
-  if (value.toLowerCase() === 'intermediate') return 'متوسط';
-  if (value.toLowerCase() === 'advanced') return 'متقدم';
+  if (language === 'ar') {
+    if (value.toLowerCase() === 'beginner') return 'مبتدئ';
+    if (value.toLowerCase() === 'intermediate') return 'متوسط';
+    if (value.toLowerCase() === 'advanced') return 'متقدم';
+    return value;
+  }
   return value;
 };
 

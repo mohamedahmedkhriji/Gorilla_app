@@ -81,7 +81,8 @@ export function FirstNameScreen({ onNext, onDataChange, onboardingData }: FirstN
       </div>
 
       <Input
-        label={copy.label}
+        variant="nebula"
+        label={copy.placeholder}
         placeholder={copy.placeholder}
         value={firstName}
         onChange={(event) => {
