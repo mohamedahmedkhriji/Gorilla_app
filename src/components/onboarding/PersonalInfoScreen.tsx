@@ -460,6 +460,7 @@ export function PersonalInfoScreen({ onNext, onDataChange, onboardingData }: Per
     heightCm: clamp(initialNumber(onboardingData?.heightCm, onboardingData?.height, onboardingData?.height_cm) ?? 175, 100, 220),
     weightKg: clamp(initialNumber(onboardingData?.weightKg, onboardingData?.weight, onboardingData?.weight_kg) ?? 75, 30, 200),
   }));
+  const genderAdvanceTimeoutRef = useRef<number | null>(null);
 
   const heightValue = heightUnit === 'metric'
     ? values.heightCm
@@ -473,9 +474,32 @@ export function PersonalInfoScreen({ onNext, onDataChange, onboardingData }: Per
     setValues((prev) => ({ ...prev, ...patch }));
   };
 
+  useEffect(() => () => {
+    if (genderAdvanceTimeoutRef.current !== null) {
+      window.clearTimeout(genderAdvanceTimeoutRef.current);
+    }
+  }, []);
+
+  const handleGenderSelect = (gender: Exclude<Gender, ''>) => {
+    updateValues({ gender });
+
+    if (genderAdvanceTimeoutRef.current !== null) {
+      window.clearTimeout(genderAdvanceTimeoutRef.current);
+    }
+
+    genderAdvanceTimeoutRef.current = window.setTimeout(() => {
+      setStep((prev) => (prev === 1 ? 2 : prev));
+      genderAdvanceTimeoutRef.current = null;
+    }, 220);
+  };
+
   const handleContinue = () => {
     if (step === 1 && !values.gender) return;
     if (step < 4) {
+      if (genderAdvanceTimeoutRef.current !== null) {
+        window.clearTimeout(genderAdvanceTimeoutRef.current);
+        genderAdvanceTimeoutRef.current = null;
+      }
       setStep((prev) => prev + 1);
       return;
     }
@@ -519,7 +543,7 @@ export function PersonalInfoScreen({ onNext, onDataChange, onboardingData }: Per
                       key={value}
                       type="button"
                       aria-pressed={selected}
-                      onClick={() => updateValues({ gender: value })}
+                      onClick={() => handleGenderSelect(value)}
                       className={`gender-choice-bubble flex min-h-32 flex-col items-center justify-center gap-3 rounded-2xl border px-4 py-5 text-sm font-medium transition-all duration-200 ${
                         selected
                           ? 'gender-choice-bubble--selected border-accent bg-accent/15 text-white shadow-[0_0_24px_rgba(191,255,0,0.08)]'
