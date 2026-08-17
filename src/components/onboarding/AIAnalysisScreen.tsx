@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
-import { CheckCircle2, Circle } from 'lucide-react';
+import { Circle } from 'lucide-react';
 import { generateAiTrainingPlan } from '../../services/aiTrainingPlan';
 import { persistStoredUser } from '../../shared/authStorage';
 import { BrandLogo } from '../ui/BrandLogo';
@@ -70,6 +70,20 @@ const COPY = {
     preparing: 'Cela peut prendre un petit moment. Nous preparons tout pour toi...',
   },
 } as const;
+
+function AnimatedCheckpoint({ checked }: { checked: boolean }) {
+  return (
+    <span className="checkbox-wrapper-12 shrink-0" aria-hidden="true">
+      <span className="cbx">
+        <input type="checkbox" checked={checked} readOnly tabIndex={-1} />
+        <span className="checkbox-wrapper-12__label" />
+        <svg width="15" height="14" viewBox="0 0 15 14" fill="none">
+          <path d="M2 8.36364L6.23077 12L13 2" />
+        </svg>
+      </span>
+    </span>
+  );
+}
 
 export function AIAnalysisScreen({ onComplete, onboardingData, userId }: AIAnalysisScreenProps) {
   const language = getOnboardingLanguage();
@@ -280,7 +294,7 @@ export function AIAnalysisScreen({ onComplete, onboardingData, userId }: AIAnaly
             return (
               <div key={item} className="flex items-center gap-3">
                 {done ? (
-                  <CheckCircle2 size={18} className="text-accent shrink-0" />
+                  <AnimatedCheckpoint checked />
                 ) : (
                   <Circle size={18} className="text-text-tertiary shrink-0" />
                 )}
