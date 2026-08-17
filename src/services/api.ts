@@ -1085,6 +1085,46 @@ export const api = {
     return parseApiResponse(res, 'Failed to mark notification as read');
   },
 
+  markAllNotificationsRead: async () => {
+    const res = await fetch(`${API_URL}/notifications/read-all`, { method: 'PUT' });
+    return parseApiResponse(res, 'Failed to mark all notifications as read');
+  },
+
+  getUnreadNotificationCount: async () => {
+    const res = await fetch(`${API_URL}/notifications/unread-count`);
+    return parseApiResponse(res, 'Failed to fetch unread notification count');
+  },
+
+  deleteNotification: async (notificationId: number) => {
+    const res = await fetch(`${API_URL}/notifications/item/${notificationId}`, { method: 'DELETE' });
+    return parseApiResponse(res, 'Failed to delete notification');
+  },
+
+  registerPushDevice: async (data: {
+    token: string;
+    platform: 'android' | 'ios';
+    deviceId: string;
+    appVersion: string;
+    locale: string;
+    timezone: string;
+  }) => {
+    const res = await fetch(`${API_URL}/notifications/devices`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
+    return parseApiResponse(res, 'Failed to register push device');
+  },
+
+  deactivatePushDevice: async (token: string) => {
+    const res = await fetch(`${API_URL}/notifications/devices/current`, {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token }),
+    });
+    return parseApiResponse(res, 'Failed to deactivate push device');
+  },
+
   clearNotifications: async (userId: number) => {
     const res = await fetch(`${API_URL}/notifications/${userId}`, {
       method: 'DELETE'
@@ -1105,6 +1145,13 @@ export const api = {
         coachMessages: true,
         restTimer: true,
         missionChallenge: true,
+        training: true,
+        social: true,
+        challenges: true,
+        gym: true,
+        content: true,
+        shop: true,
+        subscription: true,
       };
     }
     if (!res.ok) {
@@ -1115,7 +1162,18 @@ export const api = {
 
   updateNotificationSettings: async (
     userId: number,
-    data: { coachMessages: boolean; restTimer: boolean; missionChallenge: boolean },
+    data: {
+      coachMessages: boolean;
+      restTimer: boolean;
+      missionChallenge: boolean;
+      training: boolean;
+      social: boolean;
+      challenges: boolean;
+      gym: boolean;
+      content: boolean;
+      shop: boolean;
+      subscription: boolean;
+    },
   ) => {
     const res = await fetch(`${API_URL}/notification-settings/${userId}`, withAuthHeaders({
       method: 'PUT',

@@ -41,6 +41,8 @@ import { getLeaderboardBundle } from './services/gamification/rivalryService.js'
 import { enrichMissionCollection } from './services/gamification/missionEngine.js';
 import { getExerciseFallbackMuscleRows } from './services/exerciseMuscleProfiles.js';
 import { hasOpenAIConfig, requestOpenAIChatCompletion } from './services/openaiProxy.js';
+import { NOTIFICATION_TYPES } from './notifications/types.js';
+import { didRecoveryCrossThreshold } from './notifications/rules.js';
 
 const router = express.Router();
 
@@ -1420,7 +1422,7 @@ const expireStaleFriendChallengeInvitesForUser = async (userId) => {
     const [rows] = await conn.execute(
       `SELECT id, user_id, data, created_at
        FROM notifications
-       WHERE type = 'friend_challenge_invite'
+       WHERE type IN ('friend_challenge_invite', 'CHALLENGE_INVITATION')
          AND JSON_VALID(data)
          AND COALESCE(JSON_UNQUOTE(JSON_EXTRACT(data, '$.responseStatus')), 'pending') = 'pending'
          AND created_at <= DATE_SUB(NOW(), INTERVAL 5 MINUTE)
@@ -3588,9 +3590,27 @@ const ensureNotificationSettingsInfrastructure = async () => {
       coach_messages TINYINT(1) NOT NULL DEFAULT 1,
       rest_timer TINYINT(1) NOT NULL DEFAULT 1,
       mission_challenge TINYINT(1) NOT NULL DEFAULT 1,
+      training TINYINT(1) NOT NULL DEFAULT 1,
+      social TINYINT(1) NOT NULL DEFAULT 1,
+      challenges TINYINT(1) NOT NULL DEFAULT 1,
+      gym TINYINT(1) NOT NULL DEFAULT 1,
+      content TINYINT(1) NOT NULL DEFAULT 1,
+      shop TINYINT(1) NOT NULL DEFAULT 1,
+      subscription TINYINT(1) NOT NULL DEFAULT 1,
       updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
       CONSTRAINT fk_notification_settings_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
     ) ENGINE=InnoDB`,
+  );
+
+  await pool.execute(
+    `ALTER TABLE user_notification_settings
+       ADD COLUMN IF NOT EXISTS training TINYINT(1) NOT NULL DEFAULT 1,
+       ADD COLUMN IF NOT EXISTS social TINYINT(1) NOT NULL DEFAULT 1,
+       ADD COLUMN IF NOT EXISTS challenges TINYINT(1) NOT NULL DEFAULT 1,
+       ADD COLUMN IF NOT EXISTS gym TINYINT(1) NOT NULL DEFAULT 1,
+       ADD COLUMN IF NOT EXISTS content TINYINT(1) NOT NULL DEFAULT 1,
+       ADD COLUMN IF NOT EXISTS shop TINYINT(1) NOT NULL DEFAULT 1,
+       ADD COLUMN IF NOT EXISTS subscription TINYINT(1) NOT NULL DEFAULT 1`,
   );
 };
 
@@ -3867,7 +3887,8 @@ const ensureChallengeNotificationTypesOnce = async () => {
       const columnType = String(rows[0]?.COLUMN_TYPE || '');
       const hasInviteType = columnType.includes("'friend_challenge_invite'");
       const hasResponseType = columnType.includes("'friend_challenge_response'");
-      if (!hasInviteType || !hasResponseType) {
+      const usesExtensibleType = /^varchar/i.test(columnType);
+      if (!usesExtensibleType && (!hasInviteType || !hasResponseType)) {
         const enumList = CHALLENGE_NOTIFICATION_TYPES.map((value) => `'${value}'`).join(', ');
         await pool.execute(
           `ALTER TABLE notifications
@@ -10551,19 +10572,20 @@ router.post('/coach/:coachId/user/:userId/program/custom', authMutationRateLimit
       actorUserId: coachId,
     });
 
-    await conn.execute(
-      `INSERT INTO notifications (user_id, type, title, message, data)
-       VALUES (?, 'plan_created_by_coach', 'New plan from your coach', ?, JSON_OBJECT('coachId', ?, 'programId', ?, 'planName', ?))`,
-      [
-        userId,
-        'Your coach created and activated a new training plan for you.',
-        coachId,
-        result.programId,
-        draft.planName.slice(0, 255),
-      ],
-    );
-
     await conn.commit();
+    try {
+      await req.app.locals.notificationService.sendNotification({
+        userId,
+        type: NOTIFICATION_TYPES.PLAN_UPDATED,
+        route: `/plans/${result.programId}`,
+        entityType: 'program',
+        entityId: result.programId,
+        data: { coachId, programId: result.programId, planName: draft.planName.slice(0, 255) },
+        notificationKey: `PLAN_UPDATED:${userId}:${result.programId}:created`,
+      });
+    } catch (notifyError) {
+      console.warn('Plan update notification skipped:', notifyError?.message || notifyError);
+    }
     return res.json({
       success: true,
       assignedProgram: result.assignedProgram,
@@ -10721,19 +10743,20 @@ router.post('/coach/:coachId/program-requests/:requestId/approve', authMutationR
       [result.programId, String(req.body?.reason || '').trim() || null, coachId, requestId],
     );
 
-    await conn.execute(
-      `INSERT INTO notifications (user_id, type, title, message, data)
-       VALUES (?, 'plan_review_approved', 'Plan approved', ?, JSON_OBJECT('requestId', ?, 'programId', ?, 'planName', ?))`,
-      [
-        Number(request.user_id),
-        'Your coach approved your custom plan and activated it.',
-        requestId,
-        result.programId,
-        draft.planName.slice(0, 255),
-      ],
-    );
-
     await conn.commit();
+    try {
+      await req.app.locals.notificationService.sendNotification({
+        userId: Number(request.user_id),
+        type: NOTIFICATION_TYPES.PLAN_UPDATED,
+        route: `/plans/${result.programId}`,
+        entityType: 'program',
+        entityId: result.programId,
+        data: { requestId, programId: result.programId, planName: draft.planName.slice(0, 255) },
+        notificationKey: `PLAN_UPDATED:${request.user_id}:${result.programId}:approved`,
+      });
+    } catch (notifyError) {
+      console.warn('Approved plan notification skipped:', notifyError?.message || notifyError);
+    }
     return res.json({
       success: true,
       requestId,
@@ -11650,15 +11673,23 @@ router.post('/friends/request', authMutationRateLimit, requireAuth('user'), requ
       createdOrReopened = true;
     }
 
-    if (createdOrReopened && friendshipId > 0) {
-      await conn.execute(
-        `INSERT INTO notifications (user_id, type, title, message, data)
-         VALUES (?, 'friend_request', 'Friend Request', ?, JSON_OBJECT('friendshipId', ?, 'fromUserId', ?, 'requestType', 'friendship'))`,
-        [toUserId, `${senderName} sent you a friend request`, friendshipId, fromUserId],
-      );
-    }
-
     await conn.commit();
+    if (createdOrReopened && friendshipId > 0) {
+      try {
+        await req.app.locals.notificationService.sendNotification({
+          userId: toUserId,
+          type: NOTIFICATION_TYPES.FRIEND_INVITATION,
+          variables: { senderName },
+          route: `/friends/requests/${friendshipId}`,
+          entityType: 'friendship',
+          entityId: friendshipId,
+          data: { friendshipId, fromUserId, requestType: 'friendship' },
+          notificationKey: `FRIEND_INVITATION:${friendshipId}`,
+        });
+      } catch (notifyError) {
+        console.warn('Friend request notification skipped:', notifyError?.message || notifyError);
+      }
+    }
     return res.json({
       success: true,
       friendshipId,
@@ -11882,7 +11913,7 @@ router.post('/friend-challenges/invite', authMutationRateLimit, requireAuth('use
       `SELECT id, data, created_at
        FROM notifications
        WHERE user_id = ?
-         AND type = 'friend_challenge_invite'
+         AND type IN ('friend_challenge_invite', 'CHALLENGE_INVITATION')
        ORDER BY created_at DESC
        LIMIT 50`,
       [friendId],
@@ -11917,15 +11948,20 @@ router.post('/friend-challenges/invite', authMutationRateLimit, requireAuth('use
       challengeFlow: 'sender_device',
     };
 
-    const [insertResult] = await pool.execute(
-      `INSERT INTO notifications (user_id, type, title, message, data)
-       VALUES (?, 'friend_challenge_invite', 'New Challenge', ?, ?)`,
-      [friendId, `${senderName} challenged you to ${challengeTitle}`, JSON.stringify(payload)],
-    );
+    const notificationResult = await req.app.locals.notificationService.sendNotification({
+      userId: friendId,
+      type: NOTIFICATION_TYPES.CHALLENGE_INVITATION,
+      variables: { senderName, challengeName: challengeTitle },
+      route: `/challenges/${challengeKey}`,
+      entityType: 'friend_challenge',
+      entityId: challengeKey,
+      data: payload,
+      notificationKey: `CHALLENGE_INVITATION:${userId}:${friendId}:${challengeKey}:${Date.now()}`,
+    });
 
     return res.json({
       success: true,
-      notificationId: Number(insertResult?.insertId || 0),
+      notificationId: Number(notificationResult?.notification?.id || 0),
       challengeKey,
       challengeTitle,
     });
@@ -11959,7 +11995,7 @@ router.post('/friend-challenges/respond', authMutationRateLimit, requireAuth('us
        FROM notifications
        WHERE id = ?
          AND user_id = ?
-         AND type = 'friend_challenge_invite'
+         AND type IN ('friend_challenge_invite', 'CHALLENGE_INVITATION')
        LIMIT 1
        FOR UPDATE`,
       [notificationId, userId],
@@ -14524,6 +14560,7 @@ router.get('/user/:userId/recovery', async (req, res) => {
 
     const computedByMuscle = new Map();
     const updates = [];
+    const recoveryReadyMuscles = [];
 
     latestByMuscle.forEach((row, muscleName) => {
       const dynamic = calculateDynamicRecovery(row.last_worked, row.hours_needed);
@@ -14540,6 +14577,9 @@ router.get('/user/:userId/recovery', async (req, res) => {
       });
 
       const storedScore = Math.round(Number(row.recovery_percentage || 0));
+      if (didRecoveryCrossThreshold(storedScore, dynamic.score) && row.last_worked) {
+        recoveryReadyMuscles.push({ muscleName, lastWorked: row.last_worked });
+      }
       const storedHoursElapsed = Number(row.hours_elapsed || 0);
       if (
         storedScore !== dynamic.score ||
@@ -14559,6 +14599,25 @@ router.get('/user/:userId/recovery', async (req, res) => {
 
     if (updates.length) {
       await Promise.all(updates);
+    }
+
+    if (recoveryReadyMuscles.length) {
+      const muscleNames = recoveryReadyMuscles.map((item) => item.muscleName);
+      const cycleTimestamp = Math.max(...recoveryReadyMuscles.map((item) => new Date(item.lastWorked).getTime()));
+      try {
+        await req.app.locals.notificationService.sendNotification({
+          userId,
+          type: NOTIFICATION_TYPES.RECOVERY_READY,
+          variables: { muscles: muscleNames.join(' and ') },
+          route: '/recovery',
+          entityType: 'muscle_recovery',
+          entityId: muscleNames.join(',').slice(0, 191),
+          data: { muscles: muscleNames, threshold: 90 },
+          notificationKey: `RECOVERY_READY:${userId}:${muscleNames.join('-')}:${cycleTimestamp}`.slice(0, 191),
+        });
+      } catch (notifyError) {
+        console.warn('Recovery-ready notification skipped:', notifyError?.message || notifyError);
+      }
     }
 
     const recovery = TRACKED_MUSCLES.map((muscleName) => {
@@ -15137,6 +15196,94 @@ router.put('/messages/read-user/:userId/:coachId', authMutationRateLimit, requir
 // NOTIFICATIONS
 // =========================
 
+router.post('/notifications/devices', authMutationRateLimit, requireAuth('user'), async (req, res) => {
+  try {
+    const userId = getRequestUserId(req);
+    const pushToken = String(req.body?.token || '').trim();
+    const platform = String(req.body?.platform || '').trim().toLowerCase();
+    const deviceId = String(req.body?.deviceId || '').trim().slice(0, 191) || null;
+    const appVersion = String(req.body?.appVersion || '').trim().slice(0, 40) || null;
+    const locale = String(req.body?.locale || 'en').trim().toLowerCase().slice(0, 10) || 'en';
+    const timezone = String(req.body?.timezone || 'UTC').trim().slice(0, 64) || 'UTC';
+
+    if (!pushToken || pushToken.length > 512 || !['android', 'ios'].includes(platform)) {
+      return res.status(400).json({ error: 'Invalid device registration' });
+    }
+    try {
+      new Intl.DateTimeFormat('en', { timeZone: timezone }).format();
+    } catch {
+      return res.status(400).json({ error: 'Invalid IANA timezone' });
+    }
+
+    await pool.execute(
+      `INSERT INTO user_devices
+         (user_id, push_token, platform, device_id, app_version, locale, is_active, last_seen_at)
+       VALUES (?, ?, ?, ?, ?, ?, 1, NOW())
+       ON DUPLICATE KEY UPDATE
+         user_id = VALUES(user_id), platform = VALUES(platform), device_id = VALUES(device_id),
+         app_version = VALUES(app_version), locale = VALUES(locale), is_active = 1, last_seen_at = NOW()`,
+      [userId, pushToken, platform, deviceId, appVersion, locale],
+    );
+    await pool.execute(
+      'UPDATE users SET notification_locale = ?, timezone = ? WHERE id = ?',
+      [locale, timezone, userId],
+    );
+    return res.status(201).json({ success: true });
+  } catch (error) {
+    return res.status(500).json({ error: error.message });
+  }
+});
+
+router.delete('/notifications/devices/current', authMutationRateLimit, requireAuth('user'), async (req, res) => {
+  try {
+    const userId = getRequestUserId(req);
+    const pushToken = String(req.body?.token || '').trim();
+    if (!pushToken) return res.status(400).json({ error: 'Device token is required' });
+    const [result] = await pool.execute(
+      'UPDATE user_devices SET is_active = 0 WHERE user_id = ? AND push_token = ?',
+      [userId, pushToken],
+    );
+    return res.json({ success: true, deactivatedCount: Number(result?.affectedRows || 0) });
+  } catch (error) {
+    return res.status(500).json({ error: error.message });
+  }
+});
+
+router.get('/notifications/unread-count', requireAuth('user'), async (req, res) => {
+  try {
+    const userId = getRequestUserId(req);
+    const [rows] = await pool.execute(
+      'SELECT COUNT(*) AS unread_count FROM notifications WHERE user_id = ? AND is_read = 0',
+      [userId],
+    );
+    return res.json({ unreadCount: Number(rows[0]?.unread_count || 0) });
+  } catch (error) {
+    return res.status(500).json({ error: error.message });
+  }
+});
+
+router.put('/notifications/read-all', authMutationRateLimit, requireAuth('user'), async (req, res) => {
+  try {
+    const userId = getRequestUserId(req);
+    const [result] = await pool.execute(
+      'UPDATE notifications SET is_read = 1, read_at = COALESCE(read_at, NOW()) WHERE user_id = ? AND is_read = 0',
+      [userId],
+    );
+    return res.json({ success: true, updatedCount: Number(result?.affectedRows || 0) });
+  } catch (error) {
+    return res.status(500).json({ error: error.message });
+  }
+});
+
+router.delete('/notifications/item/:notificationId', authMutationRateLimit, requireAuth(), requireNotificationOwner, async (req, res) => {
+  try {
+    const [result] = await pool.execute('DELETE FROM notifications WHERE id = ?', [req.params.notificationId]);
+    return res.json({ success: true, deletedCount: Number(result?.affectedRows || 0) });
+  } catch (error) {
+    return res.status(500).json({ error: error.message });
+  }
+});
+
 router.get('/notifications/:userId', requireAuth(), requireUserAccess('userId', { allowSelf: true }), async (req, res) => {
   try {
     await ensureChallengeNotificationTypesOnce();
@@ -15145,7 +15292,8 @@ router.get('/notifications/:userId', requireAuth(), requireUserAccess('userId', 
     const { userId } = req.params;
     await expireStaleFriendChallengeInvitesForUser(userId);
     const [rows] = await pool.execute(
-      `SELECT id, user_id, type, title, message, data, is_read, read_at, created_at
+      `SELECT id, user_id, type, category, title, message, data, route,
+              entity_type, entity_id, is_read, read_at, created_at
        FROM notifications
        WHERE user_id = ?
        ORDER BY created_at DESC
@@ -15200,7 +15348,8 @@ router.get('/notification-settings/:userId', requireAuth(), requireUserAccess('u
 
     await ensureNotificationSettingsInfrastructure();
     const [rows] = await pool.execute(
-      `SELECT coach_messages, rest_timer, mission_challenge
+      `SELECT coach_messages, rest_timer, mission_challenge, training, social,
+              challenges, gym, content, shop, subscription
        FROM user_notification_settings
        WHERE user_id = ?
        LIMIT 1`,
@@ -15212,6 +15361,13 @@ router.get('/notification-settings/:userId', requireAuth(), requireUserAccess('u
         coachMessages: true,
         restTimer: true,
         missionChallenge: true,
+        training: true,
+        social: true,
+        challenges: true,
+        gym: true,
+        content: true,
+        shop: true,
+        subscription: true,
       });
     }
 
@@ -15220,6 +15376,13 @@ router.get('/notification-settings/:userId', requireAuth(), requireUserAccess('u
       coachMessages: !!row.coach_messages,
       restTimer: !!row.rest_timer,
       missionChallenge: !!row.mission_challenge,
+      training: !!row.training,
+      social: !!row.social,
+      challenges: !!row.challenges,
+      gym: !!row.gym,
+      content: !!row.content,
+      shop: !!row.shop,
+      subscription: !!row.subscription,
     });
   } catch (error) {
     return res.status(500).json({ error: error.message });
@@ -15237,19 +15400,42 @@ router.put('/notification-settings/:userId', authMutationRateLimit, requireAuth(
     const coachMessages = req.body?.coachMessages === undefined ? true : !!req.body.coachMessages;
     const restTimer = req.body?.restTimer === undefined ? true : !!req.body.restTimer;
     const missionChallenge = req.body?.missionChallenge === undefined ? true : !!req.body.missionChallenge;
+    const training = req.body?.training === undefined ? true : !!req.body.training;
+    const social = req.body?.social === undefined ? true : !!req.body.social;
+    const challenges = req.body?.challenges === undefined ? true : !!req.body.challenges;
+    const gym = req.body?.gym === undefined ? true : !!req.body.gym;
+    const content = req.body?.content === undefined ? true : !!req.body.content;
+    const shop = req.body?.shop === undefined ? true : !!req.body.shop;
+    const subscription = req.body?.subscription === undefined ? true : !!req.body.subscription;
 
     await pool.execute(
-      `INSERT INTO user_notification_settings (user_id, coach_messages, rest_timer, mission_challenge)
-       VALUES (?, ?, ?, ?)
+      `INSERT INTO user_notification_settings
+         (user_id, coach_messages, rest_timer, mission_challenge, training, social,
+          challenges, gym, content, shop, subscription)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
        ON DUPLICATE KEY UPDATE
          coach_messages = VALUES(coach_messages),
          rest_timer = VALUES(rest_timer),
          mission_challenge = VALUES(mission_challenge),
+         training = VALUES(training),
+         social = VALUES(social),
+         challenges = VALUES(challenges),
+         gym = VALUES(gym),
+         content = VALUES(content),
+         shop = VALUES(shop),
+         subscription = VALUES(subscription),
          updated_at = CURRENT_TIMESTAMP`,
-      [userId, coachMessages ? 1 : 0, restTimer ? 1 : 0, missionChallenge ? 1 : 0],
+      [
+        userId, coachMessages ? 1 : 0, restTimer ? 1 : 0, missionChallenge ? 1 : 0,
+        training ? 1 : 0, social ? 1 : 0, challenges ? 1 : 0, gym ? 1 : 0,
+        content ? 1 : 0, shop ? 1 : 0, subscription ? 1 : 0,
+      ],
     );
 
-    return res.json({ success: true, coachMessages, restTimer, missionChallenge });
+    return res.json({
+      success: true, coachMessages, restTimer, missionChallenge, training, social,
+      challenges, gym, content, shop, subscription,
+    });
   } catch (error) {
     return res.status(500).json({ error: error.message });
   }
@@ -18579,11 +18765,16 @@ router.post('/blogs/:postId/like/toggle', authMutationRateLimit, requireAuth('us
         );
         const actorName = String(actorRows[0]?.name || '').trim() || 'Someone';
 
-        await pool.execute(
-          `INSERT INTO notifications (user_id, type, title, message, data)
-           VALUES (?, 'blog_like', 'New like on your post', ?, JSON_OBJECT('postId', ?, 'actorUserId', ?, 'event', 'like'))`,
-          [postOwnerId, `${actorName} liked your post.`, postId, userId],
-        );
+        await req.app.locals.notificationService.sendNotification({
+          userId: postOwnerId,
+          type: NOTIFICATION_TYPES.SOCIAL_ACTIVITY,
+          variables: { senderName: actorName, action: 'liked' },
+          route: `/posts/${postId}`,
+          entityType: 'blog_post',
+          entityId: postId,
+          data: { postId, actorUserId: userId, event: 'like' },
+          notificationKey: `SOCIAL_ACTIVITY:like:${postId}:${userId}`,
+        });
       } catch (notifyError) {
         console.warn('Blog like notification insert skipped:', notifyError?.message || notifyError);
       }
@@ -18690,11 +18881,16 @@ router.post('/blogs/:postId/reaction', authMutationRateLimit, requireAuth('user'
         );
         const actorName = String(actorRows[0]?.name || '').trim() || 'Someone';
 
-        await pool.execute(
-          `INSERT INTO notifications (user_id, type, title, message, data)
-           VALUES (?, 'blog_like', 'New reaction on your post', ?, JSON_OBJECT('postId', ?, 'actorUserId', ?, 'event', 'reaction', 'reaction', ?))`,
-          [postOwnerId, `${actorName} reacted to your post.`, postId, userId, finalReaction || 'love'],
-        );
+        await req.app.locals.notificationService.sendNotification({
+          userId: postOwnerId,
+          type: NOTIFICATION_TYPES.SOCIAL_ACTIVITY,
+          variables: { senderName: actorName, action: 'reacted to' },
+          route: `/posts/${postId}`,
+          entityType: 'blog_post',
+          entityId: postId,
+          data: { postId, actorUserId: userId, event: 'reaction', reaction: finalReaction || 'love' },
+          notificationKey: `SOCIAL_ACTIVITY:reaction:${postId}:${userId}:${finalReaction || 'love'}`,
+        });
       } catch (notifyError) {
         console.warn('Blog reaction notification insert skipped:', notifyError?.message || notifyError);
       }
@@ -18890,13 +19086,16 @@ router.post('/blogs/:postId/comments', authMutationRateLimit, requireAuth('user'
     if (postOwnerId && postOwnerId !== userId) {
       try {
         const actorName = String(commentRows[0]?.author_name || '').trim() || 'Someone';
-        const preview = text.length > 120 ? `${text.slice(0, 117)}...` : text;
-
-        await pool.execute(
-          `INSERT INTO notifications (user_id, type, title, message, data)
-           VALUES (?, 'blog_comment', 'New comment on your post', ?, JSON_OBJECT('postId', ?, 'commentId', ?, 'actorUserId', ?, 'event', 'comment'))`,
-          [postOwnerId, `${actorName} commented: "${preview}"`, postId, insertedCommentId, userId],
-        );
+        await req.app.locals.notificationService.sendNotification({
+          userId: postOwnerId,
+          type: NOTIFICATION_TYPES.SOCIAL_ACTIVITY,
+          variables: { senderName: actorName, action: 'commented on' },
+          route: `/posts/${postId}?comment=${insertedCommentId}`,
+          entityType: 'blog_comment',
+          entityId: insertedCommentId,
+          data: { postId, commentId: insertedCommentId, actorUserId: userId, event: 'comment' },
+          notificationKey: `SOCIAL_ACTIVITY:comment:${insertedCommentId}`,
+        });
       } catch (notifyError) {
         console.warn('Blog comment notification insert skipped:', notifyError?.message || notifyError);
       }

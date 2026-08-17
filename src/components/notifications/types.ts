@@ -21,6 +21,9 @@ export interface AppNotification {
   created_at: string;
   data?: unknown;
   unread?: boolean;
+  route?: string | null;
+  category?: string;
+  entity_id?: string | null;
 }
 
 export interface NotificationData extends Record<string, unknown> {
@@ -35,6 +38,8 @@ export interface NotificationData extends Record<string, unknown> {
   receiverNotificationId?: unknown;
   points?: unknown;
   streak?: unknown;
+  route?: unknown;
+  entityId?: unknown;
 }
 
 export type NotificationType =

@@ -103,7 +103,7 @@ export function TabBar({ activeTab, onTabChange }: TabBarProps) {
         >
           <div className="absolute inset-x-8 top-0 h-px bg-gradient-to-r from-transparent via-white/20 to-transparent" />
           <div className="absolute inset-x-0 bottom-0 h-px bg-gradient-to-r from-transparent via-white/10 to-transparent" />
-          <div className="flex items-center justify-between gap-1.5">
+          <div className="mx-auto flex w-full max-w-3xl items-center justify-between gap-0.5 min-[390px]:gap-1.5">
             {tabs.map((tab) => {
               const Icon = tab.icon;
               const isActive = activeTab === tab.id;
@@ -118,7 +118,7 @@ export function TabBar({ activeTab, onTabChange }: TabBarProps) {
                   aria-label={tab.label}
                   transition={{ layout: { type: 'spring', stiffness: 430, damping: 34, mass: 0.85 } }}
                   className={`relative flex h-[3.55rem] shrink-0 items-center justify-center overflow-hidden rounded-full ${
-                    isActive ? 'px-4' : 'w-[3.4rem]'
+                    isActive ? 'min-w-0 px-2.5 min-[390px]:px-4' : 'w-11 min-[390px]:w-[3.4rem]'
                   }`}
                 >
                   {isActive && (
@@ -129,7 +129,7 @@ export function TabBar({ activeTab, onTabChange }: TabBarProps) {
                     />
                   )}
 
-                  <div className="relative z-10 flex items-center justify-center gap-2.5 whitespace-nowrap">
+                  <div className="relative z-10 flex min-w-0 items-center justify-center gap-1.5 whitespace-nowrap min-[390px]:gap-2.5">
                     <Icon
                       size={19}
                       strokeWidth={isActive ? 2.25 : 1.9}
@@ -145,7 +145,7 @@ export function TabBar({ activeTab, onTabChange }: TabBarProps) {
                           animate={{ opacity: 1, width: 'auto', x: 0 }}
                           exit={{ opacity: 0, width: 0, x: -8 }}
                           transition={{ duration: 0.22, ease: 'easeOut' }}
-                          className="overflow-hidden text-[0.82rem] font-semibold tracking-[0.01em] text-text-primary"
+                          className="max-w-[4.6rem] overflow-hidden text-ellipsis text-[0.72rem] font-semibold text-text-primary min-[390px]:max-w-none min-[390px]:text-[0.82rem]"
                         >
                           {tab.label}
                         </motion.span>

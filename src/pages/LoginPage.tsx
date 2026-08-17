@@ -201,7 +201,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
   };
 
   return (
-    <div className="min-h-screen px-4 py-8 flex items-center justify-center">
+    <div className="flex min-h-[100dvh] items-center justify-center px-4 pb-[calc(env(safe-area-inset-bottom,0px)+2rem)] pt-[calc(env(safe-area-inset-top,0px)+2rem)] sm:px-6">
       {loading ? (
         <LoginTransitionOverlay
           title={copy.loggingIn}

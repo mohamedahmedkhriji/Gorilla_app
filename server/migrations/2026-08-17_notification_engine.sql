@@ -1,0 +1,63 @@
+USE gorella_fitness;
+
+ALTER TABLE users
+  ADD COLUMN IF NOT EXISTS notification_locale VARCHAR(10) NOT NULL DEFAULT 'en',
+  ADD COLUMN IF NOT EXISTS timezone VARCHAR(64) NOT NULL DEFAULT 'UTC';
+
+CREATE TABLE IF NOT EXISTS user_devices (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  user_id INT NOT NULL,
+  push_token VARCHAR(512) NOT NULL,
+  platform ENUM('android', 'ios') NOT NULL,
+  device_id VARCHAR(191) NULL,
+  app_version VARCHAR(40) NULL,
+  locale VARCHAR(10) NOT NULL DEFAULT 'en',
+  is_active TINYINT(1) NOT NULL DEFAULT 1,
+  last_seen_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  UNIQUE KEY uk_user_devices_push_token (push_token),
+  KEY idx_user_devices_user_active (user_id, is_active),
+  KEY idx_user_devices_active (is_active),
+  CONSTRAINT fk_user_devices_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS user_notification_settings (
+  user_id INT NOT NULL,
+  coach_messages TINYINT(1) NOT NULL DEFAULT 1,
+  rest_timer TINYINT(1) NOT NULL DEFAULT 1,
+  mission_challenge TINYINT(1) NOT NULL DEFAULT 1,
+  training TINYINT(1) NOT NULL DEFAULT 1,
+  social TINYINT(1) NOT NULL DEFAULT 1,
+  challenges TINYINT(1) NOT NULL DEFAULT 1,
+  gym TINYINT(1) NOT NULL DEFAULT 1,
+  content TINYINT(1) NOT NULL DEFAULT 1,
+  shop TINYINT(1) NOT NULL DEFAULT 1,
+  subscription TINYINT(1) NOT NULL DEFAULT 1,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (user_id),
+  CONSTRAINT fk_notification_settings_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+ALTER TABLE user_notification_settings
+  ADD COLUMN IF NOT EXISTS training TINYINT(1) NOT NULL DEFAULT 1,
+  ADD COLUMN IF NOT EXISTS social TINYINT(1) NOT NULL DEFAULT 1,
+  ADD COLUMN IF NOT EXISTS challenges TINYINT(1) NOT NULL DEFAULT 1,
+  ADD COLUMN IF NOT EXISTS gym TINYINT(1) NOT NULL DEFAULT 1,
+  ADD COLUMN IF NOT EXISTS content TINYINT(1) NOT NULL DEFAULT 1,
+  ADD COLUMN IF NOT EXISTS shop TINYINT(1) NOT NULL DEFAULT 1,
+  ADD COLUMN IF NOT EXISTS subscription TINYINT(1) NOT NULL DEFAULT 1;
+
+ALTER TABLE notifications
+  MODIFY COLUMN type VARCHAR(80) NOT NULL DEFAULT 'system',
+  ADD COLUMN IF NOT EXISTS category VARCHAR(40) NOT NULL DEFAULT 'system',
+  ADD COLUMN IF NOT EXISTS route VARCHAR(255) NULL,
+  ADD COLUMN IF NOT EXISTS entity_type VARCHAR(80) NULL,
+  ADD COLUMN IF NOT EXISTS entity_id VARCHAR(191) NULL,
+  ADD COLUMN IF NOT EXISTS notification_key VARCHAR(191) NULL,
+  ADD COLUMN IF NOT EXISTS sent_at DATETIME NULL,
+  ADD COLUMN IF NOT EXISTS push_sent_at DATETIME NULL,
+  ADD UNIQUE KEY IF NOT EXISTS uk_notifications_key (notification_key),
+  ADD KEY IF NOT EXISTS idx_notifications_user_unread (user_id, is_read, created_at),
+  ADD KEY IF NOT EXISTS idx_notifications_category (category, created_at);

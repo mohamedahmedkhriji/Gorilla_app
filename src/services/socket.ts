@@ -1,6 +1,7 @@
 import { io } from 'socket.io-client';
 import { getStoredUserAuthToken } from '../shared/authStorage';
 import { getStoredAdminAuthToken } from '../shared/adminAuthStorage';
+import { dispatchNotificationReceived } from './notificationEvents';
 
 const DEFAULT_SOCKET_ORIGIN =
   typeof window !== 'undefined'
@@ -56,6 +57,10 @@ socket.on('connect_error', (error: Error) => {
   if (hasLoggedConnectError) return;
   hasLoggedConnectError = true;
   console.warn('Socket unavailable:', error?.message || 'Connection failed');
+});
+
+socket.on('notification:new', (notification: Record<string, unknown>) => {
+  dispatchNotificationReceived(notification);
 });
 
 export const socketService = {

@@ -19,13 +19,14 @@
     "seed:plans": "node server/scripts/seedWorkoutPlans.js",
     "backfill:workout-catalog": "node server/scripts/backfillWorkoutSetCatalogIds.js",
     "migrate:sql": "node server/scripts/runMigration.js",
-    "migrate:pending": "node server/scripts/runPendingMigrations.js"
+    "migrate:pending": "node server/scripts/runPendingMigrations.js",
+    "test:notifications": "node --test server/notifications/*.test.js"
   },
   "dependencies": {
     "@capacitor/android": "^8.3.0",
-    "@capacitor/cli": "^8.3.0",
     "@capacitor/core": "^8.3.0",
     "@capacitor/ios": "^8.3.0",
+    "@capacitor/push-notifications": "^8.1.2",
     "@emotion/react": "^11.13.3",
     "@fontsource/bebas-neue": "^5.2.7",
     "@fontsource/space-grotesk": "^5.2.10",
@@ -36,6 +37,7 @@
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",
     "express": "^4.19.2",
+    "firebase-admin": "^14.2.0",
     "framer-motion": "^11.5.4",
     "lucide-react": "0.522.0",
     "mysql2": "^3.16.3",
@@ -45,6 +47,7 @@
     "socket.io-client": "^4.8.3"
   },
   "devDependencies": {
+    "@capacitor/cli": "8.3.0",
     "@types/node": "^20.11.18",
     "@types/react": "^18.3.1",
     "@types/react-dom": "^18.3.1",

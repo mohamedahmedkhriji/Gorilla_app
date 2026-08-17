@@ -188,7 +188,7 @@ export function Messaging({ onBack, coachId: propCoachId, coachName: propCoachNa
   }, [userId, coachId]);
 
   return (
-    <div className="flex-1 flex flex-col bg-background h-screen pb-24">
+    <div className="flex h-[100dvh] flex-1 flex-col bg-background pb-[calc(env(safe-area-inset-bottom,0px)+5.5rem)]">
       <div className="px-4 sm:px-6 pt-2">
         <Header title={coachName || 'Coach Chat'} onBack={onBack} />
         {sessionError && <p className="text-xs text-red-500 mt-2">{sessionError}</p>}
@@ -286,8 +286,8 @@ export function Messaging({ onBack, coachId: propCoachId, coachName: propCoachNa
         <div ref={messagesEndRef} />
       </div>
 
-      <div className="fixed bottom-20 left-0 right-0 px-4 sm:px-6 py-4 bg-background border-t border-white/10">
-        <div className="flex gap-3 items-end">
+      <div className="fixed inset-x-0 bottom-[calc(env(safe-area-inset-bottom,0px)+5.5rem)] border-t border-white/10 bg-background px-4 py-4 sm:px-6">
+        <div className="mx-auto flex w-full max-w-7xl items-end gap-3">
           <textarea
             value={input}
             onChange={(e) => {
@@ -310,7 +310,8 @@ export function Messaging({ onBack, coachId: propCoachId, coachName: propCoachNa
           />
           <button
             onClick={handleSend}
-            className="bg-accent text-black p-3 rounded-2xl hover:bg-accent/90 transition-colors shadow-[0_4px_14px_rgba(191,255,0,0.22)]"
+            className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-accent text-black shadow-[0_4px_14px_rgba(191,255,0,0.22)] transition-colors hover:bg-accent/90"
+            aria-label="Send message"
           >
             <Send size={20} />
           </button>

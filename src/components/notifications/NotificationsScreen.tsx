@@ -3,6 +3,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { Bell, LoaderCircle } from 'lucide-react';
 import challengeHeroImage from '../../../assets/Workout/CHALLENGE.png';
 import { api } from '../../services/api';
+import { dispatchNotificationOpened } from '../../services/notificationEvents';
 import { useAppLanguage } from '../../hooks/useAppLanguage';
 import { Card } from '../ui/Card';
 import { Header } from '../ui/Header';
@@ -224,6 +225,12 @@ export function NotificationsScreen({ onBack, onOpenAcceptedChallenge }: Notific
   }, [fetchNotifications]);
 
   useEffect(() => {
+    const refresh = () => void fetchNotifications();
+    window.addEventListener('repset:notification:new', refresh);
+    return () => window.removeEventListener('repset:notification:new', refresh);
+  }, [fetchNotifications]);
+
+  useEffect(() => {
     if (!challengeIntroTitle) return undefined;
 
     const timeout = window.setTimeout(() => {
@@ -241,6 +248,7 @@ export function NotificationsScreen({ onBack, onOpenAcceptedChallenge }: Notific
     try {
       await api.markNotificationRead(notificationId);
       updateNotification(notificationId, (item) => ({ ...item, unread: false }));
+      window.dispatchEvent(new Event('repset:notifications:changed'));
     } catch (requestError) {
       console.error('Failed to mark notification as read:', requestError);
     }
@@ -434,13 +442,38 @@ export function NotificationsScreen({ onBack, onOpenAcceptedChallenge }: Notific
 
   const handleOpenNotification = useCallback((notificationId: number) => {
     const notification = items.find((item) => item.id === notificationId);
-    if (!notification?.unread) return;
-    void markAsRead(notificationId);
+    if (!notification) return;
+    if (notification.unread) void markAsRead(notificationId);
+    const data = parseNotificationData(notification.data);
+    const route = String(notification.route || data.route || '').trim();
+    if (route) {
+      dispatchNotificationOpened({
+        id: notification.id,
+        type: notification.type,
+        route,
+        entityId: notification.entity_id || data.entityId,
+      });
+    }
   }, [items, markAsRead]);
 
   const handleDismissNotification = useCallback((notificationId: number) => {
-    setItems((current) => current.filter((item) => item.id !== notificationId));
-  }, []);
+    void api.deleteNotification(notificationId)
+      .then(() => {
+        setItems((current) => current.filter((item) => item.id !== notificationId));
+        window.dispatchEvent(new Event('repset:notifications:changed'));
+      })
+      .catch((requestError) => setError(getErrorMessage(requestError, copy.failedClearNotifications)));
+  }, [copy.failedClearNotifications]);
+
+  const handleMarkAllRead = useCallback(async () => {
+    try {
+      await api.markAllNotificationsRead();
+      setItems((current) => current.map((item) => ({ ...item, unread: false })));
+      window.dispatchEvent(new Event('repset:notifications:changed'));
+    } catch (requestError) {
+      setError(getErrorMessage(requestError, copy.failedLoadNotifications));
+    }
+  }, [copy.failedLoadNotifications]);
 
   const handleClearAll = useCallback(async () => {
     if (!userId || !items.length || clearing) return;
@@ -449,6 +482,7 @@ export function NotificationsScreen({ onBack, onOpenAcceptedChallenge }: Notific
       setClearing(true);
       await api.clearNotifications(userId);
       setItems([]);
+      window.dispatchEvent(new Event('repset:notifications:changed'));
       setShowClearConfirm(false);
     } catch (requestError) {
       setError(getErrorMessage(requestError, copy.failedClearNotifications));
@@ -557,14 +591,24 @@ export function NotificationsScreen({ onBack, onOpenAcceptedChallenge }: Notific
           title={copy.title}
           onBack={onBack}
           rightElement={(
-            <button
-              type="button"
-              onClick={() => setShowClearConfirm(true)}
-              disabled={clearing || items.length === 0}
-              className="min-h-10 rounded-xl border border-rose-500/20 bg-rose-500/10 px-3 text-[11px] font-semibold text-rose-200 transition-colors hover:bg-rose-500/15 disabled:cursor-not-allowed disabled:opacity-40 sm:text-xs"
-            >
-              {clearing ? copy.clearing : copy.clearAll}
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => void handleMarkAllRead()}
+                disabled={!items.some((item) => item.unread)}
+                className="min-h-10 rounded-xl border border-white/10 bg-white/5 px-3 text-[11px] font-semibold text-text-primary transition-colors hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-40 sm:text-xs"
+              >
+                {language === 'ar' ? 'قراءة الكل' : language === 'fr' ? 'Tout lire' : 'Mark all read'}
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowClearConfirm(true)}
+                disabled={clearing || items.length === 0}
+                className="min-h-10 rounded-xl border border-rose-500/20 bg-rose-500/10 px-3 text-[11px] font-semibold text-rose-200 transition-colors hover:bg-rose-500/15 disabled:cursor-not-allowed disabled:opacity-40 sm:text-xs"
+              >
+                {clearing ? copy.clearing : copy.clearAll}
+              </button>
+            </div>
           )}
         />
       </div>

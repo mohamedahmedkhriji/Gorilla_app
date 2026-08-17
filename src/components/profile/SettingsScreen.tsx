@@ -29,6 +29,26 @@ interface SettingsScreenProps {
   onOpenHomeTour?: () => void;
 }
 
+type NotificationPreferenceKey =
+  | 'coachMessages'
+  | 'restTimer'
+  | 'missionChallenge'
+  | 'training'
+  | 'social'
+  | 'challenges'
+  | 'gym'
+  | 'content'
+  | 'shop'
+  | 'subscription';
+
+const NOTIFICATION_CATEGORY_LABELS: Record<AppLanguage, Record<Exclude<NotificationPreferenceKey, 'coachMessages' | 'restTimer' | 'missionChallenge'>, string>> = {
+  en: { training: 'Training', social: 'Social', challenges: 'Challenges', gym: 'Gym', content: 'Books & Content', shop: 'Shop Promotions', subscription: 'Subscription Reminders' },
+  fr: { training: 'Entrainement', social: 'Social', challenges: 'Defis', gym: 'Salle de sport', content: 'Livres et contenu', shop: 'Promotions boutique', subscription: "Rappels d'abonnement" },
+  ar: { training: 'التدريب', social: 'التواصل الاجتماعي', challenges: 'التحديات', gym: 'النادي الرياضي', content: 'الكتب والمحتوى', shop: 'عروض المتجر', subscription: 'تذكيرات الاشتراك' },
+  it: { training: 'Allenamento', social: 'Social', challenges: 'Sfide', gym: 'Palestra', content: 'Libri e contenuti', shop: 'Promozioni negozio', subscription: 'Promemoria abbonamento' },
+  de: { training: 'Training', social: 'Sozial', challenges: 'Challenges', gym: 'Fitnessstudio', content: 'Buecher und Inhalte', shop: 'Shop-Angebote', subscription: 'Abo-Erinnerungen' },
+};
+
 const SETTINGS_I18N = {
   en: {
     settings: 'Settings',
@@ -780,6 +800,13 @@ export function SettingsScreen({ onBack, onOpenGym, onOpenHomeTour }: SettingsSc
     coachMessages: true,
     restTimer: true,
     missionChallenge: true,
+    training: true,
+    social: true,
+    challenges: true,
+    gym: true,
+    content: true,
+    shop: true,
+    subscription: true,
   });
   const [loadingNotificationSettings, setLoadingNotificationSettings] = useState(false);
   const [notificationSettingsError, setNotificationSettingsError] = useState('');
@@ -837,6 +864,13 @@ export function SettingsScreen({ onBack, onOpenGym, onOpenHomeTour }: SettingsSc
           coachMessages: !!data?.coachMessages,
           restTimer: !!data?.restTimer,
           missionChallenge: !!data?.missionChallenge,
+          training: data?.training !== false,
+          social: data?.social !== false,
+          challenges: data?.challenges !== false,
+          gym: data?.gym !== false,
+          content: data?.content !== false,
+          shop: data?.shop !== false,
+          subscription: data?.subscription !== false,
         };
         setNotificationSettings(next);
         localStorage.setItem('notificationSettings', JSON.stringify(next));
@@ -1200,7 +1234,7 @@ export function SettingsScreen({ onBack, onOpenGym, onOpenHomeTour }: SettingsSc
   }
 
   const updateNotificationPreference = async (
-    key: 'coachMessages' | 'restTimer' | 'missionChallenge',
+    key: NotificationPreferenceKey,
     value: boolean,
   ) => {
     const user = JSON.parse(localStorage.getItem('appUser') || localStorage.getItem('user') || '{}');
@@ -1383,6 +1417,13 @@ export function SettingsScreen({ onBack, onOpenGym, onOpenHomeTour }: SettingsSc
               { key: 'coachMessages', label: copy.coachMessages },
               { key: 'restTimer', label: copy.restBetweenSets },
               { key: 'missionChallenge', label: copy.missionChallengeComplete },
+              { key: 'training', label: NOTIFICATION_CATEGORY_LABELS[language].training },
+              { key: 'social', label: NOTIFICATION_CATEGORY_LABELS[language].social },
+              { key: 'challenges', label: NOTIFICATION_CATEGORY_LABELS[language].challenges },
+              { key: 'gym', label: NOTIFICATION_CATEGORY_LABELS[language].gym },
+              { key: 'content', label: NOTIFICATION_CATEGORY_LABELS[language].content },
+              { key: 'shop', label: NOTIFICATION_CATEGORY_LABELS[language].shop },
+              { key: 'subscription', label: NOTIFICATION_CATEGORY_LABELS[language].subscription },
             ].map((item, index, arr) => {
               const enabled = notificationSettings[item.key as keyof typeof notificationSettings];
               return (
@@ -1404,7 +1445,7 @@ export function SettingsScreen({ onBack, onOpenGym, onOpenHomeTour }: SettingsSc
                       aria-label={`${copy.toggleLabelPrefix} ${item.label}`}
                       onChange={(event) =>
                         updateNotificationPreference(
-                          item.key as 'coachMessages' | 'restTimer' | 'missionChallenge',
+                          item.key as NotificationPreferenceKey,
                           event.target.checked,
                         )
                       }

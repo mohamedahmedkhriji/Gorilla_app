@@ -16,6 +16,9 @@ import { useManualScrollRestoration } from './shared/scroll';
 import { clearStoredUserSession, getStoredAppUser, getStoredUserId, getStoredUserAuthToken, persistStoredUserSession } from './shared/authStorage';
 import { api } from './services/api';
 import { isOfflineApiError } from './services/offlineCache';
+import { initializePushNotifications, removePushNotificationListeners } from './services/pushNotifications';
+import { socketService } from './services/socket';
+import type { NotificationEventPayload } from './services/notificationEvents';
 import {
   APP_COACHMARK_TOUR_ID,
   APP_COACHMARK_VERSION,
@@ -43,6 +46,7 @@ export function App() {
   const [guidedTourStage, setGuidedTourStage] = useState<GuidedTourStage>('done');
   const previousTabRef = useRef(activeTab);
   const scrollRootRef = useRef<HTMLDivElement | null>(null);
+  const pendingNotificationRouteRef = useRef<NotificationEventPayload | null>(null);
   const navigationScrollKey = useMemo(() => {
     if (!isSplashComplete || !isSessionReady) return 'splash';
     if (!isLoggedIn) return showLogin ? 'login' : 'landing';
@@ -68,6 +72,59 @@ export function App() {
   );
 
   useManualScrollRestoration();
+
+  const openNotificationRoute = useCallback((payload: NotificationEventPayload) => {
+    const route = String(payload?.route || '').trim().toLowerCase();
+    if (!route) return;
+    if (route.startsWith('/workout') || route.startsWith('/plans')) {
+      setWorkoutLaunchMode('default');
+      setActiveTab('workout');
+    } else if (route.startsWith('/recovery')) {
+      setActiveTab('progress');
+    } else if (route.startsWith('/posts')) {
+      setActiveTab('blogs');
+      window.dispatchEvent(new CustomEvent('repset:open-post', { detail: payload }));
+    } else {
+      sessionStorage.setItem('repSetPendingProfileRoute', JSON.stringify(payload));
+      setActiveTab('profile');
+      window.dispatchEvent(new CustomEvent('repset:open-profile-route', { detail: payload }));
+    }
+    setTabResetSignal((current) => current + 1);
+  }, []);
+
+  useEffect(() => {
+    const handleOpen = (event: Event) => {
+      const payload = (event as CustomEvent<NotificationEventPayload>).detail || {};
+      if (!isSessionReady || !isLoggedIn || !hasOnboarded) {
+        pendingNotificationRouteRef.current = payload;
+        return;
+      }
+      openNotificationRoute(payload);
+    };
+    window.addEventListener('repset:notification:open', handleOpen);
+    return () => window.removeEventListener('repset:notification:open', handleOpen);
+  }, [hasOnboarded, isLoggedIn, isSessionReady, openNotificationRoute]);
+
+  useEffect(() => {
+    if (!isSessionReady || !isLoggedIn || !hasOnboarded || !pendingNotificationRouteRef.current) return;
+    const pending = pendingNotificationRouteRef.current;
+    pendingNotificationRouteRef.current = null;
+    openNotificationRoute(pending);
+  }, [hasOnboarded, isLoggedIn, isSessionReady, openNotificationRoute]);
+
+  useEffect(() => {
+    if (!isSessionReady || !isLoggedIn || !hasOnboarded) return undefined;
+    const userId = getStoredUserId();
+    if (userId) socketService.connect(userId, 'user');
+    const timer = window.setTimeout(() => {
+      void initializePushNotifications();
+    }, 1200);
+    return () => {
+      window.clearTimeout(timer);
+      void removePushNotificationListeners();
+      socketService.disconnect();
+    };
+  }, [hasOnboarded, isLoggedIn, isSessionReady]);
 
   useEffect(() => {
     let cancelled = false;
@@ -329,7 +386,7 @@ export function App() {
 
   return (
     <div
-      className={`min-h-screen text-text-primary font-sans selection:bg-accent/80 selection:text-black ${
+      className={`min-h-[100dvh] pt-[env(safe-area-inset-top,0px)] text-text-primary font-sans selection:bg-accent/80 selection:text-black ${
         activeTab === 'blogs' ? 'bg-background' : ''
       }`}
     >
@@ -341,7 +398,7 @@ export function App() {
       <div
         ref={scrollRootRef}
         data-scroll-root
-        className={`min-h-screen pb-6 pt-4 ${
+        className={`mx-auto min-h-[100dvh] w-full max-w-7xl pb-6 pt-4 ${
           activeTab === 'blogs'
             ? `bg-background px-4 sm:px-6 ${isTabBarVisible ? 'pb-[calc(env(safe-area-inset-bottom,0px)+6rem)]' : 'pb-6'}`
             : activeTab === 'profile' || activeTab === 'workout'

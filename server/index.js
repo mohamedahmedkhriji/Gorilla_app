@@ -13,6 +13,9 @@ import {
   verifyAuthToken,
 } from './auth.js';
 import { startExpiredBannedUserCleanup } from './services/userStatusService.js';
+import { NotificationService } from './notifications/notificationService.js';
+import { NOTIFICATION_TYPES } from './notifications/types.js';
+import { startNotificationScheduler } from './notifications/notificationScheduler.js';
 
 dotenv.config();
 
@@ -40,6 +43,7 @@ const isAllowedOrigin = (origin) => {
 
 const server = http.createServer(app);
 let expiredBannedUserCleanup = null;
+let notificationScheduler = null;
 const corsOptions = {
   origin: (origin, callback) => {
     callback(null, isAllowedOrigin(origin));
@@ -49,37 +53,6 @@ const corsOptions = {
   credentials: true,
 };
 
-const ensureNotificationSettingsTable = async () => {
-  await pool.execute(
-    `CREATE TABLE IF NOT EXISTS user_notification_settings (
-      user_id INT UNSIGNED PRIMARY KEY,
-      coach_messages TINYINT(1) NOT NULL DEFAULT 1,
-      rest_timer TINYINT(1) NOT NULL DEFAULT 1,
-      mission_challenge TINYINT(1) NOT NULL DEFAULT 1,
-      updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-      CONSTRAINT fk_notification_settings_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-    ) ENGINE=InnoDB`,
-  );
-};
-
-const isNotificationEnabled = async (userId, key) => {
-  await ensureNotificationSettingsTable();
-  const [rows] = await pool.execute(
-    `SELECT coach_messages, rest_timer, mission_challenge
-     FROM user_notification_settings
-     WHERE user_id = ?
-     LIMIT 1`,
-    [userId],
-  );
-  if (!rows.length) return true;
-
-  const row = rows[0];
-  if (key === 'coach_messages') return !!row.coach_messages;
-  if (key === 'rest_timer') return !!row.rest_timer;
-  if (key === 'mission_challenge') return !!row.mission_challenge;
-  return true;
-};
-
 const io = new SocketIOServer(server, {
   cors: {
     origin: corsOptions.origin,
@@ -87,6 +60,8 @@ const io = new SocketIOServer(server, {
     credentials: true,
   },
 });
+const notificationService = new NotificationService({ pool, io });
+app.locals.notificationService = notificationService;
 
 // Middleware
 app.use(createSecurityHeadersMiddleware());
@@ -292,13 +267,24 @@ io.on('connection', (socket) => {
       emitToParticipant(authUser.id, senderType, 'newMessage', outgoing);
       emitToParticipant(receiverId, receiverType, 'newMessage', outgoing);
 
-      const coachMessageNotificationsEnabled = await isNotificationEnabled(receiverId, 'coach_messages');
-      if (coachMessageNotificationsEnabled) {
-        await pool.execute(
-          `INSERT INTO notifications (user_id, type, title, message, data, is_read)
-           VALUES (?, 'message', 'New message', ?, JSON_OBJECT('senderId', ?, 'senderType', ?), 0)`,
-          [receiverId, cleanMessage, authUser.id, senderType]
-        );
+      try {
+        await notificationService.sendNotification({
+          userId: receiverId,
+          type: NOTIFICATION_TYPES.COACH_MESSAGE,
+          variables: { senderName: authUser.name || 'Your coach' },
+          route: `/messages/${authUser.id}`,
+          entityType: 'conversation',
+          entityId: authUser.id,
+          data: {
+            senderId: authUser.id,
+            senderType,
+            conversationId: authUser.id,
+          },
+          notificationKey: `COACH_MESSAGE:${insertResult.insertId}`,
+          suppressPush: senderType !== 'coach',
+        });
+      } catch (notifyError) {
+        console.warn('Coach message notification skipped:', notifyError?.message || notifyError);
       }
     } catch (error) {
       socket.emit('messageError', { error: error.message || 'Failed to send message' });
@@ -345,13 +331,16 @@ server.on('error', (error) => {
 
 process.on('SIGINT', () => {
   expiredBannedUserCleanup?.stop();
+  notificationScheduler?.stop();
 });
 
 process.on('SIGTERM', () => {
   expiredBannedUserCleanup?.stop();
+  notificationScheduler?.stop();
 });
 
 server.listen(PORT, () => {
   expiredBannedUserCleanup = startExpiredBannedUserCleanup();
+  notificationScheduler = startNotificationScheduler({ pool, notificationService });
   console.log(`Server running on port ${PORT}`);
 });

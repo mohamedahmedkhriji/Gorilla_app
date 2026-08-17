@@ -49,6 +49,17 @@ const NOTIFICATION_TYPE_ALIASES: Record<string, NotificationType> = {
   leaderboard: 'leaderboard_update',
   mission: 'mission_completed',
   friend_challenge: 'friend_challenge_invite',
+  recovery_ready: 'recovery_alert',
+  plan_updated: 'plan_created_by_coach',
+  missed_workout: 'workout_reminder',
+  streak_protection: 'workout_reminder',
+  challenge_invitation: 'friend_challenge_invite',
+  subscription_reminder: 'system',
+  onboarding_reminder: 'system',
+  shop_discount: 'system',
+  friend_invitation: 'friend_request',
+  social_activity: 'system',
+  new_book: 'system',
 };
 
 const NOTIFICATION_VISUALS: Record<NotificationType, NotificationVisual> = {

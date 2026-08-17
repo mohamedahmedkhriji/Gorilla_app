@@ -20,6 +20,8 @@ import { useScrollToTopOnChange } from '../shared/scroll';
 import { useScreenshotProtection } from '../shared/useScreenshotProtection';
 import { clearStoredUserSession, getStoredUserId } from '../shared/authStorage';
 import { AppLanguage, getActiveLanguage, getStoredLanguage, pickLanguage } from '../services/language';
+import { deactivateCurrentPushDevice } from '../services/pushNotifications';
+import type { NotificationEventPayload } from '../services/notificationEvents';
 import { toFriendChallengeCardId } from '../services/friendChallenges';
 import { ScreenSection, ScreenTransition, getNavigationDirection } from '../components/ui/ScreenTransition';
 import {
@@ -517,12 +519,9 @@ export function Profile({
         return;
       }
       try {
-        const notifications = await api.getNotifications(userId);
+        const result = await api.getUnreadNotificationCount();
         if (cancelled) return;
-        const count = Array.isArray(notifications)
-          ? notifications.filter((item: any) => Boolean(item?.unread)).length
-          : 0;
-        setUnreadCount(count);
+        setUnreadCount(Number(result?.unreadCount || 0));
       } catch (error) {
         if (!cancelled) setUnreadCount(0);
       }
@@ -532,12 +531,48 @@ export function Profile({
     const timer = window.setInterval(() => {
       void refreshUnread();
     }, 10000);
+    window.addEventListener('repset:notification:new', refreshUnread);
+    window.addEventListener('repset:notifications:changed', refreshUnread);
 
     return () => {
       cancelled = true;
       window.clearInterval(timer);
+      window.removeEventListener('repset:notification:new', refreshUnread);
+      window.removeEventListener('repset:notifications:changed', refreshUnread);
     };
   }, [userId, view]);
+
+  useEffect(() => {
+    const openRoute = (payload: NotificationEventPayload) => {
+      const route = String(payload?.route || '').trim().toLowerCase();
+      const messageMatch = route.match(/^\/messages\/(\d+)/);
+      if (messageMatch) {
+        setSelectedCoach({ id: Number(messageMatch[1]), name: 'Coach' });
+        setView('chat');
+      } else if (route.startsWith('/friends')) {
+        setView('friends');
+      } else if (route.startsWith('/challenges')) {
+        setView('notifications');
+      } else if (route.startsWith('/subscription')) {
+        setView('settings');
+      } else {
+        setView('main');
+      }
+    };
+
+    const handleRoute = (event: Event) => openRoute((event as CustomEvent<NotificationEventPayload>).detail || {});
+    window.addEventListener('repset:open-profile-route', handleRoute);
+    const pendingRaw = sessionStorage.getItem('repSetPendingProfileRoute');
+    if (pendingRaw) {
+      sessionStorage.removeItem('repSetPendingProfileRoute');
+      try {
+        openRoute(JSON.parse(pendingRaw));
+      } catch {
+        setView('main');
+      }
+    }
+    return () => window.removeEventListener('repset:open-profile-route', handleRoute);
+  }, []);
 
   useEffect(() => {
     setView('main');
@@ -657,7 +692,8 @@ export function Profile({
     setView(screen);
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    await deactivateCurrentPushDevice();
     clearStoredUserSession();
     window.location.href = '/';
   };

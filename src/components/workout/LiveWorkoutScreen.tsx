@@ -33,7 +33,7 @@ export function LiveWorkoutScreen({ onFinish }: LiveWorkoutScreenProps) {
     setIsResting(false);
   };
   return (
-    <div className="flex-1 flex flex-col p-6 max-w-md mx-auto w-full h-screen">
+    <div className="mx-auto flex min-h-[100dvh] w-full max-w-md flex-1 flex-col px-4 py-6 sm:px-6">
       <Header
         title="Upper Power"
         rightElement={
@@ -43,7 +43,7 @@ export function LiveWorkoutScreen({ onFinish }: LiveWorkoutScreenProps) {
         } />
 
 
-      <div className="flex-1 space-y-6 overflow-y-auto pb-24">
+      <div className="flex-1 space-y-6 overflow-y-auto pb-40">
         {/* Progress Bar */}
         <div className="h-1 bg-white/10 rounded-full overflow-hidden">
           <div className="h-full w-[35%] bg-accent shadow-glow" />
@@ -71,8 +71,8 @@ export function LiveWorkoutScreen({ onFinish }: LiveWorkoutScreenProps) {
         </div>
       </div>
 
-      <div className="fixed bottom-0 left-0 right-0 p-6 bg-background border-t border-white/5">
-        <div className="max-w-md mx-auto flex gap-4">
+      <div className="fixed inset-x-0 bottom-[calc(env(safe-area-inset-bottom,0px)+5.5rem)] border-t border-white/5 bg-background px-4 py-4 sm:px-6">
+        <div className="mx-auto flex max-w-md gap-3 sm:gap-4">
           <Button variant="secondary" className="flex-1" onClick={onFinish}>
             Finish
           </Button>

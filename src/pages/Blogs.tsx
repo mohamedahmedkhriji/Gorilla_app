@@ -1048,7 +1048,7 @@ export function Blogs({ guidedTourActive = false, onGuidedTourComplete, onGuided
       ) : null}
 
       {activeSharePost ? (
-        <div className="fixed inset-0 z-[70] flex items-end justify-center bg-black/70 p-4 sm:items-center" onClick={closeShareModal}>
+        <div className="fixed inset-0 z-[70] flex items-end justify-center bg-black/70 px-4 pb-[calc(env(safe-area-inset-bottom,0px)+1rem)] pt-4 sm:items-center sm:py-4" onClick={closeShareModal}>
           <div className="w-full max-w-sm rounded-[24px] border border-white/10 bg-card p-5 shadow-2xl" onClick={(event) => event.stopPropagation()}>
             <div className="flex items-center justify-between">
               <h3 className="text-base font-semibold text-text-primary">{copy.shareTitle}</h3>
@@ -1067,7 +1067,7 @@ export function Blogs({ guidedTourActive = false, onGuidedTourComplete, onGuided
       ) : null}
 
       {isCreateOpen ? (
-        <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto overscroll-contain bg-black/80 px-4 pb-6 pt-[calc(env(safe-area-inset-top,0px)+0.5rem)] sm:px-6 sm:pt-[calc(env(safe-area-inset-top,0px)+0.75rem)]" onClick={closeCreateModal}>
+        <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto overscroll-contain bg-black/80 px-4 pb-[calc(env(safe-area-inset-bottom,0px)+1.5rem)] pt-[calc(env(safe-area-inset-top,0px)+0.5rem)] sm:px-6 sm:pt-[calc(env(safe-area-inset-top,0px)+0.75rem)]" onClick={closeCreateModal}>
           <div className={`w-full max-w-md self-start rounded-[28px] border border-white/10 bg-card p-5 shadow-2xl ${isArabic ? 'text-right' : 'text-left'}`} dir={isArabic ? 'rtl' : 'ltr'} onClick={(event) => event.stopPropagation()}>
             <div className={`flex items-center justify-between ${isArabic ? 'flex-row-reverse' : ''}`}>
               <h3 className="font-electrolize text-xl text-text-primary">{copy.newPostTitle}</h3>
@@ -1112,7 +1112,7 @@ export function Blogs({ guidedTourActive = false, onGuidedTourComplete, onGuided
                 </div>
               ))}
             </div>
-            <div className="space-y-3 border-t border-white/10 px-4 py-4">
+            <div className="space-y-3 border-t border-white/10 px-4 pb-[calc(env(safe-area-inset-bottom,0px)+1rem)] pt-4">
               {replyToComment ? <div className="flex items-center justify-between rounded-full bg-white/10 px-3 py-1.5 text-[11px] text-text-secondary"><span>{copy.replyLabel} {replyToComment.name}</span><button type="button" onClick={() => setReplyToComment(null)} className="text-text-primary"><X size={12} /></button></div> : null}
               <div className="flex items-center gap-2">
                 <img src={userProfileImage || DEFAULT_AVATAR} alt={copy.avatarAlt(copy.fallbackUser)} className="h-9 w-9 rounded-full border border-white/10 object-cover" />
