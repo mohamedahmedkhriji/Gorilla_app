@@ -99,7 +99,7 @@ export function TabBar({ activeTab, onTabChange }: TabBarProps) {
       <div className="w-full pointer-events-auto">
         <div
           data-coachmark-target="nav_bar"
-          className="relative overflow-hidden border-t border-white/10 bg-[linear-gradient(180deg,rgba(12,20,44,0.92)_0%,rgba(9,15,35,0.98)_100%)] px-2.5 pt-3.5 pb-[calc(env(safe-area-inset-bottom,0px)+0.9rem)] shadow-[0_-18px_60px_rgba(0,0,0,0.38)] backdrop-blur-2xl"
+          className="relative overflow-hidden border-t border-white/10 bg-[linear-gradient(180deg,rgba(12,20,44,0.92)_0%,rgba(9,15,35,0.98)_100%)] px-2.5 pt-3.5 pb-[calc(env(safe-area-inset-bottom,0px)+0.9rem)] backdrop-blur-2xl"
         >
           <div className="absolute inset-x-8 top-0 h-px bg-gradient-to-r from-transparent via-white/20 to-transparent" />
           <div className="absolute inset-x-0 bottom-0 h-px bg-gradient-to-r from-transparent via-white/10 to-transparent" />
@@ -125,7 +125,7 @@ export function TabBar({ activeTab, onTabChange }: TabBarProps) {
                     <motion.div
                       layoutId="activeTabPill"
                       transition={{ type: 'spring', stiffness: 520, damping: 38, mass: 0.82 }}
-                      className="absolute inset-0 rounded-full border border-white/20 bg-[linear-gradient(180deg,rgba(255,255,255,0.18)_0%,rgba(124,153,255,0.12)_42%,rgba(92,225,230,0.09)_100%)] shadow-[inset_0_1px_0_rgba(255,255,255,0.26),0_10px_24px_rgba(0,0,0,0.22)] backdrop-blur-xl"
+                      className="absolute inset-0 rounded-full border border-white/20 bg-[linear-gradient(180deg,rgba(255,255,255,0.18)_0%,rgba(124,153,255,0.12)_42%,rgba(92,225,230,0.09)_100%)] backdrop-blur-xl"
                     />
                   )}
 

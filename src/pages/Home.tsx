@@ -1925,7 +1925,7 @@ export function Home({
     );
   }
   return renderTransitionedView(
-    <div className="pb-24 pt-4">
+    <div className="home-page pb-24 pt-4">
       <ScreenSection index={0}>
         {/* Header Section */}
         <header

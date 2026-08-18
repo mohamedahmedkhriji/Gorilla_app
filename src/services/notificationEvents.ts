@@ -1,3 +1,5 @@
+import { playNotificationSound } from './appSounds';
+
 export interface NotificationEventPayload {
   id?: number | string;
   type?: string;
@@ -22,6 +24,7 @@ export const dispatchNotificationReceived = (payload: NotificationEventPayload) 
   const id = String(payload?.id || '').trim();
   if (id && seenIds.has(id)) return false;
   if (id) seenIds.set(id, Date.now());
+  playNotificationSound();
   window.dispatchEvent(new CustomEvent('repset:notification:new', { detail: payload }));
   return true;
 };

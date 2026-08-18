@@ -43,6 +43,7 @@
     "mysql2": "^3.16.3",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
+    "readable-stream": "3.6.2",
     "socket.io": "^4.8.3",
     "socket.io-client": "^4.8.3"
   },

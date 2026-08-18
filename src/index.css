@@ -67,9 +67,9 @@
   --color-accent-dark: 126 198 35;
   --color-accent-soft-bg: 231 255 190;
 
-  --color-background: 9 14 23;
+  --color-background: 16 24 36;
   --color-background-secondary: 16 24 36;
-  --color-section-background: 23 35 52;
+  --color-section-background: 16 24 36;
   --color-card: 20 32 46;
   --color-border: 134 161 189;
 
@@ -128,9 +128,7 @@ body {
 }
 
 body {
-  background-image:
-    radial-gradient(circle at 100% -10%, rgb(var(--color-accent) / 0.08), transparent 38%),
-    linear-gradient(155deg, rgb(var(--color-background)), rgb(var(--color-background-secondary)));
+  background-image: none;
 }
 
 #root {
@@ -630,6 +628,16 @@ video {
   backdrop-filter: blur(8px);
 }
 
+.onboarding-layout :is(button, input, select, textarea, .surface-card, [class*='bg-card']) {
+  box-shadow: none !important;
+  filter: none !important;
+}
+
+.home-page .surface-card {
+  box-shadow: none !important;
+  filter: none !important;
+}
+
 .checkbox-wrapper-12 {
   --checkpoint-color: rgb(var(--color-accent));
   position: relative;
@@ -688,7 +696,7 @@ video {
 }
 
 .checkbox-wrapper-12 .cbx svg path {
-  stroke: rgb(9 14 23);
+  stroke: rgb(var(--color-background));
   stroke-width: 3;
   stroke-linecap: round;
   stroke-linejoin: round;
@@ -2567,21 +2575,16 @@ button:hover .neon-checkbox__box,
   .login-weight-fall .login-dumbbell-art,
   .gender-choice-bubble::before,
   .gender-choice-bubble::after,
-  .results-celebration-piece,
   .neon-checkbox__borders span,
   .neon-checkbox__particles span,
   .neon-checkbox__rings .ring,
   .neon-checkbox__sparks span,
-  .checkbox-wrapper-12 .cbx input:checked + .checkbox-wrapper-12__label,
   .animate-premium-plan-reveal,
   .animate-logo-marquee,
   .animate-logo-marquee-reverse {
     animation: none;
   }
 
-  .results-celebration-confetti {
-    display: none;
-  }
 }
 
 [data-theme='light'] .text-white {
@@ -3045,5 +3048,31 @@ button:hover .neon-checkbox__box,
   display: flex;
   align-items: center;
   justify-content: center;
+}
+
+/* Keep every app surface flat across main screens, nested views, and overlays. */
+#root *,
+#root *::before,
+#root *::after {
+  box-shadow: none !important;
+  text-shadow: none !important;
+}
+
+#root [class*='drop-shadow'],
+#root [style*='drop-shadow'],
+#root [class^='blur-'],
+#root [class*=' blur-'],
+#root .premium-offer-btn,
+#root .premium-offer-btn-text,
+#root .premium-offer-btn-corner,
+#root .login-dumbbell-art,
+#root .login-weight-loader::before,
+#root .nebula-input__particle,
+#root .neon-checkbox__glow,
+#root .shop-product-orb-image,
+#root .shop-product-image,
+#root .barbell-knob {
+  filter: none !important;
+  -webkit-filter: none !important;
 }
 

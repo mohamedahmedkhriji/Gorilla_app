@@ -10,7 +10,7 @@ interface SplashScreenProps {
 const forcedDarkThemeVars: React.CSSProperties = {
   '--color-accent': '187 255 92',
   '--color-accent-dark': '187 255 92',
-  '--color-background': '9 14 23',
+  '--color-background': '16 24 36',
   '--color-background-secondary': '16 24 36',
   '--color-card': '20 32 46',
   '--color-border': '134 161 189',
@@ -66,11 +66,9 @@ export function SplashScreen({ ready = false, onComplete }: SplashScreenProps) {
           transition={{
             duration: EXIT_ANIMATION_MS / 1000,
           }}
-          className="fixed inset-0 z-[100] bg-[#050505] flex items-center justify-center overflow-hidden"
+          className="fixed inset-0 z-[100] bg-[#101824] flex items-center justify-center overflow-hidden"
           style={forcedDarkThemeVars}
         >
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(255,255,255,0.08)_0%,rgba(255,255,255,0.02)_35%,rgba(5,5,5,1)_75%)]" />
-
           <div className="relative z-10 flex flex-col items-center">
             <motion.div
               initial={{

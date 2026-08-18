@@ -82,7 +82,7 @@ export function FirstNameScreen({ onNext, onDataChange, onboardingData }: FirstN
 
       <Input
         variant="nebula"
-        label={copy.placeholder}
+        aria-label={copy.label}
         placeholder={copy.placeholder}
         value={firstName}
         onChange={(event) => {

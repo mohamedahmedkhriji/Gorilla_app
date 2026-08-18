@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Eye, EyeOff, UserPlus } from 'lucide-react';
 import { api } from '../../services/api';
+import { playAccountCreatedSound } from '../../services/appSounds';
 
 interface AddUserProps {
   onBack: () => void;
@@ -52,6 +53,7 @@ export const AddUser: React.FC<AddUserProps> = ({ onBack, onSuccess }) => {
       });
 
       setSuccessMessage('User account created successfully!');
+      playAccountCreatedSound();
       setFormData({ email: '', password: '', confirmPassword: '', isPremium: true });
       setTimeout(() => {
         setSuccessMessage('');

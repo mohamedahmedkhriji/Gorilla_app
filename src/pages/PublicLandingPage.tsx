@@ -18,7 +18,7 @@ type NavigatorWithStandalone = Navigator & {
 const forcedDarkThemeVars: React.CSSProperties = {
   '--color-accent': '187 255 92',
   '--color-accent-dark': '187 255 92',
-  '--color-background': '9 14 23',
+  '--color-background': '16 24 36',
   '--color-background-secondary': '16 24 36',
   '--color-card': '20 32 46',
   '--color-border': '134 161 189',
@@ -186,18 +186,9 @@ export const PublicLandingPage: React.FC<PublicLandingPageProps> = ({ onGetStart
       className="relative min-h-screen overflow-hidden text-text-primary"
       style={{
         ...forcedDarkThemeVars,
-        backgroundImage:
-          'radial-gradient(circle at 100% -10%, rgb(var(--color-accent) / 0.08), transparent 38%), linear-gradient(155deg, rgb(var(--color-background)), rgb(var(--color-background-secondary)))',
+        backgroundColor: '#101824',
       }}
     >
-      <div
-        className="absolute inset-0 pointer-events-none opacity-30"
-        style={{
-          backgroundImage:
-            'repeating-linear-gradient(120deg, rgb(255 255 255 / 0.015) 0px, rgb(255 255 255 / 0.015) 2px, transparent 2px, transparent 18px), repeating-linear-gradient(20deg, rgb(0 0 0 / 0.04) 0px, rgb(0 0 0 / 0.04) 1px, transparent 1px, transparent 12px)',
-        }}
-      />
-
       <div className="relative z-10 min-h-screen px-4 sm:px-6 pt-[calc(env(safe-area-inset-top,0px)+0.9rem)] pb-[calc(env(safe-area-inset-bottom,0px)+0.9rem)] flex flex-col">
         <header className="mb-8 flex justify-center">
           <h1 className="font-brand text-[2rem] leading-none text-white text-center">RepSet</h1>

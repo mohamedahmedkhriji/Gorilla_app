@@ -239,12 +239,12 @@ function AgePicker({
   return (
     <div className="flex flex-1 flex-col items-center justify-center gap-10">
       <div className="text-center">
-        <div className="text-[72px] font-bold leading-none tracking-[-3px] text-white">{value}</div>
+        <div className="text-[72px] font-bold leading-none text-white">{value}</div>
         <div className="mt-3 text-[11px] font-medium uppercase tracking-[0.32em] text-white/40">{unitLabel}</div>
       </div>
 
       <div
-        className="relative h-[292px] w-full max-w-[360px] touch-none overflow-hidden rounded-[28px] border border-white/10 bg-card/20 p-4 shadow-[0_20px_60px_rgba(0,0,0,0.16)] backdrop-blur-md"
+        className="relative h-[292px] w-full max-w-[360px] touch-none overflow-hidden rounded-2xl border border-white/10 bg-card/40 p-4"
         onWheel={(event) => {
           event.preventDefault();
           setAge(value + (event.deltaY > 0 ? 1 : -1));
@@ -254,12 +254,7 @@ function AgePicker({
         onPointerUp={handlePointerUp}
         onPointerCancel={handlePointerUp}
       >
-        <div className="pointer-events-none absolute left-1/2 top-1/2 h-24 w-[86%] -translate-x-1/2 -translate-y-1/2 rounded-full bg-accent/[0.035] blur-2xl" />
-        <div className="pointer-events-none absolute left-1/2 top-1/2 z-[2] h-[62px] w-[86%] -translate-x-1/2 -translate-y-1/2 rounded-[24px] border border-accent/45 bg-transparent shadow-[0_0_30px_rgba(139,155,69,0.05)]" />
-        <div className="pointer-events-none absolute left-4 top-1/2 z-10 h-7 w-[3px] -translate-y-1/2 rounded-full bg-accent/85 shadow-[0_0_10px_rgba(163,180,76,0.35)]" />
-        <div className="pointer-events-none absolute right-4 top-1/2 z-10 h-7 w-[3px] -translate-y-1/2 rounded-full bg-accent/85 shadow-[0_0_10px_rgba(163,180,76,0.35)]" />
-        <div className="pointer-events-none absolute inset-x-0 top-0 z-20 h-[92px] bg-gradient-to-b from-background/85 via-background/45 to-transparent" />
-        <div className="pointer-events-none absolute inset-x-0 bottom-0 z-20 h-[92px] bg-gradient-to-t from-background/85 via-background/45 to-transparent" />
+        <div className="pointer-events-none absolute left-1/2 top-1/2 z-[2] h-[62px] w-[86%] -translate-x-1/2 -translate-y-1/2 rounded-xl border border-accent/55" />
         <div className="absolute inset-4 flex flex-col items-center justify-center">
           {ages.map((age) => {
             const offset = age - value;
@@ -419,7 +414,7 @@ function RulerCanvas({
   return (
     <div
       ref={containerRef}
-      className="relative h-[132px] w-full touch-none overflow-hidden"
+      className="relative h-[132px] w-full touch-none overflow-hidden rounded-2xl border border-white/10 bg-card/40"
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerUp}
@@ -430,11 +425,7 @@ function RulerCanvas({
       }}
     >
       <canvas ref={canvasRef} className="block h-[132px] w-full" />
-      <div className="pointer-events-none absolute inset-y-0 left-0 w-14 bg-gradient-to-r from-black/80 to-transparent" />
-      <div className="pointer-events-none absolute inset-y-0 right-0 w-14 bg-gradient-to-l from-black/80 to-transparent" />
-      <div className="pointer-events-none absolute left-1/2 top-3 h-[106px] w-px -translate-x-1/2 bg-accent" />
-      <div className="pointer-events-none absolute left-1/2 top-0 h-0 w-0 -translate-x-1/2 border-l-[7px] border-r-[7px] border-t-[10px] border-l-transparent border-r-transparent border-t-accent" />
-      <div className="pointer-events-none absolute bottom-0 left-1/2 h-0 w-0 -translate-x-1/2 border-b-[10px] border-l-[7px] border-r-[7px] border-b-accent border-l-transparent border-r-transparent" />
+      <div className="pointer-events-none absolute left-1/2 top-1/2 h-[108px] w-14 -translate-x-1/2 -translate-y-1/2 rounded-xl border border-accent/55" />
     </div>
   );
 }
@@ -442,7 +433,7 @@ function RulerCanvas({
 function MeasurementDisplay({ value, unit }: { value: string; unit: string }) {
   return (
     <div className="flex items-end justify-center gap-2 text-center">
-      <span className="text-[72px] font-bold leading-none tracking-[-3px] text-white">{value}</span>
+      <span className="text-[72px] font-bold leading-none text-white">{value}</span>
       <span className="pb-3 text-sm font-semibold uppercase tracking-widest text-text-tertiary">{unit}</span>
     </div>
   );

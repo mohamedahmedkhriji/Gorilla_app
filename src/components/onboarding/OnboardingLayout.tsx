@@ -32,11 +32,8 @@ export function OnboardingLayout({
   return (
     <div
       dir={isArabic ? 'rtl' : 'ltr'}
-      className="relative flex min-h-[100dvh] flex-col overflow-hidden px-4 pb-[calc(env(safe-area-inset-bottom,0px)+1.5rem)] pt-[calc(env(safe-area-inset-top,0px)+1.5rem)] sm:px-6"
+      className="onboarding-layout relative flex min-h-[100dvh] flex-col overflow-hidden px-4 pb-[calc(env(safe-area-inset-bottom,0px)+1.5rem)] pt-[calc(env(safe-area-inset-top,0px)+1.5rem)] sm:px-6"
     >
-      <div className="pointer-events-none absolute -top-20 -right-16 h-56 w-56 rounded-full blur-3xl bg-info/25" />
-      <div className="pointer-events-none absolute -bottom-24 -left-12 h-64 w-64 rounded-full blur-3xl bg-accent/20" />
-
       <div className="relative flex min-h-0 flex-1 flex-col px-2 py-1 sm:px-4">
         {showHeader && (
           <div className="flex items-center h-12 mb-4 relative">
