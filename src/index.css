@@ -3076,3 +3076,71 @@ button:hover .neon-checkbox__box,
   -webkit-filter: none !important;
 }
 
+@keyframes muscleMapPrimaryGlitch {
+  0%,
+  100% {
+    fill: #dfff72;
+    opacity: 1;
+  }
+  8% {
+    fill: #ffffff;
+  }
+  11% {
+    fill: #bbff5c;
+    opacity: 0.78;
+  }
+  15% {
+    fill: #2fffd1;
+  }
+  18% {
+    fill: #dfff72;
+    opacity: 1;
+  }
+  32% {
+    fill: #fffb9a;
+  }
+  35% {
+    fill: #bbff5c;
+  }
+  46% {
+    fill: #dfff72;
+  }
+  72% {
+    fill: #dfff72;
+  }
+}
+
+@keyframes muscleMapSecondaryGlitch {
+  0%,
+  100% {
+    fill: #4f6f2a;
+    opacity: 0.9;
+  }
+  10% {
+    fill: #6f9238;
+    opacity: 0.62;
+  }
+  14% {
+    fill: #3d5a22;
+  }
+  22% {
+    fill: #789a42;
+  }
+  38% {
+    fill: #4f6f2a;
+    opacity: 0.72;
+  }
+  72% {
+    fill: #4f6f2a;
+    opacity: 0.9;
+  }
+}
+
+#root .target-muscle-body-map.is-glitching .rbh polygon[style*='223, 255, 114'] {
+  animation: muscleMapPrimaryGlitch 3s steps(1, end) both;
+}
+
+#root .target-muscle-body-map.is-glitching .rbh polygon[style*='79, 111, 42'] {
+  animation: muscleMapSecondaryGlitch 3s steps(1, end) both;
+}
+

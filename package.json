@@ -42,6 +42,7 @@
     "lucide-react": "0.522.0",
     "mysql2": "^3.16.3",
     "react": "^18.3.1",
+    "react-body-highlighter": "^2.0.5",
     "react-dom": "^18.3.1",
     "readable-stream": "3.6.2",
     "socket.io": "^4.8.3",

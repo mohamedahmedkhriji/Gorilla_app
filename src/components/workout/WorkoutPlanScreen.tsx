@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState, useCallback, useRef } from 'react';
 import { createPortal } from 'react-dom';
+import BodyHighlighter, { IExerciseData, Muscle } from 'react-body-highlighter';
 import { Header } from '../ui/Header';
 import { api } from '../../services/api';
 import { CalendarX2, Check, Plus, Play, Search, Square, TriangleAlert, X } from 'lucide-react';
@@ -135,6 +136,102 @@ const inferMusclesFromExerciseName = (exerciseName = '') => {
 };
 
 const getMuscleImage = (muscle: string) => getBodyPartImage(muscle);
+
+type TargetMuscleDisplay = {
+  name: string;
+  score: number;
+};
+
+const INACTIVE_MUSCLE_FILL = 'rgb(22 34 64)';
+const PRIMARY_MUSCLE_FILL = '#DFFF72';
+const SECONDARY_MUSCLE_FILL = '#4F6F2A';
+
+const toHighlighterMuscles = (muscleName: string): Muscle[] => {
+  const key = canonicalizeMuscleLabel(muscleName).toLowerCase();
+
+  if (key === 'chest') return ['chest'];
+  if (key === 'triceps') return ['triceps'];
+  if (key === 'biceps') return ['biceps'];
+  if (key === 'abs') return ['abs', 'obliques'];
+  if (key === 'quadriceps') return ['quadriceps'];
+  if (key === 'hamstrings') return ['hamstring'];
+  if (key === 'calves') return ['calves'];
+  if (key === 'glutes') return ['gluteal'];
+  if (key === 'forearms') return ['forearm'];
+  if (key === 'adductors') return ['adductor', 'abductors'];
+  if (key === 'front shoulders') return ['front-deltoids'];
+  if (key === 'side shoulders') return ['front-deltoids', 'back-deltoids'];
+  if (key === 'rear shoulders') return ['back-deltoids'];
+  if (key === 'shoulders') return ['front-deltoids', 'back-deltoids'];
+  if (key === 'back') return ['trapezius', 'upper-back', 'lower-back'];
+
+  return [];
+};
+
+const toBodyHighlighterData = (muscles: TargetMuscleDisplay[]): IExerciseData[] => {
+  const maxScore = Math.max(...muscles.map((muscle) => muscle.score), 0);
+
+  return muscles
+    .map((muscle) => ({
+      name: muscle.name,
+      muscles: toHighlighterMuscles(muscle.name),
+      frequency: muscle.score >= maxScore ? 2 : 1,
+    }))
+    .filter((entry) => entry.muscles.length > 0);
+};
+
+function TargetMuscleBodyMaps({ muscles }: { muscles: TargetMuscleDisplay[] }) {
+  const [isGlitching, setIsGlitching] = useState(true);
+  const bodyHighlighterData = toBodyHighlighterData(muscles);
+  const highlighterStyle = { width: '8.75rem', padding: '0.25rem' };
+  const animationKey = muscles.map((muscle) => `${muscle.name}:${muscle.score}`).join('|');
+
+  useEffect(() => {
+    setIsGlitching(true);
+    const timer = window.setTimeout(() => {
+      setIsGlitching(false);
+    }, 3000);
+
+    return () => window.clearTimeout(timer);
+  }, [animationKey]);
+
+  return (
+    <div className={`target-muscle-body-map surface-card rounded-2xl border border-white/10 p-4 ${isGlitching ? 'is-glitching' : ''}`}>
+      <div className="flex items-start justify-center gap-5 sm:gap-8">
+        <div className="flex flex-col items-center gap-1">
+          <BodyHighlighter
+            bodyColor={INACTIVE_MUSCLE_FILL}
+            data={bodyHighlighterData}
+            highlightedColors={[SECONDARY_MUSCLE_FILL, PRIMARY_MUSCLE_FILL]}
+            style={highlighterStyle}
+            type="anterior"
+          />
+          <span className="text-xs text-text-tertiary">Front</span>
+        </div>
+        <div className="flex flex-col items-center gap-1">
+          <BodyHighlighter
+            bodyColor={INACTIVE_MUSCLE_FILL}
+            data={bodyHighlighterData}
+            highlightedColors={[SECONDARY_MUSCLE_FILL, PRIMARY_MUSCLE_FILL]}
+            style={highlighterStyle}
+            type="posterior"
+          />
+          <span className="text-xs text-text-tertiary">Back</span>
+        </div>
+      </div>
+      <div className="mt-3 flex flex-wrap items-center justify-center gap-4">
+        <div className="flex items-center gap-1.5">
+          <div className="h-3 w-3 rounded-full bg-accent ring-2 ring-accent/20" />
+          <span className="text-xs text-text-tertiary">Primary</span>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <div className="h-3 w-3 rounded-full bg-[#4F6F2A]" />
+          <span className="text-xs text-text-tertiary">Secondary</span>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 const AR_MUSCLE_LABELS: Record<string, string> = {
   chest: 'الصدر',
@@ -1103,19 +1200,6 @@ export function WorkoutPlanScreen({
       <div className="mt-2 space-y-4 px-4 sm:px-6">
         {!isRestDayView && (
           <div
-            className="rounded-2xl border border-white/10 bg-card/60 px-4 py-3"
-            data-coachmark-target="workout_plan_info_card"
-          >
-            <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-text-tertiary">
-              {copy.workout}
-            </div>
-            <div className="mt-1 text-lg font-semibold text-white">
-              {displayWorkoutName}
-            </div>
-          </div>
-        )}
-        {!isRestDayView && (
-          <div
             className="space-y-3"
             data-no-translate="true"
             data-coachmark-target="workout_plan_target_muscles"
@@ -1124,30 +1208,7 @@ export function WorkoutPlanScreen({
               {copy.targetMuscles}
             </div>
             {displayTargetMuscles.length > 0 ? (
-              <div className="flex gap-3 overflow-x-auto pb-1">
-                {displayTargetMuscles.map((muscle) => (
-                  <div
-                    key={muscle.name}
-                    className="surface-card min-w-[8.5rem] rounded-2xl border border-white/10 p-3"
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className="h-12 w-12 overflow-hidden rounded-xl bg-white/5">
-                        <img
-                          src={getMuscleImage(muscle.name)}
-                          alt={toLocalizedMuscleLabel(muscle.name)}
-                          className="h-full w-full object-cover"
-                        />
-                      </div>
-                      <div className="min-w-0">
-                        <div className="truncate text-sm font-semibold text-white">{toLocalizedMuscleLabel(muscle.name)}</div>
-                        <div className="mt-1 inline-flex rounded-full bg-accent/15 px-2 py-0.5 text-xs font-semibold text-accent">
-                          {muscle.score}%
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
+              <TargetMuscleBodyMaps muscles={displayTargetMuscles} />
             ) : (
               <div className="rounded-2xl border border-white/[0.08] bg-card/60 px-4 py-4 text-sm text-text-secondary">
                 {copy.targetMusclesEmpty}
