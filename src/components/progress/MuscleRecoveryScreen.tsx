@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
+import BodyHighlighter, { IExerciseData, Muscle } from 'react-body-highlighter';
 import { Header } from '../ui/Header';
 import { SlidersHorizontal, ChevronDown, X } from 'lucide-react';
 import { api } from '../../services/api';
-import { getBodyPartImage } from '../../services/bodyPartTheme';
 import { AppLanguage, getActiveLanguage, getStoredLanguage, normalizeLocalizedValue } from '../../services/language';
 
 interface MuscleRecoveryScreenProps {
@@ -373,6 +373,104 @@ const mergeRecoveryWithDefaults = (incoming: MuscleRecoveryItem[] = []): MuscleR
   });
 };
 
+const INACTIVE_MUSCLE_FILL = 'rgb(22 34 64)';
+const RECOVERY_COLORS = ['#ef4444', '#f97316', '#eab308', '#22c55e'];
+
+const toBodyHighlighterMuscles = (muscleName: string): Muscle[] => {
+  const key = String(muscleName || '').trim().toLowerCase();
+
+  if (key.includes('chest')) return ['chest'];
+  if (key.includes('back')) return ['trapezius', 'upper-back', 'lower-back'];
+  if (key.includes('shoulder') || key.includes('delt')) return ['front-deltoids', 'back-deltoids'];
+  if (key.includes('tricep')) return ['triceps'];
+  if (key.includes('bicep')) return ['biceps'];
+  if (key.includes('forearm')) return ['forearm'];
+  if (key.includes('quad')) return ['quadriceps'];
+  if (key.includes('hamstring')) return ['hamstring'];
+  if (key.includes('glute')) return ['gluteal'];
+  if (key.includes('calf')) return ['calves'];
+  if (key.includes('abs') || key.includes('core')) return ['abs', 'obliques'];
+
+  return [];
+};
+
+const getRecoveryFrequency = (score: number) => {
+  if (score < 40) return 1;
+  if (score < 70) return 2;
+  if (score < 90) return 3;
+  return 4;
+};
+
+const toBodyHighlighterData = (muscles: MuscleRecoveryItem[]): IExerciseData[] => (
+  muscles
+    .map((muscle) => ({
+      name: muscle.name,
+      muscles: toBodyHighlighterMuscles(muscle.name || muscle.muscle),
+      frequency: getRecoveryFrequency(Number(muscle.score || 0)),
+    }))
+    .filter((entry) => entry.muscles.length > 0)
+);
+
+function RecoveryBodyMap({
+  muscles,
+  labels,
+}: {
+  muscles: MuscleRecoveryItem[];
+  labels: {
+    damaged: string;
+    almost: string;
+    ready: string;
+  };
+}) {
+  const bodyHighlighterData = toBodyHighlighterData(muscles);
+  const highlighterStyle = { width: '8.75rem', padding: '0.25rem' };
+
+  return (
+    <div className="target-muscle-body-map surface-card rounded-2xl border border-white/10 p-4">
+      <div className="flex items-start justify-center gap-5 sm:gap-8">
+        <div className="flex flex-col items-center gap-1">
+          <BodyHighlighter
+            bodyColor={INACTIVE_MUSCLE_FILL}
+            data={bodyHighlighterData}
+            highlightedColors={RECOVERY_COLORS}
+            style={highlighterStyle}
+            type="anterior"
+          />
+          <span className="text-xs text-text-tertiary">Front</span>
+        </div>
+        <div className="flex flex-col items-center gap-1">
+          <BodyHighlighter
+            bodyColor={INACTIVE_MUSCLE_FILL}
+            data={bodyHighlighterData}
+            highlightedColors={RECOVERY_COLORS}
+            style={highlighterStyle}
+            type="posterior"
+          />
+          <span className="text-xs text-text-tertiary">Back</span>
+        </div>
+      </div>
+      <div className="mt-4 grid grid-cols-2 gap-2 text-xs text-text-tertiary sm:grid-cols-4">
+        <div className="flex items-center gap-1.5">
+          <span className="h-3 w-3 rounded-full bg-[#ef4444]" />
+          <span>0-39%</span>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <span className="h-3 w-3 rounded-full bg-[#f97316]" />
+          <span>{labels.damaged}</span>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <span className="h-3 w-3 rounded-full bg-[#eab308]" />
+          <span>{labels.almost}</span>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <span className="h-3 w-3 rounded-full bg-[#22c55e]" />
+          <span>{labels.ready}</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function MuscleRecoveryScreen({ onBack }: MuscleRecoveryScreenProps) {
   const [language, setLanguage] = useState<AppLanguage>(() => getActiveLanguage(getStoredLanguage()));
   const isArabic = language === 'ar';
@@ -586,6 +684,13 @@ export function MuscleRecoveryScreen({ onBack }: MuscleRecoveryScreenProps) {
     return 'text-red-500 bg-red-500/10';
   };
 
+  const getStatusDotColor = (val: number) => {
+    if (val >= 90) return 'bg-green-500';
+    if (val >= 70) return 'bg-[#10b981]';
+    if (val >= 50) return 'bg-yellow-500';
+    return 'bg-red-500';
+  };
+
   const formatRecoveryTime = (hoursRemaining: number | undefined) => {
     const safeHours = Math.max(0, Number(hoursRemaining || 0));
     if (safeHours <= 0.01) return copy.fullyRecovered;
@@ -603,10 +708,51 @@ export function MuscleRecoveryScreen({ onBack }: MuscleRecoveryScreenProps) {
     return `${copy.fullRecoveryIn} ${hours}${copy.hourAbbr}`;
   };
 
-  const getMuscleImage = (muscleGroup: string) => getBodyPartImage(muscleGroup);
   const toLocalizedMuscle = (value: string) => {
     const key = String(value || '').trim().toLowerCase();
     return localizedMuscleLabels[key] || value;
+  };
+
+  const renderRecoverySection = (
+    title: string,
+    muscles: MuscleRecoveryItem[],
+    showLastTrained = true,
+  ) => {
+    if (muscles.length === 0) return null;
+
+    return (
+      <div>
+        <h3 className="mb-3 text-xs font-bold uppercase tracking-wider text-text-secondary">
+          {title}
+        </h3>
+        <div className="space-y-2">
+          {muscles.map((m) => (
+            <div
+              key={m.muscle}
+              className="flex items-center justify-between rounded-xl border border-white/5 bg-card p-4"
+            >
+              <div className="flex min-w-0 items-center gap-3">
+                <span className={`h-3.5 w-3.5 shrink-0 rounded-full ${getStatusDotColor(m.score)}`} />
+                <div className="min-w-0">
+                  <h4 className="truncate font-semibold text-white">{toLocalizedMuscle(m.name)}</h4>
+                  {showLastTrained && (
+                    <p className="mt-0.5 text-xs text-text-tertiary">
+                      {copy.lastTrained} {getLastTrained(m.lastWorkout)}
+                    </p>
+                  )}
+                  <p className="font-electrolize text-[11px] text-text-tertiary">
+                    {formatRecoveryTime(m.hoursRemaining)}
+                  </p>
+                </div>
+              </div>
+              <span className={`shrink-0 rounded-full px-3 py-1.5 font-electrolize text-xs font-bold ${getStatusColor(m.score)}`}>
+                {m.score}%
+              </span>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
   };
 
   const visibleMuscles = muscleRecoveries.filter((m) => (
@@ -754,115 +900,20 @@ export function MuscleRecoveryScreen({ onBack }: MuscleRecoveryScreenProps) {
           </div>
         )}
 
-        {/* Damaged Muscles Section */}
-        {damagedMuscles.length > 0 && (
-          <div>
-            <h3 className="text-xs font-bold text-text-secondary uppercase tracking-wider mb-3">
-              {copy.damaged}
-            </h3>
-            <div className="space-y-2">
-              {damagedMuscles.map((m) => (
-                <div
-                  key={m.muscle}
-                  className="bg-card rounded-xl p-4 border border-white/5 flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="w-16 h-16 rounded-full bg-transparent flex items-center justify-center overflow-hidden">
-                      <img
-                        src={getMuscleImage(m.name)}
-                        alt={m.name}
-                        className="w-full h-full object-contain"
-                      />
-                    </div>
-                    <div>
-                      <h4 className="font-semibold text-white">{toLocalizedMuscle(m.name)}</h4>
-                      <p className="text-xs text-text-tertiary mt-0.5">
-                        {copy.lastTrained} {getLastTrained(m.lastWorkout)}
-                      </p>
-                      <p className="text-[11px] text-text-tertiary font-electrolize">
-                        {formatRecoveryTime(m.hoursRemaining)}
-                      </p>
-                    </div>
-                  </div>
-                  <span className={`text-xs font-bold px-3 py-1.5 rounded-full font-electrolize ${getStatusColor(m.score)}`}>
-                    {m.score}%
-                  </span>
-                </div>
-              ))}
-            </div>
-          </div>
+        {!error && visibleMuscles.length > 0 && (
+          <RecoveryBodyMap
+            muscles={visibleMuscles}
+            labels={{
+              damaged: copy.damaged,
+              almost: copy.almost,
+              ready: copy.ready,
+            }}
+          />
         )}
 
-        {almostReadyMuscles.length > 0 && (
-          <div>
-            <h3 className="text-xs font-bold text-text-secondary uppercase tracking-wider mb-3">
-              {copy.almost}
-            </h3>
-            <div className="space-y-2">
-              {almostReadyMuscles.map((m) => (
-                <div
-                  key={m.muscle}
-                  className="bg-card rounded-xl p-4 border border-white/5 flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="w-16 h-16 rounded-full bg-transparent flex items-center justify-center overflow-hidden">
-                      <img
-                        src={getMuscleImage(m.name)}
-                        alt={m.name}
-                        className="w-full h-full object-contain"
-                      />
-                    </div>
-                    <div>
-                      <h4 className="font-semibold text-white">{toLocalizedMuscle(m.name)}</h4>
-                      <p className="text-xs text-text-tertiary mt-0.5">
-                        {copy.lastTrained} {getLastTrained(m.lastWorkout)}
-                      </p>
-                      <p className="text-[11px] text-text-tertiary font-electrolize">
-                        {formatRecoveryTime(m.hoursRemaining)}
-                      </p>
-                    </div>
-                  </div>
-                  <span className={`text-xs font-bold px-3 py-1.5 rounded-full font-electrolize ${getStatusColor(m.score)}`}>
-                    {m.score}%
-                  </span>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Ready Muscles Section */}
-        {readyMuscles.length > 0 && (
-          <div>
-            <h3 className="text-xs font-bold text-text-secondary uppercase tracking-wider mb-3">
-              {copy.ready}
-            </h3>
-            <div className="space-y-2">
-              {readyMuscles.map((m) => (
-                <div
-                  key={m.muscle}
-                  className="bg-card rounded-xl p-4 border border-white/5 flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="w-16 h-16 rounded-full bg-transparent flex items-center justify-center overflow-hidden">
-                      <img
-                        src={getMuscleImage(m.name)}
-                        alt={m.name}
-                        className="w-full h-full object-contain"
-                      />
-                    </div>
-                    <div>
-                      <h4 className="font-semibold text-white">{toLocalizedMuscle(m.name)}</h4>
-                      <p className="text-[11px] text-text-tertiary font-electrolize">
-                        {formatRecoveryTime(m.hoursRemaining)}
-                      </p>
-                    </div>
-                  </div>
-                  <span className="text-xs font-bold px-3 py-1.5 rounded-full text-green-500 bg-green-500/10 font-electrolize">
-                    {m.score}%
-                  </span>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
+        {renderRecoverySection(copy.damaged, damagedMuscles)}
+        {renderRecoverySection(copy.almost, almostReadyMuscles)}
+        {renderRecoverySection(copy.ready, readyMuscles, false)}
       </div>
     </div>);
 
