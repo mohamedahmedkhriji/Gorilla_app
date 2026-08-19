@@ -1,18 +1,30 @@
 import { io } from 'socket.io-client';
+import { Capacitor } from '@capacitor/core';
 import { getStoredUserAuthToken } from '../shared/authStorage';
 import { getStoredAdminAuthToken } from '../shared/adminAuthStorage';
 import { dispatchNotificationReceived } from './notificationEvents';
 
 const DEFAULT_SOCKET_ORIGIN =
   typeof window !== 'undefined'
-    ? `${window.location.protocol}//${window.location.hostname}:5001`
+    ? Capacitor.isNativePlatform()
+      ? 'http://10.0.2.2:5001'
+      : `${window.location.protocol}//${window.location.hostname}:5001`
     : 'http://localhost:5001';
 
+const normalizeNativeLocalhostSocketUrl = (url: string) => {
+  if (typeof window === 'undefined' || !Capacitor.isNativePlatform()) return url;
+  return url
+    .replace(/^https?:\/\/localhost(?::\d+)?(?=\/|$)/i, 'http://10.0.2.2:5001')
+    .replace(/^https?:\/\/127\.0\.0\.1(?::\d+)?(?=\/|$)/i, 'http://10.0.2.2:5001');
+};
+
 const SOCKET_URL =
-  import.meta.env.VITE_SOCKET_URL ||
-  (import.meta.env.VITE_API_URL
-    ? import.meta.env.VITE_API_URL.replace(/\/api\/?$/, '')
-    : DEFAULT_SOCKET_ORIGIN);
+  normalizeNativeLocalhostSocketUrl(
+    import.meta.env.VITE_SOCKET_URL ||
+    (import.meta.env.VITE_API_URL
+      ? import.meta.env.VITE_API_URL.replace(/\/api\/?$/, '')
+      : DEFAULT_SOCKET_ORIGIN),
+  );
 
 const socket = io(SOCKET_URL, {
   transports: ['websocket', 'polling'],

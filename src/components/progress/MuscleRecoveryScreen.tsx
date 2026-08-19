@@ -389,7 +389,16 @@ const toBodyHighlighterMuscles = (muscleName: string): Muscle[] => {
   if (key.includes('hamstring')) return ['hamstring'];
   if (key.includes('glute')) return ['gluteal'];
   if (key.includes('calf')) return ['calves'];
-  if (key.includes('abs') || key.includes('core')) return ['abs', 'obliques'];
+  if (
+    key.includes('abs')
+    || key.includes('abdominal')
+    || key.includes('oblique')
+    || key.includes('core')
+    || key.includes('stomach')
+    || key.includes('six pack')
+  ) {
+    return ['abs', 'obliques'];
+  }
 
   return [];
 };
@@ -403,11 +412,20 @@ const getRecoveryFrequency = (score: number) => {
 
 const toBodyHighlighterData = (muscles: MuscleRecoveryItem[]): IExerciseData[] => (
   muscles
-    .map((muscle) => ({
-      name: muscle.name,
-      muscles: toBodyHighlighterMuscles(muscle.name || muscle.muscle),
-      frequency: getRecoveryFrequency(Number(muscle.score || 0)),
-    }))
+    .map((muscle) => {
+      const muscleKeys = [muscle.muscle, muscle.name]
+        .map((value) => String(value || '').trim())
+        .filter(Boolean);
+      const highlighterMuscles = Array.from(
+        new Set(muscleKeys.flatMap((value) => toBodyHighlighterMuscles(value))),
+      );
+
+      return {
+        name: muscle.name,
+        muscles: highlighterMuscles,
+        frequency: getRecoveryFrequency(Number(muscle.score || 0)),
+      };
+    })
     .filter((entry) => entry.muscles.length > 0)
 );
 
@@ -422,11 +440,22 @@ function RecoveryBodyMap({
     ready: string;
   };
 }) {
+  const [isGlitching, setIsGlitching] = useState(true);
   const bodyHighlighterData = toBodyHighlighterData(muscles);
   const highlighterStyle = { width: '8.75rem', padding: '0.25rem' };
+  const animationKey = muscles.map((muscle) => `${muscle.muscle}:${muscle.name}:${muscle.score}`).join('|');
+
+  useEffect(() => {
+    setIsGlitching(true);
+    const timer = window.setTimeout(() => {
+      setIsGlitching(false);
+    }, 3000);
+
+    return () => window.clearTimeout(timer);
+  }, [animationKey]);
 
   return (
-    <div className="target-muscle-body-map surface-card rounded-2xl border border-white/10 p-4">
+    <div className={`target-muscle-body-map surface-card rounded-2xl border border-white/10 p-4 ${isGlitching ? 'is-glitching' : ''}`}>
       <div className="flex items-start justify-center gap-5 sm:gap-8">
         <div className="flex flex-col items-center gap-1">
           <BodyHighlighter

@@ -1,3 +1,4 @@
+import { Capacitor } from '@capacitor/core';
 import { getStoredUserAuthToken } from '../shared/authStorage';
 import { getStoredAdminAuthToken } from '../shared/adminAuthStorage';
 import {
@@ -7,12 +8,26 @@ import {
   writeOfflineCache,
 } from './offlineCache';
 
+const EMULATOR_HOST_API_ORIGIN = 'http://10.0.2.2:5001';
+
+const isNativeCapacitorWebView = () =>
+  typeof window !== 'undefined' && Capacitor.isNativePlatform();
+
+const normalizeNativeLocalhostUrl = (url: string) => {
+  if (!isNativeCapacitorWebView()) return url;
+  return url
+    .replace(/^https?:\/\/localhost(?::\d+)?(?=\/|$)/i, EMULATOR_HOST_API_ORIGIN)
+    .replace(/^https?:\/\/127\.0\.0\.1(?::\d+)?(?=\/|$)/i, EMULATOR_HOST_API_ORIGIN);
+};
+
 const DEFAULT_API_ORIGIN =
   typeof window !== 'undefined'
-    ? `${window.location.protocol}//${window.location.hostname}:5001`
+    ? isNativeCapacitorWebView()
+      ? EMULATOR_HOST_API_ORIGIN
+      : `${window.location.protocol}//${window.location.hostname}:5001`
     : 'http://localhost:5001';
 
-const API_URL = import.meta.env.VITE_API_URL || `${DEFAULT_API_ORIGIN}/api`;
+const API_URL = normalizeNativeLocalhostUrl(import.meta.env.VITE_API_URL || `${DEFAULT_API_ORIGIN}/api`);
 const nativeFetch = globalThis.fetch.bind(globalThis);
 
 type ApiError = Error & {
