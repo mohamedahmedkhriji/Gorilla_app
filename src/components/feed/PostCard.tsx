@@ -1,5 +1,5 @@
-import React, { useMemo, useState } from 'react';
-import { Bookmark, Heart, MessageCircle, MoreHorizontal, Send } from 'lucide-react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { Bookmark, MessageCircle, MoreHorizontal, Send } from 'lucide-react';
 import type { Post, ReactionOption, ReactionType } from './types';
 
 type PostCardProps = {
@@ -39,6 +39,80 @@ type PostCardProps = {
   };
 };
 
+const REACTION_ANIMATION_COLORS: Record<ReactionType, string> = {
+  love: 'rgb(255 91 137)',
+  fire: 'rgb(249 115 22)',
+  power: 'rgb(var(--color-accent))',
+  wow: 'rgb(250 204 21)',
+};
+
+function AnimatedReactionIcon({
+  reaction,
+  image,
+}: {
+  reaction: ReactionType | null;
+  image?: string;
+}) {
+  const active = Boolean(reaction);
+  const color = reaction ? REACTION_ANIMATION_COLORS[reaction] : 'rgb(255 91 137)';
+  const [animationVersion, setAnimationVersion] = useState(0);
+  const [isAnimating, setIsAnimating] = useState(false);
+  const hasMountedRef = useRef(false);
+
+  useEffect(() => {
+    if (!hasMountedRef.current) {
+      hasMountedRef.current = true;
+      return undefined;
+    }
+
+    if (!reaction) {
+      setIsAnimating(false);
+      return undefined;
+    }
+
+    setAnimationVersion((version) => version + 1);
+    setIsAnimating(true);
+
+    const timeoutId = window.setTimeout(() => {
+      setIsAnimating(false);
+    }, 700);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
+  }, [reaction]);
+
+  return (
+    <span
+      key={reaction || 'empty'}
+      className={`animated-reaction-icon ${active ? 'is-active' : ''} ${isAnimating ? 'is-animating' : ''}`}
+      style={{ '--reaction-color': color } as React.CSSProperties}
+      aria-hidden="true"
+    >
+      <span className="animated-reaction-icon__wrap">
+        <svg viewBox="0 0 24 24" className="animated-reaction-icon__outline" xmlns="http://www.w3.org/2000/svg">
+          <path d="M17.5,1.917a6.4,6.4,0,0,0-5.5,3.3,6.4,6.4,0,0,0-5.5-3.3A6.8,6.8,0,0,0,0,8.967c0,4.547,4.786,9.513,8.8,12.88a4.974,4.974,0,0,0,6.4,0C19.214,18.48,24,13.514,24,8.967A6.8,6.8,0,0,0,17.5,1.917Zm-3.585,18.4a2.973,2.973,0,0,1-3.83,0C4.947,16.006,2,11.87,2,8.967a4.8,4.8,0,0,1,4.5-5.05A4.8,4.8,0,0,1,11,8.967a1,1,0,0,0,2,0,4.8,4.8,0,0,1,4.5-5.05A4.8,4.8,0,0,1,22,8.967C22,11.87,19.053,16.006,13.915,20.313Z" />
+        </svg>
+        {reaction === 'love' ? (
+          <svg key={`heart-${animationVersion}`} viewBox="0 0 24 24" className="animated-reaction-icon__filled-heart" xmlns="http://www.w3.org/2000/svg">
+            <path d="M17.5,1.917a6.4,6.4,0,0,0-5.5,3.3,6.4,6.4,0,0,0-5.5-3.3A6.8,6.8,0,0,0,0,8.967c0,4.547,4.786,9.513,8.8,12.88a4.974,4.974,0,0,0,6.4,0C19.214,18.48,24,13.514,24,8.967A6.8,6.8,0,0,0,17.5,1.917Z" />
+          </svg>
+        ) : image ? (
+          <img key={`image-${animationVersion}`} src={image} alt="" className="animated-reaction-icon__image" />
+        ) : null}
+        <svg key={`celebrate-${animationVersion}`} viewBox="0 0 100 100" className="animated-reaction-icon__celebrate" xmlns="http://www.w3.org/2000/svg">
+          <path d="M10 10 22 22" />
+          <path d="M8 50h16" />
+          <path d="M20 82 34 68" />
+          <path d="M90 10 78 22" />
+          <path d="M92 50H76" />
+          <path d="M80 82 66 68" />
+        </svg>
+      </span>
+    </span>
+  );
+}
+
 export default function PostCard({
   post,
   index,
@@ -75,6 +149,7 @@ export default function PostCard({
     () => `${formatCount(post.likes)} likes • ${formatCount(post.comments)} comments`,
     [formatCount, post.comments, post.likes],
   );
+  const selectedReactionOption = reactionOptions.find((item) => item.type === post.reactionByMe);
 
   return (
     <article
@@ -210,11 +285,7 @@ export default function PostCard({
                 className="flex h-10 w-10 items-center justify-center rounded-full bg-white/5 text-text-primary transition-all duration-200 hover:bg-white/10 active:scale-95"
                 aria-label={copy.reactToPost}
               >
-                {post.reactionByMe ? (
-                  <img src={reactionOptions.find((item) => item.type === post.reactionByMe)?.image} alt="" className="h-[18px] w-[18px]" />
-                ) : (
-                  <Heart size={18} />
-                )}
+                <AnimatedReactionIcon reaction={post.reactionByMe} image={selectedReactionOption?.image} />
               </button>
 
               {openReactions ? (

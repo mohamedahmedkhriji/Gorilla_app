@@ -1,5 +1,7 @@
 const accountCreatedSoundUrl = new URL('../../assets/sound/SUCCESS ACOUNT CRETING.wav', import.meta.url).href;
 const notificationSoundUrl = new URL('../../assets/sound/GET NOTIFICATION.wav', import.meta.url).href;
+const reactionSoundUrl = new URL('../../assets/sound/reactions.wav', import.meta.url).href;
+const myPlanSoundUrl = new URL('../../assets/sound/Myplan.wav', import.meta.url).href;
 
 const playSound = (url: string) => {
   if (typeof window === 'undefined') return;
@@ -19,4 +21,12 @@ export const playAccountCreatedSound = () => {
 
 export const playNotificationSound = () => {
   playSound(notificationSoundUrl);
+};
+
+export const playReactionSound = () => {
+  playSound(reactionSoundUrl);
+};
+
+export const playMyPlanSound = () => {
+  playSound(myPlanSoundUrl);
 };

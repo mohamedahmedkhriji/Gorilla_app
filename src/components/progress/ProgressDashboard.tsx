@@ -590,7 +590,7 @@ export function ProgressDashboard({ onViewReport, onViewStrengthScore }: Progres
         ? `${completedThisWeek} / ${plannedThisWeek} Tage`
         : `${completedThisWeek} / ${plannedThisWeek} days`;
   return (
-    <div data-coachmark-target="progress_dashboard" className="space-y-6">
+    <div data-coachmark-target="progress_dashboard" className="progress-dashboard space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-light text-white">{copy.title}</h1>
         <button

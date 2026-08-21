@@ -1,5 +1,5 @@
 import React, { Suspense, lazy, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState, useTransition } from 'react';
-import { Copy, Facebook, Instagram, MessageCircleMore, Send, Upload, X } from 'lucide-react';
+import { Copy, Facebook, Instagram, MessageCircleMore, RefreshCcw, Send, Upload, X } from 'lucide-react';
 import { api } from '../services/api';
 import { CoachmarkOverlay, type CoachmarkStep } from '../components/coachmarks/CoachmarkOverlay';
 import FeedPage from '../components/feed/FeedPage';
@@ -11,6 +11,7 @@ import { getStoredAppUser, getStoredUserId } from '../shared/authStorage';
 import { AppLanguage, getActiveLanguage, getStoredLanguage, pickLanguage } from '../services/language';
 import { offlineCacheKeys, readOfflineCacheValue } from '../services/offlineCache';
 import { BLOGS_COACHMARK_TOUR_ID, BLOGS_COACHMARK_VERSION, getCoachmarkUserScope, patchCoachmarkProgress, readCoachmarkProgress } from '../services/coachmarks';
+import { playReactionSound } from '../services/appSounds';
 import { useScreenshotProtection } from '../shared/useScreenshotProtection';
 import type { BlogComment, FeedCategory, FeedCursor, FeedTab, Post, PostCategory, ReactionOption, ReactionType, ShareDestination } from '../components/feed/types';
 
@@ -22,6 +23,8 @@ const INITIAL_PAGE_LIMIT = 8;
 const FEED_PAGE_LIMIT = 8;
 const DESCRIPTION_MAX_LENGTH = 5000;
 const MEDIA_PAYLOAD_LIMIT = 8000000;
+const PULL_REFRESH_THRESHOLD = 78;
+const PULL_REFRESH_MAX = 118;
 const DEFAULT_AVATAR = 'https://images.unsplash.com/photo-1633332755192-727a05c4013d?auto=format&fit=crop&w=120&q=80';
 
 interface BlogsProps {
@@ -381,6 +384,7 @@ export function Blogs({ guidedTourActive = false, onGuidedTourComplete, onGuided
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [pullDistance, setPullDistance] = useState(0);
   const [error, setError] = useState('');
   const [activeTab, setActiveTab] = useState<FeedTab>('For You');
   const [activeCategory, setActiveCategory] = useState<FeedCategory>('All');
@@ -417,6 +421,9 @@ export function Blogs({ guidedTourActive = false, onGuidedTourComplete, onGuided
   const commentInputRef = useRef<HTMLInputElement | null>(null);
   const viewedPostIdsRef = useRef<Set<number>>(new Set());
   const hydratedFromCacheRef = useRef(false);
+  const pullStartYRef = useRef(0);
+  const pullActiveRef = useRef(false);
+  const pullTriggeredRef = useRef(false);
   const showWomenFilter = isFemaleGender(userGender);
   const hiddenPostStorageKey = useMemo(() => `blogs:hidden:${userId || 'guest'}`, [userId]);
   const savedPostStorageKey = useMemo(() => `blogs:saved:${userId || 'guest'}`, [userId]);
@@ -646,6 +653,69 @@ export function Blogs({ guidedTourActive = false, onGuidedTourComplete, onGuided
     }
   }, [copy.errorLoadMore, hasMore, loadFeedChunk, loadingMore, nextCursor, userId]);
 
+  const isPullRefreshBlocked = useCallback(() => (
+    refreshing
+    || loading
+    || isPublishing
+    || isCreateOpen
+    || activeReelIndex != null
+    || activeCommentsPostId != null
+    || activeSharePostId != null
+    || pendingDeletePostId != null
+  ), [
+    activeCommentsPostId,
+    activeReelIndex,
+    activeSharePostId,
+    isCreateOpen,
+    isPublishing,
+    loading,
+    pendingDeletePostId,
+    refreshing,
+  ]);
+
+  const handlePullRefreshStart = useCallback((event: React.TouchEvent<HTMLDivElement>) => {
+    if (event.touches.length !== 1 || isPullRefreshBlocked() || window.scrollY > 0) return;
+    pullStartYRef.current = event.touches[0].clientY;
+    pullActiveRef.current = true;
+    pullTriggeredRef.current = false;
+  }, [isPullRefreshBlocked]);
+
+  const handlePullRefreshMove = useCallback((event: React.TouchEvent<HTMLDivElement>) => {
+    if (!pullActiveRef.current || event.touches.length !== 1) return;
+    if (window.scrollY > 0) {
+      pullActiveRef.current = false;
+      setPullDistance(0);
+      return;
+    }
+
+    const deltaY = event.touches[0].clientY - pullStartYRef.current;
+    if (deltaY <= 0) {
+      setPullDistance(0);
+      return;
+    }
+
+    const dampedDistance = Math.min(PULL_REFRESH_MAX, deltaY * 0.58);
+    setPullDistance(dampedDistance);
+    if (dampedDistance > 8) event.preventDefault();
+  }, []);
+
+  const handlePullRefreshEnd = useCallback(() => {
+    if (!pullActiveRef.current) return;
+    pullActiveRef.current = false;
+
+    if (pullDistance >= PULL_REFRESH_THRESHOLD && !isPullRefreshBlocked()) {
+      pullTriggeredRef.current = true;
+      setPullDistance(PULL_REFRESH_THRESHOLD);
+      void loadInitialFeed('refresh').finally(() => {
+        pullTriggeredRef.current = false;
+        setPullDistance(0);
+      });
+      return;
+    }
+
+    setPullDistance(0);
+  }, [isPullRefreshBlocked, loadInitialFeed, pullDistance]);
+
   useEffect(() => {
     if (!userId) return;
     const cachedFeed = readOfflineCacheValue<any>(offlineCacheKeys.blogsFeed(userId, { limit: INITIAL_PAGE_LIMIT }));
@@ -698,6 +768,7 @@ export function Blogs({ guidedTourActive = false, onGuidedTourComplete, onGuided
 
   const setReaction = useCallback(async (postId: number, reactionType: ReactionType | null) => {
     if (!userId) return;
+    if (reactionType) playReactionSound();
     try {
       const response = await api.setBlogReaction(postId, { userId, reactionType });
       const nextReaction = normalizeReactionType(response?.reactionType);
@@ -953,7 +1024,31 @@ export function Blogs({ guidedTourActive = false, onGuidedTourComplete, onGuided
   }, []);
 
   return (
-    <div dir={isArabic ? 'rtl' : 'ltr'} className="blogs-page relative flex min-h-screen flex-1 flex-col pb-24">
+    <div
+      dir={isArabic ? 'rtl' : 'ltr'}
+      className="blogs-page relative flex min-h-screen flex-1 flex-col pb-24"
+      onTouchStart={handlePullRefreshStart}
+      onTouchMove={handlePullRefreshMove}
+      onTouchEnd={handlePullRefreshEnd}
+      onTouchCancel={handlePullRefreshEnd}
+    >
+      {(pullDistance > 0 || refreshing) ? (
+        <div
+          className={`blogs-pull-refresh-indicator ${refreshing ? 'is-refreshing' : ''}`}
+          style={{
+            opacity: Math.min(1, Math.max(0.25, pullDistance / PULL_REFRESH_THRESHOLD)),
+            transform: `translate(-50%, ${Math.min(52, pullDistance * 0.42)}px) scale(${0.72 + Math.min(0.32, pullDistance / 260)})`,
+          }}
+          aria-hidden="true"
+        >
+          <RefreshCcw
+            size={20}
+            style={{
+              transform: refreshing ? undefined : `rotate(${Math.min(220, pullDistance * 2.45)}deg)`,
+            }}
+          />
+        </div>
+      ) : null}
       <FeedPage
         header={<FeedHeader onRefresh={() => { void loadInitialFeed('refresh'); }} onCreate={() => { setIsCreateOpen(true); setCreateError(''); }} refreshAria={copy.refreshFeedAria} createAria={copy.createPostAria} refreshing={refreshing} />}
         filters={<CategoryFilters filters={categoryFilters} activeCategory={activeCategory} onSelect={selectCategory} getLabel={getCategoryLabel} getCount={(category) => categoryCounts[category]} />}

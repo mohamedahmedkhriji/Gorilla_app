@@ -26,12 +26,24 @@ export default function CategoryFilters({
   getLabel,
   getCount,
 }: CategoryFiltersProps) {
+  const activeIndex = Math.max(0, filters.indexOf(activeCategory));
+  const islandStyle = {
+    '--filter-count': filters.length,
+    '--active-filter-index': activeIndex,
+  } as React.CSSProperties;
+
   return (
     <div
       data-coachmark-target="blogs_category_filters"
       className="-mx-4 overflow-x-auto px-4 pb-1 sm:-mx-6 sm:px-6"
     >
-      <div className="flex min-w-max snap-x gap-3">
+      <div
+        className="feed-category-island min-w-max"
+        style={islandStyle}
+        role="tablist"
+        aria-label="Blog categories"
+      >
+        <span className="feed-category-indicator" aria-hidden="true" />
         {filters.map((category) => {
           const isActive = category === activeCategory;
           const Icon = FILTER_ICONS[category];
@@ -40,19 +52,17 @@ export default function CategoryFilters({
             <button
               key={category}
               type="button"
+              role="tab"
+              aria-selected={isActive}
               onClick={() => onSelect(category)}
-              className={`snap-start shrink-0 rounded-full border px-4 py-3 text-sm font-medium transition-all duration-200 active:scale-95 ${
-                isActive
-                  ? 'border-accent/35 bg-accent/12 text-text-primary shadow-[0_10px_28px_rgb(var(--color-accent)/0.16)]'
-                  : 'border-white/10 bg-white/5 text-text-secondary hover:border-accent/20 hover:bg-white/10 hover:text-text-primary'
-              }`}
+              className={`feed-category-tab ${isActive ? 'is-active' : ''}`}
             >
-              <span className="flex items-center gap-2">
-                <span className={`flex h-7 w-7 items-center justify-center rounded-full ${isActive ? 'bg-accent text-black' : 'bg-white/10 text-text-secondary'}`}>
-                  <Icon size={14} />
+              <span className="feed-category-tab-inner">
+                <span className="feed-category-icon">
+                  <Icon size={14} aria-hidden="true" />
                 </span>
-                <span>{getLabel(category)}</span>
-                <span className={`rounded-full px-2 py-0.5 text-xs ${isActive ? 'bg-black/10 text-black/80' : 'bg-white/10 text-text-tertiary'}`}>
+                <span className="feed-category-label">{getLabel(category)}</span>
+                <span className="feed-category-count">
                   {getCount(category)}
                 </span>
               </span>

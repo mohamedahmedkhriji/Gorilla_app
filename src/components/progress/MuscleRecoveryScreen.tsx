@@ -340,22 +340,85 @@ type RecoveryFactorsState = {
   stress_level?: string;
 };
 
+const normalizeRecoveryMuscleKey = (value: unknown) => {
+  const key = String(value || '')
+    .trim()
+    .toLowerCase()
+    .replace(/[_-]+/g, ' ');
+
+  if (!key) return '';
+  if (
+    /(^|\s)(abs?|abdominal|abdominals|abdominis|core|oblique|obliques|stomach)(\s|$)/.test(key)
+    || key.includes('six pack')
+  ) return 'abs';
+  if (key.includes('chest') || key.includes('pec')) return 'chest';
+  if (key.includes('back') || key.includes('lat') || key.includes('trap')) return 'back';
+  if (key.includes('quad')) return 'quadriceps';
+  if (key.includes('hamstring')) return 'hamstrings';
+  if (key.includes('glute')) return 'glutes';
+  if (key.includes('shoulder') || key.includes('delt')) return 'shoulders';
+  if (key.includes('bicep')) return 'biceps';
+  if (key.includes('tricep')) return 'triceps';
+  if (key.includes('forearm')) return 'forearms';
+  if (key.includes('calf')) return 'calves';
+  return key;
+};
+
 const mergeRecoveryWithDefaults = (incoming: MuscleRecoveryItem[] = []): MuscleRecoveryItem[] => {
   const safeNumber = (value: unknown, fallback = 0) => {
     const n = Number(value);
     return Number.isFinite(n) ? n : fallback;
   };
 
-  const byName = new Map(
-    incoming.map((m) => [String(m.name || m.muscle).toLowerCase(), m]),
-  );
+  const byName = new Map<string, MuscleRecoveryItem>();
+  const mergeDuplicateMuscle = (
+    current: MuscleRecoveryItem | undefined,
+    next: MuscleRecoveryItem,
+  ): MuscleRecoveryItem => {
+    if (!current) return next;
+
+    const currentScore = safeNumber(current.score, 100);
+    const nextScore = safeNumber(next.score, 100);
+
+    return {
+      ...current,
+      ...next,
+      score: Math.min(currentScore, nextScore),
+      lastWorkout: next.lastWorkout || current.lastWorkout || null,
+      hoursNeeded: Math.max(safeNumber(current.hoursNeeded, 0), safeNumber(next.hoursNeeded, 0)),
+      hoursElapsed: Math.max(safeNumber(current.hoursElapsed, 0), safeNumber(next.hoursElapsed, 0)),
+      hoursRemaining: Math.max(safeNumber(current.hoursRemaining, 0), safeNumber(next.hoursRemaining, 0)),
+      plannedTodaySetUnits: safeNumber(current.plannedTodaySetUnits, 0) + safeNumber(next.plannedTodaySetUnits, 0),
+      completedTodaySetUnits: safeNumber(current.completedTodaySetUnits, 0) + safeNumber(next.completedTodaySetUnits, 0),
+      plannedWeekSetUnits: safeNumber(current.plannedWeekSetUnits, 0) + safeNumber(next.plannedWeekSetUnits, 0),
+      completedWeekSetUnits: safeNumber(current.completedWeekSetUnits, 0) + safeNumber(next.completedWeekSetUnits, 0),
+      completedTodayVolume: safeNumber(current.completedTodayVolume, 0) + safeNumber(next.completedTodayVolume, 0),
+      completedWeekVolume: safeNumber(current.completedWeekVolume, 0) + safeNumber(next.completedWeekVolume, 0),
+    };
+  };
+
+  incoming.forEach((m) => {
+    const keys = Array.from(new Set([
+      normalizeRecoveryMuscleKey(m.muscle),
+      normalizeRecoveryMuscleKey(m.name),
+      String(m.muscle || '').trim().toLowerCase(),
+      String(m.name || '').trim().toLowerCase(),
+    ].filter(Boolean)));
+
+    keys.forEach((key) => byName.set(key, mergeDuplicateMuscle(byName.get(key), m)));
+  });
 
   return DEFAULT_MUSCLES.map((muscle) => {
-    const found = byName.get(muscle.name.toLowerCase()) || byName.get(muscle.muscle.toLowerCase());
+    const found = byName.get(normalizeRecoveryMuscleKey(muscle.muscle))
+      || byName.get(normalizeRecoveryMuscleKey(muscle.name))
+      || byName.get(muscle.name.toLowerCase())
+      || byName.get(muscle.muscle.toLowerCase());
     if (!found) return muscle;
     return {
       ...muscle,
       ...found,
+      muscle: muscle.muscle,
+      name: muscle.name,
       score: Number.isFinite(Number(found.score)) ? Math.max(0, Math.min(100, Math.round(Number(found.score)))) : 100,
       lastWorkout: found.lastWorkout ?? null,
       hoursNeeded: safeNumber(found.hoursNeeded, 0),
@@ -373,11 +436,11 @@ const mergeRecoveryWithDefaults = (incoming: MuscleRecoveryItem[] = []): MuscleR
   });
 };
 
-const INACTIVE_MUSCLE_FILL = 'rgb(22 34 64)';
+const INACTIVE_MUSCLE_FILL = 'rgb(241 245 249)';
 const RECOVERY_COLORS = ['#ef4444', '#f97316', '#eab308', '#22c55e'];
 
 const toBodyHighlighterMuscles = (muscleName: string): Muscle[] => {
-  const key = String(muscleName || '').trim().toLowerCase();
+  const key = normalizeRecoveryMuscleKey(muscleName);
 
   if (key.includes('chest')) return ['chest'];
   if (key.includes('back')) return ['trapezius', 'upper-back', 'lower-back'];

@@ -3,7 +3,6 @@ import { createPortal } from 'react-dom';
 import { X, Check, CalendarX2 } from 'lucide-react';
 import { HOME_CARD_OVERLAY_CLASS } from './homeCardStyles';
 import { formatWorkoutDayLabel, formatWorkoutDayShortLabel, normalizeWorkoutDayKey } from '../../services/workoutDayLabel';
-import { emojiAgenda, emojiDoneDayBg, emojiMissedDayBg } from '../../services/emojiTheme';
 import doneDayIcon from '../../../assets/emoji/done day.png';
 import highWeightIcon from '../../../assets/emoji/high weight.png';
 import { AppLanguage, LocalizedLanguageRecord, getActiveLanguage, getLanguageLocale, getStoredLanguage } from '../../services/language';
@@ -476,12 +475,7 @@ export function AgendaSection({
 
   return (
     <div className="space-y-3">
-      <div className="rounded-2xl surface-card border border-white/15 px-2 py-3 relative overflow-hidden">
-        <div
-          className="absolute inset-0 bg-cover bg-center opacity-60"
-          style={{ backgroundImage: `url(${emojiAgenda})` }}
-          aria-hidden="true"
-        />
+      <div className="rounded-2xl border border-white/10 bg-black/25 px-2 py-3 relative overflow-hidden">
         {showGradientOverlay && (
           <div
             className={`pointer-events-none ${HOME_CARD_OVERLAY_CLASS}`}
@@ -500,81 +494,33 @@ export function AgendaSection({
             const isMissed = day.status === 'missed';
             const isPicked = day.status === 'picked';
             const isRecovery = day.status === 'recovery';
+            const isGreenState = isActive || isDone || isPicked;
+            const isRedState = isMissed || isRecovery;
 
             return (
-              <div
+              <button
+                type="button"
                 key={index}
-                className="flex flex-col items-center gap-1.5 min-w-[54px] cursor-pointer shrink-0"
+                className={`
+                  flex min-h-[4.35rem] min-w-[3.65rem] shrink-0 flex-col items-center justify-center rounded-2xl border px-3 py-2 text-center transition-all duration-200 active:scale-95
+                  ${
+                    isGreenState
+                      ? 'border-accent/55 bg-accent text-black shadow-[0_10px_24px_rgba(187,255,92,0.16)]'
+                      : isRedState
+                        ? 'border-rose-500/45 bg-rose-500/15 text-rose-100'
+                        : 'border-white/10 bg-white/[0.04] text-text-secondary hover:border-accent/25 hover:bg-white/[0.07]'
+                  }
+                `}
                 onClick={() => setSelectedDay(day)}
+                aria-label={`${day.dayLabel} ${day.date}`}
               >
-                <div
-                  className={`
-                    relative overflow-hidden w-11 h-12 rounded-[14px] flex items-center justify-center border transition-transform duration-200
-                    ${
-                      isActive
-                        ? 'text-black border-accent/60 bg-[linear-gradient(135deg,rgb(var(--color-accent)),rgb(var(--color-info)))]'
-                        : isRecovery
-                          ? 'bg-accent/12 text-accent border-accent/35'
-                        : isMissed
-                          ? 'bg-rose-500/15 text-rose-100 border-rose-500/30'
-                          : isDone || isPicked
-                            ? 'bg-white/[0.08] text-white border-white/10'
-                            : 'bg-card text-text-secondary border-white/10'
-                    }
-                    hover:-translate-y-0.5
-                  `}
-                >
-                  {(isDone || isMissed || isPicked) && (
-                    <>
-                      <div
-                        className="absolute inset-0 bg-cover bg-center opacity-65"
-                        style={{ backgroundImage: `url(${isMissed ? emojiMissedDayBg : emojiDoneDayBg})` }}
-                        aria-hidden="true"
-                      />
-                      <div
-                        className={`absolute inset-0 ${
-                          isMissed
-                            ? 'bg-gradient-to-r from-background/55 via-rose-950/45 to-rose-900/25'
-                            : 'bg-gradient-to-r from-background/55 via-background/30 to-background/15'
-                        }`}
-                        aria-hidden="true"
-                      />
-                    </>
-                  )}
-
-                  {isActive && (
-                    <span
-                      aria-hidden="true"
-                      className="absolute left-1/2 -bottom-1.5 h-3.5 w-3.5 -translate-x-1/2 rotate-45 rounded-[3px] border-r border-b border-white/10"
-                      style={{ background: 'rgb(var(--color-accent))' }}
-                    />
-                  )}
-
-                  {isMissed ? (
-                    <CalendarX2 size={16} className="relative z-10" />
-                  ) : isRecovery ? (
-                    <img
-                      src={highWeightIcon}
-                      alt="Recovery day"
-                      className="relative z-10 h-6 w-6 object-contain"
-                      loading="lazy"
-                    />
-                  ) : isDone || isPicked ? (
-                    <img
-                      src={doneDayIcon}
-                      alt="Done day"
-                      className="relative z-10 h-6 w-6 object-contain"
-                      loading="lazy"
-                    />
-                  ) : (
-                    <span className="relative z-10 text-sm font-bold leading-none">{day.date}</span>
-                  )}
+                <div className="text-[1.35rem] font-semibold leading-none">
+                  {day.date}
                 </div>
-
-                <div className={`text-[10px] font-medium leading-none ${isActive ? 'mt-1 text-text-primary' : 'text-text-tertiary'}`}>
+                <div className={`mt-1 text-[0.68rem] font-semibold uppercase leading-none ${isGreenState ? 'text-black/70' : isRedState ? 'text-rose-200/85' : 'text-text-tertiary'}`}>
                   {day.day}
                 </div>
-              </div>
+              </button>
             );
           })}
         </div>

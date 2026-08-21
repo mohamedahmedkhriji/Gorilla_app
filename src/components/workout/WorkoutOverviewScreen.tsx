@@ -1,11 +1,11 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { CheckCircle2, Dumbbell, Lock, Sparkles } from 'lucide-react';
 import { Header } from '../ui/Header';
 import { AgendaSection } from '../home/AgendaSection';
 import { HOME_CARD_OVERLAY_CLASS } from '../home/homeCardStyles';
 import { getBodyPartImage } from '../../services/bodyPartTheme';
 import { AppLanguage, LocalizedLanguageRecord, getActiveLanguage, normalizeLocalizedValue } from '../../services/language';
 import { translateProgramText } from '../../services/programI18n';
+import { playMyPlanSound } from '../../services/appSounds';
 import type { WorkoutAssignmentHistoryEntry } from '../../services/todayWorkoutSelection';
 import { formatWorkoutDayLabel } from '../../services/workoutDayLabel';
 import {
@@ -166,6 +166,10 @@ const COPY = {
     planLocked: 'Plan Locked',
     pickedForToday: 'Picked for today',
     completedForToday: 'Completed today',
+    confirmTodayPlanTitle: 'Use this as today\'s plan?',
+    confirmTodayPlanBody: (workoutName: string) => `Set ${workoutName} as your workout for today?`,
+    confirmTodayPlanYes: 'Yes',
+    confirmTodayPlanNo: 'No',
     planFinishedTitle: 'Plan completed',
     planFinishedBody: 'You finished all weeks in this plan. Create a new plan to keep training next weeks.',
     createNewPlan: 'Create New Plan',
@@ -221,6 +225,10 @@ const COPY = {
     planLocked: 'الخطة مقفلة',
     pickedForToday: 'محفوظ لليوم',
     completedForToday: 'مكتمل اليوم',
+    confirmTodayPlanTitle: 'استخدامها كخطة اليوم؟',
+    confirmTodayPlanBody: (workoutName: string) => `هل تريد تعيين ${workoutName} كتمرين اليوم؟`,
+    confirmTodayPlanYes: 'نعم',
+    confirmTodayPlanNo: 'لا',
     planFinishedTitle: 'اكتملت الخطة',
     planFinishedBody: 'أنهيت جميع أسابيع هذه الخطة. أنشئ خطة جديدة لتكمل التدريب في الأسابيع القادمة.',
     createNewPlan: 'أنشئ خطة جديدة',
@@ -335,6 +343,10 @@ const LOCALIZED_COPY: LocalizedLanguageRecord<typeof COPY.en> = {
     planLocked: 'Piano Bloccato',
     pickedForToday: 'Scelto per oggi',
     completedForToday: 'Completato oggi',
+    confirmTodayPlanTitle: 'Usarlo come piano di oggi?',
+    confirmTodayPlanBody: (workoutName: string) => `Impostare ${workoutName} come allenamento di oggi?`,
+    confirmTodayPlanYes: 'Si',
+    confirmTodayPlanNo: 'No',
     planFinishedTitle: 'Piano completato',
     planFinishedBody: 'Hai finito tutte le settimane di questo piano. Crea un nuovo piano per continuare ad allenarti nelle prossime settimane.',
     createNewPlan: 'Crea Un Nuovo Piano',
@@ -390,6 +402,10 @@ const LOCALIZED_COPY: LocalizedLanguageRecord<typeof COPY.en> = {
     planLocked: 'Plan Gesperrt',
     pickedForToday: 'Fuer heute gewaehlt',
     completedForToday: 'Heute erledigt',
+    confirmTodayPlanTitle: 'Als heutigen Plan nutzen?',
+    confirmTodayPlanBody: (workoutName: string) => `${workoutName} als dein heutiges Workout festlegen?`,
+    confirmTodayPlanYes: 'Ja',
+    confirmTodayPlanNo: 'Nein',
     planFinishedTitle: 'Plan abgeschlossen',
     planFinishedBody: 'Du hast alle Wochen dieses Plans abgeschlossen. Erstelle einen neuen Plan, um in den kommenden Wochen weiterzutrainieren.',
     createNewPlan: 'Neuen Plan Erstellen',
@@ -445,6 +461,10 @@ const LOCALIZED_COPY: LocalizedLanguageRecord<typeof COPY.en> = {
     planLocked: 'Plan verrouille',
     pickedForToday: 'Choisi pour aujourd hui',
     completedForToday: 'Termine aujourd hui',
+    confirmTodayPlanTitle: 'Utiliser comme plan du jour ?',
+    confirmTodayPlanBody: (workoutName: string) => `Definir ${workoutName} comme entrainement du jour ?`,
+    confirmTodayPlanYes: 'Oui',
+    confirmTodayPlanNo: 'Non',
     planFinishedTitle: 'Plan termine',
     planFinishedBody: 'Tu as termine toutes les semaines de ce plan. Cree un nouveau plan pour continuer a t entrainer les prochaines semaines.',
     createNewPlan: 'Creer un nouveau plan',
@@ -721,6 +741,7 @@ export function WorkoutOverviewScreen({
   error = null,
 }: WorkoutOverviewScreenProps) {
   const [language, setLanguage] = useState<AppLanguage>('en');
+  const [pendingTodayWorkoutKey, setPendingTodayWorkoutKey] = useState<string | null>(null);
 
   useEffect(() => {
     setLanguage(getActiveLanguage());
@@ -809,8 +830,8 @@ export function WorkoutOverviewScreen({
           : copy.heroSelectedBody)
     : copy.heroBody;
 
-  const cards = useMemo(
-    () => selectableWorkouts.map((workout) => ({
+  const cards = useMemo(() => {
+    const mappedCards = selectableWorkouts.map((workout) => ({
       ...workout,
       isCompleted: workout.isCompletedToday || Boolean(latestAssignmentByWorkoutKey.get(workout.key)?.completed),
       premiumMeta: premiumConfig
@@ -830,9 +851,16 @@ export function WorkoutOverviewScreen({
           image: getBodyPartImage(entry),
         };
       }),
-    })),
-    [language, latestAssignmentByWorkoutKey, localizeMuscle, localizeWorkoutText, premiumConfig, selectableWorkouts],
-  );
+    }));
+
+    return mappedCards.sort((firstCard, secondCard) => {
+      if (firstCard.isPickedForToday === secondCard.isPickedForToday) {
+        return 0;
+      }
+
+      return firstCard.isPickedForToday ? -1 : 1;
+    });
+  }, [language, latestAssignmentByWorkoutKey, localizeMuscle, localizeWorkoutText, premiumConfig, selectableWorkouts]);
   const todayCard = useMemo(
     () => cards.find((workout) => workout.isPickedForToday) || null,
     [cards],
@@ -841,6 +869,29 @@ export function WorkoutOverviewScreen({
     () => cards.find((workout) => workout.isRecommendedNext) || null,
     [cards],
   );
+  const pendingTodayWorkout = useMemo(
+    () => cards.find((workout) => workout.key === pendingTodayWorkoutKey) || null,
+    [cards, pendingTodayWorkoutKey],
+  );
+  const requestPickWorkoutForToday = useCallback((workoutKey: string) => {
+    const workout = cards.find((entry) => entry.key === workoutKey);
+    if (!workout || workout.isPickedForToday || workout.isCompleted) {
+      onPickWorkoutForToday(workoutKey);
+      return;
+    }
+
+    setPendingTodayWorkoutKey(workoutKey);
+  }, [cards, onPickWorkoutForToday]);
+  const cancelPickWorkoutForToday = useCallback(() => {
+    setPendingTodayWorkoutKey(null);
+  }, []);
+  const confirmPickWorkoutForToday = useCallback(() => {
+    if (!pendingTodayWorkoutKey) return;
+    const workoutKey = pendingTodayWorkoutKey;
+    playMyPlanSound();
+    setPendingTodayWorkoutKey(null);
+    onPickWorkoutForToday(workoutKey);
+  }, [onPickWorkoutForToday, pendingTodayWorkoutKey]);
   const nextRecommendation = useMemo(() => {
     if (recommendedCard) {
       return {
@@ -887,7 +938,7 @@ export function WorkoutOverviewScreen({
       if (!hasTodaySelection && !isTodayPlanLocked) {
         return {
           label: copy.heroCtaPickRecommended,
-          onClick: () => onPickWorkoutForToday(recommendedCard.key),
+          onClick: () => requestPickWorkoutForToday(recommendedCard.key),
           tone: 'primary',
         };
       }
@@ -915,9 +966,9 @@ export function WorkoutOverviewScreen({
     hasTodaySelection,
     isTodayPlanLocked,
     isTodaySelectionCompleted,
-    onPickWorkoutForToday,
     onSelectWorkout,
     recommendedCard,
+    requestPickWorkoutForToday,
     todayCard,
   ]);
   return (
@@ -932,61 +983,6 @@ export function WorkoutOverviewScreen({
       </div>
 
       <div className="px-4 sm:px-6 space-y-5">
-        <div
-          data-coachmark-target="my_plan_current_day_card"
-          className="relative overflow-hidden rounded-[1.8rem] border border-white/10 bg-card/70 p-5"
-        >
-          <div
-            className={HOME_CARD_OVERLAY_CLASS}
-            data-coachmark-target="my_plan_current_day_gradient"
-            aria-hidden="true"
-          />
-          <div className={`relative z-10 space-y-4 ${isArabic ? 'text-right' : 'text-left'}`}>
-            <div className="space-y-4">
-              <div>
-                <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-text-tertiary">
-                  {copy.heroLabelToday}
-                </div>
-                <h2 className="mt-2 text-[1.7rem] font-semibold text-white">
-                  {heroTitle}
-                </h2>
-                <p className="mt-2 max-w-md text-sm text-text-secondary">
-                  {heroSupportLine}
-                </p>
-                <div className={`mt-3 inline-flex items-center gap-2 rounded-full border px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] ${heroStatusTone}`}>
-                  <span>{copy.heroLabelStatus}</span>
-                  <span className="text-[11px] font-bold text-white/90">•</span>
-                  <span>{heroStatus}</span>
-                </div>
-              </div>
-
-              {nextRecommendation && (
-                <div className="rounded-2xl border border-white/10 bg-background/40 p-3">
-                  <div className="mt-2 text-base font-semibold text-white">
-                    {nextRecommendation.title}
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {primaryAction && (
-              <div className={`flex ${isArabic ? 'justify-start' : 'justify-end'}`}>
-                <button
-                  type="button"
-                  onClick={primaryAction.onClick}
-                  className={`font-marker inline-flex min-w-[12rem] items-center justify-center rounded-full border px-4 py-2.5 text-xs font-semibold uppercase tracking-[0.12em] transition-colors ${
-                    primaryAction.tone === 'primary'
-                      ? 'border-accent/30 bg-accent text-black hover:bg-[#aee600]'
-                      : 'border-white/15 bg-white/5 text-text-primary hover:border-accent/30 hover:bg-white/10'
-                  }`}
-                >
-                  {primaryAction.label}
-                </button>
-              </div>
-            )}
-          </div>
-        </div>
-
         <div data-coachmark-target="my_plan_agenda_card" className="space-y-3">
           <div className={`text-xs text-text-tertiary ${isArabic ? 'text-right' : 'text-left'}`}>
             {copy.agendaSubtitle}
@@ -997,7 +993,7 @@ export function WorkoutOverviewScreen({
             accountCreatedAt={accountCreatedAt}
             selectedWorkoutKey={selectableWorkouts.find((workout) => workout.isPickedForToday)?.key || ''}
             isTodayPlanLocked={isTodayPlanLocked}
-            onPickWorkoutForToday={onPickWorkoutForToday}
+            onPickWorkoutForToday={requestPickWorkoutForToday}
           />
         </div>
 
@@ -1096,20 +1092,6 @@ export function WorkoutOverviewScreen({
                       : cardState === 'locked'
                         ? 'border-white/8 bg-white/[0.04]'
                         : 'border-white/10 bg-card/60 hover:border-accent/20 hover:bg-card/75';
-                const iconTone = cardState === 'completed'
-                  ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-200'
-                  : cardState === 'recommended' || cardState === 'today'
-                    ? 'border-accent/35 bg-accent/15 text-accent'
-                    : cardState === 'locked'
-                      ? 'border-white/10 bg-white/5 text-text-tertiary'
-                      : 'border-white/10 bg-white/5 text-text-secondary';
-                const Icon = cardState === 'completed'
-                  ? CheckCircle2
-                  : cardState === 'recommended'
-                    ? Sparkles
-                    : cardState === 'locked'
-                      ? Lock
-                      : Dumbbell;
                 const isPrimaryAction = cardState === 'today' || cardState === 'recommended';
 
                 return (
@@ -1128,10 +1110,7 @@ export function WorkoutOverviewScreen({
                   >
                     <div className={`flex items-start justify-between gap-3 ${isArabic ? 'flex-row-reverse' : ''}`}>
                       <div className={`flex items-start gap-3 min-w-0 ${isArabic ? 'flex-row-reverse' : ''}`}>
-                        <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border ${iconTone}`}>
-                          <Icon size={18} />
-                        </div>
-                        <div className="min-w-0">
+                        <div className="min-w-0 flex-1">
                           {workout.premiumMeta?.weekLabel && (
                             <div className={`mb-1 flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-text-tertiary ${isArabic ? 'flex-row-reverse' : ''}`}>
                               <span className="rounded-full border border-white/10 bg-white/5 px-2.5 py-1 text-text-secondary">
@@ -1226,7 +1205,7 @@ export function WorkoutOverviewScreen({
                           return;
                         }
 
-                        onPickWorkoutForToday(workout.key);
+                        requestPickWorkoutForToday(workout.key);
                       }}
                       disabled={isCompleted || isLockedForSelection}
                       className={`font-marker inline-flex min-w-[10.5rem] items-center justify-center rounded-full border px-4 py-2 text-xs font-semibold uppercase tracking-[0.12em] transition-colors ${
@@ -1255,6 +1234,50 @@ export function WorkoutOverviewScreen({
           )}
         </div>
       </div>
+
+      {pendingTodayWorkout && (
+        <div
+          className="fixed inset-0 z-50 flex items-end justify-center bg-black/65 px-4 pb-[calc(env(safe-area-inset-bottom,0px)+1rem)] pt-6 backdrop-blur-sm sm:items-center sm:pb-6"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="confirm-today-plan-title"
+          onClick={cancelPickWorkoutForToday}
+        >
+          <div
+            className={`w-full max-w-sm rounded-t-[2rem] border border-white/10 bg-card p-5 text-text-primary shadow-2xl sm:rounded-[2rem] ${isArabic ? 'text-right' : 'text-left'}`}
+            dir={isArabic ? 'rtl' : 'ltr'}
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className={`flex items-start gap-3 ${isArabic ? 'flex-row-reverse' : ''}`}>
+              <div className="min-w-0 flex-1">
+                <h3 id="confirm-today-plan-title" className="text-base font-semibold text-white">
+                  {copy.confirmTodayPlanTitle}
+                </h3>
+                <p className="mt-2 text-sm leading-6 text-text-secondary">
+                  {copy.confirmTodayPlanBody(localizeWorkoutText(pendingTodayWorkout.premiumMeta?.displayTitle || pendingTodayWorkout.localizedWorkoutName || pendingTodayWorkout.workoutName))}
+                </p>
+              </div>
+            </div>
+
+            <div className={`mt-5 grid grid-cols-2 gap-3 ${isArabic ? 'direction-rtl' : ''}`}>
+              <button
+                type="button"
+                onClick={cancelPickWorkoutForToday}
+                className="min-h-12 rounded-full border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-text-primary transition-colors hover:bg-white/10 active:scale-[0.98]"
+              >
+                {copy.confirmTodayPlanNo}
+              </button>
+              <button
+                type="button"
+                onClick={confirmPickWorkoutForToday}
+                className="min-h-12 rounded-full border border-accent/30 bg-accent px-4 py-3 text-sm font-semibold text-black transition-colors hover:bg-[#aee600] active:scale-[0.98]"
+              >
+                {copy.confirmTodayPlanYes}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

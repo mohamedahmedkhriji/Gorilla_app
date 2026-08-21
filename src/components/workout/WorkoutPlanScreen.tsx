@@ -140,9 +140,9 @@ type TargetMuscleDisplay = {
   score: number;
 };
 
-const INACTIVE_MUSCLE_FILL = 'rgb(22 34 64)';
-const PRIMARY_MUSCLE_FILL = '#DFFF72';
-const SECONDARY_MUSCLE_FILL = '#4F6F2A';
+const INACTIVE_MUSCLE_FILL = 'rgb(241 245 249)';
+const PRIMARY_MUSCLE_FILL = '#BBFF5C';
+const SECONDARY_MUSCLE_FILL = '#7EC623';
 
 const toHighlighterMuscles = (muscleName: string): Muscle[] => {
   const key = canonicalizeMuscleLabel(muscleName).toLowerCase();
@@ -219,11 +219,17 @@ function TargetMuscleBodyMaps({ muscles }: { muscles: TargetMuscleDisplay[] }) {
       </div>
       <div className="mt-3 flex flex-wrap items-center justify-center gap-4">
         <div className="flex items-center gap-1.5">
-          <div className="h-3 w-3 rounded-full bg-accent ring-2 ring-accent/20" />
+          <div
+            className="h-3 w-3 rounded-full ring-2 ring-white/20"
+            style={{ backgroundColor: PRIMARY_MUSCLE_FILL }}
+          />
           <span className="text-xs text-text-tertiary">Primary</span>
         </div>
         <div className="flex items-center gap-1.5">
-          <div className="h-3 w-3 rounded-full bg-[#4F6F2A]" />
+          <div
+            className="h-3 w-3 rounded-full"
+            style={{ backgroundColor: SECONDARY_MUSCLE_FILL }}
+          />
           <span className="text-xs text-text-tertiary">Secondary</span>
         </div>
       </div>
