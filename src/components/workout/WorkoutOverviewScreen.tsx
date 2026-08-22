@@ -1,6 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Header } from '../ui/Header';
-import { AgendaSection } from '../home/AgendaSection';
 import { HOME_CARD_OVERLAY_CLASS } from '../home/homeCardStyles';
 import { getBodyPartImage } from '../../services/bodyPartTheme';
 import { AppLanguage, LocalizedLanguageRecord, getActiveLanguage, normalizeLocalizedValue } from '../../services/language';
@@ -47,7 +46,6 @@ interface WorkoutOverviewScreenProps {
   } | null;
   userProgram?: any;
   assignmentHistory?: WorkoutAssignmentHistoryEntry[];
-  accountCreatedAt?: string | Date | null;
   loading?: boolean;
   error?: string | null;
 }
@@ -736,7 +734,6 @@ export function WorkoutOverviewScreen({
   recommendedWorkout = null,
   userProgram,
   assignmentHistory = [],
-  accountCreatedAt,
   loading = false,
   error = null,
 }: WorkoutOverviewScreenProps) {
@@ -983,20 +980,6 @@ export function WorkoutOverviewScreen({
       </div>
 
       <div className="px-4 sm:px-6 space-y-5">
-        <div data-coachmark-target="my_plan_agenda_card" className="space-y-3">
-          <div className={`text-xs text-text-tertiary ${isArabic ? 'text-right' : 'text-left'}`}>
-            {copy.agendaSubtitle}
-          </div>
-          <AgendaSection
-            userProgram={userProgram}
-            assignmentHistory={assignmentHistory}
-            accountCreatedAt={accountCreatedAt}
-            selectedWorkoutKey={selectableWorkouts.find((workout) => workout.isPickedForToday)?.key || ''}
-            isTodayPlanLocked={isTodayPlanLocked}
-            onPickWorkoutForToday={requestPickWorkoutForToday}
-          />
-        </div>
-
         <div className="space-y-3">
           <div className="flex items-center justify-between">
             <div className="text-sm font-semibold uppercase tracking-[0.14em] text-text-secondary">

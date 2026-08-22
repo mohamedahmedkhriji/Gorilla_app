@@ -5,9 +5,9 @@ import { getStoredAppUser, getStoredUserId, persistStoredUser } from '../../shar
 import { FriendsCard } from '../home/FriendsCard';
 import { CoachCard } from '../home/CoachCard';
 import { emojiRightArrow } from '../../services/emojiTheme';
-import { AppLanguage, getActiveLanguage, getStoredLanguage } from '../../services/language';
+import { AppLanguage, getActiveLanguage, getLanguageLocale, getStoredLanguage } from '../../services/language';
 interface ProfileScreenProps {
-  onNavigate: (screen: 'gym' | 'rank' | 'settings' | 'workout' | 'weeklyPlan' | 'posts' | 'friends' | 'coachList') => void;
+  onNavigate: (screen: 'gym' | 'rank' | 'settings' | 'workout' | 'weeklyPlan' | 'posts' | 'friends' | 'coachList' | 'exercises') => void;
   onLogout: () => void;
 }
 
@@ -16,6 +16,21 @@ interface CoachOption {
   name: string;
   email?: string;
 }
+
+type ProfileAgendaDay = {
+  dateKey: string;
+  weekday: string;
+  day: number;
+  workoutName: string;
+  status: 'done' | 'missed' | 'today' | 'upcoming' | 'rest';
+  activityLevel?: number;
+  setCount?: number;
+  sessionCount?: number;
+  exerciseCount?: number;
+  totalVolumeKg?: number;
+  isToday: boolean;
+  isTrainingDay: boolean;
+};
 
 const PROFILE_I18N = {
   en: {
@@ -56,6 +71,16 @@ const PROFILE_I18N = {
     requestSentPrefix: 'Request sent to',
     requestFailed: 'Failed to send request to coach.',
     coachFallbackName: 'Coach',
+    agendaTitle: 'Activity',
+    agendaSubtitle: 'last 12 months - by time trained',
+    done: 'Done',
+    todayAgenda: 'Today',
+    missed: 'Missed',
+    upcoming: 'Upcoming',
+    rest: 'Recovery',
+    noProgramAgenda: 'No active plan yet',
+    lessTime: 'Less time',
+    moreTime: 'More time',
   },
   ar: {
     memberSincePrefix: '\u0639\u0636\u0648 \u0645\u0646\u0630',
@@ -95,6 +120,16 @@ const PROFILE_I18N = {
     requestSentPrefix: '\u062a\u0645 \u0625\u0631\u0633\u0627\u0644 \u0627\u0644\u0637\u0644\u0628 \u0625\u0644\u0649',
     requestFailed: '\u0641\u0634\u0644 \u0625\u0631\u0633\u0627\u0644 \u0627\u0644\u0637\u0644\u0628 \u0625\u0644\u0649 \u0627\u0644\u0645\u062f\u0631\u0628.',
     coachFallbackName: '\u0645\u062f\u0631\u0628',
+    agendaTitle: '\u0627\u0644\u0646\u0634\u0627\u0637',
+    agendaSubtitle: '\u0622\u062e\u0631 12 \u0634\u0647\u0631\u0627\u064b - \u062d\u0633\u0628 \u0648\u0642\u062a \u0627\u0644\u062a\u062f\u0631\u064a\u0628',
+    done: '\u0645\u0643\u062a\u0645\u0644',
+    todayAgenda: '\u0627\u0644\u064a\u0648\u0645',
+    missed: '\u0641\u0627\u0626\u062a',
+    upcoming: '\u0642\u0627\u062f\u0645',
+    rest: '\u062a\u0639\u0627\u0641\u064d',
+    noProgramAgenda: '\u0644\u0627 \u062a\u0648\u062c\u062f \u062e\u0637\u0629 \u0646\u0634\u0637\u0629 \u0628\u0639\u062f',
+    lessTime: '\u0648\u0642\u062a \u0623\u0642\u0644',
+    moreTime: '\u0648\u0642\u062a \u0623\u0643\u062b\u0631',
   },
   it: {
     memberSincePrefix: 'Membro dal',
@@ -134,6 +169,16 @@ const PROFILE_I18N = {
     requestSentPrefix: 'Richiesta inviata a',
     requestFailed: 'Invio richiesta al coach non riuscito.',
     coachFallbackName: 'Coach',
+    agendaTitle: 'Attivita',
+    agendaSubtitle: 'ultimi 12 mesi - per tempo allenato',
+    done: 'Fatto',
+    todayAgenda: 'Oggi',
+    missed: 'Saltato',
+    upcoming: 'Prossimo',
+    rest: 'Recupero',
+    noProgramAgenda: 'Nessun piano attivo',
+    lessTime: 'Meno tempo',
+    moreTime: 'Piu tempo',
   },
   fr: {
     memberSincePrefix: 'Membre depuis',
@@ -173,6 +218,16 @@ const PROFILE_I18N = {
     requestSentPrefix: 'Demande envoyee a',
     requestFailed: 'Impossible d envoyer la demande au coach.',
     coachFallbackName: 'Coach',
+    agendaTitle: 'Activite',
+    agendaSubtitle: '12 derniers mois - par temps d entrainement',
+    done: 'Termine',
+    todayAgenda: 'Aujourd hui',
+    missed: 'Manque',
+    upcoming: 'A venir',
+    rest: 'Recuperation',
+    noProgramAgenda: 'Aucun plan actif',
+    lessTime: 'Moins',
+    moreTime: 'Plus',
   },
   de: {
     memberSincePrefix: 'Mitglied seit',
@@ -212,14 +267,21 @@ const PROFILE_I18N = {
     requestSentPrefix: 'Anfrage gesendet an',
     requestFailed: 'Anfrage an den Coach konnte nicht gesendet werden.',
     coachFallbackName: 'Coach',
+    agendaTitle: 'Aktivitaet',
+    agendaSubtitle: 'letzte 12 Monate - nach Trainingszeit',
+    done: 'Fertig',
+    todayAgenda: 'Heute',
+    missed: 'Verpasst',
+    upcoming: 'Geplant',
+    rest: 'Erholung',
+    noProgramAgenda: 'Noch kein aktiver Plan',
+    lessTime: 'Weniger',
+    moreTime: 'Mehr',
   },
 } as const;
 
 const profilePanelClassName =
   'relative overflow-hidden rounded-[28px] border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.06),rgba(255,255,255,0.015))] shadow-[0_20px_50px_-28px_rgba(0,0,0,0.85)] ring-1 ring-inset ring-white/[0.03] backdrop-blur-sm';
-
-const statCardClassName =
-  `${profilePanelClassName} px-3 py-4 text-center transition-all duration-300 hover:-translate-y-0.5 hover:border-white/15 active:scale-[0.985]`;
 
 const featureCardClassName =
   `${profilePanelClassName} group flex h-full cursor-pointer flex-col justify-between p-4 text-left transition-all duration-300 hover:-translate-y-1 active:scale-[0.985]`;
@@ -239,9 +301,8 @@ export function ProfileScreen({ onNavigate, onLogout }: ProfileScreenProps) {
   );
   const userId = Number(getStoredUserId() || parsedUserId || 0);
   const [profilePicture, setProfilePicture] = useState<string | null>(null);
-  const [completedExercises, setCompletedExercises] = useState(0);
-  const [rankPosition, setRankPosition] = useState(0);
-  const [rankTotalMembers, setRankTotalMembers] = useState(0);
+  const [profileAgendaDays, setProfileAgendaDays] = useState<ProfileAgendaDay[]>([]);
+  const [hasProfileAgendaProgram, setHasProfileAgendaProgram] = useState(false);
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
   const [isPlanChoiceOpen, setIsPlanChoiceOpen] = useState(false);
   const [isCoachPickerOpen, setIsCoachPickerOpen] = useState(false);
@@ -251,6 +312,7 @@ export function ProfileScreen({ onNavigate, onLogout }: ProfileScreenProps) {
   const [coachRequestingId, setCoachRequestingId] = useState<number | null>(null);
   const [language, setLanguage] = useState<AppLanguage>('en');
   const avatarInputRef = useRef<HTMLInputElement | null>(null);
+  const activityHeatmapScrollRef = useRef<HTMLDivElement | null>(null);
   const createdAt = user?.created_at || user?.createdAt;
   const copy = PROFILE_I18N[language as keyof typeof PROFILE_I18N] || PROFILE_I18N.en;
 
@@ -294,83 +356,26 @@ export function ProfileScreen({ onNavigate, onLogout }: ProfileScreenProps) {
       }
     };
 
-    const fetchProfileStats = async () => {
+    const fetchProfileAgenda = async () => {
       try {
-        const stats = await api.getProfileStats(userId);
-        const completedExercisesValue = Number(stats?.completedExercises || 0);
-        setCompletedExercises(Number.isFinite(completedExercisesValue) ? Math.max(0, completedExercisesValue) : 0);
-        let position = Number(
-          stats?.classification?.position
-          ?? stats?.rankPosition
-          ?? 0,
-        );
-        let totalMembers = Number(
-          stats?.classification?.total
-          ?? stats?.totalMembers
-          ?? 0,
-        );
-
-        // Fallback for older/inconsistent profile-stats payloads.
-        if ((!(position > 0) || !(totalMembers > 0)) && userId > 0) {
-          try {
-            const leaderboard = await api.getLeaderboard(userId, 'alltime');
-            const rows = Array.isArray(leaderboard?.leaderboard) ? leaderboard.leaderboard : [];
-            const getRowUserId = (row: any) =>
-              Number(row?.id ?? row?.userId ?? row?.user_id ?? 0);
-            const me = rows.find((row: any) => getRowUserId(row) === userId);
-            const rowIndex = rows.findIndex((row: any) => getRowUserId(row) === userId);
-            const fallbackRank = Number(
-              me?.rank
-              ?? me?.position
-              ?? (rowIndex >= 0 ? rowIndex + 1 : 0),
-            );
-            if (fallbackRank > 0) position = fallbackRank;
-            if (rows.length > 0) totalMembers = rows.length;
-
-            // If the current user is not present in leaderboard rows, estimate
-            // rank from all-time points so the UI still shows a numeric position.
-            if (!(position > 0) && rows.length > 0) {
-              const userPoints = Number(
-                stats?.totalPoints
-                ?? stats?.points
-                ?? 0,
-              );
-              const aheadCount = rows.filter((row: any) => {
-                const rowPoints = Number(
-                  row?.points
-                  ?? row?.total_points
-                  ?? row?.totalPoints
-                  ?? 0,
-                );
-                const rowUserId = getRowUserId(row);
-                return rowPoints > userPoints || (rowPoints === userPoints && rowUserId > 0 && rowUserId < userId);
-              }).length;
-              position = aheadCount + 1;
-            }
-          } catch {
-            // ignore fallback failure and keep base stats values
-          }
-        }
-
-        setRankPosition(position > 0 ? position : 0);
-        setRankTotalMembers(totalMembers > 0 ? totalMembers : 0);
-
+        const agenda = await api.getProfileAgenda(userId);
+        setProfileAgendaDays(Array.isArray(agenda?.days) ? agenda.days : []);
+        setHasProfileAgendaProgram(Boolean(agenda?.hasActiveProgram));
       } catch (error) {
-        console.error('Failed to load profile stats:', error);
-        setCompletedExercises(0);
-        setRankPosition(0);
-        setRankTotalMembers(0);
+        console.error('Failed to load profile agenda:', error);
+        setProfileAgendaDays([]);
+        setHasProfileAgendaProgram(false);
       }
     };
 
     fetchProfilePicture();
-    void fetchProfileStats();
+    void fetchProfileAgenda();
 
-    const statsRefresh = setInterval(() => {
-      void fetchProfileStats();
+    const agendaRefresh = setInterval(() => {
+      void fetchProfileAgenda();
     }, 15 * 1000);
 
-    return () => clearInterval(statsRefresh);
+    return () => clearInterval(agendaRefresh);
   }, [userId]);
 
   const handleImageUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -462,6 +467,81 @@ export function ProfileScreen({ onNavigate, onLogout }: ProfileScreenProps) {
       setCoachRequestingId(null);
     }
   };
+
+  const parseAgendaDate = (dateKey: string) => {
+    const date = new Date(`${dateKey}T12:00:00`);
+    return Number.isNaN(date.getTime()) ? null : date;
+  };
+
+  const formatAgendaDate = (day: ProfileAgendaDay) => {
+    const date = new Date(`${day.dateKey}T12:00:00`);
+    if (Number.isNaN(date.getTime())) return day.dateKey;
+    return date.toLocaleDateString(getLanguageLocale(language), {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+    });
+  };
+
+  const getAgendaStatusLabel = (status: ProfileAgendaDay['status']) => {
+    if (status === 'done') return copy.done;
+    if (status === 'missed') return copy.missed;
+    if (status === 'today') return copy.todayAgenda;
+    if (status === 'upcoming') return copy.upcoming;
+    return copy.rest;
+  };
+
+  const getHeatmapCellClasses = (day: ProfileAgendaDay | null) => {
+    if (!day) return 'bg-transparent';
+    const level = Math.max(0, Math.min(4, Math.round(Number(day.activityLevel || 0))));
+    const levelClasses = [
+      'bg-white/[0.075] border-white/[0.035]',
+      'bg-accent/20 border-accent/10',
+      'bg-accent/38 border-accent/20',
+      'bg-accent/65 border-accent/30',
+      'bg-accent border-accent/45 shadow-[0_0_10px_rgba(187,255,92,0.22)]',
+    ];
+    const todayClass = day.isToday ? ' ring-1 ring-accent ring-offset-1 ring-offset-[#1e1e22]' : '';
+    return `${levelClasses[level]}${todayClass}`;
+  };
+
+  const buildActivityWeeks = (days: ProfileAgendaDay[]) => {
+    if (!days.length) return [] as Array<Array<ProfileAgendaDay | null>>;
+
+    const firstDate = parseAgendaDate(days[0].dateKey);
+    const leadingEmptyDays = firstDate ? firstDate.getDay() : 0;
+    const cells: Array<ProfileAgendaDay | null> = [
+      ...Array.from({ length: leadingEmptyDays }, () => null),
+      ...days,
+    ];
+    while (cells.length % 7 !== 0) cells.push(null);
+
+    const weeks: Array<Array<ProfileAgendaDay | null>> = [];
+    for (let index = 0; index < cells.length; index += 7) {
+      weeks.push(cells.slice(index, index + 7));
+    }
+    return weeks;
+  };
+
+  const activityWeeks = buildActivityWeeks(profileAgendaDays);
+  const monthMarkers = activityWeeks
+    .map((week, weekIndex) => {
+      const firstDay = week.find(Boolean) as ProfileAgendaDay | undefined;
+      if (!firstDay) return null;
+      const date = parseAgendaDate(firstDay.dateKey);
+      if (!date || date.getDate() > 7) return null;
+      return {
+        weekIndex,
+        label: date.toLocaleDateString(getLanguageLocale(language), { month: 'short' }),
+      };
+    })
+    .filter(Boolean) as Array<{ weekIndex: number; label: string }>;
+
+  useEffect(() => {
+    const element = activityHeatmapScrollRef.current;
+    if (!element || !profileAgendaDays.length) return;
+    element.scrollLeft = element.scrollWidth;
+  }, [profileAgendaDays.length]);
   
   return (
     <div className="space-y-6 pb-24">
@@ -511,33 +591,84 @@ export function ProfileScreen({ onNavigate, onLogout }: ProfileScreenProps) {
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-3">
-        <button
-          data-coachmark-target="profile_exercises_card"
-          type="button"
-          onClick={() => onNavigate('weeklyPlan')}
-          className={statCardClassName}
+      <section
+        data-coachmark-target="profile_agenda_card"
+        className={`${profilePanelClassName} px-4 py-4`}
+      >
+        <div className="absolute inset-x-6 top-0 h-px bg-gradient-to-r from-transparent via-white/18 to-transparent" />
+        <div className="relative z-10 flex min-w-0 items-baseline gap-1.5">
+          <h2 className="text-xs font-medium text-text-primary">{copy.agendaTitle}</h2>
+          <span className="text-[10px] text-text-tertiary">-</span>
+          <p className="truncate text-[10px] font-medium text-text-tertiary">
+            {hasProfileAgendaProgram ? copy.agendaSubtitle : copy.noProgramAgenda}
+          </p>
+        </div>
+
+        <div
+          ref={activityHeatmapScrollRef}
+          className="relative z-10 mt-4 overflow-x-auto pb-1 scrollbar-hide"
         >
-          <div className="mx-auto mb-3 h-px w-10 bg-gradient-to-r from-transparent via-white/25 to-transparent" />
-          <div className="text-[23px] font-semibold tracking-[-0.04em] text-white">{completedExercises ?? '-'}</div>
-          <div className="mt-2 text-[10px] font-medium uppercase tracking-[0.16em] text-text-secondary">
-            {copy.exercises}
+          <div className="relative min-w-max">
+            <div className="relative h-4">
+              {monthMarkers.map((marker) => (
+                <span
+                  key={`${marker.weekIndex}-${marker.label}`}
+                  className="absolute top-0 text-[9px] font-medium text-text-tertiary"
+                  style={{ left: `${marker.weekIndex * 11}px` }}
+                >
+                  {marker.label}
+                </span>
+              ))}
+            </div>
+
+            <div className="flex gap-[3px]">
+              {activityWeeks.map((week, weekIndex) => (
+                <div key={`week-${weekIndex}`} className="flex flex-col gap-[3px]">
+                  {week.map((day, dayIndex) => (
+                    <button
+                      key={day?.dateKey || `empty-${weekIndex}-${dayIndex}`}
+                      type="button"
+                      disabled={!day}
+                      onClick={() => day && onNavigate('workout')}
+                      className={`h-2 w-2 rounded-[2px] border transition-transform duration-150 enabled:hover:scale-125 enabled:focus-visible:outline-none enabled:focus-visible:ring-1 enabled:focus-visible:ring-accent/70 ${getHeatmapCellClasses(day)}`}
+                      aria-label={
+                        day
+                          ? `${formatAgendaDate(day)} ${getAgendaStatusLabel(day.status)} ${Number(day.setCount || 0)} sets`
+                          : undefined
+                      }
+                      title={
+                        day
+                          ? `${formatAgendaDate(day)} - ${getAgendaStatusLabel(day.status)} - ${Number(day.setCount || 0)} sets`
+                          : undefined
+                      }
+                    />
+                  ))}
+                </div>
+              ))}
+            </div>
           </div>
-        </button>
-        <button
-          data-coachmark-target="profile_rank_card"
-          type="button"
-          onClick={() => onNavigate('rank')}
-          className={statCardClassName}
-        >
-          <div className="mx-auto mb-3 h-px w-10 bg-gradient-to-r from-transparent via-accent/40 to-transparent" />
-          <div className="text-[23px] font-semibold tracking-[-0.04em] text-white">{rankPosition > 0 ? `#${rankPosition}` : '0'}</div>
-          <div className="mt-2 text-[10px] font-medium uppercase tracking-[0.16em] text-text-secondary">
-            {copy.classification}
-          </div>
-          <div className="mt-1 text-[10px] font-medium text-text-tertiary">{copy.of} {Math.max(0, rankTotalMembers)}</div>
-        </button>
-      </div>
+        </div>
+
+        <div className="relative z-10 mt-3 flex items-center justify-end gap-1.5 text-[9px] font-medium text-text-tertiary">
+          <span>{copy.lessTime}</span>
+          {[0, 1, 2, 3, 4].map((level) => (
+            <span
+              key={level}
+              className={`h-2 w-2 rounded-[2px] border ${getHeatmapCellClasses({
+                dateKey: '',
+                weekday: '',
+                day: 0,
+                workoutName: '',
+                status: 'rest',
+                activityLevel: level,
+                isToday: false,
+                isTrainingDay: false,
+              })}`}
+            />
+          ))}
+          <span>{copy.moreTime}</span>
+        </div>
+      </section>
 
       <div className="grid grid-cols-2 gap-4">
         <FriendsCard

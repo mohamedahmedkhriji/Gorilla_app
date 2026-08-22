@@ -1469,19 +1469,6 @@ button:hover .neon-checkbox__box,
   }
 }
 
-.login-cyber-mark {
-  display: inline-flex;
-  flex: 0 0 auto;
-  width: 2.4rem;
-  height: 2.4rem;
-  align-items: center;
-  justify-content: center;
-  color: rgb(var(--color-accent));
-  background: rgb(var(--color-accent) / 0.1);
-  border: 1px solid rgb(var(--color-accent) / 0.22);
-  border-radius: 12px;
-}
-
 .login-cyber-label {
   color: rgb(var(--color-text-primary));
   font-size: 0.9rem;
@@ -2351,7 +2338,6 @@ button:hover .neon-checkbox__box,
 
 @supports not (clip-path: polygon(0 0, 100% 0, 100% 100%, 0 100%)) {
   .login-cyber-card,
-  .login-cyber-mark,
   .login-cyber-input,
   .login-cyber-download,
   .login-cyber-error,
@@ -2366,11 +2352,6 @@ button:hover .neon-checkbox__box,
   .login-cyber-card {
     border-radius: 18px;
     box-shadow: 0 14px 34px rgb(0 0 0 / 0.16);
-  }
-
-  .login-cyber-mark {
-    width: 2.35rem;
-    height: 2.35rem;
   }
 
   .login-cyber-input {
@@ -3539,5 +3520,114 @@ button:hover .neon-checkbox__box,
 
 #root .target-muscle-body-map.is-glitching .rbh polygon[style*='34, 197, 94'] {
   animation: muscleMapRecoveryGreenGlitch 3s steps(1, end) both;
+}
+
+#root .bodymap {
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 1.25rem;
+}
+
+#root .bodymap.recovery-bodymap {
+  gap: 1.25rem;
+}
+
+#root .bm-panel {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.25rem;
+  width: 8.75rem;
+  padding: 0.25rem;
+}
+
+#root .bm-v {
+  width: 100%;
+  height: auto;
+  max-height: 17.5rem;
+}
+
+#root .bm-v path {
+  stroke: rgb(var(--color-card));
+  stroke-width: 2.5;
+  stroke-linejoin: round;
+}
+
+#root .bm-sil,
+#root .bm-m.l0 {
+  fill: rgb(241 245 249);
+}
+
+#root .bm-m {
+  transition: fill 180ms ease, opacity 180ms ease;
+}
+
+#root .bm-m.l1 {
+  fill: #ef4444;
+}
+
+#root .bm-m.l2 {
+  fill: #f97316;
+}
+
+#root .bm-m.l3 {
+  fill: #eab308;
+}
+
+#root .bm-m.l4 {
+  fill: #22c55e;
+}
+
+#root .bm-m.sel {
+  stroke: rgb(var(--color-text-primary));
+  stroke-width: 7;
+}
+
+#root .bodymap.tappable .bm-m {
+  cursor: pointer;
+}
+
+#root .bm-label {
+  color: rgb(var(--color-text-tertiary));
+  font-size: 0.75rem;
+  line-height: 1rem;
+}
+
+#root .bm-ph {
+  height: 17.5rem;
+  width: min(100%, 19rem);
+}
+
+#root .target-muscle-body-map.is-glitching .bm-m.l1 {
+  animation: muscleMapRecoveryRedGlitch 3s steps(1, end) both;
+}
+
+#root .target-muscle-body-map.is-glitching .bm-m.l2 {
+  animation: muscleMapRecoveryOrangeGlitch 3s steps(1, end) both;
+}
+
+#root .target-muscle-body-map.is-glitching .bm-m.l3 {
+  animation: muscleMapRecoveryYellowGlitch 3s steps(1, end) both;
+}
+
+#root .target-muscle-body-map.is-glitching .bm-m.l4 {
+  animation: muscleMapRecoveryGreenGlitch 3s steps(1, end) both;
+}
+
+#root .target-bodymap .bm-m.l3 {
+  fill: #7ec623;
+}
+
+#root .target-bodymap .bm-m.l4 {
+  fill: #bbff5c;
+}
+
+#root .target-muscle-body-map.is-glitching .target-bodymap .bm-m.l3 {
+  animation: muscleMapSecondaryGlitch 3s steps(1, end) both;
+}
+
+#root .target-muscle-body-map.is-glitching .target-bodymap .bm-m.l4 {
+  animation: muscleMapPrimaryGlitch 3s steps(1, end) both;
 }
 

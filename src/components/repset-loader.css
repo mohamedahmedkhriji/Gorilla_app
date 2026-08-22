@@ -1,0 +1,113 @@
+:root {
+  --repset-bg: #090e17;
+  --repset-lime: #bbff5c;
+  --repset-white: #f3f8ff;
+}
+
+.repset-loader {
+  min-height: 100dvh;
+  display: grid;
+  place-items: center;
+  padding: max(24px, env(safe-area-inset-top)) 24px max(24px, env(safe-area-inset-bottom));
+  overflow: hidden;
+  background: var(--repset-bg);
+}
+
+.repset-loader__content {
+  display: grid;
+  justify-items: center;
+  gap: 14px;
+}
+
+.repset-loader__logo {
+  position: relative;
+  width: clamp(92px, 27vw, 128px);
+  aspect-ratio: 274 / 828;
+  animation: repset-cycle 3.6s ease-in-out infinite;
+}
+
+.repset-loader__logo img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: fill;
+}
+
+.repset-loader__drawing {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  clip-path: inset(100% 0 0 0);
+  animation: repset-draw-logo 3.6s cubic-bezier(.65, 0, .35, 1) infinite;
+}
+
+.repset-loader__beam {
+  position: absolute;
+  z-index: 3;
+  left: -28%;
+  right: -28%;
+  top: 0;
+  height: 2px;
+  border-radius: 99px;
+  opacity: 0;
+  background: var(--repset-lime);
+  box-shadow: 0 0 5px var(--repset-lime), 0 0 18px var(--repset-lime), 0 7px 22px rgb(187 255 92 / 38%);
+  animation: repset-scan 3.6s cubic-bezier(.65, 0, .35, 1) infinite;
+}
+
+.repset-loader__wordmark {
+  width: clamp(190px, 58vw, 270px);
+  height: auto;
+  overflow: visible;
+  opacity: 1;
+  filter: drop-shadow(0 0 8px rgb(187 255 92 / 38%));
+}
+
+.repset-loader__wordmark text {
+  fill: none;
+  stroke: url(#repset-gradient);
+  stroke-width: 2.2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-dasharray: 520;
+  stroke-dashoffset: 520;
+  font: 900 58px/1 Arial, Helvetica, sans-serif;
+  letter-spacing: -3px;
+  paint-order: stroke fill;
+  animation: repset-draw-word 2.1s cubic-bezier(.65, 0, .35, 1) infinite;
+}
+
+@keyframes repset-draw-logo {
+  0%, 10% { clip-path: inset(100% 0 0 0); }
+  58%, 88% { clip-path: inset(0 0 0 0); }
+  100% { clip-path: inset(0 0 100% 0); }
+}
+
+@keyframes repset-scan {
+  0%, 9% { top: 0; opacity: 0; }
+  12% { top: 0; opacity: 1; }
+  58% { top: calc(100% - 2px); opacity: 1; }
+  62%, 100% { top: calc(100% - 2px); opacity: 0; }
+}
+
+@keyframes repset-draw-word {
+  0% { stroke-dashoffset: 520; }
+  55%, 78% { stroke-dashoffset: 0; }
+  100% { stroke-dashoffset: -520; }
+}
+
+@keyframes repset-cycle {
+  0%, 100% { transform: scale(.98); }
+  68%, 88% { transform: scale(1); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .repset-loader__logo,
+  .repset-loader__drawing,
+  .repset-loader__beam,
+  .repset-loader__wordmark text { animation: none; }
+  .repset-loader__drawing { clip-path: inset(0); }
+  .repset-loader__beam { display: none; }
+  .repset-loader__wordmark text { stroke-dashoffset: 0; fill: transparent; }
+}

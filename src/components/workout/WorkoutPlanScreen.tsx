@@ -1,6 +1,5 @@
 import React, { useEffect, useMemo, useState, useCallback, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import BodyHighlighter, { IExerciseData, Muscle } from 'react-body-highlighter';
 import { Header } from '../ui/Header';
 import { api } from '../../services/api';
 import { CalendarX2, Check, Play, Search, TriangleAlert, X } from 'lucide-react';
@@ -11,6 +10,11 @@ import { formatWorkoutDayLabel, normalizeWorkoutDayKey } from '../../services/wo
 import { stripExercisePrefix } from '../../services/exerciseName';
 import { translateProgramText } from '../../services/programI18n';
 import { useScreenshotProtection } from '../../shared/useScreenshotProtection';
+import BodyMap from '../BodyMap';
+import {
+  BodyMapLevels,
+  recoveryMuscleToBodyMapSlugs,
+} from '../../lib/muscle-map';
 
 interface WorkoutPlanScreenProps {
   onBack: () => void;
@@ -102,13 +106,14 @@ const canonicalizeMuscleLabel = (value: unknown) => {
   if (key.includes('bicep') || key.includes('biceps brachii') || key.includes('brachialis')) return 'Biceps';
   if (key.includes('chest') || key.includes('pect')) return 'Chest';
   if (key.includes('back') || key.includes('lat') || key.includes('trap') || key.includes('rhomboid')) return 'Back';
+  if (key.includes('adductor') || key.includes('adducteur') || key.includes('addicteur') || key.includes('inner thigh')) return 'Adductors';
   if (key.includes('quad') || key.includes('thigh')) return 'Quadriceps';
   if (key.includes('hamstring')) return 'Hamstrings';
-  if (key.includes('calf')) return 'Calves';
+  if (key.includes('calf') || key.includes('calves') || key.includes('claves') || key.includes('mollet') || key.includes('moulet')) return 'Calves';
+  if (key.includes('shin') || key.includes('tibia') || key.includes('tibialis') || key.includes('tibial')) return 'Tibialis';
   if (key.includes('abs') || key.includes('core') || key.includes('oblique') || key.includes('abdom')) return 'Abs';
   if (key.includes('glute')) return 'Glutes';
-  if (key.includes('forearm') || key.includes('grip') || key.includes('wrist')) return 'Forearms';
-  if (key.includes('adductor')) return 'Adductors';
+  if (key.includes('forearm') || key.includes('fore arm') || key.includes('avant bra') || key.includes('avant bras') || key.includes('avant-bras') || key.includes('grip') || key.includes('wrist')) return 'Forearms';
 
   return toTitleCase(key);
 };
@@ -140,48 +145,28 @@ type TargetMuscleDisplay = {
   score: number;
 };
 
-const INACTIVE_MUSCLE_FILL = 'rgb(241 245 249)';
 const PRIMARY_MUSCLE_FILL = '#BBFF5C';
 const SECONDARY_MUSCLE_FILL = '#7EC623';
 
-const toHighlighterMuscles = (muscleName: string): Muscle[] => {
-  const key = canonicalizeMuscleLabel(muscleName).toLowerCase();
-
-  if (key === 'chest') return ['chest'];
-  if (key === 'triceps') return ['triceps'];
-  if (key === 'biceps') return ['biceps'];
-  if (key === 'abs') return ['abs', 'obliques'];
-  if (key === 'quadriceps') return ['quadriceps'];
-  if (key === 'hamstrings') return ['hamstring'];
-  if (key === 'calves') return ['calves'];
-  if (key === 'glutes') return ['gluteal'];
-  if (key === 'forearms') return ['forearm'];
-  if (key === 'adductors') return ['adductor', 'abductors'];
-  if (key === 'front shoulders') return ['front-deltoids'];
-  if (key === 'side shoulders') return ['front-deltoids', 'back-deltoids'];
-  if (key === 'rear shoulders') return ['back-deltoids'];
-  if (key === 'shoulders') return ['front-deltoids', 'back-deltoids'];
-  if (key === 'back') return ['trapezius', 'upper-back', 'lower-back'];
-
-  return [];
-};
-
-const toBodyHighlighterData = (muscles: TargetMuscleDisplay[]): IExerciseData[] => {
+const toTargetBodyMapLevels = (muscles: TargetMuscleDisplay[]): BodyMapLevels => {
   const maxScore = Math.max(...muscles.map((muscle) => muscle.score), 0);
+  const levels: BodyMapLevels = {};
 
-  return muscles
-    .map((muscle) => ({
-      name: muscle.name,
-      muscles: toHighlighterMuscles(muscle.name),
-      frequency: muscle.score >= maxScore ? 2 : 1,
-    }))
-    .filter((entry) => entry.muscles.length > 0);
+  muscles.forEach((muscle) => {
+    const slugs = recoveryMuscleToBodyMapSlugs(canonicalizeMuscleLabel(muscle.name));
+    const level = muscle.score >= maxScore ? 4 : 3;
+
+    slugs.forEach((slug) => {
+      levels[slug] = Math.max(levels[slug] || 0, level);
+    });
+  });
+
+  return levels;
 };
 
 function TargetMuscleBodyMaps({ muscles }: { muscles: TargetMuscleDisplay[] }) {
   const [isGlitching, setIsGlitching] = useState(true);
-  const bodyHighlighterData = toBodyHighlighterData(muscles);
-  const highlighterStyle = { width: '8.75rem', padding: '0.25rem' };
+  const bodyMapLevels = toTargetBodyMapLevels(muscles);
   const animationKey = muscles.map((muscle) => `${muscle.name}:${muscle.score}`).join('|');
 
   useEffect(() => {
@@ -195,28 +180,7 @@ function TargetMuscleBodyMaps({ muscles }: { muscles: TargetMuscleDisplay[] }) {
 
   return (
     <div className={`target-muscle-body-map surface-card rounded-2xl border border-white/10 p-4 ${isGlitching ? 'is-glitching' : ''}`}>
-      <div className="flex items-start justify-center gap-5 sm:gap-8">
-        <div className="flex flex-col items-center gap-1">
-          <BodyHighlighter
-            bodyColor={INACTIVE_MUSCLE_FILL}
-            data={bodyHighlighterData}
-            highlightedColors={[SECONDARY_MUSCLE_FILL, PRIMARY_MUSCLE_FILL]}
-            style={highlighterStyle}
-            type="anterior"
-          />
-          <span className="text-xs text-text-tertiary">Front</span>
-        </div>
-        <div className="flex flex-col items-center gap-1">
-          <BodyHighlighter
-            bodyColor={INACTIVE_MUSCLE_FILL}
-            data={bodyHighlighterData}
-            highlightedColors={[SECONDARY_MUSCLE_FILL, PRIMARY_MUSCLE_FILL]}
-            style={highlighterStyle}
-            type="posterior"
-          />
-          <span className="text-xs text-text-tertiary">Back</span>
-        </div>
-      </div>
+      <BodyMap className="target-bodymap" levels={bodyMapLevels} />
       <div className="mt-3 flex flex-wrap items-center justify-center gap-4">
         <div className="flex items-center gap-1.5">
           <div
@@ -253,6 +217,7 @@ const AR_MUSCLE_LABELS: Record<string, string> = {
   forearms: 'الساعد',
   glutes: 'الألوية',
   adductors: 'المقربات',
+  tibialis: 'الظنبوبية',
   general: 'عام',
 };
 
@@ -282,6 +247,7 @@ const IT_MUSCLE_LABELS: Record<string, string> = {
   forearms: 'Avambracci',
   glutes: 'Glutei',
   adductors: 'Adduttori',
+  tibialis: 'Tibiale',
   general: 'Generale',
 };
 
@@ -301,6 +267,7 @@ const DE_MUSCLE_LABELS: Record<string, string> = {
   forearms: 'Unterarme',
   glutes: 'Gesaess',
   adductors: 'Adduktoren',
+  tibialis: 'Schienbein',
   general: 'Allgemein',
 };
 

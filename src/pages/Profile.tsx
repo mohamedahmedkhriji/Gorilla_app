@@ -436,20 +436,10 @@ export function Profile({
         padding: 8,
       },
       {
-        id: 'exercises',
-        targetId: 'profile_exercises_card',
-        title: profileCoachmarkCopy.exercisesTitle,
-        body: profileCoachmarkCopy.exercisesBody,
-        placement: 'bottom',
-        shape: 'rounded',
-        padding: 8,
-        cornerRadius: 16,
-      },
-      {
-        id: 'rank',
-        targetId: 'profile_rank_card',
-        title: profileCoachmarkCopy.rankTitle,
-        body: profileCoachmarkCopy.rankBody,
+        id: 'agenda',
+        targetId: 'profile_agenda_card',
+        title: profileCoachmarkCopy.daysLeftTitle,
+        body: profileCoachmarkCopy.daysLeftBody,
         placement: 'bottom',
         shape: 'rounded',
         padding: 8,
@@ -664,9 +654,13 @@ export function Profile({
     if (guidedTourActive) onGuidedTourDismiss?.();
   };
 
-  const handleNavigate = (screen: 'gym' | 'rank' | 'settings' | 'workout' | 'weeklyPlan' | 'customPlanBuilder' | 'posts' | 'friends' | 'coachList') => {
+  const handleNavigate = (screen: 'gym' | 'rank' | 'settings' | 'workout' | 'weeklyPlan' | 'customPlanBuilder' | 'posts' | 'friends' | 'coachList' | 'exercises') => {
     if (screen === 'workout') {
       onNavigateTab?.('workout');
+      return;
+    }
+    if (screen === 'exercises') {
+      onNavigateTab?.('home', 'exercises');
       return;
     }
     if (screen === 'weeklyPlan') {

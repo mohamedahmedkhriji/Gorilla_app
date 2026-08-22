@@ -1622,6 +1622,11 @@ export const api = {
     );
   },
 
+  getProfileAgenda: async (userId: number) => {
+    const res = await fetch(`${API_URL}/profile/${userId}/agenda`);
+    return parseApiResponse(res, 'Failed to fetch profile agenda');
+  },
+
   chatCompletions: async (payload: {
     messages: any[];
     model?: string;

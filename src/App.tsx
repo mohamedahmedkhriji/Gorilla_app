@@ -8,7 +8,7 @@ import { Blogs } from './pages/Blogs';
 import { LoginPage } from './pages/LoginPage';
 import { PublicLandingPage } from './pages/PublicLandingPage';
 import { TabBar } from './components/ui/TabBar';
-import { SplashScreen } from './components/ui/SplashScreen';
+import { RepSetLoader } from './components/RepSetLoader';
 import { ScrollToTop } from './components/ui/ScrollToTop';
 import { ScreenTransition, getNavigationDirection } from './components/ui/ScreenTransition';
 import { OPEN_PICKED_WORKOUT_PLAN } from './services/workoutNavigation';
@@ -28,6 +28,7 @@ import {
 } from './services/coachmarks';
 
 type GuidedTourStage = 'home' | 'my_plan' | 'blogs' | 'progress' | 'profile' | 'done';
+type HomeRequestedView = 'exercises';
 
 const GUIDED_TOUR_ORDER: GuidedTourStage[] = ['home', 'my_plan', 'blogs', 'progress', 'profile'];
 const TAB_NAV_ORDER = ['home', 'workout', 'blogs', 'progress', 'profile'] as const;
@@ -43,6 +44,7 @@ export function App() {
   const [tabResetSignal, setTabResetSignal] = useState(0);
   const [workoutDay, setWorkoutDay] = useState('Push Day');
   const [workoutLaunchMode, setWorkoutLaunchMode] = useState<'default' | 'picked-plan'>('default');
+  const [homeRequestedView, setHomeRequestedView] = useState<HomeRequestedView | null>(null);
   const [guidedTourStage, setGuidedTourStage] = useState<GuidedTourStage>('done');
   const previousTabRef = useRef(activeTab);
   const scrollRootRef = useRef<HTMLDivElement | null>(null);
@@ -258,6 +260,11 @@ export function App() {
 
   const handleNavigate = (tab: string, day?: string) => {
     setActiveTab(tab);
+    if (tab === 'home' && day === 'exercises') {
+      setHomeRequestedView('exercises');
+      return;
+    }
+
     if (tab === 'workout' && day === OPEN_PICKED_WORKOUT_PLAN) {
       setWorkoutLaunchMode('picked-plan');
       return;
@@ -278,8 +285,30 @@ export function App() {
     setTabResetSignal((prev) => prev + 1);
   };
 
+  const handleLoginSuccess = useCallback(() => {
+    const user = getStoredAppUser();
+    const userId = getStoredUserId();
+    if (user?.role === 'user' && userId) {
+      setIsLoggedIn(true);
+      setHasOnboarded(Boolean(user.onboarding_completed));
+      setShowLogin(false);
+    }
+  }, []);
+
+  const handleSplashComplete = useCallback(() => {
+    setActiveTab('home');
+    setIsSplashComplete(true);
+  }, []);
+
+  useEffect(() => {
+    if (isSplashComplete) return undefined;
+
+    const splashTimer = window.setTimeout(handleSplashComplete, 3500);
+    return () => window.clearTimeout(splashTimer);
+  }, [handleSplashComplete, isSplashComplete]);
+
   if (!isSplashComplete) {
-    return <SplashScreen ready={isSessionReady} onComplete={() => setIsSplashComplete(true)} />;
+    return <RepSetLoader />;
   }
 
   if (!isSessionReady) {
@@ -292,17 +321,7 @@ export function App() {
     }
 
     return (
-      <LoginPage
-        onLoginSuccess={() => {
-          const user = getStoredAppUser();
-          const userId = getStoredUserId();
-          if (user?.role === 'user' && userId) {
-            setIsLoggedIn(true);
-            setHasOnboarded(Boolean(user.onboarding_completed));
-            setShowLogin(false);
-          }
-        }}
-      />
+      <LoginPage onLoginSuccess={handleLoginSuccess} />
     );
   }
 
@@ -317,6 +336,8 @@ export function App() {
           <Home
             onNavigate={handleNavigate}
             onTabBarVisibilityChange={setIsTabBarVisible}
+            requestedView={homeRequestedView}
+            onRequestedViewConsumed={() => setHomeRequestedView(null)}
             resetSignal={tabResetSignal}
             guidedTourActive={guidedTourStage === 'home'}
             onGuidedTourComplete={() => completeGuidedTourStage('home')}
@@ -369,6 +390,8 @@ export function App() {
           <Home
             onNavigate={handleNavigate}
             onTabBarVisibilityChange={setIsTabBarVisible}
+            requestedView={homeRequestedView}
+            onRequestedViewConsumed={() => setHomeRequestedView(null)}
             resetSignal={tabResetSignal}
             guidedTourActive={guidedTourStage === 'home'}
             onGuidedTourComplete={() => completeGuidedTourStage('home')}

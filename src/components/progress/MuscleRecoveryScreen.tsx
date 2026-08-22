@@ -1,10 +1,16 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
-import BodyHighlighter, { IExerciseData, Muscle } from 'react-body-highlighter';
 import { Header } from '../ui/Header';
 import { SlidersHorizontal, ChevronDown, X } from 'lucide-react';
 import { api } from '../../services/api';
 import { AppLanguage, getActiveLanguage, getStoredLanguage, normalizeLocalizedValue } from '../../services/language';
+import BodyMap from '../BodyMap';
+import {
+  BodyMapLevels,
+  BodyMapMuscle,
+  recoveryMuscleToBodyMapSlugs,
+  recoveryScoreToBodyMapLevel,
+} from '../../lib/muscle-map';
 
 interface MuscleRecoveryScreenProps {
   onBack: () => void;
@@ -39,7 +45,9 @@ const DEFAULT_MUSCLES: MuscleRecoveryItem[] = [
   { muscle: 'biceps', name: 'Biceps', score: 100, lastWorkout: null },
   { muscle: 'triceps', name: 'Triceps', score: 100, lastWorkout: null },
   { muscle: 'forearms', name: 'Forearms', score: 100, lastWorkout: null },
+  { muscle: 'adductors', name: 'Adductors', score: 100, lastWorkout: null },
   { muscle: 'calves', name: 'Calves', score: 100, lastWorkout: null },
+  { muscle: 'tibialis', name: 'Tibialis', score: 100, lastWorkout: null },
   { muscle: 'abs', name: 'Abs', score: 100, lastWorkout: null },
 ];
 
@@ -53,7 +61,9 @@ const AR_MUSCLE_LABELS: Record<string, string> = {
   biceps: 'البايسبس',
   triceps: 'الترايسبس',
   forearms: 'الساعد',
+  adductors: 'المقربات',
   calves: 'السمانة',
+  tibialis: 'الظنبوبية',
   abs: 'البطن',
 };
 
@@ -67,7 +77,9 @@ const IT_MUSCLE_LABELS: Record<string, string> = {
   biceps: 'Bicipiti',
   triceps: 'Tricipiti',
   forearms: 'Avambracci',
+  adductors: 'Adduttori',
   calves: 'Polpacci',
+  tibialis: 'Tibiale',
   abs: 'Addome',
 };
 
@@ -81,7 +93,9 @@ const DE_MUSCLE_LABELS: Record<string, string> = {
   biceps: 'Bizeps',
   triceps: 'Trizeps',
   forearms: 'Unterarme',
+  adductors: 'Adduktoren',
   calves: 'Waden',
+  tibialis: 'Schienbein',
   abs: 'Bauch',
 };
 
@@ -95,7 +109,9 @@ const FR_MUSCLE_LABELS: Record<string, string> = {
   biceps: 'Biceps',
   triceps: 'Triceps',
   forearms: 'Avant-bras',
+  adductors: 'Adducteurs',
   calves: 'Mollets',
+  tibialis: 'Tibial',
   abs: 'Abdos',
 };
 
@@ -359,8 +375,23 @@ const normalizeRecoveryMuscleKey = (value: unknown) => {
   if (key.includes('shoulder') || key.includes('delt')) return 'shoulders';
   if (key.includes('bicep')) return 'biceps';
   if (key.includes('tricep')) return 'triceps';
-  if (key.includes('forearm')) return 'forearms';
-  if (key.includes('calf')) return 'calves';
+  if (
+    key.includes('forearm')
+    || key.includes('fore arm')
+    || key.includes('avant bra')
+    || key.includes('avant bras')
+    || key.includes('avant-bras')
+    || key.includes('wrist')
+    || key.includes('grip')
+  ) return 'forearms';
+  if (
+    key.includes('adductor')
+    || key.includes('adducteur')
+    || key.includes('addicteur')
+    || key.includes('inner thigh')
+  ) return 'adductors';
+  if (key.includes('calf') || key.includes('calves') || key.includes('claves') || key.includes('mollet') || key.includes('moulet')) return 'calves';
+  if (key.includes('shin') || key.includes('tibia') || key.includes('tibialis') || key.includes('tibial')) return 'tibialis';
   return key;
 };
 
@@ -436,65 +467,29 @@ const mergeRecoveryWithDefaults = (incoming: MuscleRecoveryItem[] = []): MuscleR
   });
 };
 
-const INACTIVE_MUSCLE_FILL = 'rgb(241 245 249)';
-const RECOVERY_COLORS = ['#ef4444', '#f97316', '#eab308', '#22c55e'];
+const toBodyMapLevels = (muscles: MuscleRecoveryItem[]): BodyMapLevels => {
+  const levels: BodyMapLevels = {};
 
-const toBodyHighlighterMuscles = (muscleName: string): Muscle[] => {
-  const key = normalizeRecoveryMuscleKey(muscleName);
+  muscles.forEach((muscle) => {
+    const muscleKeys = [muscle.muscle, muscle.name]
+      .map((value) => String(value || '').trim())
+      .filter(Boolean);
+    const slugs = Array.from(new Set(muscleKeys.flatMap((value) => recoveryMuscleToBodyMapSlugs(value))));
+    const level = recoveryScoreToBodyMapLevel(Number(muscle.score || 0));
 
-  if (key.includes('chest')) return ['chest'];
-  if (key.includes('back')) return ['trapezius', 'upper-back', 'lower-back'];
-  if (key.includes('shoulder') || key.includes('delt')) return ['front-deltoids', 'back-deltoids'];
-  if (key.includes('tricep')) return ['triceps'];
-  if (key.includes('bicep')) return ['biceps'];
-  if (key.includes('forearm')) return ['forearm'];
-  if (key.includes('quad')) return ['quadriceps'];
-  if (key.includes('hamstring')) return ['hamstring'];
-  if (key.includes('glute')) return ['gluteal'];
-  if (key.includes('calf')) return ['calves'];
-  if (
-    key.includes('abs')
-    || key.includes('abdominal')
-    || key.includes('oblique')
-    || key.includes('core')
-    || key.includes('stomach')
-    || key.includes('six pack')
-  ) {
-    return ['abs', 'obliques'];
-  }
+    slugs.forEach((slug) => {
+      levels[slug] = Math.max(levels[slug] || 0, level);
+    });
+  });
 
-  return [];
+  return levels;
 };
-
-const getRecoveryFrequency = (score: number) => {
-  if (score < 40) return 1;
-  if (score < 70) return 2;
-  if (score < 90) return 3;
-  return 4;
-};
-
-const toBodyHighlighterData = (muscles: MuscleRecoveryItem[]): IExerciseData[] => (
-  muscles
-    .map((muscle) => {
-      const muscleKeys = [muscle.muscle, muscle.name]
-        .map((value) => String(value || '').trim())
-        .filter(Boolean);
-      const highlighterMuscles = Array.from(
-        new Set(muscleKeys.flatMap((value) => toBodyHighlighterMuscles(value))),
-      );
-
-      return {
-        name: muscle.name,
-        muscles: highlighterMuscles,
-        frequency: getRecoveryFrequency(Number(muscle.score || 0)),
-      };
-    })
-    .filter((entry) => entry.muscles.length > 0)
-);
 
 function RecoveryBodyMap({
   muscles,
   labels,
+  selected,
+  onMuscleSelect,
 }: {
   muscles: MuscleRecoveryItem[];
   labels: {
@@ -502,10 +497,11 @@ function RecoveryBodyMap({
     almost: string;
     ready: string;
   };
+  selected?: BodyMapMuscle | null;
+  onMuscleSelect?: (muscle: BodyMapMuscle) => void;
 }) {
   const [isGlitching, setIsGlitching] = useState(true);
-  const bodyHighlighterData = toBodyHighlighterData(muscles);
-  const highlighterStyle = { width: '8.75rem', padding: '0.25rem' };
+  const bodyMapLevels = toBodyMapLevels(muscles);
   const animationKey = muscles.map((muscle) => `${muscle.muscle}:${muscle.name}:${muscle.score}`).join('|');
 
   useEffect(() => {
@@ -519,28 +515,12 @@ function RecoveryBodyMap({
 
   return (
     <div className={`target-muscle-body-map surface-card rounded-2xl border border-white/10 p-4 ${isGlitching ? 'is-glitching' : ''}`}>
-      <div className="flex items-start justify-center gap-5 sm:gap-8">
-        <div className="flex flex-col items-center gap-1">
-          <BodyHighlighter
-            bodyColor={INACTIVE_MUSCLE_FILL}
-            data={bodyHighlighterData}
-            highlightedColors={RECOVERY_COLORS}
-            style={highlighterStyle}
-            type="anterior"
-          />
-          <span className="text-xs text-text-tertiary">Front</span>
-        </div>
-        <div className="flex flex-col items-center gap-1">
-          <BodyHighlighter
-            bodyColor={INACTIVE_MUSCLE_FILL}
-            data={bodyHighlighterData}
-            highlightedColors={RECOVERY_COLORS}
-            style={highlighterStyle}
-            type="posterior"
-          />
-          <span className="text-xs text-text-tertiary">Back</span>
-        </div>
-      </div>
+      <BodyMap
+        className="recovery-bodymap"
+        levels={bodyMapLevels}
+        selected={selected}
+        onMuscle={onMuscleSelect}
+      />
       <div className="mt-4 grid grid-cols-2 gap-2 text-xs text-text-tertiary sm:grid-cols-4">
         <div className="flex items-center gap-1.5">
           <span className="h-3 w-3 rounded-full bg-[#ef4444]" />
@@ -565,6 +545,8 @@ function RecoveryBodyMap({
 
 export function MuscleRecoveryScreen({ onBack }: MuscleRecoveryScreenProps) {
   const [language, setLanguage] = useState<AppLanguage>(() => getActiveLanguage(getStoredLanguage()));
+  const [selectedBodyMapMuscle, setSelectedBodyMapMuscle] = useState<BodyMapMuscle | null>(null);
+  const [selectedRecoveryMuscleKey, setSelectedRecoveryMuscleKey] = useState<string | null>(null);
   const isArabic = language === 'ar';
   const legacyCopy = {
     title: isArabic ? 'تعافي العضلات' : 'Muscle Recovery',
@@ -599,7 +581,7 @@ export function MuscleRecoveryScreen({ onBack }: MuscleRecoveryScreenProps) {
   };
   void legacyCopy;
   const copy = RECOVERY_I18N[language as keyof typeof RECOVERY_I18N] || RECOVERY_I18N.en;
-  const [muscleRecoveries, setMuscleRecoveries] = useState<MuscleRecoveryItem[]>([]);
+  const [muscleRecoveries, setMuscleRecoveries] = useState<MuscleRecoveryItem[]>(() => mergeRecoveryWithDefaults([]));
   const [showFactors, setShowFactors] = useState(false);
   const [factors, setFactors] = useState<RecoveryFactorsState>({
     sleepHours: '7',
@@ -644,7 +626,7 @@ export function MuscleRecoveryScreen({ onBack }: MuscleRecoveryScreenProps) {
     try {
       const user = JSON.parse(localStorage.getItem('appUser') || localStorage.getItem('user') || '{}');
       if (!user.id) {
-        setMuscleRecoveries([]);
+        setMuscleRecoveries(mergeRecoveryWithDefaults([]));
         return;
       }
 
@@ -654,7 +636,7 @@ export function MuscleRecoveryScreen({ onBack }: MuscleRecoveryScreenProps) {
       setError('');
     } catch (loadError) {
       console.error('Failed to load recovery status:', loadError);
-      setMuscleRecoveries([]);
+      setMuscleRecoveries(mergeRecoveryWithDefaults([]));
       setError(loadError instanceof Error ? loadError.message : copy.loadError);
     }
   };
@@ -805,6 +787,37 @@ export function MuscleRecoveryScreen({ onBack }: MuscleRecoveryScreenProps) {
     return localizedMuscleLabels[key] || value;
   };
 
+  const isSelectedRecoveryMuscle = (muscle: MuscleRecoveryItem) => {
+    if (!selectedRecoveryMuscleKey) return false;
+    return normalizeRecoveryMuscleKey(muscle.muscle) === selectedRecoveryMuscleKey
+      || normalizeRecoveryMuscleKey(muscle.name) === selectedRecoveryMuscleKey;
+  };
+
+  const sortRecoveryCards = (muscles: MuscleRecoveryItem[]) => [...muscles].sort((a, b) => {
+    const aSelected = isSelectedRecoveryMuscle(a);
+    const bSelected = isSelectedRecoveryMuscle(b);
+    if (aSelected !== bSelected) return aSelected ? -1 : 1;
+    return a.score - b.score;
+  });
+
+  const handleBodyMapMuscleSelect = (muscle: BodyMapMuscle) => {
+    setSelectedBodyMapMuscle(muscle);
+
+    const selectedRecoveryMuscle = recoveryPageMuscles.find((item) => {
+      const slugs = new Set([
+        ...recoveryMuscleToBodyMapSlugs(item.muscle),
+        ...recoveryMuscleToBodyMapSlugs(item.name),
+      ]);
+      return slugs.has(muscle);
+    });
+
+    setSelectedRecoveryMuscleKey(
+      selectedRecoveryMuscle
+        ? normalizeRecoveryMuscleKey(selectedRecoveryMuscle.muscle || selectedRecoveryMuscle.name)
+        : null,
+    );
+  };
+
   const renderRecoverySection = (
     title: string,
     muscles: MuscleRecoveryItem[],
@@ -847,20 +860,20 @@ export function MuscleRecoveryScreen({ onBack }: MuscleRecoveryScreenProps) {
     );
   };
 
-  const visibleMuscles = muscleRecoveries.filter((m) => (
-    !!m.lastWorkout
-    || Number(m.hoursNeeded || 0) > 0
-    || Number(m.hoursElapsed || 0) > 0
-    || Number(m.plannedTodaySetUnits || 0) > 0
-    || Number(m.completedTodaySetUnits || 0) > 0
-    || Number(m.plannedWeekSetUnits || 0) > 0
-    || Number(m.completedWeekSetUnits || 0) > 0
-  ));
-  const readyMuscles = visibleMuscles.filter((m) => m.score >= 90).sort((a, b) => a.score - b.score);
-  const almostReadyMuscles = visibleMuscles
-    .filter((m) => m.score >= 70 && m.score < 90)
-    .sort((a, b) => a.score - b.score);
-  const damagedMuscles = visibleMuscles.filter((m) => m.score < 70).sort((a, b) => a.score - b.score);
+  const recoveryPageMuscles = muscleRecoveries.length ? muscleRecoveries : mergeRecoveryWithDefaults([]);
+  const readyMuscles = sortRecoveryCards(recoveryPageMuscles.filter((m) => m.score >= 90));
+  const almostReadyMuscles = sortRecoveryCards(recoveryPageMuscles.filter((m) => m.score >= 70 && m.score < 90));
+  const damagedMuscles = sortRecoveryCards(recoveryPageMuscles.filter((m) => m.score < 70));
+  const recoverySections = [
+    { title: copy.damaged, muscles: damagedMuscles, showLastTrained: true },
+    { title: copy.almost, muscles: almostReadyMuscles, showLastTrained: true },
+    { title: copy.ready, muscles: readyMuscles, showLastTrained: false },
+  ].sort((a, b) => {
+    const aHasSelected = a.muscles.some(isSelectedRecoveryMuscle);
+    const bHasSelected = b.muscles.some(isSelectedRecoveryMuscle);
+    if (aHasSelected !== bHasSelected) return aHasSelected ? -1 : 1;
+    return 0;
+  });
   const emptyStateMessage = language === 'ar'
     ? 'أكمل يوم تدريب لعرض العضلات التي تم تدريبها ونسبة التعافي الخاصة بها.'
     : language === 'it'
@@ -986,26 +999,30 @@ export function MuscleRecoveryScreen({ onBack }: MuscleRecoveryScreenProps) {
           </div>
         )}
 
-        {!error && visibleMuscles.length === 0 && (
+        {!error && recoveryPageMuscles.length === 0 && (
           <div className="rounded-xl border border-white/10 bg-card/60 px-4 py-5 text-sm text-text-secondary">
             {emptyStateMessage}
           </div>
         )}
 
-        {!error && visibleMuscles.length > 0 && (
+        {!error && recoveryPageMuscles.length > 0 && (
           <RecoveryBodyMap
-            muscles={visibleMuscles}
+            muscles={recoveryPageMuscles}
             labels={{
               damaged: copy.damaged,
               almost: copy.almost,
               ready: copy.ready,
             }}
+            selected={selectedBodyMapMuscle}
+            onMuscleSelect={handleBodyMapMuscleSelect}
           />
         )}
 
-        {renderRecoverySection(copy.damaged, damagedMuscles)}
-        {renderRecoverySection(copy.almost, almostReadyMuscles)}
-        {renderRecoverySection(copy.ready, readyMuscles, false)}
+        {recoverySections.map((section) => (
+          <React.Fragment key={section.title}>
+            {renderRecoverySection(section.title, section.muscles, section.showLastTrained)}
+          </React.Fragment>
+        ))}
       </div>
     </div>);
 

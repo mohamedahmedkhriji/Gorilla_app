@@ -1688,7 +1688,9 @@ const TRACKED_MUSCLES = [
   'Biceps',
   'Triceps',
   'Forearms',
+  'Adductors',
   'Calves',
+  'Tibialis',
   'Abs',
 ];
 
@@ -1706,7 +1708,9 @@ const BASE_RECOVERY_TIMES = {
   Biceps: 36,
   Triceps: 36,
   Forearms: 24,
+  Adductors: 48,
   Calves: 36,
+  Tibialis: 24,
   Abs: 24,
   Core: 24,
 };
@@ -1721,7 +1725,9 @@ const MUSCLE_WEIGHTS = {
   biceps: 0.8,
   triceps: 0.8,
   forearms: 0.6,
+  adductors: 0.9,
   calves: 0.8,
+  tibialis: 0.55,
   abs: 0.7,
 };
 
@@ -1980,14 +1986,16 @@ const normalizeCatalogRecoveryMuscle = (muscle = '') => {
 
   if (/(chest|pector)/.test(key)) return 'Chest';
   if (/(lat|back|trap|rhomboid|erector|spine|middle back|lower back|upper back)/.test(key)) return 'Back';
+  if (/(adductor|inner thigh)/.test(key)) return 'Adductors';
+  if (/(tibialis|tibial|shin)/.test(key)) return 'Tibialis';
   if (/(quad|quadricep|thigh|leg extension|front leg)/.test(key)) return 'Quadriceps';
   if (/(glute|hip thrust|glute bridge)/.test(key)) return 'Glutes';
-  if (/(hamstring|adductor|abductor|posterior chain)/.test(key)) return 'Hamstrings';
+  if (/(hamstring|abductor|posterior chain)/.test(key)) return 'Hamstrings';
   if (/(shoulder|delt)/.test(key)) return 'Shoulders';
   if (/(bicep)/.test(key)) return 'Biceps';
   if (/(tricep)/.test(key)) return 'Triceps';
-  if (/(forearm|wrist|grip)/.test(key)) return 'Forearms';
-  if (/(calf)/.test(key)) return 'Calves';
+  if (/(forearm|fore arm|avant bra|avant bras|avant-bras|wrist|grip)/.test(key)) return 'Forearms';
+  if (/(calf|calves|claves|mollet|moulet)/.test(key)) return 'Calves';
   if (/(abs|abdom|core|oblique|serratus)/.test(key)) return 'Abs';
   if (/legs?/.test(key)) return 'Quadriceps';
 
@@ -7691,12 +7699,14 @@ const getCatalogFallbackBaseMuscle = (value) => {
   if (/(chest|pector|pec|serratus)/.test(key)) return 'Chest';
   if (/(tricep)/.test(key)) return 'Triceps';
   if (/(bicep|brachialis|brachioradialis)/.test(key)) return 'Biceps';
-  if (/(forearm|wrist|grip)/.test(key)) return 'Forearms';
+  if (/(forearm|fore arm|avant bra|avant bras|avant-bras|wrist|grip)/.test(key)) return 'Forearms';
   if (/(latissimus|\blats?\b|rhomboid|trap|trapezius|back|erector|spinae|teres major|middle back|upper back|lower back)/.test(key)) return 'Back';
+  if (/(adductor|inner thigh)/.test(key)) return 'Adductors';
+  if (/(tibialis|tibial|shin)/.test(key)) return 'Tibialis';
   if (/(quad|quadricep|thigh)/.test(key)) return 'Quadriceps';
-  if (/(hamstring|adductor|abductor)/.test(key)) return 'Hamstrings';
+  if (/(hamstring|abductor)/.test(key)) return 'Hamstrings';
   if (/(glute)/.test(key)) return 'Glutes';
-  if (/(calf)/.test(key)) return 'Calves';
+  if (/(calf|calves|claves|mollet|moulet)/.test(key)) return 'Calves';
   if (/(abs|abdom|core|oblique)/.test(key)) return 'Abs';
 
   const grouped = normalizeCatalogMuscleGroup(value);
@@ -11553,6 +11563,203 @@ router.get('/user/:userId/recent-activity', async (req, res) => {
     });
   } catch (error) {
     return res.status(500).json({ error: error.message });
+  }
+});
+
+router.get('/profile/:userId/agenda', requireAuth(), requireUserAccess('userId', { allowSelf: true, allowAssignedCoach: true, allowGymOwner: true }), async (req, res) => {
+  try {
+    const userId = toNumber(req.params.userId);
+    if (!userId || userId <= 0) {
+      return res.status(400).json({ error: 'Invalid userId' });
+    }
+
+    const today = new Date();
+    const startDate = new Date(today.getFullYear(), today.getMonth(), today.getDate() - 364);
+    const endDate = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+    const startKey = formatDateISO(startDate);
+    const endKey = formatDateISO(endDate);
+
+    const [assignmentRows] = await pool.execute(
+      `SELECT pa.id, pa.program_id, pa.start_date, p.name, p.days_per_week, p.cycle_weeks
+       FROM program_assignments pa
+       JOIN programs p ON p.id = pa.program_id
+       WHERE pa.user_id = ? AND pa.status = 'active'
+       ORDER BY pa.created_at DESC
+       LIMIT 1`,
+      [userId],
+    );
+
+    const assignment = assignmentRows[0] || null;
+    let workouts = [];
+
+    if (assignment) {
+      const [workoutRows] = await pool.execute(
+        `SELECT id, workout_name, workout_type, day_order, day_name, estimated_duration_minutes
+         FROM workouts
+         WHERE program_id = ?
+         ORDER BY day_order ASC`,
+        [assignment.program_id],
+      );
+      workouts = normalizeProgramWorkouts(workoutRows, assignment.days_per_week);
+    }
+
+    const columns = await getWorkoutSessionColumns();
+    const sessionDateColumn = columns.has('completed_at')
+      ? 'completed_at'
+      : (columns.has('created_at') ? 'created_at' : null);
+
+    const completedDateKeys = new Set();
+    const activityByDate = new Map();
+    if (sessionDateColumn) {
+      const [completedSessionRows] = await pool.execute(
+        `SELECT
+           DATE(${sessionDateColumn}) AS completed_date,
+           COUNT(*) AS session_count
+         FROM workout_sessions
+         WHERE user_id = ?
+           ${columns.has('status') ? `AND LOWER(TRIM(status)) = 'completed'` : ''}
+           AND DATE(${sessionDateColumn}) BETWEEN ? AND ?
+         GROUP BY DATE(${sessionDateColumn})`,
+        [userId, startKey, endKey],
+      );
+      completedSessionRows.forEach((row) => {
+        if (!row?.completed_date) return;
+        const dateKey = formatDateISO(row.completed_date);
+        const sessionCount = Math.max(0, Number(row.session_count || 0));
+        completedDateKeys.add(dateKey);
+        activityByDate.set(dateKey, {
+          sessionCount,
+          setCount: 0,
+          exerciseCount: 0,
+          totalVolumeKg: 0,
+        });
+      });
+    }
+
+    const [completedSetRows] = await pool.execute(
+      `SELECT
+         DATE(created_at) AS completed_date,
+         COUNT(*) AS set_count,
+         COUNT(DISTINCT LOWER(TRIM(exercise_name))) AS exercise_count,
+         ROUND(
+           SUM(
+             CASE
+               WHEN weight IS NOT NULL AND reps IS NOT NULL THEN (weight * reps)
+               ELSE 0
+             END
+           ),
+           2
+         ) AS total_volume_kg
+       FROM workout_sets
+       WHERE user_id = ?
+         AND completed = 1
+         AND DATE(created_at) BETWEEN ? AND ?
+       GROUP BY DATE(created_at)`,
+      [userId, startKey, endKey],
+    );
+    completedSetRows.forEach((row) => {
+      if (!row?.completed_date) return;
+      const dateKey = formatDateISO(row.completed_date);
+      const existing = activityByDate.get(dateKey) || {};
+      completedDateKeys.add(dateKey);
+      activityByDate.set(dateKey, {
+        sessionCount: Math.max(0, Number(existing.sessionCount || 0)),
+        setCount: Math.max(0, Number(row.set_count || 0)),
+        exerciseCount: Math.max(0, Number(row.exercise_count || 0)),
+        totalVolumeKg: Math.max(0, Number(row.total_volume_kg || 0)),
+      });
+    });
+
+    const activityValues = Array.from(activityByDate.values())
+      .map((value) => Math.max(Number(value.setCount || 0), Number(value.sessionCount || 0)))
+      .filter((value) => value > 0);
+    const maxActivity = Math.max(1, ...activityValues);
+
+    const getActivityLevel = (value) => {
+      const activity = Math.max(0, Number(value || 0));
+      if (activity <= 0) return 0;
+      const ratio = activity / maxActivity;
+      if (ratio <= 0.25) return 1;
+      if (ratio <= 0.5) return 2;
+      if (ratio <= 0.75) return 3;
+      return 4;
+    };
+
+    const missedRows = await getMissedProgramDayRows({ userId, dateFrom: startKey, dateTo: endKey });
+    const missedByDate = new Map(
+      missedRows.map((row) => [formatDateISO(row.missed_date), row]),
+    );
+
+    const weekdaysByDaysPerWeek = {
+      2: ['monday', 'thursday'],
+      3: ['monday', 'wednesday', 'friday'],
+      4: ['monday', 'tuesday', 'thursday', 'friday'],
+      5: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday'],
+      6: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'],
+    };
+    const daysPerWeek = Math.max(2, Math.min(6, Math.round(Number(assignment?.days_per_week || workouts.length || 4))));
+    const fallbackWeekdays = weekdaysByDaysPerWeek[daysPerWeek] || weekdaysByDaysPerWeek[4];
+    const workoutByDayName = new Map();
+
+    workouts.forEach((workout, index) => {
+      const order = Number(workout?.day_order || index + 1);
+      const fallbackDayName = fallbackWeekdays[((order - 1) % fallbackWeekdays.length + fallbackWeekdays.length) % fallbackWeekdays.length];
+      const dayKey = String(workout?.day_name || fallbackDayName || '').trim().toLowerCase();
+      if (dayKey && !workoutByDayName.has(dayKey)) {
+        workoutByDayName.set(dayKey, workout);
+      }
+    });
+
+    const todayKey = formatDateISO(today);
+    const days = [];
+    for (let index = 0; index < 365; index += 1) {
+      const date = new Date(startDate);
+      date.setDate(startDate.getDate() + index);
+      const dateKey = formatDateISO(date);
+      const dayKey = date.toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase();
+      const workout = workoutByDayName.get(dayKey) || null;
+      const activity = activityByDate.get(dateKey) || {};
+      const activityValue = Math.max(Number(activity.setCount || 0), Number(activity.sessionCount || 0));
+      const isDone = completedDateKeys.has(dateKey);
+      const missed = missedByDate.get(dateKey) || null;
+      const isToday = dateKey === todayKey;
+      const isPast = dateKey < todayKey;
+      const isTrainingDay = Boolean(workout || missed);
+      const status = isDone
+        ? 'done'
+        : missed
+          ? 'missed'
+          : isToday
+            ? 'today'
+            : isPast
+              ? (isTrainingDay ? 'missed' : 'rest')
+              : (isTrainingDay ? 'upcoming' : 'rest');
+
+      days.push({
+        dateKey,
+        weekday: dayKey,
+        day: date.getDate(),
+        workoutId: workout?.id || missed?.workout_id || null,
+        workoutName: String(workout?.workout_name || missed?.workout_name || (isTrainingDay ? 'Workout' : 'Recovery')).trim(),
+        status,
+        activityLevel: getActivityLevel(activityValue),
+        setCount: Math.max(0, Number(activity.setCount || 0)),
+        sessionCount: Math.max(0, Number(activity.sessionCount || 0)),
+        exerciseCount: Math.max(0, Number(activity.exerciseCount || 0)),
+        totalVolumeKg: Math.max(0, Number(activity.totalVolumeKg || 0)),
+        isToday,
+        isTrainingDay,
+      });
+    }
+
+    return res.json({
+      days,
+      hasActiveProgram: Boolean(assignment),
+      completedDateKeys: Array.from(completedDateKeys),
+      missedDateKeys: Array.from(missedByDate.keys()),
+    });
+  } catch (error) {
+    return res.status(500).json({ error: error.message || 'Failed to load profile agenda' });
   }
 });
 

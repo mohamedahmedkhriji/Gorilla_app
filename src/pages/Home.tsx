@@ -49,6 +49,8 @@ import { HOME_CARD_OVERLAY_CLASS } from '../components/home/homeCardStyles';
 interface HomeProps {
   onNavigate: (tab: string, day?: string) => void;
   onTabBarVisibilityChange?: (visible: boolean) => void;
+  requestedView?: 'exercises' | null;
+  onRequestedViewConsumed?: () => void;
   resetSignal?: number;
   guidedTourActive?: boolean;
   onGuidedTourComplete?: () => void;
@@ -548,6 +550,8 @@ const HOME_VIEW_ORDER: HomeView[] = [
 export function Home({
   onNavigate,
   onTabBarVisibilityChange,
+  requestedView = null,
+  onRequestedViewConsumed,
   resetSignal = 0,
   guidedTourActive = false,
   onGuidedTourComplete,
@@ -1274,6 +1278,12 @@ export function Home({
     setSelectedCoach(null);
     setSelectedFriend(null);
   }, [resetSignal]);
+
+  useEffect(() => {
+    if (!requestedView) return;
+    setView(requestedView);
+    onRequestedViewConsumed?.();
+  }, [onRequestedViewConsumed, requestedView]);
 
   useEffect(() => {
     if (view !== 'main' || isHomeLoading) return;

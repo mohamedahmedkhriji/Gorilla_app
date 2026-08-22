@@ -1282,18 +1282,6 @@ export function Workout({
         cornerRadius: 20,
       },
       {
-        id: 'agenda',
-        targetId: 'my_plan_agenda_card',
-        title: isArabic ? 'هذه أجندة الأسبوع' : 'This is your week agenda',
-        body: isArabic
-          ? 'هنا يمكنك رؤية أيام التمرين والراحة ولمس أي يوم لمعاينته بسرعة.'
-          : 'Here you can quickly spot training and rest days, and tap any day for a quick preview.',
-        placement: 'bottom',
-        shape: 'rounded',
-        padding: 8,
-        cornerRadius: 20,
-      },
-      {
         id: 'week_card',
         targetId: 'my_plan_first_week_card',
         title: isArabic ? 'كل بطاقة هي حصة' : 'Each card is one session',
@@ -2782,7 +2770,6 @@ export function Workout({
           }
           userProgram={userProgram}
           assignmentHistory={workoutAssignmentHistory}
-          accountCreatedAt={currentUser?.created_at || currentUser?.createdAt || null}
           loading={loading}
           error={loadError}
         />

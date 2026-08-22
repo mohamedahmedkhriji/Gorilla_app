@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Dumbbell, Mail, Lock, Eye, EyeOff, Sparkles, ShieldCheck, Zap, Download } from 'lucide-react';
+import { Mail, Lock, Eye, EyeOff, Sparkles, ShieldCheck, Zap, Download } from 'lucide-react';
 import { api } from '../services/api';
 import { persistStoredUserSession } from '../shared/authStorage';
 import { AppLanguage, getActiveLanguage, getStoredLanguage, pickLanguage } from '../services/language';
@@ -242,9 +242,6 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
         <section className="login-cyber-card px-5 py-6 md:px-7 md:py-8">
           <div className="login-cyber-header text-center md:text-left mb-6">
             <div className="flex items-center justify-center md:justify-start gap-2">
-              <span className="login-cyber-mark">
-                <Dumbbell size={24} />
-              </span>
               <h2 className="font-brand text-[2.2rem] leading-none text-white">RepSet</h2>
             </div>
             <p className="text-text-secondary mt-2 text-sm">{copy.tagline}</p>
