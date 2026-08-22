@@ -182,3 +182,102 @@ export const resetCoachmarkProgress = (options: CoachmarkStorageOptions) =>
       defaultSeenSteps: options.defaultSeenSteps,
     }),
   );
+
+export const resetAllCoachmarkProgress = (userScope = getCoachmarkUserScope()) => {
+  resetCoachmarkProgress({
+    tourId: APP_COACHMARK_TOUR_ID,
+    version: APP_COACHMARK_VERSION,
+    userScope,
+    defaultSeenSteps: {
+      home: false,
+      my_plan: false,
+      blogs: false,
+      progress: false,
+      profile: false,
+    },
+  });
+  resetCoachmarkProgress({
+    tourId: HOME_COACHMARK_TOUR_ID,
+    version: HOME_COACHMARK_VERSION,
+    userScope,
+    defaultSeenSteps: {
+      header: false,
+      today_gradient: false,
+      today_plan: false,
+      rank: false,
+      recovery: false,
+      nutrition: false,
+      exercises: false,
+      books: false,
+    },
+  });
+  resetCoachmarkProgress({
+    tourId: BLOGS_COACHMARK_TOUR_ID,
+    version: BLOGS_COACHMARK_VERSION,
+    userScope,
+    defaultSeenSteps: {
+      create: false,
+      intro: false,
+      filters: false,
+      first_post: false,
+    },
+  });
+  resetCoachmarkProgress({
+    tourId: PROGRESS_COACHMARK_TOUR_ID,
+    version: PROGRESS_COACHMARK_VERSION,
+    userScope,
+    defaultSeenSteps: {
+      page_intro: false,
+      strength_chart: false,
+      consistency: false,
+      total_volume: false,
+      muscle_distribution: false,
+      report: false,
+      overload: false,
+    },
+  });
+  resetCoachmarkProgress({
+    tourId: PROFILE_COACHMARK_TOUR_ID,
+    version: PROFILE_COACHMARK_VERSION,
+    userScope,
+    defaultSeenSteps: {
+      settings: false,
+      notifications: false,
+      avatar: false,
+      photo_upload: false,
+      agenda: false,
+      friends: false,
+      coach: false,
+      posts: false,
+      plan_builder: false,
+      logout: false,
+    },
+  });
+  resetCoachmarkProgress({
+    tourId: WORKOUT_PLAN_COACHMARK_TOUR_ID,
+    version: WORKOUT_PLAN_COACHMARK_VERSION,
+    userScope,
+    defaultSeenSteps: {
+      back: false,
+      current_day_gradient: false,
+      current_day: false,
+      week_card: false,
+      action_button: false,
+    },
+  });
+  resetCoachmarkProgress({
+    tourId: WORKOUT_TRACKER_COACHMARK_TOUR_ID,
+    version: WORKOUT_TRACKER_COACHMARK_VERSION,
+    userScope,
+    defaultSeenSteps: {
+      back: false,
+      remove: false,
+      timer: false,
+      start_stop: false,
+      video: false,
+      analytics: false,
+      set_row: false,
+      add_set: false,
+    },
+  });
+};

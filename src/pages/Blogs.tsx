@@ -250,7 +250,7 @@ const getPostedAgo = (createdAt: string | null, copy: BlogCopy, short = false) =
 };
 
 const hasCoachmarkTargets = (steps: CoachmarkStep[]) =>
-  typeof document !== 'undefined' && steps.every((step) => Boolean(document.querySelector(`[data-coachmark-target="${step.targetId}"]`)));
+  typeof document !== 'undefined' && steps.some((step) => Boolean(document.querySelector(`[data-coachmark-target="${step.targetId}"]`)));
 
 const normalizeReactionType = (value: unknown): ReactionType | null => {
   const normalized = String(value || '').trim().toLowerCase();

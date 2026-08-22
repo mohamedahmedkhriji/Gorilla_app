@@ -56,7 +56,7 @@ const PROGRESS_VIEW_ORDER = [
 
 const hasCoachmarkTargets = (steps: CoachmarkStep[]) =>
   typeof document !== 'undefined'
-  && steps.every((step) => Boolean(document.querySelector(`[data-coachmark-target="${step.targetId}"]`)));
+  && steps.some((step) => Boolean(document.querySelector(`[data-coachmark-target="${step.targetId}"]`)));
 
 export function Progress({
   resetSignal = 0,

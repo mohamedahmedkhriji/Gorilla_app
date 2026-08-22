@@ -338,7 +338,7 @@ const parseWorkoutExercisesPayload = (raw: unknown, isExtra: boolean) => {
 
 const hasCoachmarkTargets = (steps: CoachmarkStep[]) =>
   typeof document !== 'undefined'
-  && steps.every((step) => Boolean(document.querySelector(`[data-coachmark-target="${step.targetId}"]`)));
+  && steps.some((step) => Boolean(document.querySelector(`[data-coachmark-target="${step.targetId}"]`)));
 
 const normalizeMuscleName = (value = '') =>
   String(value || '')
@@ -1082,7 +1082,6 @@ export function Workout({
         back: false,
         current_day_gradient: false,
         current_day: false,
-        agenda: false,
         week_card: false,
         action_button: false,
       },

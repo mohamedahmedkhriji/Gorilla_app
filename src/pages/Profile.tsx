@@ -43,7 +43,7 @@ interface ProfileProps {
 
 const hasCoachmarkTargets = (steps: CoachmarkStep[]) =>
   typeof document !== 'undefined'
-  && steps.every((step) => Boolean(document.querySelector(`[data-coachmark-target="${step.targetId}"]`)));
+  && steps.some((step) => Boolean(document.querySelector(`[data-coachmark-target="${step.targetId}"]`)));
 
 const PROFILE_PAGE_I18N = {
   en: {
@@ -179,9 +179,7 @@ export function Profile({
         notifications: false,
         avatar: false,
         photo_upload: false,
-        exercises: false,
-        rank: false,
-        days_left: false,
+        agenda: false,
         friends: false,
         coach: false,
         posts: false,

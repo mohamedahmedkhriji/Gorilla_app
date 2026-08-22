@@ -5,21 +5,7 @@ import { applyTheme, getActiveTheme, getStoredTheme } from '../../services/theme
 import { AppLanguage, applyLanguage, getActiveLanguage, getStoredLanguage, normalizeLocalizedValue } from '../../services/language';
 import { api } from '../../services/api';
 import {
-  APP_COACHMARK_TOUR_ID,
-  APP_COACHMARK_VERSION,
-  BLOGS_COACHMARK_TOUR_ID,
-  BLOGS_COACHMARK_VERSION,
-  HOME_COACHMARK_TOUR_ID,
-  HOME_COACHMARK_VERSION,
-  PROFILE_COACHMARK_TOUR_ID,
-  PROFILE_COACHMARK_VERSION,
-  PROGRESS_COACHMARK_TOUR_ID,
-  PROGRESS_COACHMARK_VERSION,
-  resetCoachmarkProgress,
-  WORKOUT_PLAN_COACHMARK_TOUR_ID,
-  WORKOUT_PLAN_COACHMARK_VERSION,
-  WORKOUT_TRACKER_COACHMARK_TOUR_ID,
-  WORKOUT_TRACKER_COACHMARK_VERSION,
+  resetAllCoachmarkProgress,
 } from '../../services/coachmarks';
 import { persistStoredUser } from '../../shared/authStorage';
 import { useScrollToTopOnChange } from '../../shared/scroll';
@@ -1256,98 +1242,7 @@ export function SettingsScreen({ onBack, onOpenGym, onOpenHomeTour }: SettingsSc
   };
 
   const handleOpenHomeTour = () => {
-    resetCoachmarkProgress({
-      tourId: APP_COACHMARK_TOUR_ID,
-      version: APP_COACHMARK_VERSION,
-      defaultSeenSteps: {
-        home: false,
-        my_plan: false,
-        blogs: false,
-        progress: false,
-        profile: false,
-      },
-    });
-    resetCoachmarkProgress({
-      tourId: HOME_COACHMARK_TOUR_ID,
-      version: HOME_COACHMARK_VERSION,
-      defaultSeenSteps: {
-        header: false,
-        today_gradient: false,
-        today_plan: false,
-        rank: false,
-        recovery: false,
-        nutrition: false,
-        exercises: false,
-        books: false,
-      },
-    });
-    resetCoachmarkProgress({
-      tourId: BLOGS_COACHMARK_TOUR_ID,
-      version: BLOGS_COACHMARK_VERSION,
-      defaultSeenSteps: {
-        create: false,
-        intro: false,
-        filters: false,
-        first_post: false,
-      },
-    });
-    resetCoachmarkProgress({
-      tourId: PROGRESS_COACHMARK_TOUR_ID,
-      version: PROGRESS_COACHMARK_VERSION,
-      defaultSeenSteps: {
-        page_intro: false,
-        strength_chart: false,
-        consistency: false,
-        total_volume: false,
-        muscle_distribution: false,
-        report: false,
-        overload: false,
-      },
-    });
-    resetCoachmarkProgress({
-      tourId: PROFILE_COACHMARK_TOUR_ID,
-      version: PROFILE_COACHMARK_VERSION,
-      defaultSeenSteps: {
-        settings: false,
-        notifications: false,
-        avatar: false,
-        photo_upload: false,
-        exercises: false,
-        rank: false,
-        days_left: false,
-        friends: false,
-        coach: false,
-        posts: false,
-        plan_builder: false,
-        logout: false,
-      },
-    });
-    resetCoachmarkProgress({
-      tourId: WORKOUT_PLAN_COACHMARK_TOUR_ID,
-      version: WORKOUT_PLAN_COACHMARK_VERSION,
-      defaultSeenSteps: {
-        back: false,
-        current_day_gradient: false,
-        current_day: false,
-        agenda: false,
-        week_card: false,
-        action_button: false,
-      },
-    });
-    resetCoachmarkProgress({
-      tourId: WORKOUT_TRACKER_COACHMARK_TOUR_ID,
-      version: WORKOUT_TRACKER_COACHMARK_VERSION,
-      defaultSeenSteps: {
-        back: false,
-        remove: false,
-        timer: false,
-        start_stop: false,
-        video: false,
-        analytics: false,
-        set_row: false,
-        add_set: false,
-      },
-    });
+    resetAllCoachmarkProgress();
     onOpenHomeTour?.();
   };
 

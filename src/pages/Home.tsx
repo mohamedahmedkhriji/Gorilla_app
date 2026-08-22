@@ -511,7 +511,7 @@ const loadTodayExerciseSnapshotState = (keys: { workoutDate: string; exerciseSna
 
 const hasCoachmarkTargets = (steps: CoachmarkStep[]) =>
   typeof document !== 'undefined'
-  && steps.every((step) => Boolean(document.querySelector(`[data-coachmark-target="${step.targetId}"]`)));
+  && steps.some((step) => Boolean(document.querySelector(`[data-coachmark-target="${step.targetId}"]`)));
 
 type HomeView =
 'main' |

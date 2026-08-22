@@ -196,6 +196,7 @@ export function CoachmarkOverlay({
   onTargetAction,
 }: CoachmarkOverlayProps) {
   const tooltipRef = useRef<HTMLDivElement | null>(null);
+  const missingTargetAdvanceRef = useRef<string | null>(null);
   const [targetRect, setTargetRect] = useState<MeasuredRect | null>(null);
   const [tooltipHeight, setTooltipHeight] = useState(DEFAULT_TOOLTIP_HEIGHT);
 
@@ -220,6 +221,47 @@ export function CoachmarkOverlay({
       window.removeEventListener('scroll', updateRect, true);
     };
   }, [isOpen, step]);
+
+  useEffect(() => {
+    if (!isOpen || !step || typeof window === 'undefined') {
+      missingTargetAdvanceRef.current = null;
+      return undefined;
+    }
+
+    const stepKey = `${step.id}:${step.targetId}:${stepIndex}`;
+    let cancelled = false;
+    let attempts = 0;
+    let timer: number | null = null;
+
+    const checkTarget = () => {
+      if (cancelled) return;
+      if (queryTarget(step.targetId)) {
+        missingTargetAdvanceRef.current = null;
+        return;
+      }
+
+      attempts += 1;
+      if (attempts >= 6) {
+        if (missingTargetAdvanceRef.current === stepKey) return;
+        missingTargetAdvanceRef.current = stepKey;
+        if (stepIndex >= totalSteps - 1) {
+          onFinish();
+        } else {
+          onNext();
+        }
+        return;
+      }
+
+      timer = window.setTimeout(checkTarget, 125);
+    };
+
+    timer = window.setTimeout(checkTarget, 125);
+
+    return () => {
+      cancelled = true;
+      if (timer !== null) window.clearTimeout(timer);
+    };
+  }, [isOpen, onFinish, onNext, step?.id, step?.targetId, stepIndex, totalSteps]);
 
   useEffect(() => {
     if (!isOpen || !step) return;

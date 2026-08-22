@@ -25,6 +25,7 @@ import {
   getCoachmarkUserScope,
   patchCoachmarkProgress,
   readCoachmarkProgress,
+  resetAllCoachmarkProgress,
 } from './services/coachmarks';
 
 type GuidedTourStage = 'home' | 'my_plan' | 'blogs' | 'progress' | 'profile' | 'done';
@@ -258,6 +259,15 @@ export function App() {
     setGuidedTourStage('done');
   }, [guidedTourOptions]);
 
+  const restartGuidedTour = useCallback(() => {
+    resetAllCoachmarkProgress(coachmarkScope);
+    setWorkoutLaunchMode('default');
+    setHomeRequestedView(null);
+    setActiveTab('home');
+    setTabResetSignal((current) => current + 1);
+    setGuidedTourStage('home');
+  }, [coachmarkScope]);
+
   const handleNavigate = (tab: string, day?: string) => {
     setActiveTab(tab);
     if (tab === 'home' && day === 'exercises') {
@@ -374,7 +384,7 @@ export function App() {
             guidedTourActive={guidedTourStage === 'profile'}
             onGuidedTourComplete={() => completeGuidedTourStage('profile')}
             onGuidedTourDismiss={() => dismissGuidedTour('profile')}
-            onRestartGuidedTour={() => setGuidedTourStage('home')}
+            onRestartGuidedTour={restartGuidedTour}
           />
         );
       case 'blogs':
