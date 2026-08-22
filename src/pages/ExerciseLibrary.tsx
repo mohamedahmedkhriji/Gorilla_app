@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowLeft, Heart, Play } from 'lucide-react';
 import { Card } from '../components/ui/Card';
 import { Header } from '../components/ui/Header';
+import { MuscleSvgBadge } from '../components/workout/MuscleSvgBadge';
 import { api } from '../services/api';
 import { getBodyPartImage } from '../services/bodyPartTheme';
 import { listExerciseVideoAssets, resolveExerciseVideo } from '../services/exerciseVideos';
@@ -758,25 +759,12 @@ export function ExerciseLibrary({
                           : 'border-white/10 bg-card/70 hover:border-accent/25 hover:bg-white/[0.03]',
                       ].join(' ')}
                     >
-                      <div
-                        className={[
-                          'rounded-xl border p-3',
-                          isSelected ? 'border-accent/35 bg-accent/10' : 'border-white/10 bg-black/30',
-                        ].join(' ')}
-                      >
-                        <div className="flex h-20 items-center justify-center sm:h-24">
-                          <img
-                            src={getBodyPartImage(filter)}
-                            alt={label}
-                            className="h-full w-full object-contain"
-                          />
-                        </div>
-                      </div>
-                      <div className="mt-3">
-                        <div className={isSelected ? 'text-sm font-semibold text-text-primary' : 'text-sm font-semibold text-text-secondary'}>
-                          {label}
-                        </div>
-                      </div>
+                      <MuscleSvgBadge
+                        muscle={{ label, sourceName: filter }}
+                        align={isRtl ? 'right' : 'left'}
+                        className="w-full"
+                        figureClassName="h-24 sm:h-28"
+                      />
                     </button>
                   );
                 })}

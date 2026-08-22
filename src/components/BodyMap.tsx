@@ -7,12 +7,12 @@ import {
   BodyMapMuscle,
 } from '../lib/muscle-map';
 
-type BodyPathView = {
+export type BodyPathView = {
   vb: string;
   p: Record<string, string[]>;
 };
 
-type BodyPaths = Record<string, Record<'front' | 'back', BodyPathView>>;
+export type BodyPaths = Record<string, Record<'front' | 'back', BodyPathView>>;
 
 type BodyMapProps = {
   body?: string;
@@ -25,7 +25,7 @@ type BodyMapProps = {
 let cache: BodyPaths | null = null;
 let pending: Promise<BodyPaths> | null = null;
 
-function useBodyPaths() {
+export function useBodyPaths() {
   const [paths, setPaths] = useState<BodyPaths | null>(cache);
 
   useEffect(() => {

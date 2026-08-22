@@ -11575,7 +11575,7 @@ router.get('/profile/:userId/agenda', requireAuth(), requireUserAccess('userId',
 
     const today = new Date();
     const startDate = new Date(today.getFullYear(), today.getMonth(), today.getDate() - 364);
-    const endDate = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+    const endDate = new Date(today.getFullYear(), today.getMonth() + 1, 0);
     const startKey = formatDateISO(startDate);
     const endKey = formatDateISO(endDate);
 
@@ -11712,7 +11712,8 @@ router.get('/profile/:userId/agenda', requireAuth(), requireUserAccess('userId',
 
     const todayKey = formatDateISO(today);
     const days = [];
-    for (let index = 0; index < 365; index += 1) {
+    const totalDays = Math.max(1, Math.floor((endDate.getTime() - startDate.getTime()) / 86400000) + 1);
+    for (let index = 0; index < totalDays; index += 1) {
       const date = new Date(startDate);
       date.setDate(startDate.getDate() + index);
       const dateKey = formatDateISO(date);

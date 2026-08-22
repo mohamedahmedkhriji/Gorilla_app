@@ -10,6 +10,7 @@ import { ExerciseProgressScreen } from '../components/progress/ExerciseProgressS
 import { AIInsightsScreen } from '../components/progress/AIInsightsScreen';
 import { WeeklyCheckInScreen } from '../components/progress/WeeklyCheckInScreen';
 import { StrengthScoreScreen } from '../components/progress/StrengthScoreScreen';
+import { LeaderboardScreen } from '../components/profile/LeaderboardScreen';
 import {
   getCoachmarkUserScope,
   incrementCoachmarkVisitCount,
@@ -40,6 +41,7 @@ const SCREENSHOT_PROTECTED_PROGRESS_VIEWS = new Set([
   'insights',
   'weeklyCheckin',
   'strengthScore',
+  'leaderboard',
 ]);
 
 const PROGRESS_VIEW_ORDER = [
@@ -52,6 +54,7 @@ const PROGRESS_VIEW_ORDER = [
   'insights',
   'weeklyCheckin',
   'strengthScore',
+  'leaderboard',
 ] as const;
 
 const hasCoachmarkTargets = (steps: CoachmarkStep[]) =>
@@ -64,7 +67,7 @@ export function Progress({
   onGuidedTourComplete,
   onGuidedTourDismiss,
 }: ProgressProps) {
-  const [view, setView] = useState<'dashboard' | 'report' | 'recovery' | 'measurements' | 'photos' | 'exercise' | 'insights' | 'weeklyCheckin' | 'strengthScore'>(
+  const [view, setView] = useState<'dashboard' | 'report' | 'recovery' | 'measurements' | 'photos' | 'exercise' | 'insights' | 'weeklyCheckin' | 'strengthScore' | 'leaderboard'>(
     'dashboard',
   );
   const [language, setLanguage] = useState<AppLanguage>(() => getActiveLanguage());
@@ -456,6 +459,9 @@ export function Progress({
   if (view === 'strengthScore') {
     return renderTransitionedView(<StrengthScoreScreen onBack={() => setView('dashboard')} />);
   }
+  if (view === 'leaderboard') {
+    return renderTransitionedView(<LeaderboardScreen onBack={() => setView('dashboard')} />);
+  }
 
   return renderTransitionedView(
     <div data-coachmark-target="progress_page" className="relative pb-24">
@@ -463,6 +469,7 @@ export function Progress({
         <ProgressDashboard
           onViewReport={() => setView('report')}
           onViewStrengthScore={() => setView('strengthScore')}
+          onViewLeaderboard={() => setView('leaderboard')}
         />
       </ScreenSection>
 

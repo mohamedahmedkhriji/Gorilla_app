@@ -3,15 +3,16 @@ import { createPortal } from 'react-dom';
 import { Button } from '../ui/Button';
 import { StrengthChart } from './StrengthChart';
 import { Card } from '../ui/Card';
-import { Activity, CircleQuestionMark, TrendingUp, X } from 'lucide-react';
+import { CircleQuestionMark, TrendingUp, Trophy, X } from 'lucide-react';
 import { api } from '../../services/api';
-import { emojiFire, emojiRightArrow } from '../../services/emojiTheme';
+import { emojiRightArrow } from '../../services/emojiTheme';
 import { getBodyPartImage } from '../../services/bodyPartTheme';
 import { AppLanguage, getActiveLanguage, getStoredLanguage } from '../../services/language';
 import { offlineCacheKeys, readOfflineCacheValue } from '../../services/offlineCache';
 interface ProgressDashboardProps {
   onViewReport: () => void;
   onViewStrengthScore: () => void;
+  onViewLeaderboard: () => void;
 }
 
 interface MuscleDistributionItem {
@@ -216,6 +217,8 @@ const PROGRESS_DASHBOARD_I18N = {
     title: 'Your Progress',
     strengthScoreInfo: 'Strength score info',
     totalVolume: 'Total Volume',
+    classification: 'Classification',
+    viewLeaderboard: 'View leaderboard',
     muscleDistribution: 'Muscle Distribution (Plan Target)',
     noPlanDistribution: 'No plan distribution is available yet for this user.',
     viewBiWeeklyReport: 'View Bi-Weekly Report',
@@ -233,6 +236,8 @@ const PROGRESS_DASHBOARD_I18N = {
     title: 'تقدمك',
     strengthScoreInfo: 'معلومات درجة القوة',
     totalVolume: 'الحجم الكلي',
+    classification: 'التصنيف',
+    viewLeaderboard: 'عرض لوحة الصدارة',
     muscleDistribution: 'توزيع العضلات (هدف الخطة)',
     noPlanDistribution: 'لا يتوفر توزيع للخطة لهذا المستخدم حتى الآن.',
     viewBiWeeklyReport: 'عرض التقرير نصف الأسبوعي',
@@ -250,6 +255,8 @@ const PROGRESS_DASHBOARD_I18N = {
     title: 'I Tuoi Progressi',
     strengthScoreInfo: 'Info punteggio forza',
     totalVolume: 'Volume Totale',
+    classification: 'Classifica',
+    viewLeaderboard: 'Apri leaderboard',
     muscleDistribution: 'Distribuzione Muscolare (Target del Piano)',
     noPlanDistribution: 'Nessuna distribuzione del piano disponibile per questo utente.',
     viewBiWeeklyReport: 'Visualizza Report Bisettimanale',
@@ -267,6 +274,8 @@ const PROGRESS_DASHBOARD_I18N = {
     title: 'Tes Progres',
     strengthScoreInfo: 'Infos score de force',
     totalVolume: 'Volume Total',
+    classification: 'Classement',
+    viewLeaderboard: 'Voir le classement',
     muscleDistribution: 'Repartition Musculaire (Cible du Plan)',
     noPlanDistribution: 'Aucune repartition du plan n est encore disponible pour cet utilisateur.',
     viewBiWeeklyReport: 'Voir le Rapport Bi-Hebdomadaire',
@@ -284,6 +293,8 @@ const PROGRESS_DASHBOARD_I18N = {
     title: 'Dein Fortschritt',
     strengthScoreInfo: 'Infos zum Kraftwert',
     totalVolume: 'Gesamtvolumen',
+    classification: 'Platzierung',
+    viewLeaderboard: 'Bestenliste anzeigen',
     muscleDistribution: 'Muskelverteilung (Plan-Ziel)',
     noPlanDistribution: 'Fuer diesen Nutzer ist noch keine Planverteilung verfuegbar.',
     viewBiWeeklyReport: 'Zweiwochenbericht Anzeigen',
@@ -359,7 +370,7 @@ const getLocalizedMuscleName = (name: string, language: AppLanguage) => {
   return name;
 };
 
-export function ProgressDashboard({ onViewReport, onViewStrengthScore }: ProgressDashboardProps) {
+export function ProgressDashboard({ onViewReport, onViewStrengthScore, onViewLeaderboard }: ProgressDashboardProps) {
   const [stats, setStats] = useState({
     totalWorkouts: 0,
     totalVolume: 0,
@@ -574,21 +585,6 @@ export function ProgressDashboard({ onViewReport, onViewStrengthScore }: Progres
     };
   }, [loadStats]);
 
-  const plannedThisWeek = Math.max(0, Number(stats.workoutsPlannedThisWeek || 0));
-  const completedThisWeek = Math.max(0, Number(stats.workoutsCompletedThisWeek || 0));
-  const completionPercent = plannedThisWeek > 0
-    ? Math.round((completedThisWeek / plannedThisWeek) * 100)
-    : Math.round(Number(stats.consistency || 0));
-  const consistencyLabel = `${completionPercent}%`;
-  const weeklyDaysLabel = language === 'ar'
-    ? `${completedThisWeek} / ${plannedThisWeek} أيام`
-    : language === 'it'
-      ? `${completedThisWeek} / ${plannedThisWeek} giorni`
-    : language === 'fr'
-      ? `${completedThisWeek} / ${plannedThisWeek} jours`
-      : language === 'de'
-        ? `${completedThisWeek} / ${plannedThisWeek} Tage`
-        : `${completedThisWeek} / ${plannedThisWeek} days`;
   return (
     <div data-coachmark-target="progress_dashboard" className="progress-dashboard space-y-6">
       <div className="flex items-center justify-between">
@@ -611,19 +607,27 @@ export function ProgressDashboard({ onViewReport, onViewStrengthScore }: Progres
 
 
       <div className="grid grid-cols-2 gap-4">
-        <Card coachmarkTargetId="progress_consistency_card" className="relative overflow-hidden p-4">
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(74,222,128,0.12),transparent_34%),linear-gradient(180deg,rgba(255,255,255,0.04),rgba(7,11,17,0.74))]" aria-hidden="true" />
-          <div className="relative z-10 flex items-center justify-between gap-3">
+        <Card
+          coachmarkTargetId="progress_consistency_card"
+          className="relative overflow-hidden cursor-pointer p-4"
+          onClick={onViewLeaderboard}
+          role="button"
+          tabIndex={0}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter' || event.key === ' ') {
+              event.preventDefault();
+              onViewLeaderboard();
+            }
+          }}
+        >
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(187,255,92,0.16),transparent_34%),linear-gradient(180deg,rgba(255,255,255,0.04),rgba(7,11,17,0.74))]" aria-hidden="true" />
+          <div className="relative z-10 flex items-end justify-between gap-3">
             <div className="min-w-0">
-              <Activity className="text-green-500 mb-2" size={20} />
-              <div className="text-2xl font-bold text-white font-electrolize">{consistencyLabel}</div>
-              <div className="mt-1 text-xs text-text-secondary">{weeklyDaysLabel}</div>
+              <Trophy className="mb-2 text-accent" size={20} />
+              <div className="text-xl font-bold text-white">{copy.classification}</div>
+              <div className="mt-1 text-xs text-text-secondary">{copy.viewLeaderboard}</div>
             </div>
-            <img
-              src={emojiFire}
-              alt={copy.fireAlt}
-              className="h-14 w-14 shrink-0 object-contain"
-            />
+            <img src={emojiRightArrow} alt="" aria-hidden="true" className="mb-1 h-[18px] w-[18px] shrink-0 object-contain opacity-70" />
           </div>
         </Card>
         <Card

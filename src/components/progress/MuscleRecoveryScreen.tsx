@@ -5,6 +5,7 @@ import { SlidersHorizontal, ChevronDown, X } from 'lucide-react';
 import { api } from '../../services/api';
 import { AppLanguage, getActiveLanguage, getStoredLanguage, normalizeLocalizedValue } from '../../services/language';
 import BodyMap from '../BodyMap';
+import { MuscleSvgBadge } from '../workout/MuscleSvgBadge';
 import {
   BodyMapLevels,
   BodyMapMuscle,
@@ -758,13 +759,6 @@ export function MuscleRecoveryScreen({ onBack }: MuscleRecoveryScreenProps) {
     return 'text-red-500 bg-red-500/10';
   };
 
-  const getStatusDotColor = (val: number) => {
-    if (val >= 90) return 'bg-green-500';
-    if (val >= 70) return 'bg-[#10b981]';
-    if (val >= 50) return 'bg-yellow-500';
-    return 'bg-red-500';
-  };
-
   const formatRecoveryTime = (hoursRemaining: number | undefined) => {
     const safeHours = Math.max(0, Number(hoursRemaining || 0));
     if (safeHours <= 0.01) return copy.fullyRecovered;
@@ -780,6 +774,22 @@ export function MuscleRecoveryScreen({ onBack }: MuscleRecoveryScreenProps) {
       return `${copy.fullRecoveryIn} ${days}d`;
     }
     return `${copy.fullRecoveryIn} ${hours}${copy.hourAbbr}`;
+  };
+
+  const getRecoveryBatteryStyle = (score: number): React.CSSProperties => {
+    const safeScore = Math.max(0, Math.min(100, Number(score) || 0));
+    const color = safeScore >= 90
+      ? '#a3e635'
+      : safeScore >= 70
+        ? '#10b981'
+        : safeScore >= 50
+          ? '#eab308'
+          : '#ef4444';
+
+    return {
+      '--recovery-battery-level': `${Math.max(2, safeScore * 0.5)}px`,
+      '--recovery-battery-color': color,
+    } as React.CSSProperties;
   };
 
   const toLocalizedMuscle = (value: string) => {
@@ -837,7 +847,12 @@ export function MuscleRecoveryScreen({ onBack }: MuscleRecoveryScreenProps) {
               className="flex items-center justify-between rounded-xl border border-white/5 bg-card p-4"
             >
               <div className="flex min-w-0 items-center gap-3">
-                <span className={`h-3.5 w-3.5 shrink-0 rounded-full ${getStatusDotColor(m.score)}`} />
+                <div
+                  className="recovery-battery shrink-0"
+                  style={getRecoveryBatteryStyle(m.score)}
+                  title={formatRecoveryTime(m.hoursRemaining)}
+                  aria-label={formatRecoveryTime(m.hoursRemaining)}
+                />
                 <div className="min-w-0">
                   <h4 className="truncate font-semibold text-white">{toLocalizedMuscle(m.name)}</h4>
                   {showLastTrained && (
@@ -845,14 +860,20 @@ export function MuscleRecoveryScreen({ onBack }: MuscleRecoveryScreenProps) {
                       {copy.lastTrained} {getLastTrained(m.lastWorkout)}
                     </p>
                   )}
-                  <p className="font-electrolize text-[11px] text-text-tertiary">
-                    {formatRecoveryTime(m.hoursRemaining)}
-                  </p>
                 </div>
               </div>
-              <span className={`shrink-0 rounded-full px-3 py-1.5 font-electrolize text-xs font-bold ${getStatusColor(m.score)}`}>
-                {m.score}%
-              </span>
+              <div className="flex shrink-0 items-center gap-2">
+                <span className={`shrink-0 rounded-full px-3 py-1.5 font-electrolize text-xs font-bold ${getStatusColor(m.score)}`}>
+                  {m.score}%
+                </span>
+                <MuscleSvgBadge
+                  muscle={{ label: toLocalizedMuscle(m.name), sourceName: m.muscle || m.name }}
+                  align="right"
+                  className="w-[58px]"
+                  figureClassName="h-[46px]"
+                  showLabel={false}
+                />
+              </div>
             </div>
           ))}
         </div>

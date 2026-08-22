@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Header } from '../ui/Header';
 import { HOME_CARD_OVERLAY_CLASS } from '../home/homeCardStyles';
-import { getBodyPartImage } from '../../services/bodyPartTheme';
+import { MuscleSvgBadge } from './MuscleSvgBadge';
 import { AppLanguage, LocalizedLanguageRecord, getActiveLanguage, normalizeLocalizedValue } from '../../services/language';
 import { translateProgramText } from '../../services/programI18n';
 import { playMyPlanSound } from '../../services/appSounds';
@@ -845,7 +845,7 @@ export function WorkoutOverviewScreen({
         const label = localizeMuscle(toTitleCase(entry));
         return {
           label,
-          image: getBodyPartImage(entry),
+          sourceName: entry,
         };
       }),
     }));
@@ -1148,19 +1148,13 @@ export function WorkoutOverviewScreen({
                       </div>
                     </div>
                     {workout.localizedMuscles.length > 0 && (
-                      <div className={`mt-3 flex items-center gap-2 ${isArabic ? 'justify-end' : 'justify-start'}`}>
+                      <div className={`mt-3 flex flex-wrap items-center gap-3 ${isArabic ? 'justify-end' : 'justify-start'}`}>
                         {workout.localizedMuscles.map((muscle) => (
-                          <div
+                          <MuscleSvgBadge
                             key={`${workout.key}-${muscle.label}`}
-                            className="h-11 w-11 overflow-hidden rounded-xl border border-white/10 bg-white/5"
-                            title={muscle.label}
-                          >
-                            <img
-                              src={muscle.image}
-                              alt={muscle.label}
-                              className="h-full w-full object-cover"
-                            />
-                          </div>
+                            muscle={muscle}
+                            align={isArabic ? 'right' : 'left'}
+                          />
                         ))}
                       </div>
                     )}

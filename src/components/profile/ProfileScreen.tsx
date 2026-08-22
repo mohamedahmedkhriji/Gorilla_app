@@ -1,5 +1,6 @@
-import React, { useEffect, useRef, useState } from 'react';
-import { User, Camera, Dumbbell, FileText, LogOut, X } from 'lucide-react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
+import { User, Camera, Dumbbell, FileText, LogOut, X, Flame, CalendarDays, ChevronLeft, ChevronRight } from 'lucide-react';
 import { api } from '../../services/api';
 import { getStoredAppUser, getStoredUserId, persistStoredUser } from '../../shared/authStorage';
 import { FriendsCard } from '../home/FriendsCard';
@@ -81,6 +82,20 @@ const PROFILE_I18N = {
     noProgramAgenda: 'No active plan yet',
     lessTime: 'Less time',
     moreTime: 'More time',
+    weekStreak: 'week streak',
+    thisWeek: 'this week',
+    workoutTotal: 'workout total',
+    workoutsTotal: 'workouts total',
+    trained: 'Trained',
+    planned: 'Planned',
+    rescheduled: 'Rescheduled',
+    monthHint: 'Tap a trained day for details - tap any other day to plan a session',
+    previousMonth: 'Previous month',
+    nextMonth: 'Next month',
+    min: 'min',
+    kg: 'kg',
+    sets: 'sets',
+    exercisesCount: 'exercises',
   },
   ar: {
     memberSincePrefix: '\u0639\u0636\u0648 \u0645\u0646\u0630',
@@ -130,6 +145,20 @@ const PROFILE_I18N = {
     noProgramAgenda: '\u0644\u0627 \u062a\u0648\u062c\u062f \u062e\u0637\u0629 \u0646\u0634\u0637\u0629 \u0628\u0639\u062f',
     lessTime: '\u0648\u0642\u062a \u0623\u0642\u0644',
     moreTime: '\u0648\u0642\u062a \u0623\u0643\u062b\u0631',
+    weekStreak: 'week streak',
+    thisWeek: 'this week',
+    workoutTotal: 'workout total',
+    workoutsTotal: 'workouts total',
+    trained: 'Trained',
+    planned: 'Planned',
+    rescheduled: 'Rescheduled',
+    monthHint: 'Tap a trained day for details - tap any other day to plan a session',
+    previousMonth: 'Previous month',
+    nextMonth: 'Next month',
+    min: 'min',
+    kg: 'kg',
+    sets: 'sets',
+    exercisesCount: 'exercises',
   },
   it: {
     memberSincePrefix: 'Membro dal',
@@ -179,6 +208,20 @@ const PROFILE_I18N = {
     noProgramAgenda: 'Nessun piano attivo',
     lessTime: 'Meno tempo',
     moreTime: 'Piu tempo',
+    weekStreak: 'week streak',
+    thisWeek: 'this week',
+    workoutTotal: 'workout total',
+    workoutsTotal: 'workouts total',
+    trained: 'Trained',
+    planned: 'Planned',
+    rescheduled: 'Rescheduled',
+    monthHint: 'Tap a trained day for details - tap any other day to plan a session',
+    previousMonth: 'Previous month',
+    nextMonth: 'Next month',
+    min: 'min',
+    kg: 'kg',
+    sets: 'sets',
+    exercisesCount: 'exercises',
   },
   fr: {
     memberSincePrefix: 'Membre depuis',
@@ -228,6 +271,20 @@ const PROFILE_I18N = {
     noProgramAgenda: 'Aucun plan actif',
     lessTime: 'Moins',
     moreTime: 'Plus',
+    weekStreak: 'week streak',
+    thisWeek: 'this week',
+    workoutTotal: 'workout total',
+    workoutsTotal: 'workouts total',
+    trained: 'Trained',
+    planned: 'Planned',
+    rescheduled: 'Rescheduled',
+    monthHint: 'Tap a trained day for details - tap any other day to plan a session',
+    previousMonth: 'Previous month',
+    nextMonth: 'Next month',
+    min: 'min',
+    kg: 'kg',
+    sets: 'sets',
+    exercisesCount: 'exercises',
   },
   de: {
     memberSincePrefix: 'Mitglied seit',
@@ -277,6 +334,20 @@ const PROFILE_I18N = {
     noProgramAgenda: 'Noch kein aktiver Plan',
     lessTime: 'Weniger',
     moreTime: 'Mehr',
+    weekStreak: 'week streak',
+    thisWeek: 'this week',
+    workoutTotal: 'workout total',
+    workoutsTotal: 'workouts total',
+    trained: 'Trained',
+    planned: 'Planned',
+    rescheduled: 'Rescheduled',
+    monthHint: 'Tap a trained day for details - tap any other day to plan a session',
+    previousMonth: 'Previous month',
+    nextMonth: 'Next month',
+    min: 'min',
+    kg: 'kg',
+    sets: 'sets',
+    exercisesCount: 'exercises',
   },
 } as const;
 
@@ -304,6 +375,9 @@ export function ProfileScreen({ onNavigate, onLogout }: ProfileScreenProps) {
   const [profileAgendaDays, setProfileAgendaDays] = useState<ProfileAgendaDay[]>([]);
   const [hasProfileAgendaProgram, setHasProfileAgendaProgram] = useState(false);
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
+  const [isAgendaSheetOpen, setIsAgendaSheetOpen] = useState(false);
+  const [agendaMonthDate, setAgendaMonthDate] = useState(() => new Date());
+  const [selectedAgendaDay, setSelectedAgendaDay] = useState<ProfileAgendaDay | null>(null);
   const [isPlanChoiceOpen, setIsPlanChoiceOpen] = useState(false);
   const [isCoachPickerOpen, setIsCoachPickerOpen] = useState(false);
   const [isLogoutOpen, setIsLogoutOpen] = useState(false);
@@ -312,7 +386,6 @@ export function ProfileScreen({ onNavigate, onLogout }: ProfileScreenProps) {
   const [coachRequestingId, setCoachRequestingId] = useState<number | null>(null);
   const [language, setLanguage] = useState<AppLanguage>('en');
   const avatarInputRef = useRef<HTMLInputElement | null>(null);
-  const activityHeatmapScrollRef = useRef<HTMLDivElement | null>(null);
   const createdAt = user?.created_at || user?.createdAt;
   const copy = PROFILE_I18N[language as keyof typeof PROFILE_I18N] || PROFILE_I18N.en;
 
@@ -473,9 +546,31 @@ export function ProfileScreen({ onNavigate, onLogout }: ProfileScreenProps) {
     return Number.isNaN(date.getTime()) ? null : date;
   };
 
+  const toDateKey = (date: Date) => {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
+  const getMondayStart = (date: Date) => {
+    const next = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+    const day = next.getDay();
+    const diff = day === 0 ? -6 : 1 - day;
+    next.setDate(next.getDate() + diff);
+    next.setHours(0, 0, 0, 0);
+    return next;
+  };
+
+  const addDays = (date: Date, count: number) => {
+    const next = new Date(date);
+    next.setDate(next.getDate() + count);
+    return next;
+  };
+
   const formatAgendaDate = (day: ProfileAgendaDay) => {
-    const date = new Date(`${day.dateKey}T12:00:00`);
-    if (Number.isNaN(date.getTime())) return day.dateKey;
+    const date = parseAgendaDate(day.dateKey);
+    if (!date) return day.dateKey;
     return date.toLocaleDateString(getLanguageLocale(language), {
       month: 'short',
       day: 'numeric',
@@ -491,57 +586,79 @@ export function ProfileScreen({ onNavigate, onLogout }: ProfileScreenProps) {
     return copy.rest;
   };
 
-  const getHeatmapCellClasses = (day: ProfileAgendaDay | null) => {
-    if (!day) return 'bg-transparent';
-    const level = Math.max(0, Math.min(4, Math.round(Number(day.activityLevel || 0))));
-    const levelClasses = [
-      'bg-white/[0.075] border-white/[0.035]',
-      'bg-accent/20 border-accent/10',
-      'bg-accent/38 border-accent/20',
-      'bg-accent/65 border-accent/30',
-      'bg-accent border-accent/45 shadow-[0_0_10px_rgba(187,255,92,0.22)]',
-    ];
-    const todayClass = day.isToday ? ' ring-1 ring-accent ring-offset-1 ring-offset-[#1e1e22]' : '';
-    return `${levelClasses[level]}${todayClass}`;
-  };
+  const agendaByDate = useMemo(() => {
+    const map = new Map<string, ProfileAgendaDay>();
+    profileAgendaDays.forEach((day) => {
+      if (day?.dateKey) map.set(day.dateKey, day);
+    });
+    return map;
+  }, [profileAgendaDays]);
 
-  const buildActivityWeeks = (days: ProfileAgendaDay[]) => {
-    if (!days.length) return [] as Array<Array<ProfileAgendaDay | null>>;
-
-    const firstDate = parseAgendaDate(days[0].dateKey);
-    const leadingEmptyDays = firstDate ? firstDate.getDay() : 0;
-    const cells: Array<ProfileAgendaDay | null> = [
-      ...Array.from({ length: leadingEmptyDays }, () => null),
-      ...days,
-    ];
-    while (cells.length % 7 !== 0) cells.push(null);
-
-    const weeks: Array<Array<ProfileAgendaDay | null>> = [];
-    for (let index = 0; index < cells.length; index += 7) {
-      weeks.push(cells.slice(index, index + 7));
+  const today = useMemo(() => new Date(), []);
+  const todayKey = toDateKey(today);
+  const currentWeekStart = getMondayStart(today);
+  const currentWeekEnd = addDays(currentWeekStart, 6);
+  const currentWeekDays = profileAgendaDays.filter((day) => {
+    const date = parseAgendaDate(day.dateKey);
+    return date && date >= currentWeekStart && date <= currentWeekEnd;
+  });
+  const currentWeekDone = currentWeekDays.filter((day) => day.status === 'done').length;
+  const currentWeekPlanned = Math.max(1, currentWeekDays.filter((day) => day.isTrainingDay).length || 3);
+  const totalWorkoutCount = profileAgendaDays.filter((day) => day.status === 'done').length;
+  const weekStreak = (() => {
+    let streak = 0;
+    let weekCursor = getMondayStart(today);
+    for (let index = 0; index < 52; index += 1) {
+      const start = new Date(weekCursor);
+      const end = addDays(start, 6);
+      const hasWorkout = profileAgendaDays.some((day) => {
+        const date = parseAgendaDate(day.dateKey);
+        return day.status === 'done' && date && date >= start && date <= end;
+      });
+      if (!hasWorkout) break;
+      streak += 1;
+      weekCursor = addDays(weekCursor, -7);
     }
-    return weeks;
+    return streak;
+  })();
+
+  const monthLabel = agendaMonthDate.toLocaleDateString(getLanguageLocale(language), {
+    month: 'long',
+    year: 'numeric',
+  });
+  const monthStart = new Date(agendaMonthDate.getFullYear(), agendaMonthDate.getMonth(), 1);
+  const monthEnd = new Date(agendaMonthDate.getFullYear(), agendaMonthDate.getMonth() + 1, 0);
+  const monthLeadingCells = (monthStart.getDay() + 6) % 7;
+  const monthDays = Array.from({ length: monthEnd.getDate() }, (_, index) => {
+    const date = new Date(agendaMonthDate.getFullYear(), agendaMonthDate.getMonth(), index + 1);
+    const dateKey = toDateKey(date);
+    return agendaByDate.get(dateKey) || null;
+  });
+  const monthSummary = monthDays.reduce(
+    (summary, day) => {
+      if (!day || day.status !== 'done') return summary;
+      return {
+        workouts: summary.workouts + Math.max(1, Number(day.sessionCount || 0)),
+        minutes: summary.minutes,
+        volume: summary.volume + Math.max(0, Number(day.totalVolumeKg || 0)),
+      };
+    },
+    { workouts: 0, minutes: 0, volume: 0 },
+  );
+
+  const changeAgendaMonth = (amount: number) => {
+    setAgendaMonthDate((current) => new Date(current.getFullYear(), current.getMonth() + amount, 1));
+    setSelectedAgendaDay(null);
   };
 
-  const activityWeeks = buildActivityWeeks(profileAgendaDays);
-  const monthMarkers = activityWeeks
-    .map((week, weekIndex) => {
-      const firstDay = week.find(Boolean) as ProfileAgendaDay | undefined;
-      if (!firstDay) return null;
-      const date = parseAgendaDate(firstDay.dateKey);
-      if (!date || date.getDate() > 7) return null;
-      return {
-        weekIndex,
-        label: date.toLocaleDateString(getLanguageLocale(language), { month: 'short' }),
-      };
-    })
-    .filter(Boolean) as Array<{ weekIndex: number; label: string }>;
-
-  useEffect(() => {
-    const element = activityHeatmapScrollRef.current;
-    if (!element || !profileAgendaDays.length) return;
-    element.scrollLeft = element.scrollWidth;
-  }, [profileAgendaDays.length]);
+  const handleAgendaDayClick = (day: ProfileAgendaDay | null) => {
+    if (day?.status === 'done') {
+      setSelectedAgendaDay(day);
+      return;
+    }
+    setIsAgendaSheetOpen(false);
+    onNavigate('workout');
+  };
   
   return (
     <div className="space-y-6 pb-24">
@@ -593,80 +710,31 @@ export function ProfileScreen({ onNavigate, onLogout }: ProfileScreenProps) {
 
       <section
         data-coachmark-target="profile_agenda_card"
-        className={`${profilePanelClassName} px-4 py-4`}
+        className={`${profilePanelClassName} w-full cursor-pointer px-4 py-4 text-left transition-all duration-300 hover:-translate-y-0.5 hover:border-accent/25 active:scale-[0.99]`}
+        onClick={() => setIsAgendaSheetOpen(true)}
+        role="button"
+        tabIndex={0}
+        onKeyDown={(event) => {
+          if (event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault();
+            setIsAgendaSheetOpen(true);
+          }
+        }}
       >
         <div className="absolute inset-x-6 top-0 h-px bg-gradient-to-r from-transparent via-white/18 to-transparent" />
-        <div className="relative z-10 flex min-w-0 items-baseline gap-1.5">
-          <h2 className="text-xs font-medium text-text-primary">{copy.agendaTitle}</h2>
-          <span className="text-[10px] text-text-tertiary">-</span>
-          <p className="truncate text-[10px] font-medium text-text-tertiary">
-            {hasProfileAgendaProgram ? copy.agendaSubtitle : copy.noProgramAgenda}
-          </p>
-        </div>
-
-        <div
-          ref={activityHeatmapScrollRef}
-          className="relative z-10 mt-4 overflow-x-auto pb-1 scrollbar-hide"
-        >
-          <div className="relative min-w-max">
-            <div className="relative h-4">
-              {monthMarkers.map((marker) => (
-                <span
-                  key={`${marker.weekIndex}-${marker.label}`}
-                  className="absolute top-0 text-[9px] font-medium text-text-tertiary"
-                  style={{ left: `${marker.weekIndex * 11}px` }}
-                >
-                  {marker.label}
-                </span>
-              ))}
+        <div className="relative z-10 flex items-center justify-between gap-4">
+          <div className="min-w-0">
+            <div className="flex items-center gap-2 text-[22px] font-semibold leading-none tracking-[-0.03em] text-white">
+              <Flame size={24} className="shrink-0 text-orange-400" fill="currentColor" strokeWidth={1.8} />
+              <span>{Math.max(0, weekStreak)} {copy.weekStreak}</span>
             </div>
-
-            <div className="flex gap-[3px]">
-              {activityWeeks.map((week, weekIndex) => (
-                <div key={`week-${weekIndex}`} className="flex flex-col gap-[3px]">
-                  {week.map((day, dayIndex) => (
-                    <button
-                      key={day?.dateKey || `empty-${weekIndex}-${dayIndex}`}
-                      type="button"
-                      disabled={!day}
-                      onClick={() => day && onNavigate('workout')}
-                      className={`h-2 w-2 rounded-[2px] border transition-transform duration-150 enabled:hover:scale-125 enabled:focus-visible:outline-none enabled:focus-visible:ring-1 enabled:focus-visible:ring-accent/70 ${getHeatmapCellClasses(day)}`}
-                      aria-label={
-                        day
-                          ? `${formatAgendaDate(day)} ${getAgendaStatusLabel(day.status)} ${Number(day.setCount || 0)} sets`
-                          : undefined
-                      }
-                      title={
-                        day
-                          ? `${formatAgendaDate(day)} - ${getAgendaStatusLabel(day.status)} - ${Number(day.setCount || 0)} sets`
-                          : undefined
-                      }
-                    />
-                  ))}
-                </div>
-              ))}
+            <div className="mt-2 truncate text-[12px] font-medium text-text-secondary">
+              {currentWeekDone} / {currentWeekPlanned} {copy.thisWeek} - {totalWorkoutCount} {totalWorkoutCount === 1 ? copy.workoutTotal : copy.workoutsTotal}
             </div>
           </div>
-        </div>
-
-        <div className="relative z-10 mt-3 flex items-center justify-end gap-1.5 text-[9px] font-medium text-text-tertiary">
-          <span>{copy.lessTime}</span>
-          {[0, 1, 2, 3, 4].map((level) => (
-            <span
-              key={level}
-              className={`h-2 w-2 rounded-[2px] border ${getHeatmapCellClasses({
-                dateKey: '',
-                weekday: '',
-                day: 0,
-                workoutName: '',
-                status: 'rest',
-                activityLevel: level,
-                isToday: false,
-                isTrainingDay: false,
-              })}`}
-            />
-          ))}
-          <span>{copy.moreTime}</span>
+          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[16px] border border-white/10 bg-white/[0.04] text-text-secondary shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]">
+            <CalendarDays size={21} />
+          </div>
         </div>
       </section>
 
@@ -740,6 +808,109 @@ export function ProfileScreen({ onNavigate, onLogout }: ProfileScreenProps) {
         <LogOut size={20} />
         {copy.logOut}
       </button>
+
+      {isAgendaSheetOpen && typeof document !== 'undefined' && createPortal((
+        <div
+          className="fixed inset-0 z-[160] flex items-end justify-center bg-black/60 px-4 pb-4 pt-16 backdrop-blur-md"
+          onClick={() => setIsAgendaSheetOpen(false)}
+        >
+          <div
+            className={`${profilePanelClassName} w-full max-w-md rounded-[28px] p-4 shadow-[0_24px_80px_rgba(0,0,0,0.5)]`}
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="mx-auto mb-4 h-1 w-12 rounded-full bg-white/18" />
+            <div className="flex items-center justify-between gap-3">
+              <button
+                type="button"
+                onClick={() => changeAgendaMonth(-1)}
+                aria-label={copy.previousMonth}
+                className="flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-transparent text-text-secondary transition-all duration-200 hover:bg-white/[0.06] active:scale-95"
+              >
+                <ChevronLeft size={20} />
+              </button>
+              <h3 className="text-lg font-semibold tracking-[-0.03em] text-white">{monthLabel}</h3>
+              <button
+                type="button"
+                onClick={() => changeAgendaMonth(1)}
+                aria-label={copy.nextMonth}
+                className="flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-transparent text-text-secondary transition-all duration-200 hover:bg-white/[0.06] active:scale-95"
+              >
+                <ChevronRight size={20} />
+              </button>
+            </div>
+
+            <div className="mt-1 text-center text-[12px] font-medium text-text-secondary">
+              {monthSummary.workouts} {monthSummary.workouts === 1 ? copy.workoutTotal : copy.workoutsTotal} - {monthSummary.minutes} {copy.min} - {Math.round(monthSummary.volume)} {copy.kg}
+            </div>
+
+            <div className="mt-5 grid grid-cols-7 gap-2 text-center">
+              {['Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Su'].map((label) => (
+                <div key={label} className="text-[11px] font-semibold text-text-tertiary">{label}</div>
+              ))}
+              {Array.from({ length: monthLeadingCells }).map((_, index) => (
+                <div key={`empty-${index}`} className="aspect-square" />
+              ))}
+              {monthDays.map((day, index) => {
+                const cellDate = new Date(agendaMonthDate.getFullYear(), agendaMonthDate.getMonth(), index + 1);
+                const cellDateKey = toDateKey(cellDate);
+                const isToday = day?.isToday || cellDateKey === todayKey;
+                const isDone = day?.status === 'done';
+                const isPlanned = day?.status === 'upcoming' || day?.status === 'today';
+                const isRescheduled = day?.status === 'missed';
+                return (
+                  <button
+                    key={cellDateKey}
+                    type="button"
+                    onClick={() => handleAgendaDayClick(day)}
+                    className={`relative flex aspect-square min-h-[38px] flex-col items-center justify-center rounded-[12px] border text-sm font-semibold transition-all duration-200 hover:-translate-y-0.5 active:scale-95 ${
+                      isDone
+                        ? 'border-accent/35 bg-accent/12 text-white'
+                        : isToday
+                          ? 'border-accent/50 bg-white/[0.05] text-white'
+                          : 'border-white/[0.06] bg-white/[0.025] text-text-secondary'
+                    }`}
+                    aria-label={`${cellDate.toLocaleDateString(getLanguageLocale(language))} ${day ? getAgendaStatusLabel(day.status) : copy.rest}`}
+                  >
+                    <span>{index + 1}</span>
+                    <i
+                      className={`mt-1 h-1.5 w-1.5 rounded-full ${
+                        isDone
+                          ? 'bg-accent'
+                          : isRescheduled
+                            ? 'bg-orange-400'
+                            : isPlanned
+                              ? 'bg-text-tertiary'
+                              : 'bg-transparent'
+                      }`}
+                    />
+                    {isToday && <span className="absolute inset-0 rounded-[12px] ring-1 ring-accent" />}
+                  </button>
+                );
+              })}
+            </div>
+
+            <div className="mt-4 flex flex-wrap items-center justify-center gap-4 text-[11px] font-medium text-text-secondary">
+              <span className="inline-flex items-center gap-1.5"><i className="h-2 w-2 rounded-full bg-accent" />{copy.trained}</span>
+              <span className="inline-flex items-center gap-1.5"><i className="h-2 w-2 rounded-full bg-text-tertiary" />{copy.planned}</span>
+              <span className="inline-flex items-center gap-1.5"><i className="h-2 w-2 rounded-full bg-orange-400" />{copy.rescheduled}</span>
+            </div>
+
+            {selectedAgendaDay && (
+              <div className="mt-4 rounded-[18px] border border-accent/15 bg-accent/[0.06] p-3 text-sm">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="font-semibold text-white">{formatAgendaDate(selectedAgendaDay)}</div>
+                  <div className="text-xs font-medium text-accent">{getAgendaStatusLabel(selectedAgendaDay.status)}</div>
+                </div>
+                <div className="mt-1 text-xs text-text-secondary">
+                  {selectedAgendaDay.workoutName} - {Number(selectedAgendaDay.setCount || 0)} {copy.sets} - {Number(selectedAgendaDay.exerciseCount || 0)} {copy.exercisesCount} - {Math.round(Number(selectedAgendaDay.totalVolumeKg || 0))} {copy.kg}
+                </div>
+              </div>
+            )}
+
+            <div className="mt-3 text-center text-[11px] font-medium text-text-tertiary">{copy.monthHint}</div>
+          </div>
+        </div>
+      ), document.body)}
 
       {isPlanChoiceOpen && (
         <div
