@@ -6,7 +6,7 @@ import { Card } from '../ui/Card';
 import { CircleQuestionMark, TrendingUp, Trophy, X } from 'lucide-react';
 import { api } from '../../services/api';
 import { emojiRightArrow } from '../../services/emojiTheme';
-import { getBodyPartImage } from '../../services/bodyPartTheme';
+import { MuscleSvgBadge } from '../workout/MuscleSvgBadge';
 import { AppLanguage, getActiveLanguage, getStoredLanguage } from '../../services/language';
 import { offlineCacheKeys, readOfflineCacheValue } from '../../services/offlineCache';
 interface ProgressDashboardProps {
@@ -666,20 +666,13 @@ export function ProgressDashboard({ onViewReport, onViewStrengthScore, onViewLea
             <>
               <div className="mb-5 grid grid-cols-3 gap-3">
                 {muscleDistribution.map((m) => (
-                  <div
+                  <MuscleSvgBadge
                     key={`${m.name}-image`}
-                    className="overflow-hidden rounded-2xl border border-white/10 bg-white/[0.03]"
-                  >
-                    <img
-                      src={getBodyPartImage(m.name)}
-                      alt={getLocalizedMuscleName(m.name, language)}
-                      className="h-24 w-full object-cover object-center sm:h-28"
-                      loading="lazy"
-                    />
-                    <div className="border-t border-white/10 px-3 py-2 text-center text-[11px] font-medium text-text-secondary">
-                      {getLocalizedMuscleName(m.name, language)}
-                    </div>
-                  </div>
+                    muscle={{ label: getLocalizedMuscleName(m.name, language), sourceName: m.name }}
+                    align="left"
+                    className="w-full"
+                    figureClassName="h-24 sm:h-28"
+                  />
                 ))}
               </div>
 

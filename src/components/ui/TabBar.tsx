@@ -1,5 +1,5 @@
-import React, { useEffect, useState } from 'react';
-import { Home, Activity, Dumbbell, User, Plus } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { Home, Activity, Dumbbell, User, MessageCircle } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { AppLanguage, LocalizedLanguageRecord, getActiveLanguage, getStoredLanguage } from '../../services/language';
 
@@ -12,35 +12,35 @@ const TAB_LABELS: LocalizedLanguageRecord<Record<string, string>> = {
   en: {
     home: 'Home',
     workout: 'My Plan',
-    blogs: 'Post',
+    blogs: 'Community',
     progress: 'Progress',
     profile: 'Profile',
   },
   ar: {
     home: '\u0627\u0644\u0631\u0626\u064a\u0633\u064a\u0629',
     workout: '\u062e\u0637\u062a\u064a',
-    blogs: '\u0645\u0646\u0634\u0648\u0631',
+    blogs: '\u0627\u0644\u0645\u062c\u062a\u0645\u0639',
     progress: '\u0627\u0644\u062a\u0642\u062f\u0645',
     profile: '\u0627\u0644\u0645\u0644\u0641',
   },
   it: {
     home: 'Home',
     workout: 'Il Mio Piano',
-    blogs: 'Post',
+    blogs: 'Community',
     progress: 'Progressi',
     profile: 'Profilo',
   },
   de: {
     home: 'Home',
     workout: 'Mein Plan',
-    blogs: 'Post',
+    blogs: 'Community',
     progress: 'Fortschritt',
     profile: 'Profil',
   },
   fr: {
     home: 'Accueil',
     workout: 'Mon Plan',
-    blogs: 'Post',
+    blogs: 'Communaute',
     progress: 'Progres',
     profile: 'Profil',
   },
@@ -79,7 +79,7 @@ export function TabBar({ activeTab, onTabChange }: TabBarProps) {
     },
     {
       id: 'blogs',
-      icon: Plus,
+      icon: MessageCircle,
       label: labels.blogs,
     },
     {

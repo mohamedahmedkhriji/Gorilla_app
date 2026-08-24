@@ -1,12 +1,8 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowLeft, MoonStar } from 'lucide-react';
+import { Apple, ArrowLeft, Bell, Bot, BookOpen, ChevronRight, MoonStar, ShoppingBag, type LucideIcon } from 'lucide-react';
 import { CoachmarkOverlay, type CoachmarkStep } from '../components/coachmarks/CoachmarkOverlay';
 import { WorkoutCard } from '../components/dashboard/WorkoutCard';
 import { RecoveryIndicator } from '../components/dashboard/RecoveryIndicator';
-import { RankDisplay } from '../components/dashboard/RankDisplay';
-import { GhostButton } from '../components/ui/GhostButton';
-import { CalculatorCard } from '../components/home/CalculatorCard';
-import { EducationSection } from '../components/home/EducationSection';
 import { FriendsList, FriendMember } from './FriendsList';
 import { FriendProfile } from './FriendProfile';
 import { CoachList } from './CoachList';
@@ -20,6 +16,7 @@ import { ExerciseVideoScreen } from '../components/workout/ExerciseVideoScreen';
 import { MuscleRecoveryScreen } from '../components/progress/MuscleRecoveryScreen';
 import { RankingsRewardsScreen } from '../components/profile/RankingsRewardsScreen';
 import { FriendChallengeScreen } from '../components/profile/FriendChallengeScreen';
+import { NotificationsScreen } from '../components/notifications/NotificationsScreen';
 import { api } from '../services/api';
 import {
   getCoachmarkUserScope,
@@ -30,7 +27,7 @@ import {
   readCoachmarkProgress,
 } from '../services/coachmarks';
 import { getRankBadgeImage } from '../services/rankTheme';
-import { emojiProfile, emojiRightArrow, emojiShop } from '../services/emojiTheme';
+import { emojiFriends, emojiGymFriendsBg, emojiProfile, emojiShop } from '../services/emojiTheme';
 import { AppLanguage, getActiveLanguage, pickLanguage } from '../services/language';
 import { formatWorkoutDayLabel, normalizeWorkoutDayKey } from '../services/workoutDayLabel';
 import {
@@ -41,11 +38,10 @@ import {
 } from '../services/todayWorkoutSelection';
 import { offlineCacheKeys, readOfflineCacheValue } from '../services/offlineCache';
 import { OPEN_PICKED_WORKOUT_PLAN } from '../services/workoutNavigation';
-import { normalizeGamificationSummary } from '../services/gamificationEvents';
-import type { GamificationSummaryResponse } from '../types/gamification';
+import { toFriendChallengeCardId } from '../services/friendChallenges';
 import { useScrollToTopOnChange } from '../shared/scroll';
 import { ScreenSection, ScreenTransition, getNavigationDirection } from '../components/ui/ScreenTransition';
-import { HOME_CARD_OVERLAY_CLASS } from '../components/home/homeCardStyles';
+
 interface HomeProps {
   onNavigate: (tab: string, day?: string) => void;
   onTabBarVisibilityChange?: (visible: boolean) => void;
@@ -324,6 +320,36 @@ type WeekPlanWorkoutChoice = {
   dayOrder: number;
 };
 
+interface HomeQuickActionButtonProps {
+  label: string;
+  Icon: LucideIcon;
+  onClick: () => void;
+  coachmarkTargetId?: string;
+}
+
+function HomeQuickActionButton({ label, Icon, onClick, coachmarkTargetId }: HomeQuickActionButtonProps) {
+  return (
+    <button
+      type="button"
+      data-coachmark-target={coachmarkTargetId}
+      onClick={onClick}
+      className="group flex min-h-[48px] w-full items-center gap-3 rounded-xl border border-white/10 bg-[#111b2a]/90 px-3.5 py-3 text-left shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] transition-all duration-200 hover:border-accent/35 hover:bg-[#142032] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+    >
+      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-accent">
+        <Icon size={22} strokeWidth={2.1} aria-hidden="true" />
+      </span>
+      <span className="min-w-0 flex-1 truncate text-[15px] font-semibold text-text-primary">
+        {label}
+      </span>
+      <ChevronRight
+        size={18}
+        aria-hidden="true"
+        className="shrink-0 text-text-secondary transition-transform duration-200 group-hover:translate-x-0.5 group-hover:text-accent"
+      />
+    </button>
+  );
+}
+
 const getGenericWorkoutLabels = (language: AppLanguage) =>
   pickLanguage(language, {
     en: {
@@ -526,6 +552,8 @@ type HomeView =
 'video' |
 'recovery' |
 'rank' |
+'notifications' |
+'notificationChallenge' |
 'workoutDetail' |
 'nutrition' |
 'shop';
@@ -546,6 +574,8 @@ const HOME_VIEW_ORDER: HomeView[] = [
   'books',
   'recovery',
   'rank',
+  'notifications',
+  'notificationChallenge',
 ];
 export function Home({
   onNavigate,
@@ -577,6 +607,13 @@ export function Home({
   const [exerciseLibraryFilter, setExerciseLibraryFilter] = useState('All');
   const [selectedCoach, setSelectedCoach] = useState<{id: number, name: string} | null>(null);
   const [selectedFriend, setSelectedFriend] = useState<FriendMember | null>(null);
+  const [acceptedChallengeContext, setAcceptedChallengeContext] = useState<{
+    friendId: number;
+    friendName: string;
+    challengeKey: string;
+    challengeSessionId: number;
+  } | null>(null);
+  const [unreadCount, setUnreadCount] = useState(0);
   const [greeting, setGreeting] = useState('');
   const [overallRecovery, setOverallRecovery] = useState(
     () => readCachedPercent(homeMetricKeys.homeRecovery, 100),
@@ -585,7 +622,6 @@ export function Home({
   const [userProgram, setUserProgram] = useState<any>(null);
   const [todayWorkoutData, setTodayWorkoutData] = useState<any>(null);
   const [weekPlanWorkouts, setWeekPlanWorkouts] = useState<WeekPlanWorkoutChoice[]>([]);
-  const [gamificationSummary, setGamificationSummary] = useState<GamificationSummaryResponse | null>(null);
   const [todayWorkoutSelection, setTodayWorkoutSelection] = useState<TodayWorkoutSelection | null>(
     () => readTodayWorkoutSelection(workoutStorageScope),
   );
@@ -637,6 +673,38 @@ export function Home({
   useEffect(() => {
     previousViewRef.current = view;
   }, [view]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const refreshUnread = async () => {
+      if (!currentUserId) {
+        if (!cancelled) setUnreadCount(0);
+        return;
+      }
+      try {
+        const result = await api.getUnreadNotificationCount();
+        if (cancelled) return;
+        setUnreadCount(Number(result?.unreadCount || 0));
+      } catch {
+        if (!cancelled) setUnreadCount(0);
+      }
+    };
+
+    void refreshUnread();
+    const timer = window.setInterval(() => {
+      void refreshUnread();
+    }, 10000);
+    window.addEventListener('repset:notification:new', refreshUnread);
+    window.addEventListener('repset:notifications:changed', refreshUnread);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+      window.removeEventListener('repset:notification:new', refreshUnread);
+      window.removeEventListener('repset:notifications:changed', refreshUnread);
+    };
+  }, [currentUserId, view]);
 
   const selectedTodayWorkout = useMemo(
     () => weekPlanWorkouts.find((workout) => workout.key === todayWorkoutSelection?.workoutKey) || null,
@@ -814,11 +882,6 @@ export function Home({
 
   const rankName = String(programProgress?.rank || 'Bronze');
   const rankBadgeImage = getRankBadgeImage(rankName);
-  const primaryHeroInsight = gamificationSummary?.weeklyNarrative?.[0] || gamificationSummary?.progress?.summaryInsights?.[0] || null;
-  const homeNextAction = gamificationSummary?.nextAction || gamificationSummary?.progress?.nextAction || null;
-  const homeRivalry = gamificationSummary?.progress?.rivalry || null;
-  const homeRank = gamificationSummary?.progress?.rank || null;
-  const homeStreakRisk = gamificationSummary?.progress?.streaks?.risk || null;
   const coachmarkScope = getCoachmarkUserScope(currentUser);
   const coachmarkDefaultSeenSteps = useMemo(
     () => ({
@@ -845,8 +908,15 @@ export function Home({
   const homeCopy = useMemo(
     () => pickLanguage(language, {
       en: {
+        goodMorning: 'Good morning',
+        readyNextSession: 'Ready for your next session?',
+        quickActions: 'Quick actions',
+        repyAi: 'Repy AI',
+        library: 'Library',
+        nutrition: 'Nutrition',
         tagline: 'Ready to crush your goals today?',
         rank: 'Rank',
+        pointsShort: 'pts',
         myNutrition: 'My Nutrition',
         shop: 'Shop',
         comingSoon: 'Coming soon',
@@ -867,8 +937,15 @@ export function Home({
         actionLabel: 'Behavior engine',
       },
       ar: {
+        goodMorning: '\u0635\u0628\u0627\u062d \u0627\u0644\u062e\u064a\u0631',
+        readyNextSession: '\u062c\u0627\u0647\u0632 \u0644\u062c\u0644\u0633\u062a\u0643 \u0627\u0644\u0642\u0627\u062f\u0645\u0629\u061f',
+        quickActions: '\u0625\u062c\u0631\u0627\u0621\u0627\u062a \u0633\u0631\u064a\u0639\u0629',
+        repyAi: 'Repy AI',
+        library: '\u0627\u0644\u0645\u0643\u062a\u0628\u0629',
+        nutrition: '\u0627\u0644\u062a\u063a\u0630\u064a\u0629',
         tagline: '\u062c\u0627\u0647\u0632 \u0644\u062a\u062d\u0642\u064a\u0642 \u0623\u0647\u062f\u0627\u0641\u0643 \u0627\u0644\u064a\u0648\u0645\u061f',
         rank: '\u0627\u0644\u0631\u062a\u0628\u0629',
+        pointsShort: '\u0646\u0642\u0637\u0629',
         myNutrition: '\u062a\u063a\u0630\u064a\u062a\u064a',
         shop: '\u0627\u0644\u0645\u062a\u062c\u0631',
         comingSoon: '\u0642\u0631\u064a\u0628\u0627',
@@ -889,8 +966,15 @@ export function Home({
         actionLabel: '\u0645\u062d\u0631\u0643 \u0627\u0644\u0633\u0644\u0648\u0643',
       },
       it: {
+        goodMorning: 'Buongiorno',
+        readyNextSession: 'Pronto per la prossima sessione?',
+        quickActions: 'Azioni rapide',
+        repyAi: 'Repy AI',
+        library: 'Libreria',
+        nutrition: 'Nutrizione',
         tagline: 'Pronto a raggiungere i tuoi obiettivi oggi?',
         rank: 'Grado',
+        pointsShort: 'pt',
         myNutrition: 'La mia nutrizione',
         shop: 'Negozio',
         comingSoon: 'In arrivo',
@@ -911,8 +995,15 @@ export function Home({
         actionLabel: 'Motore di progresso',
       },
       de: {
+        goodMorning: 'Guten Morgen',
+        readyNextSession: 'Bereit fur deine nachste Einheit?',
+        quickActions: 'Schnellaktionen',
+        repyAi: 'Repy AI',
+        library: 'Bibliothek',
+        nutrition: 'Ernahrung',
         tagline: 'Bereit, heute deine Ziele zu erreichen?',
         rank: 'Rang',
+        pointsShort: 'Pkt',
         myNutrition: 'Meine Ernahrung',
         shop: 'Shop',
         comingSoon: 'Demnachst',
@@ -933,8 +1024,15 @@ export function Home({
         actionLabel: 'Momentum',
       },
       fr: {
+        goodMorning: 'Bonjour',
+        readyNextSession: 'Pret pour ta prochaine seance ?',
+        quickActions: 'Actions rapides',
+        repyAi: 'Repy AI',
+        library: 'Bibliotheque',
+        nutrition: 'Nutrition',
         tagline: 'Pret a atteindre tes objectifs aujourd hui ?',
         rank: 'Rang',
+        pointsShort: 'pts',
         myNutrition: 'Ma Nutrition',
         shop: 'Boutique',
         comingSoon: 'Bientot disponible',
@@ -1115,26 +1213,6 @@ export function Home({
         cornerRadius: 24,
       },
       {
-        id: 'rank',
-        targetId: 'home_rank_card',
-        title: pickLanguage(language, {
-          en: 'This is your rank card',
-          ar: '\u0647\u0630\u0647 \u0631\u062a\u0628\u062a\u0643',
-          it: 'Questa e la tua card grado',
-          de: 'Das ist deine Rangkarte',
-        }),
-        body: pickLanguage(language, {
-          en: 'Use this card to check your rank, points, and reward progress.',
-          ar: '\u0645\u0646 \u0647\u0646\u0627 \u062a\u062a\u0627\u0628\u0639 \u0631\u062a\u0628\u062a\u0643 \u0648\u0646\u0642\u0627\u0637\u0643 \u0648\u0645\u0643\u0627\u0641\u0622\u062a \u0627\u0644\u062a\u0642\u062f\u0645.',
-          it: 'Usa questa card per controllare grado, punti e avanzamento ricompense.',
-          de: 'Nutze diese Karte, um deinen Rang, deine Punkte und deinen Belohnungsfortschritt zu sehen.',
-        }),
-        placement: 'top',
-        shape: 'rounded',
-        padding: 8,
-        cornerRadius: 24,
-      },
-      {
         id: 'recovery',
         targetId: 'home_recovery_card',
         title: coachmarkCopy.recoveryTitle,
@@ -1159,16 +1237,6 @@ export function Home({
         targetId: 'home_learning_exercises_card',
         title: coachmarkCopy.exercisesTitle,
         body: coachmarkCopy.exercisesBody,
-        placement: 'top',
-        shape: 'rounded',
-        padding: 8,
-        cornerRadius: 20,
-      },
-      {
-        id: 'books',
-        targetId: 'home_learning_books_card',
-        title: coachmarkCopy.booksTitle,
-        body: coachmarkCopy.booksBody,
         placement: 'top',
         shape: 'rounded',
         padding: 8,
@@ -1377,9 +1445,6 @@ export function Home({
     const cachedProgress = currentUserId
       ? readOfflineCacheValue<any>(offlineCacheKeys.programProgress(currentUserId))
       : null;
-    const cachedGamificationSummary = currentUserId
-      ? readOfflineCacheValue<any>(offlineCacheKeys.gamificationSummary(currentUserId))
-      : null;
     const cachedRecovery = currentUserId
       ? readOfflineCacheValue<any>(offlineCacheKeys.recoveryStatus(currentUserId))
       : null;
@@ -1392,10 +1457,6 @@ export function Home({
       setProgramProgress(cachedProgress.summary || null);
     }
 
-    if (cachedGamificationSummary) {
-      setGamificationSummary(normalizeGamificationSummary(cachedGamificationSummary));
-    }
-
     if (cachedRecovery) {
       applyRecoverySnapshot(cachedRecovery);
     }
@@ -1403,7 +1464,6 @@ export function Home({
     const hasCachedHomeSnapshot = !!(
       cachedProgram
       || cachedProgress?.summary
-      || cachedGamificationSummary
       || cachedRecovery
     );
     if (!currentUserId || hasCachedHomeSnapshot) {
@@ -1450,18 +1510,6 @@ export function Home({
         console.error('Failed to fetch program progress:', error);
       }
     };
-    const fetchGamificationSummary = async () => {
-      if (!currentUserId) {
-        setGamificationSummary(null);
-        return;
-      }
-      try {
-        const summary = normalizeGamificationSummary(await api.getGamificationSummary(currentUserId));
-        setGamificationSummary(summary);
-      } catch (error) {
-        console.error('Failed to fetch gamification summary:', error);
-      }
-    };
     // Fetch recovery status from API (same data shown on the recovery page)
     const fetchRecovery = async () => {
       const user = JSON.parse(localStorage.getItem('appUser') || localStorage.getItem('user') || '{}');
@@ -1487,7 +1535,6 @@ export function Home({
       const programPromise = fetchProgram();
       const progressPromise = fetchProgramProgress();
       const recoveryPromise = fetchRecovery();
-      const gamificationPromise = fetchGamificationSummary();
 
       if (shouldWaitForProgram) {
         await programPromise;
@@ -1501,7 +1548,6 @@ export function Home({
         programPromise,
         progressPromise,
         recoveryPromise,
-        gamificationPromise,
       ]);
     };
     void loadInitialHomeData();
@@ -1538,7 +1584,6 @@ export function Home({
     window.addEventListener('program-updated', handleProgramUpdated);
 
     const handleGamificationUpdated = () => {
-      void fetchGamificationSummary();
       void fetchProgramProgress();
     };
     window.addEventListener('gamification-updated', handleGamificationUpdated);
@@ -1920,6 +1965,30 @@ export function Home({
   return renderTransitionedView(<MuscleRecoveryScreen onBack={() => setView('main')} />);
   if (view === 'rank')
   return renderTransitionedView(<RankingsRewardsScreen onBack={() => setView('main')} />);
+  if (view === 'notifications')
+  return renderTransitionedView(
+    <NotificationsScreen
+      onBack={() => setView('main')}
+      onOpenAcceptedChallenge={(challenge) => {
+        setAcceptedChallengeContext(challenge);
+        setView('notificationChallenge');
+      }}
+    />
+  );
+  if (view === 'notificationChallenge') {
+    return renderTransitionedView(
+      <FriendChallengeScreen
+        onBack={() => setView('notifications')}
+        onExitHome={() => setView('main')}
+        friendName={acceptedChallengeContext?.friendName}
+        friendId={acceptedChallengeContext?.friendId}
+        initialView="intro"
+        directChallengeId={toFriendChallengeCardId(acceptedChallengeContext?.challengeKey)}
+        currentUserPlayer="player2"
+        challengeSessionId={acceptedChallengeContext?.challengeSessionId}
+      />
+    );
+  }
   if (view === 'main' && isHomeLoading) {
     return renderTransitionedView(
       <div className="pb-24 pt-4 space-y-6 animate-pulse">
@@ -1941,52 +2010,58 @@ export function Home({
         <header
           data-coachmark-target="home_header_card"
           onClick={() => onNavigate('profile')}
-          className="mb-7 surface-card relative overflow-hidden rounded-2xl border border-white/12 px-4 py-4 cursor-pointer shadow-card transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_12px_32px_rgba(0,0,0,0.45),0_0_14px_rgba(191,255,0,0.07)]">
+          className="relative mb-5 cursor-pointer overflow-hidden rounded-[28px] border border-white/10 bg-[#07101f] px-4 py-4 shadow-[0_18px_40px_rgba(0,0,0,0.28)] transition-all duration-300 hover:-translate-y-0.5 hover:border-white/15 focus-within:border-accent/25"
+        >
           <div
             className="absolute inset-0 bg-cover bg-center opacity-60"
             style={{ backgroundImage: `url(${emojiProfile})` }}
             aria-hidden="true"
           />
-          <div
-            className={HOME_CARD_OVERLAY_CLASS}
-            aria-hidden="true"
-          />
-          <div className="relative z-10 flex items-start justify-between gap-4">
+          <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(7,16,31,0.84),rgba(7,16,31,0.58)),radial-gradient(circle_at_top_right,rgba(205,255,88,0.12),transparent_34%)]" aria-hidden="true" />
+          <div className="relative z-10 flex items-center justify-between gap-3">
             <div className="min-w-0">
-              <h1 className="text-3xl font-electrolize font-bold text-text-primary">
-                {greeting}
+              <h1 className="truncate text-[15px] font-semibold leading-tight text-text-primary">
+                {homeCopy.goodMorning}, {greeting}
               </h1>
-              <p className="mt-1 text-sm leading-snug text-text-secondary">
-                {primaryHeroInsight?.title || homeCopy.tagline}
+              <p className="mt-1 text-[13px] leading-snug text-text-secondary">
+                {homeCopy.readyNextSession}
               </p>
             </div>
 
-            <button
-              type="button"
-              onClick={(event) => {
-                event.stopPropagation();
-                setView('rank');
-              }}
-              className="relative z-10 shrink-0 rounded-2xl border border-white/15 surface-glass px-3.5 py-2"
-            >
-              <div className="flex items-center gap-2">
-                <div className="flex h-8 w-8 items-center justify-center rounded-xl border border-accent/35 bg-accent/15">
+            <div className="flex shrink-0 items-center gap-2">
+              <button
+                type="button"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  setView('rank');
+                }}
+                className="flex min-h-[48px] items-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-3 text-left transition-colors hover:border-accent/30 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+              >
+                <span className="flex h-8 w-8 items-center justify-center rounded-xl border border-orange-300/30 bg-orange-400/10">
                   <img src={rankBadgeImage} alt={rankNameDisplay} className="h-5 w-5 object-contain" />
-                </div>
-                <div>
-                  <div className="text-[10px] uppercase tracking-[0.1em] text-text-secondary">{homeCopy.rank}</div>
-                  <div className="text-sm font-semibold text-accent">{rankNameDisplay}</div>
-                </div>
-              </div>
-            </button>
-          </div>
+                </span>
+                <span className="hidden min-w-0 text-xs font-semibold text-text-secondary min-[360px]:block">
+                  <span className="text-text-primary">{rankNameDisplay}</span>
+                  <span> - {programProgress?.totalPoints || 0} {homeCopy.pointsShort}</span>
+                </span>
+              </button>
 
-          <div className="relative z-10 mt-4 space-y-3">
-            <div className="grid grid-cols-1 gap-2">
-              <div className="rounded-2xl border border-white/10 bg-white/[0.04] px-3.5 py-3">
-                <div className="text-[10px] uppercase tracking-[0.14em] text-text-tertiary">{homeCopy.actionLabel}</div>
-                <div className="mt-1 text-sm font-semibold text-white">{homeNextAction?.title || homeCopy.heroDefaultTitle}</div>
-              </div>
+              <button
+                type="button"
+                aria-label="Notifications"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  setView('notifications');
+                }}
+                className="relative flex h-12 w-12 items-center justify-center rounded-full border border-white/10 bg-white/[0.04] text-text-secondary transition-colors hover:border-accent/30 hover:text-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+              >
+                <Bell size={20} aria-hidden="true" />
+                {unreadCount > 0 && (
+                  <span className="absolute -right-1 -top-1 flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white shadow-[0_0_14px_rgba(239,68,68,0.45)]">
+                    {unreadCount > 99 ? '99+' : unreadCount}
+                  </span>
+                )}
+              </button>
             </div>
           </div>
         </header>
@@ -2016,54 +2091,73 @@ export function Home({
           </div>
         </ScreenSection>
 
-        {/* Rank & Recovery */}
+        {/* Friends shortcut */}
         <ScreenSection index={2}>
-          <div className="grid grid-cols-1 gap-5">
-            <div onClick={() => setView('rank')} className="cursor-pointer">
-              <RankDisplay
-                coachmarkTargetId="home_rank_card"
-                points={programProgress?.totalPoints || 0}
-                rankProgress={homeRank}
-                streakRisk={homeStreakRisk}
+          <button
+            type="button"
+            onClick={() => setView('friends')}
+            className="group relative min-h-[96px] w-full overflow-hidden rounded-[22px] border border-white/10 bg-[#080d14] p-3.5 text-left shadow-[0_18px_40px_-28px_rgba(0,0,0,0.9)] ring-1 ring-inset ring-white/[0.03] transition-all duration-300 hover:-translate-y-1 hover:border-accent/25 active:scale-[0.985] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+          >
+            <div
+              className="absolute inset-0 bg-cover bg-center opacity-60 transition-transform duration-300 group-hover:scale-105"
+              style={{ backgroundImage: `url(${emojiGymFriendsBg})` }}
+              aria-hidden="true"
+            />
+            <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(205,255,88,0.14),transparent_30%),linear-gradient(180deg,rgba(7,11,17,0.28),rgba(7,11,17,0.74))]" aria-hidden="true" />
+            <div className="absolute inset-x-4 top-0 h-px bg-gradient-to-r from-transparent via-white/25 to-transparent" aria-hidden="true" />
+
+            <div className="relative z-10 flex h-full items-center justify-between gap-4">
+              <div className="min-w-0">
+                <div className="text-[11px] font-medium uppercase tracking-[0.16em] text-white/55">Community</div>
+                <div className="mt-1.5 text-[22px] font-semibold leading-none tracking-[-0.03em] text-white">
+                  Friends
+                </div>
+                <div className="mt-1.5 text-xs font-medium text-text-secondary">
+                  Connect with gym members
+                </div>
+              </div>
+
+              <div className="flex shrink-0 items-center gap-3">
+                <div className="flex h-11 w-11 items-center justify-center rounded-[16px] border border-accent/25 bg-accent/10 p-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]">
+                  <img src={emojiFriends} alt="" aria-hidden="true" className="h-7 w-7 object-contain" />
+                </div>
+                <div className="text-right">
+                  <div className="font-electrolize text-2xl leading-none text-white">Go</div>
+                  <div className="mt-1 text-[10px] uppercase tracking-[0.14em] text-accent/80">Open</div>
+                </div>
+              </div>
+            </div>
+          </button>
+        </ScreenSection>
+
+        <ScreenSection index={3}>
+          <RecoveryIndicator coachmarkTargetId="home_recovery_card" percentage={overallRecovery} onClick={() => setView('recovery')} />
+        </ScreenSection>
+
+        <ScreenSection index={4}>
+          <section className="space-y-3" aria-labelledby="home-quick-actions-title">
+            <h2 id="home-quick-actions-title" className="px-1 text-[17px] font-semibold text-text-primary">
+              {homeCopy.quickActions}
+            </h2>
+            <div className="grid grid-cols-2 gap-2">
+              <HomeQuickActionButton label={homeCopy.repyAi} Icon={Bot} onClick={() => setIsComingSoonOpen(true)} />
+              <HomeQuickActionButton label={homeCopy.shop} Icon={ShoppingBag} onClick={() => setView('shop')} />
+              <HomeQuickActionButton
+                label={homeCopy.library}
+                Icon={BookOpen}
+                onClick={() => setView('exercises')}
+                coachmarkTargetId="home_learning_exercises_card"
+              />
+              <HomeQuickActionButton
+                label={homeCopy.nutrition}
+                Icon={Apple}
+                onClick={() => setView('nutrition')}
+                coachmarkTargetId="home_nutrition_card"
               />
             </div>
-            <RecoveryIndicator coachmarkTargetId="home_recovery_card" percentage={overallRecovery} onClick={() => setView('recovery')} />
-          </div>
+          </section>
         </ScreenSection>
 
-        {/* Quick Actions */}
-        <ScreenSection index={3} className="grid grid-cols-2 gap-4">
-
-          <GhostButton coachmarkTargetId="home_nutrition_card" onClick={() => setView('shop')} className="justify-between">
-            <span className="flex items-center gap-2">
-              <img src={emojiShop} alt={homeCopy.shop} className="h-4 w-4 object-contain" />
-              <span>{homeCopy.shop}</span>
-            </span>
-            <img src={emojiRightArrow} alt="" aria-hidden="true" className="mb-1 h-[18px] w-[18px] shrink-0 object-contain opacity-70" />
-          </GhostButton>
-          <GhostButton onClick={() => setView('shop')} className="justify-between">
-            <span className="flex items-center gap-2">
-              <span>Repy ai</span>
-            </span>
-            <img src={emojiRightArrow} alt="" aria-hidden="true" className="mb-1 h-[18px] w-[18px] shrink-0 object-contain opacity-70" />
-          </GhostButton>
-        </ScreenSection>
-
-        {/* Education */}
-        <ScreenSection index={4}>
-          <EducationSection
-            onExercises={() => setView('exercises')}
-            onBooks={() => setView('books')}
-            exercisesCoachmarkTargetId="home_learning_exercises_card"
-            booksCoachmarkTargetId="home_learning_books_card"
-          />
-        </ScreenSection>
-
-
-        {/* Calculators */}
-        <ScreenSection index={5}>
-          <CalculatorCard onClick={() => setView('calculator')} />
-        </ScreenSection>
       </div>
       <CoachmarkOverlay
         isOpen={isCoachmarkOpen}

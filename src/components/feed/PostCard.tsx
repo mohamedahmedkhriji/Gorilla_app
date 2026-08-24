@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Bookmark, MessageCircle, MoreHorizontal, Send } from 'lucide-react';
 import type { Post, ReactionOption, ReactionType } from './types';
 
@@ -13,6 +13,7 @@ type PostCardProps = {
   openReactions: boolean;
   getAuthorName: (name: string) => string;
   getPostedAgo: (createdAt: string | null, short?: boolean) => string;
+  getCategoryLabel: (category: Post['category']) => string;
   resolveAvatar: (post: Post) => string;
   formatCount: (value: number) => string;
   onOpen: () => void;
@@ -33,9 +34,13 @@ type PostCardProps = {
     deletePost: string;
     hidePost: string;
     reactToPost: string;
+    like: string;
+    comment: string;
     save: string;
     saved: string;
     share: string;
+    reactionsCount: (count: string) => string;
+    commentsCount: (count: string) => string;
   };
 };
 
@@ -124,6 +129,7 @@ export default function PostCard({
   openReactions,
   getAuthorName,
   getPostedAgo,
+  getCategoryLabel,
   resolveAvatar,
   formatCount,
   onOpen,
@@ -145,16 +151,14 @@ export default function PostCard({
   const caption = post.caption.trim();
   const canExpand = caption.length > 140;
   const displayedCaption = expanded || !canExpand ? caption : `${caption.slice(0, 140).trim()}...`;
-  const meta = useMemo(
-    () => `${formatCount(post.likes)} likes • ${formatCount(post.comments)} comments`,
-    [formatCount, post.comments, post.likes],
-  );
   const selectedReactionOption = reactionOptions.find((item) => item.type === post.reactionByMe);
+  const formattedReactions = formatCount(post.likes);
+  const formattedComments = formatCount(post.comments);
 
   return (
     <article
       data-coachmark-target={index === 0 ? 'blogs_first_post_card' : undefined}
-      className="group overflow-hidden rounded-[24px] border border-white/10 bg-card/95 shadow-[0_18px_50px_rgb(5_10_20/0.12)] transition-all duration-300 hover:-translate-y-0.5 hover:border-accent/18 hover:shadow-[0_24px_60px_rgb(5_10_20/0.18)]"
+      className="group overflow-hidden rounded-[20px] border border-white/10 bg-card/95 shadow-[0_18px_50px_rgb(5_10_20/0.12)] transition-all duration-300 hover:-translate-y-0.5 hover:border-accent/18 hover:shadow-[0_24px_60px_rgb(5_10_20/0.18)]"
       onDoubleClick={onDoubleLike}
     >
       <div className="flex items-center gap-3 px-4 pb-3 pt-4">
@@ -167,15 +171,20 @@ export default function PostCard({
 
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
-            <h3 className="truncate text-sm font-semibold text-text-primary">{authorName}</h3>
+            <h3 className="truncate text-base font-bold text-text-primary">{authorName}</h3>
+            {post.verified ? (
+              <span className="inline-flex h-4 w-4 items-center justify-center rounded-full bg-accent text-[10px] font-black text-black" aria-label="Verified">
+                ✓
+              </span>
+            ) : null}
             {post.womenOnly ? (
               <span className="rounded-full bg-accent/12 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-accent">
                 {copy.womenOnly}
               </span>
             ) : null}
           </div>
-          <p className="mt-1 truncate text-xs text-text-secondary">
-            {getPostedAgo(post.createdAt, true)} • {post.category}
+          <p className="mt-0.5 truncate text-xs font-medium text-text-secondary">
+            {getPostedAgo(post.createdAt, true)} • {getCategoryLabel(post.category)}
           </p>
         </div>
 
@@ -233,8 +242,8 @@ export default function PostCard({
       <button
         type="button"
         onClick={onOpen}
-        className="relative block w-full overflow-hidden bg-white/[0.03] text-left active:scale-[0.995]"
-        style={{ aspectRatio: post.mediaAspectRatio }}
+        className="relative mx-3 block w-[calc(100%-1.5rem)] overflow-hidden rounded-2xl bg-[#151d28] text-left active:scale-[0.995]"
+        style={{ aspectRatio: '4 / 5' }}
       >
         {!mediaLoaded ? (
           <div className="absolute inset-0 animate-pulse bg-white/10" />
@@ -247,7 +256,7 @@ export default function PostCard({
             preload={priorityMedia ? 'auto' : 'metadata'}
             muted
             playsInline
-            className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.01]"
+            className="h-full w-full object-contain transition-transform duration-300 group-hover:scale-[1.01]"
             onLoadedData={() => setMediaLoaded(true)}
           />
         ) : (
@@ -268,24 +277,38 @@ export default function PostCard({
               loading={priorityMedia ? 'eager' : 'lazy'}
               fetchPriority={priorityMedia ? 'high' : 'auto'}
               decoding="async"
-              className="relative h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.01]"
+              className="relative h-full w-full object-contain transition-transform duration-300 group-hover:scale-[1.01]"
               onLoad={() => setMediaLoaded(true)}
             />
           </>
         )}
       </button>
 
-      <div className="space-y-3 px-4 py-4">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
+      <div className="space-y-3 px-4 py-3">
+        <div className="flex items-center justify-between gap-3 text-xs font-medium text-text-secondary">
+          <div className="flex min-w-0 items-center gap-2">
+            <span className="h-3 w-3 rounded-full bg-accent" aria-hidden="true" />
+            <span>{copy.reactionsCount(formattedReactions)}</span>
+          </div>
+          <button type="button" onClick={onComments} className="shrink-0 transition-colors hover:text-text-primary">
+            {copy.commentsCount(formattedComments)}
+          </button>
+        </div>
+
+        <div className="-mx-4 h-px bg-white/10" aria-hidden="true" />
+
+        <div className="grid grid-cols-4 gap-1">
             <div className="relative" data-no-open="true" data-reaction-menu-root="true">
               <button
                 type="button"
                 onClick={onToggleReactions}
-                className="flex h-10 w-10 items-center justify-center rounded-full bg-white/5 text-text-primary transition-all duration-200 hover:bg-white/10 active:scale-95"
+                className={`flex min-h-[44px] w-full items-center justify-center gap-1.5 rounded-xl px-1 text-xs font-semibold transition-all duration-200 hover:bg-white/8 active:scale-95 ${
+                  post.reactionByMe ? 'text-accent' : 'text-text-secondary hover:text-text-primary'
+                }`}
                 aria-label={copy.reactToPost}
               >
                 <AnimatedReactionIcon reaction={post.reactionByMe} image={selectedReactionOption?.image} />
+                <span>{copy.like}</span>
               </button>
 
               {openReactions ? (
@@ -313,38 +336,35 @@ export default function PostCard({
             <button
               type="button"
               onClick={onComments}
-              className="flex h-10 w-10 items-center justify-center rounded-full bg-white/5 text-text-primary transition-all duration-200 hover:bg-white/10 active:scale-95"
+              className="flex min-h-[44px] items-center justify-center gap-1.5 rounded-xl px-1 text-xs font-semibold text-text-secondary transition-all duration-200 hover:bg-white/8 hover:text-text-primary active:scale-95"
             >
-              <MessageCircle size={18} />
+              <MessageCircle size={18} aria-hidden="true" />
+              <span>{copy.comment}</span>
             </button>
 
             <button
               type="button"
               onClick={onShare}
-              className="flex h-10 w-10 items-center justify-center rounded-full bg-white/5 text-text-primary transition-all duration-200 hover:bg-white/10 active:scale-95"
+              className="flex min-h-[44px] items-center justify-center gap-1.5 rounded-xl px-1 text-xs font-semibold text-text-secondary transition-all duration-200 hover:bg-white/8 hover:text-text-primary active:scale-95"
               aria-label={copy.share}
             >
-              <Send size={18} />
+              <Send size={18} aria-hidden="true" />
+              <span>{copy.share}</span>
             </button>
-          </div>
 
           <button
             type="button"
             onClick={onSave}
-            className={`flex h-10 w-10 items-center justify-center rounded-full transition-all duration-200 active:scale-95 ${
+            className={`flex min-h-[44px] items-center justify-center gap-1.5 rounded-xl px-1 text-xs font-semibold transition-all duration-200 active:scale-95 ${
               isSaved
-                ? 'bg-accent text-black shadow-glow'
-                : 'bg-white/5 text-text-primary hover:bg-white/10'
+                ? 'text-accent'
+                : 'text-text-secondary hover:bg-white/8 hover:text-text-primary'
             }`}
             aria-label={isSaved ? copy.saved : copy.save}
           >
-            <Bookmark size={18} className={isSaved ? 'fill-current' : ''} />
+            <Bookmark size={18} className={isSaved ? 'fill-current' : ''} aria-hidden="true" />
+            <span>{isSaved ? copy.saved : copy.save}</span>
           </button>
-        </div>
-
-        <div className="text-sm font-medium text-text-primary">{meta}</div>
-        <div className="text-xs text-text-tertiary">
-          {formatCount(post.views)} views
         </div>
       </div>
     </article>

@@ -1,14 +1,24 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { User, Camera, Dumbbell, FileText, LogOut, X, Flame, CalendarDays, ChevronLeft, ChevronRight } from 'lucide-react';
+import {
+  CalendarDays,
+  Camera,
+  ChevronLeft,
+  ChevronRight,
+  ClipboardList,
+  Dumbbell,
+  FileText,
+  Flame,
+  MessageSquare,
+  User,
+  Users,
+  X,
+} from 'lucide-react';
 import { api } from '../../services/api';
 import { getStoredAppUser, getStoredUserId, persistStoredUser } from '../../shared/authStorage';
-import { FriendsCard } from '../home/FriendsCard';
-import { CoachCard } from '../home/CoachCard';
-import { emojiRightArrow } from '../../services/emojiTheme';
 import { AppLanguage, getActiveLanguage, getLanguageLocale, getStoredLanguage } from '../../services/language';
 interface ProfileScreenProps {
-  onNavigate: (screen: 'gym' | 'rank' | 'settings' | 'workout' | 'weeklyPlan' | 'posts' | 'friends' | 'coachList' | 'exercises') => void;
+  onNavigate: (screen: 'gym' | 'rank' | 'settings' | 'notifications' | 'workout' | 'weeklyPlan' | 'posts' | 'friends' | 'coachList' | 'exercises') => void;
   onLogout: () => void;
 }
 
@@ -33,10 +43,35 @@ type ProfileAgendaDay = {
   isTrainingDay: boolean;
 };
 
+type ProfileStats = {
+  completedExercises: number;
+  planCompletedWorkouts: number;
+  planPlannedWorkouts: number;
+};
+
 const PROFILE_I18N = {
   en: {
     memberSincePrefix: 'Member since',
     memberSinceUnknown: 'Member since -',
+    profileTitle: 'Profile',
+    editProfile: 'Edit Profile',
+    workouts: 'Workouts',
+    dayStreak: 'Day streak',
+    friends: 'Friends',
+    weeklyGoal: 'Weekly goal',
+    completeFirstWorkoutThisWeek: 'Complete your first workout this week',
+    trainingCommunity: 'Training & community',
+    myTrainingPlan: 'My Training Plan',
+    viewManageWorkouts: 'View and manage your workouts',
+    coachSupport: 'Coach Support',
+    chatCoach: 'Chat with your coach',
+    connectCommunity: 'Connect with the community',
+    myPosts: 'My Posts',
+    manageSharedPosts: 'Manage your shared posts',
+    account: 'Account',
+    personalDetails: 'Personal details',
+    notifications: 'Notifications',
+    appSettings: 'App settings',
     exercises: 'Exercises',
     classification: 'Classification',
     of: 'of',
@@ -349,16 +384,10 @@ const PROFILE_I18N = {
     sets: 'sets',
     exercisesCount: 'exercises',
   },
-} as const;
+};
 
 const profilePanelClassName =
   'relative overflow-hidden rounded-[28px] border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.06),rgba(255,255,255,0.015))] shadow-[0_20px_50px_-28px_rgba(0,0,0,0.85)] ring-1 ring-inset ring-white/[0.03] backdrop-blur-sm';
-
-const featureCardClassName =
-  `${profilePanelClassName} group flex h-full cursor-pointer flex-col justify-between p-4 text-left transition-all duration-300 hover:-translate-y-1 active:scale-[0.985]`;
-
-const featureIconClassName =
-  'relative flex h-11 w-11 items-center justify-center rounded-[18px] border border-white/12 bg-white/[0.07] shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]';
 
 export function ProfileScreen({ onNavigate, onLogout }: ProfileScreenProps) {
   const user = getStoredAppUser() || { name: 'Moha' };
@@ -372,8 +401,13 @@ export function ProfileScreen({ onNavigate, onLogout }: ProfileScreenProps) {
   );
   const userId = Number(getStoredUserId() || parsedUserId || 0);
   const [profilePicture, setProfilePicture] = useState<string | null>(null);
+  const [profileStats, setProfileStats] = useState<ProfileStats>({
+    completedExercises: 0,
+    planCompletedWorkouts: 0,
+    planPlannedWorkouts: 0,
+  });
+  const [friendsCount, setFriendsCount] = useState(0);
   const [profileAgendaDays, setProfileAgendaDays] = useState<ProfileAgendaDay[]>([]);
-  const [hasProfileAgendaProgram, setHasProfileAgendaProgram] = useState(false);
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
   const [isAgendaSheetOpen, setIsAgendaSheetOpen] = useState(false);
   const [agendaMonthDate, setAgendaMonthDate] = useState(() => new Date());
@@ -387,14 +421,14 @@ export function ProfileScreen({ onNavigate, onLogout }: ProfileScreenProps) {
   const [language, setLanguage] = useState<AppLanguage>('en');
   const avatarInputRef = useRef<HTMLInputElement | null>(null);
   const createdAt = user?.created_at || user?.createdAt;
-  const copy = PROFILE_I18N[language as keyof typeof PROFILE_I18N] || PROFILE_I18N.en;
+  const copy = { ...PROFILE_I18N.en, ...(PROFILE_I18N[language as keyof typeof PROFILE_I18N] || {}) };
 
   const isValidImageDataUrl = (value: string | null | undefined) =>
     typeof value === 'string' && value.startsWith('data:image/') && value.includes(';base64,');
 
   const memberSinceText = (() => {
     if (!createdAt) return copy.memberSinceUnknown;
-    const date = new Date(createdAt);
+    const date = new Date(String(createdAt));
     if (Number.isNaN(date.getTime())) return copy.memberSinceUnknown;
     return `${copy.memberSincePrefix} ${date.getFullYear()}`;
   })();
@@ -418,7 +452,7 @@ export function ProfileScreen({ onNavigate, onLogout }: ProfileScreenProps) {
     if (!userId) return;
 
     // Keep user-app storage keys aligned.
-    persistStoredUser({ ...user, id: userId });
+    persistStoredUser({ ...(getStoredAppUser() || {}), id: userId });
 
     const fetchProfilePicture = async () => {
       try {
@@ -433,19 +467,46 @@ export function ProfileScreen({ onNavigate, onLogout }: ProfileScreenProps) {
       try {
         const agenda = await api.getProfileAgenda(userId);
         setProfileAgendaDays(Array.isArray(agenda?.days) ? agenda.days : []);
-        setHasProfileAgendaProgram(Boolean(agenda?.hasActiveProgram));
       } catch (error) {
         console.error('Failed to load profile agenda:', error);
         setProfileAgendaDays([]);
-        setHasProfileAgendaProgram(false);
+      }
+    };
+
+    const fetchProfileStats = async () => {
+      try {
+        const stats = await api.getProfileStats(userId);
+        setProfileStats({
+          completedExercises: Math.max(0, Number(stats?.completedExercises || 0)),
+          planCompletedWorkouts: Math.max(0, Number(stats?.planCompletedWorkouts || 0)),
+          planPlannedWorkouts: Math.max(0, Number(stats?.planPlannedWorkouts || 0)),
+        });
+      } catch (error) {
+        console.error('Failed to load profile stats:', error);
+      }
+    };
+
+    const fetchFriendsCount = async () => {
+      try {
+        const response = await api.getGymMembers(userId);
+        const members = Array.isArray(response?.members) ? response.members : [];
+        const acceptedFriends = members.filter((member: { friend_status?: unknown }) => String(member?.friend_status || '').trim().toLowerCase() === 'accepted');
+        setFriendsCount(acceptedFriends.length);
+      } catch (error) {
+        console.error('Failed to load profile friends count:', error);
+        setFriendsCount(0);
       }
     };
 
     fetchProfilePicture();
     void fetchProfileAgenda();
+    void fetchProfileStats();
+    void fetchFriendsCount();
 
     const agendaRefresh = setInterval(() => {
       void fetchProfileAgenda();
+      void fetchProfileStats();
+      void fetchFriendsCount();
     }, 15 * 1000);
 
     return () => clearInterval(agendaRefresh);
@@ -605,23 +666,21 @@ export function ProfileScreen({ onNavigate, onLogout }: ProfileScreenProps) {
   const currentWeekDone = currentWeekDays.filter((day) => day.status === 'done').length;
   const currentWeekPlanned = Math.max(1, currentWeekDays.filter((day) => day.isTrainingDay).length || 3);
   const totalWorkoutCount = profileAgendaDays.filter((day) => day.status === 'done').length;
-  const weekStreak = (() => {
+  const weeklyGoalDone = Math.max(currentWeekDone, profileStats.planCompletedWorkouts > 0 ? Math.min(profileStats.planCompletedWorkouts, currentWeekPlanned) : 0);
+  const weeklyGoalTarget = Math.max(1, currentWeekPlanned || profileStats.planPlannedWorkouts || 5);
+  const weeklyGoalPercent = Math.min(100, Math.round((weeklyGoalDone / weeklyGoalTarget) * 100));
+  const dayStreak = (() => {
     let streak = 0;
-    let weekCursor = getMondayStart(today);
-    for (let index = 0; index < 52; index += 1) {
-      const start = new Date(weekCursor);
-      const end = addDays(start, 6);
-      const hasWorkout = profileAgendaDays.some((day) => {
-        const date = parseAgendaDate(day.dateKey);
-        return day.status === 'done' && date && date >= start && date <= end;
-      });
-      if (!hasWorkout) break;
+    let cursor = new Date(today);
+    for (let index = 0; index < 365; index += 1) {
+      const key = toDateKey(cursor);
+      const day = agendaByDate.get(key);
+      if (day?.status !== 'done') break;
       streak += 1;
-      weekCursor = addDays(weekCursor, -7);
+      cursor = addDays(cursor, -1);
     }
     return streak;
   })();
-
   const monthLabel = agendaMonthDate.toLocaleDateString(getLanguageLocale(language), {
     month: 'long',
     year: 'numeric',
@@ -659,153 +718,156 @@ export function ProfileScreen({ onNavigate, onLogout }: ProfileScreenProps) {
     setIsAgendaSheetOpen(false);
     onNavigate('workout');
   };
+
+  const renderActionRow = ({
+    icon,
+    title,
+    subtitle,
+    onClick,
+    coachmarkTargetId,
+  }: {
+    icon: React.ReactNode;
+    title: string;
+    subtitle?: string;
+    onClick: () => void;
+    coachmarkTargetId?: string;
+  }) => (
+    <button
+      key={title}
+      data-coachmark-target={coachmarkTargetId}
+      type="button"
+      onClick={onClick}
+      className="group flex min-h-[58px] w-full items-center gap-3 border-b border-white/10 px-3 py-3 text-left last:border-b-0 transition-colors hover:bg-white/[0.035] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-accent"
+    >
+      <span className="flex h-8 w-8 shrink-0 items-center justify-center text-accent">
+        {icon}
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="block text-sm font-semibold text-text-primary">{title}</span>
+        {subtitle ? <span className="mt-0.5 block text-xs leading-4 text-text-secondary">{subtitle}</span> : null}
+      </span>
+      <ChevronRight size={18} className="shrink-0 text-text-secondary transition-transform group-hover:translate-x-0.5 group-hover:text-accent" aria-hidden="true" />
+    </button>
+  );
   
   return (
-    <div className="space-y-6 pb-24">
-      <div className={`${profilePanelClassName} flex items-center gap-4 px-4 py-4 pt-5`}>
-        <div className="absolute inset-x-6 top-0 h-px bg-gradient-to-r from-transparent via-white/20 to-transparent" />
-        <div className="absolute -right-10 top-0 h-24 w-24 rounded-full bg-accent/10 blur-3xl" />
-        <div className="relative">
-          <div
-            data-coachmark-target="profile_avatar_button"
-            className="flex h-20 w-20 items-center justify-center overflow-hidden rounded-full border border-white/15 bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.18),rgba(255,255,255,0.04)_58%,rgba(255,255,255,0.02))] text-text-tertiary shadow-[0_16px_36px_-22px_rgba(0,0,0,0.85)] ring-1 ring-inset ring-white/10"
-          >
+    <div className="space-y-4 pb-24">
+      <h1 className="px-1 text-[22px] font-bold tracking-[-0.03em] text-white">{copy.profileTitle}</h1>
+
+      <section className="overflow-hidden rounded-2xl border border-white/10 bg-[#0d1828] shadow-[0_18px_40px_-28px_rgba(0,0,0,0.9)]">
+        <div className="flex items-center gap-4 px-4 py-4">
+          <div className="relative shrink-0">
+            <div
+              data-coachmark-target="profile_avatar_button"
+              className="flex h-[74px] w-[74px] items-center justify-center overflow-hidden rounded-full border border-white/15 bg-[#121d2d] text-text-tertiary ring-1 ring-inset ring-white/10"
+            >
+              <button
+                type="button"
+                className="flex h-full w-full items-center justify-center"
+                aria-label={profilePicture ? copy.profilePreviewAlt : copy.profileAlt}
+                onClick={handleAvatarButtonClick}
+              >
+                {profilePicture ? (
+                  <img src={profilePicture} alt={copy.profileAlt} className="h-full w-full object-cover" />
+                ) : (
+                  <User size={34} aria-hidden="true" />
+                )}
+              </button>
+            </div>
+            <label
+              data-coachmark-target="profile_avatar_upload_button"
+              className="absolute bottom-0 right-0 flex h-7 w-7 cursor-pointer items-center justify-center rounded-full border border-black/20 bg-accent text-black shadow-[0_10px_20px_-12px_rgba(205,255,88,0.7)] transition-all duration-200 hover:scale-105 active:scale-95"
+              aria-label={copy.editProfile}
+            >
+              <Camera size={13} aria-hidden="true" />
+              <input ref={avatarInputRef} type="file" accept="image/*" onChange={handleImageUpload} className="hidden" />
+            </label>
+          </div>
+
+          <div className="min-w-0 flex-1">
+            <h2 className="truncate text-[21px] font-bold tracking-[-0.03em] text-white">{userName}</h2>
+            <p className="mt-1 text-xs font-medium text-text-secondary">{memberSinceText}</p>
             <button
               type="button"
-              className="w-full h-full"
-              aria-label={profilePicture ? copy.profilePreviewAlt : copy.profileAlt}
-              onClick={handleAvatarButtonClick}
+              onClick={() => onNavigate('settings')}
+              className="mt-3 min-h-8 rounded-md border border-accent bg-accent/10 px-4 text-[11px] font-black uppercase tracking-[0.08em] text-accent transition-colors hover:bg-accent hover:text-black focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
             >
-              {profilePicture ? (
-                <img
-                  src={profilePicture}
-                  alt={copy.profileAlt}
-                  className="w-full h-full object-cover"
-                />
-              ) : (
-                <User size={36} className="mx-auto my-auto" />
-              )}
+              {copy.editProfile}
             </button>
           </div>
-          <label
-            data-coachmark-target="profile_avatar_upload_button"
-            className="absolute bottom-0 right-0 flex h-7 w-7 cursor-pointer items-center justify-center rounded-full border border-black/15 bg-accent text-black shadow-[0_10px_20px_-12px_rgba(205,255,88,0.7)] transition-all duration-200 hover:scale-105 hover:bg-accent/90 active:scale-95"
-          >
-            <Camera size={12} className="text-black" />
-            <input
-              ref={avatarInputRef}
-              type="file"
-              accept="image/*"
-              onChange={handleImageUpload}
-              className="hidden"
-            />
-          </label>
         </div>
 
-        <div className="min-w-0">
-          <h1 className="truncate text-[28px] font-semibold tracking-[-0.04em] text-white">{userName}</h1>
-          <p className="mt-1 text-[11px] font-medium uppercase tracking-[0.18em] text-text-secondary">{memberSinceText}</p>
-        </div>
-      </div>
-
-      <section
-        data-coachmark-target="profile_agenda_card"
-        className={`${profilePanelClassName} w-full cursor-pointer px-4 py-4 text-left transition-all duration-300 hover:-translate-y-0.5 hover:border-accent/25 active:scale-[0.99]`}
-        onClick={() => setIsAgendaSheetOpen(true)}
-        role="button"
-        tabIndex={0}
-        onKeyDown={(event) => {
-          if (event.key === 'Enter' || event.key === ' ') {
-            event.preventDefault();
-            setIsAgendaSheetOpen(true);
-          }
-        }}
-      >
-        <div className="absolute inset-x-6 top-0 h-px bg-gradient-to-r from-transparent via-white/18 to-transparent" />
-        <div className="relative z-10 flex items-center justify-between gap-4">
-          <div className="min-w-0">
-            <div className="flex items-center gap-2 text-[22px] font-semibold leading-none tracking-[-0.03em] text-white">
-              <Flame size={24} className="shrink-0 text-orange-400" fill="currentColor" strokeWidth={1.8} />
-              <span>{Math.max(0, weekStreak)} {copy.weekStreak}</span>
+        <div className="grid grid-cols-3 border-t border-white/10">
+          {[
+            { icon: <Dumbbell size={16} aria-hidden="true" />, value: totalWorkoutCount, label: copy.workouts },
+            { icon: <Flame size={16} aria-hidden="true" />, value: dayStreak, label: copy.dayStreak },
+            { icon: <Users size={16} aria-hidden="true" />, value: friendsCount, label: copy.friends },
+          ].map((stat, index) => (
+            <div key={stat.label} className={`px-3 py-3 text-center ${index > 0 ? 'border-l border-white/10' : ''}`}>
+              <div className="mx-auto flex h-5 items-center justify-center text-accent">{stat.icon}</div>
+              <div className="mt-1 text-xl font-bold leading-none text-white">{stat.value}</div>
+              <div className="mt-1 text-[11px] leading-none text-text-secondary">{stat.label}</div>
             </div>
-            <div className="mt-2 truncate text-[12px] font-medium text-text-secondary">
-              {currentWeekDone} / {currentWeekPlanned} {copy.thisWeek} - {totalWorkoutCount} {totalWorkoutCount === 1 ? copy.workoutTotal : copy.workoutsTotal}
-            </div>
-          </div>
-          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[16px] border border-white/10 bg-white/[0.04] text-text-secondary shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]">
-            <CalendarDays size={21} />
-          </div>
+          ))}
         </div>
       </section>
 
-      <div className="grid grid-cols-2 gap-4">
-        <FriendsCard
-          onClick={() => onNavigate('friends')}
-          coachmarkTargetId="profile_friends_card"
-        />
-        <CoachCard
-          onClick={() => onNavigate('coachList')}
-          coachmarkTargetId="profile_coach_card"
-        />
-      </div>
-
-      <div className="grid grid-cols-2 gap-4">
+      <section className="space-y-2" aria-labelledby="profile-weekly-goal-title">
+        <h2 id="profile-weekly-goal-title" className="px-1 text-base font-bold text-white">{copy.weeklyGoal}</h2>
         <button
-          data-coachmark-target="profile_posts_card"
+          data-coachmark-target="profile_agenda_card"
           type="button"
-          onClick={() => onNavigate('posts')}
-          className={`${featureCardClassName} hover:border-emerald-400/30`}
+          onClick={() => setIsAgendaSheetOpen(true)}
+          className="flex min-h-[66px] w-full items-center gap-3 rounded-xl border border-white/10 bg-[#0d1828] px-3 text-left transition-colors hover:border-accent/25 hover:bg-white/[0.035] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
         >
-          <div className="absolute inset-x-4 top-0 h-px bg-gradient-to-r from-transparent via-white/25 to-transparent" />
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(16,185,129,0.16),transparent_34%),linear-gradient(180deg,rgba(0,0,0,0.2),rgba(0,0,0,0.52))]" />
-          <div className="relative z-10 flex justify-between items-start">
-            <div className={`${featureIconClassName} text-emerald-300`}>
-              <div className="absolute inset-x-2 top-0 h-px bg-gradient-to-r from-transparent via-white/20 to-transparent" />
-              <FileText size={22} />
-            </div>
-            <img src={emojiRightArrow} alt="" aria-hidden="true" className="h-4 w-4 object-contain opacity-70 transition-all duration-300 group-hover:translate-x-0.5 group-hover:opacity-100" />
-          </div>
-          <div className="relative z-10 mt-4 min-w-0">
-            <div className="text-xl font-semibold leading-none tracking-[-0.03em] text-white">
-              <div>{copy.myBlogPostsLine1}</div>
-              <div>{copy.myBlogPostsLine2}</div>
-            </div>
-          </div>
-          <div className="relative z-10 mt-3 text-[11px] font-medium uppercase tracking-[0.16em] text-emerald-300">{copy.open}</div>
+          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-white/10 bg-white/[0.04] text-accent">
+            <CalendarDays size={20} aria-hidden="true" />
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="block text-sm font-bold text-white">{weeklyGoalDone} of {weeklyGoalTarget} {copy.workouts.toLowerCase()}</span>
+            <span className="mt-2 block h-1.5 overflow-hidden rounded-full bg-white/10">
+              <span className="block h-full rounded-full bg-accent" style={{ width: `${weeklyGoalPercent}%` }} />
+            </span>
+            <span className="mt-1 block text-[11px] text-text-secondary">{copy.completeFirstWorkoutThisWeek}</span>
+          </span>
+          <span className="text-[11px] font-bold text-accent">{weeklyGoalPercent}%</span>
+          <ChevronRight size={18} className="shrink-0 text-text-secondary" aria-hidden="true" />
         </button>
+      </section>
 
-        <button
-          data-coachmark-target="profile_plan_builder_card"
-          type="button"
-          onClick={() => setIsPlanChoiceOpen(true)}
-          className={`${featureCardClassName} hover:border-accent/30`}
-        >
-          <div className="absolute inset-x-4 top-0 h-px bg-gradient-to-r from-transparent via-white/25 to-transparent" />
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(205,255,88,0.16),transparent_34%),linear-gradient(180deg,rgba(0,0,0,0.2),rgba(0,0,0,0.52))]" />
-          <div className="relative z-10 flex justify-between items-start">
-            <div className={`${featureIconClassName} text-accent`}>
-              <div className="absolute inset-x-2 top-0 h-px bg-gradient-to-r from-transparent via-white/20 to-transparent" />
-              <Dumbbell size={22} />
-            </div>
-            <img src={emojiRightArrow} alt="" aria-hidden="true" className="h-4 w-4 object-contain opacity-70 transition-all duration-300 group-hover:translate-x-0.5 group-hover:opacity-100" />
-          </div>
-          <div className="relative z-10 mt-4 min-w-0">
-            <div className="text-xl font-semibold leading-none tracking-[-0.03em] text-white">
-              <div>{copy.createWorkoutPlanLine1}</div>
-              <div>{copy.createWorkoutPlanLine2}</div>
-            </div>
-          </div>
-          <div className="relative z-10 mt-3 text-[11px] font-medium uppercase tracking-[0.16em] text-accent">{copy.start}</div>
-        </button>
-      </div>
+      <section className="space-y-2" aria-labelledby="profile-training-title">
+        <h2 id="profile-training-title" className="px-1 text-base font-bold text-white">{copy.trainingCommunity}</h2>
+        <div className="overflow-hidden rounded-xl border border-white/10 bg-[#0d1828]">
+          {renderActionRow({
+            icon: <ClipboardList size={20} aria-hidden="true" />,
+            title: copy.myTrainingPlan,
+            subtitle: copy.viewManageWorkouts,
+            onClick: () => onNavigate('workout'),
+            coachmarkTargetId: 'profile_plan_builder_card',
+          })}
+          {renderActionRow({
+            icon: <MessageSquare size={20} aria-hidden="true" />,
+            title: copy.coachSupport,
+            subtitle: copy.chatCoach,
+            onClick: () => onNavigate('coachList'),
+            coachmarkTargetId: 'profile_coach_card',
+          })}
+          {renderActionRow({
+            icon: <FileText size={20} aria-hidden="true" />,
+            title: copy.myPosts,
+            subtitle: copy.manageSharedPosts,
+            onClick: () => onNavigate('posts'),
+            coachmarkTargetId: 'profile_posts_card',
+          })}
+        </div>
+      </section>
 
       <button
         data-coachmark-target="profile_logout_button"
         type="button"
         onClick={() => setIsLogoutOpen(true)}
-        className={`${profilePanelClassName} flex w-full items-center justify-center gap-2 rounded-[24px] border-red-500/15 bg-[linear-gradient(180deg,rgba(239,68,68,0.12),rgba(239,68,68,0.04))] p-4 text-red-300 transition-all duration-300 hover:-translate-y-0.5 hover:bg-red-500/15 active:scale-[0.99]`}
+        className="flex min-h-12 w-full items-center justify-center rounded-lg border border-red-500/70 bg-transparent px-4 text-[12px] font-black uppercase tracking-[0.16em] text-red-400 transition-colors hover:bg-red-500/10 active:scale-[0.99] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-400"
       >
-        <LogOut size={20} />
         {copy.logOut}
       </button>
 

@@ -1,5 +1,5 @@
 import React, { Suspense, lazy, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState, useTransition } from 'react';
-import { Copy, Facebook, Instagram, MessageCircleMore, RefreshCcw, Send, Upload, X } from 'lucide-react';
+import { Check, Copy, Facebook, ImagePlus, Instagram, MessageCircleMore, RefreshCcw, Send, Trash2, X } from 'lucide-react';
 import { api } from '../services/api';
 import { CoachmarkOverlay, type CoachmarkStep } from '../components/coachmarks/CoachmarkOverlay';
 import FeedPage from '../components/feed/FeedPage';
@@ -18,11 +18,11 @@ import type { BlogComment, FeedCategory, FeedCursor, FeedTab, Post, PostCategory
 const ReelsViewer = lazy(() => import('../components/feed/ReelsViewer'));
 
 const CATEGORY_OPTIONS: PostCategory[] = ['Training', 'Nutrition', 'Recovery', 'Mindset'];
-const TAB_OPTIONS: FeedTab[] = ['For You', 'Following', 'Latest'];
 const INITIAL_PAGE_LIMIT = 8;
 const FEED_PAGE_LIMIT = 8;
 const DESCRIPTION_MAX_LENGTH = 5000;
 const MEDIA_PAYLOAD_LIMIT = 8000000;
+const MAX_IMAGE_FILE_SIZE = 5500000;
 const PULL_REFRESH_THRESHOLD = 78;
 const PULL_REFRESH_MAX = 118;
 const DEFAULT_AVATAR = 'https://images.unsplash.com/photo-1633332755192-727a05c4013d?auto=format&fit=crop&w=120&q=80';
@@ -41,13 +41,15 @@ const REACTION_ASSETS: Record<ReactionType, string> = {
 };
 
 const enCopy = {
-  feedTitle: 'Feed',
-  feedSubtitle: 'Discover training, nutrition and recovery content',
+  feedTitle: 'Community',
+  feedSubtitle: 'Learn, share and grow together',
   tabs: { 'For You': 'For You', Following: 'Following', Latest: 'Latest' } as Record<FeedTab, string>,
   refreshFeedAria: 'Refresh feed',
+  refresh: 'Refresh',
+  refreshing: 'Refreshing',
   createPostAria: 'Create new post',
-  categories: { All: 'All', Women: 'Women', Training: 'Training', Nutrition: 'Nutrition', Recovery: 'Recovery', Mindset: 'Mindset' } as Record<FeedCategory, string>,
-  noPosts: 'No posts yet. Tap + to add your first post.',
+  categories: { All: 'All', Women: 'Women', Training: 'Training', Nutrition: 'Nutrition', Recovery: 'Progress', Mindset: 'Questions' } as Record<FeedCategory, string>,
+  noPosts: 'No posts yet. Share your first progress update.',
   noCategoryPosts: (categoryLabel: string) => `No ${categoryLabel.toLowerCase()} posts in this feed yet.`,
   showAllCategories: 'Show all',
   loading: 'Loading...',
@@ -69,10 +71,17 @@ const enCopy = {
   copyLink: 'Copy Link',
   closeFullScreen: 'Close full screen posts',
   newPostTitle: 'New Post',
-  newPostPlaceholder: 'Share your update...',
+  newPostSubtitle: 'Share something with the community',
+  newPostPlaceholder: 'Share your progress...',
   womenOnlyLabel: 'Post for women only',
   womenOnlyHint: 'Only women will see this post in the feed.',
   uploadMedia: 'Upload image',
+  addImage: 'Add an image',
+  imageHelp: 'JPG, PNG or WEBP - maximum 5.5 MB',
+  removeImage: 'Remove selected image',
+  captionOrImageHint: 'Add a caption and upload an image',
+  categoriesLabel: 'Categories',
+  selectedCount: (count: number) => `${count}/2 selected`,
   newPostPreviewAlt: 'New post preview',
   publishing: 'Publishing...',
   publish: 'Publish Post',
@@ -104,7 +113,8 @@ const enCopy = {
   errorLoadComments: 'Failed to load comments',
   errorPostComment: 'Failed to post comment',
   errorReadFile: 'Failed to read uploaded file.',
-  errorFileTooLarge: 'Media file is too large.',
+  errorFileTooLarge: 'Image is too large. Choose an image under 5.5 MB.',
+  errorInvalidImageType: 'Choose a JPG, PNG or WEBP image.',
   errorDescriptionRequired: 'Write a short post description.',
   errorDescriptionTooLong: (max: number) => `Description is too long (max ${max} characters).`,
   errorMediaRequired: 'Upload an image.',
@@ -120,13 +130,24 @@ const enCopy = {
   maxTwoCategories: 'Choose up to 2 categories',
   save: 'Save post',
   saved: 'Saved',
+  like: 'Like',
+  comment: 'Comment',
   share: 'Share',
+  post: 'Post',
+  reactionsCount: (count: string) => `${count} reactions`,
+  commentsCount: (count: string) => `${count} comments`,
   reply: 'Reply',
   replyLabel: 'Replying to',
   views: 'views',
-} as const;
+};
 
 type BlogCopy = typeof enCopy;
+
+type CachedFeedPayload = {
+  posts?: Record<string, unknown>[];
+  nextCursor?: unknown;
+  hasMore?: unknown;
+};
 
 const BLOGS_I18N: Record<AppLanguage, BlogCopy> = {
   en: enCopy,
@@ -143,13 +164,13 @@ const BLOGS_COPY_OVERRIDES: Partial<Record<AppLanguage, Partial<BlogCopy>>> = {
     tabs: { 'For You': 'لك', Following: 'المتابَعون', Latest: 'الأحدث' },
     refreshFeedAria: 'تحديث الخلاصة',
     createPostAria: 'إنشاء منشور جديد',
-    categories: { All: 'الكل', Women: 'نساء', Training: 'تدريب', Nutrition: 'تغذية', Recovery: 'استشفاء', Mindset: 'عقلية' },
-    noPosts: 'لا توجد منشورات بعد. اضغط + لإضافة أول منشور.',
+    categories: { All: 'الكل', Women: 'نساء', Training: 'تدريب', Nutrition: 'تغذية', Recovery: 'تقدم', Mindset: 'أسئلة' },
+    noPosts: 'لا توجد منشورات بعد. شارك أول تحديث عن تقدمك.',
     noCategoryPosts: (categoryLabel: string) => `لا توجد منشورات ${categoryLabel} في هذه الخلاصة حتى الآن.`,
     showAllCategories: 'عرض الكل',
     womenOnly: 'للنساء فقط',
     newPostTitle: 'منشور جديد',
-    newPostPlaceholder: 'شارك تحديثك...',
+    newPostPlaceholder: 'شارك تقدمك...',
     uploadMedia: 'رفع صورة',
     publish: 'نشر المنشور',
     commentsTitle: 'التعليقات',
@@ -166,13 +187,13 @@ const BLOGS_COPY_OVERRIDES: Partial<Record<AppLanguage, Partial<BlogCopy>>> = {
   it: {
     refreshFeedAria: 'Aggiorna feed',
     createPostAria: 'Crea un nuovo post',
-    categories: { All: 'Tutti', Women: 'Donne', Training: 'Allenamento', Nutrition: 'Nutrizione', Recovery: 'Recupero', Mindset: 'Mentalita' },
-    noPosts: 'Nessun post ancora. Tocca + per aggiungere il primo post.',
+    categories: { All: 'Tutti', Women: 'Donne', Training: 'Allenamento', Nutrition: 'Nutrizione', Recovery: 'Progressi', Mindset: 'Domande' },
+    noPosts: 'Nessun post ancora. Condividi il tuo primo aggiornamento.',
     noCategoryPosts: (categoryLabel: string) => `Ancora nessun post ${categoryLabel.toLowerCase()} in questo feed.`,
     showAllCategories: 'Mostra tutto',
     womenOnly: 'Solo donne',
     newPostTitle: 'Nuovo post',
-    newPostPlaceholder: 'Condividi il tuo aggiornamento...',
+    newPostPlaceholder: 'Condividi i tuoi progressi...',
     uploadMedia: 'Carica immagine',
     publish: 'Pubblica post',
     commentsTitle: 'Commenti',
@@ -183,16 +204,16 @@ const BLOGS_COPY_OVERRIDES: Partial<Record<AppLanguage, Partial<BlogCopy>>> = {
     replyLabel: 'Risposta a',
   },
   fr: {
-    feedTitle: 'Fil',
+    feedTitle: 'Communaute',
     refreshFeedAria: 'Actualiser le fil',
     createPostAria: 'Creer une nouvelle publication',
-    categories: { All: 'Tout', Women: 'Femmes', Training: 'Entrainement', Nutrition: 'Nutrition', Recovery: 'Recuperation', Mindset: 'Mental' },
-    noPosts: 'Aucune publication pour le moment. Appuie sur + pour ajouter la premiere.',
+    categories: { All: 'Tout', Women: 'Femmes', Training: 'Entrainement', Nutrition: 'Nutrition', Recovery: 'Progres', Mindset: 'Questions' },
+    noPosts: 'Aucune publication pour le moment. Partage ta premiere progression.',
     noCategoryPosts: (categoryLabel: string) => `Aucune publication ${categoryLabel.toLowerCase()} dans ce fil pour le moment.`,
     showAllCategories: 'Tout afficher',
     womenOnly: 'Femmes uniquement',
     newPostTitle: 'Nouvelle publication',
-    newPostPlaceholder: 'Partage ta mise a jour...',
+    newPostPlaceholder: 'Partage ta progression...',
     uploadMedia: 'Televerser une image',
     publish: 'Publier',
     commentsTitle: 'Commentaires',
@@ -205,13 +226,13 @@ const BLOGS_COPY_OVERRIDES: Partial<Record<AppLanguage, Partial<BlogCopy>>> = {
   de: {
     refreshFeedAria: 'Feed aktualisieren',
     createPostAria: 'Neuen Beitrag erstellen',
-    categories: { All: 'Alle', Women: 'Frauen', Training: 'Training', Nutrition: 'Ernaehrung', Recovery: 'Erholung', Mindset: 'Mindset' },
-    noPosts: 'Noch keine Beitraege. Tippe auf +, um deinen ersten Beitrag zu erstellen.',
+    categories: { All: 'Alle', Women: 'Frauen', Training: 'Training', Nutrition: 'Ernaehrung', Recovery: 'Fortschritt', Mindset: 'Fragen' },
+    noPosts: 'Noch keine Beitraege. Teile dein erstes Fortschrittsupdate.',
     noCategoryPosts: (categoryLabel: string) => `Noch keine ${categoryLabel.toLowerCase()}-Beitraege in diesem Feed.`,
     showAllCategories: 'Alle anzeigen',
     womenOnly: 'Nur fuer Frauen',
     newPostTitle: 'Neuer Beitrag',
-    newPostPlaceholder: 'Teile dein Update...',
+    newPostPlaceholder: 'Teile deinen Fortschritt...',
     uploadMedia: 'Bild hochladen',
     publish: 'Beitrag veroeffentlichen',
     commentsTitle: 'Kommentare',
@@ -358,7 +379,17 @@ const readNumberSet = (key: string) => {
 };
 
 const writeNumberSet = (key: string, value: Set<number>) => localStorage.setItem(key, JSON.stringify(Array.from(value)));
-const getUserProfileImage = () => String(getStoredAppUser()?.profile_picture || getStoredAppUser()?.profile_photo || '').trim();
+const getUserProfileImage = () => {
+  const storedUser = getStoredAppUser();
+  return String(
+    storedUser?.profilePicture
+    || storedUser?.profile_picture
+    || storedUser?.profile_photo
+    || storedUser?.avatarUrl
+    || storedUser?.avatar_url
+    || '',
+  ).trim();
+};
 const getUserGender = () => String(getStoredAppUser()?.gender || '').trim().toLowerCase();
 const SENSITIVE_SERVER_ERROR_PATTERN = /(unknown column|field list|sql|database|syntax|sqlite|mysql|postgres|column)/i;
 const toUserFacingError = (error: unknown, fallback: string) => {
@@ -372,7 +403,7 @@ export function Blogs({ guidedTourActive = false, onGuidedTourComplete, onGuided
   useScreenshotProtection();
 
   const userId = useMemo(() => getStoredUserId(), []);
-  const userProfileImage = useMemo(() => getUserProfileImage(), []);
+  const [userProfileImage, setUserProfileImage] = useState(() => getUserProfileImage());
   const coachmarkScope = useMemo(() => getCoachmarkUserScope(getStoredAppUser()), []);
   const [language, setLanguage] = useState<AppLanguage>('en');
   const copy = useMemo(
@@ -421,6 +452,7 @@ export function Blogs({ guidedTourActive = false, onGuidedTourComplete, onGuided
   const commentInputRef = useRef<HTMLInputElement | null>(null);
   const viewedPostIdsRef = useRef<Set<number>>(new Set());
   const hydratedFromCacheRef = useRef(false);
+  const createFileInputRef = useRef<HTMLInputElement | null>(null);
   const pullStartYRef = useRef(0);
   const pullActiveRef = useRef(false);
   const pullTriggeredRef = useRef(false);
@@ -441,6 +473,20 @@ export function Blogs({ guidedTourActive = false, onGuidedTourComplete, onGuided
       window.removeEventListener('storage', handleLanguageChanged);
     };
   }, []);
+
+  useEffect(() => {
+    if (!userId) return;
+    let alive = true;
+    api.getProfilePicture(userId)
+      .then((result) => {
+        const nextImage = String(result?.profilePicture || result?.profile_picture || '').trim();
+        if (alive && nextImage) setUserProfileImage(nextImage);
+      })
+      .catch(() => {
+        // The feed remains usable with the stored image or fallback avatar.
+      });
+    return () => { alive = false; };
+  }, [userId]);
 
   useEffect(() => {
     setSavedPostIds(readNumberSet(savedPostStorageKey));
@@ -485,18 +531,9 @@ export function Blogs({ guidedTourActive = false, onGuidedTourComplete, onGuided
   );
 
   const categoryFilters = useMemo<FeedCategory[]>(
-    () => (showWomenFilter ? ['All', 'Women', ...CATEGORY_OPTIONS] : ['All', ...CATEGORY_OPTIONS]),
-    [showWomenFilter],
+    () => ['All', ...CATEGORY_OPTIONS],
+    [],
   );
-
-  const categoryCounts = useMemo(() => {
-    const counts: Record<FeedCategory, number> = { All: posts.length, Women: 0, Training: 0, Nutrition: 0, Recovery: 0, Mindset: 0 };
-    posts.forEach((post) => {
-      if (isFemaleGender(post.authorGender)) counts.Women += 1;
-      counts[post.category] += 1;
-    });
-    return counts;
-  }, [posts]);
 
   const visiblePosts = useMemo(() => {
     let next = deferredCategory === 'All' ? posts : deferredCategory === 'Women'
@@ -608,7 +645,9 @@ export function Blogs({ guidedTourActive = false, onGuidedTourComplete, onGuided
     if (!userId) throw new Error(copy.errorMissingUser);
     const response = await api.getBlogsFeed(userId, { limit, cursorCreatedAt: cursor?.cursorCreatedAt, cursorId: cursor?.cursorId });
     const hiddenIds = readHiddenPostIds();
-    const nextPosts = Array.isArray(response?.posts) ? response.posts.map(mapPost).filter((post) => !hiddenIds.has(post.id)) : [];
+    const nextPosts = Array.isArray(response?.posts)
+      ? response.posts.map((post: Record<string, unknown>) => mapPost(post)).filter((post: Post) => !hiddenIds.has(post.id))
+      : [];
     const parsedCursor = parseFeedCursor(response?.nextCursor);
     return { posts: nextPosts, cursor: parsedCursor, hasMore: Boolean(response?.hasMore) && Boolean(parsedCursor) };
   }, [copy.errorMissingUser, readHiddenPostIds, userId]);
@@ -718,7 +757,7 @@ export function Blogs({ guidedTourActive = false, onGuidedTourComplete, onGuided
 
   useEffect(() => {
     if (!userId) return;
-    const cachedFeed = readOfflineCacheValue<any>(offlineCacheKeys.blogsFeed(userId, { limit: INITIAL_PAGE_LIMIT }));
+    const cachedFeed = readOfflineCacheValue<CachedFeedPayload>(offlineCacheKeys.blogsFeed(userId, { limit: INITIAL_PAGE_LIMIT }));
     if (!cachedFeed) return;
     const hiddenIds = readHiddenPostIds();
     const nextPosts = Array.isArray(cachedFeed?.posts) ? cachedFeed.posts.map(mapPost).filter((post: Post) => !hiddenIds.has(post.id)) : [];
@@ -964,11 +1003,20 @@ export function Blogs({ guidedTourActive = false, onGuidedTourComplete, onGuided
     });
   }, []);
 
+  const removeNewMedia = useCallback(() => {
+    setNewMediaUrl('');
+    setNewMediaType('image');
+    setCreateError('');
+    if (createFileInputRef.current) createFileInputRef.current.value = '';
+  }, []);
+
   const handleFilePicked = useCallback(async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     event.target.value = '';
     if (!file) return;
-    if (!file.type.startsWith('image/')) return setCreateError(copy.errorMediaRequired);
+    const allowedTypes = new Set(['image/jpeg', 'image/png', 'image/webp']);
+    if (!allowedTypes.has(file.type)) return setCreateError(copy.errorInvalidImageType);
+    if (file.size > MAX_IMAGE_FILE_SIZE) return setCreateError(copy.errorFileTooLarge);
     try {
       const dataUrl = await fileToDataUrl(file);
       if (!dataUrl) return setCreateError(copy.errorReadFile);
@@ -979,7 +1027,7 @@ export function Blogs({ guidedTourActive = false, onGuidedTourComplete, onGuided
     } catch {
       setCreateError(copy.errorReadFile);
     }
-  }, [copy.errorFileTooLarge, copy.errorMediaRequired, copy.errorReadFile]);
+  }, [copy.errorFileTooLarge, copy.errorInvalidImageType, copy.errorReadFile]);
 
   const publishPost = useCallback(async () => {
     if (!userId) return setCreateError(copy.errorMissingUser);
@@ -1001,8 +1049,7 @@ export function Blogs({ guidedTourActive = false, onGuidedTourComplete, onGuided
       }
       setNewDescription('');
       setSelectedCategories(['Recovery']);
-      setNewMediaType('image');
-      setNewMediaUrl('');
+      removeNewMedia();
       setNewWomenOnly(false);
       setIsCreateOpen(false);
     } catch (err) {
@@ -1010,7 +1057,7 @@ export function Blogs({ guidedTourActive = false, onGuidedTourComplete, onGuided
     } finally {
       setIsPublishing(false);
     }
-  }, [canCreateWomenOnlyPost, copy.errorDescriptionRequired, copy.errorDescriptionTooLong, copy.errorMediaRequired, copy.errorMissingUser, copy.errorPublish, copy.mediaAltUserUpload, loadInitialFeed, newDescription, newMediaType, newMediaUrl, newWomenOnly, primaryCategory, userId]);
+  }, [canCreateWomenOnlyPost, copy, loadInitialFeed, newDescription, newMediaType, newMediaUrl, newWomenOnly, primaryCategory, removeNewMedia, userId]);
 
   const activeCommentsPost = activeCommentsPostId ? posts.find((post) => post.id === activeCommentsPostId) || null : null;
   const activeSharePost = activeSharePostId ? posts.find((post) => post.id === activeSharePostId) || null : null;
@@ -1018,10 +1065,14 @@ export function Blogs({ guidedTourActive = false, onGuidedTourComplete, onGuided
   const canPublish = Boolean(newDescription.trim()) && Boolean(newMediaUrl) && !isPublishing;
   const selectCategory = useCallback((category: FeedCategory) => startTransition(() => setActiveCategory(category)), []);
   const closeCreateModal = useCallback(() => {
+    if (isPublishing) return;
     setIsCreateOpen(false);
     setCreateError('');
+    setNewDescription('');
+    setSelectedCategories(['Recovery']);
+    removeNewMedia();
     setNewWomenOnly(false);
-  }, []);
+  }, [isPublishing, removeNewMedia]);
 
   return (
     <div
@@ -1050,8 +1101,23 @@ export function Blogs({ guidedTourActive = false, onGuidedTourComplete, onGuided
         </div>
       ) : null}
       <FeedPage
-        header={<FeedHeader onRefresh={() => { void loadInitialFeed('refresh'); }} onCreate={() => { setIsCreateOpen(true); setCreateError(''); }} refreshAria={copy.refreshFeedAria} createAria={copy.createPostAria} refreshing={refreshing} />}
-        filters={<CategoryFilters filters={categoryFilters} activeCategory={activeCategory} onSelect={selectCategory} getLabel={getCategoryLabel} getCount={(category) => categoryCounts[category]} />}
+        header={(
+          <FeedHeader
+            onRefresh={() => { void loadInitialFeed('refresh'); }}
+            onCreate={() => { setIsCreateOpen(true); setCreateError(''); }}
+            title={copy.feedTitle}
+            subtitle={copy.feedSubtitle}
+            composerPlaceholder={copy.newPostPlaceholder}
+            postLabel={copy.post}
+            avatarUrl={userProfileImage || DEFAULT_AVATAR}
+            avatarAlt={copy.avatarAlt(copy.fallbackUser)}
+            refreshAria={copy.refreshFeedAria}
+            refreshLabel={copy.refresh}
+            refreshingLabel={copy.refreshing}
+            refreshing={refreshing}
+          />
+        )}
+        filters={<CategoryFilters filters={categoryFilters} activeCategory={activeCategory} onSelect={selectCategory} getLabel={getCategoryLabel} />}
         error={error}
       >
         {loading && !posts.length ? <div className="space-y-5">{Array.from({ length: 3 }).map((_, index) => <PostSkeleton key={index} />)}</div> : visiblePosts.length === 0 ? (
@@ -1062,7 +1128,7 @@ export function Blogs({ guidedTourActive = false, onGuidedTourComplete, onGuided
         ) : (
           <FeedList
             posts={visiblePosts}
-            currentUserId={userId}
+            currentUserId={userId ?? 0}
             savedPostIds={savedPostIds}
             reactionOptions={reactionOptions}
             openMenuId={openPostMenuId}
@@ -1071,9 +1137,25 @@ export function Blogs({ guidedTourActive = false, onGuidedTourComplete, onGuided
             hasMore={hasMore}
             caughtUpLabel={copy.caughtUp}
             loadingMoreLabel={copy.loadingMorePosts}
-            copy={{ avatarAlt: copy.avatarAlt, mediaAlt: copy.mediaAlt, womenOnly: copy.womenOnly, postOptions: copy.postOptions, deletePost: copy.deletePost, hidePost: copy.hidePost, reactToPost: copy.reactToPost, save: copy.save, saved: copy.saved, share: copy.share }}
+            copy={{
+              avatarAlt: copy.avatarAlt,
+              mediaAlt: copy.mediaAlt,
+              womenOnly: copy.womenOnly,
+              postOptions: copy.postOptions,
+              deletePost: copy.deletePost,
+              hidePost: copy.hidePost,
+              reactToPost: copy.reactToPost,
+              like: copy.like,
+              comment: copy.comment,
+              save: copy.save,
+              saved: copy.saved,
+              share: copy.share,
+              reactionsCount: copy.reactionsCount,
+              commentsCount: copy.commentsCount,
+            }}
             getAuthorName={getAuthorName}
             getPostedAgo={(createdAt, short = false) => getPostedAgo(createdAt, copy, short)}
+            getCategoryLabel={(category) => getCategoryLabel(category)}
             resolveAvatar={resolvePostAvatar}
             formatCount={formatCount}
             onLoadMore={() => { void loadMoreFeed(); }}
@@ -1090,18 +1172,6 @@ export function Blogs({ guidedTourActive = false, onGuidedTourComplete, onGuided
           />
         )}
       </FeedPage>
-
-      {isPublishing ? (
-        <div className="fixed inset-0 z-[90] flex items-center justify-center bg-black/60 p-4">
-          <div className="w-full max-w-[280px] rounded-[24px] border border-white/10 bg-card px-5 py-4 text-center text-text-primary shadow-2xl">
-            <div className="text-base font-semibold">{copy.uploadTitle}</div>
-            <div className="mt-1 text-sm text-text-secondary">{copy.uploadMessage}</div>
-            <div className="mt-4 flex justify-center">
-              <div className="h-7 w-7 animate-spin rounded-full border-2 border-text-tertiary border-t-transparent" />
-            </div>
-          </div>
-        </div>
-      ) : null}
 
       {pendingDeletePostId != null ? (
         <div className="fixed inset-0 z-[95] flex items-center justify-center bg-black/70 p-4" onClick={() => setPendingDeletePostId(null)}>
@@ -1162,31 +1232,152 @@ export function Blogs({ guidedTourActive = false, onGuidedTourComplete, onGuided
       ) : null}
 
       {isCreateOpen ? (
-        <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto overscroll-contain bg-black/80 px-4 pb-[calc(env(safe-area-inset-bottom,0px)+1.5rem)] pt-[calc(env(safe-area-inset-top,0px)+0.5rem)] sm:px-6 sm:pt-[calc(env(safe-area-inset-top,0px)+0.75rem)]" onClick={closeCreateModal}>
-          <div className={`w-full max-w-md self-start rounded-[28px] border border-white/10 bg-card p-5 shadow-2xl ${isArabic ? 'text-right' : 'text-left'}`} dir={isArabic ? 'rtl' : 'ltr'} onClick={(event) => event.stopPropagation()}>
-            <div className={`flex items-center justify-between ${isArabic ? 'flex-row-reverse' : ''}`}>
-              <h3 className="font-electrolize text-xl text-text-primary">{copy.newPostTitle}</h3>
-              <button type="button" onClick={closeCreateModal} className="flex h-9 w-9 items-center justify-center rounded-full bg-white/10 text-text-primary"><X size={16} /></button>
-            </div>
-            <div className="mt-5 space-y-4">
-              <textarea value={newDescription} onChange={(event) => setNewDescription(event.target.value.slice(0, DESCRIPTION_MAX_LENGTH))} placeholder={copy.newPostPlaceholder} rows={4} className={`w-full rounded-[20px] border border-white/10 bg-background px-4 py-3 text-text-primary placeholder:text-text-secondary focus:border-accent/40 focus:outline-none ${isArabic ? 'text-right' : 'text-left'}`} />
-              <div className={`text-[11px] text-text-secondary ${isArabic ? 'text-left' : 'text-right'}`}>{newDescription.length}/{DESCRIPTION_MAX_LENGTH}</div>
-              <div className="space-y-3">
-                <div className={`text-[11px] text-text-secondary ${isArabic ? 'text-right' : 'text-left'}`}>{copy.maxTwoCategories}</div>
-                <div className="grid grid-cols-2 gap-3">
+        <div
+          className="fixed inset-0 z-50 flex items-end justify-center bg-black/70 p-0 backdrop-blur-sm sm:items-center sm:p-4"
+          role="presentation"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) closeCreateModal();
+          }}
+        >
+          <section
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="blogs-new-post-title"
+            className={`flex max-h-[min(88dvh,720px)] w-full max-w-md flex-col overflow-hidden rounded-t-[24px] border border-white/10 bg-card shadow-2xl sm:rounded-[24px] ${isArabic ? 'text-right' : 'text-left'}`}
+            dir={isArabic ? 'rtl' : 'ltr'}
+          >
+            <header className={`flex shrink-0 items-center justify-between gap-3 border-b border-white/10 px-4 py-3.5 ${isArabic ? 'flex-row-reverse' : ''}`}>
+              <div>
+                <h3 id="blogs-new-post-title" className="text-lg font-bold text-text-primary">{copy.newPostTitle}</h3>
+                <p className="mt-0.5 text-xs text-text-secondary">{copy.newPostSubtitle}</p>
+              </div>
+
+              <button
+                type="button"
+                onClick={closeCreateModal}
+                disabled={isPublishing}
+                aria-label="Close new post"
+                className="flex h-10 w-10 items-center justify-center rounded-full bg-white/[0.06] text-text-secondary transition hover:bg-white/10 hover:text-text-primary disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+              >
+                <X size={18} aria-hidden="true" />
+              </button>
+            </header>
+
+            <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-4 py-4">
+              <div>
+                <textarea
+                  value={newDescription}
+                  onChange={(event) => setNewDescription(event.target.value.slice(0, DESCRIPTION_MAX_LENGTH))}
+                  placeholder={copy.newPostPlaceholder}
+                  rows={3}
+                  maxLength={DESCRIPTION_MAX_LENGTH}
+                  autoFocus
+                  className={`min-h-[104px] w-full resize-none rounded-2xl border border-white/10 bg-background px-3.5 py-3 text-sm leading-6 text-text-primary placeholder:text-text-secondary focus:border-accent/45 focus:outline-none focus:ring-2 focus:ring-accent/10 ${isArabic ? 'text-right' : 'text-left'}`}
+                />
+                <div className={`mt-1 flex items-center justify-between gap-3 px-1 text-[10px] text-text-secondary ${isArabic ? 'flex-row-reverse' : ''}`}>
+                  <span>{copy.captionOrImageHint}</span>
+                  <span>{newDescription.length}/{DESCRIPTION_MAX_LENGTH}</span>
+                </div>
+              </div>
+
+              <div role="group" aria-labelledby="blogs-new-post-categories">
+                <div className={`flex items-center justify-between gap-3 ${isArabic ? 'flex-row-reverse' : ''}`}>
+                  <p id="blogs-new-post-categories" className="text-xs font-semibold text-text-primary">{copy.categoriesLabel}</p>
+                  <span className="text-[10px] text-text-secondary">{copy.selectedCount(selectedCategories.length)}</span>
+                </div>
+
+                <div className={`mt-2 flex flex-wrap gap-2 ${isArabic ? 'justify-end' : ''}`}>
                   {CATEGORY_OPTIONS.map((option) => {
                     const isSelected = selectedCategories.includes(option);
-                    return <button key={option} type="button" onClick={() => toggleCategorySelection(option)} className={`rounded-[18px] border px-3 py-3 text-sm font-medium transition-all duration-200 active:scale-[0.98] ${isSelected ? 'border-accent/30 bg-accent/12 text-text-primary shadow-[0_10px_30px_rgb(var(--color-accent)/0.12)]' : 'border-white/10 bg-white/5 text-text-secondary hover:border-accent/20 hover:bg-white/10 hover:text-text-primary'}`}>{copy.categories[option]}</button>;
+                    const disabled = !isSelected && selectedCategories.length === 2;
+                    return (
+                      <button
+                        key={option}
+                        type="button"
+                        onClick={() => toggleCategorySelection(option)}
+                        disabled={disabled}
+                        aria-pressed={isSelected}
+                        className={`flex min-h-9 items-center gap-1.5 rounded-full border px-3 text-xs font-semibold transition active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent ${
+                          isSelected
+                            ? 'border-accent/60 bg-accent/15 text-accent'
+                            : 'border-white/10 bg-white/[0.04] text-text-secondary hover:border-accent/25 hover:text-text-primary'
+                        }`}
+                      >
+                        {isSelected ? <Check size={13} strokeWidth={3} aria-hidden="true" /> : null}
+                        {copy.categories[option]}
+                      </button>
+                    );
                   })}
                 </div>
               </div>
-              {canCreateWomenOnlyPost ? <label className={`flex items-start gap-3 rounded-[20px] border border-white/10 bg-white/5 px-4 py-4 text-sm text-text-primary ${isArabic ? 'flex-row-reverse text-right' : 'text-left'}`}><input type="checkbox" checked={newWomenOnly} onChange={(event) => setNewWomenOnly(event.target.checked)} className="mt-0.5 h-4 w-4 rounded border-white/20 bg-transparent text-accent focus:ring-accent/40" /><span className="flex-1">{copy.womenOnlyLabel}<span className="mt-1 block text-[11px] text-text-secondary">{copy.womenOnlyHint}</span></span></label> : null}
-              <label className={`flex cursor-pointer items-center justify-center gap-2 rounded-[20px] border border-dashed border-white/20 px-4 py-4 text-sm text-text-secondary transition-colors hover:border-accent/40 hover:text-text-primary ${isArabic ? 'flex-row-reverse' : ''}`}><Upload size={16} />{copy.uploadMedia}<input type="file" accept="image/*" onChange={handleFilePicked} className="hidden" /></label>
-              {newMediaUrl ? <div className="overflow-hidden rounded-[20px] border border-white/10 bg-black/20"><img src={newMediaUrl} alt={copy.newPostPreviewAlt} className="max-h-72 w-full object-cover" /></div> : null}
-              {createError ? <div className="text-sm text-red-300">{createError}</div> : null}
-              <button type="button" onClick={() => { void publishPost(); }} disabled={!canPublish} className="w-full rounded-full bg-accent px-4 py-3 text-sm font-semibold text-black transition-all duration-200 hover:opacity-95 active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-60">{isPublishing ? copy.publishing : copy.publish}</button>
+
+              {canCreateWomenOnlyPost ? (
+                <label className={`flex items-start gap-3 rounded-[20px] border border-white/10 bg-white/5 px-4 py-4 text-sm text-text-primary ${isArabic ? 'flex-row-reverse text-right' : 'text-left'}`}>
+                  <input type="checkbox" checked={newWomenOnly} onChange={(event) => setNewWomenOnly(event.target.checked)} className="mt-0.5 h-4 w-4 rounded border-white/20 bg-transparent text-accent focus:ring-accent/40" />
+                  <span className="flex-1">{copy.womenOnlyLabel}<span className="mt-1 block text-[11px] text-text-secondary">{copy.womenOnlyHint}</span></span>
+                </label>
+              ) : null}
+
+              {newMediaUrl ? (
+                <div className="relative overflow-hidden rounded-2xl border border-white/10 bg-[#151d28]">
+                  <img src={newMediaUrl} alt={copy.newPostPreviewAlt} className="max-h-64 w-full object-contain" />
+                  <button
+                    type="button"
+                    onClick={removeNewMedia}
+                    aria-label={copy.removeImage}
+                    className="absolute right-2 top-2 flex h-9 w-9 items-center justify-center rounded-full bg-black/70 text-white backdrop-blur transition hover:bg-red-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
+                  >
+                    <Trash2 size={16} aria-hidden="true" />
+                  </button>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => createFileInputRef.current?.click()}
+                  className={`flex min-h-[72px] w-full items-center gap-3 rounded-2xl border border-dashed border-white/15 bg-white/[0.025] px-3.5 text-left transition hover:border-accent/40 hover:bg-accent/[0.04] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent ${isArabic ? 'flex-row-reverse text-right' : ''}`}
+                >
+                  <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-accent/10 text-accent">
+                    <ImagePlus size={19} aria-hidden="true" />
+                  </span>
+                  <span className="min-w-0">
+                    <span className="block text-sm font-semibold text-text-primary">{copy.addImage}</span>
+                    <span className="mt-0.5 block text-[11px] text-text-secondary">{copy.imageHelp}</span>
+                  </span>
+                </button>
+              )}
+
+              <input
+                ref={createFileInputRef}
+                type="file"
+                accept="image/jpeg,image/png,image/webp"
+                onChange={handleFilePicked}
+                className="hidden"
+              />
+
+              {createError ? <p role="alert" className="text-xs text-red-400">{createError}</p> : null}
             </div>
-          </div>
+
+            <footer className="shrink-0 border-t border-white/10 bg-card px-4 pb-[calc(env(safe-area-inset-bottom,0px)+0.875rem)] pt-3">
+              <button
+                type="button"
+                onClick={() => { void publishPost(); }}
+                disabled={!canPublish}
+                className="flex min-h-12 w-full items-center justify-center gap-2 rounded-full bg-accent px-4 text-sm font-bold text-black transition hover:brightness-95 active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-45 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-card"
+              >
+                {isPublishing ? (
+                  <>
+                    <RefreshCcw size={16} className="animate-spin" aria-hidden="true" />
+                    {copy.publishing}
+                  </>
+                ) : (
+                  <>
+                    <Send size={16} aria-hidden="true" />
+                    {copy.publish}
+                  </>
+                )}
+              </button>
+            </footer>
+          </section>
         </div>
       ) : null}
 
@@ -1194,7 +1385,7 @@ export function Blogs({ guidedTourActive = false, onGuidedTourComplete, onGuided
         <div className="fixed inset-0 z-[80] flex items-end justify-center bg-black/70 p-0 sm:items-center sm:p-4" onClick={() => { setActiveCommentsPostId(null); setCommentError(''); setReplyToComment(null); }}>
           <div className="w-full max-w-md rounded-t-[32px] border border-white/10 bg-card text-text-primary shadow-2xl sm:max-w-lg sm:rounded-[28px]" onClick={(event) => event.stopPropagation()}>
             <div className="flex flex-col items-center px-4 pt-3"><div className="h-1 w-12 rounded-full bg-white/20" /><div className="mt-4 flex w-full items-center justify-between"><div className="w-9" /><h3 className="text-base font-semibold">{copy.commentsTitle}</h3><button type="button" onClick={() => { setActiveCommentsPostId(null); setCommentError(''); setReplyToComment(null); }} className="flex h-9 w-9 items-center justify-center rounded-full bg-white/10"><X size={16} /></button></div></div>
-            <div className="px-4 pt-3 text-xs text-text-secondary">{copy.existingComments(formatCount(activeCommentsPost.comments))}</div>
+            <div className="px-4 pt-3 text-xs text-text-secondary">{copy.existingComments(activeCommentsPost.comments)}</div>
             <div className="max-h-[45vh] space-y-4 overflow-y-auto px-4 pb-4 pt-4">
               {commentsLoading ? <div className="rounded-[18px] bg-white/5 px-4 py-3 text-sm text-text-secondary">{copy.loadingComments}</div> : localComments.length === 0 ? <div className="rounded-[18px] bg-white/5 px-4 py-3 text-sm text-text-secondary">{copy.noComments}</div> : localComments.map((comment) => (
                 <div key={comment.id} className="flex items-start gap-3">

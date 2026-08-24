@@ -53,12 +53,12 @@ export function WelcomeScreen({ onNext }: WelcomeScreenProps) {
       </div>
 
       <div className="space-y-3">
-        <h1 className="font-brand text-3xl md:text-4xl text-white">RepSet</h1>
-        <h2 className="text-sm font-semibold uppercase tracking-[0.26em] text-accent">{copy.tagline}</h2>
-        <p className="text-text-secondary text-sm max-w-xs mx-auto leading-relaxed">
+        <h1 className="font-brand text-[2.35rem] md:text-5xl text-white">RepSet</h1>
+        <h2 className="text-base font-semibold uppercase tracking-[0.16em] text-accent sm:text-lg">{copy.tagline}</h2>
+        <p className="mx-auto max-w-xs text-base leading-relaxed text-text-secondary sm:text-lg">
           {copy.intro}
         </p>
-        <p className="text-[11px] uppercase tracking-[0.18em] text-text-tertiary">{copy.detail}</p>
+        <p className="text-sm font-medium uppercase tracking-[0.12em] text-text-tertiary sm:text-base">{copy.detail}</p>
       </div>
 
       <div className="flex-1" />

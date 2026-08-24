@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import { useEffect, useRef } from 'react';
 import PostCard from './PostCard';
 import PostSkeleton from './PostSkeleton';
 import type { Post, ReactionOption, ReactionType } from './types';
@@ -22,12 +22,17 @@ type FeedListProps = {
     deletePost: string;
     hidePost: string;
     reactToPost: string;
+    like: string;
+    comment: string;
     save: string;
     saved: string;
     share: string;
+    reactionsCount: (count: string) => string;
+    commentsCount: (count: string) => string;
   };
   getAuthorName: (name: string) => string;
   getPostedAgo: (createdAt: string | null, short?: boolean) => string;
+  getCategoryLabel: (category: Post['category']) => string;
   resolveAvatar: (post: Post) => string;
   formatCount: (value: number) => string;
   onLoadMore: () => void;
@@ -57,6 +62,7 @@ export default function FeedList({
   copy,
   getAuthorName,
   getPostedAgo,
+  getCategoryLabel,
   resolveAvatar,
   formatCount,
   onLoadMore,
@@ -104,6 +110,7 @@ export default function FeedList({
           openReactions={openReactionPostId === post.id}
           getAuthorName={getAuthorName}
           getPostedAgo={getPostedAgo}
+          getCategoryLabel={getCategoryLabel}
           resolveAvatar={resolveAvatar}
           formatCount={formatCount}
           onOpen={() => onOpenPost(index)}

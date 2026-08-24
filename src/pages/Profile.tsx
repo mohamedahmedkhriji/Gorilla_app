@@ -14,11 +14,10 @@ import { FriendsList, FriendMember } from './FriendsList';
 import { FriendProfile } from './FriendProfile';
 import { CoachList } from './CoachList';
 import { Messaging } from './Messaging';
-import { api } from '../services/api';
-import { ArrowLeft, Bell, Settings } from 'lucide-react';
+import { Settings } from 'lucide-react';
 import { useScrollToTopOnChange } from '../shared/scroll';
 import { useScreenshotProtection } from '../shared/useScreenshotProtection';
-import { clearStoredUserSession, getStoredUserId } from '../shared/authStorage';
+import { clearStoredUserSession } from '../shared/authStorage';
 import { AppLanguage, getActiveLanguage, getStoredLanguage, pickLanguage } from '../services/language';
 import { deactivateCurrentPushDevice } from '../services/pushNotifications';
 import type { NotificationEventPayload } from '../services/notificationEvents';
@@ -141,7 +140,6 @@ export function Profile({
     challengeSessionId: number;
   } | null>(null);
   const [selectedCoach, setSelectedCoach] = useState<{id: number, name: string} | null>(null);
-  const [unreadCount, setUnreadCount] = useState(0);
   const [language, setLanguage] = useState<AppLanguage>('en');
   const [coachmarkStepIndex, setCoachmarkStepIndex] = useState(0);
   const [isCoachmarkOpen, setIsCoachmarkOpen] = useState(false);
@@ -164,9 +162,6 @@ export function Profile({
 
   const copy = PROFILE_PAGE_I18N[language as keyof typeof PROFILE_PAGE_I18N] || PROFILE_PAGE_I18N.en;
 
-  const userId = useMemo(() => {
-    return Number(getStoredUserId() || 0);
-  }, []);
   const coachmarkScope = useMemo(() => getCoachmarkUserScope(), []);
   const isArabic = language === 'ar';
   const profileCoachmarkOptions = useMemo(
@@ -407,15 +402,6 @@ export function Profile({
         padding: 8,
       },
       {
-        id: 'notifications',
-        targetId: 'profile_notifications_button',
-        title: profileCoachmarkCopy.notificationsTitle,
-        body: profileCoachmarkCopy.notificationsBody,
-        placement: 'bottom',
-        shape: 'circle',
-        padding: 8,
-      },
-      {
         id: 'avatar',
         targetId: 'profile_avatar_button',
         title: profileCoachmarkCopy.avatarTitle,
@@ -442,16 +428,6 @@ export function Profile({
         shape: 'rounded',
         padding: 8,
         cornerRadius: 16,
-      },
-      {
-        id: 'friends',
-        targetId: 'profile_friends_card',
-        title: profileCoachmarkCopy.friendsTitle,
-        body: profileCoachmarkCopy.friendsBody,
-        placement: 'top',
-        shape: 'rounded',
-        padding: 8,
-        cornerRadius: 20,
       },
       {
         id: 'coach',
@@ -497,38 +473,6 @@ export function Profile({
     [profileCoachmarkCopy],
   );
   const activeCoachmarkStep = profileCoachmarkSteps[coachmarkStepIndex] || null;
-
-  useEffect(() => {
-    let cancelled = false;
-
-    const refreshUnread = async () => {
-      if (!userId) {
-        if (!cancelled) setUnreadCount(0);
-        return;
-      }
-      try {
-        const result = await api.getUnreadNotificationCount();
-        if (cancelled) return;
-        setUnreadCount(Number(result?.unreadCount || 0));
-      } catch (error) {
-        if (!cancelled) setUnreadCount(0);
-      }
-    };
-
-    void refreshUnread();
-    const timer = window.setInterval(() => {
-      void refreshUnread();
-    }, 10000);
-    window.addEventListener('repset:notification:new', refreshUnread);
-    window.addEventListener('repset:notifications:changed', refreshUnread);
-
-    return () => {
-      cancelled = true;
-      window.clearInterval(timer);
-      window.removeEventListener('repset:notification:new', refreshUnread);
-      window.removeEventListener('repset:notifications:changed', refreshUnread);
-    };
-  }, [userId, view]);
 
   useEffect(() => {
     const openRoute = (payload: NotificationEventPayload) => {
@@ -652,7 +596,7 @@ export function Profile({
     if (guidedTourActive) onGuidedTourDismiss?.();
   };
 
-  const handleNavigate = (screen: 'gym' | 'rank' | 'settings' | 'workout' | 'weeklyPlan' | 'customPlanBuilder' | 'posts' | 'friends' | 'coachList' | 'exercises') => {
+  const handleNavigate = (screen: 'gym' | 'rank' | 'settings' | 'notifications' | 'workout' | 'weeklyPlan' | 'customPlanBuilder' | 'posts' | 'friends' | 'coachList' | 'exercises') => {
     if (screen === 'workout') {
       onNavigateTab?.('workout');
       return;
@@ -823,20 +767,6 @@ export function Profile({
             aria-label={copy.openSettings}
           >
             <Settings size={20} />
-          </button>
-
-          <button
-            data-coachmark-target="profile_notifications_button"
-            onClick={() => setView('notifications')}
-            className="relative flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.12),rgba(255,255,255,0.05))] text-white shadow-[0_12px_24px_-18px_rgba(0,0,0,0.8)] ring-1 ring-inset ring-white/[0.04] transition-all duration-200 hover:-translate-y-0.5 hover:bg-white/15 active:scale-95"
-            aria-label={copy.openNotifications}
-          >
-            <Bell size={20} />
-            {unreadCount > 0 && (
-              <div className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 bg-accent text-black text-[10px] font-bold rounded-full flex items-center justify-center shadow-glow">
-                {unreadCount > 99 ? '99+' : unreadCount}
-              </div>
-            )}
           </button>
         </div>
       </ScreenSection>
