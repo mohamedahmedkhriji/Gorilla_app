@@ -3,13 +3,13 @@ import { CoachmarkOverlay, type CoachmarkStep } from '../components/coachmarks/C
 import { ProgressDashboard } from '../components/progress/ProgressDashboard';
 import { BiWeeklyReport } from '../components/progress/BiWeeklyReport';
 import { MuscleRecoveryScreen } from '../components/progress/MuscleRecoveryScreen';
-import { OverloadPlanning } from '../components/progress/OverloadPlanning';
 import { BodyMeasurementsScreen } from '../components/progress/BodyMeasurementsScreen';
 import { ProgressPhotosScreen } from '../components/progress/ProgressPhotosScreen';
 import { ExerciseProgressScreen } from '../components/progress/ExerciseProgressScreen';
 import { AIInsightsScreen } from '../components/progress/AIInsightsScreen';
 import { WeeklyCheckInScreen } from '../components/progress/WeeklyCheckInScreen';
 import { StrengthScoreScreen } from '../components/progress/StrengthScoreScreen';
+import { TrainingVolumeScreen } from '../components/progress/TrainingVolumeScreen';
 import { LeaderboardScreen } from '../components/profile/LeaderboardScreen';
 import {
   getCoachmarkUserScope,
@@ -29,6 +29,7 @@ interface ProgressProps {
   guidedTourActive?: boolean;
   onGuidedTourComplete?: () => void;
   onGuidedTourDismiss?: () => void;
+  onNavigateTab?: (tab: string) => void;
 }
 
 const SCREENSHOT_PROTECTED_PROGRESS_VIEWS = new Set([
@@ -41,6 +42,7 @@ const SCREENSHOT_PROTECTED_PROGRESS_VIEWS = new Set([
   'insights',
   'weeklyCheckin',
   'strengthScore',
+  'trainingVolume',
   'leaderboard',
 ]);
 
@@ -54,6 +56,7 @@ const PROGRESS_VIEW_ORDER = [
   'insights',
   'weeklyCheckin',
   'strengthScore',
+  'trainingVolume',
   'leaderboard',
 ] as const;
 
@@ -66,8 +69,9 @@ export function Progress({
   guidedTourActive = false,
   onGuidedTourComplete,
   onGuidedTourDismiss,
+  onNavigateTab,
 }: ProgressProps) {
-  const [view, setView] = useState<'dashboard' | 'report' | 'recovery' | 'measurements' | 'photos' | 'exercise' | 'insights' | 'weeklyCheckin' | 'strengthScore' | 'leaderboard'>(
+  const [view, setView] = useState<'dashboard' | 'report' | 'recovery' | 'measurements' | 'photos' | 'exercise' | 'insights' | 'weeklyCheckin' | 'strengthScore' | 'trainingVolume' | 'leaderboard'>(
     'dashboard',
   );
   const [language, setLanguage] = useState<AppLanguage>(() => getActiveLanguage());
@@ -459,6 +463,14 @@ export function Progress({
   if (view === 'strengthScore') {
     return renderTransitionedView(<StrengthScoreScreen onBack={() => setView('dashboard')} />);
   }
+  if (view === 'trainingVolume') {
+    return renderTransitionedView(
+      <TrainingVolumeScreen
+        onBack={() => setView('dashboard')}
+        onStartWorkout={() => onNavigateTab?.('workout')}
+      />,
+    );
+  }
   if (view === 'leaderboard') {
     return renderTransitionedView(<LeaderboardScreen onBack={() => setView('dashboard')} />);
   }
@@ -468,13 +480,10 @@ export function Progress({
       <ScreenSection index={0} className="space-y-2">
         <ProgressDashboard
           onViewReport={() => setView('report')}
-          onViewStrengthScore={() => setView('strengthScore')}
-          onViewLeaderboard={() => setView('leaderboard')}
+          onViewTrainingVolume={() => setView('trainingVolume')}
+          onViewMuscleReport={() => setView('recovery')}
+          onStartWorkout={() => onNavigateTab?.('workout')}
         />
-      </ScreenSection>
-
-      <ScreenSection index={1} className="px-4 sm:px-6">
-        <OverloadPlanning coachmarkTargetId="progress_overload_card" />
       </ScreenSection>
 
       <CoachmarkOverlay

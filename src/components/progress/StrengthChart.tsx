@@ -116,9 +116,10 @@ const STRENGTH_CHART_I18N = {
 
 interface StrengthChartProps {
   coachmarkTargetId?: string;
+  weeks?: number;
 }
 
-export function StrengthChart({ coachmarkTargetId }: StrengthChartProps) {
+export function StrengthChart({ coachmarkTargetId, weeks = 8 }: StrengthChartProps) {
   const [data, setData] = useState<StrengthProgressResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [language, setLanguage] = useState<AppLanguage>('en');
@@ -157,14 +158,14 @@ export function StrengthChart({ coachmarkTargetId }: StrengthChartProps) {
     }
 
     try {
-      const response = await api.getStrengthProgress(userId, 8);
+      const response = await api.getStrengthProgress(userId, weeks);
       setData(response);
     } catch (error) {
       console.error('Failed to load strength chart:', error);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [weeks]);
 
   useEffect(() => {
     void fetchStrength();
@@ -245,7 +246,8 @@ export function StrengthChart({ coachmarkTargetId }: StrengthChartProps) {
   const hasStrengthData = points.length > 0;
   const pct = Number(data?.summary?.percentChange || 0);
   const roundedPct = Math.round(pct * 10) / 10;
-  const pctText = hasStrengthData ? `${roundedPct >= 0 ? '+' : ''}${roundedPct}%` : '0%';
+  const hasComparableStrengthData = points.length >= 2;
+  const pctText = hasComparableStrengthData ? `${roundedPct >= 0 ? '+' : ''}${roundedPct}%` : '-';
   const trendToneClass = pct > 0
     ? 'border-emerald-500/35 bg-emerald-500/10 text-emerald-400'
     : pct < 0
@@ -266,18 +268,18 @@ export function StrengthChart({ coachmarkTargetId }: StrengthChartProps) {
           </div>
           <div className={`rounded-xl border px-3 py-2 text-right ${trendToneClass}`}>
             <div className="text-[10px] uppercase tracking-[0.14em]">{copy.trend}</div>
-            <div className="text-xl font-electrolize leading-none">{loading ? '0%' : pctText}</div>
+            <div className="text-xl font-semibold leading-none">{loading ? '-' : pctText}</div>
           </div>
         </div>
 
         <div className="mb-4 grid grid-cols-2 gap-3 text-xs">
           <div className="rounded-xl border border-white/10 bg-background/45 px-3 py-2">
             <div className="uppercase tracking-[0.12em] text-text-tertiary">{copy.baseline}</div>
-            <div className="mt-1 text-sm font-semibold text-text-primary">{loading ? '0 kg' : baselineText}</div>
+            <div className="mt-1 text-sm font-semibold text-text-primary">{loading ? '-' : baselineText}</div>
           </div>
           <div className="rounded-xl border border-white/10 bg-background/45 px-3 py-2">
             <div className="uppercase tracking-[0.12em] text-text-tertiary">{copy.current}</div>
-            <div className="mt-1 text-sm font-semibold text-text-primary">{loading ? '0 kg' : currentText}</div>
+            <div className="mt-1 text-sm font-semibold text-text-primary">{loading ? '-' : currentText}</div>
           </div>
         </div>
 
@@ -286,7 +288,7 @@ export function StrengthChart({ coachmarkTargetId }: StrengthChartProps) {
             <div className="h-full w-full animate-pulse rounded-lg bg-white/5" />
           ) : !hasStrengthData ? (
             <div className="flex h-full items-center justify-center rounded-lg border border-dashed border-white/12 text-center text-xs text-text-secondary">
-              {copy.noData}
+              No strength data yet
             </div>
           ) : (
             <svg
@@ -338,9 +340,18 @@ export function StrengthChart({ coachmarkTargetId }: StrengthChartProps) {
         </div>
 
         <div className="mt-4 flex items-center justify-between text-xs text-text-tertiary">
-          <span>{chart.firstLabel}</span>
-          <span>{chart.midLabel}</span>
-          <span>{chart.lastLabel}</span>
+          {points.length <= 1 ? (
+            <>
+              <span>{chart.firstLabel}</span>
+              <span>More data needed</span>
+            </>
+          ) : (
+            <>
+              <span>{chart.firstLabel}</span>
+              <span>{chart.midLabel}</span>
+              <span>{chart.lastLabel}</span>
+            </>
+          )}
         </div>
 
         <div className="mt-1 flex items-center justify-between text-[11px] text-text-tertiary">

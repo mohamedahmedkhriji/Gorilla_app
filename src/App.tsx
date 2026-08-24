@@ -373,6 +373,7 @@ export function App() {
             guidedTourActive={guidedTourStage === 'progress'}
             onGuidedTourComplete={() => completeGuidedTourStage('progress')}
             onGuidedTourDismiss={() => dismissGuidedTour('progress')}
+            onNavigateTab={handleNavigate}
           />
         );
       case 'profile':

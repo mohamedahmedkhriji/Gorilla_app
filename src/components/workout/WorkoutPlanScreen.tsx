@@ -10,11 +10,7 @@ import { formatWorkoutDayLabel, normalizeWorkoutDayKey } from '../../services/wo
 import { stripExercisePrefix } from '../../services/exerciseName';
 import { translateProgramText } from '../../services/programI18n';
 import { useScreenshotProtection } from '../../shared/useScreenshotProtection';
-import BodyMap from '../BodyMap';
-import {
-  BodyMapLevels,
-  recoveryMuscleToBodyMapSlugs,
-} from '../../lib/muscle-map';
+import { MuscleSvgBadge } from './MuscleSvgBadge';
 
 interface WorkoutPlanScreenProps {
   onBack: () => void;
@@ -145,58 +141,17 @@ type TargetMuscleDisplay = {
   score: number;
 };
 
-const PRIMARY_MUSCLE_FILL = '#BBFF5C';
-const SECONDARY_MUSCLE_FILL = '#7EC623';
-
-const toTargetBodyMapLevels = (muscles: TargetMuscleDisplay[]): BodyMapLevels => {
-  const maxScore = Math.max(...muscles.map((muscle) => muscle.score), 0);
-  const levels: BodyMapLevels = {};
-
-  muscles.forEach((muscle) => {
-    const slugs = recoveryMuscleToBodyMapSlugs(canonicalizeMuscleLabel(muscle.name));
-    const level = muscle.score >= maxScore ? 4 : 3;
-
-    slugs.forEach((slug) => {
-      levels[slug] = Math.max(levels[slug] || 0, level);
-    });
-  });
-
-  return levels;
-};
-
-function TargetMuscleBodyMaps({ muscles }: { muscles: TargetMuscleDisplay[] }) {
-  const [isGlitching, setIsGlitching] = useState(true);
-  const bodyMapLevels = toTargetBodyMapLevels(muscles);
-  const animationKey = muscles.map((muscle) => `${muscle.name}:${muscle.score}`).join('|');
-
-  useEffect(() => {
-    setIsGlitching(true);
-    const timer = window.setTimeout(() => {
-      setIsGlitching(false);
-    }, 3000);
-
-    return () => window.clearTimeout(timer);
-  }, [animationKey]);
-
+function TargetMuscleCards({ muscles }: { muscles: TargetMuscleDisplay[] }) {
   return (
-    <div className={`target-muscle-body-map surface-card rounded-2xl border border-white/10 p-4 ${isGlitching ? 'is-glitching' : ''}`}>
-      <BodyMap className="target-bodymap" levels={bodyMapLevels} />
-      <div className="mt-3 flex flex-wrap items-center justify-center gap-4">
-        <div className="flex items-center gap-1.5">
-          <div
-            className="h-3 w-3 rounded-full ring-2 ring-white/20"
-            style={{ backgroundColor: PRIMARY_MUSCLE_FILL }}
-          />
-          <span className="text-xs text-text-tertiary">Primary</span>
-        </div>
-        <div className="flex items-center gap-1.5">
-          <div
-            className="h-3 w-3 rounded-full"
-            style={{ backgroundColor: SECONDARY_MUSCLE_FILL }}
-          />
-          <span className="text-xs text-text-tertiary">Secondary</span>
-        </div>
-      </div>
+    <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+      {muscles.map((muscle) => (
+        <MuscleSvgBadge
+          key={muscle.name}
+          muscle={{ label: muscle.name, sourceName: canonicalizeMuscleLabel(muscle.name) }}
+          className="w-full"
+          figureClassName="h-24 sm:h-28"
+        />
+      ))}
     </div>
   );
 }
@@ -957,7 +912,7 @@ export function WorkoutPlanScreen({
               {copy.targetMuscles}
             </div>
             {displayTargetMuscles.length > 0 ? (
-              <TargetMuscleBodyMaps muscles={displayTargetMuscles} />
+              <TargetMuscleCards muscles={displayTargetMuscles} />
             ) : (
               <div className="rounded-2xl border border-white/[0.08] bg-card/60 px-4 py-4 text-sm text-text-secondary">
                 {copy.targetMusclesEmpty}
@@ -1425,16 +1380,16 @@ export function WorkoutPlanScreen({
 
       <style>{`
         .seven-seg-shell {
-          --seg-on: #ff2136;
-          --seg-off: #3b2a2a;
+          --seg-on: #bbff5c;
+          --seg-off: #26351f;
           display: flex;
           align-items: center;
           gap: 8px;
           padding: 10px 12px;
           border-radius: 12px;
-          border: 1px solid rgba(255, 255, 255, 0.1);
-          background: linear-gradient(180deg, #2a1717 0%, #120b0b 100%);
-          box-shadow: inset 0 0 24px rgba(0, 0, 0, 0.65), 0 8px 18px rgba(0, 0, 0, 0.35);
+          border: 1px solid rgba(187, 255, 92, 0.22);
+          background: linear-gradient(180deg, rgba(187, 255, 92, 0.08) 0%, rgba(12, 20, 14, 0.92) 100%);
+          box-shadow: inset 0 0 14px rgba(0, 0, 0, 0.38);
         }
 
         .seven-seg-group {
@@ -1460,7 +1415,7 @@ export function WorkoutPlanScreen({
         .seg.on {
           background: var(--seg-on);
           opacity: 1;
-          box-shadow: 0 0 6px var(--seg-on), 0 0 12px color-mix(in srgb, var(--seg-on) 85%, transparent), 0 0 20px color-mix(in srgb, var(--seg-on) 45%, transparent);
+          box-shadow: 0 0 3px color-mix(in srgb, var(--seg-on) 70%, transparent), 0 0 8px color-mix(in srgb, var(--seg-on) 28%, transparent);
         }
 
         .seg-a,
@@ -1501,7 +1456,7 @@ export function WorkoutPlanScreen({
           height: 6px;
           border-radius: 999px;
           background: var(--seg-on);
-          box-shadow: 0 0 6px var(--seg-on), 0 0 12px color-mix(in srgb, var(--seg-on) 70%, transparent);
+          box-shadow: 0 0 3px color-mix(in srgb, var(--seg-on) 65%, transparent), 0 0 7px color-mix(in srgb, var(--seg-on) 25%, transparent);
         }
 
         [data-theme='light'] .seven-seg-shell {

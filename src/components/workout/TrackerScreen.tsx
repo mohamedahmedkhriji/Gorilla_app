@@ -1,8 +1,8 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Header } from '../ui/Header';
 import { Play, Square, BarChart3, Video, Trash2 } from 'lucide-react';
 import { api } from '../../services/api';
-import { AppLanguage, LocalizedLanguageRecord, getActiveLanguage, getStoredLanguage } from '../../services/language';
+import { LocalizedLanguageRecord, getActiveLanguage, getStoredLanguage } from '../../services/language';
 import { stripExercisePrefix } from '../../services/exerciseName';
 
 interface TrackerScreenProps {
@@ -49,8 +49,22 @@ type HistorySetRow = {
   setNumber: number;
   reps: number;
   weight: number;
+  duration: number;
+  restTime: number;
   dateKey: string;
   timestamp: number;
+};
+
+type AnalyticsRange = 'week' | '30d' | '90d' | 'all';
+
+type ExerciseChartPoint = {
+  dateKey: string;
+  timestamp: number;
+  volume: number;
+  maxWeight: number;
+  workTime: number;
+  restTime: number;
+  sets: number;
 };
 
 const toDateKey = (value: unknown) => {
@@ -74,6 +88,8 @@ const normalizeHistoryRows = (rows: any[]): HistorySetRow[] => {
       const setNumber = Number(row?.setNumber ?? row?.set_number ?? row?.set ?? index + 1);
       const reps = Number(row?.reps ?? 0);
       const weight = Number(row?.weight ?? 0);
+      const duration = Number(row?.duration ?? row?.durationSeconds ?? row?.workTime ?? 0);
+      const restTime = Number(row?.restTime ?? row?.rest_time ?? row?.restSeconds ?? 0);
 
       if (!Number.isFinite(reps) && !Number.isFinite(weight)) return null;
 
@@ -81,6 +97,8 @@ const normalizeHistoryRows = (rows: any[]): HistorySetRow[] => {
         setNumber: Number.isFinite(setNumber) && setNumber > 0 ? setNumber : index + 1,
         reps: Number.isFinite(reps) ? reps : 0,
         weight: Number.isFinite(weight) ? weight : 0,
+        duration: Number.isFinite(duration) ? Math.max(0, Math.round(duration)) : 0,
+        restTime: Number.isFinite(restTime) ? Math.max(0, Math.round(restTime)) : 0,
         dateKey,
         timestamp: Number.isFinite(timestamp) ? timestamp : 0,
       };
@@ -128,6 +146,81 @@ const buildPrefilledSets = (plannedSets: number | undefined, historySets: Histor
   });
 };
 
+const todayDateKey = () => new Date().toISOString().slice(0, 10);
+
+const getRangeStartTimestamp = (range: AnalyticsRange) => {
+  if (range === 'all') return 0;
+  const days = range === 'week' ? 7 : range === '30d' ? 30 : 90;
+  const start = new Date();
+  start.setHours(0, 0, 0, 0);
+  start.setDate(start.getDate() - (days - 1));
+  return start.getTime();
+};
+
+const formatChartDate = (dateKey: string) => {
+  const parsed = new Date(`${dateKey}T00:00:00`);
+  if (Number.isNaN(parsed.getTime())) return dateKey;
+  return parsed.toLocaleDateString(undefined, { day: '2-digit', month: 'short' });
+};
+
+const buildExerciseChartPoints = (rows: HistorySetRow[], range: AnalyticsRange): ExerciseChartPoint[] => {
+  const startTimestamp = getRangeStartTimestamp(range);
+  const byDate = new Map<string, ExerciseChartPoint>();
+
+  rows.forEach((row) => {
+    const dateKey = row.dateKey || (row.timestamp ? new Date(row.timestamp).toISOString().slice(0, 10) : '');
+    if (!dateKey) return;
+    const timestamp = row.timestamp || new Date(`${dateKey}T00:00:00`).getTime();
+    if (startTimestamp && timestamp < startTimestamp) return;
+
+    const current = byDate.get(dateKey) || {
+      dateKey,
+      timestamp,
+      volume: 0,
+      maxWeight: 0,
+      workTime: 0,
+      restTime: 0,
+      sets: 0,
+    };
+
+    current.timestamp = Math.max(current.timestamp, timestamp);
+    current.volume += Math.max(0, row.reps) * Math.max(0, row.weight);
+    current.maxWeight = Math.max(current.maxWeight, Math.max(0, row.weight));
+    current.workTime += Math.max(0, row.duration);
+    current.restTime += Math.max(0, row.restTime);
+    current.sets += 1;
+    byDate.set(dateKey, current);
+  });
+
+  return Array.from(byDate.values()).sort((left, right) => left.timestamp - right.timestamp);
+};
+
+const buildChartPath = (points: ExerciseChartPoint[]) => {
+  const width = 340;
+  const height = 130;
+  const left = 34;
+  const right = 328;
+  const top = 14;
+  const bottom = 108;
+  const values = points.map((point) => point.volume);
+  const minValue = Math.min(...values, 0);
+  const maxValue = Math.max(...values, 1);
+  const span = Math.max(1, maxValue - minValue);
+
+  const coords = points.map((point, index) => {
+    const x = points.length === 1 ? right : left + ((right - left) * index) / (points.length - 1);
+    const y = bottom - ((point.volume - minValue) / span) * (bottom - top);
+    return { ...point, x, y };
+  });
+
+  const polyline = coords.map((point) => `${point.x.toFixed(1)},${point.y.toFixed(1)}`).join(' ');
+  const area = coords.length
+    ? `${left},${bottom} ${polyline} ${coords[coords.length - 1].x.toFixed(1)},${bottom}`
+    : '';
+
+  return { width, height, left, right, top, bottom, minValue, maxValue, coords, polyline, area };
+};
+
 const TRACKER_I18N: LocalizedLanguageRecord<{
   title: string;
   removeExerciseAria: string;
@@ -138,6 +231,13 @@ const TRACKER_I18N: LocalizedLanguageRecord<{
   totalRestTime: string;
   totalVolume: string;
   setsCompleted: string;
+  chartEmpty: string;
+  rangeWeek: string;
+  range30d: string;
+  range90d: string;
+  rangeAll: string;
+  heaviestWeight: string;
+  intensity: string;
   setDetails: string;
   setLabel: string;
   repsLabel: string;
@@ -178,6 +278,13 @@ const TRACKER_I18N: LocalizedLanguageRecord<{
     totalRestTime: 'Total Rest Time',
     totalVolume: 'Total Volume',
     setsCompleted: 'Sets Completed',
+    chartEmpty: 'Complete sets over time to build your exercise chart.',
+    rangeWeek: 'Week',
+    range30d: '30d',
+    range90d: '90d',
+    rangeAll: 'All',
+    heaviestWeight: 'Heaviest weight',
+    intensity: 'Intensity',
     setDetails: 'Set Details',
     setLabel: 'Set',
     repsLabel: 'Reps',
@@ -219,6 +326,13 @@ const TRACKER_I18N: LocalizedLanguageRecord<{
     totalRestTime: 'إجمالي وقت الراحة',
     totalVolume: 'إجمالي الحجم',
     setsCompleted: 'المجموعات المكتملة',
+    chartEmpty: 'أكمل المجموعات بمرور الوقت لبناء رسم التقدم.',
+    rangeWeek: 'أسبوع',
+    range30d: '30ي',
+    range90d: '90ي',
+    rangeAll: 'الكل',
+    heaviestWeight: 'أعلى وزن',
+    intensity: 'الشدة',
     setDetails: 'تفاصيل المجموعات',
     setLabel: 'المجموعة',
     repsLabel: 'التكرارات',
@@ -310,6 +424,8 @@ export function TrackerScreen({
   const [setTimerSeconds, setSetTimerSeconds] = useState(0);
   const [swipedIndex, setSwipedIndex] = useState<number | null>(null);
   const [showAnalytics, setShowAnalytics] = useState(false);
+  const [analyticsRange, setAnalyticsRange] = useState<AnalyticsRange>('week');
+  const [historyRows, setHistoryRows] = useState<HistorySetRow[]>([]);
   const [isResting, setIsResting] = useState(false);
   const [restTime, setRestTime] = useState(0);
   const [restReminderText, setRestReminderText] = useState<string | null>(null);
@@ -348,9 +464,11 @@ export function TrackerScreen({
       try {
         const historyRows = await api.getWorkoutHistory(userId, exerciseName);
         if (historyLoadIdRef.current !== currentLoadId) return;
+        const normalizedHistory = normalizeHistoryRows(Array.isArray(historyRows) ? historyRows : []);
+        setHistoryRows(normalizedHistory);
         if (hasLocalEditsRef.current) return;
 
-        const latestSets = getLatestHistorySets(Array.isArray(historyRows) ? historyRows : []);
+        const latestSets = getLatestHistorySets(normalizedHistory);
         if (latestSets.length === 0) return;
 
         const prefilled = buildPrefilledSets(plannedSets, latestSets);
@@ -358,6 +476,7 @@ export function TrackerScreen({
         onSaveSets?.(prefilled);
       } catch (error) {
         // Ignore history load failures, fallback to defaults.
+        setHistoryRows([]);
       }
     };
 
@@ -526,12 +645,14 @@ export function TrackerScreen({
 
         // Save to database without blocking UI updates.
         if (user?.id) {
+          const completedSet = newSets[firstIncomplete];
+
           void api.saveWorkoutSet({
               userId: user.id,
               exerciseName,
-              setNumber: newSets[firstIncomplete].set,
-              reps: newSets[firstIncomplete].reps,
-              weight: newSets[firstIncomplete].weight,
+              setNumber: completedSet.set,
+              reps: completedSet.reps,
+              weight: completedSet.weight,
               duration: setDuration,
               restTime: completedRestTime,
               completed: true,
@@ -630,13 +751,37 @@ export function TrackerScreen({
     }
   };
 
-  const getTotalWorkTime = () => sets.filter(s => s.completed).reduce((acc, set) => acc + (set.duration || 0), 0);
-  const getTotalRestTime = () => sets.filter(s => s.completed).reduce((acc, set) => acc + (set.restTime || 0), 0);
   const getTotalVolume = () => sets.filter(s => s.completed).reduce((acc, set) => acc + (set.reps * set.weight), 0);
-  const getCompletedSets = () => sets.filter(s => s.completed).length;
   const areAllSetsCompleted = sets.length > 0 && sets.every((set) => set.completed);
   const timerText = formatTime(setTimerSeconds);
   const [m1, m2, s1, s2] = timerText.replace(':', '').split('');
+  const completedSetRowsForChart = useMemo(() => sets
+    .filter((set) => set.completed)
+    .map((set) => ({
+      setNumber: set.set,
+      reps: Number(set.reps || 0),
+      weight: Number(set.weight || 0),
+      duration: Number(set.duration || 0),
+      restTime: Number(set.restTime || 0),
+      dateKey: todayDateKey(),
+      timestamp: Date.now() + set.set,
+    })), [sets]);
+  const chartPoints = useMemo(
+    () => buildExerciseChartPoints([...historyRows, ...completedSetRowsForChart], analyticsRange),
+    [analyticsRange, historyRows, completedSetRowsForChart],
+  );
+  const chartPath = useMemo(() => buildChartPath(chartPoints), [chartPoints]);
+  const latestChartPoint = chartPoints[chartPoints.length - 1] || null;
+  const previousChartPoint = chartPoints[chartPoints.length - 2] || null;
+  const volumeDelta = latestChartPoint && previousChartPoint
+    ? latestChartPoint.volume - previousChartPoint.volume
+    : 0;
+  const rangeItems: Array<{ key: AnalyticsRange; label: string }> = [
+    { key: 'week', label: copy.rangeWeek },
+    { key: '30d', label: copy.range30d },
+    { key: '90d', label: copy.range90d },
+    { key: 'all', label: copy.rangeAll },
+  ];
 
   return (
     <div className="flex-1 flex flex-col h-full bg-background pb-24">
@@ -700,26 +845,86 @@ export function TrackerScreen({
             <button onClick={() => setShowAnalytics(false)} className={`text-accent text-sm mb-4 ${isArabic ? 'text-right' : ''}`}>
               {copy.backToTracker}
             </button>
-            <div className="rounded-xl p-6 border border-white/10 bg-transparent">
-              <h3 className="text-lg font-bold text-white mb-4">{copy.workoutAnalytics}</h3>
-              <div className="space-y-3">
-                <div className="flex justify-between">
-                  <span className="text-text-secondary">{copy.totalWorkTime}</span>
-                  <span className="text-white font-semibold">{formatTime(getTotalWorkTime())}</span>
+            <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+              <div className="mb-3 flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <h3 className="text-lg font-bold text-white">{displayExerciseName}</h3>
+                  <p className="mt-0.5 text-xs text-text-secondary">{copy.workoutAnalytics}</p>
                 </div>
-                <div className="flex justify-between">
-                  <span className="text-text-secondary">{copy.totalRestTime}</span>
-                  <span className="text-white font-semibold">{formatTime(getTotalRestTime())}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-text-secondary">{copy.totalVolume}</span>
-                  <span className="text-white font-semibold">{getTotalVolume()} {unitLabel}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-text-secondary">{copy.setsCompleted}</span>
-                  <span className="text-white font-semibold">{getCompletedSets()} / {sets.length}</span>
+                <div className="grid grid-cols-4 rounded-full border border-white/10 bg-black/20 p-1 text-[11px] font-bold text-text-secondary">
+                  {rangeItems.map((item) => (
+                    <button
+                      key={item.key}
+                      type="button"
+                      aria-pressed={analyticsRange === item.key}
+                      onClick={() => setAnalyticsRange(item.key)}
+                      className={`min-h-8 rounded-full px-2 transition-colors ${
+                        analyticsRange === item.key ? 'bg-accent text-black' : 'hover:text-white'
+                      }`}
+                    >
+                      {item.label}
+                    </button>
+                  ))}
                 </div>
               </div>
+
+              <div className="mb-3 flex items-end gap-2">
+                <div className="text-[2rem] font-bold leading-none text-white">
+                  {Math.round(latestChartPoint?.volume || getTotalVolume()).toLocaleString()}
+                  <span className="ml-1 text-sm font-semibold text-text-secondary">{unitLabel}</span>
+                </div>
+                {volumeDelta !== 0 && (
+                  <span className={`pb-1 text-xs font-semibold ${volumeDelta > 0 ? 'text-accent' : 'text-red-300'}`}>
+                    {volumeDelta > 0 ? '+' : ''}{Math.round(volumeDelta).toLocaleString()}
+                  </span>
+                )}
+                <span className="ml-auto pb-1 text-[11px] text-text-tertiary">
+                  {latestChartPoint ? formatChartDate(latestChartPoint.dateKey) : todayDateKey()}
+                </span>
+              </div>
+
+              <div className="rounded-2xl border border-white/10 bg-[#151d28] p-2">
+                {chartPoints.length > 0 ? (
+                  <svg viewBox="0 0 340 130" preserveAspectRatio="none" className="aspect-[340/130] w-full">
+                    <defs>
+                      <linearGradient id="trackerVolumeGradient" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0" stopColor="rgb(187 255 92)" stopOpacity="0.28" />
+                        <stop offset="1" stopColor="rgb(187 255 92)" stopOpacity="0" />
+                      </linearGradient>
+                    </defs>
+                    {[0, 0.5, 1].map((ratio) => {
+                      const y = chartPath.bottom - ((chartPath.bottom - chartPath.top) * ratio);
+                      const value = Math.round(chartPath.minValue + ((chartPath.maxValue - chartPath.minValue) * ratio));
+                      return (
+                        <g key={`grid-${ratio}`}>
+                          <line x1={chartPath.left} y1={y} x2={chartPath.right} y2={y} stroke="rgba(255,255,255,0.14)" strokeWidth="1" strokeDasharray="2 4" />
+                          <text x={chartPath.left - 5} y={y + 3.5} textAnchor="end" fontSize="9.5" fill="rgb(var(--color-text-secondary))">{value}</text>
+                        </g>
+                      );
+                    })}
+                    {chartPath.coords.map((point, index) => (
+                      <g key={`x-${point.dateKey}`}>
+                        <line x1={point.x} y1={chartPath.top} x2={point.x} y2={chartPath.bottom} stroke="rgba(255,255,255,0.1)" strokeWidth="1" strokeDasharray="2 4" />
+                        {(index === 0 || index === chartPath.coords.length - 1 || index === Math.floor(chartPath.coords.length / 2)) && (
+                          <text x={point.x} y="123" textAnchor={index === 0 ? 'start' : index === chartPath.coords.length - 1 ? 'end' : 'middle'} fontSize="9.5" fill="rgb(var(--color-text-secondary))">
+                            {formatChartDate(point.dateKey)}
+                          </text>
+                        )}
+                      </g>
+                    ))}
+                    {chartPath.area && <polygon points={chartPath.area} fill="url(#trackerVolumeGradient)" />}
+                    {chartPath.polyline && <polyline points={chartPath.polyline} fill="none" stroke="rgb(187 255 92)" strokeWidth="2.5" strokeLinejoin="round" strokeLinecap="round" />}
+                    {chartPath.coords.map((point, index) => (
+                      <circle key={`dot-${point.dateKey}-${index}`} cx={point.x} cy={point.y} r={index === chartPath.coords.length - 1 ? 4 : 2.8} fill="rgb(187 255 92)" />
+                    ))}
+                  </svg>
+                ) : (
+                  <div className="flex aspect-[340/130] items-center justify-center px-4 text-center text-xs text-text-secondary">
+                    {copy.chartEmpty}
+                  </div>
+                )}
+              </div>
+
             </div>
             <div className="space-y-2">
               <h4 className="text-sm font-bold text-text-secondary uppercase tracking-wider">{copy.setDetails}</h4>
@@ -1070,16 +1275,16 @@ export function TrackerScreen({
         }
 
         .seven-seg-shell {
-          --seg-on: #ff2136;
-          --seg-off: #3b2a2a;
+          --seg-on: #bbff5c;
+          --seg-off: #26351f;
           display: flex;
           align-items: center;
           gap: 10px;
           padding: 10px 14px;
           border-radius: 12px;
-          border: 1px solid rgba(255, 255, 255, 0.1);
-          background: linear-gradient(180deg, #2a1717 0%, #120b0b 100%);
-          box-shadow: inset 0 0 24px rgba(0, 0, 0, 0.65), 0 8px 18px rgba(0, 0, 0, 0.35);
+          border: 1px solid rgba(187, 255, 92, 0.22);
+          background: linear-gradient(180deg, rgba(187, 255, 92, 0.08) 0%, rgba(12, 20, 14, 0.92) 100%);
+          box-shadow: inset 0 0 14px rgba(0, 0, 0, 0.38);
         }
 
         .seven-seg-group {
@@ -1105,7 +1310,7 @@ export function TrackerScreen({
         .seg.on {
           background: var(--seg-on);
           opacity: 1;
-          box-shadow: 0 0 6px var(--seg-on), 0 0 12px color-mix(in srgb, var(--seg-on) 85%, transparent), 0 0 20px color-mix(in srgb, var(--seg-on) 45%, transparent);
+          box-shadow: 0 0 3px color-mix(in srgb, var(--seg-on) 70%, transparent), 0 0 8px color-mix(in srgb, var(--seg-on) 28%, transparent);
         }
 
         .seg-a,
@@ -1146,7 +1351,7 @@ export function TrackerScreen({
           height: 7px;
           border-radius: 999px;
           background: var(--seg-on);
-          box-shadow: 0 0 6px var(--seg-on), 0 0 12px color-mix(in srgb, var(--seg-on) 70%, transparent);
+          box-shadow: 0 0 3px color-mix(in srgb, var(--seg-on) 65%, transparent), 0 0 7px color-mix(in srgb, var(--seg-on) 25%, transparent);
         }
 
         [data-theme='light'] .seven-seg-shell {

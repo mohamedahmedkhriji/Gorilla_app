@@ -3,9 +3,11 @@ import {
   BODY_MAP_INERT,
   BODY_MAP_MUSCLE_NAME,
   BODY_MAP_MUSCLES,
-  BodyMapLevels,
-  BodyMapMuscle,
+  type BodyMapLevels,
+  type BodyMapMuscle,
 } from '../lib/muscle-map';
+import { resolveBodyMapBody } from '../lib/body-map-body';
+import { getStoredAppUser } from '../shared/authStorage';
 
 export type BodyPathView = {
   vb: string;
@@ -80,14 +82,16 @@ function BodyMapView({
 }
 
 export default function BodyMap({
-  body = 'male',
+  body,
   className = '',
   levels = {},
   onMuscle,
   selected = null,
 }: BodyMapProps) {
   const paths = useBodyPaths();
-  const geometry = paths && (paths[body] || paths.male);
+  const storedBody = resolveBodyMapBody(getStoredAppUser()?.gender);
+  const resolvedBody = body ? resolveBodyMapBody(body) : storedBody;
+  const geometry = paths && (paths[resolvedBody] || paths.male);
   const tappableClass = onMuscle ? ' tappable' : '';
 
   return (

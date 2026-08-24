@@ -17898,7 +17898,7 @@ router.get('/workout-summaries/:userId', requireAuth('user'), requireUserAccess(
       return res.status(400).json({ error: 'userId must be a positive integer' });
     }
 
-    const limit = Math.min(60, Math.max(1, toPositiveInteger(req.query?.limit) || 20));
+    const limit = Math.min(365, Math.max(1, toPositiveInteger(req.query?.limit) || 20));
     const [rows] = await pool.execute(
       `SELECT
          id,

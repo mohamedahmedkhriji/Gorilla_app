@@ -1,17 +1,13 @@
 import { useEffect, useRef, useState } from 'react';
-import { Card } from '../ui/Card';
 import { ArrowLeft, Play } from 'lucide-react';
-import { getBodyPartImage } from '../../services/bodyPartTheme';
+import { MuscleSvgBadge } from './MuscleSvgBadge';
 import { api } from '../../services/api';
 import { resolveExerciseVideoUrl } from '../../services/exerciseVideos';
-import { AppLanguage, LocalizedLanguageRecord, getActiveLanguage, getStoredLanguage } from '../../services/language';
+import { LocalizedLanguageRecord, getActiveLanguage, getStoredLanguage } from '../../services/language';
 import { stripExercisePrefix } from '../../services/exerciseName';
 import { playMediaSafely } from '../../shared/mediaPlayback';
 import { useScreenshotProtection } from '../../shared/useScreenshotProtection';
 import { getStoredAppUser } from '../../shared/authStorage';
-import backLatsImageUrl from '../../../assets/Workout/body part/back/Lates.png';
-import backUpperImageUrl from '../../../assets/Workout/body part/back/upper back.png';
-import backLowerImageUrl from '../../../assets/Workout/body part/back/lower back.png';
 import cardioManVideoUrl from '../../../assets/Workout/body part/cardio/cardio man.mp4';
 import cardioWomanVideoUrl from '../../../assets/Workout/body part/cardio/cardio woman.mp4';
 import genericCardioPlaceholderVideoUrl from '../../../assets/intro.mp4';
@@ -39,10 +35,6 @@ type MuscleDistributionEntry = {
   role?: string;
   isPrimary?: boolean;
 };
-
-const BACK_LATS_IMAGE = backLatsImageUrl;
-const BACK_UPPER_IMAGE = backUpperImageUrl;
-const BACK_LOWER_IMAGE = backLowerImageUrl;
 
 const getDisplayExerciseName = (name?: string) =>
   stripExercisePrefix(String(name || 'Barbell Bench Press'));
@@ -383,25 +375,6 @@ const DE_BASE_MUSCLE_LABELS: Record<string, string> = {
   general: 'Allgemein',
 };
 
-const SEGMENT_COUNT = 10;
-
-const clampPercent = (value: number) => Math.max(0, Math.min(100, value));
-
-const getActiveSegments = (percent: number) =>
-  Math.round((clampPercent(percent) / 100) * SEGMENT_COUNT);
-
-const getSegmentColor = (index: number, isActive: boolean) => {
-  const ratio = SEGMENT_COUNT <= 1 ? 0 : index / (SEGMENT_COUNT - 1);
-  if (isActive) {
-    // Yellow -> Green progression across active segments
-    const hue = 60 + (ratio * 60);
-    const saturation = 90;
-    const lightness = 48;
-    return `hsl(${hue} ${saturation}% ${lightness}%)`;
-  }
-  return 'rgb(39, 46, 52)';
-};
-
 const toRoundedPercentages = (weights: number[]) => {
   if (weights.length === 0) return [];
 
@@ -412,7 +385,7 @@ const toRoundedPercentages = (weights: number[]) => {
   const total = safeWeights.reduce((sum, value) => sum + value, 0) || safeWeights.length;
   const rawPercentages = safeWeights.map((value) => (value / total) * 100);
   const rounded = rawPercentages.map((value) => Math.floor(value));
-  let remaining = 100 - rounded.reduce((sum, value) => sum + value, 0);
+  const remaining = 100 - rounded.reduce((sum, value) => sum + value, 0);
 
   const rankedByRemainder = rawPercentages
     .map((value, index) => ({
@@ -528,50 +501,14 @@ const getMuscleDistribution = (muscles: string[]): MuscleDistributionEntry[] => 
   }));
 };
 
-const resolveWorkoutMuscleImage = (muscleName?: string, muscleGroup?: string) => {
-  const normalizedMuscle = normalizeLookup(muscleName);
-  const normalizedGroup = normalizeLookup(muscleGroup);
-
-  if (normalizedMuscle.includes('lat')) {
-    return BACK_LATS_IMAGE;
-  }
-
-  if (normalizedMuscle.includes('lower back') || normalizedMuscle.includes('erector')) {
-    return BACK_LOWER_IMAGE;
-  }
-
-  if (
-    normalizedMuscle.includes('upper back')
-    || normalizedMuscle.includes('middle back')
-    || normalizedMuscle.includes('back')
-    || normalizedMuscle.includes('trap')
-    || normalizedMuscle.includes('rhomboid')
-    || normalizedGroup.includes('back')
-  ) {
-    return BACK_UPPER_IMAGE;
-  }
-
-  return null;
-};
-
-const resolveTargetMuscleImage = (muscleName?: string, muscleGroup?: string) => {
-  const specificImage = resolveWorkoutMuscleImage(muscleName, muscleGroup);
-  if (specificImage) return specificImage;
-
-  // Prefer detailed theme image using both muscle label and group context.
-  return getBodyPartImage(`${muscleName || ''} ${muscleGroup || ''}`.trim() || 'General');
-};
-
 export function ExerciseVideoScreen({ onBack, exercise }: ExerciseVideoScreenProps) {
   useScreenshotProtection();
   const language = getActiveLanguage(getStoredLanguage());
-  const isArabic = language === 'ar';
   const copy = EXERCISE_VIDEO_I18N[language] || EXERCISE_VIDEO_I18N.en;
   const storedUser = getStoredAppUser();
   const videoRef = useRef<HTMLVideoElement>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [catalogPrimaryMuscleDistribution, setCatalogPrimaryMuscleDistribution] = useState<MuscleDistributionEntry[]>([]);
-  const [catalogSecondaryMuscleDistribution, setCatalogSecondaryMuscleDistribution] = useState<MuscleDistributionEntry[]>([]);
   const displayExerciseName = getDisplayExerciseName(exercise?.name);
   const isCardioContext = isCardioExerciseContext(exercise);
   const cardioGuideVideoUrl = isFemaleGender(storedUser?.gender)
@@ -600,26 +537,12 @@ export function ExerciseVideoScreen({ onBack, exercise }: ExerciseVideoScreenPro
     if (inferredPrimary.length > 0) return inferredPrimary.slice(0, 2);
     return ['General'];
   })();
-  const secondaryFallbackTargets = (() => {
-    const primaryKeys = new Set(primaryFallbackTargets.map((entry) => normalizeLookup(entry)));
-    return dedupeMuscles([
-      ...inferredTargetMuscles,
-      directMuscle,
-      ...targetMuscles,
-    ]).filter((entry) => !primaryKeys.has(normalizeLookup(entry))).slice(0, 3);
-  })();
   const fallbackPrimaryMuscleDistribution: MuscleDistributionEntry[] = getMuscleDistribution(primaryFallbackTargets);
-  const fallbackSecondaryMuscleDistribution: MuscleDistributionEntry[] = getMuscleDistribution(secondaryFallbackTargets);
   const primaryMuscleDistribution: MuscleDistributionEntry[] = isCardioContext
     ? []
     : catalogPrimaryMuscleDistribution.length > 0
     ? catalogPrimaryMuscleDistribution
     : fallbackPrimaryMuscleDistribution;
-  const secondaryMuscleDistribution: MuscleDistributionEntry[] = isCardioContext
-    ? []
-    : catalogSecondaryMuscleDistribution.length > 0
-    ? catalogSecondaryMuscleDistribution
-    : fallbackSecondaryMuscleDistribution;
   const exactPrimaryMuscle = (
     toBaseMuscleGroup(primaryMuscleDistribution[0]?.baseMuscle || primaryMuscleDistribution[0]?.name)
     || ''
@@ -647,11 +570,6 @@ export function ExerciseVideoScreen({ onBack, exercise }: ExerciseVideoScreenPro
   const resolvedVideoUrl = shouldUseCardioGuideVideo
     ? cardioGuideVideoUrl
     : resolvedVideoUrlFromExercise;
-  const fallbackPosterUrl = shouldUseCardioGuideVideo ? undefined : resolveTargetMuscleImage(
-    primaryMuscleDistribution[0]?.name,
-    primaryMuscleDistribution[0]?.baseMuscle || primaryMuscle,
-  );
-
   useEffect(() => {
     let cancelled = false;
     const exerciseCatalogId = Number(exercise?.exerciseCatalogId || 0) || null;
@@ -659,7 +577,6 @@ export function ExerciseVideoScreen({ onBack, exercise }: ExerciseVideoScreenPro
     const catalogLookupMuscleHint = explicitTargetMuscles[0] || canonicalizeMuscleLabel(exercise?.muscle) || primaryMuscle;
 
     setCatalogPrimaryMuscleDistribution([]);
-    setCatalogSecondaryMuscleDistribution([]);
     if (!exerciseCatalogId && !exerciseName) return () => {
       cancelled = true;
     };
@@ -678,15 +595,10 @@ export function ExerciseVideoScreen({ onBack, exercise }: ExerciseVideoScreenPro
               ? data.muscles
               : [],
         );
-        const nextSecondaryDistribution = getExactMuscleDistribution(
-          Array.isArray(data?.secondaryMuscles) ? data.secondaryMuscles : [],
-        );
         setCatalogPrimaryMuscleDistribution(nextPrimaryDistribution);
-        setCatalogSecondaryMuscleDistribution(nextSecondaryDistribution);
       } catch (error) {
         if (!cancelled) {
           setCatalogPrimaryMuscleDistribution([]);
-          setCatalogSecondaryMuscleDistribution([]);
           if (import.meta.env.DEV) {
             console.error('Failed to load exact exercise muscle targets:', error);
           }
@@ -729,52 +641,18 @@ export function ExerciseVideoScreen({ onBack, exercise }: ExerciseVideoScreenPro
     if (!muscles.length) return null;
 
     return (
-      <div className="space-y-3">
-        <div className="grid grid-cols-3 gap-3">
-          {muscles.map((muscle) => {
-            const displayName = toLocalizedSubMuscle(muscle.name);
-            return (
-              <div
-                key={`${muscle.name}-image`}
-                className="overflow-hidden rounded-2xl border border-white/10 bg-white/[0.03]"
-              >
-                <img
-                  src={resolveTargetMuscleImage(muscle.name, muscle.baseMuscle || primaryMuscle)}
-                  alt={displayName}
-                  className="h-24 w-full object-cover object-center sm:h-28"
-                  loading="lazy"
-                />
-                <div className="border-t border-white/10 px-3 py-2 text-center text-[11px] font-medium text-text-secondary">
-                  {displayName}
-                </div>
-              </div>
-            );
-          })}
-        </div>
-        <div className="space-y-3">
-          {muscles.map((muscle) => (
-            <div key={muscle.name}>
-              <div className="mb-1 flex justify-between text-xs text-text-secondary">
-                <span>{toLocalizedSubMuscle(muscle.name)}</span>
-                <span className="font-electrolize">{muscle.percent}%</span>
-              </div>
-              <div className="mt-1 rounded-md border border-white/10 bg-white/[0.02] p-1">
-                <div className="flex h-2 items-center gap-1">
-                  {Array.from({ length: SEGMENT_COUNT }, (_, index) => {
-                    const isActive = index < getActiveSegments(muscle.percent);
-                    return (
-                      <div
-                        key={`${muscle.name}-segment-${index}`}
-                        className="h-full flex-1 rounded-[2px] transition-colors duration-300"
-                        style={{ backgroundColor: getSegmentColor(index, isActive) }}
-                      />
-                    );
-                  })}
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+        {muscles.map((muscle) => (
+          <MuscleSvgBadge
+            key={muscle.name}
+            muscle={{
+              label: toLocalizedSubMuscle(muscle.name),
+              sourceName: muscle.name || muscle.baseMuscle || primaryMuscle,
+            }}
+            className="w-full"
+            figureClassName="h-24 sm:h-28"
+          />
+        ))}
       </div>
     );
   };
@@ -807,7 +685,6 @@ export function ExerciseVideoScreen({ onBack, exercise }: ExerciseVideoScreenPro
               controls
               playsInline
               preload="metadata"
-              poster={fallbackPosterUrl}
               className="block max-h-[72vh] w-full bg-black object-contain"
               src={resolvedVideoUrl}
               onPlay={() => setIsPlaying(true)}
@@ -849,17 +726,7 @@ export function ExerciseVideoScreen({ onBack, exercise }: ExerciseVideoScreenPro
 
       <div className="pb-24 space-y-6">
           {!isCardioContext ? (
-            <Card translate="no">
-              <h3 className="mb-4 font-medium text-white">{copy.muscleDistributionTitle}</h3>
-              {primaryMuscleDistribution.length ? (
-                <div className="space-y-3">
-                  <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-text-tertiary">
-                    {copy.primaryTargetsTitle}
-                  </div>
-                  {renderMuscleSection(primaryMuscleDistribution)}
-                </div>
-              ) : null}
-            </Card>
+            renderMuscleSection(primaryMuscleDistribution)
           ) : null}
 
       </div>

@@ -1103,7 +1103,6 @@ export function Blogs({ guidedTourActive = false, onGuidedTourComplete, onGuided
       <FeedPage
         header={(
           <FeedHeader
-            onRefresh={() => { void loadInitialFeed('refresh'); }}
             onCreate={() => { setIsCreateOpen(true); setCreateError(''); }}
             title={copy.feedTitle}
             subtitle={copy.feedSubtitle}
@@ -1111,10 +1110,6 @@ export function Blogs({ guidedTourActive = false, onGuidedTourComplete, onGuided
             postLabel={copy.post}
             avatarUrl={userProfileImage || DEFAULT_AVATAR}
             avatarAlt={copy.avatarAlt(copy.fallbackUser)}
-            refreshAria={copy.refreshFeedAria}
-            refreshLabel={copy.refresh}
-            refreshingLabel={copy.refreshing}
-            refreshing={refreshing}
           />
         )}
         filters={<CategoryFilters filters={categoryFilters} activeCategory={activeCategory} onSelect={selectCategory} getLabel={getCategoryLabel} />}

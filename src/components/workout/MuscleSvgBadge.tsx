@@ -5,10 +5,20 @@ import {
   type BodyMapMuscle,
   recoveryMuscleToBodyMapSlugs,
 } from '../../lib/muscle-map';
+import { resolveBodyMapBody, type BodyMapBody } from '../../lib/body-map-body';
+import { getStoredAppUser } from '../../shared/authStorage';
 
 export type MuscleThumbnail = {
   label: string;
   sourceName: string;
+};
+
+type MuscleSvgBadgeAlign = 'left' | 'center' | 'right';
+
+const getLabelAlignClass = (align: MuscleSvgBadgeAlign) => {
+  if (align === 'center') return 'text-center';
+  if (align === 'right') return 'text-right';
+  return 'text-left';
 };
 
 const countMusclePaths = (view: BodyPathView, slugs: BodyMapMuscle[]) =>
@@ -41,16 +51,19 @@ export function MuscleSvgBadge({
   className = 'w-[88px]',
   figureClassName = 'h-[72px]',
   showLabel = true,
+  body,
 }: {
   muscle: MuscleThumbnail;
-  align?: 'left' | 'right';
+  align?: MuscleSvgBadgeAlign;
   className?: string;
   figureClassName?: string;
   showLabel?: boolean;
+  body?: BodyMapBody | string;
 }) {
   const paths = useBodyPaths();
   const slugs = recoveryMuscleToBodyMapSlugs(muscle.sourceName);
-  const geometry = paths?.male;
+  const resolvedBody = body ? resolveBodyMapBody(body) : resolveBodyMapBody(getStoredAppUser()?.gender);
+  const geometry = paths?.[resolvedBody] || paths?.male;
 
   if (!geometry || slugs.length === 0) {
     return (
@@ -63,7 +76,7 @@ export function MuscleSvgBadge({
           {muscle.label.slice(0, 2)}
         </div>
         {showLabel && (
-          <div className={`mt-2 truncate text-xs font-semibold text-text-secondary ${align === 'right' ? 'text-right' : 'text-left'}`}>{muscle.label}</div>
+          <div className={`mt-2 truncate text-xs font-semibold text-text-secondary ${getLabelAlignClass(align)}`}>{muscle.label}</div>
         )}
       </div>
     );
@@ -102,7 +115,7 @@ export function MuscleSvgBadge({
         </svg>
       </div>
       {showLabel && (
-        <div className={`mt-2 truncate text-xs font-semibold text-text-secondary ${align === 'right' ? 'text-right' : 'text-left'}`}>{muscle.label}</div>
+        <div className={`mt-2 truncate text-xs font-semibold text-text-secondary ${getLabelAlignClass(align)}`}>{muscle.label}</div>
       )}
     </div>
   );

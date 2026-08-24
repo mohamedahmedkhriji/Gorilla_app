@@ -2042,7 +2042,7 @@ export function Home({
                 </span>
                 <span className="hidden min-w-0 text-xs font-semibold text-text-secondary min-[360px]:block">
                   <span className="text-text-primary">{rankNameDisplay}</span>
-                  <span> - {programProgress?.totalPoints || 0} {homeCopy.pointsShort}</span>
+                  <span> - {programProgress?.totalPoints || 0} RP</span>
                 </span>
               </button>
 

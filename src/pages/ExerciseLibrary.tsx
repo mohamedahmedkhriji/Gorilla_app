@@ -604,7 +604,7 @@ export function ExerciseLibrary({
     video.currentTime = 0;
     const playPromise = video.play();
     if (playPromise && typeof playPromise.catch === 'function') {
-      playPromise.catch(() => {});
+      playPromise.catch(() => undefined);
     }
   }, [activeIntroVideoUrl]);
 
@@ -751,17 +751,16 @@ export function ExerciseLibrary({
                       onClick={() => handleFilterSelect(filter)}
                       aria-pressed={isSelected}
                       className={[
-                        'group relative overflow-hidden rounded-2xl border p-3 transition-all duration-200 focus:outline-none',
-                        'focus-visible:ring-2 focus-visible:ring-accent/50 active:scale-[0.98]',
-                        isRtl ? 'text-right' : 'text-left',
+                        'group rounded-2xl transition-all duration-200 focus:outline-none',
+                        'focus-visible:ring-2 focus-visible:ring-accent/50 focus-visible:ring-offset-2 focus-visible:ring-offset-background active:scale-[0.98]',
                         isSelected
-                          ? 'border-accent/45 bg-accent/10 shadow-[0_10px_24px_rgba(0,0,0,0.28)]'
-                          : 'border-white/10 bg-card/70 hover:border-accent/25 hover:bg-white/[0.03]',
+                          ? 'ring-1 ring-accent/55'
+                          : 'hover:-translate-y-0.5',
                       ].join(' ')}
                     >
                       <MuscleSvgBadge
                         muscle={{ label, sourceName: filter }}
-                        align={isRtl ? 'right' : 'left'}
+                        align="center"
                         className="w-full"
                         figureClassName="h-24 sm:h-28"
                       />

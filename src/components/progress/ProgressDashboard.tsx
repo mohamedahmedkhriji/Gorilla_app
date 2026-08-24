@@ -1,18 +1,22 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { createPortal } from 'react-dom';
-import { Button } from '../ui/Button';
 import { StrengthChart } from './StrengthChart';
 import { Card } from '../ui/Card';
-import { CircleQuestionMark, TrendingUp, Trophy, X } from 'lucide-react';
+import { Activity, CalendarDays, ChevronRight, CircleQuestionMark, Dumbbell, PlayCircle, Target, X } from 'lucide-react';
 import { api } from '../../services/api';
-import { emojiRightArrow } from '../../services/emojiTheme';
-import { MuscleSvgBadge } from '../workout/MuscleSvgBadge';
 import { AppLanguage, getActiveLanguage, getStoredLanguage } from '../../services/language';
 import { offlineCacheKeys, readOfflineCacheValue } from '../../services/offlineCache';
+import {
+  aggregateTrainingVolume,
+  formatTrainingVolume,
+  type VolumeRange,
+  type VolumeWorkoutSummary,
+} from '../../lib/training-volume';
 interface ProgressDashboardProps {
   onViewReport: () => void;
-  onViewStrengthScore: () => void;
-  onViewLeaderboard: () => void;
+  onViewTrainingVolume: () => void;
+  onViewMuscleReport: () => void;
+  onStartWorkout: () => void;
 }
 
 interface MuscleDistributionItem {
@@ -194,23 +198,11 @@ const inferPlannedWorkoutsThisWeek = (progress: any, programData: any) => {
   return Math.max(0, Number(progress?.summary?.workoutsPlannedThisWeek || 0));
 };
 
-const SEGMENT_COUNT = 10;
-
-const clampPercent = (value: number) => Math.max(0, Math.min(100, value));
-
-const getActiveSegments = (percent: number) =>
-  Math.round((clampPercent(percent) / 100) * SEGMENT_COUNT);
-
-const getSegmentColor = (index: number, isActive: boolean) => {
-  const ratio = SEGMENT_COUNT <= 1 ? 0 : index / (SEGMENT_COUNT - 1);
-  if (isActive) {
-    const hue = 60 + (ratio * 60);
-    const saturation = 90;
-    const lightness = 48;
-    return `hsl(${hue} ${saturation}% ${lightness}%)`;
-  }
-  return 'rgb(39, 46, 52)';
-};
+const RANGE_ITEMS: Array<{ key: VolumeRange; label: string; weeks: number }> = [
+  { key: '4w', label: '4 weeks', weeks: 4 },
+  { key: '8w', label: '8 weeks', weeks: 8 },
+  { key: 'all', label: 'All time', weeks: 52 },
+];
 
 const PROGRESS_DASHBOARD_I18N = {
   en: {
@@ -370,10 +362,11 @@ const getLocalizedMuscleName = (name: string, language: AppLanguage) => {
   return name;
 };
 
-export function ProgressDashboard({ onViewReport, onViewStrengthScore, onViewLeaderboard }: ProgressDashboardProps) {
+export function ProgressDashboard({ onViewReport, onViewTrainingVolume, onViewMuscleReport, onStartWorkout }: ProgressDashboardProps) {
+  const [range, setRange] = useState<VolumeRange>('4w');
   const [stats, setStats] = useState({
     totalWorkouts: 0,
-    totalVolume: 0,
+    totalVolumeKg: 0,
     consistency: 0,
     currentStreak: 0,
     workoutsCompletedThisWeek: 0,
@@ -382,6 +375,19 @@ export function ProgressDashboard({ onViewReport, onViewStrengthScore, onViewLea
     workoutsRemainingThisWeek: 0,
   });
   const [muscleDistribution, setMuscleDistribution] = useState<MuscleDistributionItem[]>([]);
+  const [workoutSummaries, setWorkoutSummaries] = useState<VolumeWorkoutSummary[]>([]);
+  const [strengthSummary, setStrengthSummary] = useState<{
+    currentAvgE1RM: number | null;
+    baselineAvgE1RM: number | null;
+    percentChange: number | null;
+    pointCount: number;
+  }>({
+    currentAvgE1RM: null,
+    baselineAvgE1RM: null,
+    percentChange: null,
+    pointCount: 0,
+  });
+  const [overloadRecommendation, setOverloadRecommendation] = useState<string | null>(null);
   const [showPageInfo, setShowPageInfo] = useState(false);
   const [language, setLanguage] = useState<AppLanguage>('en');
   const copy = PROGRESS_DASHBOARD_I18N[language as keyof typeof PROGRESS_DASHBOARD_I18N] || PROGRESS_DASHBOARD_I18N.en;
@@ -418,7 +424,7 @@ export function ProgressDashboard({ onViewReport, onViewStrengthScore, onViewLea
     if (!userId) {
       setStats({
         totalWorkouts: 0,
-        totalVolume: 0,
+        totalVolumeKg: 0,
         consistency: 0,
         currentStreak: 0,
         workoutsCompletedThisWeek: 0,
@@ -427,6 +433,7 @@ export function ProgressDashboard({ onViewReport, onViewStrengthScore, onViewLea
         workoutsRemainingThisWeek: 0,
       });
       setMuscleDistribution([]);
+      setWorkoutSummaries([]);
       return;
     }
 
@@ -444,7 +451,7 @@ export function ProgressDashboard({ onViewReport, onViewStrengthScore, onViewLea
 
       setStats({
         totalWorkouts: Number(progress?.summary?.completedWorkouts || 0),
-        totalVolume: Math.round((volumeLoadAllTime / 1000) * 10) / 10,
+        totalVolumeKg: volumeLoadAllTime,
         consistency: Math.max(0, Math.min(100, weeklyRate)),
         currentStreak: Number(progress?.summary?.workoutStreakDays || 0),
         workoutsCompletedThisWeek,
@@ -491,7 +498,7 @@ export function ProgressDashboard({ onViewReport, onViewStrengthScore, onViewLea
     }
     let consistency = 0;
     let currentStreak = 0;
-    let totalVolumeTons = 0;
+    let totalVolumeKg = 0;
     let totalWorkouts = 0;
     let workoutsCompletedThisWeek = 0;
     let workoutsPlannedThisWeek = 0;
@@ -520,7 +527,7 @@ export function ProgressDashboard({ onViewReport, onViewStrengthScore, onViewLea
         ?? progress?.summary?.volumeLoadLast30Days
         ?? 0,
       );
-      totalVolumeTons = Math.round((volumeLoadAllTime / 1000) * 10) / 10;
+      totalVolumeKg = volumeLoadAllTime;
     } catch (error) {
       console.error('Failed to fetch program progress for consistency:', error);
     }
@@ -553,7 +560,7 @@ export function ProgressDashboard({ onViewReport, onViewStrengthScore, onViewLea
 
     setStats({
       totalWorkouts,
-      totalVolume: totalVolumeTons,
+      totalVolumeKg,
       consistency,
       currentStreak,
       workoutsCompletedThisWeek,
@@ -561,7 +568,40 @@ export function ProgressDashboard({ onViewReport, onViewStrengthScore, onViewLea
       workoutsMissedThisWeek,
       workoutsRemainingThisWeek,
     });
-  }, []);
+
+    try {
+      const summariesResponse = await api.getWorkoutDaySummaries(userId, 365);
+      setWorkoutSummaries(Array.isArray(summariesResponse?.summaries) ? summariesResponse.summaries : []);
+    } catch (error) {
+      console.error('Failed to fetch workout summaries for progress overview:', error);
+      setWorkoutSummaries([]);
+    }
+
+    try {
+      const selectedRange = RANGE_ITEMS.find((item) => item.key === range) || RANGE_ITEMS[0];
+      const strength = await api.getStrengthProgress(userId, selectedRange.weeks);
+      const weeks = Array.isArray(strength?.weeks) ? strength.weeks : [];
+      setStrengthSummary({
+        currentAvgE1RM: strength?.summary?.currentAvgE1RM ?? null,
+        baselineAvgE1RM: strength?.summary?.baselineAvgE1RM ?? null,
+        percentChange: weeks.length >= 2 ? Number(strength?.summary?.percentChange || 0) : null,
+        pointCount: weeks.length,
+      });
+    } catch (error) {
+      console.error('Failed to fetch strength summary for progress overview:', error);
+      setStrengthSummary({ currentAvgE1RM: null, baselineAvgE1RM: null, percentChange: null, pointCount: 0 });
+    }
+
+    try {
+      const overload = await api.getOverloadPlan(userId);
+      const list = Array.isArray(overload?.recommendations) ? overload.recommendations : [];
+      const first = list[0];
+      setOverloadRecommendation(first ? `${first.name}: ${first.current} -> ${first.next}` : null);
+    } catch (error) {
+      console.error('Failed to fetch compact overload recommendation:', error);
+      setOverloadRecommendation(null);
+    }
+  }, [range]);
 
   useEffect(() => {
     void loadStats();
@@ -585,10 +625,27 @@ export function ProgressDashboard({ onViewReport, onViewStrengthScore, onViewLea
     };
   }, [loadStats]);
 
+  const selectedRange = RANGE_ITEMS.find((item) => item.key === range) || RANGE_ITEMS[0];
+  const volumeAggregation = useMemo(
+    () => aggregateTrainingVolume(workoutSummaries, range),
+    [range, workoutSummaries],
+  );
+  const totalVolumeKg = volumeAggregation.totalVolumeKg || stats.totalVolumeKg;
+  const strengthChangeText = strengthSummary.pointCount < 2 || strengthSummary.percentChange == null
+    ? '-'
+    : `${strengthSummary.percentChange >= 0 ? '+' : ''}${Math.round(strengthSummary.percentChange * 10) / 10}%`;
+  const currentStrengthText = strengthSummary.currentAvgE1RM && strengthSummary.currentAvgE1RM > 0
+    ? `${Math.round(strengthSummary.currentAvgE1RM)} kg`
+    : '-';
+  const baselineStrengthText = strengthSummary.baselineAvgE1RM && strengthSummary.baselineAvgE1RM > 0
+    ? `${Math.round(strengthSummary.baselineAvgE1RM)} kg`
+    : '-';
+  const muscleMax = Math.max(...muscleDistribution.map((item) => item.val), 1);
+
   return (
     <div data-coachmark-target="progress_dashboard" className="progress-dashboard space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-light text-white">{copy.title}</h1>
+        <h1 className="text-2xl font-bold text-white">Progress</h1>
         <button
           type="button"
           data-coachmark-target="progress_info_button"
@@ -600,120 +657,146 @@ export function ProgressDashboard({ onViewReport, onViewStrengthScore, onViewLea
         </button>
       </div>
 
-
-      <StrengthChart coachmarkTargetId="progress_strength_chart" />
-
-
-
-
-      <div className="grid grid-cols-2 gap-4">
-        <Card
-          coachmarkTargetId="progress_consistency_card"
-          className="relative overflow-hidden cursor-pointer p-4"
-          onClick={onViewLeaderboard}
-          role="button"
-          tabIndex={0}
-          onKeyDown={(event) => {
-            if (event.key === 'Enter' || event.key === ' ') {
-              event.preventDefault();
-              onViewLeaderboard();
-            }
-          }}
-        >
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(187,255,92,0.16),transparent_34%),linear-gradient(180deg,rgba(255,255,255,0.04),rgba(7,11,17,0.74))]" aria-hidden="true" />
-          <div className="relative z-10 flex items-end justify-between gap-3">
-            <div className="min-w-0">
-              <Trophy className="mb-2 text-accent" size={20} />
-              <div className="text-xl font-bold text-white">{copy.classification}</div>
-              <div className="mt-1 text-xs text-text-secondary">{copy.viewLeaderboard}</div>
-            </div>
-            <img src={emojiRightArrow} alt="" aria-hidden="true" className="mb-1 h-[18px] w-[18px] shrink-0 object-contain opacity-70" />
-          </div>
-        </Card>
-        <Card
-          coachmarkTargetId="progress_total_volume_card"
-          className="relative overflow-hidden cursor-pointer p-4"
-          onClick={onViewStrengthScore}
-          role="button"
-          tabIndex={0}
-          onKeyDown={(event) => {
-            if (event.key === 'Enter' || event.key === ' ') {
-              event.preventDefault();
-              onViewStrengthScore();
-            }
-          }}
-        >
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(168,85,247,0.14),transparent_34%),linear-gradient(180deg,rgba(255,255,255,0.04),rgba(7,11,17,0.74))]" aria-hidden="true" />
-          <div className="relative z-10 flex items-end justify-between gap-3">
-            <div className="min-w-0">
-              <TrendingUp className="text-purple-500 mb-2" size={20} />
-              <div className="text-2xl font-bold text-white font-electrolize">
-                {Number.isInteger(stats.totalVolume) ? stats.totalVolume : stats.totalVolume.toFixed(1)}t
-              </div>
-              <div className="text-xs text-text-secondary">{copy.totalVolume}</div>
-            </div>
-            <img src={emojiRightArrow} alt="" aria-hidden="true" className="mb-1 h-[18px] w-[18px] shrink-0 object-contain opacity-70" />
-          </div>
-        </Card>
+      <div className="grid grid-cols-3 rounded-2xl border border-white/10 bg-[#101824] p-1">
+        {RANGE_ITEMS.map((item) => (
+          <button
+            key={item.key}
+            type="button"
+            aria-pressed={range === item.key}
+            onClick={() => setRange(item.key)}
+            className={`min-h-11 rounded-xl px-2 text-sm font-semibold transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent ${
+              range === item.key ? 'bg-accent text-black' : 'text-text-secondary hover:text-white'
+            }`}
+          >
+            {item.label}
+          </button>
+        ))}
       </div>
 
-      <Card coachmarkTargetId="progress_muscle_distribution_card" className="relative overflow-hidden">
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(191,255,0,0.08),transparent_30%),linear-gradient(180deg,rgba(255,255,255,0.03),rgba(7,11,17,0.72))]" aria-hidden="true" />
-        <div className="relative z-10">
-          <h3 className="font-medium text-white mb-4">{copy.muscleDistribution}</h3>
+      <Card coachmarkTargetId="progress_consistency_card" className="p-4">
+        <h2 className="mb-3 text-sm font-semibold uppercase tracking-[0.16em] text-text-secondary">Your overview</h2>
+        <div className="grid grid-cols-3 gap-2">
+          <div className="rounded-2xl border border-white/10 bg-[#14202E] p-3">
+            <Activity size={18} className="mb-2 text-accent" aria-hidden="true" />
+            <div className="text-[11px] text-text-secondary">Estimated 1RM</div>
+            <div className="mt-1 text-lg font-bold text-white">{currentStrengthText}</div>
+          </div>
+          <button
+            type="button"
+            data-coachmark-target="progress_total_volume_card"
+            onClick={onViewTrainingVolume}
+            className="rounded-2xl border border-accent/30 bg-accent/10 p-3 text-left transition-colors hover:bg-accent/15 focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
+          >
+            <Dumbbell size={18} className="mb-2 text-accent" aria-hidden="true" />
+            <div className="text-[11px] text-text-secondary">{copy.totalVolume}</div>
+            <div className="mt-1 text-lg font-bold text-white">{formatTrainingVolume(totalVolumeKg)}</div>
+          </button>
+          <div className="rounded-2xl border border-white/10 bg-[#14202E] p-3">
+            <Target size={18} className="mb-2 text-accent" aria-hidden="true" />
+            <div className="text-[11px] text-text-secondary">Strength change</div>
+            <div className="mt-1 text-lg font-bold text-white">{strengthChangeText}</div>
+          </div>
+        </div>
+      </Card>
+
+      <div>
+        <div className="mb-2 flex items-center justify-between">
+          <h2 className="text-lg font-semibold text-white">Strength trend</h2>
+          <select
+            className="min-h-11 rounded-xl border border-white/10 bg-[#101824] px-3 text-sm text-text-secondary focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
+            aria-label="Strength metric"
+            value="estimated-1rm"
+            onChange={() => undefined}
+          >
+            <option value="estimated-1rm">Estimated 1RM</option>
+          </select>
+        </div>
+        <StrengthChart coachmarkTargetId="progress_strength_chart" weeks={selectedRange.weeks} />
+        <div className="mt-2 grid grid-cols-2 gap-2 text-xs">
+          <div className="rounded-2xl border border-white/10 bg-[#101824] p-3">
+            <div className="text-text-tertiary">Baseline</div>
+            <div className="mt-1 font-semibold text-white">{baselineStrengthText}</div>
+          </div>
+          <div className="rounded-2xl border border-white/10 bg-[#101824] p-3">
+            <div className="text-text-tertiary">Current</div>
+            <div className="mt-1 font-semibold text-white">{currentStrengthText}</div>
+          </div>
+        </div>
+      </div>
+
+      <Card coachmarkTargetId="progress_muscle_distribution_card" className="p-4">
+        <div>
+          <h3 className="font-semibold text-white">Training focus</h3>
+          <p className="mt-1 text-sm text-text-secondary">Leading muscle targets from your plan and history.</p>
 
           {muscleDistribution.length > 0 ? (
-            <>
-              <div className="mb-5 grid grid-cols-3 gap-3">
-                {muscleDistribution.map((m) => (
-                  <MuscleSvgBadge
-                    key={`${m.name}-image`}
-                    muscle={{ label: getLocalizedMuscleName(m.name, language), sourceName: m.name }}
-                    align="left"
-                    className="w-full"
-                    figureClassName="h-24 sm:h-28"
-                  />
-                ))}
-              </div>
-
-              <div className="space-y-3">
+            <div className="mt-4 space-y-3">
               {muscleDistribution.map((m) => (
                 <div key={m.name}>
-                  <div className="mb-1 flex justify-between text-xs text-text-secondary">
-                    <span>{getLocalizedMuscleName(m.name, language)}</span>
-                    <span className="font-electrolize">{Math.round(m.val)}%</span>
+                  <div className="mb-1 flex justify-between gap-3 text-sm">
+                    <span className="font-semibold text-white">{getLocalizedMuscleName(m.name, language)}</span>
+                    <span className="text-text-secondary">{Math.round(m.val)}%</span>
                   </div>
-                  <div className="mt-1 rounded-md border border-white/10 bg-white/[0.02] p-1">
-                    <div className="flex h-2 items-center gap-1">
-                      {Array.from({ length: SEGMENT_COUNT }, (_, index) => {
-                        const isActive = index < getActiveSegments(m.val);
-                        return (
-                          <div
-                            key={`${m.name}-segment-${index}`}
-                            className="h-full flex-1 rounded-[2px] transition-colors duration-300"
-                            style={{ backgroundColor: getSegmentColor(index, isActive) }}
-                          />
-                        );
-                      })}
-                    </div>
+                  <div className="h-2 overflow-hidden rounded-full bg-white/10">
+                    <div
+                      className="h-full rounded-full bg-accent"
+                      style={{ width: `${Math.max(5, (m.val / muscleMax) * 100)}%` }}
+                    />
                   </div>
                 </div>
               ))}
-              </div>
-            </>
+              <button
+                type="button"
+                onClick={onViewMuscleReport}
+                className="mt-2 flex min-h-12 w-full items-center justify-between rounded-2xl border border-white/10 bg-[#14202E] px-4 text-sm font-bold text-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
+              >
+                VIEW MUSCLE REPORT
+                <ChevronRight size={18} aria-hidden="true" />
+              </button>
+            </div>
           ) : (
-            <div className="rounded-2xl border border-white/8 bg-background/50 px-4 py-4 text-sm text-text-secondary">
+            <div className="mt-4 rounded-2xl border border-white/8 bg-background/50 px-4 py-4 text-sm text-text-secondary">
               {copy.noPlanDistribution}
             </div>
           )}
         </div>
       </Card>
 
-      <div className="grid grid-cols-1 gap-3">
-        <Button coachmarkTargetId="progress_biweekly_report_button" variant="secondary" onClick={onViewReport}>
-          {copy.viewBiWeeklyReport}
-        </Button>
-      </div>
+      <Card coachmarkTargetId="progress_overload_card" className="p-4">
+        <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-accent">Next Step</p>
+        {overloadRecommendation ? (
+          <>
+            <h3 className="mt-2 text-lg font-semibold text-white">Next overload is ready</h3>
+            <p className="mt-1 text-sm text-text-secondary">{overloadRecommendation}</p>
+          </>
+        ) : (
+          <>
+            <h3 className="mt-2 text-lg font-semibold text-white">Keep logging your sets</h3>
+            <p className="mt-1 text-sm text-text-secondary">Complete more workouts to unlock your next overload recommendation.</p>
+          </>
+        )}
+        <button
+          type="button"
+          onClick={onStartWorkout}
+          className="mt-4 flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl bg-accent px-4 text-sm font-bold text-black focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+        >
+          <PlayCircle size={18} aria-hidden="true" />
+          START WORKOUT
+        </button>
+      </Card>
+
+      <button
+        type="button"
+        data-coachmark-target="progress_biweekly_report_button"
+        onClick={onViewReport}
+        className="flex min-h-12 w-full items-center justify-between rounded-2xl border border-white/10 bg-[#101824] px-4 text-left transition-colors hover:border-accent/30 focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
+      >
+        <span className="flex items-center gap-3 text-sm font-semibold text-white">
+          <CalendarDays size={18} className="text-accent" aria-hidden="true" />
+          View bi-weekly report
+        </span>
+        <ChevronRight size={18} className="text-text-secondary" aria-hidden="true" />
+      </button>
 
       {showPageInfo && typeof document !== 'undefined' && createPortal(
         <div

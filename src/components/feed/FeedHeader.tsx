@@ -1,7 +1,4 @@
-import { RefreshCcw } from 'lucide-react';
-
 type FeedHeaderProps = {
-  onRefresh: () => void;
   onCreate: () => void;
   title: string;
   subtitle: string;
@@ -9,14 +6,9 @@ type FeedHeaderProps = {
   postLabel: string;
   avatarUrl: string;
   avatarAlt: string;
-  refreshAria: string;
-  refreshLabel: string;
-  refreshingLabel: string;
-  refreshing: boolean;
 };
 
 export default function FeedHeader({
-  onRefresh,
   onCreate,
   title,
   subtitle,
@@ -24,28 +16,14 @@ export default function FeedHeader({
   postLabel,
   avatarUrl,
   avatarAlt,
-  refreshAria,
-  refreshLabel,
-  refreshingLabel,
-  refreshing,
 }: FeedHeaderProps) {
   return (
     <section data-coachmark-target="blogs_page_intro" className="space-y-4">
-      <div className="flex items-center justify-between gap-3">
-        <div>
+      <div className="text-center">
+        <div className="mx-auto">
           <h1 className="text-2xl font-bold tracking-[-0.02em] text-text-primary">{title}</h1>
           <p className="mt-0.5 text-xs text-text-secondary">{subtitle}</p>
         </div>
-        <button
-          type="button"
-          onClick={onRefresh}
-          disabled={refreshing}
-          className="flex min-h-11 items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-3.5 text-xs font-semibold text-text-secondary transition-all duration-200 hover:border-accent/35 hover:bg-white/[0.08] hover:text-text-primary active:scale-[0.98] disabled:cursor-wait disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
-          aria-label={refreshAria}
-        >
-          <RefreshCcw size={16} className={refreshing ? 'animate-spin text-accent' : ''} aria-hidden="true" />
-          <span>{refreshing ? refreshingLabel : refreshLabel}</span>
-        </button>
       </div>
 
       <div
