@@ -1,5 +1,6 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { ChevronRight, Trophy } from 'lucide-react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { createPortal } from 'react-dom';
+import { ArrowLeft, ChevronRight, Info, Trophy } from 'lucide-react';
 import { Header } from '../ui/Header';
 import { Card } from '../ui/Card';
 import { LeaderboardScreen } from './LeaderboardScreen';
@@ -10,6 +11,7 @@ import { getRankBadgeImage } from '../../services/rankTheme';
 import { LocalizedLanguageRecord, getLanguageLocale, pickLanguage } from '../../services/language';
 import { useAppLanguage } from '../../hooks/useAppLanguage';
 import type { GamificationSummaryResponse } from '../../types/gamification';
+import { RANK_BADGES } from '../../services/missions';
 import {
   emojiChallenges,
   emojiDone,
@@ -292,25 +294,42 @@ const isNewWithin24Hours = (dateValue?: string | null) => {
   return Date.now() - timestamp <= NEW_ITEM_WINDOW_MS;
 };
 
-function CardLoadingSkeleton({ tone = 'accent' }: { tone?: 'accent' | 'blue' }) {
-  const barTone = tone === 'blue' ? 'bg-blue-400/45' : 'bg-accent/45';
+const getProgressPercent = (completed: number, total: number) => {
+  if (total <= 0) return 0;
+  return Math.min(100, Math.max(0, Math.round((completed / total) * 100)));
+};
+
+const getCurrentRankMinPoints = (rankName: string) => {
+  const match = Object.values(RANK_BADGES).find(
+    (rank) => String(rank.name || '').trim().toLowerCase() === String(rankName || '').trim().toLowerCase(),
+  );
+  return Number(match?.minPoints || 0);
+};
+
+function RankRewardProgressBar({
+  value,
+  label,
+  className = 'bg-accent',
+}: {
+  value: number;
+  label: string;
+  className?: string;
+}) {
+  const safeValue = Math.min(100, Math.max(0, Math.round(Number(value) || 0)));
   return (
-    <Card className="!p-2.5">
-      <div className="animate-pulse">
-        <div className="mb-2 flex items-start justify-between">
-          <div className="h-4 w-40 rounded bg-white/10" />
-          <div className="h-5 w-12 rounded bg-white/10" />
-        </div>
-        <div className="mb-1.5 h-3 w-full rounded bg-white/10" />
-        <div className="mb-2 h-3 w-2/3 rounded bg-white/10" />
-        <div className="flex items-center gap-2">
-          <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-white/5">
-            <div className={`h-full w-1/2 rounded-full ${barTone}`} />
-          </div>
-          <div className="h-3 w-12 rounded bg-white/10" />
-        </div>
-      </div>
-    </Card>
+    <div
+      role="progressbar"
+      aria-label={label}
+      aria-valuemin={0}
+      aria-valuemax={100}
+      aria-valuenow={safeValue}
+      className="h-1.5 overflow-hidden rounded-full bg-white/10"
+    >
+      <div
+        className={`h-full rounded-full transition-[width] duration-500 motion-reduce:transition-none ${className}`}
+        style={{ width: `${safeValue}%` }}
+      />
+    </div>
   );
 }
 
@@ -641,7 +660,7 @@ export function RankingsRewardsScreen({ onBack }: RankingsRewardsScreenProps) {
     },
   });
 
-  const translateText = (value: string, map: Record<string, LocalizedLanguageRecord<string>>) => {
+  const translateText = useCallback((value: string, map: Record<string, LocalizedLanguageRecord<string>>) => {
     const key = value.trim().toLowerCase();
     if (language === 'fr') {
       const frOverride = map === TITLE_TRANSLATIONS
@@ -650,10 +669,10 @@ export function RankingsRewardsScreen({ onBack }: RankingsRewardsScreenProps) {
       if (frOverride) return frOverride;
     }
     return map[key]?.[language] || value;
-  };
+  }, [language]);
 
-  const translateTitle = (value: string) => translateText(value, TITLE_TRANSLATIONS);
-  const translateDescription = (value: string) => translateText(value, DESCRIPTION_TRANSLATIONS);
+  const translateTitle = useCallback((value: string) => translateText(value, TITLE_TRANSLATIONS), [translateText]);
+  const translateDescription = useCallback((value: string) => translateText(value, DESCRIPTION_TRANSLATIONS), [translateText]);
 
   const [showLeaderboard, setShowLeaderboard] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
@@ -672,6 +691,7 @@ export function RankingsRewardsScreen({ onBack }: RankingsRewardsScreenProps) {
   const [selectedCategory, setSelectedCategory] = useState<DashboardCategory>('consistency');
   const [showCategoryDetail, setShowCategoryDetail] = useState(false);
   const [categoryDetailLoading, setCategoryDetailLoading] = useState(false);
+  const [showInfo, setShowInfo] = useState(false);
 
   const appUser = JSON.parse(localStorage.getItem('appUser') || localStorage.getItem('user') || '{}');
   const userId = parseInt(String(appUser?.id || localStorage.getItem('appUserId') || localStorage.getItem('userId') || '0'), 10);
@@ -755,10 +775,13 @@ export function RankingsRewardsScreen({ onBack }: RankingsRewardsScreenProps) {
     };
   }, [userId]);
 
-  const activeMissions = missions.filter((m) => m.status === 'active');
-  const activeDailyChallenges = dailyChallenges.filter((c) => c.status === 'active');
-  const activeWeeklyChallenges = weeklyChallenges.filter((c) => c.status === 'active');
-  const activeChallenges = [...activeDailyChallenges, ...activeWeeklyChallenges];
+  const activeMissions = useMemo(() => missions.filter((m) => m.status === 'active'), [missions]);
+  const activeDailyChallenges = useMemo(() => dailyChallenges.filter((c) => c.status === 'active'), [dailyChallenges]);
+  const activeWeeklyChallenges = useMemo(() => weeklyChallenges.filter((c) => c.status === 'active'), [weeklyChallenges]);
+  const activeChallenges = useMemo(
+    () => [...activeDailyChallenges, ...activeWeeklyChallenges],
+    [activeDailyChallenges, activeWeeklyChallenges],
+  );
 
   const rankBadgeImage = getRankBadgeImage(summary.rank);
   const rankNames = pickLanguage(language, RANK_NAME_MAP);
@@ -766,12 +789,14 @@ export function RankingsRewardsScreen({ onBack }: RankingsRewardsScreenProps) {
   const rankNameDisplay = rankNames[rankKey] || RANK_NAME_MAP.en?.[rankKey] || summary.rank;
   const nextRankKey = String(summary.nextRank?.name || '').trim().toLowerCase();
   const nextRankName = summary.nextRank ? (rankNames[nextRankKey] || RANK_NAME_MAP.en?.[nextRankKey] || summary.nextRank.name) : '';
-  const nextRankText = summary.nextRank ? copy.nextRank(nextRankName, summary.nextRank.pointsNeeded) : copy.topRank;
   const nextRankRequirement = summary.nextRank?.minPoints ?? summary.totalPoints;
+  const currentRankMinPoints = getCurrentRankMinPoints(summary.rank);
+  const remainingPoints = summary.nextRank
+    ? Math.max(0, nextRankRequirement - summary.totalPoints)
+    : 0;
   const rankProgressPercent = summary.nextRank
-    ? Math.max(0, Math.min(Math.round((summary.totalPoints / Math.max(1, nextRankRequirement)) * 100), 100))
+    ? getProgressPercent(summary.totalPoints - currentRankMinPoints, Math.max(1, nextRankRequirement - currentRankMinPoints))
     : 100;
-  const rewardsAvailable = gamificationSummary?.rewardsAvailable || [];
   const rivalry = gamificationSummary?.progress?.rivalry || null;
   const passPlayerLabel = (points: number, name: string) =>
     pickLanguage(language, {
@@ -938,28 +963,54 @@ export function RankingsRewardsScreen({ onBack }: RankingsRewardsScreenProps) {
         const challengeItems = categorizedActiveChallenges[category];
         const historyItems = categorizedHistory[category];
         const progressItems = [...missionItems, ...challengeItems];
-        const averageProgress = progressItems.length
-          ? Math.round(
-            progressItems.reduce((sum, item) => {
-              const target = Math.max(1, Number(item.target || 1));
-              return sum + Math.min(Number(item.progress || 0) / target, 1);
-            }, 0) / progressItems.length * 100,
-          )
-          : 0;
+        const activeCompleted = progressItems.reduce((sum, item) => sum + Math.max(0, Math.round(Number(item.progress || 0))), 0);
+        const activeTotal = progressItems.reduce((sum, item) => sum + Math.max(0, Math.round(Number(item.target || 0))), 0);
+        const completedCount = historyItems.length + activeCompleted;
+        const trackedCount = historyItems.length + activeTotal;
+        const completionPercent = getProgressPercent(completedCount, trackedCount);
 
         acc[category] = {
           activeCount: missionItems.length + challengeItems.length,
-          completedCount: historyItems.length,
-          averageProgress,
-          completionPercent: progressItems.length + historyItems.length
-            ? Math.round((historyItems.length / (progressItems.length + historyItems.length)) * 100)
-            : 0,
-          trackedCount: progressItems.length + historyItems.length,
+          completedCount,
+          completionPercent,
+          trackedCount,
         };
         return acc;
-      }, {} as Record<DashboardCategory, { activeCount: number; completedCount: number; averageProgress: number; completionPercent: number; trackedCount: number }>),
+      }, {} as Record<DashboardCategory, { activeCount: number; completedCount: number; completionPercent: number; trackedCount: number }>),
     [categorizedActiveChallenges, categorizedActiveMissions, categorizedHistory],
   );
+
+  const nextMission = useMemo(() => {
+    const missionOptions = activeMissions
+      .filter((mission) => !mission.completed)
+      .map((mission) => ({
+        kind: 'mission' as const,
+        title: translateTitle(mission.title),
+        category: inferDashboardCategory(mission.title, mission.description),
+        completed: Math.max(0, Math.round(Number(mission.progress || 0))),
+        total: Math.max(0, Math.round(Number(mission.target || 0))),
+        rewardPoints: Math.max(0, Math.round(Number(mission.points_reward || 0))),
+      }));
+
+    const challengeOptions = activeChallenges
+      .filter((challenge) => !challenge.completed)
+      .map((challenge) => ({
+        kind: 'challenge' as const,
+        title: translateTitle(challenge.title),
+        category: inferDashboardCategory(challenge.title, challenge.description),
+        completed: Math.max(0, Math.round(Number(challenge.progress || 0))),
+        total: Math.max(0, Math.round(Number(challenge.target || 0))),
+        rewardPoints: Math.max(0, Math.round(Number(challenge.points_reward || 0))),
+      }));
+
+    return [...missionOptions, ...challengeOptions]
+      .sort((left, right) => {
+        const leftPercent = getProgressPercent(left.completed, left.total);
+        const rightPercent = getProgressPercent(right.completed, right.total);
+        if (rightPercent !== leftPercent) return rightPercent - leftPercent;
+        return right.rewardPoints - left.rewardPoints;
+      })[0] || null;
+  }, [activeChallenges, activeMissions, translateTitle]);
 
   const selectedMissionItems = categorizedActiveMissions[selectedCategory];
   const selectedChallengeItems = categorizedActiveChallenges[selectedCategory];
@@ -1206,174 +1257,252 @@ export function RankingsRewardsScreen({ onBack }: RankingsRewardsScreenProps) {
   }
 
   return (
-    <div dir={isArabic ? 'rtl' : 'ltr'} className={`flex-1 flex min-h-screen flex-col bg-background pb-24 ${isArabic ? 'text-right' : 'text-left'}`}>
-      <div className="px-4 pt-2 sm:px-6">
-        <Header title={copy.title} onBack={onBack} compact />
-      </div>
+    <main dir={isArabic ? 'rtl' : 'ltr'} className={`flex-1 min-h-[100dvh] bg-background text-text-primary ${isArabic ? 'text-right' : 'text-left'}`}>
+      <div className="mx-auto w-full max-w-md px-4 pb-[calc(env(safe-area-inset-bottom,0px)+6rem)] pt-[calc(env(safe-area-inset-top,0px)+1rem)]">
+        <header className="flex items-center justify-between gap-3">
+          <button
+            type="button"
+            onClick={onBack}
+            aria-label="Go back"
+            className="surface-glass flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-white/10 text-white transition active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+          >
+            <ArrowLeft size={20} aria-hidden="true" />
+          </button>
 
-      <div className="mt-2 space-y-5 px-4 pb-6 sm:px-6">
-        <div className="relative overflow-hidden rounded-[2rem] border border-white/10 bg-card/75 p-5 shadow-[0_18px_48px_rgba(0,0,0,0.28)] sm:p-6">
-          <div className="pointer-events-none absolute -right-10 top-4 h-32 w-32 rounded-full bg-accent/10 blur-3xl" aria-hidden="true" />
+          <h1 className="min-w-0 flex-1 truncate text-center text-2xl font-bold tracking-[-0.02em] text-white">
+            {copy.title}
+          </h1>
 
-          <div className="relative z-10 space-y-5">
-            <div className="flex items-start justify-between gap-4">
-              <div className="min-w-0 flex-1">
-                <div className="inline-flex items-center rounded-full border border-white/10 bg-white/5 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-text-tertiary">
-                  {experienceCopy.heroLabel}
-                </div>
-                <h2 className="mt-3 text-[2rem] font-semibold leading-none tracking-tight text-white sm:text-[2.3rem]">
-                  {rankNameDisplay}
-                </h2>
-                <p className="mt-2 text-base font-medium text-text-primary">{copy.points(summary.totalPoints)}</p>
-                <p className="mt-1 text-sm text-text-secondary">
-                  {summary.nextRank ? experienceCopy.rankProgress(summary.totalPoints, nextRankRequirement, nextRankName) : nextRankText}
-                </p>
-              </div>
+          <button
+            type="button"
+            onClick={() => setShowInfo(true)}
+            aria-label="How ranks and rewards work"
+            className="surface-glass flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-white/10 text-text-secondary transition hover:text-white active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+          >
+            <Info size={20} aria-hidden="true" />
+          </button>
+        </header>
 
-              <div className="relative shrink-0">
-                <div className="absolute inset-0 rounded-full bg-accent/20 blur-2xl animate-pulse" aria-hidden="true" />
-                <div className="relative flex h-28 w-28 items-center justify-center rounded-full border border-accent/30 bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.12),rgba(191,255,0,0.08)_45%,rgba(7,11,17,0.86))] shadow-[0_0_0_1px_rgba(255,255,255,0.04),0_20px_40px_rgba(0,0,0,0.32)]">
-                  <img src={rankBadgeImage} alt={rankNameDisplay} className="h-16 w-16 object-contain" />
-                </div>
-              </div>
+        <section className="mt-6 overflow-hidden rounded-[1.75rem] border border-white/10 bg-card/80 p-5 shadow-[0_18px_44px_rgba(0,0,0,0.22)]" aria-labelledby="rank-rewards-current-rank">
+          <div className="flex items-center gap-4">
+            <div className="relative flex h-24 w-24 shrink-0 items-center justify-center rounded-[1.5rem] border border-amber-300/25 bg-amber-400/10">
+              <div className="absolute inset-3 rounded-full bg-amber-300/15 blur-xl" aria-hidden="true" />
+              <img src={rankBadgeImage} alt={rankNameDisplay} className="relative h-16 w-16 object-contain" />
             </div>
 
-            <div className="space-y-2.5">
-              <div className="flex items-center justify-between gap-3 text-[11px] font-semibold uppercase tracking-[0.16em] text-text-tertiary">
-                <span>{rankNameDisplay}</span>
-                <span>{summary.nextRank ? nextRankName : copy.topRank}</span>
+            <div className="min-w-0">
+              <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-amber-300">{experienceCopy.heroLabel}</p>
+              <h2 id="rank-rewards-current-rank" className="mt-1 text-4xl font-bold tracking-[-0.03em] text-white">
+                {rankNameDisplay}
+              </h2>
+              <p className="mt-1 text-base font-semibold text-white">{copy.points(summary.totalPoints)}</p>
+            </div>
+          </div>
+
+          <div className="mt-5">
+            <div className="mb-2 flex items-center justify-between gap-3 text-[11px] font-bold uppercase tracking-[0.16em] text-text-tertiary">
+              <span className="text-amber-300">{rankNameDisplay}</span>
+              <span>{summary.nextRank ? nextRankName : copy.topRank}</span>
+            </div>
+            <RankRewardProgressBar
+              value={rankProgressPercent}
+              label={`${rankProgressPercent}% progress from ${rankNameDisplay} to ${summary.nextRank ? nextRankName : copy.topRank}`}
+            />
+            <div className="mt-3 flex items-center justify-between gap-3 text-sm">
+              <span className="min-w-0 text-text-secondary">
+                {summary.nextRank ? `${remainingPoints} ${copy.pointsShort} to ${nextRankName}` : copy.topRank}
+              </span>
+              <span className="shrink-0 font-bold text-white">{rankProgressPercent}%</span>
+            </div>
+            {summary.nextRank && (
+              <div className="mt-5 inline-flex min-h-11 max-w-full items-center rounded-full border border-white/10 bg-white/[0.04] px-4 text-sm text-text-secondary">
+                <img src={getRankBadgeImage(summary.nextRank.name)} alt="" aria-hidden="true" className="mr-2 h-6 w-6 shrink-0 object-contain" />
+                <span className="min-w-0 truncate">Next reward: <strong className="text-white">{nextRankName} badge</strong></span>
               </div>
-              <div className="h-3 overflow-hidden rounded-full border border-white/10 bg-white/5 p-[3px]">
-                <div
-                  className="h-full rounded-full bg-[linear-gradient(90deg,rgba(191,255,0,0.7),rgba(235,255,140,0.95))] shadow-[0_0_20px_rgba(191,255,0,0.22)] transition-[width] duration-700 ease-out"
-                  style={{ width: `${rankProgressPercent}%` }}
+            )}
+          </div>
+        </section>
+
+        <section className="mt-4 rounded-[1.75rem] border border-accent/70 bg-accent/[0.055] p-5 shadow-[0_18px_44px_rgba(0,0,0,0.2)]" aria-labelledby="rank-rewards-next-mission">
+          {nextMission ? (
+            <>
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-accent">{experienceCopy.nextStepLabel}</p>
+                  <h2 id="rank-rewards-next-mission" className="mt-2 text-2xl font-bold leading-tight text-white">
+                    {nextMission.title}
+                  </h2>
+                  <p className="mt-1 text-sm text-text-secondary">
+                    {nextMission.completed} of {nextMission.total} completed
+                  </p>
+                </div>
+                {nextMission.rewardPoints > 0 && (
+                  <span className="shrink-0 rounded-full border border-accent/35 bg-accent/10 px-3 py-1.5 text-sm font-bold text-accent">
+                    +{nextMission.rewardPoints} {copy.pointsShort}
+                  </span>
+                )}
+              </div>
+
+              <div className="mt-4">
+                <RankRewardProgressBar
+                  value={getProgressPercent(nextMission.completed, nextMission.total)}
+                  label={`${nextMission.title}: ${getProgressPercent(nextMission.completed, nextMission.total)}% completed`}
                 />
               </div>
-              <div className="flex items-center justify-between gap-3 text-xs text-text-secondary">
-                <span>{nextRankText}</span>
-                <span>{rankProgressPercent}%</span>
-              </div>
-            </div>
-          </div>
-        </div>
 
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <button
-            onClick={() => setShowLeaderboard(true)}
-            className={`group relative flex min-h-[92px] w-full items-center justify-between overflow-hidden rounded-[1.6rem] border border-white/10 bg-card/75 p-4 transition-all duration-300 hover:scale-[1.02] hover:border-accent/35 hover:shadow-[0_18px_36px_rgba(191,255,0,0.12)] active:scale-[0.985] ${isArabic ? 'text-right' : 'text-left'}`}
-          >
-            <div className="relative z-10 flex items-center gap-4">
-              <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-accent/25 bg-accent/10 shadow-[0_0_24px_rgba(191,255,0,0.14)] transition-transform duration-300 group-hover:scale-105">
-                <img src={emojiViewLeaderboard} alt={copy.viewLeaderboard} className="h-6 w-6 object-contain" />
-              </div>
-              <div className={isArabic ? 'text-right' : 'text-left'}>
-                <h4 className="text-sm font-semibold text-white">{copy.viewLeaderboard}</h4>
-                <p className="mt-1 text-xs text-text-secondary">
-                  {rivalry?.nextPlayerName
-                    ? passPlayerLabel(Math.max(0, Number(rivalry.deltaToNextPlayer || 0)), rivalry.nextPlayerName)
-                    : copy.seeRankings}
-                </p>
-              </div>
-            </div>
-            <span className={`relative z-10 text-accent transition-transform duration-300 ${isArabic ? 'group-hover:-translate-x-0.5' : 'group-hover:translate-x-0.5'}`}>{isArabic ? '<-' : '->'}</span>
-
-          </button>
-
-          <button
-            onClick={() => setShowHistory(true)}
-            className={`group relative flex min-h-[92px] w-full items-center justify-between overflow-hidden rounded-[1.6rem] border border-white/10 bg-card/75 p-4 transition-all duration-300 hover:scale-[1.02] hover:border-white/20 hover:shadow-[0_18px_36px_rgba(255,255,255,0.08)] active:scale-[0.985] ${isArabic ? 'text-right' : 'text-left'}`}
-          >
-            <div className="relative z-10 flex items-center gap-4">
-              <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-sky-300/20 bg-sky-400/10 shadow-[0_0_24px_rgba(56,189,248,0.14)] transition-transform duration-300 group-hover:scale-105">
-                <img src={emojiChallenges} alt={copy.challengesAlt} className="h-6 w-6 object-contain" />
-              </div>
-              <div className={isArabic ? 'text-right' : 'text-left'}>
-                <h4 className="text-sm font-semibold text-white">{copy.missionChallengeHistory}</h4>
-                <p className="mt-1 text-xs text-text-secondary">{copy.viewCompleted}</p>
-              </div>
-            </div>
-            <span className={`relative z-10 text-sky-300 transition-transform duration-300 ${isArabic ? 'group-hover:-translate-x-0.5' : 'group-hover:translate-x-0.5'}`}>{isArabic ? '<-' : '->'}</span>
-
-          </button>
-        </div>
-
-        <div className="space-y-3">
-          <div className="space-y-1">
-            <div className="flex items-center gap-2">
-              <img src={emojiMissions} alt={copy.missionsAlt} className="h-4 w-4 object-contain" />
-              <h3 className="text-xs font-bold uppercase tracking-wider text-text-secondary">{dashboardCopy.dashboard}</h3>
-            </div>
-            <p className="text-sm text-text-secondary">{experienceCopy.sectionHint}</p>
-          </div>
-
-          {loading ? (
-            <div className="space-y-3">
-              <CategoryGridSkeleton />
-              <div className="space-y-2">
-                <CardLoadingSkeleton tone="accent" />
-                <CardLoadingSkeleton tone="blue" />
-              </div>
-            </div>
+              <button
+                type="button"
+                onClick={() => handleCategorySelect(nextMission.category)}
+                className="mt-4 flex min-h-12 w-full items-center justify-center rounded-2xl bg-accent px-5 text-sm font-bold text-black transition hover:brightness-95 active:scale-[0.985] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+              >
+                Continue
+              </button>
+            </>
           ) : (
-            <div className="grid grid-cols-2 gap-3">
-              {CATEGORY_ORDER.map((category) => {
-                const meta = categoryMeta[category];
-                const stats = categoryStats[category];
-                const isSelected = selectedCategory === category;
-                const completionDenominator = Math.max(stats.trackedCount, stats.completedCount);
-                const completionText = completionDenominator > 0
-                  ? experienceCopy.progressSummary(stats.completedCount, completionDenominator)
-                  : experienceCopy.emptyProgress;
-                const progressValue = stats.trackedCount > 0
-                  ? stats.completionPercent
-                  : stats.averageProgress;
-
-                return (
-                  <button
-                    key={category}
-                    type="button"
-                    onClick={() => handleCategorySelect(category)}
-                    className={`group relative overflow-hidden rounded-[1.6rem] border p-4 transition-all duration-300 hover:scale-[1.02] active:scale-[0.985] ${isArabic ? 'text-right' : 'text-left'} ${
-                      isSelected
-                        ? `${meta.selectedClassName} shadow-[0_18px_38px_rgba(0,0,0,0.26)]`
-                        : `${meta.cardClassName} ${meta.hoverClassName}`
-                    }`}
-                  >
-                    <div className={`pointer-events-none absolute -right-6 top-3 h-20 w-20 rounded-full blur-3xl transition-opacity duration-300 ${meta.glowClassName} ${isSelected ? 'opacity-80' : 'opacity-0 group-hover:opacity-70'}`} aria-hidden="true" />
-
-                    <div className="relative z-10">
-                      <div className="flex items-center justify-between gap-3">
-                        <div className={`flex h-12 w-12 items-center justify-center rounded-2xl border shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] transition-transform duration-300 group-hover:scale-105 ${meta.iconWrapClassName}`}>
-                          <img src={meta.iconSrc} alt={categoryName(category)} className="h-6 w-6 object-contain" />
-                        </div>
-                        <ChevronRight size={18} className={`${meta.accentClassName} transition-all duration-300 ${isArabic ? 'rotate-180' : ''} ${isSelected ? (isArabic ? '-translate-x-0.5 opacity-100' : 'translate-x-0.5 opacity-100') : (isArabic ? 'opacity-70 group-hover:-translate-x-0.5 group-hover:opacity-100' : 'opacity-70 group-hover:translate-x-0.5 group-hover:opacity-100')}`} />
-                      </div>
-
-                      <div className="mt-4">
-                        <h4 className="text-base font-semibold text-white">{categoryName(category)}</h4>
-                        <p className="mt-1 text-sm text-text-secondary">{completionText}</p>
-                      </div>
-
-                      <div className="mt-4 space-y-2.5">
-                        <div className="flex items-center justify-between gap-3 text-xs">
-                          <span className="text-text-tertiary">{experienceCopy.cardStatus(stats.activeCount, stats.completedCount)}</span>
-                          <span className={meta.accentClassName}>{progressValue}%</span>
-                        </div>
-                        <div className="h-2.5 overflow-hidden rounded-full border border-white/10 bg-white/[0.04] p-[2px]">
-                          <div
-                            className={`h-full rounded-full ${meta.progressBarClassName} shadow-[0_0_18px_rgba(255,255,255,0.12)] transition-[width] duration-700 ease-out`}
-                            style={{ width: `${Math.max(progressValue, stats.activeCount > 0 ? 8 : 0)}%` }}
-                          />
-                        </div>
-                      </div>
-                    </div>
-                  </button>
-                );
-              })}
+            <div className="flex flex-col gap-4">
+              <div>
+                <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-accent">{experienceCopy.nextStepLabel}</p>
+                <h2 id="rank-rewards-next-mission" className="mt-2 text-xl font-bold text-white">{experienceCopy.nextStepFallback}</h2>
+                <p className="mt-1 text-sm text-text-secondary">{experienceCopy.nextStepHint}</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => handleCategorySelect(selectedCategory)}
+                className="min-h-12 rounded-2xl bg-accent px-5 text-sm font-bold text-black transition active:scale-[0.985] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+              >
+                View missions
+              </button>
             </div>
           )}
-        </div>
+        </section>
+
+        <section className="mt-7" aria-labelledby="rank-rewards-week-title">
+          <h2 id="rank-rewards-week-title" className="text-xl font-bold text-white">This week</h2>
+
+          <div className="mt-3 overflow-hidden rounded-[1.5rem] border border-white/10 bg-card/75">
+            {loading ? (
+              <CategoryGridSkeleton />
+            ) : CATEGORY_ORDER.map((category, index) => {
+              const meta = categoryMeta[category];
+              const stats = categoryStats[category];
+              const progressValue = getProgressPercent(stats.completedCount, stats.trackedCount);
+              const completionText = stats.trackedCount > 0
+                ? `${stats.completedCount} of ${stats.trackedCount} completed`
+                : experienceCopy.emptyProgress;
+
+              return (
+                <button
+                  key={category}
+                  type="button"
+                  onClick={() => handleCategorySelect(category)}
+                  aria-label={`${categoryName(category)}, ${completionText}, ${stats.activeCount} active, ${progressValue}%`}
+                  className={`group flex min-h-[92px] w-full items-center gap-3 px-4 py-3 text-left transition hover:bg-white/[0.035] active:scale-[0.995] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent motion-reduce:transition-none ${index > 0 ? 'border-t border-white/10' : ''} ${isArabic ? 'text-right' : 'text-left'}`}
+                >
+                  <span className={`flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl border ${meta.iconWrapClassName}`}>
+                    <img src={meta.iconSrc} alt="" aria-hidden="true" className="h-8 w-8 object-contain" />
+                  </span>
+
+                  <span className="min-w-0 flex-1">
+                    <span className="flex items-baseline justify-between gap-3">
+                      <span className="truncate text-base font-bold text-white">{categoryName(category)}</span>
+                      <span className={`shrink-0 text-base font-bold ${progressValue > 0 ? meta.accentClassName : 'text-text-secondary'}`}>
+                        {progressValue}%
+                      </span>
+                    </span>
+                    <span className="mt-0.5 flex items-center justify-between gap-3 text-sm text-text-secondary">
+                      <span className="min-w-0 truncate">{completionText}</span>
+                      <span className="shrink-0">{stats.activeCount} active</span>
+                    </span>
+                    <span className="mt-2 block">
+                      <RankRewardProgressBar
+                        value={progressValue}
+                        className={meta.progressBarClassName}
+                        label={`${categoryName(category)} progress: ${progressValue}%`}
+                      />
+                    </span>
+                  </span>
+
+                  <ChevronRight
+                    size={20}
+                    aria-hidden="true"
+                    className={`shrink-0 text-text-tertiary transition-transform group-hover:translate-x-0.5 ${isArabic ? 'rotate-180 group-hover:-translate-x-0.5' : ''}`}
+                  />
+                </button>
+              );
+            })}
+          </div>
+        </section>
+
+        <section className="mt-4 grid grid-cols-2 gap-3" aria-label="Rank navigation">
+          <button
+            type="button"
+            onClick={() => setShowLeaderboard(true)}
+            className="group relative min-h-[112px] rounded-[1.4rem] border border-white/10 bg-card/75 p-4 pr-9 text-left transition hover:border-accent/30 hover:bg-white/[0.04] active:scale-[0.985] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+          >
+            <span className="block min-w-0">
+              <span className="flex min-w-0 items-center gap-2">
+                <img src={emojiViewLeaderboard} alt="" aria-hidden="true" className="h-9 w-9 shrink-0 object-contain" />
+                <span className="min-w-0 text-[15px] font-bold leading-tight text-white">Leaderboard</span>
+              </span>
+              <span className="mt-3 block text-sm leading-snug text-text-secondary">
+                {rivalry?.nextPlayerName
+                  ? passPlayerLabel(Math.max(0, Number(rivalry.deltaToNextPlayer || 0)), rivalry.nextPlayerName)
+                  : 'Gym rankings'}
+              </span>
+            </span>
+            <ChevronRight size={20} aria-hidden="true" className="absolute right-3 top-1/2 -translate-y-1/2 text-text-secondary transition-transform group-hover:translate-x-0.5" />
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setShowHistory(true)}
+            className="group relative min-h-[112px] rounded-[1.4rem] border border-white/10 bg-card/75 p-4 pr-9 text-left transition hover:border-accent/30 hover:bg-white/[0.04] active:scale-[0.985] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+          >
+            <span className="block min-w-0">
+              <span className="flex min-w-0 items-center gap-2">
+                <img src={emojiChallenges} alt="" aria-hidden="true" className="h-9 w-9 shrink-0 object-contain" />
+                <span className="min-w-0 text-[15px] font-bold leading-tight text-white">Mission History</span>
+              </span>
+              <span className="mt-3 block text-sm leading-snug text-text-secondary">Completed rewards</span>
+            </span>
+            <ChevronRight size={20} aria-hidden="true" className="absolute right-3 top-1/2 -translate-y-1/2 text-text-secondary transition-transform group-hover:translate-x-0.5" />
+          </button>
+        </section>
       </div>
-    </div>
+
+      {showInfo && typeof document !== 'undefined' && createPortal(
+        <div
+          className="fixed inset-0 z-[160] flex items-end justify-center bg-black/60 px-4 pb-4 pt-[calc(env(safe-area-inset-top,0px)+1rem)] sm:items-center"
+          onClick={() => setShowInfo(false)}
+          role="presentation"
+        >
+          <div
+            className="w-full max-w-md rounded-[1.5rem] border border-white/10 bg-card p-5 text-left shadow-[0_24px_60px_rgba(0,0,0,0.45)]"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="rank-rewards-info-title"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="flex items-center justify-between gap-3">
+              <h2 id="rank-rewards-info-title" className="text-lg font-bold text-white">How points work</h2>
+              <button
+                type="button"
+                onClick={() => setShowInfo(false)}
+                className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 text-text-secondary transition hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+                aria-label="Close rank information"
+              >
+                <Info size={18} aria-hidden="true" />
+              </button>
+            </div>
+            <div className="mt-4 space-y-3 text-sm leading-relaxed text-text-secondary">
+              <p>Earn points by completing missions, challenges, workouts, recovery check-ins, and community actions.</p>
+              <p>Your rank is calculated from total points. Progress bars show real completion, so zero progress stays at 0%.</p>
+              {summary.nextRank && <p>{remainingPoints} {copy.pointsShort} remain before {nextRankName}.</p>}
+            </div>
+          </div>
+        </div>,
+        document.body,
+      )}
+    </main>
   );
 }
