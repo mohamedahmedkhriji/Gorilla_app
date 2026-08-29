@@ -35,6 +35,12 @@ import {
   generateTwoMonthPlanWithClaude,
   hasAnthropicConfig,
 } from './services/claudeCoach.js';
+import {
+  generateAndPersistAdaptivePlan,
+} from './services/adaptiveTraining/adaptivePlanService.js';
+import {
+  resolveAdaptiveTrainingConfig,
+} from './services/adaptiveTraining/adaptiveTrainingConfig.js';
 import { processGamificationProgression } from './services/progressionService.js';
 import { buildGamificationSummary } from './services/gamification/summaryService.js';
 import { getLeaderboardBundle } from './services/gamification/rivalryService.js';
@@ -9739,6 +9745,9 @@ router.post('/user/onboarding', authMutationRateLimit, requireAuth('user'), asyn
       100,
       true,
     );
+    const normalizedAthleteSubCategoryIds = Array.isArray(req.body?.athleteSubCategoryIds)
+      ? req.body.athleteSubCategoryIds.map((value) => String(value || '').trim()).filter(Boolean).slice(0, 6)
+      : [];
     const normalizedAthleteSubCategoryLabel = normalizeShortText(
       athleteSubCategoryLabel || req.body.athlete_sub_category_label,
       120,
@@ -9825,6 +9834,16 @@ router.post('/user/onboarding', authMutationRateLimit, requireAuth('user'), asyn
     const templateEligibleSplit = ['full_body', 'upper_lower', 'push_pull_legs', 'hybrid'].includes(normalizedSplitPreference);
     const aiPlanRequested = normalizedSplitPreference !== 'custom' && !prefersCardioPlan;
     const hasCustomPlanPayload = customPlan && typeof customPlan === 'object';
+    const adaptiveConfig = resolveAdaptiveTrainingConfig();
+    const adaptiveRulesMode =
+      adaptiveConfig.rulesEnabled === true
+      && adaptiveConfig.mode === 'rules';
+    const shouldUseAdaptiveRules =
+      adaptiveRulesMode
+      && aiPlanRequested
+      && normalizedSplitPreference !== 'custom'
+      && !hasCustomPlanPayload
+      && !prefersCardioPlan;
     let claudeExerciseAnchors = [];
     let claudeGeneration = null;
     let warning = null;
@@ -9840,7 +9859,7 @@ router.post('/user/onboarding', authMutationRateLimit, requireAuth('user'), asyn
       }
     }
 
-    if (aiPlanRequested && claudeEnabled && shouldUseClaude && !shouldDisableClaude) {
+    if (aiPlanRequested && !shouldUseAdaptiveRules && claudeEnabled && shouldUseClaude && !shouldDisableClaude) {
       const claudeGenerationStartedAt = Date.now();
       try {
         const claudeOnboardingFields = buildClaudeOnboardingFields(req.body, {
@@ -10022,7 +10041,47 @@ router.post('/user/onboarding', authMutationRateLimit, requireAuth('user'), asyn
     let planSource = 'template';
 
     try {
-      if (!assignedProgram && !assignmentInfo && normalizedSplitPreference === 'custom' && hasCustomPlanPayload && !prefersCardioPlan) {
+      if (shouldUseAdaptiveRules) {
+        const adaptiveResult = await generateAndPersistAdaptivePlan(conn, {
+          userId: normalizedUserId,
+          gymId: normalizedGymId,
+          goal: prefersCardioPlan ? 'endurance' : normalizedGoal,
+          experienceLevel: normalizedExperience || 'intermediate',
+          daysPerWeek: normalizedDays,
+          splitPreference: normalizedSplitPreference,
+          gender: normalizedGender,
+          athleteIdentity: normalizedAthleteIdentity,
+          athleteIdentityCategory: normalizedAthleteIdentityCategory,
+          athleteSubCategoryId: normalizedAthleteSubCategoryId,
+          athleteSubCategoryIds: normalizedAthleteSubCategoryIds,
+          athleteSubCategoryLabel: normalizedAthleteSubCategoryLabel,
+          athleteGoal: normalizedAthleteGoal,
+          recoveryPriority: normalizedAiRecoveryPriority,
+          equipment: equipmentProfile,
+          notes: `Generated from onboarding: goal=${normalizedGoal}, days=${normalizedDays}, level=${normalizedExperience || 'unknown'}${normalizedOnboardingReason ? `, reason=${normalizedOnboardingReason}` : ''}${hasExplicitSplitPreference ? `, split=${normalizedSplitPreference}` : ''}${normalizedAiTrainingFocus ? `, focus=${normalizedAiTrainingFocus}` : ''}${normalizedAiRecoveryPriority ? `, recovery=${normalizedAiRecoveryPriority}` : ''}`,
+        });
+
+        const persistedProgram = adaptiveResult.persistedProgram;
+
+        assignmentInfo = await assignProgramToUser(conn, {
+          userId: normalizedUserId,
+          programId: persistedProgram.programId,
+          reason: 'user_request',
+          note: `Auto-generated plan from onboarding: goal=${normalizedGoal}, days=${normalizedDays}, level=${normalizedExperience || 'unknown'}${normalizedOnboardingReason ? `, reason=${normalizedOnboardingReason}` : ''}${hasExplicitSplitPreference ? `, split=${normalizedSplitPreference}` : ''}`,
+        });
+
+        assignedProgram = {
+          id: persistedProgram.programId,
+          name: persistedProgram.name,
+          programType: persistedProgram.programType,
+          goal: persistedProgram.goal,
+          daysPerWeek: persistedProgram.daysPerWeek,
+          cycleWeeks: persistedProgram.cycleWeeks,
+        };
+        planSource = adaptiveResult.planSource;
+        claudePlan = null;
+      } else {
+        if (!assignedProgram && !assignmentInfo && normalizedSplitPreference === 'custom' && hasCustomPlanPayload && !prefersCardioPlan) {
         let customDraft;
         try {
           customDraft = await buildCustomProgramDraft(conn, normalizedUserId, customPlan);
@@ -10151,9 +10210,7 @@ router.post('/user/onboarding', authMutationRateLimit, requireAuth('user'), asyn
           athleteIdentity: normalizedAthleteIdentity,
           athleteIdentityCategory: normalizedAthleteIdentityCategory,
           athleteSubCategoryId: normalizedAthleteSubCategoryId,
-          athleteSubCategoryIds: Array.isArray(req.body?.athleteSubCategoryIds)
-            ? req.body.athleteSubCategoryIds.map((value) => String(value || '').trim()).filter(Boolean).slice(0, 6)
-            : [],
+          athleteSubCategoryIds: normalizedAthleteSubCategoryIds,
           athleteSubCategoryLabel: normalizedAthleteSubCategoryLabel,
           athleteGoal: normalizedAthleteGoal,
           recoveryPriority: normalizedAiRecoveryPriority,
@@ -10177,6 +10234,7 @@ router.post('/user/onboarding', authMutationRateLimit, requireAuth('user'), asyn
           cycleWeeks: generatedProgram.cycleWeeks,
         };
         planSource = 'template';
+        }
       }
     } catch (planError) {
       await conn.query('ROLLBACK TO SAVEPOINT onboarding_user_profile_saved');
