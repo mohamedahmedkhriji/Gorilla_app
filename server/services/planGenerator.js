@@ -1934,11 +1934,9 @@ const generateCardioProgram = async (
   };
 };
 
-export const generatePersonalizedProgram = async (
+export const buildPersonalizedProgramPlanningContext = async (
   conn,
   {
-    userId,
-    gymId = null,
     goal = 'general_fitness',
     experienceLevel = 'intermediate',
     daysPerWeek = 4,
@@ -1953,8 +1951,7 @@ export const generatePersonalizedProgram = async (
     athleteGoal = null,
     recoveryPriority = null,
     equipment = null,
-    notes = null,
-  },
+  } = {},
 ) => {
   const clampedDays = Math.max(2, Math.min(6, Number(daysPerWeek) || 4));
   const clampedWeeks = Math.max(8, Math.min(16, Number(cycleWeeks) || 12));
@@ -1986,16 +1983,30 @@ export const generatePersonalizedProgram = async (
     throw new Error(`Not enough exercises after equipment/level filtering (${pool.length} found).`);
   }
 
+  const cfg = LEVEL_CONFIG[normalizedLevel] || LEVEL_CONFIG.intermediate;
+  const cardioPool = pool.filter(isCardioExercise);
+  const activeCardioPool = cardioPool.length >= 8 ? cardioPool : pool;
+
   if (isCardioIdentity) {
-    return generateCardioProgram(conn, {
-      userId,
-      gymId,
-      experienceLevel: normalizedLevel,
-      daysPerWeek: clampedDays,
-      cycleWeeks: clampedWeeks,
-      equipment,
-      notes,
-    });
+    return {
+      clampedDays,
+      clampedWeeks,
+      normalizedGoal,
+      normalizedLevel,
+      normalizedIdentity,
+      isCardioIdentity,
+      equipmentPrefs,
+      femaleProfile,
+      athleteMovementBias,
+      pool,
+      split: null,
+      weeklySchedule: null,
+      scheduledDays: [],
+      scheduledDayCount: clampedDays,
+      cfg,
+      cardioPool,
+      activeCardioPool,
+    };
   }
 
   const split = femaleProfile.usesWowSplit
@@ -2021,9 +2032,105 @@ export const generatePersonalizedProgram = async (
   });
   const scheduledDays = weeklySchedule.activeDays;
   const scheduledDayCount = Math.max(2, Math.min(6, scheduledDays.length || clampedDays));
-  const cfg = LEVEL_CONFIG[normalizedLevel] || LEVEL_CONFIG.intermediate;
-  const cardioPool = pool.filter(isCardioExercise);
-  const activeCardioPool = cardioPool.length >= 8 ? cardioPool : pool;
+
+  return {
+    clampedDays,
+    clampedWeeks,
+    normalizedGoal,
+    normalizedLevel,
+    normalizedIdentity,
+    isCardioIdentity,
+    equipmentPrefs,
+    femaleProfile,
+    athleteMovementBias,
+    pool,
+    split,
+    weeklySchedule,
+    scheduledDays,
+    scheduledDayCount,
+    cfg,
+    cardioPool,
+    activeCardioPool,
+  };
+};
+
+export const generatePersonalizedProgram = async (
+  conn,
+  {
+    userId,
+    gymId = null,
+    goal = 'general_fitness',
+    experienceLevel = 'intermediate',
+    daysPerWeek = 4,
+    cycleWeeks = 12,
+    splitPreference = 'auto',
+    gender = null,
+    athleteIdentity = null,
+    athleteIdentityCategory = null,
+    athleteSubCategoryId = null,
+    athleteSubCategoryIds = [],
+    athleteSubCategoryLabel = null,
+    athleteGoal = null,
+    recoveryPriority = null,
+    equipment = null,
+    notes = null,
+  },
+) => {
+  const planningContext =
+    await buildPersonalizedProgramPlanningContext(
+      conn,
+      {
+        userId,
+        gymId,
+        goal,
+        experienceLevel,
+        daysPerWeek,
+        cycleWeeks,
+        splitPreference,
+        gender,
+        athleteIdentity,
+        athleteIdentityCategory,
+        athleteSubCategoryId,
+        athleteSubCategoryIds,
+        athleteSubCategoryLabel,
+        athleteGoal,
+        recoveryPriority,
+        equipment,
+        notes,
+      },
+    );
+
+  const {
+    clampedDays,
+    clampedWeeks,
+    normalizedGoal,
+    normalizedLevel,
+    normalizedIdentity,
+    isCardioIdentity,
+    equipmentPrefs,
+    femaleProfile,
+    athleteMovementBias,
+    pool,
+    split,
+    weeklySchedule,
+    scheduledDays,
+    scheduledDayCount,
+    cfg,
+    cardioPool,
+    activeCardioPool,
+  } = planningContext;
+
+  if (isCardioIdentity) {
+    return generateCardioProgram(conn, {
+      userId,
+      gymId,
+      experienceLevel: normalizedLevel,
+      daysPerWeek: clampedDays,
+      cycleWeeks: clampedWeeks,
+      equipment,
+      notes,
+    });
+  }
 
   const [insertProgram] = await conn.execute(
     `INSERT INTO programs
