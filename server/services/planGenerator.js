@@ -1,5 +1,6 @@
 /* eslint-env node */
 import { resolveExerciseVideoManifest } from '../../src/shared/exerciseVideoManifest.js';
+import { getPhaseForWeek } from './adaptiveTraining/rulesPlanDraft.js';
 
 const GOAL_PRESETS = {
   hypertrophy: { repRange: [8, 12], restSeconds: 90, rpeBase: 7.5, setBase: 3 },
@@ -2054,111 +2055,36 @@ export const buildPersonalizedProgramPlanningContext = async (
   };
 };
 
-export const generatePersonalizedProgram = async (
-  conn,
-  {
-    userId,
-    gymId = null,
-    goal = 'general_fitness',
-    experienceLevel = 'intermediate',
-    daysPerWeek = 4,
-    cycleWeeks = 12,
-    splitPreference = 'auto',
-    gender = null,
-    athleteIdentity = null,
-    athleteIdentityCategory = null,
-    athleteSubCategoryId = null,
-    athleteSubCategoryIds = [],
-    athleteSubCategoryLabel = null,
-    athleteGoal = null,
-    recoveryPriority = null,
-    equipment = null,
-    notes = null,
-  },
-) => {
-  const planningContext =
-    await buildPersonalizedProgramPlanningContext(
-      conn,
-      {
-        userId,
-        gymId,
-        goal,
-        experienceLevel,
-        daysPerWeek,
-        cycleWeeks,
-        splitPreference,
-        gender,
-        athleteIdentity,
-        athleteIdentityCategory,
-        athleteSubCategoryId,
-        athleteSubCategoryIds,
-        athleteSubCategoryLabel,
-        athleteGoal,
-        recoveryPriority,
-        equipment,
-        notes,
-      },
-    );
-
+export const buildPersonalizedProgramDraftFromContext = ({
+  planningContext,
+  splitPreference,
+}) => {
   const {
     clampedDays,
     clampedWeeks,
     normalizedGoal,
     normalizedLevel,
-    normalizedIdentity,
-    isCardioIdentity,
-    equipmentPrefs,
     femaleProfile,
     athleteMovementBias,
     pool,
-    split,
     weeklySchedule,
     scheduledDays,
     scheduledDayCount,
     cfg,
-    cardioPool,
     activeCardioPool,
   } = planningContext;
 
-  if (isCardioIdentity) {
-    return generateCardioProgram(conn, {
-      userId,
-      gymId,
-      experienceLevel: normalizedLevel,
-      daysPerWeek: clampedDays,
-      cycleWeeks: clampedWeeks,
-      equipment,
-      notes,
-    });
-  }
-
-  const [insertProgram] = await conn.execute(
-    `INSERT INTO programs
-      (gym_id, created_by_user_id, target_user_id, name, description, program_type, goal, experience_level, days_per_week, cycle_weeks, is_template, is_active)
-     VALUES (?, NULL, ?, ?, ?, ?, ?, ?, ?, ?, 0, 1)`,
-    [
-      gymId || null,
-      userId,
-      `${clampedWeeks}-Week Personalized Plan`,
-      notes || `Generated from onboarding (goal=${normalizedGoal}, level=${normalizedLevel}, days=${clampedDays}).`,
-      toProgramType(scheduledDayCount, splitPreference),
-      normalizedGoal,
-      normalizedLevel,
-      scheduledDayCount,
-      clampedWeeks,
-    ],
-  );
-
-  const programId = Number(insertProgram.insertId);
-  const legacyExerciseCache = new Map();
   let dayOrder = 0;
   const usedPerWeek = new Set();
   let lastDayPrimaryMuscles = new Set();
+  const weeks = [];
 
   for (let week = 1; week <= clampedWeeks; week += 1) {
     if ((week - 1) % 1 === 0) {
       usedPerWeek.clear();
     }
+
+    const workouts = [];
 
     for (let dayIdx = 0; dayIdx < scheduledDays.length; dayIdx += 1) {
       const day = scheduledDays[dayIdx];
@@ -2280,30 +2206,6 @@ export const generatePersonalizedProgram = async (
         throw new Error(`Could not satisfy exercise selection constraints for week ${week}, day ${day.name}.`);
       }
 
-      const [workoutIns] = await conn.execute(
-          `INSERT INTO workouts
-            (program_id, workout_name, workout_type, day_order, day_name, estimated_duration_minutes, notes)
-          VALUES (?, ?, ?, ?, ?, ?, ?)`,
-        [
-          programId,
-          `Week ${week} - ${day.name}`,
-          String(day.workoutType || (day.primary[0] === 'Legs' ? 'Lower Body' : 'Upper Body')),
-          dayOrder,
-          dayName,
-          day.mode
-            ? Number(day.targetDurationMinutes || ((CARDIO_MODE_PROGRAMMING[day.mode]?.durationMinutes || 30) + Math.min(6, Math.floor((week - 1) / 2) * 2)))
-            : exerciseTarget * 10 + 20 + (Array.isArray(day.cardioAddOns) ? day.cardioAddOns.reduce((sum, item) => sum + Math.max(0, Math.round(Number(item?.targetDurationMinutes || 0) * 0.35)), 0) : 0),
-          (femaleProfile.usesWowSplit || femaleProfile.usesHybridBalance || femaleProfile.usesPremiumPpl || femaleProfile.usesDefaultUl)
-            ? day.mode
-              ? `Focus: ${day.focusLabel || 'Cardio'} | Conditioning support and recovery-friendly work${day.cardioFinisher ? ` | ${day.cardioFinisher}` : ''}`
-              : `Focus: ${day.focusLabel || day.primary.join(', ')} | Lower body priority, glute-first execution${day.cardioFinisher ? ` | ${day.cardioFinisher}` : ''}`
-            : athleteMovementBias.enabled
-              ? `Focus: ${day.primary.join(', ')} | Athletic blend: explosive + isometric${day.cardioFinisher ? ` | ${day.cardioFinisher}` : ''}`
-              : `Focus: ${day.primary.join(', ')}${day.cardioFinisher ? ` | ${day.cardioFinisher}` : ''}`,
-        ],
-      );
-      const workoutId = Number(workoutIns.insertId);
-
       const progression = programProgressionForWeek({
         week,
         goal: normalizedGoal,
@@ -2313,10 +2215,19 @@ export const generatePersonalizedProgram = async (
         femaleProfile,
       });
 
-      for (let idx = 0; idx < selection.length; idx += 1) {
-        const ex = selection[idx];
+      const estimatedDurationMinutes = day.mode
+        ? Number(day.targetDurationMinutes || ((CARDIO_MODE_PROGRAMMING[day.mode]?.durationMinutes || 30) + Math.min(6, Math.floor((week - 1) / 2) * 2)))
+        : exerciseTarget * 10 + 20 + (Array.isArray(day.cardioAddOns) ? day.cardioAddOns.reduce((sum, item) => sum + Math.max(0, Math.round(Number(item?.targetDurationMinutes || 0) * 0.35)), 0) : 0);
+      const workoutNotes = (femaleProfile.usesWowSplit || femaleProfile.usesHybridBalance || femaleProfile.usesPremiumPpl || femaleProfile.usesDefaultUl)
+        ? day.mode
+          ? `Focus: ${day.focusLabel || 'Cardio'} | Conditioning support and recovery-friendly work${day.cardioFinisher ? ` | ${day.cardioFinisher}` : ''}`
+          : `Focus: ${day.focusLabel || day.primary.join(', ')} | Lower body priority, glute-first execution${day.cardioFinisher ? ` | ${day.cardioFinisher}` : ''}`
+        : athleteMovementBias.enabled
+          ? `Focus: ${day.primary.join(', ')} | Athletic blend: explosive + isometric${day.cardioFinisher ? ` | ${day.cardioFinisher}` : ''}`
+          : `Focus: ${day.primary.join(', ')}${day.cardioFinisher ? ` | ${day.cardioFinisher}` : ''}`;
+
+      const exercises = selection.map((ex, idx) => {
         usedPerWeek.add(ex.normalizedName);
-        const legacyExerciseId = await ensureLegacyExerciseId(conn, legacyExerciseCache, ex.name);
         const exerciseNote = femaleProfile.usesHybridBalance
           ? (
               day.progressionStyle === 'strength_glutes'
@@ -2357,6 +2268,184 @@ export const generatePersonalizedProgram = async (
             )
           : null;
 
+        return {
+          exerciseCatalogId: ex.id,
+          exerciseName: ex.name,
+          primaryMuscle: ex.primaryMuscle,
+          targetMuscles: ex.primaryMuscle ? [ex.primaryMuscle] : [],
+          sets: progression.sets,
+          reps: progression.reps,
+          restSeconds: progression.restSeconds,
+          targetWeight: null,
+          tempo: null,
+          rpeTarget: progression.rpe,
+          notes: exerciseNote,
+          orderIndex: idx + 1,
+        };
+      });
+
+      workouts.push({
+        dayOrder,
+        dayName,
+        workoutName: `Week ${week} - ${day.name}`,
+        workoutType: String(day.workoutType || (day.primary[0] === 'Legs' ? 'Lower Body' : 'Upper Body')),
+        estimatedDurationMinutes,
+        notes: workoutNotes,
+        exercises,
+      });
+
+      lastDayPrimaryMuscles = dayPrimaryMuscles;
+    }
+
+    weeks.push({
+      weekNumber: week,
+      phaseName: getPhaseForWeek(week)?.label || null,
+      workouts,
+    });
+  }
+
+  return {
+    planName: `${clampedWeeks}-Week Personalized Plan`,
+    description: `Generated from onboarding (goal=${normalizedGoal}, level=${normalizedLevel}, days=${clampedDays}).`,
+    cycleWeeks: clampedWeeks,
+    selectedDays: scheduledDays.map((day) => day.dayName),
+    weeks,
+    summary: {
+      weeklyFatigueScore: weeklySchedule?.weeklyFatigueScore ?? null,
+      weeklyCapacity: weeklySchedule?.weeklyCapacity ?? null,
+      cardioGoals: weeklySchedule?.cardioGoals ?? null,
+    },
+    programType: toProgramType(scheduledDayCount, splitPreference),
+    goal: normalizedGoal,
+    daysPerWeek: scheduledDayCount,
+  };
+};
+
+export const generatePersonalizedProgram = async (
+  conn,
+  {
+    userId,
+    gymId = null,
+    goal = 'general_fitness',
+    experienceLevel = 'intermediate',
+    daysPerWeek = 4,
+    cycleWeeks = 12,
+    splitPreference = 'auto',
+    gender = null,
+    athleteIdentity = null,
+    athleteIdentityCategory = null,
+    athleteSubCategoryId = null,
+    athleteSubCategoryIds = [],
+    athleteSubCategoryLabel = null,
+    athleteGoal = null,
+    recoveryPriority = null,
+    equipment = null,
+    notes = null,
+  },
+) => {
+  const planningContext =
+    await buildPersonalizedProgramPlanningContext(
+      conn,
+      {
+        userId,
+        gymId,
+        goal,
+        experienceLevel,
+        daysPerWeek,
+        cycleWeeks,
+        splitPreference,
+        gender,
+        athleteIdentity,
+        athleteIdentityCategory,
+        athleteSubCategoryId,
+        athleteSubCategoryIds,
+        athleteSubCategoryLabel,
+        athleteGoal,
+        recoveryPriority,
+        equipment,
+        notes,
+      },
+    );
+
+  const {
+    clampedDays,
+    clampedWeeks,
+    normalizedGoal,
+    normalizedLevel,
+    normalizedIdentity,
+    isCardioIdentity,
+    equipmentPrefs,
+    femaleProfile,
+    athleteMovementBias,
+    pool,
+    split,
+    weeklySchedule,
+    scheduledDays,
+    scheduledDayCount,
+    cfg,
+    cardioPool,
+    activeCardioPool,
+  } = planningContext;
+
+  if (isCardioIdentity) {
+    return generateCardioProgram(conn, {
+      userId,
+      gymId,
+      experienceLevel: normalizedLevel,
+      daysPerWeek: clampedDays,
+      cycleWeeks: clampedWeeks,
+      equipment,
+      notes,
+    });
+  }
+
+  const programDraft =
+    buildPersonalizedProgramDraftFromContext({
+      planningContext,
+      splitPreference,
+    });
+
+  const [insertProgram] = await conn.execute(
+    `INSERT INTO programs
+      (gym_id, created_by_user_id, target_user_id, name, description, program_type, goal, experience_level, days_per_week, cycle_weeks, is_template, is_active)
+     VALUES (?, NULL, ?, ?, ?, ?, ?, ?, ?, ?, 0, 1)`,
+    [
+      gymId || null,
+      userId,
+      programDraft.planName,
+      notes || programDraft.description,
+      programDraft.programType,
+      normalizedGoal,
+      normalizedLevel,
+      scheduledDayCount,
+      clampedWeeks,
+    ],
+  );
+
+  const programId = Number(insertProgram.insertId);
+  const legacyExerciseCache = new Map();
+
+  for (const week of programDraft.weeks) {
+    for (const workout of week.workouts) {
+      const [workoutIns] = await conn.execute(
+          `INSERT INTO workouts
+            (program_id, workout_name, workout_type, day_order, day_name, estimated_duration_minutes, notes)
+          VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        [
+          programId,
+          workout.workoutName,
+          workout.workoutType,
+          workout.dayOrder,
+          workout.dayName,
+          workout.estimatedDurationMinutes,
+          workout.notes,
+        ],
+      );
+      const workoutId = Number(workoutIns.insertId);
+
+      for (const exercise of workout.exercises) {
+        const legacyExerciseId = await ensureLegacyExerciseId(conn, legacyExerciseCache, exercise.exerciseName);
+
         await conn.execute(
           `INSERT INTO workout_exercises
             (workout_id, exercise_id, order_index, exercise_name_snapshot, muscle_group_snapshot, target_sets, target_reps, target_weight, rest_seconds, tempo, rpe_target, notes)
@@ -2364,29 +2453,27 @@ export const generatePersonalizedProgram = async (
           [
             workoutId,
             legacyExerciseId,
-            idx + 1,
-            ex.name,
-            ex.primaryMuscle,
-            progression.sets,
-            progression.reps,
-            progression.restSeconds,
-            progression.rpe,
-            exerciseNote,
+            exercise.orderIndex,
+            exercise.exerciseName,
+            exercise.primaryMuscle,
+            exercise.sets,
+            exercise.reps,
+            exercise.restSeconds,
+            exercise.rpeTarget,
+            exercise.notes,
           ],
         );
       }
-
-      lastDayPrimaryMuscles = dayPrimaryMuscles;
     }
   }
 
   return {
     programId,
-    daysPerWeek: scheduledDayCount,
-    cycleWeeks: clampedWeeks,
-    name: `${clampedWeeks}-Week Personalized Plan`,
-    programType: toProgramType(scheduledDayCount, splitPreference),
-    goal: normalizedGoal,
+    daysPerWeek: programDraft.daysPerWeek,
+    cycleWeeks: programDraft.cycleWeeks,
+    name: programDraft.planName,
+    programType: programDraft.programType,
+    goal: programDraft.goal,
     weeklySchedule: scheduledDays.map((day) => ({
       dayName: day.dayName,
       name: day.name,
@@ -2394,9 +2481,9 @@ export const generatePersonalizedProgram = async (
       focusLabel: day.focusLabel || '',
       cardioFinisher: day.cardioFinisher || '',
     })),
-    weeklyFatigueScore: weeklySchedule.weeklyFatigueScore,
-    weeklyCapacity: weeklySchedule.weeklyCapacity,
-    cardioGoals: weeklySchedule.cardioGoals,
+    weeklyFatigueScore: programDraft.summary.weeklyFatigueScore,
+    weeklyCapacity: programDraft.summary.weeklyCapacity,
+    cardioGoals: programDraft.summary.cardioGoals,
   };
 };
 
