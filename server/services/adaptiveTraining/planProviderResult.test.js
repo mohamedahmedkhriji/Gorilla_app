@@ -41,6 +41,13 @@ const buildValidDraft = () => {
     daysPerWeek: 2,
     cycleWeeks: 8,
     selectedDays,
+    weeklySchedule: selectedDays.map((dayName) => ({
+      dayName,
+      name: 'Full Body',
+      workoutType: 'Full Body',
+      focusLabel: null,
+      cardioFinisher: null,
+    })),
     weeks: Array.from({ length: 8 }, (_, index) => {
       const weekNumber = index + 1;
 

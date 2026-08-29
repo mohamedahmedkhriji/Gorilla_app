@@ -18,6 +18,13 @@ const buildValidDraft = () => {
     daysPerWeek: 2,
     cycleWeeks: 8,
     selectedDays,
+    weeklySchedule: selectedDays.map((dayName) => ({
+      dayName,
+      name: 'Full Body',
+      workoutType: 'Full Body',
+      focusLabel: null,
+      cardioFinisher: null,
+    })),
     weeks: Array.from({ length: 8 }, (_, index) => {
       const weekNumber = index + 1;
 
@@ -100,6 +107,22 @@ test('rejects mismatched daysPerWeek', () => {
     validation.errors.some(
       (error) => error.includes(
         'daysPerWeek must match selectedDays length',
+      ),
+    ),
+  );
+});
+
+test('rejects a weekly schedule length mismatch', () => {
+  const draft = buildValidDraft();
+  draft.weeklySchedule.pop();
+
+  const validation = validateRulesPlanDraft(draft);
+
+  assert.equal(validation.valid, false);
+  assert.ok(
+    validation.errors.some(
+      (error) => error.includes(
+        'weeklySchedule must match daysPerWeek',
       ),
     ),
   );

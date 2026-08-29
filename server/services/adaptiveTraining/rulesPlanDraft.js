@@ -87,6 +87,16 @@ export const validateRulesPlanDraft = (draft) => {
   }
 
   if (
+    !Array.isArray(draft.weeklySchedule)
+    || draft.weeklySchedule.length
+      !== draft.daysPerWeek
+  ) {
+    errors.push(
+      'weeklySchedule must match daysPerWeek',
+    );
+  }
+
+  if (
     !Array.isArray(draft.weeks)
     || draft.weeks.length
       !== AI_TRAINING_PLAN_DURATION_WEEKS
@@ -104,6 +114,33 @@ export const validateRulesPlanDraft = (draft) => {
   }
 
   const selectedDaySet = new Set(draft.selectedDays);
+
+  draft.weeklySchedule.forEach((day, index) => {
+    const path = `weeklySchedule[${index}]`;
+
+    if (!isObject(day)) {
+      errors.push(`${path} must be an object`);
+      return;
+    }
+
+    if (!selectedDaySet.has(day.dayName)) {
+      errors.push(`${path}.dayName is not selected`);
+    }
+
+    if (
+      typeof day.name !== 'string'
+      || !day.name.trim()
+    ) {
+      errors.push(`${path}.name is required`);
+    }
+
+    if (
+      typeof day.workoutType !== 'string'
+      || !day.workoutType.trim()
+    ) {
+      errors.push(`${path}.workoutType is required`);
+    }
+  });
 
   draft.weeks.forEach((week, weekIndex) => {
     const path = `weeks[${weekIndex}]`;

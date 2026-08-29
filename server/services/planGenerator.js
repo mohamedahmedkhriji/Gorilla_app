@@ -2309,6 +2309,13 @@ export const buildPersonalizedProgramDraftFromContext = ({
     description: `Generated from onboarding (goal=${normalizedGoal}, level=${normalizedLevel}, days=${clampedDays}).`,
     cycleWeeks: clampedWeeks,
     selectedDays: scheduledDays.map((day) => day.dayName),
+    weeklySchedule: scheduledDays.map((day) => ({
+      dayName: day.dayName,
+      name: day.name,
+      workoutType: day.workoutType,
+      focusLabel: day.focusLabel || '',
+      cardioFinisher: day.cardioFinisher || '',
+    })),
     weeks,
     summary: {
       weeklyFatigueScore: weeklySchedule?.weeklyFatigueScore ?? null,
