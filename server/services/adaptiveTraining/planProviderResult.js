@@ -1,6 +1,9 @@
 import {
   PLAN_PROVIDERS,
 } from './planProviderPolicy.js';
+import {
+  validateRulesPlanDraft,
+} from './rulesPlanDraft.js';
 
 const PROVIDER_VALUES = new Set(
   Object.values(PLAN_PROVIDERS),
@@ -11,6 +14,11 @@ export const PLAN_SOURCE_BY_PROVIDER = Object.freeze({
   [PLAN_PROVIDERS.CLAUDE]: 'claude',
   [PLAN_PROVIDERS.TEMPLATE_LIBRARY]: 'template_library',
   [PLAN_PROVIDERS.LEGACY_RULES]: 'template',
+});
+
+export const PLAN_ARTIFACT_TYPES = Object.freeze({
+  CUSTOM_PAYLOAD: 'custom_payload',
+  RULES_DRAFT: 'rules_draft',
 });
 
 const isObject = (value) =>
@@ -73,7 +81,8 @@ export class PlanProviderResultError extends Error {
 
 export const createPlanProviderResult = ({
   provider,
-  payload,
+  payload = null,
+  draft = null,
   normalizedPlan = null,
   metadata = {},
   warnings = [],
@@ -84,13 +93,12 @@ export const createPlanProviderResult = ({
     );
   }
 
-  const validation =
-    validatePlanPersistencePayload(payload);
+  const hasPayload = payload !== null;
+  const hasDraft = draft !== null;
 
-  if (!validation.valid) {
+  if (hasPayload === hasDraft) {
     throw new PlanProviderResultError(
-      'Invalid plan persistence payload',
-      validation.errors,
+      'Exactly one of payload or draft is required',
     );
   }
 
@@ -106,10 +114,43 @@ export const createPlanProviderResult = ({
     );
   }
 
+  let artifactType;
+  let artifact;
+
+  if (hasPayload) {
+    const validation =
+      validatePlanPersistencePayload(payload);
+
+    if (!validation.valid) {
+      throw new PlanProviderResultError(
+        'Invalid plan persistence payload',
+        validation.errors,
+      );
+    }
+
+    artifactType = PLAN_ARTIFACT_TYPES.CUSTOM_PAYLOAD;
+    artifact = payload;
+  } else {
+    const validation = validateRulesPlanDraft(draft);
+
+    if (!validation.valid) {
+      throw new PlanProviderResultError(
+        'Invalid rules plan draft',
+        validation.errors,
+      );
+    }
+
+    artifactType = PLAN_ARTIFACT_TYPES.RULES_DRAFT;
+    artifact = draft;
+  }
+
   return {
     provider,
     planSource: PLAN_SOURCE_BY_PROVIDER[provider],
-    payload,
+    artifactType,
+    artifact,
+    payload: hasPayload ? payload : null,
+    draft: hasDraft ? draft : null,
     normalizedPlan,
     metadata,
     warnings,
