@@ -89,6 +89,7 @@ export function Progress({
       muscle_distribution: false,
       report: false,
       overload: false,
+      profile_tab: false,
     }),
     [],
   );
@@ -116,13 +117,6 @@ export function Progress({
             placement: 'bottom' as const,
           },
           {
-            id: 'strength_chart',
-            targetId: 'progress_strength_chart',
-            title: 'Your real strength',
-            body: 'This chart shows your estimated 1RM trend so you can see if strength is truly moving up.',
-            placement: 'bottom' as const,
-          },
-          {
             id: 'consistency',
             targetId: 'progress_consistency_card',
             title: 'Stay consistent',
@@ -134,6 +128,13 @@ export function Progress({
             targetId: 'progress_total_volume_card',
             title: 'Track workload',
             body: 'Total volume helps you understand how much work you are accumulating across sessions.',
+            placement: 'bottom' as const,
+          },
+          {
+            id: 'strength_chart',
+            targetId: 'progress_strength_chart',
+            title: 'Your real strength',
+            body: 'This chart shows your estimated 1RM trend so you can see if strength is truly moving up.',
             placement: 'bottom' as const,
           },
           {
@@ -157,6 +158,16 @@ export function Progress({
             body: 'RepSet suggests your next overload targets here based on your plan and recent training.',
             placement: 'top' as const,
           },
+          {
+            id: 'profile_tab',
+            targetId: 'nav_profile',
+            title: 'Go to Profile',
+            body: 'Progress is finished. Tap Profile in the appbar to continue the tour.',
+            placement: 'top' as const,
+            shape: 'pill' as const,
+            padding: 8,
+            targetActionLabel: 'Open Profile',
+          },
         ] satisfies CoachmarkStep[],
       },
       ar: {
@@ -172,13 +183,6 @@ export function Progress({
             placement: 'bottom' as const,
           },
           {
-            id: 'strength_chart',
-            targetId: 'progress_strength_chart',
-            title: 'قوتك الحقيقية',
-            body: 'يعرض هذا المخطط اتجاه 1RM التقديري حتى ترى هل قوتك تتقدم فعلًا.',
-            placement: 'bottom' as const,
-          },
-          {
             id: 'consistency',
             targetId: 'progress_consistency_card',
             title: 'حافظ على الانتظام',
@@ -190,6 +194,13 @@ export function Progress({
             targetId: 'progress_total_volume_card',
             title: 'تتبّع الحمل',
             body: 'إجمالي الحجم يوضح كمية العمل التي رفعتها عبر الجلسات.',
+            placement: 'bottom' as const,
+          },
+          {
+            id: 'strength_chart',
+            targetId: 'progress_strength_chart',
+            title: 'قوتك الحقيقية',
+            body: 'يعرض هذا المخطط اتجاه 1RM التقديري حتى ترى هل قوتك تتقدم فعلًا.',
             placement: 'bottom' as const,
           },
           {
@@ -213,6 +224,16 @@ export function Progress({
             body: 'هنا يقترح RepSet أهداف التدرج القادمة بناءً على خطتك وأدائك الأخير.',
             placement: 'top' as const,
           },
+          {
+            id: 'profile_tab',
+            targetId: 'nav_profile',
+            title: 'انتقل إلى الملف',
+            body: 'انتهت صفحة التقدم. اضغط الملف في شريط التطبيق لمتابعة الجولة.',
+            placement: 'top' as const,
+            shape: 'pill' as const,
+            padding: 8,
+            targetActionLabel: 'افتح الملف',
+          },
         ] satisfies CoachmarkStep[],
       },
       it: {
@@ -228,13 +249,6 @@ export function Progress({
             placement: 'bottom' as const,
           },
           {
-            id: 'strength_chart',
-            targetId: 'progress_strength_chart',
-            title: 'La tua forza reale',
-            body: 'Questo grafico mostra l’andamento del tuo 1RM stimato per capire se la forza sta davvero crescendo.',
-            placement: 'bottom' as const,
-          },
-          {
             id: 'consistency',
             targetId: 'progress_consistency_card',
             title: 'Resta costante',
@@ -246,6 +260,13 @@ export function Progress({
             targetId: 'progress_total_volume_card',
             title: 'Monitora il carico',
             body: 'Il volume totale ti aiuta a capire quanto lavoro stai accumulando tra le sessioni.',
+            placement: 'bottom' as const,
+          },
+          {
+            id: 'strength_chart',
+            targetId: 'progress_strength_chart',
+            title: 'La tua forza reale',
+            body: 'Questo grafico mostra l’andamento del tuo 1RM stimato per capire se la forza sta davvero crescendo.',
             placement: 'bottom' as const,
           },
           {
@@ -269,6 +290,16 @@ export function Progress({
             body: 'Qui RepSet suggerisce i prossimi obiettivi di sovraccarico in base al tuo piano e agli allenamenti recenti.',
             placement: 'top' as const,
           },
+          {
+            id: 'profile_tab',
+            targetId: 'nav_profile',
+            title: 'Vai al profilo',
+            body: 'La pagina Progressi e finita. Tocca Profilo nella barra app per continuare il tour.',
+            placement: 'top' as const,
+            shape: 'pill' as const,
+            padding: 8,
+            targetActionLabel: 'Apri profilo',
+          },
         ] satisfies CoachmarkStep[],
       },
       de: {
@@ -284,13 +315,6 @@ export function Progress({
             placement: 'bottom' as const,
           },
           {
-            id: 'strength_chart',
-            targetId: 'progress_strength_chart',
-            title: 'Deine echte Kraft',
-            body: 'Dieses Diagramm zeigt den Trend deines geschatzten 1RM, damit du echte Kraftentwicklung erkennst.',
-            placement: 'bottom' as const,
-          },
-          {
             id: 'consistency',
             targetId: 'progress_consistency_card',
             title: 'Bleib konstant',
@@ -302,6 +326,13 @@ export function Progress({
             targetId: 'progress_total_volume_card',
             title: 'Belastung verfolgen',
             body: 'Das Gesamtvolumen hilft dir zu verstehen, wie viel Arbeit du uber mehrere Einheiten sammelst.',
+            placement: 'bottom' as const,
+          },
+          {
+            id: 'strength_chart',
+            targetId: 'progress_strength_chart',
+            title: 'Deine echte Kraft',
+            body: 'Dieses Diagramm zeigt den Trend deines geschatzten 1RM, damit du echte Kraftentwicklung erkennst.',
             placement: 'bottom' as const,
           },
           {
@@ -324,6 +355,16 @@ export function Progress({
             title: 'Den nachsten Block steigern',
             body: 'Hier schlagt RepSet deine nachsten Uberlastungsziele basierend auf Plan und aktuellem Training vor.',
             placement: 'top' as const,
+          },
+          {
+            id: 'profile_tab',
+            targetId: 'nav_profile',
+            title: 'Zum Profil',
+            body: 'Fortschritt ist fertig. Tippe in der App-Leiste auf Profil, um die Tour fortzusetzen.',
+            placement: 'top' as const,
+            shape: 'pill' as const,
+            padding: 8,
+            targetActionLabel: 'Profil offnen',
           },
         ] satisfies CoachmarkStep[],
       },
@@ -427,6 +468,11 @@ export function Progress({
     if (guidedTourActive) onGuidedTourDismiss?.();
   };
 
+  const handleCoachmarkTargetAction = () => {
+    if (activeCoachmarkStep?.id !== 'profile_tab') return;
+    handleCoachmarkFinish();
+  };
+
   const progressMotionDirection = getNavigationDirection(
     view,
     previousViewRef.current,
@@ -497,7 +543,7 @@ export function Progress({
         onNext={handleCoachmarkNext}
         onFinish={handleCoachmarkFinish}
         onSkip={handleCoachmarkSkip}
-        onTargetAction={null}
+        onTargetAction={activeCoachmarkStep?.id === 'profile_tab' ? handleCoachmarkTargetAction : null}
       />
     </div>
   );

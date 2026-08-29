@@ -1080,10 +1080,10 @@ export function Workout({
       userScope: coachmarkScope,
       defaultSeenSteps: {
         back: false,
-        current_day_gradient: false,
-        current_day: false,
+        title: false,
         week_card: false,
         action_button: false,
+        community_tab: false,
       },
     }),
     [coachmarkScope],
@@ -1176,6 +1176,11 @@ export function Workout({
       trackerAddSetBody: isArabic
         ? 'إذا احتجت حجم تمرين أعلى، أضف مجموعة جديدة من هنا.'
         : 'If you want more training volume, add another set from here.',
+      planCommunityTabTitle: isArabic ? 'انتقل إلى المجتمع' : 'Go to Community',
+      planCommunityTabBody: isArabic
+        ? 'انتهت صفحة خطتي. اضغط المجتمع في شريط التطبيق لمتابعة الجولة.'
+        : 'My Plan is finished. Tap Community in the appbar to continue the tour.',
+      planCommunityTabAction: isArabic ? 'افتح المجتمع' : 'Open Community',
     }),
     [isArabic],
   );
@@ -1257,28 +1262,16 @@ export function Workout({
         cornerRadius: 16,
       },
       {
-        id: 'current_day_gradient',
-        targetId: 'my_plan_current_day_gradient',
-        title: isArabic ? 'هذه الواجهة الرئيسية' : 'This is the main hero area',
+        id: 'title',
+        targetId: 'my_plan_page_title',
+        title: isArabic ? 'هذه صفحة خطتي' : 'This is My Plan',
         body: isArabic
-          ? 'هنا ترى بطاقة اليوم الرئيسية قبل النزول إلى خطة الأسبوع.'
-          : 'This highlighted hero area shows your main My Plan focus before you move down into the week plan.',
+          ? 'ابدأ من هنا لترى خطة الأسبوع والحصص المتاحة بالترتيب.'
+          : 'Start here to review your week plan and each available training session in order.',
         placement: 'bottom',
         shape: 'rounded',
         padding: 8,
-        cornerRadius: 20,
-      },
-      {
-        id: 'current_day',
-        targetId: 'my_plan_current_day_card',
-        title: isArabic ? 'هذه بطاقة اليوم' : 'This is your day card',
-        body: isArabic
-          ? 'هنا سترى ما تم حفظه لليوم، أو تذكيرًا باختيار حصة تدريب أولاً.'
-          : 'This card tells you what is currently saved for today, or reminds you to choose a session first.',
-        placement: 'bottom',
-        shape: 'rounded',
-        padding: 8,
-        cornerRadius: 20,
+        cornerRadius: 12,
       },
       {
         id: 'week_card',
@@ -1303,8 +1296,18 @@ export function Workout({
         shape: 'circle',
         padding: 8,
       },
+      {
+        id: 'community_tab',
+        targetId: 'nav_blogs',
+        title: coachmarkCopy.planCommunityTabTitle,
+        body: coachmarkCopy.planCommunityTabBody,
+        placement: 'top',
+        shape: 'pill',
+        padding: 8,
+        targetActionLabel: coachmarkCopy.planCommunityTabAction,
+      },
     ],
-    [isArabic],
+    [coachmarkCopy, isArabic],
   );
   const trackerCoachmarkSteps = useMemo<CoachmarkStep[]>(
     () => [
@@ -1500,6 +1503,11 @@ export function Workout({
 
   const handleCoachmarkTargetAction = () => {
     if (!coachmarkMode || !activeCoachmarkStep) return;
+
+    if (coachmarkMode === 'plan' && activeCoachmarkStep.id === 'community_tab') {
+      handleCoachmarkFinish();
+      return;
+    }
 
     patchCoachmarkProgress(activeCoachmarkOptions, (current) => ({
       completed: true,
@@ -2859,6 +2867,7 @@ export function Workout({
           onNext={handleCoachmarkNext}
           onFinish={handleCoachmarkFinish}
           onSkip={handleCoachmarkSkip}
+          onTargetAction={activeCoachmarkStep?.id === 'community_tab' ? handleCoachmarkTargetAction : null}
         />
       </>
     );

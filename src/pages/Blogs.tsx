@@ -564,7 +564,7 @@ export function Blogs({ guidedTourActive = false, onGuidedTourComplete, onGuided
     tourId: BLOGS_COACHMARK_TOUR_ID,
     version: BLOGS_COACHMARK_VERSION,
     userScope: coachmarkScope,
-    defaultSeenSteps: { create: false, intro: false, filters: false, first_post: false },
+    defaultSeenSteps: { create: false, intro: false, filters: false, first_post: false, progress_tab: false },
   }), [coachmarkScope]);
 
   const coachmarkCopy = useMemo(() => ({
@@ -572,10 +572,11 @@ export function Blogs({ guidedTourActive = false, onGuidedTourComplete, onGuided
     skip: isArabic ? 'تخطي' : 'Skip',
     finish: isArabic ? 'حسنًا' : 'Got it',
     steps: [
-      { id: 'create', targetId: 'blogs_create_button', title: isArabic ? 'أنشئ منشورًا جديدًا' : 'Create a new post', body: isArabic ? 'استخدم هذا الزر لإنشاء منشور جديد في الخلاصة.' : 'Use this button to create a new post.', placement: 'bottom' as const, shape: 'circle' as const, padding: 8 },
       { id: 'intro', targetId: 'blogs_page_intro', title: isArabic ? 'هذه هي صفحة الخلاصة' : 'This is the feed', body: isArabic ? 'هنا ترى محتوى المجتمع عن التدريب والتغذية والاستشفاء.' : 'This page shows the community feed for training, nutrition and recovery.', placement: 'bottom' as const, shape: 'rounded' as const, padding: 8, cornerRadius: 16 },
+      { id: 'create', targetId: 'blogs_create_button', title: isArabic ? 'أنشئ منشورًا جديدًا' : 'Create a new post', body: isArabic ? 'استخدم هذا الزر لإنشاء منشور جديد في الخلاصة.' : 'Use this button to create a new post.', placement: 'bottom' as const, shape: 'circle' as const, padding: 8 },
       { id: 'filters', targetId: 'blogs_category_filters', title: isArabic ? 'غيّر الفئة من هنا' : 'Filter the feed here', body: isArabic ? 'استخدم هذه الفلاتر لتبديل الفئة التي تريدها.' : 'Use these filters to focus the feed on a specific content category.', placement: 'bottom' as const, shape: 'rounded' as const, padding: 8, cornerRadius: 16 },
       { id: 'first_post', targetId: 'blogs_first_post_card', title: isArabic ? 'هذا مثال على منشور' : 'This is a feed post', body: isArabic ? 'اضغط على أي منشور لفتحه والتفاعل معه وقراءة التعليقات.' : 'Tap any post to open it, react, and read comments.', placement: 'top' as const, shape: 'rounded' as const, padding: 8, cornerRadius: 20 },
+      { id: 'progress_tab', targetId: 'nav_progress', title: isArabic ? 'انتقل إلى التقدم' : 'Go to Progress', body: isArabic ? 'انتهت صفحة المجتمع. اضغط التقدم في شريط التطبيق لمتابعة الجولة.' : 'Community is finished. Tap Progress in the appbar to continue the tour.', placement: 'top' as const, shape: 'pill' as const, padding: 8, targetActionLabel: isArabic ? 'افتح التقدم' : 'Open Progress' },
     ] satisfies CoachmarkStep[],
   }), [isArabic]);
 
@@ -991,6 +992,11 @@ export function Blogs({ guidedTourActive = false, onGuidedTourComplete, onGuided
     closeCoachmarks();
     if (guidedTourActive) onGuidedTourDismiss?.();
   }, [closeCoachmarks, coachmarkOptions, coachmarkStepIndex, guidedTourActive, onGuidedTourDismiss]);
+
+  const handleCoachmarkTargetAction = useCallback(() => {
+    if (activeCoachmarkStep?.id !== 'progress_tab') return;
+    handleCoachmarkFinish();
+  }, [activeCoachmarkStep?.id, handleCoachmarkFinish]);
 
   const toggleCategorySelection = useCallback((category: PostCategory) => {
     setSelectedCategories((prev) => {
@@ -1408,7 +1414,7 @@ export function Blogs({ guidedTourActive = false, onGuidedTourComplete, onGuided
         </div>
       ) : null}
 
-      <CoachmarkOverlay isOpen={isCoachmarkOpen} step={activeCoachmarkStep} stepIndex={coachmarkStepIndex} totalSteps={coachmarkSteps.length} nextLabel={coachmarkCopy.next} finishLabel={coachmarkCopy.finish} skipLabel={coachmarkCopy.skip} onNext={handleCoachmarkNext} onFinish={handleCoachmarkFinish} onSkip={handleCoachmarkSkip} onTargetAction={null} />
+      <CoachmarkOverlay isOpen={isCoachmarkOpen} step={activeCoachmarkStep} stepIndex={coachmarkStepIndex} totalSteps={coachmarkSteps.length} nextLabel={coachmarkCopy.next} finishLabel={coachmarkCopy.finish} skipLabel={coachmarkCopy.skip} onNext={handleCoachmarkNext} onFinish={handleCoachmarkFinish} onSkip={handleCoachmarkSkip} onTargetAction={activeCoachmarkStep?.id === 'progress_tab' ? handleCoachmarkTargetAction : null} />
     </div>
   );
 }

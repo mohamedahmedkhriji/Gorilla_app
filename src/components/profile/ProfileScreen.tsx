@@ -752,9 +752,12 @@ export function ProfileScreen({ onNavigate, onLogout }: ProfileScreenProps) {
   
   return (
     <div className="space-y-4 pb-24">
-      <h1 className="px-1 text-[22px] font-bold tracking-[-0.03em] text-white">{copy.profileTitle}</h1>
+      <h1 data-coachmark-target="profile_page_title" className="px-1 text-[22px] font-bold tracking-[-0.03em] text-white">{copy.profileTitle}</h1>
 
-      <section className="overflow-hidden rounded-2xl border border-white/10 bg-[#0d1828] shadow-[0_18px_40px_-28px_rgba(0,0,0,0.9)]">
+      <section
+        data-coachmark-target="profile_summary_card"
+        className="overflow-hidden rounded-2xl border border-white/10 bg-[#0d1828] shadow-[0_18px_40px_-28px_rgba(0,0,0,0.9)]"
+      >
         <div className="flex items-center gap-4 px-4 py-4">
           <div className="relative shrink-0">
             <div
@@ -788,6 +791,7 @@ export function ProfileScreen({ onNavigate, onLogout }: ProfileScreenProps) {
             <h2 className="truncate text-[21px] font-bold tracking-[-0.03em] text-white">{userName}</h2>
             <p className="mt-1 text-xs font-medium text-text-secondary">{memberSinceText}</p>
             <button
+              data-coachmark-target="profile_edit_button"
               type="button"
               onClick={() => onNavigate('settings')}
               className="mt-3 min-h-8 rounded-md border border-accent bg-accent/10 px-4 text-[11px] font-black uppercase tracking-[0.08em] text-accent transition-colors hover:bg-accent hover:text-black focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
@@ -797,7 +801,7 @@ export function ProfileScreen({ onNavigate, onLogout }: ProfileScreenProps) {
           </div>
         </div>
 
-        <div className="grid grid-cols-3 border-t border-white/10">
+        <div data-coachmark-target="profile_stats_row" className="grid grid-cols-3 border-t border-white/10">
           {[
             { icon: <Dumbbell size={16} aria-hidden="true" />, value: totalWorkoutCount, label: copy.workouts },
             { icon: <Flame size={16} aria-hidden="true" />, value: dayStreak, label: copy.dayStreak },

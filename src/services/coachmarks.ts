@@ -3,13 +3,13 @@ import { getStoredAppUser } from '../shared/authStorage';
 export const HOME_COACHMARK_TOUR_ID = 'home_onboarding';
 export const HOME_COACHMARK_VERSION = 7;
 export const BLOGS_COACHMARK_TOUR_ID = 'blogs_onboarding';
-export const BLOGS_COACHMARK_VERSION = 1;
+export const BLOGS_COACHMARK_VERSION = 2;
 export const PROGRESS_COACHMARK_TOUR_ID = 'progress_onboarding';
-export const PROGRESS_COACHMARK_VERSION = 1;
+export const PROGRESS_COACHMARK_VERSION = 2;
 export const PROFILE_COACHMARK_TOUR_ID = 'profile_onboarding';
-export const PROFILE_COACHMARK_VERSION = 1;
+export const PROFILE_COACHMARK_VERSION = 3;
 export const WORKOUT_PLAN_COACHMARK_TOUR_ID = 'workout_plan_onboarding';
-export const WORKOUT_PLAN_COACHMARK_VERSION = 3;
+export const WORKOUT_PLAN_COACHMARK_VERSION = 4;
 export const WORKOUT_TRACKER_COACHMARK_TOUR_ID = 'workout_tracker_onboarding';
 export const WORKOUT_TRACKER_COACHMARK_VERSION = 2;
 export const APP_COACHMARK_TOUR_ID = 'app_guided_onboarding';
@@ -227,6 +227,7 @@ export const resetAllCoachmarkProgress = (userScope = getCoachmarkUserScope()) =
       intro: false,
       filters: false,
       first_post: false,
+      progress_tab: false,
     },
   });
   resetCoachmarkProgress({
@@ -241,6 +242,7 @@ export const resetAllCoachmarkProgress = (userScope = getCoachmarkUserScope()) =
       muscle_distribution: false,
       report: false,
       overload: false,
+      profile_tab: false,
     },
   });
   resetCoachmarkProgress({
@@ -248,15 +250,17 @@ export const resetAllCoachmarkProgress = (userScope = getCoachmarkUserScope()) =
     version: PROFILE_COACHMARK_VERSION,
     userScope,
     defaultSeenSteps: {
+      title: false,
       settings: false,
-      notifications: false,
+      summary: false,
       avatar: false,
       photo_upload: false,
+      edit: false,
+      stats: false,
       agenda: false,
-      friends: false,
+      plan_builder: false,
       coach: false,
       posts: false,
-      plan_builder: false,
       logout: false,
     },
   });
@@ -266,10 +270,10 @@ export const resetAllCoachmarkProgress = (userScope = getCoachmarkUserScope()) =
     userScope,
     defaultSeenSteps: {
       back: false,
-      current_day_gradient: false,
-      current_day: false,
+      title: false,
       week_card: false,
       action_button: false,
+      community_tab: false,
     },
   });
   resetCoachmarkProgress({
