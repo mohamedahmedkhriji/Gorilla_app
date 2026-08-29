@@ -21,6 +21,10 @@ const buildValidDraft = () => {
   return {
     planName: 'RepSet Rules Plan',
     description: 'Eight-week adaptive training plan.',
+    programType: 'upper_lower',
+    goal: 'muscle_gain',
+    experienceLevel: 'intermediate',
+    daysPerWeek: 2,
     cycleWeeks: 8,
     selectedDays,
     weeks: Array.from({ length: 8 }, (_, index) => {

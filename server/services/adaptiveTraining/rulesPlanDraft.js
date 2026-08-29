@@ -36,6 +36,29 @@ export const validateRulesPlanDraft = (draft) => {
   }
 
   if (
+    typeof draft.programType !== 'string'
+    || !draft.programType.trim()
+  ) {
+    errors.push('programType must be a non-empty string');
+  }
+
+  if (
+    typeof draft.goal !== 'string'
+    || !draft.goal.trim()
+  ) {
+    errors.push('goal must be a non-empty string');
+  }
+
+  if (
+    typeof draft.experienceLevel !== 'string'
+    || !draft.experienceLevel.trim()
+  ) {
+    errors.push(
+      'experienceLevel must be a non-empty string',
+    );
+  }
+
+  if (
     draft.cycleWeeks
     !== AI_TRAINING_PLAN_DURATION_WEEKS
   ) {
@@ -49,6 +72,18 @@ export const validateRulesPlanDraft = (draft) => {
     || draft.selectedDays.length === 0
   ) {
     errors.push('selectedDays must be a non-empty array');
+  }
+
+  if (
+    Array.isArray(draft.selectedDays)
+    && (
+      !Number.isInteger(draft.daysPerWeek)
+      || draft.daysPerWeek !== draft.selectedDays.length
+    )
+  ) {
+    errors.push(
+      'daysPerWeek must match selectedDays length',
+    );
   }
 
   if (

@@ -12,6 +12,10 @@ const buildValidDraft = () => {
   return {
     planName: 'RepSet Rules Plan',
     description: 'Eight-week adaptive training plan.',
+    programType: 'upper_lower',
+    goal: 'muscle_gain',
+    experienceLevel: 'intermediate',
+    daysPerWeek: 2,
     cycleWeeks: 8,
     selectedDays,
     weeks: Array.from({ length: 8 }, (_, index) => {
@@ -81,6 +85,22 @@ test('rejects missing weeks', () => {
   assert.ok(
     validation.errors.some(
       (error) => error.includes('weeks must contain 8'),
+    ),
+  );
+});
+
+test('rejects mismatched daysPerWeek', () => {
+  const draft = buildValidDraft();
+  draft.daysPerWeek = 3;
+
+  const validation = validateRulesPlanDraft(draft);
+
+  assert.equal(validation.valid, false);
+  assert.ok(
+    validation.errors.some(
+      (error) => error.includes(
+        'daysPerWeek must match selectedDays length',
+      ),
     ),
   );
 });

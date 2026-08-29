@@ -2317,6 +2317,7 @@ export const buildPersonalizedProgramDraftFromContext = ({
     },
     programType: toProgramType(scheduledDayCount, splitPreference),
     goal: normalizedGoal,
+    experienceLevel: normalizedLevel,
     daysPerWeek: scheduledDayCount,
   };
 };
