@@ -2329,6 +2329,94 @@ export const buildPersonalizedProgramDraftFromContext = ({
   };
 };
 
+export const persistPersonalizedProgramDraft = async (
+  conn,
+  {
+    userId,
+    gymId = null,
+    notes = null,
+    programDraft,
+  } = {},
+) => {
+  const [insertProgram] = await conn.execute(
+    `INSERT INTO programs
+      (gym_id, created_by_user_id, target_user_id, name, description, program_type, goal, experience_level, days_per_week, cycle_weeks, is_template, is_active)
+     VALUES (?, NULL, ?, ?, ?, ?, ?, ?, ?, ?, 0, 1)`,
+    [
+      gymId || null,
+      userId,
+      programDraft.planName,
+      notes || programDraft.description,
+      programDraft.programType,
+      programDraft.goal,
+      programDraft.experienceLevel,
+      programDraft.daysPerWeek,
+      programDraft.cycleWeeks,
+    ],
+  );
+
+  const programId = Number(insertProgram.insertId);
+  const legacyExerciseCache = new Map();
+
+  for (const week of programDraft.weeks) {
+    for (const workout of week.workouts) {
+      const [workoutIns] = await conn.execute(
+          `INSERT INTO workouts
+            (program_id, workout_name, workout_type, day_order, day_name, estimated_duration_minutes, notes)
+          VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        [
+          programId,
+          workout.workoutName,
+          workout.workoutType,
+          workout.dayOrder,
+          workout.dayName,
+          workout.estimatedDurationMinutes,
+          workout.notes,
+        ],
+      );
+      const workoutId = Number(workoutIns.insertId);
+
+      for (const exercise of workout.exercises) {
+        const legacyExerciseId = await ensureLegacyExerciseId(conn, legacyExerciseCache, exercise.exerciseName);
+
+        await conn.execute(
+          `INSERT INTO workout_exercises
+            (workout_id, exercise_id, order_index, exercise_name_snapshot, muscle_group_snapshot, target_sets, target_reps, target_weight, rest_seconds, tempo, rpe_target, notes)
+           VALUES (?, ?, ?, ?, ?, ?, ?, NULL, ?, NULL, ?, ?)`,
+          [
+            workoutId,
+            legacyExerciseId,
+            exercise.orderIndex,
+            exercise.exerciseName,
+            exercise.primaryMuscle,
+            exercise.sets,
+            exercise.reps,
+            exercise.restSeconds,
+            exercise.rpeTarget,
+            exercise.notes,
+          ],
+        );
+      }
+    }
+  }
+
+  return {
+    programId,
+    daysPerWeek: programDraft.daysPerWeek,
+    cycleWeeks: programDraft.cycleWeeks,
+    name: programDraft.planName,
+    programType: programDraft.programType,
+    goal: programDraft.goal,
+    weeklySchedule: programDraft.weeklySchedule,
+    weeklyFatigueScore:
+      programDraft.summary.weeklyFatigueScore,
+    weeklyCapacity:
+      programDraft.summary.weeklyCapacity,
+    cardioGoals:
+      programDraft.summary.cardioGoals,
+  };
+};
+
 export const generatePersonalizedProgram = async (
   conn,
   {
@@ -2413,86 +2501,15 @@ export const generatePersonalizedProgram = async (
       splitPreference,
     });
 
-  const [insertProgram] = await conn.execute(
-    `INSERT INTO programs
-      (gym_id, created_by_user_id, target_user_id, name, description, program_type, goal, experience_level, days_per_week, cycle_weeks, is_template, is_active)
-     VALUES (?, NULL, ?, ?, ?, ?, ?, ?, ?, ?, 0, 1)`,
-    [
-      gymId || null,
+  return persistPersonalizedProgramDraft(
+    conn,
+    {
       userId,
-      programDraft.planName,
-      notes || programDraft.description,
-      programDraft.programType,
-      normalizedGoal,
-      normalizedLevel,
-      scheduledDayCount,
-      clampedWeeks,
-    ],
+      gymId,
+      notes,
+      programDraft,
+    },
   );
-
-  const programId = Number(insertProgram.insertId);
-  const legacyExerciseCache = new Map();
-
-  for (const week of programDraft.weeks) {
-    for (const workout of week.workouts) {
-      const [workoutIns] = await conn.execute(
-          `INSERT INTO workouts
-            (program_id, workout_name, workout_type, day_order, day_name, estimated_duration_minutes, notes)
-          VALUES (?, ?, ?, ?, ?, ?, ?)`,
-        [
-          programId,
-          workout.workoutName,
-          workout.workoutType,
-          workout.dayOrder,
-          workout.dayName,
-          workout.estimatedDurationMinutes,
-          workout.notes,
-        ],
-      );
-      const workoutId = Number(workoutIns.insertId);
-
-      for (const exercise of workout.exercises) {
-        const legacyExerciseId = await ensureLegacyExerciseId(conn, legacyExerciseCache, exercise.exerciseName);
-
-        await conn.execute(
-          `INSERT INTO workout_exercises
-            (workout_id, exercise_id, order_index, exercise_name_snapshot, muscle_group_snapshot, target_sets, target_reps, target_weight, rest_seconds, tempo, rpe_target, notes)
-           VALUES (?, ?, ?, ?, ?, ?, ?, NULL, ?, NULL, ?, ?)`,
-          [
-            workoutId,
-            legacyExerciseId,
-            exercise.orderIndex,
-            exercise.exerciseName,
-            exercise.primaryMuscle,
-            exercise.sets,
-            exercise.reps,
-            exercise.restSeconds,
-            exercise.rpeTarget,
-            exercise.notes,
-          ],
-        );
-      }
-    }
-  }
-
-  return {
-    programId,
-    daysPerWeek: programDraft.daysPerWeek,
-    cycleWeeks: programDraft.cycleWeeks,
-    name: programDraft.planName,
-    programType: programDraft.programType,
-    goal: programDraft.goal,
-    weeklySchedule: scheduledDays.map((day) => ({
-      dayName: day.dayName,
-      name: day.name,
-      workoutType: day.workoutType,
-      focusLabel: day.focusLabel || '',
-      cardioFinisher: day.cardioFinisher || '',
-    })),
-    weeklyFatigueScore: programDraft.summary.weeklyFatigueScore,
-    weeklyCapacity: programDraft.summary.weeklyCapacity,
-    cardioGoals: programDraft.summary.cardioGoals,
-  };
 };
 
 const getCurrentWeek = (startDate, cycleWeeks) => {
