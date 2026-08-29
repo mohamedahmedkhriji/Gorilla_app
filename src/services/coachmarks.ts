@@ -1,7 +1,7 @@
 import { getStoredAppUser } from '../shared/authStorage';
 
 export const HOME_COACHMARK_TOUR_ID = 'home_onboarding';
-export const HOME_COACHMARK_VERSION = 3;
+export const HOME_COACHMARK_VERSION = 7;
 export const BLOGS_COACHMARK_TOUR_ID = 'blogs_onboarding';
 export const BLOGS_COACHMARK_VERSION = 1;
 export const PROGRESS_COACHMARK_TOUR_ID = 'progress_onboarding';
@@ -205,10 +205,17 @@ export const resetAllCoachmarkProgress = (userScope = getCoachmarkUserScope()) =
       today_gradient: false,
       today_plan: false,
       rank: false,
+      notifications: false,
+      today_action: false,
+      today_progress: false,
+      friends: false,
       recovery: false,
+      repy_ai: false,
+      shop: false,
       nutrition: false,
       exercises: false,
       books: false,
+      my_plan_tab: false,
     },
   });
   resetCoachmarkProgress({

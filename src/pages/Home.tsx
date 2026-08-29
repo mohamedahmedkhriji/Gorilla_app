@@ -889,10 +889,17 @@ export function Home({
       today_gradient: false,
       today_plan: false,
       rank: false,
+      notifications: false,
+      today_action: false,
+      today_progress: false,
+      friends: false,
       recovery: false,
+      repy_ai: false,
+      shop: false,
       nutrition: false,
       exercises: false,
       books: false,
+      my_plan_tab: false,
     }),
     [],
   );
@@ -1066,16 +1073,35 @@ export function Home({
           ? 'If you have not picked a session yet, tap here to go to My Plan and choose today\'s workout.'
           : 'Once today\'s session is saved, tap here to open the full workout plan and start training.',
         startHereAction: shouldChooseWorkoutToday ? 'Open My Plan' : 'Open Workout',
+        todayActionTitle: shouldChooseWorkoutToday ? 'Choose from My Plan' : 'Start from here',
+        todayActionBody: shouldChooseWorkoutToday
+          ? 'This button takes you straight to My Plan so you can select the workout for today.'
+          : 'This button opens the workout you saved for today so you can begin quickly.',
+        todayProgressTitle: 'Today progress',
+        todayProgressBody: 'This circle shows how much of today\'s workout is complete.',
         recoveryTitle: 'Train smarter',
         recoveryBody: 'Recovery shows how ready your body is before your next session.',
         progressTitle: 'See your growth',
         progressBody: 'Track your consistency, performance and strength improvements here.',
+        rankTitle: 'Track your rank',
+        rankBody: 'Your badge and RP show your current level. Tap it to see your rank progress and rewards.',
+        notificationsTitle: 'Check notifications',
+        notificationsBody: 'This bell keeps important updates close, including friend activity, challenges, and reminders.',
+        friendsTitle: 'Train with your people',
+        friendsBody: 'Open Friends to connect with gym members, compare progress, and start challenges.',
+        repyAiTitle: 'Ask Repy AI',
+        repyAiBody: 'Use Repy AI for quick coaching help and smart guidance when this assistant is available.',
+        shopTitle: 'Open the shop',
+        shopBody: 'The Shop area is where app gear, offers, and future upgrades will live.',
         nutritionTitle: 'Fuel your results',
         nutritionBody: 'Get guidance for calories and protein based on your goal.',
         exercisesTitle: 'Learn each movement',
         exercisesBody: 'Use this card to browse exercises and watch how each movement should be performed.',
         booksTitle: 'Build your knowledge',
         booksBody: 'This card is for educational guides and books that help you understand your training better.',
+        myPlanTabTitle: 'Go to My Plan',
+        myPlanTabBody: 'Home is finished. Tap My Plan in the appbar to continue the tour on your training plan.',
+        myPlanTabAction: 'Open My Plan',
       },
       ar: {
         next: '\u0627\u0644\u062a\u0627\u0644\u064a',
@@ -1086,16 +1112,35 @@ export function Home({
           ? '\u0625\u0630\u0627 \u0644\u0645 \u062a\u062e\u062a\u0631 \u062d\u0635\u0629 \u0628\u0639\u062f\u060c \u0627\u0636\u063a\u0637 \u0647\u0646\u0627 \u0644\u0644\u0630\u0647\u0627\u0628 \u0625\u0644\u0649 \u062e\u0637\u062a\u0643 \u0648\u0627\u062e\u062a\u064a\u0627\u0631 \u062a\u0645\u0631\u064a\u0646 \u0627\u0644\u064a\u0648\u0645.'
           : '\u0628\u0639\u062f \u062d\u0641\u0638 \u062d\u0635\u0629 \u0627\u0644\u064a\u0648\u0645\u060c \u0627\u0636\u063a\u0637 \u0647\u0646\u0627 \u0644\u0641\u062a\u062d \u062e\u0637\u0629 \u0627\u0644\u062a\u0645\u0631\u064a\u0646 \u0627\u0644\u0643\u0627\u0645\u0644\u0629 \u0648\u0627\u0644\u0628\u062f\u0621.',
         startHereAction: shouldChooseWorkoutToday ? '\u0627\u0641\u062a\u062d \u062e\u0637\u062a\u064a' : '\u0627\u0641\u062a\u062d \u0627\u0644\u062a\u0645\u0631\u064a\u0646',
+        todayActionTitle: shouldChooseWorkoutToday ? '\u0627\u062e\u062a\u0631 \u0645\u0646 \u062e\u0637\u062a\u064a' : '\u0627\u0628\u062f\u0623 \u0645\u0646 \u0647\u0646\u0627',
+        todayActionBody: shouldChooseWorkoutToday
+          ? '\u064a\u0623\u062e\u0630\u0643 \u0647\u0630\u0627 \u0627\u0644\u0632\u0631 \u0645\u0628\u0627\u0634\u0631\u0629 \u0625\u0644\u0649 \u062e\u0637\u062a\u064a \u0644\u0627\u062e\u062a\u064a\u0627\u0631 \u062a\u0645\u0631\u064a\u0646 \u0627\u0644\u064a\u0648\u0645.'
+          : '\u064a\u0641\u062a\u062d \u0647\u0630\u0627 \u0627\u0644\u0632\u0631 \u062a\u0645\u0631\u064a\u0646 \u0627\u0644\u064a\u0648\u0645 \u0627\u0644\u0645\u062d\u0641\u0648\u0638 \u0644\u062a\u0628\u062f\u0623 \u0628\u0633\u0631\u0639\u0629.',
+        todayProgressTitle: '\u062a\u0642\u062f\u0645 \u0627\u0644\u064a\u0648\u0645',
+        todayProgressBody: '\u062a\u0639\u0631\u0636 \u0647\u0630\u0647 \u0627\u0644\u062f\u0627\u0626\u0631\u0629 \u0646\u0633\u0628\u0629 \u0625\u0643\u0645\u0627\u0644 \u062a\u0645\u0631\u064a\u0646 \u0627\u0644\u064a\u0648\u0645.',
         recoveryTitle: '\u062a\u062f\u0631\u0628 \u0628\u0630\u0643\u0627\u0621',
         recoveryBody: '\u064a\u0639\u0631\u0636 \u0627\u0644\u062a\u0639\u0627\u0641\u064a \u0645\u062f\u0649 \u062c\u0627\u0647\u0632\u064a\u0629 \u062c\u0633\u0645\u0643 \u0642\u0628\u0644 \u0627\u0644\u062c\u0644\u0633\u0629 \u0627\u0644\u062a\u0627\u0644\u064a\u0629.',
         progressTitle: '\u0634\u0627\u0647\u062f \u062a\u0637\u0648\u0631\u0643',
         progressBody: '\u062a\u062a\u0628\u0639 \u0627\u0646\u062a\u0638\u0627\u0645\u0643 \u0648\u0623\u062f\u0627\u0621\u0643 \u0648\u062a\u062d\u0633\u0646 \u0642\u0648\u062a\u0643 \u0645\u0646 \u0647\u0646\u0627.',
+        rankTitle: '\u062a\u0627\u0628\u0639 \u0631\u062a\u0628\u062a\u0643',
+        rankBody: '\u062a\u0639\u0631\u0636 \u0627\u0644\u0634\u0627\u0631\u0629 \u0648\u0646\u0642\u0627\u0637 RP \u0645\u0633\u062a\u0648\u0627\u0643 \u0627\u0644\u062d\u0627\u0644\u064a. \u0627\u0636\u063a\u0637 \u0639\u0644\u064a\u0647\u0627 \u0644\u0631\u0624\u064a\u0629 \u062a\u0642\u062f\u0645 \u0627\u0644\u0631\u062a\u0628\u0629 \u0648\u0627\u0644\u0645\u0643\u0627\u0641\u0622\u062a.',
+        notificationsTitle: '\u062a\u062d\u0642\u0642 \u0645\u0646 \u0627\u0644\u0625\u0634\u0639\u0627\u0631\u0627\u062a',
+        notificationsBody: '\u064a\u062d\u062a\u0641\u0638 \u0632\u0631 \u0627\u0644\u062c\u0631\u0633 \u0628\u0627\u0644\u062a\u062d\u062f\u064a\u062b\u0627\u062a \u0627\u0644\u0645\u0647\u0645\u0629 \u0645\u062b\u0644 \u0646\u0634\u0627\u0637 \u0627\u0644\u0623\u0635\u062f\u0642\u0627\u0621 \u0648\u0627\u0644\u062a\u062d\u062f\u064a\u0627\u062a \u0648\u0627\u0644\u062a\u0630\u0643\u064a\u0631\u0627\u062a.',
+        friendsTitle: '\u062a\u062f\u0631\u0628 \u0645\u0639 \u0623\u0635\u062f\u0642\u0627\u0626\u0643',
+        friendsBody: '\u0627\u0641\u062a\u062d \u0627\u0644\u0623\u0635\u062f\u0642\u0627\u0621 \u0644\u0644\u062a\u0648\u0627\u0635\u0644 \u0645\u0639 \u0623\u0639\u0636\u0627\u0621 \u0627\u0644\u062c\u064a\u0645 \u0648\u0645\u0642\u0627\u0631\u0646\u0629 \u0627\u0644\u062a\u0642\u062f\u0645 \u0648\u0628\u062f\u0621 \u0627\u0644\u062a\u062d\u062f\u064a\u0627\u062a.',
+        repyAiTitle: '\u0627\u0633\u0623\u0644 Repy AI',
+        repyAiBody: '\u0627\u0633\u062a\u062e\u062f\u0645 Repy AI \u0644\u0644\u0645\u0633\u0627\u0639\u062f\u0629 \u0627\u0644\u062a\u062f\u0631\u064a\u0628\u064a\u0629 \u0627\u0644\u0633\u0631\u064a\u0639\u0629 \u0648\u0627\u0644\u0625\u0631\u0634\u0627\u062f \u0627\u0644\u0630\u0643\u064a \u0639\u0646\u062f \u062a\u0648\u0641\u0631\u0647.',
+        shopTitle: '\u0627\u0641\u062a\u062d \u0627\u0644\u0645\u062a\u062c\u0631',
+        shopBody: '\u0645\u0646\u0637\u0642\u0629 \u0627\u0644\u0645\u062a\u062c\u0631 \u0645\u062e\u0635\u0635\u0629 \u0644\u0645\u0639\u062f\u0627\u062a \u0627\u0644\u062a\u0637\u0628\u064a\u0642 \u0648\u0627\u0644\u0639\u0631\u0648\u0636 \u0648\u0627\u0644\u062a\u0631\u0642\u064a\u0627\u062a \u0627\u0644\u0642\u0627\u062f\u0645\u0629.',
         nutritionTitle: '\u063a\u0630 \u0646\u062a\u0627\u0626\u062c\u0643',
         nutritionBody: '\u0627\u062d\u0635\u0644 \u0639\u0644\u0649 \u0625\u0631\u0634\u0627\u062f\u0627\u062a \u0644\u0644\u0633\u0639\u0631\u0627\u062a \u0648\u0627\u0644\u0628\u0631\u0648\u062a\u064a\u0646 \u0628\u0645\u0627 \u064a\u0646\u0627\u0633\u0628 \u0647\u062f\u0641\u0643.',
         exercisesTitle: '\u062a\u0639\u0644\u0645 \u0627\u0644\u062d\u0631\u0643\u0627\u062a',
         exercisesBody: '\u0627\u0633\u062a\u062e\u062f\u0645 \u0647\u0630\u0647 \u0627\u0644\u0628\u0637\u0627\u0642\u0629 \u0644\u0627\u0633\u062a\u0643\u0634\u0627\u0641 \u0627\u0644\u062a\u0645\u0627\u0631\u064a\u0646 \u0627\u0644\u0635\u062d\u064a\u062d\u0629 \u0648\u0645\u0634\u0627\u0647\u062f\u0629 \u0627\u0644\u0634\u0631\u062d \u0642\u0628\u0644 \u0623\u0646 \u062a\u0628\u062f\u0623.',
         booksTitle: '\u0645\u0643\u062a\u0628\u0629 \u0645\u0639\u0631\u0641\u064a\u0629',
         booksBody: '\u0647\u0630\u0647 \u0627\u0644\u0628\u0637\u0627\u0642\u0629 \u0645\u062e\u0635\u0635\u0629 \u0644\u0644\u0645\u062d\u062a\u0648\u0649 \u0627\u0644\u062a\u0639\u0644\u064a\u0645\u064a \u0648\u0627\u0644\u0643\u062a\u0628 \u0627\u0644\u062a\u064a \u062a\u0633\u0627\u0639\u062f\u0643 \u0639\u0644\u0649 \u0641\u0647\u0645 \u0627\u0644\u062a\u062f\u0631\u064a\u0628 \u0628\u0634\u0643\u0644 \u0623\u0641\u0636\u0644.',
+        myPlanTabTitle: '\u0627\u0646\u062a\u0642\u0644 \u0625\u0644\u0649 \u062e\u0637\u062a\u064a',
+        myPlanTabBody: '\u0627\u0646\u062a\u0647\u062a \u062c\u0648\u0644\u0629 \u0627\u0644\u0647\u0648\u0645. \u0627\u0636\u063a\u0637 \u062e\u0637\u062a\u064a \u0641\u064a \u0634\u0631\u064a\u0637 \u0627\u0644\u062a\u0637\u0628\u064a\u0642 \u0644\u0645\u062a\u0627\u0628\u0639\u0629 \u0627\u0644\u062c\u0648\u0644\u0629 \u0639\u0644\u0649 \u062e\u0637\u0629 \u0627\u0644\u062a\u062f\u0631\u064a\u0628.',
+        myPlanTabAction: '\u0627\u0641\u062a\u062d \u062e\u0637\u062a\u064a',
       },
       it: {
         next: 'Avanti',
@@ -1106,16 +1151,35 @@ export function Home({
           ? 'Se non hai ancora scelto una sessione, tocca qui per aprire il tuo piano e selezionare l\'allenamento di oggi.'
           : 'Quando la sessione di oggi e salvata, tocca qui per aprire il piano completo e iniziare ad allenarti.',
         startHereAction: shouldChooseWorkoutToday ? 'Apri il mio piano' : 'Apri allenamento',
+        todayActionTitle: shouldChooseWorkoutToday ? 'Scegli dal mio piano' : 'Inizia da qui',
+        todayActionBody: shouldChooseWorkoutToday
+          ? 'Questo pulsante ti porta subito al tuo piano per scegliere l allenamento di oggi.'
+          : 'Questo pulsante apre l allenamento salvato per oggi, cosi puoi iniziare rapidamente.',
+        todayProgressTitle: 'Progressi di oggi',
+        todayProgressBody: 'Questo cerchio mostra quanto dell allenamento di oggi e stato completato.',
         recoveryTitle: 'Allenati con intelligenza',
         recoveryBody: 'Il recupero mostra quanto il tuo corpo e pronto prima della prossima sessione.',
         progressTitle: 'Guarda la tua crescita',
         progressBody: 'Monitora costanza, prestazioni e miglioramenti della forza da qui.',
+        rankTitle: 'Segui il tuo grado',
+        rankBody: 'Badge e RP mostrano il tuo livello attuale. Tocca qui per vedere progressi e ricompense.',
+        notificationsTitle: 'Controlla le notifiche',
+        notificationsBody: 'La campanella raccoglie aggiornamenti importanti, attivita degli amici, sfide e promemoria.',
+        friendsTitle: 'Allenati con i tuoi amici',
+        friendsBody: 'Apri Amici per connetterti con membri della palestra, confrontare i progressi e iniziare sfide.',
+        repyAiTitle: 'Chiedi a Repy AI',
+        repyAiBody: 'Usa Repy AI per un aiuto rapido di coaching e consigli intelligenti quando disponibile.',
+        shopTitle: 'Apri lo shop',
+        shopBody: 'Lo Shop raccogliera gear, offerte e futuri upgrade dell app.',
         nutritionTitle: 'Nutri i tuoi risultati',
         nutritionBody: 'Ricevi indicazioni su calorie e proteine in base al tuo obiettivo.',
         exercisesTitle: 'Impara ogni movimento',
         exercisesBody: 'Usa questa card per esplorare gli esercizi e vedere come eseguire correttamente ogni movimento.',
         booksTitle: 'Cresci con la conoscenza',
         booksBody: 'Questa card e dedicata a guide educative e libri che ti aiutano a capire meglio il tuo allenamento.',
+        myPlanTabTitle: 'Vai al mio piano',
+        myPlanTabBody: 'La Home e finita. Tocca Il Mio Piano nella barra app per continuare il tour sul tuo piano.',
+        myPlanTabAction: 'Apri il mio piano',
       },
       de: {
         next: 'Weiter',
@@ -1126,16 +1190,35 @@ export function Home({
           ? 'Wenn du noch keine Einheit gewahlt hast, tippe hier, um zu Mein Plan zu gehen und das heutige Workout auszuwahlen.'
           : 'Sobald die heutige Einheit gespeichert ist, tippe hier, um den vollstandigen Plan zu offnen und zu starten.',
         startHereAction: shouldChooseWorkoutToday ? 'Meinen Plan offnen' : 'Workout offnen',
+        todayActionTitle: shouldChooseWorkoutToday ? 'Aus meinem Plan wahlen' : 'Hier starten',
+        todayActionBody: shouldChooseWorkoutToday
+          ? 'Dieser Button bringt dich direkt zu Mein Plan, damit du das heutige Workout auswahlen kannst.'
+          : 'Dieser Button offnet dein gespeichertes Workout fur heute, damit du schnell starten kannst.',
+        todayProgressTitle: 'Heutiger Fortschritt',
+        todayProgressBody: 'Dieser Kreis zeigt, wie viel vom heutigen Workout abgeschlossen ist.',
         recoveryTitle: 'Smarter trainieren',
         recoveryBody: 'Die Erholung zeigt dir, wie bereit dein Korper vor der nachsten Einheit ist.',
         progressTitle: 'Sieh deinen Fortschritt',
         progressBody: 'Verfolge hier deine Konstanz, Leistung und Kraftentwicklung.',
+        rankTitle: 'Verfolge deinen Rang',
+        rankBody: 'Dein Badge und deine RP zeigen dein aktuelles Level. Tippe hier, um Rangfortschritt und Belohnungen zu sehen.',
+        notificationsTitle: 'Benachrichtigungen pruefen',
+        notificationsBody: 'Die Glocke sammelt wichtige Updates, Freundesaktivitaeten, Challenges und Erinnerungen.',
+        friendsTitle: 'Trainiere mit deinen Leuten',
+        friendsBody: 'Offne Freunde, um dich mit Gym-Mitgliedern zu verbinden, Fortschritte zu vergleichen und Challenges zu starten.',
+        repyAiTitle: 'Frag Repy AI',
+        repyAiBody: 'Nutze Repy AI fur schnelle Coaching-Hilfe und smarte Hinweise, sobald der Assistent verfugbar ist.',
+        shopTitle: 'Shop offnen',
+        shopBody: 'Im Shop findest du kunftig App-Gear, Angebote und Upgrades.',
         nutritionTitle: 'Unterstutze deine Ergebnisse',
         nutritionBody: 'Erhalte Kalorien- und Proteinempfehlungen passend zu deinem Ziel.',
         exercisesTitle: 'Lerne jede Bewegung',
         exercisesBody: 'Nutze diese Karte, um Ubungen zu durchsuchen und die richtige Ausfuhrung anzusehen.',
         booksTitle: 'Wissen ausbauen',
         booksBody: 'Diese Karte fuhrt zu Guides und Buchern, die dir helfen, dein Training besser zu verstehen.',
+        myPlanTabTitle: 'Zu Mein Plan',
+        myPlanTabBody: 'Home ist fertig. Tippe in der App-Leiste auf Mein Plan, um die Tour auf deinem Trainingsplan fortzusetzen.',
+        myPlanTabAction: 'Mein Plan offnen',
       },
       fr: {
         next: 'Suivant',
@@ -1146,16 +1229,35 @@ export function Home({
           ? 'Si tu n as pas encore choisi de seance, appuie ici pour ouvrir Mon Plan et selectionner l entrainement du jour.'
           : 'Une fois la seance du jour enregistree, appuie ici pour ouvrir le plan complet et commencer a t entrainer.',
         startHereAction: shouldChooseWorkoutToday ? 'Ouvrir Mon Plan' : 'Ouvrir l entrainement',
+        todayActionTitle: shouldChooseWorkoutToday ? 'Choisir depuis Mon Plan' : 'Commencer ici',
+        todayActionBody: shouldChooseWorkoutToday
+          ? 'Ce bouton t emmene directement vers Mon Plan pour selectionner l entrainement du jour.'
+          : 'Ce bouton ouvre l entrainement enregistre pour aujourd hui afin de demarrer vite.',
+        todayProgressTitle: 'Progression du jour',
+        todayProgressBody: 'Ce cercle montre la part de l entrainement du jour deja terminee.',
         recoveryTitle: 'Entraine-toi intelligemment',
         recoveryBody: 'La recuperation montre a quel point ton corps est pret avant la prochaine seance.',
         progressTitle: 'Observe ta progression',
         progressBody: 'Suis ici ta regularite, tes performances et tes progres en force.',
+        rankTitle: 'Suis ton rang',
+        rankBody: 'Ton badge et tes RP affichent ton niveau actuel. Appuie ici pour voir ta progression et tes recompenses.',
+        notificationsTitle: 'Consulte les notifications',
+        notificationsBody: 'La cloche garde les mises a jour importantes, activites d amis, defis et rappels a portee de main.',
+        friendsTitle: 'Entraine-toi avec ton cercle',
+        friendsBody: 'Ouvre Amis pour te connecter avec les membres de la salle, comparer les progres et lancer des defis.',
+        repyAiTitle: 'Demande a Repy AI',
+        repyAiBody: 'Utilise Repy AI pour une aide coaching rapide et des conseils intelligents quand l assistant est disponible.',
+        shopTitle: 'Ouvre la boutique',
+        shopBody: 'La Boutique accueillera les equipements, offres et futures ameliorations de l app.',
         nutritionTitle: 'Alimente tes resultats',
         nutritionBody: 'Recois des reperes de calories et de proteines adaptes a ton objectif.',
         exercisesTitle: 'Apprends chaque mouvement',
         exercisesBody: 'Utilise cette carte pour parcourir les exercices et voir comment bien executer chaque mouvement.',
         booksTitle: 'Developpe tes connaissances',
         booksBody: 'Cette carte te mene vers des guides et des livres pour mieux comprendre ton entrainement.',
+        myPlanTabTitle: 'Va vers Mon Plan',
+        myPlanTabBody: 'La Home est terminee. Appuie sur Mon Plan dans la barre app pour continuer la visite sur ton programme.',
+        myPlanTabAction: 'Ouvrir Mon Plan',
       },
     }),
     [language, shouldChooseWorkoutToday],
@@ -1170,17 +1272,38 @@ export function Home({
           ar: '\u0647\u0630\u0647 \u0628\u0637\u0627\u0642\u0629 \u0627\u0644\u0628\u062f\u0627\u064a\u0629',
           it: 'Questa e la tua intestazione home',
           de: 'Das ist dein Home-Header',
+          fr: 'Voici ton accueil',
         }),
         body: pickLanguage(language, {
           en: 'This top card is the start of your Home page and also opens your profile area.',
           ar: '\u0645\u0646 \u0647\u0646\u0627 \u062a\u0631\u0649 \u0635\u0641\u062d\u062a\u0643 \u0627\u0644\u0631\u0626\u064a\u0633\u064a\u0629 \u0628\u0633\u0631\u0639\u0629 \u0648\u064a\u0645\u0643\u0646\u0643 \u0641\u062a\u062d \u0645\u0644\u0641\u0643 \u0627\u0644\u0634\u062e\u0635\u064a \u0645\u0646 \u0627\u0644\u0623\u0639\u0644\u0649.',
           it: 'Questa card in alto e l\'inizio della tua Home e ti permette anche di aprire il profilo.',
           de: 'Diese obere Karte ist der Start deiner Home-Seite und offnet auch deinen Profilbereich.',
+          fr: 'Cette carte lance ta Home et ouvre aussi ton espace profil.',
         }),
         placement: 'bottom',
         shape: 'rounded',
         padding: 8,
         cornerRadius: 24,
+      },
+      {
+        id: 'rank',
+        targetId: 'home_rank_button',
+        title: coachmarkCopy.rankTitle,
+        body: coachmarkCopy.rankBody,
+        placement: 'bottom',
+        shape: 'rounded',
+        padding: 8,
+        cornerRadius: 16,
+      },
+      {
+        id: 'notifications',
+        targetId: 'home_notifications_button',
+        title: coachmarkCopy.notificationsTitle,
+        body: coachmarkCopy.notificationsBody,
+        placement: 'bottom',
+        shape: 'circle',
+        padding: 8,
       },
       {
         id: 'today_gradient',
@@ -1213,6 +1336,34 @@ export function Home({
         cornerRadius: 24,
       },
       {
+        id: 'today_action',
+        targetId: 'home_today_plan_action',
+        title: coachmarkCopy.todayActionTitle,
+        body: coachmarkCopy.todayActionBody,
+        placement: 'top',
+        shape: 'pill',
+        padding: 8,
+      },
+      {
+        id: 'today_progress',
+        targetId: 'home_today_plan_progress',
+        title: coachmarkCopy.todayProgressTitle,
+        body: coachmarkCopy.todayProgressBody,
+        placement: 'top',
+        shape: 'circle',
+        padding: 8,
+      },
+      {
+        id: 'friends',
+        targetId: 'home_friends_card',
+        title: coachmarkCopy.friendsTitle,
+        body: coachmarkCopy.friendsBody,
+        placement: 'top',
+        shape: 'rounded',
+        padding: 8,
+        cornerRadius: 22,
+      },
+      {
         id: 'recovery',
         targetId: 'home_recovery_card',
         title: coachmarkCopy.recoveryTitle,
@@ -1223,10 +1374,20 @@ export function Home({
         cornerRadius: 24,
       },
       {
-        id: 'nutrition',
-        targetId: 'home_nutrition_card',
-        title: coachmarkCopy.nutritionTitle,
-        body: coachmarkCopy.nutritionBody,
+        id: 'repy_ai',
+        targetId: 'home_repy_ai_card',
+        title: coachmarkCopy.repyAiTitle,
+        body: coachmarkCopy.repyAiBody,
+        placement: 'top',
+        shape: 'rounded',
+        padding: 8,
+        cornerRadius: 20,
+      },
+      {
+        id: 'shop',
+        targetId: 'home_shop_card',
+        title: coachmarkCopy.shopTitle,
+        body: coachmarkCopy.shopBody,
         placement: 'top',
         shape: 'rounded',
         padding: 8,
@@ -1241,6 +1402,26 @@ export function Home({
         shape: 'rounded',
         padding: 8,
         cornerRadius: 20,
+      },
+      {
+        id: 'nutrition',
+        targetId: 'home_nutrition_card',
+        title: coachmarkCopy.nutritionTitle,
+        body: coachmarkCopy.nutritionBody,
+        placement: 'top',
+        shape: 'rounded',
+        padding: 8,
+        cornerRadius: 20,
+      },
+      {
+        id: 'my_plan_tab',
+        targetId: 'nav_workout',
+        title: coachmarkCopy.myPlanTabTitle,
+        body: coachmarkCopy.myPlanTabBody,
+        placement: 'top',
+        shape: 'pill',
+        padding: 8,
+        targetActionLabel: coachmarkCopy.myPlanTabAction,
       },
     ],
     [coachmarkCopy, language],
@@ -1338,6 +1519,11 @@ export function Home({
 
     closeCoachmarks();
     if (guidedTourActive) onGuidedTourDismiss?.();
+  };
+
+  const handleCoachmarkTargetAction = () => {
+    if (activeCoachmarkStep?.id !== 'my_plan_tab') return;
+    handleCoachmarkFinish();
   };
 
   useEffect(() => {
@@ -2031,6 +2217,7 @@ export function Home({
             <div className="flex shrink-0 items-center gap-2">
               <button
                 type="button"
+                data-coachmark-target="home_rank_button"
                 onClick={(event) => {
                   event.stopPropagation();
                   setView('rank');
@@ -2049,6 +2236,7 @@ export function Home({
               <button
                 type="button"
                 aria-label="Notifications"
+                data-coachmark-target="home_notifications_button"
                 onClick={(event) => {
                   event.stopPropagation();
                   setView('notifications');
@@ -2075,6 +2263,8 @@ export function Home({
             <WorkoutCard
               coachmarkTargetId="home_today_plan_card"
               coachmarkGradientTargetId="home_today_plan_gradient"
+              coachmarkActionTargetId="home_today_plan_action"
+              coachmarkProgressTargetId="home_today_plan_progress"
               title={workoutCardTitleDisplay}
               workoutType={todayWorkoutData?.workout_type || ''}
               estimatedDurationMinutes={todayWorkoutData?.estimated_duration_minutes ?? null}
@@ -2095,6 +2285,7 @@ export function Home({
         <ScreenSection index={2}>
           <button
             type="button"
+            data-coachmark-target="home_friends_card"
             onClick={() => setView('friends')}
             className="group relative min-h-[96px] w-full overflow-hidden rounded-[22px] border border-white/10 bg-[#080d14] p-3.5 text-left shadow-[0_18px_40px_-28px_rgba(0,0,0,0.9)] ring-1 ring-inset ring-white/[0.03] transition-all duration-300 hover:-translate-y-1 hover:border-accent/25 active:scale-[0.985] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
           >
@@ -2140,8 +2331,18 @@ export function Home({
               {homeCopy.quickActions}
             </h2>
             <div className="grid grid-cols-2 gap-2">
-              <HomeQuickActionButton label={homeCopy.repyAi} Icon={Bot} onClick={() => setIsComingSoonOpen(true)} />
-              <HomeQuickActionButton label={homeCopy.shop} Icon={ShoppingBag} onClick={() => setView('shop')} />
+              <HomeQuickActionButton
+                label={homeCopy.repyAi}
+                Icon={Bot}
+                onClick={() => setIsComingSoonOpen(true)}
+                coachmarkTargetId="home_repy_ai_card"
+              />
+              <HomeQuickActionButton
+                label={homeCopy.shop}
+                Icon={ShoppingBag}
+                onClick={() => setView('shop')}
+                coachmarkTargetId="home_shop_card"
+              />
               <HomeQuickActionButton
                 label={homeCopy.library}
                 Icon={BookOpen}
@@ -2170,7 +2371,7 @@ export function Home({
       onNext={handleCoachmarkNext}
       onFinish={handleCoachmarkFinish}
       onSkip={handleCoachmarkSkip}
-      onTargetAction={null}
+      onTargetAction={activeCoachmarkStep?.id === 'my_plan_tab' ? handleCoachmarkTargetAction : null}
     />
     {isComingSoonOpen ? (
       <div

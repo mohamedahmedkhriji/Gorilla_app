@@ -33,6 +33,8 @@ interface WorkoutCardProps {
   isRestDay?: boolean;
   coachmarkTargetId?: string;
   coachmarkGradientTargetId?: string;
+  coachmarkActionTargetId?: string;
+  coachmarkProgressTargetId?: string;
   eyebrowLabel?: string;
   subtitleOverride?: string | null;
   detailLines?: string[];
@@ -391,6 +393,8 @@ export function WorkoutCard({
   isRestDay = false,
   coachmarkTargetId,
   coachmarkGradientTargetId,
+  coachmarkActionTargetId,
+  coachmarkProgressTargetId,
   eyebrowLabel,
   subtitleOverride,
   detailLines,
@@ -592,6 +596,7 @@ export function WorkoutCard({
           {!isResolvedRestDay && resolvedActionLabel && (
             <button
               type="button"
+              data-coachmark-target={coachmarkActionTargetId}
               className="mt-5 mx-auto flex w-fit items-center justify-center whitespace-nowrap rounded-full border border-accent/30 bg-accent/20 px-7 py-2.5 text-center text-[1rem] font-electrolize font-bold leading-none text-text-primary shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_8px_18px_rgba(0,0,0,0.18)]"
             >
               {resolvedActionLabel}
@@ -627,7 +632,10 @@ export function WorkoutCard({
               />
             </svg>
 
-            <div className="absolute inset-0 grid place-items-center px-3 text-center">
+            <div
+              className="absolute inset-0 grid place-items-center px-3 text-center"
+              data-coachmark-target={coachmarkProgressTargetId}
+            >
               <span
                 className={`max-w-full px-2 text-text-primary ${hasProgressDisplayLabel ? 'text-lg font-semibold uppercase tracking-[0.12em] leading-tight' : 'text-4xl leading-none font-electrolize'}`}
                 style={hasProgressDisplayLabel ? undefined : { fontSize: progressLabelSize }}
