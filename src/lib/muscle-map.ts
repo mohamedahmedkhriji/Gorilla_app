@@ -54,6 +54,7 @@ export function recoveryMuscleToBodyMapSlugs(value: unknown): BodyMapMuscle[] {
   if (key.includes('trap')) return ['trapezius'];
   if (key.includes('back') || key.includes('lat')) return ['trapezius', 'upper-back', 'lower-back'];
   if (key.includes('shoulder') || key.includes('delt')) return ['deltoids'];
+  if (key === 'arm' || key === 'arms') return ['biceps', 'triceps', 'forearm'];
   if (key.includes('tricep')) return ['triceps'];
   if (key.includes('bicep')) return ['biceps'];
   if (

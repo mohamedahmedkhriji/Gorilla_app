@@ -1185,7 +1185,7 @@ export function WorkoutOverviewScreen({
                         requestPickWorkoutForToday(workout.key);
                       }}
                       disabled={isCompleted || isLockedForSelection}
-                      className={`font-marker inline-flex min-w-[10.5rem] items-center justify-center rounded-full border px-4 py-2 text-xs font-semibold uppercase tracking-[0.12em] transition-colors ${
+                      className={`font-electrolize inline-flex min-w-[10.5rem] items-center justify-center rounded-full border px-4 py-2 text-xs font-semibold uppercase tracking-[0.12em] transition-colors ${
                         isCompleted
                           ? 'cursor-default border-emerald-500/25 bg-emerald-500/10 text-emerald-200'
                           : isLockedForSelection

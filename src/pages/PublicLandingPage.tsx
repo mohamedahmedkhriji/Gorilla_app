@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 
 import { AppLanguage, getActiveLanguage, getStoredLanguage, pickLanguage } from '../services/language';
 
@@ -61,28 +61,12 @@ const renderLogoStrip = (
   </div>
 );
 
-const renderPhantomLetters = (text: string) =>
-  Array.from(text).map((letter, index) => {
-    if (letter.trim() === '') {
-      return <span key={`space-${index}`} className="phantom-spacer" aria-hidden="true" />;
-    }
-
-    return (
-      <span
-        key={`${letter}-${index}`}
-        className={`phantom-note ${index % 2 === 0 ? 'phantom-note-light' : 'phantom-note-dark'}`}
-        style={{ '--i': index } as React.CSSProperties}
-        aria-hidden="true"
-      >
-        <span className="phantom-text">{letter}</span>
-      </span>
-    );
-  });
-
 export const PublicLandingPage: React.FC<PublicLandingPageProps> = ({ onGetStarted }) => {
   const [deferredPrompt, setDeferredPrompt] = useState<InstallPromptEvent | null>(null);
   const [isStandalone, setIsStandalone] = useState(false);
   const [language, setLanguage] = useState<AppLanguage>('en');
+  const [isStartPressed, setIsStartPressed] = useState(false);
+  const startTimerRef = useRef<number | null>(null);
 
   const copy = pickLanguage(language, {
     en: {
@@ -171,6 +155,14 @@ export const PublicLandingPage: React.FC<PublicLandingPageProps> = ({ onGetStart
     };
   }, []);
 
+  useEffect(() => {
+    return () => {
+      if (startTimerRef.current !== null) {
+        window.clearTimeout(startTimerRef.current);
+      }
+    };
+  }, []);
+
   const handleInstall = async () => {
     if (!deferredPrompt) {
       return;
@@ -179,6 +171,17 @@ export const PublicLandingPage: React.FC<PublicLandingPageProps> = ({ onGetStart
     await deferredPrompt.prompt();
     await deferredPrompt.userChoice;
     setDeferredPrompt(null);
+  };
+
+  const handleGetStarted = () => {
+    if (isStartPressed) {
+      return;
+    }
+
+    setIsStartPressed(true);
+    startTimerRef.current = window.setTimeout(() => {
+      onGetStarted();
+    }, 220);
   };
 
   return (
@@ -191,11 +194,11 @@ export const PublicLandingPage: React.FC<PublicLandingPageProps> = ({ onGetStart
     >
       <div className="relative z-10 min-h-screen px-4 sm:px-6 pt-[calc(env(safe-area-inset-top,0px)+0.9rem)] pb-[calc(env(safe-area-inset-bottom,0px)+0.9rem)] flex flex-col">
         <header className="mb-8 flex justify-center">
-          <h1 className="font-brand text-[2rem] leading-none text-white text-center">RepSet</h1>
+          <h1 className="font-brand text-[2.3rem] leading-none text-white text-center">RepSet</h1>
         </header>
 
         <section className="mt-10 sm:mt-12 mb-9">
-          <h2 className="font-display text-[2.7rem] sm:text-[3rem] leading-[0.92] tracking-[0.01em] max-w-[22rem]">
+          <h2 className="font-display text-[3rem] sm:text-[3.35rem] leading-[0.92] tracking-[0.01em] max-w-[24rem]">
             <span className="text-accent">{copy.titleAccent}</span> {copy.titleLine1}
             <span className="block">{copy.titleLine2} <span className="text-accent">{copy.titleYou}</span></span>
           </h2>
@@ -221,39 +224,22 @@ export const PublicLandingPage: React.FC<PublicLandingPageProps> = ({ onGetStart
             </button>
           ) : null}
 
-          <button type="button" onClick={onGetStarted} className="phantom-btn w-full" aria-label={copy.start}>
-            {Array.from({ length: 9 }, (_, index) => (
-              <span key={`trigger-${index}`} className={`phantom-trigger phantom-trigger-${index + 1}`} aria-hidden="true" />
-            ))}
-
-            <span className="phantom-wrapper">
-              <span className="phantom-shard phantom-shard-shadow" aria-hidden="true" />
-              <span className="phantom-shard phantom-shard-accent" aria-hidden="true" />
-              <span className="phantom-shard phantom-shard-face" aria-hidden="true" />
-              <span className="phantom-action-star" aria-hidden="true" />
-
-              <span className="phantom-content">
-                <span className="phantom-ransom-row" aria-hidden="true">
-                  {renderPhantomLetters(copy.start)}
-                </span>
-
-                <span className="phantom-card-socket" aria-hidden="true">
-                  <span className="phantom-calling-card">
-                    <span className="phantom-card-face phantom-card-front">
-                      <svg className="phantom-mask-icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                        <path d="M2 12C2 12 5 5 12 5C19 5 22 12 22 12C22 12 19 19 12 19C5 19 2 12 2 12Z" stroke="currentColor" strokeWidth="3" fill="rgb(var(--color-accent))" />
-                        <circle cx="12" cy="12" r="3" fill="currentColor" />
-                      </svg>
-                    </span>
-                    <span className="phantom-card-face phantom-card-back">
-                      <svg className="phantom-star-icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                        <path d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z" fill="rgb(var(--color-background))" stroke="currentColor" strokeWidth="2" />
-                      </svg>
-                    </span>
-                  </span>
-                </span>
-              </span>
-            </span>
+          <button
+            type="button"
+            onClick={handleGetStarted}
+            className={`animated-button w-full${isStartPressed ? ' is-starting' : ''}`}
+            aria-label={copy.start}
+            aria-busy={isStartPressed}
+            disabled={isStartPressed}
+          >
+            <svg viewBox="0 0 24 24" className="arr-2" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false">
+              <path d="M16.1716 10.9999L10.8076 5.63589L12.2218 4.22168L20 11.9999L12.2218 19.778L10.8076 18.3638L16.1716 12.9999H4V10.9999H16.1716Z" />
+            </svg>
+            <span className="text">{copy.start}</span>
+            <span className="circle" aria-hidden="true" />
+            <svg viewBox="0 0 24 24" className="arr-1" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false">
+              <path d="M16.1716 10.9999L10.8076 5.63589L12.2218 4.22168L20 11.9999L12.2218 19.778L10.8076 18.3638L16.1716 12.9999H4V10.9999H16.1716Z" />
+            </svg>
           </button>
           <p className="mt-3 text-center text-xs text-text-secondary">
             {copy.footer}

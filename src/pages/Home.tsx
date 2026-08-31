@@ -17,6 +17,7 @@ import { MuscleRecoveryScreen } from '../components/progress/MuscleRecoveryScree
 import { RankingsRewardsScreen } from '../components/profile/RankingsRewardsScreen';
 import { FriendChallengeScreen } from '../components/profile/FriendChallengeScreen';
 import { NotificationsScreen } from '../components/notifications/NotificationsScreen';
+import { HOME_CARD_TITLE_CLASS } from '../components/home/homeCardStyles';
 import { api } from '../services/api';
 import {
   getCoachmarkUserScope,
@@ -27,7 +28,7 @@ import {
   readCoachmarkProgress,
 } from '../services/coachmarks';
 import { getRankBadgeImage } from '../services/rankTheme';
-import { emojiFriends, emojiGymFriendsBg, emojiProfile, emojiShop } from '../services/emojiTheme';
+import { emojiGymFriendsBg, emojiProfile, emojiShop } from '../services/emojiTheme';
 import { AppLanguage, getActiveLanguage, pickLanguage } from '../services/language';
 import { formatWorkoutDayLabel, normalizeWorkoutDayKey } from '../services/workoutDayLabel';
 import {
@@ -338,7 +339,7 @@ function HomeQuickActionButton({ label, Icon, onClick, coachmarkTargetId }: Home
       <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-accent">
         <Icon size={22} strokeWidth={2.1} aria-hidden="true" />
       </span>
-      <span className="min-w-0 flex-1 truncate text-[15px] font-semibold text-text-primary">
+      <span className="min-w-0 flex-1 truncate text-[15px] font-electrolize font-semibold text-text-primary">
         {label}
       </span>
       <ChevronRight
@@ -2297,24 +2298,14 @@ export function Home({
             <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(205,255,88,0.14),transparent_30%),linear-gradient(180deg,rgba(7,11,17,0.28),rgba(7,11,17,0.74))]" aria-hidden="true" />
             <div className="absolute inset-x-4 top-0 h-px bg-gradient-to-r from-transparent via-white/25 to-transparent" aria-hidden="true" />
 
-            <div className="relative z-10 flex h-full items-center justify-between gap-4">
-              <div className="min-w-0">
+            <div className="relative z-10 flex h-full items-center justify-center">
+              <div className="min-w-0 text-center">
                 <div className="text-[11px] font-medium uppercase tracking-[0.16em] text-white/55">Community</div>
-                <div className="mt-1.5 text-[22px] font-semibold leading-none tracking-[-0.03em] text-white">
+                <div className={`mt-1.5 ${HOME_CARD_TITLE_CLASS}`}>
                   Friends
                 </div>
                 <div className="mt-1.5 text-xs font-medium text-text-secondary">
                   Connect with gym members
-                </div>
-              </div>
-
-              <div className="flex shrink-0 items-center gap-3">
-                <div className="flex h-11 w-11 items-center justify-center rounded-[16px] border border-accent/25 bg-accent/10 p-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]">
-                  <img src={emojiFriends} alt="" aria-hidden="true" className="h-7 w-7 object-contain" />
-                </div>
-                <div className="text-right">
-                  <div className="font-electrolize text-2xl leading-none text-white">Go</div>
-                  <div className="mt-1 text-[10px] uppercase tracking-[0.14em] text-accent/80">Open</div>
                 </div>
               </div>
             </div>

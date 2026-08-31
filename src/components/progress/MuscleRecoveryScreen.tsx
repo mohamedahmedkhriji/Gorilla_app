@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { Header } from '../ui/Header';
-import { SlidersHorizontal, ChevronDown, X } from 'lucide-react';
+import { SlidersHorizontal, ChevronDown, X, Zap } from 'lucide-react';
 import { api } from '../../services/api';
 import { AppLanguage, getActiveLanguage, getStoredLanguage, normalizeLocalizedValue } from '../../services/language';
 import BodyMap from '../BodyMap';
@@ -852,7 +852,11 @@ export function MuscleRecoveryScreen({ onBack }: MuscleRecoveryScreenProps) {
                   style={getRecoveryBatteryStyle(m.score)}
                   title={formatRecoveryTime(m.hoursRemaining)}
                   aria-label={formatRecoveryTime(m.hoursRemaining)}
-                />
+                >
+                  {m.score < 70 && (
+                    <Zap className="recovery-battery-flash" aria-hidden="true" />
+                  )}
+                </div>
                 <div className="min-w-0">
                   <h4 className="truncate font-semibold text-white">{toLocalizedMuscle(m.name)}</h4>
                   {showLastTrained && (

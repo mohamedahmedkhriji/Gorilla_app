@@ -38,7 +38,7 @@ export function LoginTransitionOverlay({ title, subtitle }: LoginTransitionOverl
           </div>
 
           <h2 className="mt-5 font-brand text-[2rem] leading-none text-white">RepSet</h2>
-          <p className="mt-3 font-marker text-2xl text-accent">{title}</p>
+          <p className="mt-2 text-sm leading-relaxed text-text-secondary">{title}</p>
           <p className="mt-2 text-sm leading-relaxed text-text-secondary">{subtitle}</p>
         </div>
       </div>
