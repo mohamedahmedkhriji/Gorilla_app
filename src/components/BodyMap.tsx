@@ -6,8 +6,12 @@ import {
   type BodyMapLevels,
   type BodyMapMuscle,
 } from '../lib/muscle-map';
-import { resolveBodyMapBody } from '../lib/body-map-body';
-import { getStoredAppUser } from '../shared/authStorage';
+import {
+  BODY_MAP_BODY_PREFERENCE_CHANGED_EVENT,
+  resolveBodyMapBody,
+  resolvePreferredBodyMapBody,
+} from '../lib/body-map-body';
+import { getStoredAppUser, STORED_USER_CHANGED_EVENT } from '../shared/authStorage';
 
 export type BodyPathView = {
   vb: string;
@@ -23,6 +27,8 @@ type BodyMapProps = {
   onMuscle?: (muscle: BodyMapMuscle) => void;
   selected?: BodyMapMuscle | null;
 };
+
+const getStoredBodyMapBody = () => resolvePreferredBodyMapBody(getStoredAppUser()?.gender);
 
 let cache: BodyPaths | null = null;
 let pending: Promise<BodyPaths> | null = null;
@@ -89,10 +95,29 @@ export default function BodyMap({
   selected = null,
 }: BodyMapProps) {
   const paths = useBodyPaths();
-  const storedBody = resolveBodyMapBody(getStoredAppUser()?.gender);
+  const [storedBody, setStoredBody] = useState(() => getStoredBodyMapBody());
   const resolvedBody = body ? resolveBodyMapBody(body) : storedBody;
   const geometry = paths && (paths[resolvedBody] || paths.male);
   const tappableClass = onMuscle ? ' tappable' : '';
+
+  useEffect(() => {
+    if (body) return undefined;
+
+    const syncStoredBody = () => {
+      setStoredBody(getStoredBodyMapBody());
+    };
+
+    syncStoredBody();
+    window.addEventListener('storage', syncStoredBody);
+    window.addEventListener(STORED_USER_CHANGED_EVENT, syncStoredBody);
+    window.addEventListener(BODY_MAP_BODY_PREFERENCE_CHANGED_EVENT, syncStoredBody);
+
+    return () => {
+      window.removeEventListener('storage', syncStoredBody);
+      window.removeEventListener(STORED_USER_CHANGED_EVENT, syncStoredBody);
+      window.removeEventListener(BODY_MAP_BODY_PREFERENCE_CHANGED_EVENT, syncStoredBody);
+    };
+  }, [body]);
 
   return (
     <div className={`bodymap${tappableClass} ${className}`}>

@@ -434,10 +434,10 @@ export function App() {
         data-scroll-root
         className={`mx-auto min-h-[100dvh] w-full max-w-7xl pb-6 pt-4 ${
           activeTab === 'blogs'
-            ? `bg-background px-4 sm:px-6 ${isTabBarVisible ? 'pb-[calc(env(safe-area-inset-bottom,0px)+6rem)]' : 'pb-6'}`
+            ? `bg-background px-4 sm:px-6 ${isTabBarVisible ? 'pb-[calc(env(safe-area-inset-bottom,0px)+6.75rem)]' : 'pb-6'}`
             : activeTab === 'profile' || activeTab === 'workout'
-              ? `px-0 pt-0 ${isTabBarVisible ? 'pb-[calc(env(safe-area-inset-bottom,0px)+6rem)]' : 'pb-0'}`
-              : `px-4 sm:px-6 ${isTabBarVisible ? 'pb-[calc(env(safe-area-inset-bottom,0px)+6rem)]' : 'pb-6'}`
+              ? `px-0 pt-0 ${isTabBarVisible ? 'pb-[calc(env(safe-area-inset-bottom,0px)+6.75rem)]' : 'pb-0'}`
+              : `px-4 sm:px-6 ${isTabBarVisible ? 'pb-[calc(env(safe-area-inset-bottom,0px)+6.75rem)]' : 'pb-6'}`
         }`}
       >
         <ScreenTransition

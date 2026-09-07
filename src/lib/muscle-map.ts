@@ -50,7 +50,7 @@ const normalizeMuscleKey = (value: unknown) => String(value || '').trim().toLowe
 export function recoveryMuscleToBodyMapSlugs(value: unknown): BodyMapMuscle[] {
   const key = normalizeMuscleKey(value);
 
-  if (key.includes('chest')) return ['chest'];
+  if (key.includes('chest') || key.includes('pectoral') || key.includes('pectoralis') || key.includes('pec')) return ['chest'];
   if (key.includes('trap')) return ['trapezius'];
   if (key.includes('back') || key.includes('lat')) return ['trapezius', 'upper-back', 'lower-back'];
   if (key.includes('shoulder') || key.includes('delt')) return ['deltoids'];

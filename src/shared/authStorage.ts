@@ -9,6 +9,7 @@ const PRIMARY_USER_ID_STORAGE_KEY = 'appUserId';
 const LEGACY_USER_ID_STORAGE_KEYS = ['userId'] as const;
 const PRIMARY_USER_TOKEN_STORAGE_KEY = 'appAuthToken';
 const LEGACY_USER_TOKEN_STORAGE_KEYS = ['authToken'] as const;
+export const STORED_USER_CHANGED_EVENT = 'repset:stored-user-changed';
 
 const MAX_STORED_STRING_LENGTH = 32 * 1024;
 const QUOTA_RECOVERY_STORAGE_KEYS = [
@@ -75,6 +76,11 @@ const MINIMAL_USER_KEYS = new Set([
 ]);
 
 const hasWindow = () => typeof window !== 'undefined' && typeof window.localStorage !== 'undefined';
+
+const dispatchStoredUserChanged = () => {
+  if (typeof window === 'undefined') return;
+  window.dispatchEvent(new CustomEvent(STORED_USER_CHANGED_EVENT));
+};
 
 const toPositiveInteger = (value: unknown) => {
   const parsed = Number(value);
@@ -278,6 +284,7 @@ export const persistStoredUser = (user: StoredUser | null) => {
 
   const resolvedUserId = toPositiveInteger(user.id ?? user.userId);
   syncStoredUser(user, resolvedUserId);
+  dispatchStoredUserChanged();
 };
 
 export const persistStoredUserSession = ({
@@ -310,4 +317,5 @@ export const clearStoredUserSession = () => {
     PRIMARY_USER_TOKEN_STORAGE_KEY,
     ...LEGACY_USER_TOKEN_STORAGE_KEYS,
   ]);
+  dispatchStoredUserChanged();
 };

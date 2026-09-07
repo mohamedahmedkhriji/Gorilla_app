@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Home, Activity, Dumbbell, User, MessageCircle } from 'lucide-react';
-import { AnimatePresence, motion } from 'framer-motion';
+import { motion, useReducedMotion } from 'framer-motion';
 import { AppLanguage, LocalizedLanguageRecord, getActiveLanguage, getStoredLanguage } from '../../services/language';
 
 interface TabBarProps {
@@ -48,6 +48,12 @@ const TAB_LABELS: LocalizedLanguageRecord<Record<string, string>> = {
 
 export function TabBar({ activeTab, onTabChange }: TabBarProps) {
   const [language, setLanguage] = useState<AppLanguage>('en');
+  const [rowWidth, setRowWidth] = useState(0);
+  const [isIndicatorMoving, setIsIndicatorMoving] = useState(false);
+  const [movementDirection, setMovementDirection] = useState<1 | -1>(1);
+  const rowRef = useRef<HTMLDivElement | null>(null);
+  const previousActiveIndexRef = useRef(0);
+  const shouldReduceMotion = useReducedMotion();
 
   useEffect(() => {
     setLanguage(getActiveLanguage());
@@ -64,9 +70,30 @@ export function TabBar({ activeTab, onTabChange }: TabBarProps) {
     };
   }, []);
 
+  useEffect(() => {
+    const row = rowRef.current;
+    if (!row) return undefined;
+
+    const updateRowWidth = () => setRowWidth(row.getBoundingClientRect().width);
+    updateRowWidth();
+
+    const resizeObserver = new ResizeObserver(updateRowWidth);
+    resizeObserver.observe(row);
+    window.addEventListener('resize', updateRowWidth);
+    return () => {
+      resizeObserver.disconnect();
+      window.removeEventListener('resize', updateRowWidth);
+    };
+  }, []);
+
   const labels = TAB_LABELS[language] || TAB_LABELS.en;
 
-  const tabs = [
+  const tabs: Array<{
+    id: string;
+    icon: typeof Home;
+    label: string;
+    badgeCount?: number;
+  }> = useMemo(() => [
     {
       id: 'home',
       icon: Home,
@@ -92,66 +119,108 @@ export function TabBar({ activeTab, onTabChange }: TabBarProps) {
       icon: User,
       label: labels.profile,
     },
-  ];
+  ], [labels]);
+
+  const activeIndex = Math.max(0, tabs.findIndex((tab) => tab.id === activeTab));
+  const tabGap = 4;
+  const tabWidth = rowWidth > 0 ? (rowWidth - tabGap * (tabs.length - 1)) / tabs.length : 0;
+  const indicatorOverflow = 4;
+  const indicatorWidth = Math.max(0, tabWidth + indicatorOverflow * 2);
+  const indicatorX = activeIndex * (tabWidth + tabGap) - indicatorOverflow;
+
+  useEffect(() => {
+    const previousActiveIndex = previousActiveIndexRef.current;
+    setMovementDirection(activeIndex >= previousActiveIndex ? 1 : -1);
+    previousActiveIndexRef.current = activeIndex;
+
+    if (shouldReduceMotion) return undefined;
+
+    setIsIndicatorMoving(true);
+    const settleTimer = window.setTimeout(() => setIsIndicatorMoving(false), 220);
+    return () => window.clearTimeout(settleTimer);
+  }, [activeIndex, shouldReduceMotion]);
 
   return (
     <div className="fixed inset-x-0 bottom-0 z-50 pointer-events-none">
       <div className="w-full pointer-events-auto">
         <div
           data-coachmark-target="nav_bar"
-          className="relative overflow-hidden border-t border-white/10 bg-[linear-gradient(180deg,rgba(12,20,44,0.92)_0%,rgba(9,15,35,0.98)_100%)] px-2.5 pt-3.5 pb-[calc(env(safe-area-inset-bottom,0px)+0.9rem)] backdrop-blur-2xl"
+          className="relative mx-2.5 mb-2 overflow-hidden rounded-[30px] border border-white/10 bg-[rgba(20,20,20,0.38)] px-1.5 py-1.5 shadow-[0_8px_30px_rgba(0,0,0,0.25)] backdrop-blur-[14px] backdrop-saturate-[145%] before:pointer-events-none before:absolute before:inset-0 before:rounded-[inherit] before:bg-gradient-to-b before:from-white/[0.10] before:via-white/[0.02] before:to-transparent before:content-[''] min-[390px]:mx-3.5 min-[390px]:rounded-[32px]"
+          style={{
+            paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 0.375rem)',
+            WebkitBackdropFilter: 'blur(14px) saturate(145%)',
+            backdropFilter: 'blur(14px) saturate(145%)',
+          }}
         >
-          <div className="absolute inset-x-8 top-0 h-px bg-gradient-to-r from-transparent via-white/20 to-transparent" />
-          <div className="absolute inset-x-0 bottom-0 h-px bg-gradient-to-r from-transparent via-white/10 to-transparent" />
-          <div className="mx-auto flex w-full max-w-3xl items-center justify-between gap-0.5 min-[390px]:gap-1.5">
+          <div ref={rowRef} className="relative mx-auto flex w-full max-w-3xl items-center justify-between gap-1">
+            {indicatorWidth > 0 ? (
+              <motion.div
+                layoutId="bottom-nav-glass-indicator"
+                className="pointer-events-none absolute bottom-[-3px] top-[-3px] z-0 overflow-hidden rounded-[30px] border border-white/[0.18] bg-white/[0.035] shadow-[0_8px_24px_rgba(0,0,0,0.22),inset_0_1px_0_rgba(255,255,255,0.16),inset_0_-1px_0_rgba(255,255,255,0.05)] backdrop-blur-[8px] backdrop-brightness-[1.08] backdrop-saturate-[165%] before:pointer-events-none before:absolute before:inset-[1px] before:rounded-[inherit] before:bg-gradient-to-br before:from-white/[0.14] before:via-white/[0.025] before:to-transparent before:content-['']"
+                animate={{
+                  x: indicatorX,
+                  scaleX: isIndicatorMoving && !shouldReduceMotion ? 1.1 : 1,
+                  scaleY: isIndicatorMoving && !shouldReduceMotion ? 0.985 : 1,
+                }}
+                initial={false}
+                transition={shouldReduceMotion ? { duration: 0 } : { type: 'spring', stiffness: 360, damping: 30, mass: 0.65 }}
+                style={{
+                  width: indicatorWidth,
+                  transformOrigin: movementDirection > 0 ? 'left center' : 'right center',
+                  WebkitBackdropFilter: 'blur(8px) saturate(165%) brightness(1.08)',
+                  backdropFilter: 'blur(8px) saturate(165%) brightness(1.08)',
+                }}
+              >
+                <div
+                  className="pointer-events-none absolute inset-[-1px] rounded-[inherit] opacity-40"
+                  style={{
+                    background: 'conic-gradient(from 145deg, rgba(82,236,255,0.25), rgba(255,255,255,0.10), rgba(255,217,77,0.18), rgba(255,92,214,0.14), rgba(82,236,255,0.22))',
+                    WebkitMask: 'linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0)',
+                    WebkitMaskComposite: 'xor',
+                    maskComposite: 'exclude',
+                    padding: 1,
+                  }}
+                />
+              </motion.div>
+            ) : null}
             {tabs.map((tab) => {
               const Icon = tab.icon;
               const isActive = activeTab === tab.id;
+              const badgeLabel = typeof tab.badgeCount === 'number' && tab.badgeCount > 9
+                ? '9+'
+                : tab.badgeCount;
 
               return (
                 <motion.button
                   key={tab.id}
-                  layout
                   onClick={() => onTabChange(tab.id)}
                   whileTap={{ scale: 0.97 }}
                   data-coachmark-target={`nav_${tab.id}`}
                   aria-label={tab.label}
-                  transition={{ layout: { type: 'spring', stiffness: 430, damping: 34, mass: 0.85 } }}
-                  className={`relative flex h-[3.55rem] shrink-0 items-center justify-center overflow-hidden rounded-full ${
-                    isActive ? 'min-w-0 px-2.5 min-[390px]:px-4' : 'w-11 min-[390px]:w-[3.4rem]'
-                  }`}
+                  tabIndex={0}
+                  className="relative z-10 flex h-[62px] min-w-0 flex-1 flex-col items-center justify-center gap-[3px] overflow-hidden rounded-[24px] px-0.5"
                 >
-                  {isActive && (
-                    <motion.div
-                      layoutId="activeTabPill"
-                      transition={{ type: 'spring', stiffness: 520, damping: 38, mass: 0.82 }}
-                      className="absolute inset-0 rounded-full border border-white/20 bg-[linear-gradient(180deg,rgba(255,255,255,0.18)_0%,rgba(124,153,255,0.12)_42%,rgba(92,225,230,0.09)_100%)] backdrop-blur-xl"
-                    />
-                  )}
-
-                  <div className="relative z-10 flex min-w-0 items-center justify-center gap-1.5 whitespace-nowrap min-[390px]:gap-2.5">
+                  <div className="relative z-10 flex items-center justify-center">
                     <Icon
-                      size={19}
-                      strokeWidth={isActive ? 2.25 : 1.9}
+                      size={21}
+                      strokeWidth={isActive ? 2.2 : 1.9}
                       className={`transition-[color,transform] duration-300 ${
-                        isActive ? 'text-accent' : 'text-text-tertiary'
+                        isActive ? 'scale-[1.05] text-accent' : 'scale-100 text-white/60'
                       }`}
                     />
-                    <AnimatePresence initial={false}>
-                      {isActive ? (
-                        <motion.span
-                          key={`${tab.id}-label`}
-                          initial={{ opacity: 0, width: 0, x: -8 }}
-                          animate={{ opacity: 1, width: 'auto', x: 0 }}
-                          exit={{ opacity: 0, width: 0, x: -8 }}
-                          transition={{ duration: 0.22, ease: 'easeOut' }}
-                          className="max-w-[4.6rem] overflow-hidden text-ellipsis text-[0.72rem] font-semibold text-text-primary min-[390px]:max-w-none min-[390px]:text-[0.82rem]"
-                        >
-                          {tab.label}
-                        </motion.span>
-                      ) : null}
-                    </AnimatePresence>
+                    {tab.badgeCount ? (
+                      <span className="absolute -right-2 -top-1 flex h-[17px] min-w-[17px] items-center justify-center rounded-full bg-accent px-1 text-[9px] font-bold leading-none text-black">
+                        {badgeLabel}
+                      </span>
+                    ) : null}
                   </div>
+                  <span
+                    className={`relative z-10 max-w-full whitespace-nowrap text-[9px] font-semibold leading-none transition-colors duration-200 min-[370px]:text-[10px] min-[430px]:text-[11px] ${
+                      isActive ? 'text-white' : 'text-white/50'
+                    }`}
+                  >
+                    {tab.label}
+                  </span>
                 </motion.button>
               );
             })}

@@ -7,8 +7,13 @@ import { api } from '../../services/api';
 import {
   resetAllCoachmarkProgress,
 } from '../../services/coachmarks';
-import { persistStoredUser } from '../../shared/authStorage';
+import { getStoredAppUser, persistStoredUser } from '../../shared/authStorage';
 import { useScrollToTopOnChange } from '../../shared/scroll';
+import {
+  resolvePreferredBodyMapBody,
+  setStoredBodyMapBodyPreference,
+  type BodyMapBody,
+} from '../../lib/body-map-body';
 interface SettingsScreenProps {
   onBack: () => void;
   onOpenGym?: () => void;
@@ -42,6 +47,8 @@ const SETTINGS_I18N = {
     personalDetails: 'Personal Details',
     privacyAndSecurity: 'Privacy & Security',
     preferences: 'Preferences',
+    bodyVisual: 'Body Visual',
+    bodyVisualDetail: 'Controls the body map shown in muscle cards and recovery views.',
     notifications: 'Notifications',
     notificationControls: 'Notification Controls',
     coachMessages: 'Coach Messages',
@@ -179,6 +186,8 @@ const SETTINGS_I18N = {
     personalDetails: 'Dati personali',
     privacyAndSecurity: 'Privacy e sicurezza',
     preferences: 'Preferenze',
+    bodyVisual: 'Visuale corpo',
+    bodyVisualDetail: 'Controlla il corpo mostrato nelle schede muscolari e nel recupero.',
     notifications: 'Notifiche',
     notificationControls: 'Controlli notifiche',
     coachMessages: 'Messaggi del coach',
@@ -316,6 +325,8 @@ const SETTINGS_I18N = {
     personalDetails: 'البيانات الشخصية',
     privacyAndSecurity: 'الخصوصية والأمان',
     preferences: 'التفضيلات',
+    bodyVisual: 'شكل الجسم',
+    bodyVisualDetail: 'يتحكم في خريطة الجسم داخل بطاقات العضلات وشاشات الاستشفاء.',
     notifications: 'الإشعارات',
     notificationControls: 'إعدادات الإشعارات',
     coachMessages: 'رسائل المدرب',
@@ -458,6 +469,8 @@ const SETTINGS_I18N_WITH_DE = {
     personalDetails: 'Personliche Daten',
     privacyAndSecurity: 'Datenschutz & Sicherheit',
     preferences: 'Einstellungen',
+    bodyVisual: 'Korperansicht',
+    bodyVisualDetail: 'Steuert die Korperkarte in Muskelkarten und Erholungsansichten.',
     notifications: 'Benachrichtigungen',
     notificationControls: 'Benachrichtigungssteuerung',
     coachMessages: 'Coach-Nachrichten',
@@ -594,6 +607,8 @@ const SETTINGS_I18N_WITH_DE = {
     personalDetails: 'Informations personnelles',
     privacyAndSecurity: 'Confidentialite et securite',
     preferences: 'Preferences',
+    bodyVisual: 'Vue du corps',
+    bodyVisualDetail: 'Controle le corps affiche dans les cartes musculaires et la recuperation.',
     notifications: 'Notifications',
     notificationControls: 'Controle des notifications',
     coachMessages: 'Messages du coach',
@@ -796,6 +811,7 @@ export function SettingsScreen({ onBack, onOpenGym, onOpenHomeTour }: SettingsSc
   });
   const [loadingNotificationSettings, setLoadingNotificationSettings] = useState(false);
   const [notificationSettingsError, setNotificationSettingsError] = useState('');
+  const [bodyMapBody, setBodyMapBody] = useState<BodyMapBody>('male');
   const copy = normalizeLocalizedValue(SETTINGS_I18N_WITH_DE[language] || SETTINGS_I18N_WITH_DE.en);
   const languageActiveClass = 'bg-white/10 border-accent text-white';
   const languageInactiveClass = 'bg-background border-white/10 text-text-secondary hover:bg-white/5';
@@ -805,6 +821,7 @@ export function SettingsScreen({ onBack, onOpenGym, onOpenHomeTour }: SettingsSc
   useEffect(() => {
     setTheme(getActiveTheme());
     setLanguage(getActiveLanguage());
+    setBodyMapBody(resolvePreferredBodyMapBody(getStoredAppUser()?.gender));
 
     const onThemeChanged = () => {
       setTheme(getStoredTheme());
@@ -834,6 +851,11 @@ export function SettingsScreen({ onBack, onOpenGym, onOpenHomeTour }: SettingsSc
   const handleLanguageChange = (nextLanguage: AppLanguage) => {
     applyLanguage(nextLanguage, true);
     setLanguage(nextLanguage);
+  };
+
+  const handleBodyMapBodyChange = (nextBody: BodyMapBody) => {
+    setStoredBodyMapBodyPreference(nextBody);
+    setBodyMapBody(nextBody);
   };
 
   useEffect(() => {
@@ -1302,6 +1324,43 @@ export function SettingsScreen({ onBack, onOpenGym, onOpenHomeTour }: SettingsSc
             </div>
           </div>
         )}
+
+        <div className="space-y-3">
+          <h3 className="text-sm font-medium text-text-secondary uppercase tracking-wider px-2">
+            {copy.bodyVisual}
+          </h3>
+          <div className="bg-card rounded-2xl border border-white/5 p-4">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+              <div className="min-w-0">
+                <div className="font-medium text-white">{copy.bodyVisual}</div>
+                <div className="mt-1 text-xs text-text-secondary">{copy.bodyVisualDetail}</div>
+              </div>
+              <div className="grid w-full shrink-0 grid-cols-2 overflow-hidden rounded-xl border border-white/10 bg-background p-1 sm:w-auto">
+                {[
+                  { body: 'male', label: copy.man },
+                  { body: 'female', label: copy.woman },
+                ].map((option) => {
+                  const isActive = bodyMapBody === option.body;
+                  return (
+                    <button
+                      key={option.body}
+                      type="button"
+                      onClick={() => handleBodyMapBodyChange(option.body as BodyMapBody)}
+                      aria-pressed={isActive}
+                      className={`min-w-[74px] rounded-lg px-3 py-2 text-xs font-semibold transition-colors ${
+                        isActive
+                          ? 'bg-accent text-black shadow-[0_0_18px_rgba(var(--color-accent),0.25)]'
+                          : 'text-text-secondary hover:bg-white/5 hover:text-white'
+                      }`}
+                    >
+                      {option.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        </div>
 
         <div className="space-y-3">
           <h3 className="text-sm font-medium text-text-secondary uppercase tracking-wider px-2">

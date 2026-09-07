@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import { useBodyPaths, type BodyPathView } from '../BodyMap';
 import {
   BODY_MAP_INERT,
@@ -5,8 +6,13 @@ import {
   type BodyMapMuscle,
   recoveryMuscleToBodyMapSlugs,
 } from '../../lib/muscle-map';
-import { resolveBodyMapBody, type BodyMapBody } from '../../lib/body-map-body';
-import { getStoredAppUser } from '../../shared/authStorage';
+import {
+  BODY_MAP_BODY_PREFERENCE_CHANGED_EVENT,
+  resolveBodyMapBody,
+  resolvePreferredBodyMapBody,
+  type BodyMapBody,
+} from '../../lib/body-map-body';
+import { getStoredAppUser, STORED_USER_CHANGED_EVENT } from '../../shared/authStorage';
 
 export type MuscleThumbnail = {
   label: string;
@@ -23,6 +29,8 @@ const getLabelAlignClass = (align: MuscleSvgBadgeAlign) => {
 
 const countMusclePaths = (view: BodyPathView, slugs: BodyMapMuscle[]) =>
   slugs.reduce((total, slug) => total + (view.p[slug] || []).length, 0);
+
+const getStoredBodyMapBody = () => resolvePreferredBodyMapBody(getStoredAppUser()?.gender);
 
 const getMuscleBadgeViewBox = (view: BodyPathView, slugs: BodyMapMuscle[]) => {
   const [baseX, baseY, baseWidth] = view.vb.split(/\s+/).map(Number);
@@ -52,6 +60,7 @@ export function MuscleSvgBadge({
   figureClassName = 'h-[72px]',
   showLabel = true,
   body,
+  variant = 'card',
 }: {
   muscle: MuscleThumbnail;
   align?: MuscleSvgBadgeAlign;
@@ -59,16 +68,44 @@ export function MuscleSvgBadge({
   figureClassName?: string;
   showLabel?: boolean;
   body?: BodyMapBody | string;
+  variant?: 'card' | 'bare';
 }) {
   const paths = useBodyPaths();
+  const [storedBody, setStoredBody] = useState<BodyMapBody>(() => getStoredBodyMapBody());
   const slugs = recoveryMuscleToBodyMapSlugs(muscle.sourceName);
-  const resolvedBody = body ? resolveBodyMapBody(body) : resolveBodyMapBody(getStoredAppUser()?.gender);
+  const resolvedBody = body ? resolveBodyMapBody(body) : storedBody;
   const geometry = paths?.[resolvedBody] || paths?.male;
+
+  useEffect(() => {
+    if (body) return undefined;
+
+    const syncStoredBody = () => {
+      setStoredBody(getStoredBodyMapBody());
+    };
+
+    syncStoredBody();
+    window.addEventListener('storage', syncStoredBody);
+    window.addEventListener(STORED_USER_CHANGED_EVENT, syncStoredBody);
+    window.addEventListener(BODY_MAP_BODY_PREFERENCE_CHANGED_EVENT, syncStoredBody);
+
+    return () => {
+      window.removeEventListener('storage', syncStoredBody);
+      window.removeEventListener(STORED_USER_CHANGED_EVENT, syncStoredBody);
+      window.removeEventListener(BODY_MAP_BODY_PREFERENCE_CHANGED_EVENT, syncStoredBody);
+    };
+  }, [body]);
+
+  const shellClassName = variant === 'bare'
+    ? `${className} overflow-hidden`
+    : `${className} overflow-hidden rounded-2xl border border-white/10 bg-white/[0.035] p-2`;
+  const figureShellClassName = variant === 'bare'
+    ? 'h-full w-full overflow-hidden bg-background/70'
+    : 'overflow-hidden rounded-xl border border-white/10 bg-background/70';
 
   if (!geometry || slugs.length === 0) {
     return (
       <div
-        className={`${className} overflow-hidden rounded-2xl border border-white/10 bg-white/[0.035] p-2`}
+        className={shellClassName}
         title={muscle.label}
         aria-label={muscle.label}
       >
@@ -89,12 +126,12 @@ export function MuscleSvgBadge({
 
   return (
     <div
-      className={`${className} overflow-hidden rounded-2xl border border-white/10 bg-white/[0.035] p-2`}
+      className={shellClassName}
       title={muscle.label}
       aria-label={muscle.label}
       role="img"
     >
-      <div className="overflow-hidden rounded-xl border border-white/10 bg-background/70">
+      <div className={figureShellClassName}>
         <svg className={`${figureClassName} w-full`} viewBox={getMuscleBadgeViewBox(view, slugs)} aria-hidden="true" focusable="false">
           {BODY_MAP_INERT.map((slug) => (view.p[slug] || []).map((d, index) => (
             <path

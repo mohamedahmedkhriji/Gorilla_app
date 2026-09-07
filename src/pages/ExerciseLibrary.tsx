@@ -4,7 +4,6 @@ import { Card } from '../components/ui/Card';
 import { Header } from '../components/ui/Header';
 import { MuscleSvgBadge } from '../components/workout/MuscleSvgBadge';
 import { api } from '../services/api';
-import { getBodyPartImage } from '../services/bodyPartTheme';
 import { listExerciseVideoAssets, resolveExerciseVideo } from '../services/exerciseVideos';
 import { AppLanguage, getActiveLanguage, getStoredLanguage, pickLanguage } from '../services/language';
 import { inferExerciseVideoBodyPart, normalizeExerciseVideoLookup } from '../shared/exerciseVideoManifest.js';
@@ -725,14 +724,6 @@ export function ExerciseLibrary({
 
       {selectedFilter === 'All' && !loading && (
         <div className="mb-8 space-y-6 px-4 sm:px-6">
-          <div className={isRtl ? 'space-y-2 text-right' : 'space-y-2'}>
-            <h2 className="text-[1.65rem] font-electrolize font-bold text-text-primary">
-              {copy.pageTitle}
-            </h2>
-            <p className="text-sm text-text-secondary">{copy.pageSubtitle}</p>
-            <p className="text-xs text-text-tertiary">{copy.pageHelper}</p>
-          </div>
-
           {groupedMuscleSections.map((section) => (
             <div key={section.id} className="space-y-3">
               <div className={isRtl ? 'flex items-center gap-3 text-right' : 'flex items-center gap-3'}>
@@ -821,6 +812,8 @@ export function ExerciseLibrary({
               const likeKey = `${exercise.muscle}:${exercise.videoAssetName}`;
               const likeData = likes[likeKey] || { count: 0, liked: false };
               const videoUrl = exercise.videoUrl;
+              const thumbnailMuscle = exercise.muscle || exercise.bodyPart || selectedFilter;
+              const thumbnailLabel = getMuscleLabel(bodyPartToMuscleLabel(thumbnailMuscle));
 
               return (
                 <Card
@@ -836,13 +829,13 @@ export function ExerciseLibrary({
                   className="group cursor-pointer overflow-hidden !p-0 transition-colors hover:border-accent/20"
                 >
                   <div className="relative flex aspect-[4/3] items-center justify-center overflow-hidden bg-white/5">
-                    <video
-                      src={videoUrl}
-                      poster={getBodyPartImage(exercise.muscle || exercise.bodyPart)}
-                      className="block h-full w-full bg-black object-cover"
-                      muted
-                      playsInline
-                      preload="metadata"
+                    <MuscleSvgBadge
+                      muscle={{ label: thumbnailLabel, sourceName: thumbnailMuscle }}
+                      align="center"
+                      className="h-full w-full"
+                      figureClassName="h-full"
+                      showLabel={false}
+                      variant="bare"
                     />
                     <div className="absolute inset-0 flex items-center justify-center bg-black/30">
                       <div className="flex h-8 w-8 items-center justify-center rounded-full bg-black/50 text-white transition-colors group-hover:bg-accent group-hover:text-black">
