@@ -32,6 +32,27 @@ type NotificationPreferenceKey =
   | 'shop'
   | 'subscription';
 
+const APP_STYLE_GENDER_STORAGE_KEY = 'appStyleGender';
+
+const normalizeStyleGender = (value: unknown): 'male' | 'female' => {
+  const normalized = String(value || '').trim().toLowerCase();
+  return normalized === 'woman' || normalized === 'female' || normalized === 'f' || normalized === 'girls' || normalized === 'femme'
+    ? 'female'
+    : 'male';
+};
+
+const getStoredAppStyleGender = () => {
+  if (typeof window === 'undefined') return normalizeStyleGender(getStoredAppUser()?.gender);
+  const saved = window.localStorage.getItem(APP_STYLE_GENDER_STORAGE_KEY);
+  return saved ? normalizeStyleGender(saved) : normalizeStyleGender(getStoredAppUser()?.gender);
+};
+
+const setStoredAppStyleGender = (gender: 'male' | 'female') => {
+  if (typeof window === 'undefined') return;
+  window.localStorage.setItem(APP_STYLE_GENDER_STORAGE_KEY, gender);
+  window.dispatchEvent(new CustomEvent('repset:app-style-gender-changed', { detail: { gender } }));
+};
+
 const NOTIFICATION_CATEGORY_LABELS: Record<AppLanguage, Record<Exclude<NotificationPreferenceKey, 'coachMessages' | 'restTimer' | 'missionChallenge'>, string>> = {
   en: { training: 'Training', social: 'Social', challenges: 'Challenges', gym: 'Gym', content: 'Books & Content', shop: 'Shop Promotions', subscription: 'Subscription Reminders' },
   fr: { training: 'Entrainement', social: 'Social', challenges: 'Defis', gym: 'Salle de sport', content: 'Livres et contenu', shop: 'Promotions boutique', subscription: "Rappels d'abonnement" },
@@ -55,6 +76,8 @@ const SETTINGS_I18N = {
     restBetweenSets: 'Rest Between Sets',
     missionChallengeComplete: 'Mission & Challenge Complete',
     theme: 'Theme',
+    appStyle: 'App Style',
+    appStyleDetail: 'Controls the Man/Woman visual theme used around the app.',
     language: 'Language',
     english: 'English',
     italian: 'Italian',
@@ -194,6 +217,8 @@ const SETTINGS_I18N = {
     restBetweenSets: 'Recupero tra le serie',
     missionChallengeComplete: 'Missioni e sfide completate',
     theme: 'Tema',
+    appStyle: 'Stile app',
+    appStyleDetail: 'Controlla il tema visivo Uomo/Donna usato nell app.',
     language: 'Lingua',
     english: 'Inglese',
     italian: 'Italiano',
@@ -333,6 +358,8 @@ const SETTINGS_I18N = {
     restBetweenSets: 'الراحة بين الجولات',
     missionChallengeComplete: 'إكمال المهام والتحديات',
     theme: 'المظهر',
+    appStyle: 'نمط التطبيق',
+    appStyleDetail: 'يتحكم في مظهر الرجل/المرأة داخل التطبيق.',
     language: 'اللغة',
     english: 'الإنجليزية',
     italian: 'الإيطالية',
@@ -477,6 +504,8 @@ const SETTINGS_I18N_WITH_DE = {
     restBetweenSets: 'Pause zwischen den Satzen',
     missionChallengeComplete: 'Missionen & Challenges abgeschlossen',
     theme: 'Design',
+    appStyle: 'App-Stil',
+    appStyleDetail: 'Steuert den Mann/Frau-Look in der App.',
     language: 'Sprache',
     english: 'Englisch',
     italian: 'Italienisch',
@@ -615,6 +644,8 @@ const SETTINGS_I18N_WITH_DE = {
     restBetweenSets: 'Repos entre les series',
     missionChallengeComplete: 'Missions et defis termines',
     theme: 'Theme',
+    appStyle: 'Style de l app',
+    appStyleDetail: 'Controle le theme visuel Homme/Femme utilise dans l app.',
     language: 'Langue',
     english: 'Anglais',
     italian: 'Italien',
@@ -766,6 +797,7 @@ const PRIVACY_POLICY_DOCUMENT = {
 
 export function SettingsScreen({ onBack, onOpenGym, onOpenHomeTour }: SettingsScreenProps) {
   const [theme, setTheme] = useState<'dark' | 'light'>('dark');
+  const [appStyleGender, setAppStyleGender] = useState<'male' | 'female'>('male');
   const [language, setLanguage] = useState<AppLanguage>('en');
   const [activePage, setActivePage] = useState<'settings' | 'privacy' | 'personal'>('settings');
   const [savingDetails, setSavingDetails] = useState(false);
@@ -813,15 +845,54 @@ export function SettingsScreen({ onBack, onOpenGym, onOpenHomeTour }: SettingsSc
   const [notificationSettingsError, setNotificationSettingsError] = useState('');
   const [bodyMapBody, setBodyMapBody] = useState<BodyMapBody>('male');
   const copy = normalizeLocalizedValue(SETTINGS_I18N_WITH_DE[language] || SETTINGS_I18N_WITH_DE.en);
-  const languageActiveClass = 'bg-white/10 border-accent text-white';
-  const languageInactiveClass = 'bg-background border-white/10 text-text-secondary hover:bg-white/5';
+  const isGirlsTheme = appStyleGender === 'female';
+  const pageClassName = isGirlsTheme
+    ? 'settings-screen--girls flex-1 flex flex-col min-h-screen pb-24 bg-[radial-gradient(circle_at_top_left,rgba(249,178,215,0.22),transparent_36%),linear-gradient(180deg,#FFF5F5_0%,#F7D6D0_58%,#FFF5F5_100%)] text-[#4A4A4A]'
+    : 'flex-1 flex flex-col bg-background min-h-screen pb-24';
+  const sectionTitleClassName = isGirlsTheme ? 'text-[#A87884]' : 'text-text-secondary';
+  const cardClassName = isGirlsTheme
+    ? 'border border-[#E2B4BD]/45 bg-[linear-gradient(135deg,rgba(255,255,255,0.86),rgba(255,245,245,0.76)_48%,rgba(207,236,243,0.30))] shadow-[0_14px_34px_rgba(226,180,189,0.16)] ring-1 ring-white/45'
+    : 'bg-card border border-white/5';
+  const listCardClassName = isGirlsTheme
+    ? 'border border-[#E2B4BD]/45 bg-white/72 shadow-[0_14px_34px_rgba(226,180,189,0.14)] ring-1 ring-white/40'
+    : 'bg-card border border-white/5';
+  const primaryTextClassName = isGirlsTheme ? 'text-[#4A4A4A]' : 'text-white';
+  const secondaryTextClassName = isGirlsTheme ? 'text-[#795E67]' : 'text-text-secondary';
+  const tertiaryTextClassName = isGirlsTheme ? 'text-[#A87884]' : 'text-text-tertiary';
+  const iconChipClassName = isGirlsTheme
+    ? 'border border-[#F9B2D7]/45 bg-[#F9B2D7]/18 text-[#A87884] shadow-[0_8px_18px_rgba(249,178,215,0.14)]'
+    : 'bg-blue-500/10 text-blue-500';
+  const personalInputClassName = isGirlsTheme
+    ? 'w-full border border-[#E2B4BD]/45 bg-white/70 px-3 py-2 text-sm text-[#4A4A4A] outline-none transition-colors placeholder:text-[#A87884] focus:border-[#F9B2D7]/75 focus:ring-2 focus:ring-[#F9B2D7]/20'
+    : 'w-full bg-background border border-white/10 px-3 py-2 text-white text-sm outline-none focus:border-accent/60';
+  const personalSelectClassName = isGirlsTheme
+    ? 'w-full appearance-none border border-[#E2B4BD]/45 bg-white/70 px-3 py-2.5 pr-9 text-sm text-[#4A4A4A] outline-none transition-colors focus:border-[#F9B2D7]/75 focus:ring-2 focus:ring-[#F9B2D7]/20'
+    : 'w-full appearance-none bg-background border border-white/10 px-3 py-2.5 pr-9 text-white text-sm outline-none focus:border-accent/60 focus:ring-2 focus:ring-accent/20 transition-colors';
+  const segmentedClassName = isGirlsTheme
+    ? 'border border-[#E2B4BD]/45 bg-white/65 shadow-inner'
+    : 'border border-white/10 bg-background';
+  const languageActiveClass = isGirlsTheme
+    ? 'bg-[#F9B2D7]/28 border-[#F9B2D7]/70 text-[#4A4A4A] shadow-[0_8px_18px_rgba(249,178,215,0.18)]'
+    : 'bg-white/10 border-accent text-white';
+  const languageInactiveClass = isGirlsTheme
+    ? 'bg-white/65 border-[#E2B4BD]/40 text-[#795E67] hover:border-[#F9B2D7]/65 hover:text-[#4A4A4A] hover:bg-white/80'
+    : 'bg-background border-white/10 text-text-secondary hover:bg-white/5';
+  const genderStyleOptions = [
+    { value: 'male' as const, label: copy.man },
+    { value: 'female' as const, label: copy.woman },
+  ];
 
   useScrollToTopOnChange([activePage]);
 
   useEffect(() => {
+    const resolveStoredGender = () => {
+      return getStoredAppStyleGender();
+    };
+
     setTheme(getActiveTheme());
     setLanguage(getActiveLanguage());
     setBodyMapBody(resolvePreferredBodyMapBody(getStoredAppUser()?.gender));
+    setAppStyleGender(resolveStoredGender());
 
     const onThemeChanged = () => {
       setTheme(getStoredTheme());
@@ -829,17 +900,28 @@ export function SettingsScreen({ onBack, onOpenGym, onOpenHomeTour }: SettingsSc
     const onLanguageChanged = () => {
       setLanguage(getStoredLanguage());
     };
+    const onStoredUserChanged = () => {
+      const nextGender = resolveStoredGender();
+      setAppStyleGender(nextGender);
+      setBodyMapBody(resolvePreferredBodyMapBody(nextGender));
+    };
 
     window.addEventListener('app-theme-changed', onThemeChanged);
     window.addEventListener('app-language-changed', onLanguageChanged);
+    window.addEventListener('repset:stored-user-changed', onStoredUserChanged);
+    window.addEventListener('repset:app-style-gender-changed', onStoredUserChanged);
     window.addEventListener('storage', onThemeChanged);
     window.addEventListener('storage', onLanguageChanged);
+    window.addEventListener('storage', onStoredUserChanged);
 
     return () => {
       window.removeEventListener('app-theme-changed', onThemeChanged);
       window.removeEventListener('app-language-changed', onLanguageChanged);
+      window.removeEventListener('repset:stored-user-changed', onStoredUserChanged);
+      window.removeEventListener('repset:app-style-gender-changed', onStoredUserChanged);
       window.removeEventListener('storage', onThemeChanged);
       window.removeEventListener('storage', onLanguageChanged);
+      window.removeEventListener('storage', onStoredUserChanged);
     };
   }, []);
 
@@ -856,6 +938,44 @@ export function SettingsScreen({ onBack, onOpenGym, onOpenHomeTour }: SettingsSc
   const handleBodyMapBodyChange = (nextBody: BodyMapBody) => {
     setStoredBodyMapBodyPreference(nextBody);
     setBodyMapBody(nextBody);
+  };
+
+  const handleAppStyleGenderChange = (nextGender: 'male' | 'female') => {
+    setAppStyleGender(nextGender);
+    setStoredAppStyleGender(nextGender);
+    setStoredBodyMapBodyPreference(nextGender);
+    setBodyMapBody(nextGender);
+    setPersonalDetails((prev) => ({ ...prev, gender: nextGender }));
+
+    const storedUser = getStoredAppUser() || {};
+    persistStoredUser({
+      ...storedUser,
+      gender: nextGender,
+    });
+
+    const userId = Number(storedUser?.id || storedUser?.userId || 0);
+    if (!userId) return;
+
+    void (async () => {
+      try {
+        const details = await api.getProfileDetails(userId);
+        await api.updateProfileDetails(userId, {
+          name: details?.name || storedUser?.name || '',
+          email: details?.email || storedUser?.email || '',
+          age: details?.age ?? null,
+          gender: nextGender,
+          heightCm: details?.heightCm ?? null,
+          weightKg: details?.weightKg ?? null,
+          primaryGoal: details?.primaryGoal || '',
+          fitnessGoal: details?.fitnessGoal || '',
+          experienceLevel: details?.experienceLevel || '',
+          sessionDuration: details?.sessionDuration ?? undefined,
+          preferredTime: details?.preferredTime || undefined,
+        });
+      } catch (error) {
+        console.warn('Failed to sync app style gender to profile:', error);
+      }
+    })();
   };
 
   useEffect(() => {
@@ -1012,47 +1132,47 @@ export function SettingsScreen({ onBack, onOpenGym, onOpenHomeTour }: SettingsSc
 
   if (activePage === 'privacy') {
     return (
-      <div className="flex-1 flex flex-col bg-background min-h-screen pb-24">
+      <div className={pageClassName}>
         <div className="px-4 sm:px-6 pt-2">
-          <Header title={copy.privacyAndSecurity} onBack={() => setActivePage('settings')} compact />
+          <Header title={copy.privacyAndSecurity} onBack={() => setActivePage('settings')} compact titleClassName={isGirlsTheme ? '!text-[#4A4A4A]' : undefined} />
         </div>
         <div className="px-4 sm:px-6 pb-8">
-          <article className="mx-auto max-w-3xl space-y-8 text-left">
+          <article className={`mx-auto max-w-3xl space-y-8 text-left ${isGirlsTheme ? 'rounded-[1.75rem] border border-[#E2B4BD]/45 bg-white/72 p-5 shadow-[0_18px_44px_rgba(226,180,189,0.16)] ring-1 ring-white/45 sm:p-7' : ''}`}>
             <header className="space-y-3">
-              <p className="text-sm font-medium uppercase tracking-[0.18em] text-accent/80">
+              <p className={`text-sm font-medium uppercase tracking-[0.18em] ${isGirlsTheme ? 'text-[#A87884]' : 'text-accent/80'}`}>
                 {PRIVACY_POLICY_DOCUMENT.appName}
               </p>
               <div className="space-y-2">
-                <h2 className="text-2xl font-semibold leading-tight text-text-primary sm:text-3xl">
+                <h2 className={`text-2xl font-semibold leading-tight sm:text-3xl ${primaryTextClassName}`}>
                   {PRIVACY_POLICY_DOCUMENT.title}
                 </h2>
-                <div className="flex flex-wrap gap-x-4 gap-y-2 text-xs uppercase tracking-[0.14em] text-text-tertiary sm:text-sm">
+                <div className={`flex flex-wrap gap-x-4 gap-y-2 text-xs uppercase tracking-[0.14em] sm:text-sm ${tertiaryTextClassName}`}>
                   {PRIVACY_POLICY_DOCUMENT.metadata.map((item) => (
-                    <span key={item}>{item}</span>
+                    <span key={item} className={isGirlsTheme ? 'rounded-full border border-[#E2B4BD]/35 bg-[#FFF5F5]/70 px-2.5 py-1' : ''}>{item}</span>
                   ))}
                 </div>
               </div>
             </header>
 
-            <section className="space-y-2">
-              <h3 className="text-sm font-semibold uppercase tracking-[0.14em] text-text-primary">
+            <section className={`space-y-2 ${isGirlsTheme ? 'rounded-2xl border border-[#F9B2D7]/35 bg-[#FFF5F5]/66 p-4' : ''}`}>
+              <h3 className={`text-sm font-semibold uppercase tracking-[0.14em] ${primaryTextClassName}`}>
                 Important notice
               </h3>
-              <p className="text-sm leading-7 text-text-secondary sm:text-base">
+              <p className={`text-sm leading-7 sm:text-base ${secondaryTextClassName}`}>
                 {PRIVACY_POLICY_DOCUMENT.importantNotice}
               </p>
             </section>
 
             {PRIVACY_POLICY_DOCUMENT.sections.map((section) => (
-              <section key={section.heading} className="space-y-3">
-                <h3 className="text-base font-semibold text-text-primary sm:text-lg">
+              <section key={section.heading} className={`space-y-3 ${isGirlsTheme ? 'rounded-2xl border border-[#E2B4BD]/35 bg-white/55 p-4 shadow-[0_10px_24px_rgba(226,180,189,0.10)]' : ''}`}>
+                <h3 className={`text-base font-semibold sm:text-lg ${primaryTextClassName}`}>
                   {section.heading}
                 </h3>
                 <ul className="space-y-3">
                   {section.points.map((point) => (
                     <li
                       key={point}
-                      className="text-sm leading-7 text-text-secondary break-words [overflow-wrap:anywhere] sm:text-base"
+                      className={`text-sm leading-7 break-words [overflow-wrap:anywhere] sm:text-base ${secondaryTextClassName}`}
                     >
                       {point}
                     </li>
@@ -1061,8 +1181,8 @@ export function SettingsScreen({ onBack, onOpenGym, onOpenHomeTour }: SettingsSc
               </section>
             ))}
 
-            <footer className="border-t border-white/10 pt-6">
-              <p className="text-sm leading-7 text-text-secondary sm:text-base">
+            <footer className={`border-t pt-6 ${isGirlsTheme ? 'border-[#E2B4BD]/35' : 'border-white/10'}`}>
+              <p className={`text-sm leading-7 sm:text-base ${secondaryTextClassName}`}>
                 {PRIVACY_POLICY_DOCUMENT.footer}
               </p>
             </footer>
@@ -1074,106 +1194,106 @@ export function SettingsScreen({ onBack, onOpenGym, onOpenHomeTour }: SettingsSc
 
   if (activePage === 'personal') {
     return (
-      <div className="flex-1 flex flex-col bg-background min-h-screen pb-24">
+      <div className={pageClassName}>
         <div className="px-4 sm:px-6 pt-2">
-          <Header title={copy.personalDetails} onBack={() => setActivePage('settings')} compact />
+          <Header title={copy.personalDetails} onBack={() => setActivePage('settings')} compact titleClassName={isGirlsTheme ? '!text-[#4A4A4A]' : undefined} />
         </div>
 
         <div className="px-4 sm:px-6 space-y-3">
-          <div className="bg-card rounded-2xl border border-white/5 p-4 space-y-3">
+          <div className={`rounded-2xl p-4 space-y-3 ${cardClassName}`}>
             <div>
-              <label className="block text-xs text-text-secondary mb-1">{copy.fullName}</label>
+              <label className={`block text-xs mb-1 ${secondaryTextClassName}`}>{copy.fullName}</label>
               <input
                 value={personalDetails.name}
                 onChange={(e) => setPersonalDetails((prev) => ({ ...prev, name: e.target.value }))}
-                className="w-full bg-background border border-white/10 rounded-lg px-3 py-2 text-white text-sm outline-none focus:border-accent/60"
+                className={`${personalInputClassName} rounded-lg`}
               />
             </div>
             <div>
-              <label className="block text-xs text-text-secondary mb-1">{copy.email}</label>
+              <label className={`block text-xs mb-1 ${secondaryTextClassName}`}>{copy.email}</label>
               <input
                 type="email"
                 value={personalDetails.email}
                 onChange={(e) => setPersonalDetails((prev) => ({ ...prev, email: e.target.value }))}
-                className="w-full bg-background border border-white/10 rounded-lg px-3 py-2 text-white text-sm outline-none focus:border-accent/60"
+                className={`${personalInputClassName} rounded-lg`}
               />
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="block text-xs text-text-secondary mb-1">{copy.age}</label>
+                <label className={`block text-xs mb-1 ${secondaryTextClassName}`}>{copy.age}</label>
                 <input
                   type="number"
                   value={personalDetails.age}
                   onChange={(e) => setPersonalDetails((prev) => ({ ...prev, age: e.target.value }))}
-                  className="w-full bg-background border border-white/10 rounded-lg px-3 py-2 text-white text-sm outline-none focus:border-accent/60"
+                  className={`${personalInputClassName} rounded-lg`}
                 />
               </div>
               <div>
-                <label className="block text-xs text-text-secondary mb-1">{copy.gender}</label>
+                <label className={`block text-xs mb-1 ${secondaryTextClassName}`}>{copy.gender}</label>
                 <div className="relative">
                   <select
                     value={personalDetails.gender}
                     onChange={(e) => setPersonalDetails((prev) => ({ ...prev, gender: e.target.value }))}
-                    className="w-full appearance-none bg-background border border-white/10 rounded-xl px-3 py-2.5 pr-9 text-white text-sm outline-none focus:border-accent/60 focus:ring-2 focus:ring-accent/20 transition-colors"
+                    className={`${personalSelectClassName} rounded-xl`}
                   >
                     <option value="">{copy.select}</option>
                     <option value="male">{copy.man}</option>
                     <option value="female">{copy.woman}</option>
                   </select>
-                  <ChevronDown size={16} className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-text-tertiary" />
+                  <ChevronDown size={16} className={`pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 ${tertiaryTextClassName}`} />
                 </div>
               </div>
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="block text-xs text-text-secondary mb-1">{copy.heightCm}</label>
+                <label className={`block text-xs mb-1 ${secondaryTextClassName}`}>{copy.heightCm}</label>
                 <input
                   type="number"
                   value={personalDetails.heightCm}
                   onChange={(e) => setPersonalDetails((prev) => ({ ...prev, heightCm: e.target.value }))}
-                  className="w-full bg-background border border-white/10 rounded-lg px-3 py-2 text-white text-sm outline-none focus:border-accent/60"
+                  className={`${personalInputClassName} rounded-lg`}
                 />
               </div>
               <div>
-                <label className="block text-xs text-text-secondary mb-1">{copy.weightKg}</label>
+                <label className={`block text-xs mb-1 ${secondaryTextClassName}`}>{copy.weightKg}</label>
                 <input
                   type="number"
                   value={personalDetails.weightKg}
                   onChange={(e) => setPersonalDetails((prev) => ({ ...prev, weightKg: e.target.value }))}
-                  className="w-full bg-background border border-white/10 rounded-lg px-3 py-2 text-white text-sm outline-none focus:border-accent/60"
+                  className={`${personalInputClassName} rounded-lg`}
                 />
               </div>
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="block text-xs text-text-secondary mb-1">{copy.sessionDuration}</label>
+                <label className={`block text-xs mb-1 ${secondaryTextClassName}`}>{copy.sessionDuration}</label>
                 <div className="relative">
                   <select
                     value={personalDetails.sessionDuration}
                     onChange={(e) => setPersonalDetails((prev) => ({ ...prev, sessionDuration: e.target.value }))}
-                    className="w-full appearance-none bg-background border border-white/10 rounded-xl px-3 py-2.5 pr-9 text-white text-sm outline-none focus:border-accent/60 focus:ring-2 focus:ring-accent/20 transition-colors"
+                    className={`${personalSelectClassName} rounded-xl`}
                   >
                     <option value="30">{copy.thirtyMinutes}</option>
                     <option value="45">{copy.fortyFiveMinutes}</option>
                     <option value="60">{copy.sixtyMinutes}</option>
                     <option value="90">{copy.ninetyMinutes}</option>
                   </select>
-                  <ChevronDown size={16} className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-text-tertiary" />
+                  <ChevronDown size={16} className={`pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 ${tertiaryTextClassName}`} />
                 </div>
               </div>
               <div>
-                <label className="block text-xs text-text-secondary mb-1">{copy.preferredTime}</label>
+                <label className={`block text-xs mb-1 ${secondaryTextClassName}`}>{copy.preferredTime}</label>
                 <div className="relative">
                   <select
                     value={personalDetails.preferredTime}
                     onChange={(e) => setPersonalDetails((prev) => ({ ...prev, preferredTime: e.target.value }))}
-                    className="w-full appearance-none bg-background border border-white/10 rounded-xl px-3 py-2.5 pr-9 text-white text-sm outline-none focus:border-accent/60 focus:ring-2 focus:ring-accent/20 transition-colors"
+                    className={`${personalSelectClassName} rounded-xl`}
                   >
                     <option value="morning">{copy.morningTime}</option>
                     <option value="afternoon">{copy.afternoonTime}</option>
                     <option value="evening">{copy.eveningTime}</option>
                   </select>
-                  <ChevronDown size={16} className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-text-tertiary" />
+                  <ChevronDown size={16} className={`pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 ${tertiaryTextClassName}`} />
                 </div>
               </div>
             </div>
@@ -1182,7 +1302,11 @@ export function SettingsScreen({ onBack, onOpenGym, onOpenHomeTour }: SettingsSc
               type="button"
               onClick={savePersonalDetails}
               disabled={savingDetails}
-              className="w-full rounded-xl bg-accent text-black font-semibold py-3 hover:bg-accent/90 transition-colors disabled:opacity-60"
+              className={`w-full rounded-xl font-semibold py-3 transition-colors disabled:opacity-60 ${
+                isGirlsTheme
+                  ? 'bg-[#F9B2D7] text-[#4A4A4A] shadow-[0_10px_22px_rgba(249,178,215,0.22)] hover:bg-[#E2B4BD]'
+                  : 'bg-accent text-black hover:bg-accent/90'
+              }`}
             >
               {savingDetails ? copy.saving : copy.saveChanges}
             </button>
@@ -1190,8 +1314,8 @@ export function SettingsScreen({ onBack, onOpenGym, onOpenHomeTour }: SettingsSc
             {detailsError ? <p className="text-xs text-red-400">{detailsError}</p> : null}
           </div>
 
-          <div className="bg-card rounded-2xl border border-white/5 p-4 space-y-3">
-            <h3 className="text-sm font-semibold text-white">{copy.changePassword}</h3>
+          <div className={`rounded-2xl p-4 space-y-3 ${cardClassName}`}>
+            <h3 className={`text-sm font-semibold ${primaryTextClassName}`}>{copy.changePassword}</h3>
             {(['oldPassword', 'newPassword', 'confirmPassword'] as const).map((fieldKey) => {
               const labelMap = {
                 oldPassword: copy.oldPassword,
@@ -1200,7 +1324,7 @@ export function SettingsScreen({ onBack, onOpenGym, onOpenHomeTour }: SettingsSc
               };
               return (
                 <div key={fieldKey}>
-                  <label className="block text-xs text-text-secondary mb-1">{labelMap[fieldKey]}</label>
+                  <label className={`block text-xs mb-1 ${secondaryTextClassName}`}>{labelMap[fieldKey]}</label>
                   <div className="relative">
                     <input
                       type={showPassword[fieldKey] ? 'text' : 'password'}
@@ -1211,12 +1335,12 @@ export function SettingsScreen({ onBack, onOpenGym, onOpenHomeTour }: SettingsSc
                       }
                       value={passwordFields[fieldKey]}
                       onChange={(e) => setPasswordFields((prev) => ({ ...prev, [fieldKey]: e.target.value }))}
-                      className="w-full bg-background border border-white/10 rounded-xl px-3 py-2.5 pr-10 text-white text-sm outline-none focus:border-accent/60"
+                      className={`${isGirlsTheme ? personalInputClassName.replace('py-2', 'py-2.5') : 'w-full bg-background border border-white/10 px-3 py-2.5 text-white text-sm outline-none focus:border-accent/60'} rounded-xl pr-10`}
                     />
                     <button
                       type="button"
                       onClick={() => setShowPassword((prev) => ({ ...prev, [fieldKey]: !prev[fieldKey] }))}
-                      className="absolute right-2 top-1/2 -translate-y-1/2 text-text-tertiary hover:text-text-primary"
+                      className={`absolute right-2 top-1/2 -translate-y-1/2 transition-colors ${isGirlsTheme ? 'text-[#A87884] hover:text-[#4A4A4A]' : 'text-text-tertiary hover:text-text-primary'}`}
                     >
                       {showPassword[fieldKey] ? <EyeOff size={16} /> : <Eye size={16} />}
                     </button>
@@ -1229,7 +1353,11 @@ export function SettingsScreen({ onBack, onOpenGym, onOpenHomeTour }: SettingsSc
               type="button"
               onClick={handlePasswordChange}
               disabled={savingPassword}
-              className="w-full rounded-xl border border-accent/40 text-accent font-semibold py-3 hover:bg-accent/10 transition-colors disabled:opacity-60"
+              className={`w-full rounded-xl border font-semibold py-3 transition-colors disabled:opacity-60 ${
+                isGirlsTheme
+                  ? 'border-[#E2B4BD]/60 bg-white/55 text-[#A87884] hover:border-[#F9B2D7]/70 hover:bg-[#F9B2D7]/16'
+                  : 'border-accent/40 text-accent hover:bg-accent/10'
+              }`}
             >
               {savingPassword ? copy.updatingPassword : copy.updatePassword}
             </button>
@@ -1269,35 +1397,39 @@ export function SettingsScreen({ onBack, onOpenGym, onOpenHomeTour }: SettingsSc
   };
 
   return (
-    <div className="flex-1 flex flex-col bg-background min-h-screen pb-24">
+    <div className={pageClassName}>
       <div className="px-4 sm:px-6 pt-2">
-        <Header title={copy.settings} onBack={onBack} compact />
+        <Header title={copy.settings} onBack={onBack} compact titleClassName={isGirlsTheme ? '!text-[#4A4A4A]' : undefined} />
       </div>
 
       <div className="px-4 sm:px-6 space-y-8">
         <button
           type="button"
           onClick={() => onOpenGym?.()}
-          className="w-full bg-card rounded-xl p-4 border border-white/5 flex items-center justify-between hover:bg-white/5 transition-colors"
+          className={`w-full rounded-xl p-4 flex items-center justify-between transition-colors ${
+            isGirlsTheme
+              ? 'border border-[#CFECF3]/70 bg-[linear-gradient(135deg,rgba(255,255,255,0.84),rgba(207,236,243,0.34))] shadow-[0_14px_34px_rgba(207,236,243,0.18)] hover:border-[#F9B2D7]/70 hover:bg-white/80'
+              : 'bg-card border border-white/5 hover:bg-white/5'
+          }`}
         >
           <div className="flex items-center gap-3">
-            <div className="p-2 bg-blue-500/10 rounded-lg text-blue-500">
+            <div className={`p-2 rounded-lg ${iconChipClassName}`}>
               <MapPin size={20} />
             </div>
             <div className="text-left">
-              <div className="font-medium text-white">{copy.gymAccess}</div>
-              <div className="text-xs text-text-secondary">{copy.gymLocation}</div>
+              <div className={`font-medium ${primaryTextClassName}`}>{copy.gymAccess}</div>
+              <div className={`text-xs ${secondaryTextClassName}`}>{copy.gymLocation}</div>
             </div>
           </div>
-          <ChevronRight size={20} className="text-text-tertiary" />
+          <ChevronRight size={20} className={tertiaryTextClassName} />
         </button>
 
         {sections.map((section, i) =>
         <div key={i} className="space-y-3">
-            <h3 className="text-sm font-medium text-text-secondary uppercase tracking-wider px-2">
+            <h3 className={`text-sm font-medium uppercase tracking-wider px-2 ${sectionTitleClassName}`}>
               {section.title}
             </h3>
-            <div className="bg-card rounded-2xl overflow-hidden border border-white/5">
+            <div className={`rounded-2xl overflow-hidden ${listCardClassName}`}>
               {section.items.map((item, j) =>
             <button
               key={j}
@@ -1311,13 +1443,14 @@ export function SettingsScreen({ onBack, onOpenGym, onOpenHomeTour }: SettingsSc
                 }
               }}
               className={`
-                    w-full flex items-center justify-between p-4 hover:bg-white/5 transition-colors
-                    ${j !== section.items.length - 1 ? 'border-b border-white/5' : ''}
+                    w-full flex items-center justify-between p-4 transition-colors
+                    ${isGirlsTheme ? 'hover:bg-white/70' : 'hover:bg-white/5'}
+                    ${j !== section.items.length - 1 ? (isGirlsTheme ? 'border-b border-[#E2B4BD]/30' : 'border-b border-white/5') : ''}
                   `}>
 
                   <div className="flex items-center gap-3">
-                    <item.icon size={20} className="text-text-secondary" />
-                    <span className="text-white font-medium">{item.label}</span>
+                    <item.icon size={20} className={tertiaryTextClassName} />
+                    <span className={`font-medium ${primaryTextClassName}`}>{item.label}</span>
                   </div>
                 </button>
             )}
@@ -1326,16 +1459,16 @@ export function SettingsScreen({ onBack, onOpenGym, onOpenHomeTour }: SettingsSc
         )}
 
         <div className="space-y-3">
-          <h3 className="text-sm font-medium text-text-secondary uppercase tracking-wider px-2">
+          <h3 className={`text-sm font-medium uppercase tracking-wider px-2 ${sectionTitleClassName}`}>
             {copy.bodyVisual}
           </h3>
-          <div className="bg-card rounded-2xl border border-white/5 p-4">
+          <div className={`rounded-2xl p-4 ${cardClassName}`}>
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
               <div className="min-w-0">
-                <div className="font-medium text-white">{copy.bodyVisual}</div>
-                <div className="mt-1 text-xs text-text-secondary">{copy.bodyVisualDetail}</div>
+                <div className={`font-medium ${primaryTextClassName}`}>{copy.bodyVisual}</div>
+                <div className={`mt-1 text-xs ${secondaryTextClassName}`}>{copy.bodyVisualDetail}</div>
               </div>
-              <div className="grid w-full shrink-0 grid-cols-2 overflow-hidden rounded-xl border border-white/10 bg-background p-1 sm:w-auto">
+              <div className={`grid w-full shrink-0 grid-cols-2 overflow-hidden rounded-xl p-1 sm:w-auto ${segmentedClassName}`}>
                 {[
                   { body: 'male', label: copy.man },
                   { body: 'female', label: copy.woman },
@@ -1349,8 +1482,12 @@ export function SettingsScreen({ onBack, onOpenGym, onOpenHomeTour }: SettingsSc
                       aria-pressed={isActive}
                       className={`min-w-[74px] rounded-lg px-3 py-2 text-xs font-semibold transition-colors ${
                         isActive
-                          ? 'bg-accent text-black shadow-[0_0_18px_rgba(var(--color-accent),0.25)]'
-                          : 'text-text-secondary hover:bg-white/5 hover:text-white'
+                          ? isGirlsTheme
+                            ? 'bg-[linear-gradient(135deg,#F9B2D7,#E2B4BD)] text-[#4A4A4A] shadow-[0_8px_18px_rgba(249,178,215,0.22)]'
+                            : 'bg-accent text-black shadow-[0_0_18px_rgba(var(--color-accent),0.25)]'
+                          : isGirlsTheme
+                            ? 'text-[#795E67] hover:bg-white/70 hover:text-[#4A4A4A]'
+                            : 'text-text-secondary hover:bg-white/5 hover:text-white'
                       }`}
                     >
                       {option.label}
@@ -1363,10 +1500,10 @@ export function SettingsScreen({ onBack, onOpenGym, onOpenHomeTour }: SettingsSc
         </div>
 
         <div className="space-y-3">
-          <h3 className="text-sm font-medium text-text-secondary uppercase tracking-wider px-2">
+          <h3 className={`text-sm font-medium uppercase tracking-wider px-2 ${sectionTitleClassName}`}>
             {copy.notificationControls}
           </h3>
-          <div className="bg-card rounded-2xl overflow-hidden border border-white/5">
+          <div className={`rounded-2xl overflow-hidden ${listCardClassName}`}>
             {[
               { key: 'coachMessages', label: copy.coachMessages },
               { key: 'restTimer', label: copy.restBetweenSets },
@@ -1384,12 +1521,12 @@ export function SettingsScreen({ onBack, onOpenGym, onOpenHomeTour }: SettingsSc
                 <div
                   key={item.key}
                   className={`w-full flex items-center justify-between p-4 ${
-                    index !== arr.length - 1 ? 'border-b border-white/5' : ''
+                    index !== arr.length - 1 ? (isGirlsTheme ? 'border-b border-[#E2B4BD]/30' : 'border-b border-white/5') : ''
                   }`}
                 >
                   <div className="flex items-center gap-3">
-                    <Bell size={18} className="text-text-secondary" />
-                    <span className="text-white font-medium">{item.label}</span>
+                    <Bell size={18} className={tertiaryTextClassName} />
+                    <span className={`font-medium ${primaryTextClassName}`}>{item.label}</span>
                   </div>
                   <label className={`uiverse-toggle ${loadingNotificationSettings ? 'opacity-60' : ''}`}>
                     <input
@@ -1445,14 +1582,16 @@ export function SettingsScreen({ onBack, onOpenGym, onOpenHomeTour }: SettingsSc
         </div>
 
         <div className="space-y-3">
-          <h3 className="text-sm font-medium text-text-secondary uppercase tracking-wider px-2">
+          <h3 className={`text-sm font-medium uppercase tracking-wider px-2 ${sectionTitleClassName}`}>
             {copy.theme}
           </h3>
-          <div className="bg-card rounded-2xl border border-white/5 p-4">
+          <div className={`rounded-2xl p-4 ${cardClassName}`}>
             <div className="flex items-center justify-between gap-4">
               <span
                 className={`text-sm font-semibold transition-colors ${
-                  theme === 'light' ? 'text-text-primary' : 'text-text-secondary'
+                  theme === 'light'
+                    ? primaryTextClassName
+                    : secondaryTextClassName
                 }`}
               >
                 {copy.light}
@@ -1486,20 +1625,55 @@ export function SettingsScreen({ onBack, onOpenGym, onOpenHomeTour }: SettingsSc
 
               <span
                 className={`text-sm font-semibold transition-colors ${
-                  theme === 'dark' ? 'text-text-primary' : 'text-text-secondary'
+                  theme === 'dark'
+                    ? primaryTextClassName
+                    : secondaryTextClassName
                 }`}
               >
                 {copy.dark}
               </span>
             </div>
           </div>
+
+          <div className={`rounded-2xl p-4 ${cardClassName}`}>
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+              <div className="min-w-0">
+                <div className={`font-medium ${primaryTextClassName}`}>{copy.appStyle}</div>
+                <div className={`mt-1 text-xs leading-5 ${secondaryTextClassName}`}>{copy.appStyleDetail}</div>
+              </div>
+              <div className={`grid w-full shrink-0 grid-cols-2 overflow-hidden rounded-xl p-1 sm:w-auto ${segmentedClassName}`}>
+                {genderStyleOptions.map((option) => {
+                  const isActive = appStyleGender === option.value;
+                  return (
+                    <button
+                      key={option.value}
+                      type="button"
+                      onClick={() => handleAppStyleGenderChange(option.value)}
+                      aria-pressed={isActive}
+                      className={`min-w-[74px] rounded-lg px-3 py-2 text-xs font-semibold transition-colors ${
+                        isActive
+                          ? option.value === 'female'
+                            ? 'bg-[#F9B2D7] text-[#4A4A4A] shadow-[0_0_18px_rgba(226,180,189,0.28)]'
+                            : 'bg-accent text-black shadow-[0_0_18px_rgba(var(--color-accent),0.25)]'
+                          : isGirlsTheme
+                            ? 'text-[#795E67] hover:bg-white/70 hover:text-[#4A4A4A]'
+                            : 'text-text-secondary hover:bg-white/5 hover:text-white'
+                      }`}
+                    >
+                      {option.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
         </div>
 
         <div className="space-y-3">
-          <h3 className="text-sm font-medium text-text-secondary uppercase tracking-wider px-2">
+          <h3 className={`text-sm font-medium uppercase tracking-wider px-2 ${sectionTitleClassName}`}>
             {copy.language}
           </h3>
-          <div className="bg-card rounded-2xl border border-white/5 p-3 grid grid-cols-3 gap-3">
+          <div className={`rounded-2xl p-3 grid grid-cols-3 gap-3 ${cardClassName}`}>
             <button
               type="button"
               onClick={() => handleLanguageChange('en')}
@@ -1564,24 +1738,28 @@ export function SettingsScreen({ onBack, onOpenGym, onOpenHomeTour }: SettingsSc
         </div>
 
         <div className="space-y-3">
-          <h3 className="text-sm font-medium text-text-secondary uppercase tracking-wider px-2">
+          <h3 className={`text-sm font-medium uppercase tracking-wider px-2 ${sectionTitleClassName}`}>
             {copy.appTour}
           </h3>
           <button
             type="button"
             onClick={handleOpenHomeTour}
-            className="w-full bg-card rounded-2xl p-4 border border-white/5 flex items-center justify-between hover:bg-white/5 transition-colors"
+            className={`w-full rounded-2xl p-4 flex items-center justify-between transition-colors ${
+              isGirlsTheme
+                ? 'border border-[#E2B4BD]/45 bg-white/72 shadow-[0_14px_34px_rgba(226,180,189,0.14)] hover:border-[#F9B2D7]/70 hover:bg-white/85'
+                : 'bg-card border border-white/5 hover:bg-white/5'
+            }`}
           >
             <div className="flex items-center gap-3 text-left">
-              <div className="p-2 rounded-xl bg-accent/10 text-accent border border-accent/20">
+              <div className={`p-2 rounded-xl ${isGirlsTheme ? 'border border-[#F9B2D7]/45 bg-[#F9B2D7]/18 text-[#A87884]' : 'bg-accent/10 text-accent border border-accent/20'}`}>
                 <Eye size={18} />
               </div>
               <div>
-                <div className="font-medium text-white">{copy.showAppTour}</div>
-                <div className="text-xs text-text-secondary mt-1">{copy.showAppTourDetail}</div>
+                <div className={`font-medium ${primaryTextClassName}`}>{copy.showAppTour}</div>
+                <div className={`text-xs mt-1 ${secondaryTextClassName}`}>{copy.showAppTourDetail}</div>
               </div>
             </div>
-            <ChevronRight size={20} className="text-text-tertiary" />
+            <ChevronRight size={20} className={tertiaryTextClassName} />
           </button>
         </div>
 

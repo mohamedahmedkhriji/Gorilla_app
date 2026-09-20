@@ -25,6 +25,7 @@ type ReelsViewerProps = {
     reactToPost: string;
     mediaAlt: string;
   };
+  themeVariant?: 'default' | 'girls';
 };
 
 export default function ReelsViewer({
@@ -44,11 +45,16 @@ export default function ReelsViewer({
   getPostedAgo,
   formatCount,
   copy,
+  themeVariant = 'default',
 }: ReelsViewerProps) {
   const [activeIndex, setActiveIndex] = useState(() => Math.max(0, Math.min(posts.length - 1, initialIndex)));
   const [openReactionPostId, setOpenReactionPostId] = useState<number | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const reelVideoRefs = useRef<Map<number, HTMLVideoElement>>(new Map());
+  const isGirlsTheme = themeVariant === 'girls';
+  const actionButtonClassName = isGirlsTheme
+    ? 'flex h-12 w-12 items-center justify-center rounded-full border border-[#E2B4BD]/45 bg-white/70 text-[#4A4A4A] shadow-[0_10px_22px_rgba(226,180,189,0.16)] backdrop-blur transition-all duration-200 hover:border-[#F9B2D7]/70 hover:bg-white/85 active:scale-95'
+    : 'flex h-12 w-12 items-center justify-center rounded-full bg-white/10 text-white backdrop-blur transition-all duration-200 hover:bg-white/15 active:scale-95';
 
   useEffect(() => {
     const container = containerRef.current;
@@ -93,11 +99,11 @@ export default function ReelsViewer({
   }, [activeIndex, posts]);
 
   return (
-    <div className="fixed inset-0 z-[60] bg-black">
+    <div className={`fixed inset-0 z-[60] ${isGirlsTheme ? 'bg-[radial-gradient(circle_at_top_left,rgba(249,178,215,0.22),transparent_34%),radial-gradient(circle_at_85%_8%,rgba(207,236,243,0.34),transparent_32%),linear-gradient(180deg,#FFF5F5_0%,#F7D6D0_52%,#FFF5F5_100%)]' : 'bg-black'}`}>
       <button
         type="button"
         onClick={onClose}
-        className="fixed right-4 top-[calc(env(safe-area-inset-top)+1rem)] z-[70] flex h-12 w-12 items-center justify-center rounded-full border border-white/20 bg-black/70 text-white backdrop-blur transition-all duration-200 hover:bg-black active:scale-95"
+        className={`fixed right-4 top-[calc(env(safe-area-inset-top)+1rem)] z-[70] flex h-12 w-12 items-center justify-center rounded-full border backdrop-blur transition-all duration-200 active:scale-95 ${isGirlsTheme ? 'border-[#E2B4BD]/55 bg-white/75 text-[#4A4A4A] shadow-[0_12px_26px_rgba(226,180,189,0.18)] hover:border-[#F9B2D7]/70 hover:bg-white/90' : 'border-white/20 bg-black/70 text-white hover:bg-black'}`}
         aria-label={copy.closeFullScreen}
       >
         <X size={20} />
@@ -111,7 +117,7 @@ export default function ReelsViewer({
           return (
             <section
               key={`${post.id}-${index}`}
-              className="mobile-dvh-screen relative snap-start bg-black"
+              className={`mobile-dvh-screen relative snap-start ${isGirlsTheme ? 'bg-[#FFF5F5]' : 'bg-black'}`}
               onDoubleClick={() => onDoubleLike(post.id)}
             >
               {post.mediaType === 'video' ? (
@@ -134,34 +140,34 @@ export default function ReelsViewer({
                       video.pause();
                     }
                   }}
-                  className="h-full w-full cursor-pointer object-contain"
+                  className={`h-full w-full cursor-pointer object-contain ${isGirlsTheme ? 'bg-[#FFF5F5]' : ''}`}
                 />
               ) : (
-                <img src={post.mediaFull} alt={post.mediaAlt || copy.mediaAlt} className="h-full w-full object-contain" />
+                <img src={post.mediaFull} alt={post.mediaAlt || copy.mediaAlt} className={`h-full w-full object-contain ${isGirlsTheme ? 'bg-[#FFF5F5]' : ''}`} />
               )}
 
-              <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black via-black/65 to-transparent px-4 pb-8 pt-20 sm:px-6">
+              <div className={`absolute inset-x-0 bottom-0 px-4 pb-8 pt-20 sm:px-6 ${isGirlsTheme ? 'bg-gradient-to-t from-[#FFF5F5] via-[#FFF5F5]/84 to-transparent' : 'bg-gradient-to-t from-black via-black/65 to-transparent'}`}>
                 <div className="flex items-end justify-between gap-4">
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-3">
                       <img
                         src={resolveAvatar(post)}
                         alt={copy.avatarAlt(authorName)}
-                        className="h-11 w-11 rounded-full border border-white/20 object-cover"
+                        className={`h-11 w-11 rounded-full border object-cover ${isGirlsTheme ? 'border-[#E2B4BD]/55' : 'border-white/20'}`}
                       />
                       <div className="min-w-0">
-                        <h3 className="truncate text-sm font-semibold text-white">{authorName}</h3>
-                        <p className="mt-1 text-xs text-white/70">
+                        <h3 className={`truncate text-sm font-semibold ${isGirlsTheme ? 'text-[#4A4A4A]' : 'text-white'}`}>{authorName}</h3>
+                        <p className={`mt-1 text-xs ${isGirlsTheme ? 'text-[#795E67]' : 'text-white/70'}`}>
                           {getPostedAgo(post.createdAt, true)} • {post.category}
                         </p>
                       </div>
                     </div>
 
                     {post.caption.trim() ? (
-                      <p className="mt-4 max-w-xl text-sm leading-6 text-white/90">{post.caption}</p>
+                      <p className={`mt-4 max-w-xl text-sm leading-6 ${isGirlsTheme ? 'text-[#4A4A4A]' : 'text-white/90'}`}>{post.caption}</p>
                     ) : null}
 
-                    <div className="mt-4 text-xs text-white/70">
+                    <div className={`mt-4 text-xs ${isGirlsTheme ? 'text-[#795E67]' : 'text-white/70'}`}>
                       {formatCount(post.likes)} likes • {formatCount(post.comments)} comments • {formatCount(post.views)} views
                     </div>
                   </div>
@@ -170,7 +176,7 @@ export default function ReelsViewer({
                     <button
                       type="button"
                       onClick={() => setOpenReactionPostId((current) => (current === post.id ? null : post.id))}
-                      className="flex h-12 w-12 items-center justify-center rounded-full bg-white/10 text-white backdrop-blur transition-all duration-200 hover:bg-white/15 active:scale-95"
+                      className={actionButtonClassName}
                       aria-label={copy.reactToPost}
                     >
                       {post.reactionByMe ? (
@@ -182,14 +188,14 @@ export default function ReelsViewer({
                     <button
                       type="button"
                       onClick={() => onComments(post.id)}
-                      className="flex h-12 w-12 items-center justify-center rounded-full bg-white/10 text-white backdrop-blur transition-all duration-200 hover:bg-white/15 active:scale-95"
+                      className={actionButtonClassName}
                     >
                       <MessageCircle size={20} />
                     </button>
                     <button
                       type="button"
                       onClick={() => onShare(post.id)}
-                      className="flex h-12 w-12 items-center justify-center rounded-full bg-white/10 text-white backdrop-blur transition-all duration-200 hover:bg-white/15 active:scale-95"
+                      className={actionButtonClassName}
                     >
                       <Send size={20} />
                     </button>
@@ -197,14 +203,20 @@ export default function ReelsViewer({
                       type="button"
                       onClick={() => onSave(post.id)}
                       className={`flex h-12 w-12 items-center justify-center rounded-full backdrop-blur transition-all duration-200 active:scale-95 ${
-                        isSaved(post.id) ? 'bg-accent text-black shadow-glow' : 'bg-white/10 text-white hover:bg-white/15'
+                        isSaved(post.id)
+                          ? isGirlsTheme
+                            ? 'border border-[#F9B2D7]/70 bg-[#F9B2D7] text-[#4A4A4A] shadow-[0_10px_24px_rgba(249,178,215,0.30)]'
+                            : 'bg-accent text-black shadow-glow'
+                          : isGirlsTheme
+                            ? 'border border-[#E2B4BD]/45 bg-white/70 text-[#4A4A4A] shadow-[0_10px_22px_rgba(226,180,189,0.16)] hover:border-[#F9B2D7]/70 hover:bg-white/85'
+                            : 'bg-white/10 text-white hover:bg-white/15'
                       }`}
                     >
                       <Bookmark size={20} className={isSaved(post.id) ? 'fill-current' : ''} />
                     </button>
 
                     {reactionMenuOpen ? (
-                      <div className="absolute bottom-full right-0 mb-3 flex flex-col gap-2 rounded-[22px] border border-white/10 bg-black/75 p-2 shadow-2xl backdrop-blur">
+                      <div className={`absolute bottom-full right-0 mb-3 flex flex-col gap-2 rounded-[22px] border p-2 shadow-2xl backdrop-blur ${isGirlsTheme ? 'border-[#E2B4BD]/45 bg-[#FFF5F5]/90' : 'border-white/10 bg-black/75'}`}>
                         {reactionOptions.map((reaction) => {
                           const isActive = post.reactionByMe === reaction.type;
                           return (
@@ -215,7 +227,7 @@ export default function ReelsViewer({
                                 onReact(post.id, isActive ? null : reaction.type);
                                 setOpenReactionPostId(null);
                               }}
-                              className={`flex h-12 w-12 items-center justify-center rounded-full ${isActive ? 'bg-white/15' : 'hover:bg-white/10'}`}
+                              className={`flex h-12 w-12 items-center justify-center rounded-full ${isGirlsTheme ? (isActive ? 'bg-[#F9B2D7]/25' : 'hover:bg-[#F9B2D7]/16') : (isActive ? 'bg-white/15' : 'hover:bg-white/10')}`}
                               aria-label={reaction.label}
                             >
                               <img src={reaction.image} alt={reaction.label} className="h-7 w-7" />

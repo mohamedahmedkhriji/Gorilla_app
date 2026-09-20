@@ -27,6 +27,19 @@ const PULL_REFRESH_THRESHOLD = 78;
 const PULL_REFRESH_MAX = 118;
 const DEFAULT_AVATAR = 'https://images.unsplash.com/photo-1633332755192-727a05c4013d?auto=format&fit=crop&w=120&q=80';
 
+const readStoredStyleGender = () => {
+  try {
+    return String(localStorage.getItem('appStyleGender') || '').trim().toLowerCase();
+  } catch {
+    return '';
+  }
+};
+
+const isGirlsStyleValue = (value: unknown) => {
+  const normalized = String(value || '').trim().toLowerCase();
+  return normalized === 'woman' || normalized === 'female' || normalized === 'f' || normalized === 'girls' || normalized === 'femme';
+};
+
 interface BlogsProps {
   guidedTourActive?: boolean;
   onGuidedTourComplete?: () => void;
@@ -406,6 +419,7 @@ export function Blogs({ guidedTourActive = false, onGuidedTourComplete, onGuided
   const [userProfileImage, setUserProfileImage] = useState(() => getUserProfileImage());
   const coachmarkScope = useMemo(() => getCoachmarkUserScope(getStoredAppUser()), []);
   const [language, setLanguage] = useState<AppLanguage>('en');
+  const [styleGender, setStyleGender] = useState(() => readStoredStyleGender());
   const copy = useMemo(
     () => ({ ...pickLanguage(language, BLOGS_I18N), ...(BLOGS_COPY_OVERRIDES[language] || {}) }),
     [language],
@@ -471,6 +485,18 @@ export function Blogs({ guidedTourActive = false, onGuidedTourComplete, onGuided
     return () => {
       window.removeEventListener('app-language-changed', handleLanguageChanged);
       window.removeEventListener('storage', handleLanguageChanged);
+    };
+  }, []);
+
+  useEffect(() => {
+    const handleThemeChanged = () => setStyleGender(readStoredStyleGender());
+    window.addEventListener('repset:app-style-gender-changed', handleThemeChanged);
+    window.addEventListener('repset:stored-user-changed', handleThemeChanged);
+    window.addEventListener('storage', handleThemeChanged);
+    return () => {
+      window.removeEventListener('repset:app-style-gender-changed', handleThemeChanged);
+      window.removeEventListener('repset:stored-user-changed', handleThemeChanged);
+      window.removeEventListener('storage', handleThemeChanged);
     };
   }, []);
 
@@ -1069,6 +1095,7 @@ export function Blogs({ guidedTourActive = false, onGuidedTourComplete, onGuided
   const activeSharePost = activeSharePostId ? posts.find((post) => post.id === activeSharePostId) || null : null;
   const localComments = activeCommentsPostId ? commentsByPost[activeCommentsPostId] || [] : [];
   const canPublish = Boolean(newDescription.trim()) && Boolean(newMediaUrl) && !isPublishing;
+  const isGirlsTheme = isGirlsStyleValue(styleGender);
   const selectCategory = useCallback((category: FeedCategory) => startTransition(() => setActiveCategory(category)), []);
   const closeCreateModal = useCallback(() => {
     if (isPublishing) return;
@@ -1083,7 +1110,7 @@ export function Blogs({ guidedTourActive = false, onGuidedTourComplete, onGuided
   return (
     <div
       dir={isArabic ? 'rtl' : 'ltr'}
-      className="blogs-page relative flex min-h-screen flex-1 flex-col pb-24"
+      className={`blogs-page relative flex min-h-screen flex-1 flex-col pb-24 ${isGirlsTheme ? 'bg-[radial-gradient(circle_at_top_left,rgba(249,178,215,0.22),transparent_34%),radial-gradient(circle_at_85%_8%,rgba(207,236,243,0.34),transparent_32%),linear-gradient(180deg,#FFF5F5_0%,#F7D6D0_52%,#FFF5F5_100%)] text-[#4A4A4A]' : ''}`}
       onTouchStart={handlePullRefreshStart}
       onTouchMove={handlePullRefreshMove}
       onTouchEnd={handlePullRefreshEnd}
@@ -1116,15 +1143,16 @@ export function Blogs({ guidedTourActive = false, onGuidedTourComplete, onGuided
             postLabel={copy.post}
             avatarUrl={userProfileImage || DEFAULT_AVATAR}
             avatarAlt={copy.avatarAlt(copy.fallbackUser)}
+            themeVariant={isGirlsTheme ? 'girls' : 'default'}
           />
         )}
-        filters={<CategoryFilters filters={categoryFilters} activeCategory={activeCategory} onSelect={selectCategory} getLabel={getCategoryLabel} />}
+        filters={<CategoryFilters filters={categoryFilters} activeCategory={activeCategory} onSelect={selectCategory} getLabel={getCategoryLabel} themeVariant={isGirlsTheme ? 'girls' : 'default'} />}
         error={error}
       >
         {loading && !posts.length ? <div className="space-y-5">{Array.from({ length: 3 }).map((_, index) => <PostSkeleton key={index} />)}</div> : visiblePosts.length === 0 ? (
-          <div data-coachmark-target="blogs_first_post_card" className="surface-glass rounded-[24px] border border-white/10 p-5 text-sm text-text-secondary">
+          <div data-coachmark-target="blogs_first_post_card" className={isGirlsTheme ? 'rounded-[24px] border border-[#E2B4BD]/45 bg-white/70 p-5 text-sm text-[#795E67] shadow-[0_12px_28px_rgba(226,180,189,0.12)]' : 'surface-glass rounded-[24px] border border-white/10 p-5 text-sm text-text-secondary'}>
             <div>{posts.length === 0 ? copy.noPosts : copy.noCategoryPosts(getCategoryLabel(activeCategory))}</div>
-            {posts.length > 0 ? <button type="button" onClick={() => selectCategory('All')} className="mt-4 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm font-medium text-text-primary transition-all duration-200 hover:border-accent/20 hover:bg-white/10 active:scale-95">{copy.showAllCategories}</button> : null}
+            {posts.length > 0 ? <button type="button" onClick={() => selectCategory('All')} className={isGirlsTheme ? 'mt-4 rounded-full border border-[#E2B4BD]/45 bg-white/65 px-4 py-2 text-sm font-medium text-[#4A4A4A] transition-all duration-200 hover:border-[#F9B2D7]/70 hover:bg-white active:scale-95' : 'mt-4 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm font-medium text-text-primary transition-all duration-200 hover:border-accent/20 hover:bg-white/10 active:scale-95'}>{copy.showAllCategories}</button> : null}
           </div>
         ) : (
           <FeedList
@@ -1170,6 +1198,7 @@ export function Blogs({ guidedTourActive = false, onGuidedTourComplete, onGuided
             onSave={toggleSavedPost}
             onDelete={(postId) => { setOpenPostMenuId(null); setPendingDeletePostId(postId); }}
             onHide={hidePost}
+            themeVariant={isGirlsTheme ? 'girls' : 'default'}
           />
         )}
       </FeedPage>
@@ -1209,6 +1238,7 @@ export function Blogs({ guidedTourActive = false, onGuidedTourComplete, onGuided
             getPostedAgo={(createdAt, short = false) => getPostedAgo(createdAt, copy, short)}
             formatCount={formatCount}
             copy={{ avatarAlt: copy.avatarAlt, closeFullScreen: copy.closeFullScreen, reactToPost: copy.reactToPost, mediaAlt: copy.mediaAlt }}
+            themeVariant={isGirlsTheme ? 'girls' : 'default'}
           />
         </Suspense>
       ) : null}
@@ -1234,7 +1264,7 @@ export function Blogs({ guidedTourActive = false, onGuidedTourComplete, onGuided
 
       {isCreateOpen ? (
         <div
-          className="fixed inset-0 z-50 flex items-end justify-center bg-black/70 p-0 backdrop-blur-sm sm:items-center sm:p-4"
+          className={`fixed inset-0 z-50 flex items-end justify-center p-0 backdrop-blur-sm sm:items-center sm:p-4 ${isGirlsTheme ? 'bg-[#4A4A4A]/35' : 'bg-black/70'}`}
           role="presentation"
           onMouseDown={(event) => {
             if (event.target === event.currentTarget) closeCreateModal();
@@ -1244,13 +1274,13 @@ export function Blogs({ guidedTourActive = false, onGuidedTourComplete, onGuided
             role="dialog"
             aria-modal="true"
             aria-labelledby="blogs-new-post-title"
-            className={`flex max-h-[min(88dvh,720px)] w-full max-w-md flex-col overflow-hidden rounded-t-[24px] border border-white/10 bg-card shadow-2xl sm:rounded-[24px] ${isArabic ? 'text-right' : 'text-left'}`}
+            className={`flex max-h-[min(88dvh,720px)] w-full max-w-md flex-col overflow-hidden rounded-t-[24px] border shadow-2xl sm:rounded-[24px] ${isGirlsTheme ? 'border-[#E2B4BD]/45 bg-[#FFF5F5] text-[#4A4A4A] shadow-[0_24px_60px_rgba(226,180,189,0.24)]' : 'border-white/10 bg-card'} ${isArabic ? 'text-right' : 'text-left'}`}
             dir={isArabic ? 'rtl' : 'ltr'}
           >
-            <header className={`flex shrink-0 items-center justify-between gap-3 border-b border-white/10 px-4 py-3.5 ${isArabic ? 'flex-row-reverse' : ''}`}>
+            <header className={`flex shrink-0 items-center justify-between gap-3 border-b px-4 py-3.5 ${isGirlsTheme ? 'border-[#E2B4BD]/35 bg-white/35' : 'border-white/10'} ${isArabic ? 'flex-row-reverse' : ''}`}>
               <div>
-                <h3 id="blogs-new-post-title" className="text-lg font-bold text-text-primary">{copy.newPostTitle}</h3>
-                <p className="mt-0.5 text-xs text-text-secondary">{copy.newPostSubtitle}</p>
+                <h3 id="blogs-new-post-title" className={`text-lg font-bold ${isGirlsTheme ? 'text-[#4A4A4A]' : 'text-text-primary'}`}>{copy.newPostTitle}</h3>
+                <p className={`mt-0.5 text-xs ${isGirlsTheme ? 'text-[#795E67]' : 'text-text-secondary'}`}>{copy.newPostSubtitle}</p>
               </div>
 
               <button
@@ -1258,13 +1288,13 @@ export function Blogs({ guidedTourActive = false, onGuidedTourComplete, onGuided
                 onClick={closeCreateModal}
                 disabled={isPublishing}
                 aria-label="Close new post"
-                className="flex h-10 w-10 items-center justify-center rounded-full bg-white/[0.06] text-text-secondary transition hover:bg-white/10 hover:text-text-primary disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+                className={`flex h-10 w-10 items-center justify-center rounded-full transition disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 ${isGirlsTheme ? 'border border-[#E2B4BD]/45 bg-white/70 text-[#A87884] hover:border-[#F9B2D7]/70 hover:text-[#4A4A4A] focus-visible:ring-[#F9B2D7]' : 'bg-white/[0.06] text-text-secondary hover:bg-white/10 hover:text-text-primary focus-visible:ring-accent'}`}
               >
                 <X size={18} aria-hidden="true" />
               </button>
             </header>
 
-            <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-4 py-4">
+            <div className={`min-h-0 flex-1 space-y-4 overflow-y-auto px-4 py-4 ${isGirlsTheme ? 'bg-[radial-gradient(circle_at_top_right,rgba(207,236,243,0.26),transparent_38%)]' : ''}`}>
               <div>
                 <textarea
                   value={newDescription}
@@ -1273,9 +1303,9 @@ export function Blogs({ guidedTourActive = false, onGuidedTourComplete, onGuided
                   rows={3}
                   maxLength={DESCRIPTION_MAX_LENGTH}
                   autoFocus
-                  className={`min-h-[104px] w-full resize-none rounded-2xl border border-white/10 bg-background px-3.5 py-3 text-sm leading-6 text-text-primary placeholder:text-text-secondary focus:border-accent/45 focus:outline-none focus:ring-2 focus:ring-accent/10 ${isArabic ? 'text-right' : 'text-left'}`}
+                  className={`min-h-[104px] w-full resize-none rounded-2xl border px-3.5 py-3 text-sm leading-6 focus:outline-none focus:ring-2 ${isGirlsTheme ? 'border-[#E2B4BD]/45 bg-white/70 text-[#4A4A4A] placeholder:text-[#A87884] focus:border-[#F9B2D7]/70 focus:ring-[#F9B2D7]/20' : 'border-white/10 bg-background text-text-primary placeholder:text-text-secondary focus:border-accent/45 focus:ring-accent/10'} ${isArabic ? 'text-right' : 'text-left'}`}
                 />
-                <div className={`mt-1 flex items-center justify-between gap-3 px-1 text-[10px] text-text-secondary ${isArabic ? 'flex-row-reverse' : ''}`}>
+                <div className={`mt-1 flex items-center justify-between gap-3 px-1 text-[10px] ${isGirlsTheme ? 'text-[#795E67]' : 'text-text-secondary'} ${isArabic ? 'flex-row-reverse' : ''}`}>
                   <span>{copy.captionOrImageHint}</span>
                   <span>{newDescription.length}/{DESCRIPTION_MAX_LENGTH}</span>
                 </div>
@@ -1283,8 +1313,8 @@ export function Blogs({ guidedTourActive = false, onGuidedTourComplete, onGuided
 
               <div role="group" aria-labelledby="blogs-new-post-categories">
                 <div className={`flex items-center justify-between gap-3 ${isArabic ? 'flex-row-reverse' : ''}`}>
-                  <p id="blogs-new-post-categories" className="text-xs font-semibold text-text-primary">{copy.categoriesLabel}</p>
-                  <span className="text-[10px] text-text-secondary">{copy.selectedCount(selectedCategories.length)}</span>
+                  <p id="blogs-new-post-categories" className={`text-xs font-semibold ${isGirlsTheme ? 'text-[#4A4A4A]' : 'text-text-primary'}`}>{copy.categoriesLabel}</p>
+                  <span className={`text-[10px] ${isGirlsTheme ? 'text-[#A87884]' : 'text-text-secondary'}`}>{copy.selectedCount(selectedCategories.length)}</span>
                 </div>
 
                 <div className={`mt-2 flex flex-wrap gap-2 ${isArabic ? 'justify-end' : ''}`}>
@@ -1298,10 +1328,14 @@ export function Blogs({ guidedTourActive = false, onGuidedTourComplete, onGuided
                         onClick={() => toggleCategorySelection(option)}
                         disabled={disabled}
                         aria-pressed={isSelected}
-                        className={`flex min-h-9 items-center gap-1.5 rounded-full border px-3 text-xs font-semibold transition active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent ${
-                          isSelected
-                            ? 'border-accent/60 bg-accent/15 text-accent'
-                            : 'border-white/10 bg-white/[0.04] text-text-secondary hover:border-accent/25 hover:text-text-primary'
+                        className={`flex min-h-9 items-center gap-1.5 rounded-full border px-3 text-xs font-semibold transition active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-40 focus-visible:outline-none focus-visible:ring-2 ${
+                          isGirlsTheme
+                            ? isSelected
+                              ? 'border-[#F9B2D7]/70 bg-[#F9B2D7] text-[#4A4A4A] shadow-[0_8px_22px_rgba(249,178,215,0.22)] focus-visible:ring-[#F9B2D7]/70'
+                              : 'border-[#E2B4BD]/45 bg-white/70 text-[#795E67] hover:border-[#F9B2D7]/70 hover:text-[#4A4A4A] focus-visible:ring-[#F9B2D7]/70'
+                            : isSelected
+                              ? 'border-accent/60 bg-accent/15 text-accent focus-visible:ring-accent'
+                              : 'border-white/10 bg-white/[0.04] text-text-secondary hover:border-accent/25 hover:text-text-primary focus-visible:ring-accent'
                         }`}
                       >
                         {isSelected ? <Check size={13} strokeWidth={3} aria-hidden="true" /> : null}
@@ -1313,14 +1347,14 @@ export function Blogs({ guidedTourActive = false, onGuidedTourComplete, onGuided
               </div>
 
               {canCreateWomenOnlyPost ? (
-                <label className={`flex items-start gap-3 rounded-[20px] border border-white/10 bg-white/5 px-4 py-4 text-sm text-text-primary ${isArabic ? 'flex-row-reverse text-right' : 'text-left'}`}>
-                  <input type="checkbox" checked={newWomenOnly} onChange={(event) => setNewWomenOnly(event.target.checked)} className="mt-0.5 h-4 w-4 rounded border-white/20 bg-transparent text-accent focus:ring-accent/40" />
-                  <span className="flex-1">{copy.womenOnlyLabel}<span className="mt-1 block text-[11px] text-text-secondary">{copy.womenOnlyHint}</span></span>
+                <label className={`flex items-start gap-3 rounded-[20px] border px-4 py-4 text-sm ${isGirlsTheme ? 'border-[#E2B4BD]/45 bg-white/65 text-[#4A4A4A] shadow-[0_10px_22px_rgba(226,180,189,0.10)]' : 'border-white/10 bg-white/5 text-text-primary'} ${isArabic ? 'flex-row-reverse text-right' : 'text-left'}`}>
+                  <input type="checkbox" checked={newWomenOnly} onChange={(event) => setNewWomenOnly(event.target.checked)} className={`mt-0.5 h-4 w-4 rounded bg-transparent ${isGirlsTheme ? 'border-[#E2B4BD]/60 text-[#F9B2D7] focus:ring-[#F9B2D7]/40' : 'border-white/20 text-accent focus:ring-accent/40'}`} />
+                  <span className="flex-1">{copy.womenOnlyLabel}<span className={`mt-1 block text-[11px] ${isGirlsTheme ? 'text-[#795E67]' : 'text-text-secondary'}`}>{copy.womenOnlyHint}</span></span>
                 </label>
               ) : null}
 
               {newMediaUrl ? (
-                <div className="relative overflow-hidden rounded-2xl border border-white/10 bg-[#151d28]">
+                <div className={`relative overflow-hidden rounded-2xl border ${isGirlsTheme ? 'border-[#E2B4BD]/45 bg-white/60' : 'border-white/10 bg-[#151d28]'}`}>
                   <img src={newMediaUrl} alt={copy.newPostPreviewAlt} className="max-h-64 w-full object-contain" />
                   <button
                     type="button"
@@ -1335,14 +1369,14 @@ export function Blogs({ guidedTourActive = false, onGuidedTourComplete, onGuided
                 <button
                   type="button"
                   onClick={() => createFileInputRef.current?.click()}
-                  className={`flex min-h-[72px] w-full items-center gap-3 rounded-2xl border border-dashed border-white/15 bg-white/[0.025] px-3.5 text-left transition hover:border-accent/40 hover:bg-accent/[0.04] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent ${isArabic ? 'flex-row-reverse text-right' : ''}`}
+                  className={`flex min-h-[72px] w-full items-center gap-3 rounded-2xl border border-dashed px-3.5 text-left transition focus-visible:outline-none focus-visible:ring-2 ${isGirlsTheme ? 'border-[#E2B4BD]/55 bg-white/60 hover:border-[#F9B2D7]/75 hover:bg-white/80 focus-visible:ring-[#F9B2D7]/70' : 'border-white/15 bg-white/[0.025] hover:border-accent/40 hover:bg-accent/[0.04] focus-visible:ring-accent'} ${isArabic ? 'flex-row-reverse text-right' : ''}`}
                 >
-                  <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-accent/10 text-accent">
+                  <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${isGirlsTheme ? 'bg-[#F9B2D7]/20 text-[#A87884]' : 'bg-accent/10 text-accent'}`}>
                     <ImagePlus size={19} aria-hidden="true" />
                   </span>
                   <span className="min-w-0">
-                    <span className="block text-sm font-semibold text-text-primary">{copy.addImage}</span>
-                    <span className="mt-0.5 block text-[11px] text-text-secondary">{copy.imageHelp}</span>
+                    <span className={`block text-sm font-semibold ${isGirlsTheme ? 'text-[#4A4A4A]' : 'text-text-primary'}`}>{copy.addImage}</span>
+                    <span className={`mt-0.5 block text-[11px] ${isGirlsTheme ? 'text-[#795E67]' : 'text-text-secondary'}`}>{copy.imageHelp}</span>
                   </span>
                 </button>
               )}
@@ -1355,15 +1389,15 @@ export function Blogs({ guidedTourActive = false, onGuidedTourComplete, onGuided
                 className="hidden"
               />
 
-              {createError ? <p role="alert" className="text-xs text-red-400">{createError}</p> : null}
+              {createError ? <p role="alert" className={`text-xs ${isGirlsTheme ? 'text-rose-500' : 'text-red-400'}`}>{createError}</p> : null}
             </div>
 
-            <footer className="shrink-0 border-t border-white/10 bg-card px-4 pb-[calc(env(safe-area-inset-bottom,0px)+0.875rem)] pt-3">
+            <footer className={`shrink-0 border-t px-4 pb-[calc(env(safe-area-inset-bottom,0px)+0.875rem)] pt-3 ${isGirlsTheme ? 'border-[#E2B4BD]/35 bg-[#FFF5F5]' : 'border-white/10 bg-card'}`}>
               <button
                 type="button"
                 onClick={() => { void publishPost(); }}
                 disabled={!canPublish}
-                className="flex min-h-12 w-full items-center justify-center gap-2 rounded-full bg-accent px-4 text-sm font-bold text-black transition hover:brightness-95 active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-45 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-card"
+                className={`flex min-h-12 w-full items-center justify-center gap-2 rounded-full px-4 text-sm font-bold transition active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-45 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 ${isGirlsTheme ? 'bg-[linear-gradient(135deg,#F9B2D7,#E2B4BD)] text-[#4A4A4A] shadow-[0_14px_30px_rgba(249,178,215,0.30)] hover:brightness-[0.98] focus-visible:ring-[#F9B2D7] focus-visible:ring-offset-[#FFF5F5]' : 'bg-accent text-black hover:brightness-95 focus-visible:ring-accent focus-visible:ring-offset-card'}`}
               >
                 {isPublishing ? (
                   <>
@@ -1383,32 +1417,32 @@ export function Blogs({ guidedTourActive = false, onGuidedTourComplete, onGuided
       ) : null}
 
       {activeCommentsPost ? (
-        <div className="fixed inset-0 z-[80] flex items-end justify-center bg-black/70 p-0 sm:items-center sm:p-4" onClick={() => { setActiveCommentsPostId(null); setCommentError(''); setReplyToComment(null); }}>
-          <div className="w-full max-w-md rounded-t-[32px] border border-white/10 bg-card text-text-primary shadow-2xl sm:max-w-lg sm:rounded-[28px]" onClick={(event) => event.stopPropagation()}>
-            <div className="flex flex-col items-center px-4 pt-3"><div className="h-1 w-12 rounded-full bg-white/20" /><div className="mt-4 flex w-full items-center justify-between"><div className="w-9" /><h3 className="text-base font-semibold">{copy.commentsTitle}</h3><button type="button" onClick={() => { setActiveCommentsPostId(null); setCommentError(''); setReplyToComment(null); }} className="flex h-9 w-9 items-center justify-center rounded-full bg-white/10"><X size={16} /></button></div></div>
-            <div className="px-4 pt-3 text-xs text-text-secondary">{copy.existingComments(activeCommentsPost.comments)}</div>
+        <div className={`fixed inset-0 z-[80] flex items-end justify-center p-0 sm:items-center sm:p-4 ${isGirlsTheme ? 'bg-[#4A4A4A]/35 backdrop-blur-sm' : 'bg-black/70'}`} onClick={() => { setActiveCommentsPostId(null); setCommentError(''); setReplyToComment(null); }}>
+          <div className={`w-full max-w-md rounded-t-[32px] border shadow-2xl sm:max-w-lg sm:rounded-[28px] ${isGirlsTheme ? 'border-[#E2B4BD]/45 bg-[#FFF5F5] text-[#4A4A4A] shadow-[0_24px_60px_rgba(226,180,189,0.24)]' : 'border-white/10 bg-card text-text-primary'}`} onClick={(event) => event.stopPropagation()}>
+            <div className="flex flex-col items-center px-4 pt-3"><div className={`h-1 w-12 rounded-full ${isGirlsTheme ? 'bg-[#E2B4BD]/65' : 'bg-white/20'}`} /><div className="mt-4 flex w-full items-center justify-between"><div className="w-9" /><h3 className={`text-base font-semibold ${isGirlsTheme ? 'text-[#4A4A4A]' : ''}`}>{copy.commentsTitle}</h3><button type="button" onClick={() => { setActiveCommentsPostId(null); setCommentError(''); setReplyToComment(null); }} className={`flex h-9 w-9 items-center justify-center rounded-full transition-colors ${isGirlsTheme ? 'border border-[#E2B4BD]/45 bg-white/70 text-[#A87884] hover:border-[#F9B2D7]/70 hover:text-[#4A4A4A]' : 'bg-white/10'}`}><X size={16} /></button></div></div>
+            <div className={`px-4 pt-3 text-xs ${isGirlsTheme ? 'text-[#795E67]' : 'text-text-secondary'}`}>{copy.existingComments(activeCommentsPost.comments)}</div>
             <div className="max-h-[45vh] space-y-4 overflow-y-auto px-4 pb-4 pt-4">
-              {commentsLoading ? <div className="rounded-[18px] bg-white/5 px-4 py-3 text-sm text-text-secondary">{copy.loadingComments}</div> : localComments.length === 0 ? <div className="rounded-[18px] bg-white/5 px-4 py-3 text-sm text-text-secondary">{copy.noComments}</div> : localComments.map((comment) => (
+              {commentsLoading ? <div className={`rounded-[18px] px-4 py-3 text-sm ${isGirlsTheme ? 'border border-[#E2B4BD]/35 bg-white/65 text-[#795E67]' : 'bg-white/5 text-text-secondary'}`}>{copy.loadingComments}</div> : localComments.length === 0 ? <div className={`rounded-[18px] px-4 py-3 text-sm ${isGirlsTheme ? 'border border-[#E2B4BD]/35 bg-white/65 text-[#795E67]' : 'bg-white/5 text-text-secondary'}`}>{copy.noComments}</div> : localComments.map((comment) => (
                 <div key={comment.id} className="flex items-start gap-3">
-                  <img src={resolveCommentAvatar(comment)} alt={copy.avatarAlt(getAuthorName(comment.authorName))} className="h-10 w-10 rounded-full border border-white/10 object-cover" />
+                  <img src={resolveCommentAvatar(comment)} alt={copy.avatarAlt(getAuthorName(comment.authorName))} className={`h-10 w-10 rounded-full border object-cover ${isGirlsTheme ? 'border-[#E2B4BD]/45' : 'border-white/10'}`} />
                   <div className="min-w-0 flex-1">
-                    <div className="flex flex-wrap items-center gap-2 text-sm"><span className="font-semibold text-text-primary">{getAuthorName(comment.authorName)}</span><span className="text-[11px] text-text-tertiary">{getPostedAgo(comment.createdAt, copy, true)}</span></div>
-                    <div className="mt-1 text-sm leading-6 text-text-primary">{comment.text}</div>
-                    <button type="button" className="mt-2 text-[11px] text-accent transition-colors hover:text-text-primary" onClick={() => { const name = getAuthorName(comment.authorName); const prefix = `@${name}`; setReplyToComment({ id: comment.id, name }); setNewCommentText((prev) => prev.trim().startsWith(prefix) ? prev : `${prefix} `); requestAnimationFrame(() => { commentInputRef.current?.focus(); }); }}>{copy.reply}</button>
+                    <div className="flex flex-wrap items-center gap-2 text-sm"><span className={`font-semibold ${isGirlsTheme ? 'text-[#4A4A4A]' : 'text-text-primary'}`}>{getAuthorName(comment.authorName)}</span><span className={`text-[11px] ${isGirlsTheme ? 'text-[#A87884]' : 'text-text-tertiary'}`}>{getPostedAgo(comment.createdAt, copy, true)}</span></div>
+                    <div className={`mt-1 text-sm leading-6 ${isGirlsTheme ? 'text-[#4A4A4A]' : 'text-text-primary'}`}>{comment.text}</div>
+                    <button type="button" className={`mt-2 text-[11px] transition-colors ${isGirlsTheme ? 'text-[#A87884] hover:text-[#4A4A4A]' : 'text-accent hover:text-text-primary'}`} onClick={() => { const name = getAuthorName(comment.authorName); const prefix = `@${name}`; setReplyToComment({ id: comment.id, name }); setNewCommentText((prev) => prev.trim().startsWith(prefix) ? prev : `${prefix} `); requestAnimationFrame(() => { commentInputRef.current?.focus(); }); }}>{copy.reply}</button>
                   </div>
                 </div>
               ))}
             </div>
-            <div className="space-y-3 border-t border-white/10 px-4 pb-[calc(env(safe-area-inset-bottom,0px)+1rem)] pt-4">
-              {replyToComment ? <div className="flex items-center justify-between rounded-full bg-white/10 px-3 py-1.5 text-[11px] text-text-secondary"><span>{copy.replyLabel} {replyToComment.name}</span><button type="button" onClick={() => setReplyToComment(null)} className="text-text-primary"><X size={12} /></button></div> : null}
+            <div className={`space-y-3 border-t px-4 pb-[calc(env(safe-area-inset-bottom,0px)+1rem)] pt-4 ${isGirlsTheme ? 'border-[#E2B4BD]/35 bg-[#FFF5F5]' : 'border-white/10'}`}>
+              {replyToComment ? <div className={`flex items-center justify-between rounded-full px-3 py-1.5 text-[11px] ${isGirlsTheme ? 'border border-[#E2B4BD]/40 bg-white/65 text-[#795E67]' : 'bg-white/10 text-text-secondary'}`}><span>{copy.replyLabel} {replyToComment.name}</span><button type="button" onClick={() => setReplyToComment(null)} className={isGirlsTheme ? 'text-[#A87884]' : 'text-text-primary'}><X size={12} /></button></div> : null}
               <div className="flex items-center gap-2">
-                <img src={userProfileImage || DEFAULT_AVATAR} alt={copy.avatarAlt(copy.fallbackUser)} className="h-9 w-9 rounded-full border border-white/10 object-cover" />
-                <div className="flex flex-1 items-center gap-2 rounded-full bg-white/10 px-4 py-2.5">
-                  <input ref={commentInputRef} value={newCommentText} onChange={(event) => setNewCommentText(event.target.value)} placeholder={copy.addCommentPlaceholder} className="flex-1 bg-transparent text-sm text-text-primary placeholder:text-text-secondary focus:outline-none" />
-                  <button type="button" onClick={() => { void addComment(); }} className="text-text-primary transition-colors hover:text-accent" aria-label={copy.postComment}><Send size={16} /></button>
+                <img src={userProfileImage || DEFAULT_AVATAR} alt={copy.avatarAlt(copy.fallbackUser)} className={`h-9 w-9 rounded-full border object-cover ${isGirlsTheme ? 'border-[#E2B4BD]/45' : 'border-white/10'}`} />
+                <div className={`flex flex-1 items-center gap-2 rounded-full px-4 py-2.5 ${isGirlsTheme ? 'border border-[#E2B4BD]/45 bg-white/70 shadow-inner' : 'bg-white/10'}`}>
+                  <input ref={commentInputRef} value={newCommentText} onChange={(event) => setNewCommentText(event.target.value)} placeholder={copy.addCommentPlaceholder} className={`flex-1 bg-transparent text-sm focus:outline-none ${isGirlsTheme ? 'text-[#4A4A4A] placeholder:text-[#A87884]' : 'text-text-primary placeholder:text-text-secondary'}`} />
+                  <button type="button" onClick={() => { void addComment(); }} className={`transition-colors ${isGirlsTheme ? 'text-[#A87884] hover:text-[#4A4A4A]' : 'text-text-primary hover:text-accent'}`} aria-label={copy.postComment}><Send size={16} /></button>
                 </div>
               </div>
-              {commentError ? <div className="text-sm text-red-300">{commentError}</div> : null}
+              {commentError ? <div className={`text-sm ${isGirlsTheme ? 'text-rose-500' : 'text-red-300'}`}>{commentError}</div> : null}
             </div>
           </div>
         </div>

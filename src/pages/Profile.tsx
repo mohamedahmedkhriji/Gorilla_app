@@ -119,6 +119,20 @@ const PROFILE_VIEW_ORDER = [
   'chat',
 ] as const;
 
+const readProfileStyleGender = () => {
+  if (typeof window === 'undefined') return '';
+  try {
+    return window.localStorage.getItem('appStyleGender') || '';
+  } catch {
+    return '';
+  }
+};
+
+const isGirlsProfileStyle = (value: unknown) => {
+  const normalized = String(value || '').trim().toLowerCase();
+  return normalized === 'woman' || normalized === 'female' || normalized === 'f' || normalized === 'girls' || normalized === 'femme';
+};
+
 export function Profile({
   onNavigateTab,
   onTabBarVisibilityChange,
@@ -141,6 +155,7 @@ export function Profile({
   } | null>(null);
   const [selectedCoach, setSelectedCoach] = useState<{id: number, name: string} | null>(null);
   const [language, setLanguage] = useState<AppLanguage>('en');
+  const [styleGender, setStyleGender] = useState(() => readProfileStyleGender());
   const [coachmarkStepIndex, setCoachmarkStepIndex] = useState(0);
   const [isCoachmarkOpen, setIsCoachmarkOpen] = useState(false);
   const previousViewRef = useRef(view);
@@ -161,6 +176,19 @@ export function Profile({
   }, [view]);
 
   const copy = PROFILE_PAGE_I18N[language as keyof typeof PROFILE_PAGE_I18N] || PROFILE_PAGE_I18N.en;
+  const isGirlsTheme = isGirlsProfileStyle(styleGender);
+
+  useEffect(() => {
+    const handleStyleGenderChanged = () => setStyleGender(readProfileStyleGender());
+    window.addEventListener('repset:app-style-gender-changed', handleStyleGenderChanged);
+    window.addEventListener('repset:stored-user-changed', handleStyleGenderChanged);
+    window.addEventListener('storage', handleStyleGenderChanged);
+    return () => {
+      window.removeEventListener('repset:app-style-gender-changed', handleStyleGenderChanged);
+      window.removeEventListener('repset:stored-user-changed', handleStyleGenderChanged);
+      window.removeEventListener('storage', handleStyleGenderChanged);
+    };
+  }, []);
 
   const coachmarkScope = useMemo(() => getCoachmarkUserScope(), []);
   const isArabic = language === 'ar';
@@ -845,7 +873,7 @@ export function Profile({
           <button
             data-coachmark-target="profile_settings_button"
             onClick={() => setView('settings')}
-            className="flex h-10 w-10 items-center justify-center rounded-full border border-accent/35 bg-accent/10 text-accent shadow-[0_12px_24px_-18px_rgba(0,0,0,0.8),0_0_18px_rgba(205,255,88,0.12)] ring-1 ring-inset ring-accent/10 transition-all duration-200 hover:-translate-y-0.5 hover:border-accent/55 hover:bg-accent/15 active:scale-95"
+            className={`flex h-10 w-10 items-center justify-center rounded-full border ring-1 ring-inset transition-all duration-200 hover:-translate-y-0.5 active:scale-95 ${isGirlsTheme ? 'border-[#E2B4BD]/55 bg-white/70 text-[#4A4A4A] shadow-[0_12px_24px_rgba(226,180,189,0.16)] ring-white/45 hover:border-[#F9B2D7]/70 hover:bg-white/85' : 'border-accent/35 bg-accent/10 text-accent shadow-[0_12px_24px_-18px_rgba(0,0,0,0.8),0_0_18px_rgba(205,255,88,0.12)] ring-accent/10 hover:border-accent/55 hover:bg-accent/15'}`}
             aria-label={copy.openSettings}
           >
             <Settings size={20} />

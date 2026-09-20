@@ -149,6 +149,44 @@ const ARM_SUBFILTER_KEYS = new Set(['bicep', 'biceps', 'tricep', 'triceps', 'for
 const LEG_FILTER_KEYS = new Set(['leg', 'legs']);
 const LEG_SUBFILTER_KEYS = new Set(['quadricep', 'quadriceps', 'hamstring', 'hamstrings', 'glute', 'glutes', 'calf', 'calves', 'adductor', 'adductors']);
 
+const isGirlsStyleValue = (value: unknown) => {
+  const normalized = String(value || '').trim().toLowerCase();
+  return normalized === 'woman' || normalized === 'female' || normalized === 'f' || normalized === 'girls';
+};
+
+const readExerciseLibraryStyleGender = () => {
+  try {
+    return String(localStorage.getItem('appStyleGender') || '').trim().toLowerCase();
+  } catch {
+    return '';
+  }
+};
+
+const readExerciseLibraryStoredUser = () => {
+  try {
+    return JSON.parse(localStorage.getItem('appUser') || localStorage.getItem('user') || '{}');
+  } catch {
+    return {};
+  }
+};
+
+const readExerciseLibraryProfile = (user: any) => {
+  const rawProfile = user?.onboarding_profile || user?.onboardingProfile;
+  if (!rawProfile) return {};
+  if (typeof rawProfile === 'object') return rawProfile;
+  try {
+    return JSON.parse(String(rawProfile));
+  } catch {
+    return {};
+  }
+};
+
+const shouldUseGirlsExerciseLibraryTheme = (user: any, styleGender: string) => {
+  if (styleGender) return isGirlsStyleValue(styleGender);
+  const profile = readExerciseLibraryProfile(user);
+  return isGirlsStyleValue(user?.gender) || isGirlsStyleValue(profile?.gender) || profile?.onboardingTheme === 'girls';
+};
+
 const inferExerciseLibraryMuscle = (value: {
   name?: string | null;
   muscle?: string | null;
@@ -192,6 +230,7 @@ export function ExerciseLibrary({
   useScreenshotProtection();
   const introVideoRef = useRef<HTMLVideoElement>(null);
   const [language, setLanguage] = useState<AppLanguage>(() => getActiveLanguage(getStoredLanguage()));
+  const [themeRefreshKey, setThemeRefreshKey] = useState(0);
   const copy = pickLanguage(language, {
     en: {
       title: 'Exercise Library',
@@ -274,6 +313,36 @@ export function ExerciseLibrary({
   const [activeIntroFilter, setActiveIntroFilter] = useState<string | null>(null);
   const bodyPartSkeletons = Array.from({ length: 6 }, (_, index) => `body-part-skeleton-${index}`);
   const exerciseSkeletons = Array.from({ length: 6 }, (_, index) => `exercise-skeleton-${index}`);
+  const isGirlsTheme = useMemo(
+    () => shouldUseGirlsExerciseLibraryTheme(readExerciseLibraryStoredUser(), readExerciseLibraryStyleGender()),
+    [themeRefreshKey],
+  );
+  const pageClassName = isGirlsTheme
+    ? 'flex min-h-screen flex-1 flex-col pb-24 bg-[radial-gradient(circle_at_top_left,rgba(249,178,215,0.22),transparent_34%),radial-gradient(circle_at_85%_8%,rgba(207,236,243,0.34),transparent_32%),linear-gradient(180deg,#FFF5F5_0%,#F7D6D0_52%,#FFF5F5_100%)] text-[#4A4A4A] [&_.surface-glass]:border-[#E2B4BD]/45 [&_.surface-glass]:bg-white/60 [&_.surface-glass]:text-[#4A4A4A] [&_h1]:text-[#4A4A4A]'
+    : 'flex min-h-screen flex-1 flex-col bg-background pb-24';
+  const sectionLabelClassName = isGirlsTheme
+    ? 'text-[11px] font-semibold uppercase tracking-[0.18em] text-[#795E67]'
+    : 'text-[11px] font-semibold uppercase tracking-[0.18em] text-text-tertiary';
+  const sectionLineClassName = isGirlsTheme ? 'h-px flex-1 bg-[#E2B4BD]/45' : 'h-px flex-1 bg-white/10';
+  const exerciseCardClassName = isGirlsTheme
+    ? 'group cursor-pointer overflow-hidden !p-0 border-[#E2B4BD]/45 bg-white/[0.70] text-[#4A4A4A] shadow-[0_12px_28px_rgba(226,180,189,0.12)] transition-colors hover:border-[#F9B2D7]/65'
+    : 'group cursor-pointer overflow-hidden !p-0 transition-colors hover:border-accent/20';
+  const exerciseThumbClassName = isGirlsTheme
+    ? 'relative flex aspect-[4/3] items-center justify-center overflow-hidden bg-white/45'
+    : 'relative flex aspect-[4/3] items-center justify-center overflow-hidden bg-white/5';
+  const playOverlayClassName = isGirlsTheme
+    ? 'absolute inset-0 flex items-center justify-center bg-[#4A4A4A]/18'
+    : 'absolute inset-0 flex items-center justify-center bg-black/30';
+  const playButtonClassName = isGirlsTheme
+    ? 'flex h-8 w-8 items-center justify-center rounded-full bg-[#F9B2D7] text-[#4A4A4A] transition-colors group-hover:bg-[#E2B4BD]'
+    : 'flex h-8 w-8 items-center justify-center rounded-full bg-black/50 text-white transition-colors group-hover:bg-accent group-hover:text-black';
+  const exerciseNameClassName = isGirlsTheme
+    ? 'min-w-0 flex-1 truncate text-sm font-bold text-[#A87884]'
+    : 'min-w-0 flex-1 truncate text-sm font-bold text-white';
+  const mutedTextClassName = isGirlsTheme ? 'text-[#A87884]' : 'text-text-secondary';
+  const emptyClassName = isGirlsTheme
+    ? 'rounded-2xl border border-[#E2B4BD]/45 bg-white/[0.70] p-5 text-center text-sm text-[#795E67] shadow-[0_12px_28px_rgba(226,180,189,0.12)]'
+    : 'surface-card rounded-2xl border border-white/10 p-5 text-center text-sm text-text-secondary';
 
   useEffect(() => {
     setSelectedFilter(initialFilter || 'All');
@@ -287,6 +356,18 @@ export function ExerciseLibrary({
     handleLanguageChanged();
     window.addEventListener('app-language-changed', handleLanguageChanged);
     return () => window.removeEventListener('app-language-changed', handleLanguageChanged);
+  }, []);
+
+  useEffect(() => {
+    const refreshTheme = () => setThemeRefreshKey((current) => current + 1);
+    window.addEventListener('repset:stored-user-changed', refreshTheme);
+    window.addEventListener('repset:app-style-gender-changed', refreshTheme);
+    window.addEventListener('storage', refreshTheme);
+    return () => {
+      window.removeEventListener('repset:stored-user-changed', refreshTheme);
+      window.removeEventListener('repset:app-style-gender-changed', refreshTheme);
+      window.removeEventListener('storage', refreshTheme);
+    };
   }, []);
 
   useEffect(() => {
@@ -713,7 +794,7 @@ export function ExerciseLibrary({
   }, [copy.sectionCore, copy.sectionLower, copy.sectionOther, copy.sectionUpper, visibleMuscleFilters]);
 
   return (
-    <div className="flex min-h-screen flex-1 flex-col bg-background pb-24">
+    <div className={pageClassName}>
       <div className="px-4 pt-2 sm:px-6">
         <Header
           title={selectedFilter === 'All' ? copy.title : copy.buildStronger(getMuscleLabel(selectedFilter))}
@@ -727,10 +808,10 @@ export function ExerciseLibrary({
           {groupedMuscleSections.map((section) => (
             <div key={section.id} className="space-y-3">
               <div className={isRtl ? 'flex items-center gap-3 text-right' : 'flex items-center gap-3'}>
-                <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-text-tertiary">
+                <div className={sectionLabelClassName}>
                   {section.label}
                 </div>
-                <div className="h-px flex-1 bg-white/10" />
+                <div className={sectionLineClassName} />
               </div>
               <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
                 {section.items.map((filter) => {
@@ -754,6 +835,7 @@ export function ExerciseLibrary({
                         align="center"
                         className="w-full"
                         figureClassName="h-24 sm:h-28"
+                        themeVariant={isGirlsTheme ? 'girls' : 'default'}
                       />
                     </button>
                   );
@@ -770,12 +852,14 @@ export function ExerciseLibrary({
             {bodyPartSkeletons.map((key) => (
               <div
                 key={key}
-                className="overflow-hidden rounded-2xl border border-white/10 bg-card p-3 animate-pulse"
+                className={isGirlsTheme
+                  ? 'overflow-hidden rounded-2xl border border-[#E2B4BD]/45 bg-white/[0.70] p-3 animate-pulse'
+                  : 'overflow-hidden rounded-2xl border border-white/10 bg-card p-3 animate-pulse'}
               >
-                <div className="-mx-3 -mt-1 h-28 w-[calc(100%+1.5rem)] bg-white/5 sm:h-32" />
-                <div className="-mx-3 mt-1 border-t border-white/10" />
-                <div className="mt-3 h-4 w-3/4 rounded bg-white/10" />
-                <div className="mt-2 h-3 w-1/2 rounded bg-white/10" />
+                <div className={`-mx-3 -mt-1 h-28 w-[calc(100%+1.5rem)] sm:h-32 ${isGirlsTheme ? 'bg-white/45' : 'bg-white/5'}`} />
+                <div className={`-mx-3 mt-1 border-t ${isGirlsTheme ? 'border-[#E2B4BD]/35' : 'border-white/10'}`} />
+                <div className={`mt-3 h-4 w-3/4 rounded ${isGirlsTheme ? 'bg-[#E2B4BD]/35' : 'bg-white/10'}`} />
+                <div className={`mt-2 h-3 w-1/2 rounded ${isGirlsTheme ? 'bg-[#E2B4BD]/25' : 'bg-white/10'}`} />
               </div>
             ))}
           </div>
@@ -787,13 +871,15 @@ export function ExerciseLibrary({
           {exerciseSkeletons.map((key) => (
             <div
               key={key}
-              className="surface-card overflow-hidden rounded-2xl border border-white/10 animate-pulse"
+              className={isGirlsTheme
+                ? 'overflow-hidden rounded-2xl border border-[#E2B4BD]/45 bg-white/[0.70] animate-pulse'
+                : 'surface-card overflow-hidden rounded-2xl border border-white/10 animate-pulse'}
             >
-              <div className="aspect-[4/3] w-full bg-white/5" />
+              <div className={`aspect-[4/3] w-full ${isGirlsTheme ? 'bg-white/45' : 'bg-white/5'}`} />
               <div className="px-3 pb-3 pt-3">
-                <div className="h-4 w-4/5 rounded bg-white/10" />
+                <div className={`h-4 w-4/5 rounded ${isGirlsTheme ? 'bg-[#E2B4BD]/35' : 'bg-white/10'}`} />
                 <div className="mt-2 flex justify-end">
-                  <div className="h-3 w-8 rounded bg-white/10" />
+                  <div className={`h-3 w-8 rounded ${isGirlsTheme ? 'bg-[#E2B4BD]/25' : 'bg-white/10'}`} />
                 </div>
               </div>
             </div>
@@ -826,9 +912,9 @@ export function ExerciseLibrary({
                     targetMuscles: exercise.muscle ? [exercise.muscle] : undefined,
                     anatomy: exercise.muscle || exercise.bodyPart || undefined,
                   })}
-                  className="group cursor-pointer overflow-hidden !p-0 transition-colors hover:border-accent/20"
+                  className={exerciseCardClassName}
                 >
-                  <div className="relative flex aspect-[4/3] items-center justify-center overflow-hidden bg-white/5">
+                  <div className={exerciseThumbClassName}>
                     <MuscleSvgBadge
                       muscle={{ label: thumbnailLabel, sourceName: thumbnailMuscle }}
                       align="center"
@@ -836,16 +922,17 @@ export function ExerciseLibrary({
                       figureClassName="h-full"
                       showLabel={false}
                       variant="bare"
+                      themeVariant={isGirlsTheme ? 'girls' : 'default'}
                     />
-                    <div className="absolute inset-0 flex items-center justify-center bg-black/30">
-                      <div className="flex h-8 w-8 items-center justify-center rounded-full bg-black/50 text-white transition-colors group-hover:bg-accent group-hover:text-black">
+                    <div className={playOverlayClassName}>
+                      <div className={playButtonClassName}>
                         <Play size={12} fill="currentColor" />
                       </div>
                     </div>
                   </div>
                   <div className="px-3 pb-3 pt-3">
                     <div className="flex items-center justify-between gap-2">
-                      <div className="min-w-0 flex-1 truncate text-sm font-bold text-white">
+                      <div className={exerciseNameClassName}>
                         {exercise.name}
                       </div>
                       <button
@@ -854,9 +941,9 @@ export function ExerciseLibrary({
                       >
                         <Heart
                           size={14}
-                          className={likeData.liked ? 'fill-red-500 text-red-500' : 'text-text-secondary'}
+                          className={likeData.liked ? 'fill-red-500 text-red-500' : mutedTextClassName}
                         />
-                        <span className="text-[10px] text-text-secondary">{Math.max(0, likeData.count)}</span>
+                        <span className={`text-[10px] ${mutedTextClassName}`}>{Math.max(0, likeData.count)}</span>
                       </button>
                     </div>
                   </div>
@@ -866,7 +953,7 @@ export function ExerciseLibrary({
           </div>
           {filteredExercises.length === 0 && (
             <div className="mt-6 px-4 sm:px-6">
-              <div className="surface-card rounded-2xl border border-white/10 p-5 text-center text-sm text-text-secondary">
+              <div className={emptyClassName}>
                 {copy.empty}
               </div>
             </div>

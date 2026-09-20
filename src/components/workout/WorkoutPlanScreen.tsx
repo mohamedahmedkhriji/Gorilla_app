@@ -141,7 +141,36 @@ type TargetMuscleDisplay = {
   score: number;
 };
 
-function TargetMuscleCards({ muscles }: { muscles: TargetMuscleDisplay[] }) {
+const isGirlsStyleValue = (value: unknown) => {
+  const normalized = String(value || '').trim().toLowerCase();
+  return normalized === 'woman' || normalized === 'female' || normalized === 'f' || normalized === 'girls' || normalized === 'femme';
+};
+
+const safeParseStoredJson = (key: string) => {
+  try {
+    const rawValue = localStorage.getItem(key);
+    return rawValue ? JSON.parse(rawValue) : null;
+  } catch {
+    return null;
+  }
+};
+
+const readStoredStyleGender = () => {
+  if (typeof window === 'undefined') return '';
+  return String(localStorage.getItem('appStyleGender') || '').trim().toLowerCase();
+};
+
+const shouldUseGirlsTheme = () => {
+  if (typeof window === 'undefined') return false;
+  const styleGender = readStoredStyleGender();
+  if (styleGender) return isGirlsStyleValue(styleGender);
+
+  const user = safeParseStoredJson('appUser') || safeParseStoredJson('user');
+  const profile = safeParseStoredJson('onboardingProfile');
+  return isGirlsStyleValue(user?.gender) || isGirlsStyleValue(profile?.gender) || profile?.onboardingTheme === 'girls';
+};
+
+function TargetMuscleCards({ muscles, themeVariant = 'default' }: { muscles: TargetMuscleDisplay[]; themeVariant?: 'default' | 'girls' }) {
   return (
     <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
       {muscles.map((muscle) => (
@@ -150,6 +179,7 @@ function TargetMuscleCards({ muscles }: { muscles: TargetMuscleDisplay[] }) {
           muscle={{ label: muscle.name, sourceName: canonicalizeMuscleLabel(muscle.name) }}
           className="w-full"
           figureClassName="h-24 sm:h-28"
+          themeVariant={themeVariant}
         />
       ))}
     </div>
@@ -533,8 +563,13 @@ export function WorkoutPlanScreen({
   const [isSubmittingMissDay, setIsSubmittingMissDay] = useState(false);
   const [isSubmittingMarkDone, setIsSubmittingMarkDone] = useState(false);
   const [lastWeights, setLastWeights] = useState<Record<string, number>>({});
+  const [styleGender, setStyleGender] = useState(() => readStoredStyleGender());
   const copy = LOCALIZED_WORKOUT_PLAN_I18N[language] || LOCALIZED_WORKOUT_PLAN_I18N.en;
   const isArabic = language === 'ar';
+  const isGirlsTheme = useMemo(
+    () => (styleGender ? isGirlsStyleValue(styleGender) : shouldUseGirlsTheme()),
+    [styleGender],
+  );
 
   const toLocalizedMuscleLabel = useCallback(
     (value: string) => {
@@ -575,6 +610,21 @@ export function WorkoutPlanScreen({
     return () => {
       window.removeEventListener('app-language-changed', handleLanguageChanged);
       window.removeEventListener('storage', handleLanguageChanged);
+    };
+  }, []);
+
+  useEffect(() => {
+    const handleThemeChanged = () => {
+      setStyleGender(readStoredStyleGender());
+    };
+
+    window.addEventListener('repset:app-style-gender-changed', handleThemeChanged);
+    window.addEventListener('repset:stored-user-changed', handleThemeChanged);
+    window.addEventListener('storage', handleThemeChanged);
+    return () => {
+      window.removeEventListener('repset:app-style-gender-changed', handleThemeChanged);
+      window.removeEventListener('repset:stored-user-changed', handleThemeChanged);
+      window.removeEventListener('storage', handleThemeChanged);
     };
   }, []);
 
@@ -779,7 +829,7 @@ export function WorkoutPlanScreen({
             setMarkDoneFeedback(null);
             setIsMarkDoneModalOpen(true);
           }}
-          className="flex h-10 items-center gap-2 rounded-xl border border-emerald-500/20 bg-emerald-500/10 px-3 text-[11px] font-semibold uppercase tracking-[0.12em] text-emerald-200 transition-colors hover:border-emerald-400/30 hover:bg-emerald-500/15"
+          className={`flex h-10 items-center gap-2 rounded-xl border px-3 text-[11px] font-semibold uppercase tracking-[0.12em] transition-colors ${isGirlsTheme ? 'border-emerald-300/45 bg-white/70 text-emerald-700 hover:border-emerald-300/70 hover:bg-emerald-50' : 'border-emerald-500/20 bg-emerald-500/10 text-emerald-200 hover:border-emerald-400/30 hover:bg-emerald-500/15'}`}
           aria-label={copy.markDoneAria}
         >
           <Check size={15} />
@@ -795,7 +845,7 @@ export function WorkoutPlanScreen({
             setMissDayFeedback(null);
             setIsMissModalOpen(true);
           }}
-          className="flex h-10 items-center gap-2 rounded-xl border border-rose-500/20 bg-rose-500/10 px-3 text-[11px] font-semibold uppercase tracking-[0.12em] text-rose-200 transition-colors hover:border-rose-400/30 hover:bg-rose-500/15"
+          className={`flex h-10 items-center gap-2 rounded-xl border px-3 text-[11px] font-semibold uppercase tracking-[0.12em] transition-colors ${isGirlsTheme ? 'border-[#E2B4BD]/55 bg-white/70 text-[#A87884] hover:border-[#F9B2D7]/70 hover:bg-[#FFF5F5]' : 'border-rose-500/20 bg-rose-500/10 text-rose-200 hover:border-rose-400/30 hover:bg-rose-500/15'}`}
           aria-label={copy.markMissedAria}
         >
           <CalendarX2 size={15} />
@@ -889,8 +939,21 @@ export function WorkoutPlanScreen({
     }
   };
 
+  const pageClassName = isGirlsTheme
+    ? 'flex-1 flex flex-col h-full overflow-y-auto pb-24 bg-[radial-gradient(circle_at_top_left,rgba(249,178,215,0.22),transparent_34%),radial-gradient(circle_at_85%_8%,rgba(207,236,243,0.34),transparent_32%),linear-gradient(180deg,#FFF5F5_0%,#F7D6D0_52%,#FFF5F5_100%)] text-[#4A4A4A] [&_h1]:text-[#4A4A4A]'
+    : 'flex-1 flex flex-col h-full bg-background overflow-y-auto pb-24';
+  const labelClassName = isGirlsTheme
+    ? 'text-xs font-bold uppercase tracking-wider text-[#795E67]'
+    : 'text-xs font-bold uppercase tracking-wider text-text-secondary';
+  const emptyCardClassName = isGirlsTheme
+    ? 'rounded-2xl border border-[#E2B4BD]/45 bg-white/70 px-4 py-4 text-sm text-[#795E67] shadow-[0_12px_28px_rgba(226,180,189,0.12)]'
+    : 'rounded-2xl border border-white/[0.08] bg-card/60 px-4 py-4 text-sm text-text-secondary';
+  const exerciseEmptyClassName = isGirlsTheme
+    ? 'rounded-2xl border border-[#E2B4BD]/45 bg-white/70 px-4 py-5 text-sm text-[#795E67] shadow-[0_12px_28px_rgba(226,180,189,0.12)]'
+    : 'rounded-2xl border border-white/10 bg-card/70 px-4 py-5 text-sm text-text-secondary';
+
   return (
-    <div className="flex-1 flex flex-col h-full bg-background overflow-y-auto pb-24">
+    <div className={pageClassName}>
       <div className="px-4 sm:px-6 pt-2">
         <Header
           title={headerTitle}
@@ -908,13 +971,13 @@ export function WorkoutPlanScreen({
             data-no-translate="true"
             data-coachmark-target="workout_plan_target_muscles"
           >
-            <div className="text-xs font-bold uppercase tracking-wider text-text-secondary">
+            <div className={labelClassName}>
               {copy.targetMuscles}
             </div>
             {displayTargetMuscles.length > 0 ? (
-              <TargetMuscleCards muscles={displayTargetMuscles} />
+              <TargetMuscleCards muscles={displayTargetMuscles} themeVariant={isGirlsTheme ? 'girls' : 'default'} />
             ) : (
-              <div className="rounded-2xl border border-white/[0.08] bg-card/60 px-4 py-4 text-sm text-text-secondary">
+              <div className={emptyCardClassName}>
                 {copy.targetMusclesEmpty}
               </div>
             )}
@@ -922,14 +985,14 @@ export function WorkoutPlanScreen({
         )}
 
         <div className="flex items-center justify-between pt-1">
-          <h3 className="text-xl font-semibold text-white">
+          <h3 className={`text-xl font-semibold ${isGirlsTheme ? 'text-[#4A4A4A]' : 'text-white'}`}>
             {copy.exercisesCount(exercises.length)}
           </h3>
         </div>
 
         <div className="space-y-3">
           {exercises.length === 0 && (
-            <div className="rounded-2xl border border-white/10 bg-card/70 px-4 py-5 text-sm text-text-secondary">
+            <div className={exerciseEmptyClassName}>
               {isRestDayView
                 ? copy.restDayEmpty
                 : copy.noExercises}
@@ -951,15 +1014,21 @@ export function WorkoutPlanScreen({
                 type="button"
                 onClick={() => onExerciseClick(exercise.name)}
                 className={`w-full rounded-2xl border p-3 text-left transition-colors ${
-                  isCompleted
-                    ? 'border-green-500/35 bg-green-500/5'
-                    : isNext
-                      ? 'border-accent/40 bg-accent/5'
-                      : 'border-white/[0.08] bg-card/70 hover:border-accent/20'
+                  isGirlsTheme
+                    ? isCompleted
+                      ? 'border-emerald-300/45 bg-emerald-50/70'
+                      : isNext
+                        ? 'border-[#F9B2D7]/70 bg-white/80 shadow-[0_12px_28px_rgba(249,178,215,0.14)]'
+                        : 'border-[#E2B4BD]/45 bg-white/70 hover:border-[#F9B2D7]/70 hover:bg-white/85'
+                    : isCompleted
+                      ? 'border-green-500/35 bg-green-500/5'
+                      : isNext
+                        ? 'border-accent/40 bg-accent/5'
+                        : 'border-white/[0.08] bg-card/70 hover:border-accent/20'
                 }`}
               >
                 <div className="flex items-center gap-3">
-                  <div className="relative h-20 w-20 shrink-0 overflow-hidden rounded-2xl border border-white/10 bg-white/5">
+                  <div className={`relative h-20 w-20 shrink-0 overflow-hidden rounded-2xl border ${isGirlsTheme ? 'border-[#E2B4BD]/40 bg-white/65' : 'border-white/10 bg-white/5'}`}>
                     {videoUrl ? (
                       <>
                         <video
@@ -972,8 +1041,8 @@ export function WorkoutPlanScreen({
                           muted
                           preload="metadata"
                         />
-                        <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-black/30">
-                          <div className="flex h-7 w-7 items-center justify-center rounded-full bg-black/55 text-white">
+                        <div className={`pointer-events-none absolute inset-0 flex items-center justify-center ${isGirlsTheme ? 'bg-[#4A4A4A]/16' : 'bg-black/30'}`}>
+                          <div className={`flex h-7 w-7 items-center justify-center rounded-full ${isGirlsTheme ? 'bg-white/75 text-[#A87884]' : 'bg-black/55 text-white'}`}>
                             <Play size={11} fill="currentColor" />
                           </div>
                         </div>
@@ -985,7 +1054,7 @@ export function WorkoutPlanScreen({
                           alt={exercise.name}
                           className="h-full w-full object-cover"
                         />
-                        <div className="pointer-events-none absolute inset-x-0 bottom-0 bg-black/70 px-2 py-1 text-center text-[9px] font-semibold uppercase tracking-[0.12em] text-amber-200">
+                        <div className={`pointer-events-none absolute inset-x-0 bottom-0 px-2 py-1 text-center text-[9px] font-semibold uppercase tracking-[0.12em] ${isGirlsTheme ? 'bg-white/82 text-[#A87884]' : 'bg-black/70 text-amber-200'}`}>
                           {copy.videoMissing}
                         </div>
                       </>
@@ -994,20 +1063,20 @@ export function WorkoutPlanScreen({
 
                   <div className="min-w-0 flex-1">
                     <div className="min-w-0">
-                      <h4 className="truncate text-sm font-semibold text-white">
+                      <h4 className={`truncate text-sm font-semibold ${isGirlsTheme ? 'text-[#4A4A4A]' : 'text-white'}`}>
                         {stripExercisePrefix(exercise.name)}
                       </h4>
-                      <p className="mt-1 text-xs text-text-secondary">
+                      <p className={`mt-1 text-xs ${isGirlsTheme ? 'text-[#795E67]' : 'text-text-secondary'}`}>
                         {exercise.sets} {copy.setsLabel} - {exercise.reps || '--'} {copy.repsLabel} - {exercise.targetWeight ? `${exercise.targetWeight} ${copy.kgLabel}` : formatRestLabel(exercise.rest)}
                         {lastWeight ? ` - ${copy.lastWeightLabel} ${lastWeight} ${copy.kgLabel}` : ''}
                       </p>
                       {!!exercise.targetMuscles.length && (
-                        <p className="mt-2 truncate text-[11px] text-text-tertiary">
+                        <p className={`mt-2 truncate text-[11px] ${isGirlsTheme ? 'text-[#A87884]' : 'text-text-tertiary'}`}>
                           {exercise.targetMuscles.map((entry) => toLocalizedMuscleLabel(entry)).join(' - ')}
                         </p>
                       )}
                       {!!exercise.notes && (
-                        <p className="mt-2 line-clamp-2 text-[11px] text-text-tertiary">
+                        <p className={`mt-2 line-clamp-2 text-[11px] ${isGirlsTheme ? 'text-[#A87884]' : 'text-text-tertiary'}`}>
                           {exercise.notes}
                         </p>
                       )}
@@ -1027,19 +1096,19 @@ export function WorkoutPlanScreen({
           onClick={() => setIsAddModalOpen(false)}
         >
           <div
-            className={`w-full max-w-3xl rounded-3xl border border-white/10 bg-card p-4 shadow-2xl ${isArabic ? 'text-right' : 'text-left'}`}
+            className={`w-full max-w-3xl rounded-3xl border p-4 shadow-2xl ${isGirlsTheme ? 'border-[#E2B4BD]/45 bg-[#FFF5F5] text-[#4A4A4A]' : 'border-white/10 bg-card'} ${isArabic ? 'text-right' : 'text-left'}`}
             dir={isArabic ? 'rtl' : 'ltr'}
             onClick={(event) => event.stopPropagation()}
           >
             <div className={`flex items-center justify-between ${isArabic ? 'flex-row-reverse' : ''}`}>
               <div>
-                <h3 className="text-lg font-semibold text-white">{copy.addExerciseTitle}</h3>
-                <p className="mt-1 text-sm text-text-secondary">{copy.addExerciseSubtitle}</p>
+                <h3 className={`text-lg font-semibold ${isGirlsTheme ? 'text-[#4A4A4A]' : 'text-white'}`}>{copy.addExerciseTitle}</h3>
+                <p className={`mt-1 text-sm ${isGirlsTheme ? 'text-[#795E67]' : 'text-text-secondary'}`}>{copy.addExerciseSubtitle}</p>
               </div>
               <button
                 type="button"
                 onClick={() => setIsAddModalOpen(false)}
-                className="flex h-9 w-9 items-center justify-center rounded-full bg-white/5 text-text-secondary transition-colors hover:bg-white/10 hover:text-white"
+                className={`flex h-9 w-9 items-center justify-center rounded-full transition-colors ${isGirlsTheme ? 'border border-[#E2B4BD]/45 bg-white/70 text-[#795E67] hover:bg-white' : 'bg-white/5 text-text-secondary hover:bg-white/10 hover:text-white'}`}
                 aria-label={copy.closeAddExercise}
               >
                 <X size={18} />
@@ -1054,7 +1123,7 @@ export function WorkoutPlanScreen({
 
             <div ref={addModalScrollRef} className="mt-4 max-h-[70vh] space-y-5 overflow-y-auto pr-1">
               {catalogLoading && (
-                <div className="rounded-2xl border border-white/[0.08] bg-background/60 px-4 py-3 text-sm text-text-secondary">
+                  <div className={`rounded-2xl border px-4 py-3 text-sm ${isGirlsTheme ? 'border-[#E2B4BD]/45 bg-white/70 text-[#795E67]' : 'border-white/[0.08] bg-background/60 text-text-secondary'}`}>
                   {copy.loadingExercises}
                 </div>
               )}
@@ -1070,10 +1139,10 @@ export function WorkoutPlanScreen({
                   <div>
                     <div className="flex items-center justify-between gap-3">
                       <div>
-                        <div className="text-xs font-bold uppercase tracking-wider text-text-secondary">
+                        <div className={labelClassName}>
                           {selectedCatalogMuscle ? toLocalizedMuscleLabel(selectedCatalogMuscle) : copy.exercisesHeading}
                         </div>
-                        <div className="mt-1 text-sm text-white">
+                        <div className={`mt-1 text-sm ${isGirlsTheme ? 'text-[#4A4A4A]' : 'text-white'}`}>
                           {selectedCatalogMuscle
                             ? copy.chooseExerciseHint
                             : copy.selectMuscleHint}
@@ -1086,7 +1155,7 @@ export function WorkoutPlanScreen({
                             setSelectedCatalogMuscle('');
                             setSearchQuery('');
                           }}
-                          className="rounded-full border border-white/10 px-3 py-1.5 text-xs font-semibold text-text-secondary transition-colors hover:border-accent/30 hover:text-white"
+                          className={`rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors ${isGirlsTheme ? 'border-[#E2B4BD]/45 bg-white/70 text-[#795E67] hover:border-[#F9B2D7]/70' : 'border-white/10 text-text-secondary hover:border-accent/30 hover:text-white'}`}
                         >
                           {copy.clear}
                         </button>
@@ -1094,25 +1163,25 @@ export function WorkoutPlanScreen({
                     </div>
 
                     <div className="relative mt-4">
-                      <Search size={16} className={`absolute top-1/2 -translate-y-1/2 text-text-secondary ${isArabic ? 'right-3' : 'left-3'}`} />
+                      <Search size={16} className={`absolute top-1/2 -translate-y-1/2 ${isGirlsTheme ? 'text-[#A87884]' : 'text-text-secondary'} ${isArabic ? 'right-3' : 'left-3'}`} />
                       <input
                         type="text"
                         value={searchQuery}
                         onChange={(event) => setSearchQuery(event.target.value)}
                         placeholder={selectedCatalogMuscle ? copy.searchExercise : copy.selectMuscleFirst}
                         disabled={!selectedCatalogMuscle}
-                        className={`w-full rounded-2xl border border-white/10 bg-background py-3 text-sm text-white outline-none transition-colors focus:border-accent/50 disabled:cursor-not-allowed disabled:opacity-60 ${isArabic ? 'pr-10 pl-4 text-right' : 'pl-10 pr-4 text-left'}`}
+                        className={`w-full rounded-2xl border py-3 text-sm outline-none transition-colors disabled:cursor-not-allowed disabled:opacity-60 ${isGirlsTheme ? 'border-[#E2B4BD]/45 bg-white/70 text-[#4A4A4A] placeholder:text-[#A87884] focus:border-[#F9B2D7]/70' : 'border-white/10 bg-background text-white focus:border-accent/50'} ${isArabic ? 'pr-10 pl-4 text-right' : 'pl-10 pr-4 text-left'}`}
                       />
                     </div>
 
                     {!selectedCatalogMuscle && (
-                      <div className="mt-4 rounded-2xl border border-white/[0.08] bg-background/60 px-4 py-5 text-sm text-text-secondary">
+                      <div className={`mt-4 rounded-2xl border px-4 py-5 text-sm ${isGirlsTheme ? 'border-[#E2B4BD]/45 bg-white/70 text-[#795E67]' : 'border-white/[0.08] bg-background/60 text-text-secondary'}`}>
                         {copy.pickMuscleCard}
                       </div>
                     )}
 
                     {selectedCatalogMuscle && filteredCatalog.length === 0 && (
-                      <div className="mt-4 rounded-2xl border border-white/[0.08] bg-background/60 px-4 py-5 text-sm text-text-secondary">
+                      <div className={`mt-4 rounded-2xl border px-4 py-5 text-sm ${isGirlsTheme ? 'border-[#E2B4BD]/45 bg-white/70 text-[#795E67]' : 'border-white/[0.08] bg-background/60 text-text-secondary'}`}>
                         {copy.noMatchingExercise(toLocalizedMuscleLabel(selectedCatalogMuscle))}
                       </div>
                     )}
@@ -1133,15 +1202,15 @@ export function WorkoutPlanScreen({
                                 void handleAddExercise(exercise);
                               }}
                               disabled={isSubmittingExercise}
-                              className={`surface-card rounded-2xl p-3 transition-colors group hover:border-accent/20 ${isArabic ? 'text-right' : 'text-left'}`}
+                              className={`rounded-2xl border p-3 transition-colors group ${isGirlsTheme ? 'border-[#E2B4BD]/45 bg-white/70 shadow-[0_10px_24px_rgba(226,180,189,0.12)] hover:border-[#F9B2D7]/70' : 'surface-card hover:border-accent/20'} ${isArabic ? 'text-right' : 'text-left'}`}
                             >
-                              <div className="relative -mx-3 -mt-3 mb-3 aspect-video overflow-hidden rounded-t-2xl border-b border-white/[0.08] bg-white/5">
+                              <div className={`relative -mx-3 -mt-3 mb-3 aspect-video overflow-hidden rounded-t-2xl border-b ${isGirlsTheme ? 'border-[#E2B4BD]/35 bg-white/65' : 'border-white/[0.08] bg-white/5'}`}>
                                 <img
                                   src={getMuscleImage(muscleLabel)}
                                   alt={exercise.name}
                                   className="h-full w-full object-cover transition-transform duration-200 group-hover:scale-105"
                                 />
-                              <div className="absolute inset-0 flex items-center justify-center bg-black/35">
+                              <div className={`absolute inset-0 flex items-center justify-center ${isGirlsTheme ? 'bg-[#4A4A4A]/16' : 'bg-black/35'}`}>
                                 <button
                                   type="button"
                                   onClick={(event) => {
@@ -1150,20 +1219,20 @@ export function WorkoutPlanScreen({
                                   }}
                                   disabled={!onPreviewExercise}
                                   aria-label={copy.previewVideoAria}
-                                  className="flex h-8 w-8 items-center justify-center rounded-full bg-black/50 text-white transition-colors group-hover:bg-accent group-hover:text-black disabled:cursor-not-allowed disabled:opacity-60"
+                                  className={`flex h-8 w-8 items-center justify-center rounded-full transition-colors disabled:cursor-not-allowed disabled:opacity-60 ${isGirlsTheme ? 'bg-white/78 text-[#A87884] group-hover:bg-[#F9B2D7] group-hover:text-[#4A4A4A]' : 'bg-black/50 text-white group-hover:bg-accent group-hover:text-black'}`}
                                 >
                                   <Play size={12} fill="currentColor" />
                                 </button>
                               </div>
-                                <div className={`absolute top-2 rounded-full bg-black/60 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-white ${isArabic ? 'right-2' : 'left-2'}`}>
+                                <div className={`absolute top-2 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.12em] ${isGirlsTheme ? 'bg-white/78 text-[#795E67]' : 'bg-black/60 text-white'} ${isArabic ? 'right-2' : 'left-2'}`}>
                                   {copy.add}
                                 </div>
                               </div>
-                              <div className="truncate text-sm font-bold text-white">
+                              <div className={`truncate text-sm font-bold ${isGirlsTheme ? 'text-[#4A4A4A]' : 'text-white'}`}>
                                 {stripExercisePrefix(exercise.name)}
                               </div>
                               <div className="mt-1 flex items-center justify-between gap-2">
-                                <div className="truncate text-[10px] uppercase tracking-wider text-text-secondary">
+                                <div className={`truncate text-[10px] uppercase tracking-wider ${isGirlsTheme ? 'text-[#A87884]' : 'text-text-secondary'}`}>
                                   {toLocalizedMuscleLabel(muscleLabel)}
                                 </div>
                                 <button
@@ -1172,7 +1241,7 @@ export function WorkoutPlanScreen({
                                     event.stopPropagation();
                                     void handleAddExercise(exercise);
                                   }}
-                                  className="rounded-full bg-accent/15 px-2 py-1 text-[10px] font-semibold text-accent"
+                                  className={`rounded-full px-2 py-1 text-[10px] font-semibold ${isGirlsTheme ? 'bg-[#F9B2D7]/30 text-[#795E67]' : 'bg-accent/15 text-accent'}`}
                                 >
                                   {copy.add}
                                 </button>
@@ -1185,11 +1254,11 @@ export function WorkoutPlanScreen({
                   </div>
 
                   <div>
-                    <div className="mb-3 text-xs font-bold uppercase tracking-wider text-text-secondary">
+                    <div className={`mb-3 ${labelClassName}`}>
                       {copy.muscleGroups}
                     </div>
                     {catalogMuscles.length === 0 ? (
-                      <div className="rounded-2xl border border-white/[0.08] bg-background/60 px-4 py-3 text-sm text-text-secondary">
+                      <div className={`rounded-2xl border px-4 py-3 text-sm ${isGirlsTheme ? 'border-[#E2B4BD]/45 bg-white/70 text-[#795E67]' : 'border-white/[0.08] bg-background/60 text-text-secondary'}`}>
                         {copy.noExerciseGroups}
                       </div>
                     ) : (
@@ -1205,12 +1274,16 @@ export function WorkoutPlanScreen({
                                 setSearchQuery('');
                               }}
                               className={`rounded-2xl border p-3 transition-colors ${isArabic ? 'text-right' : 'text-left'} ${
-                                isSelected
-                                  ? 'border-accent/45 bg-accent/10'
-                                  : 'border-white/[0.08] bg-background/60 hover:border-accent/25 hover:bg-accent/5'
+                                isGirlsTheme
+                                  ? isSelected
+                                    ? 'border-[#F9B2D7]/70 bg-[#F9B2D7]/20'
+                                    : 'border-[#E2B4BD]/45 bg-white/70 hover:border-[#F9B2D7]/70 hover:bg-white/85'
+                                  : isSelected
+                                    ? 'border-accent/45 bg-accent/10'
+                                    : 'border-white/[0.08] bg-background/60 hover:border-accent/25 hover:bg-accent/5'
                               }`}
                             >
-                              <div className="-mx-3 -mt-3 mb-3 aspect-[4/3] overflow-hidden rounded-t-2xl border-b border-white/[0.08] bg-white/5">
+                              <div className={`-mx-3 -mt-3 mb-3 aspect-[4/3] overflow-hidden rounded-t-2xl border-b ${isGirlsTheme ? 'border-[#E2B4BD]/35 bg-white/65' : 'border-white/[0.08] bg-white/5'}`}>
                                 <img
                                   src={getMuscleImage(muscle.name)}
                                   alt={toLocalizedMuscleLabel(muscle.name)}
@@ -1218,8 +1291,8 @@ export function WorkoutPlanScreen({
                                 />
                               </div>
                               <div className="mt-3">
-                                <div className="truncate text-sm font-semibold text-white">{toLocalizedMuscleLabel(muscle.name)}</div>
-                                <div className="mt-1 text-[11px] text-text-secondary">
+                                <div className={`truncate text-sm font-semibold ${isGirlsTheme ? 'text-[#4A4A4A]' : 'text-white'}`}>{toLocalizedMuscleLabel(muscle.name)}</div>
+                                <div className={`mt-1 text-[11px] ${isGirlsTheme ? 'text-[#795E67]' : 'text-text-secondary'}`}>
                                   {copy.exercisesCount(muscle.count)}
                                 </div>
                               </div>
@@ -1242,11 +1315,11 @@ export function WorkoutPlanScreen({
           onClick={() => setIsMarkDoneModalOpen(false)}
         >
           <div
-            className={`relative w-full max-w-md overflow-hidden rounded-[1.75rem] border border-white/10 bg-[linear-gradient(180deg,rgba(20,38,29,0.98),rgba(11,21,17,0.98))] p-6 shadow-[0_24px_80px_rgba(0,0,0,0.45)] ${isArabic ? 'text-right' : 'text-left'}`}
+            className={`relative w-full max-w-md overflow-hidden rounded-[1.75rem] border p-6 shadow-[0_24px_80px_rgba(0,0,0,0.28)] ${isGirlsTheme ? 'border-[#E2B4BD]/45 bg-[#FFF5F5]' : 'border-white/10 bg-[linear-gradient(180deg,rgba(20,38,29,0.98),rgba(11,21,17,0.98))]'} ${isArabic ? 'text-right' : 'text-left'}`}
             dir={isArabic ? 'rtl' : 'ltr'}
             onClick={(event) => event.stopPropagation()}
           >
-            <div className="pointer-events-none absolute inset-x-0 top-0 h-28 bg-[radial-gradient(circle_at_top,rgba(16,185,129,0.18),transparent_70%)]" />
+            <div className={`pointer-events-none absolute inset-x-0 top-0 h-28 ${isGirlsTheme ? 'bg-[radial-gradient(circle_at_top,rgba(249,178,215,0.28),transparent_70%)]' : 'bg-[radial-gradient(circle_at_top,rgba(16,185,129,0.18),transparent_70%)]'}`} />
 
             <div className="relative">
               <div className={`flex items-start justify-between gap-4 ${isArabic ? 'flex-row-reverse' : ''}`}>
@@ -1255,8 +1328,8 @@ export function WorkoutPlanScreen({
                     <Check size={22} />
                   </div>
                   <div>
-                    <h3 className="text-xl font-semibold text-white">{copy.markDoneTitle}</h3>
-                    <p className="mt-2 text-sm leading-relaxed text-text-secondary">
+                    <h3 className={`text-xl font-semibold ${isGirlsTheme ? 'text-[#4A4A4A]' : 'text-white'}`}>{copy.markDoneTitle}</h3>
+                    <p className={`mt-2 text-sm leading-relaxed ${isGirlsTheme ? 'text-[#795E67]' : 'text-text-secondary'}`}>
                       {copy.markDoneDescription(displayWorkoutName)}
                     </p>
                   </div>
@@ -1265,14 +1338,14 @@ export function WorkoutPlanScreen({
                 <button
                   type="button"
                   onClick={() => setIsMarkDoneModalOpen(false)}
-                  className="flex h-10 w-10 items-center justify-center rounded-full bg-white/5 text-text-secondary transition-colors hover:bg-white/10 hover:text-white"
+                  className={`flex h-10 w-10 items-center justify-center rounded-full transition-colors ${isGirlsTheme ? 'border border-[#E2B4BD]/45 bg-white/70 text-[#795E67] hover:bg-white' : 'bg-white/5 text-text-secondary hover:bg-white/10 hover:text-white'}`}
                   aria-label={copy.closeMarkDoneDialog}
                 >
                   <X size={18} />
                 </button>
               </div>
 
-              <div className="mt-5 rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm text-text-secondary">
+              <div className={`mt-5 rounded-2xl border px-4 py-3 text-sm ${isGirlsTheme ? 'border-[#E2B4BD]/45 bg-white/70 text-[#795E67]' : 'border-white/10 bg-white/[0.03] text-text-secondary'}`}>
                 {copy.markDoneWeightNote}
               </div>
 
@@ -1286,7 +1359,7 @@ export function WorkoutPlanScreen({
                 <button
                   type="button"
                   onClick={() => setIsMarkDoneModalOpen(false)}
-                  className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-text-primary transition-colors hover:bg-white/10"
+                  className={`rounded-2xl border px-4 py-3 text-sm font-semibold transition-colors ${isGirlsTheme ? 'border-[#E2B4BD]/45 bg-white/70 text-[#795E67] hover:bg-white' : 'border-white/10 bg-white/5 text-text-primary hover:bg-white/10'}`}
                 >
                   {copy.keepWorkout}
                 </button>
@@ -1313,11 +1386,11 @@ export function WorkoutPlanScreen({
           onClick={() => setIsMissModalOpen(false)}
         >
           <div
-            className={`relative w-full max-w-md overflow-hidden rounded-[1.75rem] border border-white/10 bg-[linear-gradient(180deg,rgba(27,31,43,0.98),rgba(15,18,28,0.98))] p-6 shadow-[0_24px_80px_rgba(0,0,0,0.45)] ${isArabic ? 'text-right' : 'text-left'}`}
+            className={`relative w-full max-w-md overflow-hidden rounded-[1.75rem] border p-6 shadow-[0_24px_80px_rgba(0,0,0,0.28)] ${isGirlsTheme ? 'border-[#E2B4BD]/45 bg-[#FFF5F5]' : 'border-white/10 bg-[linear-gradient(180deg,rgba(27,31,43,0.98),rgba(15,18,28,0.98))]'} ${isArabic ? 'text-right' : 'text-left'}`}
             dir={isArabic ? 'rtl' : 'ltr'}
             onClick={(event) => event.stopPropagation()}
           >
-            <div className="pointer-events-none absolute inset-x-0 top-0 h-28 bg-[radial-gradient(circle_at_top,rgba(244,63,94,0.18),transparent_70%)]" />
+            <div className={`pointer-events-none absolute inset-x-0 top-0 h-28 ${isGirlsTheme ? 'bg-[radial-gradient(circle_at_top,rgba(249,178,215,0.28),transparent_70%)]' : 'bg-[radial-gradient(circle_at_top,rgba(244,63,94,0.18),transparent_70%)]'}`} />
 
             <div className="relative">
               <div className={`flex items-start justify-between gap-4 ${isArabic ? 'flex-row-reverse' : ''}`}>
@@ -1326,8 +1399,8 @@ export function WorkoutPlanScreen({
                     <TriangleAlert size={22} />
                   </div>
                   <div>
-                    <h3 className="text-xl font-semibold text-white">{copy.missTitle}</h3>
-                    <p className="mt-2 text-sm leading-relaxed text-text-secondary">
+                    <h3 className={`text-xl font-semibold ${isGirlsTheme ? 'text-[#4A4A4A]' : 'text-white'}`}>{copy.missTitle}</h3>
+                    <p className={`mt-2 text-sm leading-relaxed ${isGirlsTheme ? 'text-[#795E67]' : 'text-text-secondary'}`}>
                       {copy.missDescription(displayWorkoutName)}
                     </p>
                   </div>
@@ -1336,14 +1409,14 @@ export function WorkoutPlanScreen({
                 <button
                   type="button"
                   onClick={() => setIsMissModalOpen(false)}
-                  className="flex h-10 w-10 items-center justify-center rounded-full bg-white/5 text-text-secondary transition-colors hover:bg-white/10 hover:text-white"
+                  className={`flex h-10 w-10 items-center justify-center rounded-full transition-colors ${isGirlsTheme ? 'border border-[#E2B4BD]/45 bg-white/70 text-[#795E67] hover:bg-white' : 'bg-white/5 text-text-secondary hover:bg-white/10 hover:text-white'}`}
                   aria-label={copy.closeMissDialog}
                 >
                   <X size={18} />
                 </button>
               </div>
 
-              <div className="mt-5 rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm text-text-secondary">
+              <div className={`mt-5 rounded-2xl border px-4 py-3 text-sm ${isGirlsTheme ? 'border-[#E2B4BD]/45 bg-white/70 text-[#795E67]' : 'border-white/10 bg-white/[0.03] text-text-secondary'}`}>
                 {copy.missWarning}
               </div>
 
@@ -1357,7 +1430,7 @@ export function WorkoutPlanScreen({
                 <button
                   type="button"
                   onClick={() => setIsMissModalOpen(false)}
-                  className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-text-primary transition-colors hover:bg-white/10"
+                  className={`rounded-2xl border px-4 py-3 text-sm font-semibold transition-colors ${isGirlsTheme ? 'border-[#E2B4BD]/45 bg-white/70 text-[#795E67] hover:bg-white' : 'border-white/10 bg-white/5 text-text-primary hover:bg-white/10'}`}
                 >
                   {copy.keepWorkout}
                 </button>

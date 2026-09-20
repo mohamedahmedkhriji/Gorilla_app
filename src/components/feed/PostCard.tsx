@@ -42,6 +42,7 @@ type PostCardProps = {
     reactionsCount: (count: string) => string;
     commentsCount: (count: string) => string;
   };
+  themeVariant?: 'default' | 'girls';
 };
 
 const REACTION_ANIMATION_COLORS: Record<ReactionType, string> = {
@@ -143,9 +144,11 @@ export default function PostCard({
   onDelete,
   onHide,
   copy,
+  themeVariant = 'default',
 }: PostCardProps) {
   const [expanded, setExpanded] = useState(false);
   const [mediaLoaded, setMediaLoaded] = useState(false);
+  const isGirlsTheme = themeVariant === 'girls';
 
   const authorName = getAuthorName(post.authorName);
   const caption = post.caption.trim();
@@ -158,32 +161,32 @@ export default function PostCard({
   return (
     <article
       data-coachmark-target={index === 0 ? 'blogs_first_post_card' : undefined}
-      className="group overflow-hidden rounded-[20px] border border-white/10 bg-card/95 shadow-[0_18px_50px_rgb(5_10_20/0.12)] transition-all duration-300 hover:-translate-y-0.5 hover:border-accent/18 hover:shadow-[0_24px_60px_rgb(5_10_20/0.18)]"
+      className={`group overflow-hidden rounded-[20px] border transition-all duration-300 hover:-translate-y-0.5 ${isGirlsTheme ? 'border-[#E2B4BD]/45 bg-white/76 shadow-[0_18px_44px_rgba(226,180,189,0.16)] hover:border-[#F9B2D7]/70 hover:shadow-[0_24px_60px_rgba(226,180,189,0.22)]' : 'border-white/10 bg-card/95 shadow-[0_18px_50px_rgb(5_10_20/0.12)] hover:border-accent/18 hover:shadow-[0_24px_60px_rgb(5_10_20/0.18)]'}`}
       onDoubleClick={onDoubleLike}
     >
       <div className="flex items-center gap-3 px-4 pb-3 pt-4">
         <img
           src={resolveAvatar(post)}
           alt={copy.avatarAlt(authorName)}
-          className="h-11 w-11 rounded-full border border-white/10 object-cover"
+          className={`h-11 w-11 rounded-full border object-cover ${isGirlsTheme ? 'border-[#E2B4BD]/45' : 'border-white/10'}`}
           loading={index < 2 ? 'eager' : 'lazy'}
         />
 
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
-            <h3 className="truncate text-base font-bold text-text-primary">{authorName}</h3>
+            <h3 className={`truncate text-base font-bold ${isGirlsTheme ? 'text-[#4A4A4A]' : 'text-text-primary'}`}>{authorName}</h3>
             {post.verified ? (
-              <span className="inline-flex h-4 w-4 items-center justify-center rounded-full bg-accent text-[10px] font-black text-black" aria-label="Verified">
+              <span className={`inline-flex h-4 w-4 items-center justify-center rounded-full text-[10px] font-black ${isGirlsTheme ? 'bg-[#F9B2D7] text-[#4A4A4A]' : 'bg-accent text-black'}`} aria-label="Verified">
                 ✓
               </span>
             ) : null}
             {post.womenOnly ? (
-              <span className="rounded-full bg-accent/12 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-accent">
+              <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.12em] ${isGirlsTheme ? 'bg-[#F9B2D7]/24 text-[#795E67]' : 'bg-accent/12 text-accent'}`}>
                 {copy.womenOnly}
               </span>
             ) : null}
           </div>
-          <p className="mt-0.5 truncate text-xs font-medium text-text-secondary">
+          <p className={`mt-0.5 truncate text-xs font-medium ${isGirlsTheme ? 'text-[#795E67]' : 'text-text-secondary'}`}>
             {getPostedAgo(post.createdAt, true)} • {getCategoryLabel(post.category)}
           </p>
         </div>
@@ -192,14 +195,14 @@ export default function PostCard({
           <button
             type="button"
             onClick={onToggleMenu}
-            className="flex h-9 w-9 items-center justify-center rounded-full bg-white/5 text-text-secondary transition-all duration-200 hover:bg-white/10 hover:text-text-primary active:scale-95"
+            className={`flex h-9 w-9 items-center justify-center rounded-full transition-all duration-200 active:scale-95 ${isGirlsTheme ? 'bg-white/60 text-[#795E67] hover:bg-white hover:text-[#4A4A4A]' : 'bg-white/5 text-text-secondary hover:bg-white/10 hover:text-text-primary'}`}
             aria-label={copy.postOptions}
           >
             <MoreHorizontal size={16} />
           </button>
 
           {openMenu ? (
-            <div className="absolute right-0 top-11 z-20 min-w-[150px] overflow-hidden rounded-2xl border border-white/10 bg-[#101826]/95 p-1.5 shadow-2xl backdrop-blur">
+            <div className={`absolute right-0 top-11 z-20 min-w-[150px] overflow-hidden rounded-2xl border p-1.5 shadow-2xl backdrop-blur ${isGirlsTheme ? 'border-[#E2B4BD]/45 bg-[#FFF5F5]/95' : 'border-white/10 bg-[#101826]/95'}`}>
               {post.userId === currentUserId ? (
                 <button
                   type="button"
@@ -212,7 +215,7 @@ export default function PostCard({
                 <button
                   type="button"
                   onClick={onHide}
-                  className="w-full rounded-xl px-3 py-2 text-left text-sm text-text-primary transition-colors hover:bg-white/5"
+                  className={`w-full rounded-xl px-3 py-2 text-left text-sm transition-colors ${isGirlsTheme ? 'text-[#4A4A4A] hover:bg-[#F9B2D7]/16' : 'text-text-primary hover:bg-white/5'}`}
                 >
                   {copy.hidePost}
                 </button>
@@ -224,14 +227,14 @@ export default function PostCard({
 
       {caption ? (
         <div className="px-4 pb-3">
-          <p className={`text-sm leading-6 text-text-primary ${expanded ? '' : '[display:-webkit-box] overflow-hidden [-webkit-box-orient:vertical] [-webkit-line-clamp:3]'}`}>
+          <p className={`text-sm leading-6 ${isGirlsTheme ? 'text-[#4A4A4A]' : 'text-text-primary'} ${expanded ? '' : '[display:-webkit-box] overflow-hidden [-webkit-box-orient:vertical] [-webkit-line-clamp:3]'}`}>
             {displayedCaption}
           </p>
           {canExpand ? (
             <button
               type="button"
               onClick={() => setExpanded((value) => !value)}
-              className="mt-2 text-xs font-medium text-accent transition-colors hover:text-text-primary"
+              className={`mt-2 text-xs font-medium transition-colors ${isGirlsTheme ? 'text-[#A87884] hover:text-[#4A4A4A]' : 'text-accent hover:text-text-primary'}`}
             >
               {expanded ? 'Less' : 'More'}
             </button>
@@ -242,11 +245,11 @@ export default function PostCard({
       <button
         type="button"
         onClick={onOpen}
-        className="relative mx-3 block w-[calc(100%-1.5rem)] overflow-hidden rounded-2xl bg-[#151d28] text-left active:scale-[0.995]"
+        className={`relative mx-3 block w-[calc(100%-1.5rem)] overflow-hidden rounded-2xl text-left active:scale-[0.995] ${isGirlsTheme ? 'border border-[#E2B4BD]/35 bg-[linear-gradient(145deg,rgba(255,255,255,0.74),rgba(255,245,245,0.62)_52%,rgba(207,236,243,0.18))] shadow-[inset_0_1px_0_rgba(255,255,255,0.55)]' : 'bg-[#151d28]'}`}
         style={{ aspectRatio: '4 / 5' }}
       >
         {!mediaLoaded ? (
-          <div className="absolute inset-0 animate-pulse bg-white/10" />
+          <div className={`absolute inset-0 animate-pulse ${isGirlsTheme ? 'bg-[#F7D6D0]/45' : 'bg-white/10'}`} />
         ) : null}
 
         {post.mediaType === 'video' ? (
@@ -267,7 +270,7 @@ export default function PostCard({
                 alt=""
                 aria-hidden="true"
                 className={`absolute inset-0 h-full w-full scale-110 object-cover blur-2xl transition-opacity duration-300 ${
-                  mediaLoaded ? 'opacity-0' : 'opacity-35'
+                  mediaLoaded ? 'opacity-0' : isGirlsTheme ? 'opacity-25' : 'opacity-35'
                 }`}
               />
             ) : null}
@@ -285,17 +288,17 @@ export default function PostCard({
       </button>
 
       <div className="space-y-3 px-4 py-3">
-        <div className="flex items-center justify-between gap-3 text-xs font-medium text-text-secondary">
+        <div className={`flex items-center justify-between gap-3 text-xs font-medium ${isGirlsTheme ? 'text-[#795E67]' : 'text-text-secondary'}`}>
           <div className="flex min-w-0 items-center gap-2">
-            <span className="h-3 w-3 rounded-full bg-accent" aria-hidden="true" />
+            <span className={`h-3 w-3 rounded-full ${isGirlsTheme ? 'bg-[#F9B2D7]' : 'bg-accent'}`} aria-hidden="true" />
             <span>{copy.reactionsCount(formattedReactions)}</span>
           </div>
-          <button type="button" onClick={onComments} className="shrink-0 transition-colors hover:text-text-primary">
+          <button type="button" onClick={onComments} className={`shrink-0 transition-colors ${isGirlsTheme ? 'hover:text-[#4A4A4A]' : 'hover:text-text-primary'}`}>
             {copy.commentsCount(formattedComments)}
           </button>
         </div>
 
-        <div className="-mx-4 h-px bg-white/10" aria-hidden="true" />
+        <div className={`-mx-4 h-px ${isGirlsTheme ? 'bg-[#E2B4BD]/35' : 'bg-white/10'}`} aria-hidden="true" />
 
         <div className="grid grid-cols-4 gap-1">
             <div className="relative" data-no-open="true" data-reaction-menu-root="true">
@@ -303,7 +306,9 @@ export default function PostCard({
                 type="button"
                 onClick={onToggleReactions}
                 className={`flex min-h-[44px] w-full items-center justify-center gap-1.5 rounded-xl px-1 text-xs font-semibold transition-all duration-200 hover:bg-white/8 active:scale-95 ${
-                  post.reactionByMe ? 'text-accent' : 'text-text-secondary hover:text-text-primary'
+                  isGirlsTheme
+                    ? post.reactionByMe ? 'text-[#A87884]' : 'text-[#795E67] hover:bg-[#F9B2D7]/14 hover:text-[#4A4A4A]'
+                    : post.reactionByMe ? 'text-accent' : 'text-text-secondary hover:text-text-primary'
                 }`}
                 aria-label={copy.reactToPost}
               >
@@ -312,7 +317,7 @@ export default function PostCard({
               </button>
 
               {openReactions ? (
-                <div className="absolute bottom-[calc(100%+0.75rem)] left-0 z-20 flex items-center gap-1 rounded-full border border-white/10 bg-[#101826]/95 px-2 py-1.5 shadow-2xl backdrop-blur">
+                <div className={`absolute bottom-[calc(100%+0.75rem)] left-0 z-20 flex items-center gap-1 rounded-full border px-2 py-1.5 shadow-2xl backdrop-blur ${isGirlsTheme ? 'border-[#E2B4BD]/45 bg-[#FFF5F5]/95' : 'border-white/10 bg-[#101826]/95'}`}>
                   {reactionOptions.map((reaction) => {
                     const isActive = post.reactionByMe === reaction.type;
                     return (
@@ -336,7 +341,7 @@ export default function PostCard({
             <button
               type="button"
               onClick={onComments}
-              className="flex min-h-[44px] items-center justify-center gap-1.5 rounded-xl px-1 text-xs font-semibold text-text-secondary transition-all duration-200 hover:bg-white/8 hover:text-text-primary active:scale-95"
+              className={`flex min-h-[44px] items-center justify-center gap-1.5 rounded-xl px-1 text-xs font-semibold transition-all duration-200 active:scale-95 ${isGirlsTheme ? 'text-[#795E67] hover:bg-[#F9B2D7]/14 hover:text-[#4A4A4A]' : 'text-text-secondary hover:bg-white/8 hover:text-text-primary'}`}
             >
               <MessageCircle size={18} aria-hidden="true" />
               <span>{copy.comment}</span>
@@ -345,7 +350,7 @@ export default function PostCard({
             <button
               type="button"
               onClick={onShare}
-              className="flex min-h-[44px] items-center justify-center gap-1.5 rounded-xl px-1 text-xs font-semibold text-text-secondary transition-all duration-200 hover:bg-white/8 hover:text-text-primary active:scale-95"
+              className={`flex min-h-[44px] items-center justify-center gap-1.5 rounded-xl px-1 text-xs font-semibold transition-all duration-200 active:scale-95 ${isGirlsTheme ? 'text-[#795E67] hover:bg-[#F9B2D7]/14 hover:text-[#4A4A4A]' : 'text-text-secondary hover:bg-white/8 hover:text-text-primary'}`}
               aria-label={copy.share}
             >
               <Send size={18} aria-hidden="true" />
@@ -357,8 +362,8 @@ export default function PostCard({
             onClick={onSave}
             className={`flex min-h-[44px] items-center justify-center gap-1.5 rounded-xl px-1 text-xs font-semibold transition-all duration-200 active:scale-95 ${
               isSaved
-                ? 'text-accent'
-                : 'text-text-secondary hover:bg-white/8 hover:text-text-primary'
+                ? (isGirlsTheme ? 'text-[#A87884]' : 'text-accent')
+                : (isGirlsTheme ? 'text-[#795E67] hover:bg-[#F9B2D7]/14 hover:text-[#4A4A4A]' : 'text-text-secondary hover:bg-white/8 hover:text-text-primary')
             }`}
             aria-label={isSaved ? copy.saved : copy.save}
           >

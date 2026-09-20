@@ -14,6 +14,7 @@ interface OnboardingLayoutProps {
   showBack?: boolean;
   showHeader?: boolean;
   showProgress?: boolean;
+  themeVariant?: 'default' | 'girls';
 }
 
 export function OnboardingLayout({
@@ -25,6 +26,7 @@ export function OnboardingLayout({
   showBack = true,
   showHeader = true,
   showProgress = true,
+  themeVariant = 'default',
 }: OnboardingLayoutProps) {
   useScrollToTopOnChange([currentStep]);
   const { isArabic } = useAppLanguage();
@@ -32,7 +34,9 @@ export function OnboardingLayout({
   return (
     <div
       dir={isArabic ? 'rtl' : 'ltr'}
-      className="onboarding-layout relative flex min-h-[100dvh] flex-col overflow-hidden px-4 pb-[calc(env(safe-area-inset-bottom,0px)+1.5rem)] pt-[calc(env(safe-area-inset-top,0px)+1.5rem)] sm:px-6"
+      className={`onboarding-layout relative flex min-h-[100dvh] flex-col overflow-hidden px-4 pb-[calc(env(safe-area-inset-bottom,0px)+1.5rem)] pt-[calc(env(safe-area-inset-top,0px)+1.5rem)] sm:px-6 ${
+        themeVariant === 'girls' ? 'onboarding-layout--girls' : ''
+      }`}
     >
       <div className="relative flex min-h-0 flex-1 flex-col px-2 py-1 sm:px-4">
         {showHeader && (

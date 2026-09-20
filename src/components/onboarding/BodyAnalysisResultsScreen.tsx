@@ -306,31 +306,60 @@ type SummaryItemProps = {
   icon: ReactNode;
   label: string;
   value: ReactNode;
+  isGirlsTheme?: boolean;
 };
 
-function ProfileItem({ icon, label, value }: SummaryItemProps) {
+const isFemaleGender = (value: unknown) => {
+  const normalized = normalizeLower(value);
+  return normalized === 'woman' || normalized === 'female' || normalized === 'f';
+};
+
+function ProfileItem({ icon, label, value, isGirlsTheme = false }: SummaryItemProps) {
   return (
-    <div className="min-w-0 rounded-2xl border border-white/10 bg-[#0C1C43]/75 px-2 py-3 text-center">
-      <div className="mx-auto mb-1.5 flex h-7 w-7 items-center justify-center text-accent">
+    <div
+      className={`min-w-0 rounded-2xl border px-2 py-3 text-center ${
+        isGirlsTheme
+          ? 'border-[#E2B4BD]/55 bg-white/75'
+          : 'border-white/10 bg-[#0C1C43]/75'
+      }`}
+    >
+      <div className={`mx-auto mb-1.5 flex h-7 w-7 items-center justify-center ${
+        isGirlsTheme ? 'text-[#E2B4BD]' : 'text-accent'
+      }`}
+      >
         {icon}
       </div>
-      <p className="text-[10px] font-medium uppercase tracking-[0.1em] text-text-tertiary">
+      <p className={`text-[10px] font-medium uppercase tracking-[0.1em] ${
+        isGirlsTheme ? 'text-[#795E67]' : 'text-text-tertiary'
+      }`}
+      >
         {label}
       </p>
-      <p className="mt-1 break-words text-sm font-semibold leading-5 text-[#F3F8FF]">{value}</p>
+      <p className={`mt-1 break-words text-sm font-semibold leading-5 ${
+        isGirlsTheme ? 'text-[#4A4A4A]' : 'text-[#F3F8FF]'
+      }`}
+      >
+        {value}
+      </p>
     </div>
   );
 }
 
-function PlanItem({ icon, label, value }: SummaryItemProps) {
+function PlanItem({ icon, label, value, isGirlsTheme = false }: SummaryItemProps) {
   return (
     <div className="flex min-h-[78px] min-w-0 items-start gap-3 p-3.5">
-      <div className="mt-0.5 shrink-0 text-accent">{icon}</div>
+      <div className={`mt-0.5 shrink-0 ${isGirlsTheme ? 'text-[#E2B4BD]' : 'text-accent'}`}>{icon}</div>
       <div className="min-w-0">
-        <p className="text-[10px] font-medium uppercase leading-4 tracking-[0.09em] text-text-tertiary">
+        <p className={`text-[10px] font-medium uppercase leading-4 tracking-[0.09em] ${
+          isGirlsTheme ? 'text-[#795E67]' : 'text-text-tertiary'
+        }`}
+        >
           {label}
         </p>
-        <p className="mt-1 break-words text-sm font-semibold leading-5 text-[#F3F8FF]">
+        <p className={`mt-1 break-words text-sm font-semibold leading-5 ${
+          isGirlsTheme ? 'text-[#4A4A4A]' : 'text-[#F3F8FF]'
+        }`}
+        >
           {value}
         </p>
       </div>
@@ -396,6 +425,7 @@ export function BodyAnalysisResultsScreen({
     ?? appUser?.workoutDays,
   ) ?? 4;
   const level = formatResultLevel(input.experienceLevel, language);
+  const isGirlsTheme = isFemaleGender(input.gender ?? appUser?.gender);
   const split = formatResultSplit(
     input.workoutSplitLabel,
     input.workoutSplitPreference,
@@ -421,7 +451,11 @@ export function BodyAnalysisResultsScreen({
 
   return (
     <main
-      className="relative -mx-6 flex min-h-0 flex-1 flex-col overflow-y-auto bg-[#090E17] px-5 text-[#F3F8FF] sm:-mx-10"
+      className={`body-results-page relative -mx-6 flex min-h-0 flex-1 flex-col overflow-y-auto px-5 sm:-mx-10 ${
+        isGirlsTheme
+          ? 'girls-onboarding-theme bg-[#FFF5F5] text-[#4A4A4A]'
+          : 'bg-[#090E17] text-[#F3F8FF]'
+      }`}
       dir={isArabic ? 'rtl' : 'ltr'}
     >
       {showCelebration && (
@@ -435,14 +469,26 @@ export function BodyAnalysisResultsScreen({
       <div className="mx-auto flex min-h-full w-full max-w-md flex-col py-1">
         <div className="flex-1 space-y-5">
           <header className="flex items-start gap-3 pt-1">
-            <div className="mt-0.5 flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-accent text-black shadow-[0_0_28px_rgba(187,255,92,0.22)]">
+            <div
+              className={`mt-0.5 flex h-11 w-11 shrink-0 items-center justify-center rounded-full ${
+                isGirlsTheme
+                  ? 'bg-[#F9B2D7] text-[#4A4A4A] shadow-[0_16px_34px_rgba(226,180,189,0.26)]'
+                  : 'bg-accent text-black shadow-[0_0_28px_rgba(187,255,92,0.22)]'
+              }`}
+            >
               <Check aria-hidden="true" size={24} strokeWidth={3} />
             </div>
             <div className="min-w-0">
-              <h1 className="text-[1.75rem] font-bold leading-tight text-[#F3F8FF]">
+              <h1 className={`text-[1.75rem] font-bold leading-tight ${
+                isGirlsTheme ? 'text-[#4A4A4A]' : 'text-[#F3F8FF]'
+              }`}
+              >
                 {title}
               </h1>
-              <p className="mt-1 text-sm leading-5 text-[#AFC0D5]">
+              <p className={`mt-1 text-sm leading-5 ${
+                isGirlsTheme ? 'text-[#795E67]' : 'text-[#AFC0D5]'
+              }`}
+              >
                 {copy.planSubtitle}
               </p>
             </div>
@@ -450,9 +496,16 @@ export function BodyAnalysisResultsScreen({
 
           <section
             aria-labelledby="profile-heading"
-            className="rounded-[20px] border border-white/10 bg-[#101824]/90 p-4"
+            className={`rounded-[20px] border p-4 ${
+              isGirlsTheme
+                ? 'border-[#E2B4BD]/55 bg-white/70'
+                : 'border-white/10 bg-[#101824]/90'
+            }`}
           >
-            <h2 id="profile-heading" className="mb-3 text-sm font-semibold text-[#F3F8FF]">
+            <h2 id="profile-heading" className={`mb-3 text-sm font-semibold ${
+              isGirlsTheme ? 'text-[#4A4A4A]' : 'text-[#F3F8FF]'
+            }`}
+            >
               {copy.aboutYou}
             </h2>
             <div className="grid grid-cols-3 gap-2.5">
@@ -460,64 +513,101 @@ export function BodyAnalysisResultsScreen({
                 icon={<Weight aria-hidden="true" size={20} />}
                 label={copy.weight}
                 value={weight != null ? `${weight.toFixed(1)} ${language === 'ar' ? '\u0643\u062c\u0645' : 'kg'}` : '-'}
+                isGirlsTheme={isGirlsTheme}
               />
               <ProfileItem
                 icon={<UserRound aria-hidden="true" size={20} />}
                 label={copy.age}
                 value={age != null ? Math.round(age) : '-'}
+                isGirlsTheme={isGirlsTheme}
               />
               <ProfileItem
                 icon={<UserRound aria-hidden="true" size={20} />}
                 label={copy.gender}
                 value={gender}
+                isGirlsTheme={isGirlsTheme}
               />
             </div>
           </section>
 
           <section
             aria-labelledby="plan-heading"
-            className="relative overflow-hidden rounded-[22px] border border-accent/25 bg-[#101824] shadow-[0_18px_50px_rgba(0,0,0,0.22)]"
+            className={`relative overflow-hidden rounded-[22px] border shadow-[0_18px_50px_rgba(0,0,0,0.12)] ${
+              isGirlsTheme
+                ? 'border-[#F9B2D7]/55 bg-white/78'
+                : 'border-accent/25 bg-[#101824]'
+            }`}
           >
-            <div className="pointer-events-none absolute -right-20 -top-20 h-56 w-56 rounded-full bg-accent/10 blur-3xl" />
+            <div
+              className={`pointer-events-none absolute -right-20 -top-20 h-56 w-56 rounded-full blur-3xl ${
+                isGirlsTheme ? 'bg-[#CFECF3]/45' : 'bg-accent/10'
+              }`}
+            />
             <div className="relative p-5">
-              <span className="inline-flex items-center gap-1.5 rounded-full bg-accent px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.12em] text-black">
+              <span
+                className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.12em] ${
+                  isGirlsTheme ? 'bg-[#F9B2D7] text-[#4A4A4A]' : 'bg-accent text-black'
+                }`}
+              >
                 <Dumbbell aria-hidden="true" size={13} />
                 {copy.aiPersonalized}
               </span>
 
               <div className="mt-4">
-                <h2 id="plan-heading" className="text-[1.7rem] font-bold leading-tight text-[#F3F8FF]">
+                <h2 id="plan-heading" className={`text-[1.7rem] font-bold leading-tight ${
+                  isGirlsTheme ? 'text-[#4A4A4A]' : 'text-[#F3F8FF]'
+                }`}
+                >
                   {goal}
                 </h2>
-                <p className="mt-1 text-sm leading-5 text-[#AFC0D5]">
+                <p className={`mt-1 text-sm leading-5 ${
+                  isGirlsTheme ? 'text-[#795E67]' : 'text-[#AFC0D5]'
+                }`}
+                >
                   {copy.designedAround}
                 </p>
               </div>
 
-              <div className="mt-4 overflow-hidden rounded-2xl border border-white/10 bg-white/[0.035]">
-                <div className="grid grid-cols-2 divide-x divide-white/10 border-b border-white/10">
+              <div
+                className={`mt-4 overflow-hidden rounded-2xl border ${
+                  isGirlsTheme
+                    ? 'border-[#E2B4BD]/45 bg-[#FFF5F5]/70'
+                    : 'border-white/10 bg-white/[0.035]'
+                }`}
+              >
+                <div className={`grid grid-cols-2 divide-x border-b ${
+                  isGirlsTheme ? 'divide-[#E2B4BD]/35 border-[#E2B4BD]/35' : 'divide-white/10 border-white/10'
+                }`}
+                >
                   <PlanItem
                     icon={<CalendarDays aria-hidden="true" size={19} />}
                     label={copy.trainingDays}
                     value={trainingDaysLabel}
+                    isGirlsTheme={isGirlsTheme}
                   />
                   <PlanItem
                     icon={<Clock3 aria-hidden="true" size={19} />}
                     label={copy.sessionDuration}
                     value={sessionDuration}
+                    isGirlsTheme={isGirlsTheme}
                   />
                 </div>
 
-                <div className="grid grid-cols-2 divide-x divide-white/10 border-b border-white/10">
+                <div className={`grid grid-cols-2 divide-x border-b ${
+                  isGirlsTheme ? 'divide-[#E2B4BD]/35 border-[#E2B4BD]/35' : 'divide-white/10 border-white/10'
+                }`}
+                >
                   <PlanItem
                     icon={<Dumbbell aria-hidden="true" size={19} />}
                     label={copy.fitnessLevel}
                     value={level}
+                    isGirlsTheme={isGirlsTheme}
                   />
                   <PlanItem
                     icon={<Layers3 aria-hidden="true" size={19} />}
                     label={copy.workoutSplit}
                     value={split}
+                    isGirlsTheme={isGirlsTheme}
                   />
                 </div>
 
@@ -525,22 +615,40 @@ export function BodyAnalysisResultsScreen({
                   icon={<Clock3 aria-hidden="true" size={19} />}
                   label={copy.preferredTime}
                   value={preferredTimeLabel}
+                  isGirlsTheme={isGirlsTheme}
                 />
               </div>
             </div>
           </section>
 
-          <p className="flex items-center justify-center gap-2 text-center text-sm text-[#AFC0D5]">
-            <ShieldCheck aria-hidden="true" className="shrink-0 text-accent" size={19} />
+          <p className={`flex items-center justify-center gap-2 text-center text-sm ${
+            isGirlsTheme ? 'text-[#795E67]' : 'text-[#AFC0D5]'
+          }`}
+          >
+            <ShieldCheck
+              aria-hidden="true"
+              className={`shrink-0 ${isGirlsTheme ? 'text-[#E2B4BD]' : 'text-accent'}`}
+              size={19}
+            />
             {copy.adjustLater}
           </p>
         </div>
 
-        <div className="sticky bottom-0 z-10 -mx-1 mt-5 bg-gradient-to-t from-[#090E17] via-[#090E17] to-transparent px-1 pb-1 pt-4">
+        <div
+          className={`sticky bottom-0 z-10 -mx-1 mt-5 bg-gradient-to-t px-1 pb-1 pt-4 ${
+            isGirlsTheme
+              ? 'from-[#FFF5F5] via-[#FFF5F5] to-transparent'
+              : 'from-[#090E17] via-[#090E17] to-transparent'
+          }`}
+        >
           <button
             type="button"
             onClick={onNext}
-            className="flex min-h-14 w-full items-center justify-center gap-2 rounded-2xl bg-accent px-6 py-3.5 text-sm font-extrabold uppercase tracking-[0.08em] text-black shadow-[0_8px_28px_rgba(187,255,92,0.2)] transition hover:bg-accent/90 active:scale-[0.99] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-[#090E17]"
+            className={`flex min-h-14 w-full items-center justify-center gap-2 rounded-2xl px-6 py-3.5 text-sm font-extrabold uppercase tracking-[0.08em] transition active:scale-[0.99] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 ${
+              isGirlsTheme
+                ? 'bg-[#F9B2D7] text-[#4A4A4A] shadow-[0_10px_30px_rgba(226,180,189,0.28)] hover:bg-[#E2B4BD] focus-visible:ring-[#F9B2D7] focus-visible:ring-offset-[#FFF5F5]'
+                : 'bg-accent text-black shadow-[0_8px_28px_rgba(187,255,92,0.2)] hover:bg-accent/90 focus-visible:ring-accent focus-visible:ring-offset-[#090E17]'
+            }`}
           >
             {copy.startProgram}
             <ArrowRight aria-hidden="true" size={19} strokeWidth={2.5} />

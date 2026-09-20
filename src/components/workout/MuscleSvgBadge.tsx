@@ -61,6 +61,7 @@ export function MuscleSvgBadge({
   showLabel = true,
   body,
   variant = 'card',
+  themeVariant = 'default',
 }: {
   muscle: MuscleThumbnail;
   align?: MuscleSvgBadgeAlign;
@@ -69,6 +70,7 @@ export function MuscleSvgBadge({
   showLabel?: boolean;
   body?: BodyMapBody | string;
   variant?: 'card' | 'bare';
+  themeVariant?: 'default' | 'girls';
 }) {
   const paths = useBodyPaths();
   const [storedBody, setStoredBody] = useState<BodyMapBody>(() => getStoredBodyMapBody());
@@ -95,12 +97,18 @@ export function MuscleSvgBadge({
     };
   }, [body]);
 
+  const isGirlsTheme = themeVariant === 'girls';
   const shellClassName = variant === 'bare'
     ? `${className} overflow-hidden`
-    : `${className} overflow-hidden rounded-2xl border border-white/10 bg-white/[0.035] p-2`;
+    : `${className} overflow-hidden rounded-2xl border p-2 ${
+      isGirlsTheme
+        ? 'border-[#E2B4BD]/45 bg-white/[0.70] shadow-[0_12px_28px_rgba(226,180,189,0.12)]'
+        : 'border-white/10 bg-white/[0.035]'
+    }`;
   const figureShellClassName = variant === 'bare'
-    ? 'h-full w-full overflow-hidden bg-background/70'
-    : 'overflow-hidden rounded-xl border border-white/10 bg-background/70';
+    ? `h-full w-full overflow-hidden ${isGirlsTheme ? 'bg-white/55' : 'bg-background/70'}`
+    : `overflow-hidden rounded-xl border ${isGirlsTheme ? 'border-[#E2B4BD]/35 bg-white/55' : 'border-white/10 bg-background/70'}`;
+  const labelClassName = isGirlsTheme ? 'text-[#795E67]' : 'text-text-secondary';
 
   if (!geometry || slugs.length === 0) {
     return (
@@ -109,11 +117,11 @@ export function MuscleSvgBadge({
         title={muscle.label}
         aria-label={muscle.label}
       >
-        <div className={`${figureClassName} flex items-center justify-center rounded-xl bg-background/70 text-[11px] font-semibold uppercase text-text-secondary`}>
+        <div className={`${figureClassName} flex items-center justify-center rounded-xl ${isGirlsTheme ? 'bg-white/55 text-[#795E67]' : 'bg-background/70 text-text-secondary'} text-[11px] font-semibold uppercase`}>
           {muscle.label.slice(0, 2)}
         </div>
         {showLabel && (
-          <div className={`mt-2 truncate text-xs font-semibold text-text-secondary ${getLabelAlignClass(align)}`}>{muscle.label}</div>
+          <div className={`mt-2 truncate text-xs font-semibold ${labelClassName} ${getLabelAlignClass(align)}`}>{muscle.label}</div>
         )}
       </div>
     );
@@ -152,7 +160,7 @@ export function MuscleSvgBadge({
         </svg>
       </div>
       {showLabel && (
-        <div className={`mt-2 truncate text-xs font-semibold text-text-secondary ${getLabelAlignClass(align)}`}>{muscle.label}</div>
+        <div className={`mt-2 truncate text-xs font-semibold ${labelClassName} ${getLabelAlignClass(align)}`}>{muscle.label}</div>
       )}
     </div>
   );

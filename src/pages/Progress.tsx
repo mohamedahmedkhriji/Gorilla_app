@@ -26,11 +26,14 @@ import { ScreenSection, ScreenTransition, getNavigationDirection } from '../comp
 
 interface ProgressProps {
   resetSignal?: number;
+  requestedView?: ProgressView | null;
   guidedTourActive?: boolean;
   onGuidedTourComplete?: () => void;
   onGuidedTourDismiss?: () => void;
   onNavigateTab?: (tab: string) => void;
 }
+
+type ProgressView = 'dashboard' | 'report' | 'recovery' | 'measurements' | 'photos' | 'exercise' | 'insights' | 'weeklyCheckin' | 'strengthScore' | 'trainingVolume' | 'leaderboard';
 
 const SCREENSHOT_PROTECTED_PROGRESS_VIEWS = new Set([
   'dashboard',
@@ -66,14 +69,13 @@ const hasCoachmarkTargets = (steps: CoachmarkStep[]) =>
 
 export function Progress({
   resetSignal = 0,
+  requestedView = null,
   guidedTourActive = false,
   onGuidedTourComplete,
   onGuidedTourDismiss,
   onNavigateTab,
 }: ProgressProps) {
-  const [view, setView] = useState<'dashboard' | 'report' | 'recovery' | 'measurements' | 'photos' | 'exercise' | 'insights' | 'weeklyCheckin' | 'strengthScore' | 'trainingVolume' | 'leaderboard'>(
-    'dashboard',
-  );
+  const [view, setView] = useState<ProgressView>('dashboard');
   const [language, setLanguage] = useState<AppLanguage>(() => getActiveLanguage());
   const [coachmarkStepIndex, setCoachmarkStepIndex] = useState(0);
   const [isCoachmarkOpen, setIsCoachmarkOpen] = useState(false);
@@ -388,8 +390,8 @@ export function Progress({
   }, []);
 
   useEffect(() => {
-    setView('dashboard');
-  }, [resetSignal]);
+    setView(requestedView || 'dashboard');
+  }, [requestedView, resetSignal]);
 
   useEffect(() => {
     previousViewRef.current = view;

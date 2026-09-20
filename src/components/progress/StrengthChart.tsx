@@ -117,9 +117,10 @@ const STRENGTH_CHART_I18N = {
 interface StrengthChartProps {
   coachmarkTargetId?: string;
   weeks?: number;
+  themeVariant?: 'default' | 'girls';
 }
 
-export function StrengthChart({ coachmarkTargetId, weeks = 8 }: StrengthChartProps) {
+export function StrengthChart({ coachmarkTargetId, weeks = 8, themeVariant = 'default' }: StrengthChartProps) {
   const [data, setData] = useState<StrengthProgressResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [language, setLanguage] = useState<AppLanguage>('en');
@@ -248,23 +249,60 @@ export function StrengthChart({ coachmarkTargetId, weeks = 8 }: StrengthChartPro
   const roundedPct = Math.round(pct * 10) / 10;
   const hasComparableStrengthData = points.length >= 2;
   const pctText = hasComparableStrengthData ? `${roundedPct >= 0 ? '+' : ''}${roundedPct}%` : '-';
+  const isGirlsTheme = themeVariant === 'girls';
   const trendToneClass = pct > 0
-    ? 'border-emerald-500/35 bg-emerald-500/10 text-emerald-400'
+    ? isGirlsTheme
+      ? 'border-[#9CCBC4]/55 bg-[#CFECF3]/55 text-[#4A4A4A]'
+      : 'border-emerald-500/35 bg-emerald-500/10 text-emerald-400'
     : pct < 0
-      ? 'border-rose-500/35 bg-rose-500/10 text-rose-400'
-      : 'border-white/10 bg-white/5 text-text-secondary';
+      ? isGirlsTheme
+        ? 'border-[#F9B2D7]/55 bg-[#F9B2D7]/24 text-[#795E67]'
+        : 'border-rose-500/35 bg-rose-500/10 text-rose-400'
+      : isGirlsTheme
+        ? 'border-[#E2B4BD]/45 bg-white/70 text-[#795E67]'
+        : 'border-white/10 bg-white/5 text-text-secondary';
 
   const baselineText = formatKg(data?.summary?.baselineAvgE1RM);
   const currentText = formatKg(data?.summary?.currentAvgE1RM);
+  const cardClassName = isGirlsTheme
+    ? '!rounded-[1.45rem] !border-[#E2B4BD]/50 !bg-[linear-gradient(145deg,rgba(255,255,255,0.86),rgba(255,245,245,0.78)_48%,rgba(207,236,243,0.30))] !shadow-[0_20px_46px_rgba(226,180,189,0.20)] ring-1 ring-white/45'
+    : '';
+  const glowClassName = isGirlsTheme
+    ? 'bg-[radial-gradient(circle_at_18%_0%,rgba(249,178,215,0.42),transparent_52%),radial-gradient(circle_at_92%_8%,rgba(207,236,243,0.42),transparent_42%)]'
+    : 'bg-[radial-gradient(circle_at_top_left,rgba(var(--color-accent)/0.18),transparent_70%)]';
+  const panelClassName = isGirlsTheme
+    ? 'border-[#E2B4BD]/45 bg-white/72 shadow-[0_10px_22px_rgba(226,180,189,0.10)] ring-1 ring-white/35'
+    : 'border-white/10 bg-background/45';
+  const chartPanelClassName = isGirlsTheme
+    ? 'border-[#E2B4BD]/45 bg-[linear-gradient(180deg,rgba(255,255,255,0.78),rgba(255,245,245,0.56))] shadow-inner ring-1 ring-white/35'
+    : 'border-white/10 bg-background/35';
+  const dashedEmptyClassName = isGirlsTheme
+    ? 'border-[#E2B4BD]/45 text-[#795E67]'
+    : 'border-white/12 text-text-secondary';
+  const pulseClassName = isGirlsTheme ? 'bg-[#F7D6D0]/55' : 'bg-white/5';
+  const primaryTextClassName = isGirlsTheme ? 'text-[#4A4A4A]' : 'text-text-primary';
+  const secondaryTextClassName = isGirlsTheme ? 'text-[#795E67]' : 'text-text-secondary';
+  const tertiaryTextClassName = isGirlsTheme ? 'text-[#A87884]' : 'text-text-tertiary';
+  const gridStroke = isGirlsTheme ? 'rgba(168,120,132,0.14)' : 'rgba(255,255,255,0.08)';
+  const areaStart = isGirlsTheme ? 'rgba(249,178,215,0.36)' : 'rgba(10,132,255,0.42)';
+  const areaEnd = isGirlsTheme ? 'rgba(207,236,243,0.02)' : 'rgba(10,132,255,0)';
+  const strokeStart = isGirlsTheme ? '#E2B4BD' : '#6CC8FF';
+  const strokeEnd = isGirlsTheme ? '#F9B2D7' : '#0A84FF';
+  const pointFill = isGirlsTheme ? '#CFECF3' : '#9FD8FF';
+  const lastPointFill = isGirlsTheme ? '#F9B2D7' : '#BBFF5C';
+  const pointStroke = isGirlsTheme ? 'rgba(255,245,245,0.92)' : 'rgba(6,8,12,0.55)';
 
   return (
-    <Card coachmarkTargetId={coachmarkTargetId} className="relative overflow-hidden p-6">
-      <div className="pointer-events-none absolute inset-x-0 top-0 h-20 bg-[radial-gradient(circle_at_top_left,rgba(var(--color-accent)/0.18),transparent_70%)]" />
+    <Card coachmarkTargetId={coachmarkTargetId} className={`relative overflow-hidden p-6 ${cardClassName}`}>
+      <div className={`pointer-events-none absolute inset-x-0 top-0 h-24 ${glowClassName}`} />
+      {isGirlsTheme ? (
+        <div className="pointer-events-none absolute -right-10 -top-12 h-32 w-32 rounded-full bg-[#CFECF3]/35 blur-3xl" aria-hidden="true" />
+      ) : null}
       <div className="relative">
         <div className="mb-5 flex items-start justify-between gap-4">
           <div>
-            <h3 className="text-lg font-semibold text-text-primary">{copy.heading}</h3>
-            <p className="text-xs text-text-secondary">{copy.subtitle}</p>
+            <h3 className={`text-lg font-bold ${primaryTextClassName}`}>{copy.heading}</h3>
+            <p className={`text-xs ${secondaryTextClassName}`}>{copy.subtitle}</p>
           </div>
           <div className={`rounded-xl border px-3 py-2 text-right ${trendToneClass}`}>
             <div className="text-[10px] uppercase tracking-[0.14em]">{copy.trend}</div>
@@ -273,21 +311,24 @@ export function StrengthChart({ coachmarkTargetId, weeks = 8 }: StrengthChartPro
         </div>
 
         <div className="mb-4 grid grid-cols-2 gap-3 text-xs">
-          <div className="rounded-xl border border-white/10 bg-background/45 px-3 py-2">
-            <div className="uppercase tracking-[0.12em] text-text-tertiary">{copy.baseline}</div>
-            <div className="mt-1 text-sm font-semibold text-text-primary">{loading ? '-' : baselineText}</div>
+          <div className={`rounded-xl border px-3 py-2 ${panelClassName}`}>
+            <div className={`uppercase tracking-[0.12em] ${tertiaryTextClassName}`}>{copy.baseline}</div>
+            <div className={`mt-1 text-sm font-semibold ${primaryTextClassName}`}>{loading ? '-' : baselineText}</div>
           </div>
-          <div className="rounded-xl border border-white/10 bg-background/45 px-3 py-2">
-            <div className="uppercase tracking-[0.12em] text-text-tertiary">{copy.current}</div>
-            <div className="mt-1 text-sm font-semibold text-text-primary">{loading ? '-' : currentText}</div>
+          <div className={`rounded-xl border px-3 py-2 ${panelClassName}`}>
+            <div className={`uppercase tracking-[0.12em] ${tertiaryTextClassName}`}>{copy.current}</div>
+            <div className={`mt-1 text-sm font-semibold ${primaryTextClassName}`}>{loading ? '-' : currentText}</div>
           </div>
         </div>
 
-        <div className="relative h-44 w-full overflow-hidden rounded-xl border border-white/10 bg-background/35 p-2">
+        <div className={`relative h-44 w-full overflow-hidden rounded-[1.15rem] border p-3 ${chartPanelClassName}`}>
+          {isGirlsTheme ? (
+            <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_100%,rgba(207,236,243,0.28),transparent_58%)]" aria-hidden="true" />
+          ) : null}
           {loading ? (
-            <div className="h-full w-full animate-pulse rounded-lg bg-white/5" />
+            <div className={`h-full w-full animate-pulse rounded-lg ${pulseClassName}`} />
           ) : !hasStrengthData ? (
-            <div className="flex h-full items-center justify-center rounded-lg border border-dashed border-white/12 text-center text-xs text-text-secondary">
+            <div className={`flex h-full items-center justify-center rounded-lg border border-dashed text-center text-xs ${dashedEmptyClassName}`}>
               No strength data yet
             </div>
           ) : (
@@ -295,16 +336,16 @@ export function StrengthChart({ coachmarkTargetId, weeks = 8 }: StrengthChartPro
               className="h-full w-full overflow-visible"
               preserveAspectRatio="none"
               viewBox="0 0 100 100">
-              <line x1="0" y1="12" x2="100" y2="12" stroke="rgba(255,255,255,0.08)" strokeWidth="0.8" />
-              <line x1="0" y1="50" x2="100" y2="50" stroke="rgba(255,255,255,0.08)" strokeWidth="0.8" />
-              <line x1="0" y1="96" x2="100" y2="96" stroke="rgba(255,255,255,0.08)" strokeWidth="0.8" />
+              <line x1="0" y1="12" x2="100" y2="12" stroke={gridStroke} strokeWidth="0.8" />
+              <line x1="0" y1="50" x2="100" y2="50" stroke={gridStroke} strokeWidth="0.8" />
+              <line x1="0" y1="96" x2="100" y2="96" stroke={gridStroke} strokeWidth="0.8" />
 
               <path d={chart.areaPath} fill={`url(#${gradientId})`} />
               <path
                 d={chart.linePath}
                 fill="none"
                 stroke={`url(#${strokeGradientId})`}
-                strokeWidth="2.8"
+                strokeWidth={isGirlsTheme ? '3.2' : '2.8'}
                 strokeLinecap="round"
                 strokeLinejoin="round"
               />
@@ -316,10 +357,10 @@ export function StrengthChart({ coachmarkTargetId, weeks = 8 }: StrengthChartPro
                     <circle
                       cx={point.x}
                       cy={point.y}
-                      r={isLast ? 2.9 : 2.1}
-                      fill={isLast ? '#BBFF5C' : '#9FD8FF'}
-                      stroke="rgba(6,8,12,0.55)"
-                      strokeWidth="0.8"
+                      r={isLast ? (isGirlsTheme ? 3.6 : 2.9) : (isGirlsTheme ? 2.4 : 2.1)}
+                      fill={isLast ? lastPointFill : pointFill}
+                      stroke={pointStroke}
+                      strokeWidth={isGirlsTheme ? '1.2' : '0.8'}
                     />
                   </g>
                 );
@@ -327,19 +368,19 @@ export function StrengthChart({ coachmarkTargetId, weeks = 8 }: StrengthChartPro
 
               <defs>
                 <linearGradient id={gradientId} x1="0%" y1="0%" x2="0%" y2="100%">
-                  <stop offset="0%" stopColor="rgba(10,132,255,0.42)" />
-                  <stop offset="100%" stopColor="rgba(10,132,255,0)" />
+                  <stop offset="0%" stopColor={areaStart} />
+                  <stop offset="100%" stopColor={areaEnd} />
                 </linearGradient>
                 <linearGradient id={strokeGradientId} x1="0%" y1="0%" x2="100%" y2="0%">
-                  <stop offset="0%" stopColor="#6CC8FF" />
-                  <stop offset="100%" stopColor="#0A84FF" />
+                  <stop offset="0%" stopColor={strokeStart} />
+                  <stop offset="100%" stopColor={strokeEnd} />
                 </linearGradient>
               </defs>
             </svg>
           )}
         </div>
 
-        <div className="mt-4 flex items-center justify-between text-xs text-text-tertiary">
+        <div className={`mt-4 flex items-center justify-between text-xs ${tertiaryTextClassName}`}>
           {points.length <= 1 ? (
             <>
               <span>{chart.firstLabel}</span>
@@ -354,7 +395,7 @@ export function StrengthChart({ coachmarkTargetId, weeks = 8 }: StrengthChartPro
           )}
         </div>
 
-        <div className="mt-1 flex items-center justify-between text-[11px] text-text-tertiary">
+        <div className={`mt-1 flex items-center justify-between text-[11px] ${tertiaryTextClassName}`}>
           <span>{copy.min} {chart.minLabel}</span>
           <span>{copy.max} {chart.maxLabel}</span>
         </div>

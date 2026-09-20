@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { Header } from '../ui/Header';
 import { SlidersHorizontal, ChevronDown, X, Zap } from 'lucide-react';
@@ -16,6 +16,44 @@ import {
 interface MuscleRecoveryScreenProps {
   onBack: () => void;
 }
+
+const isGirlsStyleValue = (value: unknown) => {
+  const normalized = String(value || '').trim().toLowerCase();
+  return normalized === 'woman' || normalized === 'female' || normalized === 'f' || normalized === 'girls';
+};
+
+const readRecoveryStyleGender = () => {
+  try {
+    return String(localStorage.getItem('appStyleGender') || '').trim().toLowerCase();
+  } catch {
+    return '';
+  }
+};
+
+const readRecoveryStoredUser = () => {
+  try {
+    return JSON.parse(localStorage.getItem('appUser') || localStorage.getItem('user') || '{}');
+  } catch {
+    return {};
+  }
+};
+
+const readOnboardingProfile = (user: any) => {
+  const rawProfile = user?.onboarding_profile || user?.onboardingProfile;
+  if (!rawProfile) return {};
+  if (typeof rawProfile === 'object') return rawProfile;
+  try {
+    return JSON.parse(String(rawProfile));
+  } catch {
+    return {};
+  }
+};
+
+const shouldUseGirlsRecoveryTheme = (user: any, styleGender: string) => {
+  if (styleGender) return isGirlsStyleValue(styleGender);
+  const profile = readOnboardingProfile(user);
+  return isGirlsStyleValue(user?.gender) || isGirlsStyleValue(profile?.gender) || profile?.onboardingTheme === 'girls';
+};
 
 type MuscleRecoveryItem = {
   muscle: string;
@@ -491,6 +529,7 @@ function RecoveryBodyMap({
   labels,
   selected,
   onMuscleSelect,
+  themeVariant = 'default',
 }: {
   muscles: MuscleRecoveryItem[];
   labels: {
@@ -500,10 +539,12 @@ function RecoveryBodyMap({
   };
   selected?: BodyMapMuscle | null;
   onMuscleSelect?: (muscle: BodyMapMuscle) => void;
+  themeVariant?: 'default' | 'girls';
 }) {
   const [isGlitching, setIsGlitching] = useState(true);
   const bodyMapLevels = toBodyMapLevels(muscles);
   const animationKey = muscles.map((muscle) => `${muscle.muscle}:${muscle.name}:${muscle.score}`).join('|');
+  const isGirlsTheme = themeVariant === 'girls';
 
   useEffect(() => {
     setIsGlitching(true);
@@ -515,14 +556,20 @@ function RecoveryBodyMap({
   }, [animationKey]);
 
   return (
-    <div className={`target-muscle-body-map surface-card rounded-2xl border border-white/10 p-4 ${isGlitching ? 'is-glitching' : ''}`}>
+    <div
+      className={`target-muscle-body-map rounded-2xl border p-4 ${
+        isGirlsTheme
+          ? 'border-[#E2B4BD]/55 bg-white/[0.72] shadow-[0_18px_42px_rgba(226,180,189,0.18)]'
+          : 'surface-card border-white/10'
+      } ${isGlitching ? 'is-glitching' : ''}`}
+    >
       <BodyMap
         className="recovery-bodymap"
         levels={bodyMapLevels}
         selected={selected}
         onMuscle={onMuscleSelect}
       />
-      <div className="mt-4 grid grid-cols-2 gap-2 text-xs text-text-tertiary sm:grid-cols-4">
+      <div className={`mt-4 grid grid-cols-2 gap-2 text-xs sm:grid-cols-4 ${isGirlsTheme ? 'text-[#795E67]' : 'text-text-tertiary'}`}>
         <div className="flex items-center gap-1.5">
           <span className="h-3 w-3 rounded-full bg-[#ef4444]" />
           <span>0-39%</span>
@@ -544,10 +591,406 @@ function RecoveryBodyMap({
   );
 }
 
+const RECOVERY_DAY_MS = 24 * 60 * 60 * 1000;
+
+const RECOVERY_DATE_LOCALE: Record<string, string> = {
+  en: 'en-US',
+  ar: 'ar',
+  it: 'it-IT',
+  de: 'de-DE',
+  fr: 'fr-FR',
+};
+
+const toRecoveryDate = (value: unknown) => {
+  if (!value) return null;
+  const date = new Date(`${String(value).slice(0, 10)}T00:00:00`);
+  return Number.isFinite(date.getTime()) ? date : null;
+};
+
+const toRecoveryDateInput = (date: Date) => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
+const addRecoveryDays = (dateInput: string, days: number) => {
+  const date = toRecoveryDate(dateInput);
+  if (!date) return '';
+  date.setDate(date.getDate() + days);
+  return toRecoveryDateInput(date);
+};
+
+const daysBetweenRecoveryDates = (start: string, end: string) => {
+  const startDate = toRecoveryDate(start);
+  const endDate = toRecoveryDate(end);
+  if (!startDate || !endDate) return null;
+  return Math.round((endDate.getTime() - startDate.getTime()) / RECOVERY_DAY_MS);
+};
+
+const formatRecoveryPeriodDate = (value: string, language: AppLanguage) => {
+  const date = toRecoveryDate(value);
+  if (!date) return '-';
+  return new Intl.DateTimeFormat(RECOVERY_DATE_LOCALE[language] || RECOVERY_DATE_LOCALE.en, {
+    month: 'short',
+    day: 'numeric',
+  }).format(date);
+};
+
+const readSavedPeriodCycle = () => {
+  const user = readRecoveryStoredUser();
+  const profile = readOnboardingProfile(user);
+  const rawProfile = (() => {
+    try {
+      return JSON.parse(localStorage.getItem('onboardingData') || localStorage.getItem('onboardingProfile') || '{}');
+    } catch {
+      return {};
+    }
+  })();
+  return profile?.periodCycle || profile?.period_cycle || rawProfile?.periodCycle || rawProfile?.period_cycle || null;
+};
+
+const getPeriodCarouselCopy = (language: AppLanguage) => {
+  if (language === 'ar') {
+    return {
+      title: 'متابعة الدورة',
+      noDataTitle: 'أضيفي بيانات الدورة',
+      noDataBody: 'سنظهر توقعات الدورة هنا بعد تسجيل آخر بداية.',
+      estimated: 'الدورة المتوقعة',
+      window: 'النافذة',
+      cycleDay: 'يوم الدورة',
+      daysLeft: 'أيام',
+      today: 'اليوم',
+      activePeriod: 'أيام الدورة',
+      likelyNow: 'قد تبدأ قريباً',
+      training: 'اقتراح التدريب',
+      softer: 'اختاري تمارين أخف وركزي على الراحة.',
+      normal: 'يمكنك التدريب بشكل طبيعي مع مراقبة الطاقة.',
+      around: 'حوالي',
+      detailsTitle: 'تفاصيل الدورة',
+      close: 'إغلاق',
+      lastStart: 'آخر بداية',
+      nextPeriod: 'الدورة القادمة',
+      estimateWindow: 'نافذة التوقع',
+      cycleAverage: 'متوسط الدورة',
+      periodDuration: 'مدة الدورة',
+      confidence: 'الثقة',
+      cycleAverageBody: 'متوسط مدة الدورة',
+      showCard: 'عرض بطاقة الدورة',
+    };
+  }
+  if (language === 'fr') {
+    return {
+      title: 'Cycle menstruel',
+      noDataTitle: 'Ajoute ton cycle',
+      noDataBody: 'Les estimations apparaitront ici apres la derniere date de debut.',
+      estimated: 'Periode estimee',
+      window: 'Fenetre',
+      cycleDay: 'Jour du cycle',
+      daysLeft: 'jours',
+      today: 'Aujourd hui',
+      activePeriod: 'Periode en cours',
+      likelyNow: 'Peut commencer bientot',
+      training: 'Conseil training',
+      softer: 'Choisis une seance plus douce et garde plus de recuperation.',
+      normal: 'Tu peux t entrainer normalement en surveillant ton energie.',
+      around: 'Autour du',
+      detailsTitle: 'Details du cycle',
+      close: 'Fermer',
+      lastStart: 'Dernier debut',
+      nextPeriod: 'Prochaine periode',
+      estimateWindow: 'Fenetre estimee',
+      cycleAverage: 'Cycle moyen',
+      periodDuration: 'Duree',
+      confidence: 'Confiance',
+      cycleAverageBody: 'moyenne du cycle',
+      showCard: 'Afficher la carte cycle',
+    };
+  }
+  if (language === 'it') {
+    return {
+      title: 'Controllo ciclo',
+      noDataTitle: 'Aggiungi il ciclo',
+      noDataBody: 'Mostreremo le stime qui dopo l ultima data di inizio.',
+      estimated: 'Periodo stimato',
+      window: 'Finestra',
+      cycleDay: 'Giorno ciclo',
+      daysLeft: 'giorni',
+      today: 'Oggi',
+      activePeriod: 'Periodo in corso',
+      likelyNow: 'Potrebbe iniziare presto',
+      training: 'Consiglio training',
+      softer: 'Scegli lavoro piu leggero e piu recupero.',
+      normal: 'Puoi allenarti normalmente monitorando energia e sintomi.',
+      around: 'Intorno al',
+      detailsTitle: 'Dettagli ciclo',
+      close: 'Chiudi',
+      lastStart: 'Ultimo inizio',
+      nextPeriod: 'Prossimo periodo',
+      estimateWindow: 'Finestra stimata',
+      cycleAverage: 'Ciclo medio',
+      periodDuration: 'Durata',
+      confidence: 'Confidenza',
+      cycleAverageBody: 'media del ciclo',
+      showCard: 'Mostra scheda ciclo',
+    };
+  }
+  if (language === 'de') {
+    return {
+      title: 'Zykluscheck',
+      noDataTitle: 'Zyklus hinzufuegen',
+      noDataBody: 'Schaetzungen erscheinen hier nach dem letzten Startdatum.',
+      estimated: 'Geschaetzte Periode',
+      window: 'Fenster',
+      cycleDay: 'Zyklustag',
+      daysLeft: 'Tage',
+      today: 'Heute',
+      activePeriod: 'Periode aktiv',
+      likelyNow: 'Kann bald starten',
+      training: 'Trainingstipp',
+      softer: 'Waehle leichteres Training und mehr Erholung.',
+      normal: 'Du kannst normal trainieren und deine Energie beobachten.',
+      around: 'Um den',
+      detailsTitle: 'Zyklusdetails',
+      close: 'Schliessen',
+      lastStart: 'Letzter Start',
+      nextPeriod: 'Naechste Periode',
+      estimateWindow: 'Geschaetztes Fenster',
+      cycleAverage: 'Durchschnittlicher Zyklus',
+      periodDuration: 'Dauer',
+      confidence: 'Sicherheit',
+      cycleAverageBody: 'Zyklusdurchschnitt',
+      showCard: 'Zykluskarte anzeigen',
+    };
+  }
+  return {
+    title: 'Cycle check-in',
+    noDataTitle: 'Add your cycle',
+    noDataBody: 'Your period estimate will show here after your last start date is saved.',
+    estimated: 'Estimated period',
+    window: 'Window',
+    cycleDay: 'Cycle day',
+    daysLeft: 'days',
+    today: 'Today',
+    activePeriod: 'Period days',
+    likelyNow: 'May start soon',
+    training: 'Training note',
+    softer: 'Choose lighter work and give recovery a little more room.',
+    normal: 'Train normally while watching energy and symptoms.',
+    around: 'Around',
+    detailsTitle: 'Period details',
+    close: 'Close',
+    lastStart: 'Last start',
+    nextPeriod: 'Next period',
+    estimateWindow: 'Estimate window',
+    cycleAverage: 'Cycle average',
+    periodDuration: 'Period duration',
+    confidence: 'Confidence',
+    cycleAverageBody: 'cycle average',
+    showCard: 'Show cycle card',
+  };
+};
+
+function GirlsPeriodCarousel({ language }: { language: AppLanguage }) {
+  const [activeIndex, setActiveIndex] = useState(0);
+  const [showPeriodDetails, setShowPeriodDetails] = useState(false);
+  const touchStartXRef = useRef<number | null>(null);
+  const touchDidSwipeRef = useRef(false);
+  const copy = getPeriodCarouselCopy(language);
+  const periodCycle = readSavedPeriodCycle();
+  const lastStart = String(periodCycle?.lastPeriodStart || periodCycle?.last_period_start || periodCycle?.records?.[0]?.startDate || '').slice(0, 10);
+  const stats = periodCycle?.stats || {};
+  const cycleLength = Math.round(Number(stats.averageCycleLength || periodCycle?.typicalCycleLength || periodCycle?.typical_cycle_length || 29));
+  const periodLength = Math.round(Number(stats.averagePeriodLength || periodCycle?.typicalPeriodDuration || periodCycle?.typical_period_duration || 5));
+  const variation = Math.max(2, Math.min(7, Math.round(Number(stats.cycleVariation || 2))));
+  const confidence = String(stats.confidence || (lastStart ? 'medium' : 'low'));
+  const predictedStart = String(stats.predictedNextStart || (lastStart ? addRecoveryDays(lastStart, cycleLength) : '')).slice(0, 10);
+  const predictedEnd = String(stats.predictedNextEnd || (predictedStart ? addRecoveryDays(predictedStart, periodLength - 1) : '')).slice(0, 10);
+  const windowStart = String(stats.windowStart || (predictedStart ? addRecoveryDays(predictedStart, -variation) : '')).slice(0, 10);
+  const windowEnd = String(stats.windowEnd || (predictedStart ? addRecoveryDays(predictedStart, variation) : '')).slice(0, 10);
+  const today = toRecoveryDateInput(new Date());
+  const daysUntil = predictedStart ? daysBetweenRecoveryDates(today, predictedStart) : null;
+  const cycleDay = lastStart ? Math.max(1, (daysBetweenRecoveryDates(lastStart, today) || 0) + 1) : null;
+  const currentPeriodEnd = lastStart ? addRecoveryDays(lastStart, periodLength - 1) : '';
+  const inPeriod = lastStart && currentPeriodEnd && today >= lastStart && today <= currentPeriodEnd;
+  const shouldTrainSofter = inPeriod || (daysUntil !== null && daysUntil <= 2);
+
+  const cards = lastStart && predictedStart ? [
+    {
+      eyebrow: copy.estimated,
+      title: `${copy.around} ${formatRecoveryPeriodDate(predictedStart, language)}`,
+      body: `${copy.window}: ${formatRecoveryPeriodDate(windowStart, language)} - ${formatRecoveryPeriodDate(windowEnd, language)}`,
+      stat: daysUntil === null ? '-' : daysUntil <= 0 ? copy.today : `${daysUntil}`,
+      tint: 'from-[#FFF5F5] via-white to-[#F7D6D0]/60',
+      ring: 'border-[#E2B4BD]/55',
+    },
+    {
+      eyebrow: inPeriod ? copy.activePeriod : copy.cycleDay,
+      title: inPeriod ? `${formatRecoveryPeriodDate(lastStart, language)} - ${formatRecoveryPeriodDate(currentPeriodEnd, language)}` : `${copy.cycleDay} ${cycleDay || '-'}`,
+      body: daysUntil !== null && daysUntil < 0 ? copy.likelyNow : `${cycleLength} ${copy.daysLeft} ${copy.cycleAverageBody}`,
+      stat: cycleDay ? `${cycleDay}` : '-',
+      tint: 'from-[#F7D6D0]/70 via-white to-[#F9B2D7]/20',
+      ring: 'border-[#F9B2D7]/45',
+    },
+    {
+      eyebrow: copy.training,
+      title: shouldTrainSofter ? copy.softer : copy.normal,
+      body: predictedEnd ? `${copy.estimated}: ${formatRecoveryPeriodDate(predictedStart, language)} - ${formatRecoveryPeriodDate(predictedEnd, language)}` : copy.normal,
+      stat: shouldTrainSofter ? '!' : 'OK',
+      tint: 'from-[#CFECF3]/60 via-white to-[#FFF5F5]',
+      ring: 'border-[#CFECF3]/80',
+    },
+  ] : [
+    {
+      eyebrow: copy.title,
+      title: copy.noDataTitle,
+      body: copy.noDataBody,
+      stat: '-',
+      tint: 'from-[#FFF5F5] via-white to-[#CFECF3]/35',
+      ring: 'border-[#E2B4BD]/55',
+    },
+  ];
+
+  const goTo = (nextIndex: number) => {
+    const normalized = (nextIndex + cards.length) % cards.length;
+    setActiveIndex(normalized);
+  };
+
+  const handleTouchStart = (event: React.TouchEvent<HTMLDivElement>) => {
+    touchStartXRef.current = event.touches[0]?.clientX ?? null;
+    touchDidSwipeRef.current = false;
+  };
+
+  const handleTouchEnd = (event: React.TouchEvent<HTMLDivElement>) => {
+    if (touchStartXRef.current === null) return;
+    const delta = (event.changedTouches[0]?.clientX ?? touchStartXRef.current) - touchStartXRef.current;
+    touchStartXRef.current = null;
+    if (Math.abs(delta) < 36) return;
+    goTo(activeIndex + (delta < 0 ? 1 : -1));
+    touchDidSwipeRef.current = true;
+  };
+
+  const activeCard = cards[Math.min(activeIndex, cards.length - 1)];
+  const periodDetailRows = [
+    { label: copy.lastStart, value: lastStart ? formatRecoveryPeriodDate(lastStart, language) : '-' },
+    { label: copy.nextPeriod, value: predictedStart ? `${formatRecoveryPeriodDate(predictedStart, language)} - ${formatRecoveryPeriodDate(predictedEnd, language)}` : '-' },
+    { label: copy.estimateWindow, value: windowStart && windowEnd ? `${formatRecoveryPeriodDate(windowStart, language)} - ${formatRecoveryPeriodDate(windowEnd, language)}` : '-' },
+    { label: copy.cycleDay, value: cycleDay ? String(cycleDay) : '-' },
+    { label: copy.cycleAverage, value: `${cycleLength} ${copy.daysLeft}` },
+    { label: copy.periodDuration, value: `${periodLength} ${copy.daysLeft}` },
+    { label: copy.confidence, value: confidence },
+  ];
+
+  useEffect(() => {
+    if (activeIndex >= cards.length) setActiveIndex(0);
+  }, [activeIndex, cards.length]);
+
+  return (
+    <section className="overflow-hidden rounded-2xl border border-[#E2B4BD]/50 bg-white/[0.74] p-4 shadow-[0_18px_42px_rgba(226,180,189,0.18)] ring-1 ring-white/45">
+      <div className="mb-3 flex items-center justify-between gap-3">
+        <div>
+          <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-[#A87884]">{copy.title}</div>
+          <div className="mt-1 text-sm font-semibold text-[#4A4A4A]">{activeIndex + 1} / {cards.length}</div>
+        </div>
+      </div>
+
+      <div
+        role="button"
+        tabIndex={0}
+        className={`cursor-pointer rounded-[1.35rem] border ${activeCard.ring} bg-gradient-to-br ${activeCard.tint} p-4 transition-colors active:scale-[0.99]`}
+        onClick={() => {
+          if (touchDidSwipeRef.current) {
+            touchDidSwipeRef.current = false;
+            return;
+          }
+          setShowPeriodDetails(true);
+        }}
+        onKeyDown={(event) => {
+          if (event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault();
+            setShowPeriodDetails(true);
+          }
+        }}
+        onTouchStart={handleTouchStart}
+        onTouchEnd={handleTouchEnd}
+      >
+        <div className="flex items-start justify-between gap-4">
+          <div className="min-w-0">
+            <div className="text-[11px] font-bold uppercase tracking-[0.16em] text-[#A87884]">{activeCard.eyebrow}</div>
+            <h3 className="mt-2 truncate text-xl font-bold text-[#4A4A4A]">{activeCard.title}</h3>
+            <p className="mt-2 line-clamp-2 text-sm leading-6 text-[#795E67]">{activeCard.body}</p>
+          </div>
+          <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl border border-white/70 bg-white/75 text-xl font-black text-[#4A4A4A] shadow-[0_12px_26px_rgba(226,180,189,0.16)]">
+            {activeCard.stat}
+          </div>
+        </div>
+      </div>
+
+      <div className="mt-3 flex items-center justify-center gap-2">
+        {cards.map((card, index) => (
+          <button
+            key={card.eyebrow}
+            type="button"
+            onClick={() => goTo(index)}
+            className={`h-1.5 rounded-full transition-all ${index === activeIndex ? 'w-6 bg-[#F9B2D7]' : 'w-1.5 bg-[#E2B4BD]/55'}`}
+            aria-label={`${copy.showCard} ${index + 1}`}
+          />
+        ))}
+      </div>
+      {showPeriodDetails && typeof document !== 'undefined' ? createPortal(
+        <div
+          className="fixed inset-0 z-[180] flex items-center justify-center bg-[#4A4A4A]/35 p-4 backdrop-blur-sm"
+          onClick={() => setShowPeriodDetails(false)}
+        >
+          <div
+            className="w-full max-w-sm overflow-hidden rounded-[1.8rem] border border-[#E2B4BD]/55 bg-[linear-gradient(145deg,rgba(255,255,255,0.94),rgba(255,245,245,0.90)_58%,rgba(207,236,243,0.28))] text-[#4A4A4A] shadow-[0_24px_70px_rgba(226,180,189,0.26)] ring-1 ring-white/55"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="flex items-start justify-between gap-3 border-b border-[#E2B4BD]/35 px-5 py-4">
+              <div>
+                <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-[#A87884]">{copy.title}</div>
+                <h3 className="mt-1 text-xl font-bold text-[#4A4A4A]">{copy.detailsTitle}</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowPeriodDetails(false)}
+                className="flex h-9 w-9 items-center justify-center rounded-xl border border-[#E2B4BD]/45 bg-white/70 text-[#A87884] transition-colors hover:border-[#F9B2D7]/70 hover:text-[#4A4A4A]"
+                aria-label={copy.close}
+              >
+                <X size={17} />
+              </button>
+            </div>
+            <div className="space-y-3 px-5 py-5">
+              <div className={`rounded-2xl border ${activeCard.ring} bg-gradient-to-br ${activeCard.tint} p-4`}>
+                <div className="text-[11px] font-bold uppercase tracking-[0.16em] text-[#A87884]">{activeCard.eyebrow}</div>
+                <div className="mt-2 text-lg font-bold text-[#4A4A4A]">{activeCard.title}</div>
+                <p className="mt-2 text-sm leading-6 text-[#795E67]">{activeCard.body}</p>
+              </div>
+              <div className="grid gap-2">
+                {periodDetailRows.map((row) => (
+                  <div key={row.label} className="flex items-center justify-between gap-3 rounded-2xl border border-[#E2B4BD]/35 bg-white/65 px-3 py-2.5">
+                    <span className="text-xs font-semibold text-[#A87884]">{row.label}</span>
+                    <span className="text-right text-sm font-bold text-[#4A4A4A]">{row.value}</span>
+                  </div>
+                ))}
+              </div>
+              <p className="rounded-2xl border border-[#CFECF3]/70 bg-[#CFECF3]/35 px-3 py-3 text-sm leading-6 text-[#795E67]">
+                {shouldTrainSofter ? copy.softer : copy.normal}
+              </p>
+            </div>
+          </div>
+        </div>,
+        document.body,
+      ) : null}
+    </section>
+  );
+}
+
 export function MuscleRecoveryScreen({ onBack }: MuscleRecoveryScreenProps) {
   const [language, setLanguage] = useState<AppLanguage>(() => getActiveLanguage(getStoredLanguage()));
   const [selectedBodyMapMuscle, setSelectedBodyMapMuscle] = useState<BodyMapMuscle | null>(null);
   const [selectedRecoveryMuscleKey, setSelectedRecoveryMuscleKey] = useState<string | null>(null);
+  const [themeRefreshKey, setThemeRefreshKey] = useState(0);
   const isArabic = language === 'ar';
   const legacyCopy = {
     title: isArabic ? 'تعافي العضلات' : 'Muscle Recovery',
@@ -584,6 +1027,8 @@ export function MuscleRecoveryScreen({ onBack }: MuscleRecoveryScreenProps) {
   const copy = RECOVERY_I18N[language as keyof typeof RECOVERY_I18N] || RECOVERY_I18N.en;
   const [muscleRecoveries, setMuscleRecoveries] = useState<MuscleRecoveryItem[]>(() => mergeRecoveryWithDefaults([]));
   const [showFactors, setShowFactors] = useState(false);
+  const [openFactorsMenu, setOpenFactorsMenu] = useState<'protein' | 'supplements' | null>(null);
+  const factorsMenuRef = useRef<HTMLDivElement | null>(null);
   const [factors, setFactors] = useState<RecoveryFactorsState>({
     sleepHours: '7',
     proteinIntake: 'medium',
@@ -609,6 +1054,35 @@ export function MuscleRecoveryScreen({ onBack }: MuscleRecoveryScreenProps) {
             ? FR_MUSCLE_LABELS
           : {},
   ), [language]);
+  const isGirlsTheme = useMemo(
+    () => shouldUseGirlsRecoveryTheme(readRecoveryStoredUser(), readRecoveryStyleGender()),
+    [themeRefreshKey],
+  );
+
+  useEffect(() => {
+    const refreshTheme = () => setThemeRefreshKey((current) => current + 1);
+    window.addEventListener('repset:stored-user-changed', refreshTheme);
+    window.addEventListener('repset:app-style-gender-changed', refreshTheme);
+    window.addEventListener('storage', refreshTheme);
+    return () => {
+      window.removeEventListener('repset:stored-user-changed', refreshTheme);
+      window.removeEventListener('repset:app-style-gender-changed', refreshTheme);
+      window.removeEventListener('storage', refreshTheme);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!openFactorsMenu) return undefined;
+
+    const handlePointerDown = (event: PointerEvent) => {
+      if (factorsMenuRef.current && !factorsMenuRef.current.contains(event.target as Node)) {
+        setOpenFactorsMenu(null);
+      }
+    };
+
+    window.addEventListener('pointerdown', handlePointerDown);
+    return () => window.removeEventListener('pointerdown', handlePointerDown);
+  }, [openFactorsMenu]);
 
   useEffect(() => {
     const handleLanguageChanged = () => {
@@ -713,6 +1187,89 @@ export function MuscleRecoveryScreen({ onBack }: MuscleRecoveryScreenProps) {
     { label: copy.sharpPain, value: 8 },
   ]), [copy.mildPain, copy.nonePain, copy.sharpPain]);
 
+  const proteinOptions = useMemo(() => ([
+    { label: copy.low, value: 'low' },
+    { label: copy.medium, value: 'medium' },
+    { label: copy.high, value: 'high' },
+  ]), [copy.high, copy.low, copy.medium]);
+
+  const supplementOptions = useMemo(() => ([
+    { label: copy.none, value: 'none' },
+    { label: copy.creatine, value: 'creatine' },
+    { label: copy.full, value: 'full' },
+  ]), [copy.creatine, copy.full, copy.none]);
+
+  const renderFactorsDropdown = (
+    menuKey: 'protein' | 'supplements',
+    value: string,
+    options: Array<{ label: string; value: string }>,
+    onChange: (next: string) => void,
+  ) => {
+    const selectedOption = options.find((option) => option.value === value) || options[0];
+    const isOpen = openFactorsMenu === menuKey;
+
+    return (
+      <div ref={isOpen ? factorsMenuRef : undefined} className="relative">
+        <button
+          type="button"
+          aria-haspopup="listbox"
+          aria-expanded={isOpen}
+          onClick={() => setOpenFactorsMenu((current) => (current === menuKey ? null : menuKey))}
+          className={`flex w-full cursor-pointer items-center justify-between rounded-xl border px-4 py-3 text-left text-sm font-semibold transition-colors focus:outline-none ${
+            isGirlsTheme
+              ? 'border-[#E2B4BD]/45 bg-white/70 text-[#4A4A4A] hover:border-[#F9B2D7]/70 focus:border-[#F9B2D7]/70'
+              : 'border-white/10 bg-background text-white hover:border-accent/35 focus:border-accent/50'
+          }`}
+        >
+          <span>{selectedOption.label}</span>
+          <ChevronDown
+            size={20}
+            className={`shrink-0 transition-transform ${isOpen ? 'rotate-180' : ''} ${isGirlsTheme ? 'text-[#A87884]' : 'text-text-secondary'}`}
+            aria-hidden="true"
+          />
+        </button>
+        {isOpen ? (
+          <div
+            role="listbox"
+            className={`absolute left-0 right-0 top-[calc(100%+0.35rem)] z-30 overflow-hidden rounded-xl border p-1.5 shadow-2xl backdrop-blur-xl ${
+              isGirlsTheme
+                ? 'border-[#E2B4BD]/55 bg-[#FFF5F5]/96 text-[#4A4A4A] shadow-[0_18px_34px_rgba(226,180,189,0.22)]'
+                : 'border-white/10 bg-[#101824]/96 text-text-primary shadow-[0_18px_34px_rgba(0,0,0,0.36)]'
+            }`}
+          >
+            {options.map((option) => {
+              const active = option.value === value;
+              return (
+                <button
+                  key={option.value}
+                  type="button"
+                  role="option"
+                  aria-selected={active}
+                  onClick={() => {
+                    onChange(option.value);
+                    setOpenFactorsMenu(null);
+                  }}
+                  className={`flex min-h-10 w-full items-center justify-between rounded-lg px-3 text-left text-sm font-semibold transition-colors ${
+                    active
+                      ? isGirlsTheme
+                        ? 'bg-[#F9B2D7]/20 text-[#4A4A4A]'
+                        : 'bg-accent/15 text-text-primary'
+                      : isGirlsTheme
+                        ? 'text-[#795E67] hover:bg-white/75 hover:text-[#4A4A4A]'
+                        : 'text-text-secondary hover:bg-white/8 hover:text-text-primary'
+                  }`}
+                >
+                  <span>{option.label}</span>
+                  {active ? <span className={`h-2 w-2 rounded-full ${isGirlsTheme ? 'bg-[#F9B2D7]' : 'bg-accent'}`} aria-hidden="true" /> : null}
+                </button>
+              );
+            })}
+          </div>
+        ) : null}
+      </div>
+    );
+  };
+
   const renderFactorChipRow = (
     title: string,
     value: number,
@@ -720,7 +1277,7 @@ export function MuscleRecoveryScreen({ onBack }: MuscleRecoveryScreenProps) {
     onChange: (next: number) => void,
   ) => (
     <div>
-      <div className="mb-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-text-tertiary">{title}</div>
+      <div className={`mb-2 text-[11px] font-semibold uppercase tracking-[0.14em] ${isGirlsTheme ? 'text-[#A87884]' : 'text-text-tertiary'}`}>{title}</div>
       <div className="grid grid-cols-3 gap-2">
         {options.map((option) => {
           const active = value === option.value;
@@ -731,8 +1288,12 @@ export function MuscleRecoveryScreen({ onBack }: MuscleRecoveryScreenProps) {
               onClick={() => onChange(option.value)}
               className={`rounded-xl border px-3 py-2 text-xs font-semibold transition-colors ${
                 active
-                  ? 'border-accent/35 bg-accent/15 text-accent'
-                  : 'border-white/10 bg-white/5 text-text-secondary hover:border-accent/25'
+                  ? isGirlsTheme
+                    ? 'border-[#F9B2D7]/70 bg-[#F9B2D7]/22 text-[#4A4A4A] shadow-[0_8px_18px_rgba(249,178,215,0.16)]'
+                    : 'border-accent/35 bg-accent/15 text-accent'
+                  : isGirlsTheme
+                    ? 'border-[#E2B4BD]/45 bg-white/65 text-[#795E67] hover:border-[#F9B2D7]/70 hover:bg-white/85 hover:text-[#4A4A4A]'
+                    : 'border-white/10 bg-white/5 text-text-secondary hover:border-accent/25'
               }`}
             >
               {option.label}
@@ -837,14 +1398,18 @@ export function MuscleRecoveryScreen({ onBack }: MuscleRecoveryScreenProps) {
 
     return (
       <div>
-        <h3 className="mb-3 text-xs font-bold uppercase tracking-wider text-text-secondary">
+        <h3 className={`mb-3 text-xs font-bold uppercase tracking-wider ${isGirlsTheme ? 'text-[#795E67]' : 'text-text-secondary'}`}>
           {title}
         </h3>
         <div className="space-y-2">
           {muscles.map((m) => (
             <div
               key={m.muscle}
-              className="flex items-center justify-between rounded-xl border border-white/5 bg-card p-4"
+              className={`flex items-center justify-between rounded-xl border p-4 ${
+                isGirlsTheme
+                  ? 'border-[#E2B4BD]/45 bg-white/[0.70] shadow-[0_12px_28px_rgba(226,180,189,0.12)]'
+                  : 'border-white/5 bg-card'
+              }`}
             >
               <div className="flex min-w-0 items-center gap-3">
                 <div
@@ -858,9 +1423,9 @@ export function MuscleRecoveryScreen({ onBack }: MuscleRecoveryScreenProps) {
                   )}
                 </div>
                 <div className="min-w-0">
-                  <h4 className="truncate font-semibold text-white">{toLocalizedMuscle(m.name)}</h4>
+                  <h4 className={`truncate font-semibold ${isGirlsTheme ? 'text-[#4A4A4A]' : 'text-white'}`}>{toLocalizedMuscle(m.name)}</h4>
                   {showLastTrained && (
-                    <p className="mt-0.5 text-xs text-text-tertiary">
+                    <p className={`mt-0.5 text-xs ${isGirlsTheme ? 'text-[#A87884]' : 'text-text-tertiary'}`}>
                       {copy.lastTrained} {getLastTrained(m.lastWorkout)}
                     </p>
                   )}
@@ -906,16 +1471,41 @@ export function MuscleRecoveryScreen({ onBack }: MuscleRecoveryScreenProps) {
       : language === 'de'
         ? 'Schliesse einen Trainingstag ab, um die trainierten Muskeln und ihre Erholungswerte zu sehen.'
         : language === 'fr'
-          ? 'Termine une seance pour voir les muscles entraines et leur niveau de recuperation.'
+        ? 'Termine une seance pour voir les muscles entraines et leur niveau de recuperation.'
         : 'Complete a workout day to see the muscles you trained and their recovery percentages.';
+  const screenClassName = isGirlsTheme
+    ? 'flex-1 flex flex-col h-full pb-24 bg-[radial-gradient(circle_at_top_left,rgba(249,178,215,0.22),transparent_34%),radial-gradient(circle_at_85%_8%,rgba(207,236,243,0.34),transparent_32%),linear-gradient(180deg,#FFF5F5_0%,#F7D6D0_52%,#FFF5F5_100%)] text-[#4A4A4A] [&_.surface-glass]:border-[#E2B4BD]/45 [&_.surface-glass]:bg-white/60 [&_.surface-glass]:text-[#4A4A4A] [&_h1]:text-[#4A4A4A]'
+    : 'flex-1 flex flex-col h-full bg-background pb-24';
+  const factorsButtonClassName = isGirlsTheme
+    ? 'text-[#A87884] text-sm font-medium'
+    : 'text-accent text-sm font-medium';
+  const emptyStateClassName = isGirlsTheme
+    ? 'rounded-xl border border-[#E2B4BD]/45 bg-white/[0.70] px-4 py-5 text-sm text-[#795E67] shadow-[0_12px_28px_rgba(226,180,189,0.12)]'
+    : 'rounded-xl border border-white/10 bg-card/60 px-4 py-5 text-sm text-text-secondary';
+  const factorsPanelClassName = isGirlsTheme
+    ? `relative flex max-h-[90dvh] w-full max-w-md flex-col overflow-hidden rounded-2xl border border-[#E2B4BD]/55 bg-[#FFF5F5] text-[#4A4A4A] shadow-[0_24px_72px_rgba(226,180,189,0.22)] ${isArabic ? 'text-right' : 'text-left'}`
+    : `relative flex max-h-[90dvh] w-full max-w-md flex-col overflow-hidden rounded-2xl border border-white/10 bg-card ${isArabic ? 'text-right' : 'text-left'}`;
+  const factorsDividerClassName = isGirlsTheme ? 'border-[#E2B4BD]/45' : 'border-white/10';
+  const factorsTitleClassName = isGirlsTheme ? 'text-xl font-bold text-[#4A4A4A]' : 'text-xl font-bold text-white';
+  const factorsCloseClassName = isGirlsTheme
+    ? 'absolute right-4 top-4 z-10 text-[#A87884] transition-colors hover:text-[#4A4A4A]'
+    : 'absolute right-4 top-4 z-10 text-text-secondary transition-colors hover:text-white';
+  const factorsLabelClassName = isGirlsTheme ? 'mb-2 block text-sm text-[#795E67]' : 'mb-2 block text-sm text-text-secondary';
+  const factorsInputClassName = isGirlsTheme
+    ? 'w-full rounded-xl border border-[#E2B4BD]/45 bg-white/70 px-4 py-3 text-[#4A4A4A] focus:outline-none focus:border-[#F9B2D7]/70'
+    : 'w-full rounded-xl border border-white/10 bg-background px-4 py-3 text-white focus:outline-none focus:border-accent/50';
+  const secondaryActionClassName = isGirlsTheme
+    ? 'flex-1 rounded-xl border border-[#E2B4BD]/45 bg-white/65 py-3 font-bold text-[#795E67] transition-colors hover:bg-white/80'
+    : 'flex-1 rounded-xl bg-white/5 py-3 font-bold text-white transition-colors hover:bg-white/10';
+
   return (
-    <div className="flex-1 flex flex-col h-full bg-background pb-24">
+    <div className={screenClassName}>
       <div className="px-4 sm:px-6 pt-2">
         <Header
           title={copy.title}
           onBack={onBack}
           rightElement={(
-            <button onClick={() => setShowFactors(!showFactors)} className="text-accent text-sm font-medium">
+            <button onClick={() => setShowFactors(!showFactors)} className={factorsButtonClassName}>
               <SlidersHorizontal size={20} />
             </button>
           )}
@@ -929,24 +1519,24 @@ export function MuscleRecoveryScreen({ onBack }: MuscleRecoveryScreenProps) {
         >
           <div className="flex min-h-full items-center justify-center">
             <div
-              className={`relative flex max-h-[90dvh] w-full max-w-md flex-col overflow-hidden rounded-2xl border border-white/10 bg-card ${isArabic ? 'text-right' : 'text-left'}`}
+              className={factorsPanelClassName}
               onClick={(event) => event.stopPropagation()}
             >
               <button
                 onClick={() => setShowFactors(false)}
-                className="absolute right-4 top-4 z-10 text-text-secondary transition-colors hover:text-white"
+                className={factorsCloseClassName}
               >
                 <X size={24} />
               </button>
 
-              <div className="border-b border-white/10 px-5 py-5 pr-14">
-                <h3 className="text-xl font-bold text-white">{copy.factorsTitle}</h3>
+              <div className={`border-b px-5 py-5 pr-14 ${factorsDividerClassName}`}>
+                <h3 className={factorsTitleClassName}>{copy.factorsTitle}</h3>
               </div>
 
               <div className="flex-1 overflow-y-auto px-5 py-5">
                 <div className="space-y-5">
                   <div>
-                    <label className="mb-2 block text-sm text-text-secondary">{copy.sleepHours}</label>
+                    <label className={factorsLabelClassName}>{copy.sleepHours}</label>
                     <input
                       type="number"
                       min="0"
@@ -954,51 +1544,29 @@ export function MuscleRecoveryScreen({ onBack }: MuscleRecoveryScreenProps) {
                       step="0.5"
                       value={factors.sleepHours}
                       onChange={(event) => setFactors({ ...factors, sleepHours: event.target.value })}
-                      className="w-full rounded-xl border border-white/10 bg-background px-4 py-3 text-white focus:outline-none focus:border-accent/50"
+                      className={factorsInputClassName}
                     />
                   </div>
 
                   <div>
-                    <label className="mb-2 block text-sm text-text-secondary">{copy.protein}</label>
-                    <div className="relative">
-                      <select
-                        value={factors.proteinIntake}
-                        onChange={(event) => setFactors({ ...factors, proteinIntake: event.target.value })}
-                        className="w-full cursor-pointer appearance-none rounded-xl border border-white/10 bg-background px-4 py-3 pr-10 text-white focus:outline-none focus:border-accent/50"
-                      >
-                        <option value="low">{copy.low}</option>
-                        <option value="medium">{copy.medium}</option>
-                        <option value="high">{copy.high}</option>
-                      </select>
-                      <ChevronDown size={20} className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-text-secondary" />
-                    </div>
+                    <label className={factorsLabelClassName}>{copy.protein}</label>
+                    {renderFactorsDropdown('protein', factors.proteinIntake, proteinOptions, (next) => setFactors({ ...factors, proteinIntake: next }))}
                   </div>
 
                   <div>
-                    <label className="mb-2 block text-sm text-text-secondary">{copy.supplements}</label>
-                    <div className="relative">
-                      <select
-                        value={factors.supplements}
-                        onChange={(event) => setFactors({ ...factors, supplements: event.target.value })}
-                        className="w-full cursor-pointer appearance-none rounded-xl border border-white/10 bg-background px-4 py-3 pr-10 text-white focus:outline-none focus:border-accent/50"
-                      >
-                        <option value="none">{copy.none}</option>
-                        <option value="creatine">{copy.creatine}</option>
-                        <option value="full">{copy.full}</option>
-                      </select>
-                      <ChevronDown size={20} className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-text-secondary" />
-                    </div>
+                    <label className={factorsLabelClassName}>{copy.supplements}</label>
+                    {renderFactorsDropdown('supplements', factors.supplements, supplementOptions, (next) => setFactors({ ...factors, supplements: next }))}
                   </div>
 
                   {renderFactorChipRow(copy.jointPain, factors.jointPain, painSignalOptions, (next) => setFactors({ ...factors, jointPain: next }))}
                 </div>
               </div>
 
-              <div className="border-t border-white/10 px-5 py-4">
+              <div className={`border-t px-5 py-4 ${factorsDividerClassName}`}>
                 <div className="flex gap-3">
                   <button
                     onClick={() => setShowFactors(false)}
-                    className="flex-1 rounded-xl bg-white/5 py-3 font-bold text-white transition-colors hover:bg-white/10"
+                    className={secondaryActionClassName}
                   >
                     {copy.cancel}
                   </button>
@@ -1025,7 +1593,7 @@ export function MuscleRecoveryScreen({ onBack }: MuscleRecoveryScreenProps) {
         )}
 
         {!error && recoveryPageMuscles.length === 0 && (
-          <div className="rounded-xl border border-white/10 bg-card/60 px-4 py-5 text-sm text-text-secondary">
+          <div className={emptyStateClassName}>
             {emptyStateMessage}
           </div>
         )}
@@ -1040,7 +1608,12 @@ export function MuscleRecoveryScreen({ onBack }: MuscleRecoveryScreenProps) {
             }}
             selected={selectedBodyMapMuscle}
             onMuscleSelect={handleBodyMapMuscleSelect}
+            themeVariant={isGirlsTheme ? 'girls' : 'default'}
           />
+        )}
+
+        {!error && isGirlsTheme && recoveryPageMuscles.length > 0 && (
+          <GirlsPeriodCarousel language={language} />
         )}
 
         {recoverySections.map((section) => (

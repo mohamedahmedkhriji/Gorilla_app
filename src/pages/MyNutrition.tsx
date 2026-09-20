@@ -87,6 +87,16 @@ const getCurrentUserId = () => {
   return localUserId || parsedUserId || 0;
 };
 
+const readStoredStyleGender = () => {
+  if (typeof window === 'undefined') return '';
+  return String(localStorage.getItem('appStyleGender') || '').trim().toLowerCase();
+};
+
+const isGirlsStyleValue = (value: unknown) => {
+  const normalized = String(value || '').trim().toLowerCase();
+  return normalized === 'woman' || normalized === 'female' || normalized === 'f' || normalized === 'girls' || normalized === 'femme';
+};
+
 const normalizeGoal = (goal: string) =>
   String(goal || '')
     .toLowerCase()
@@ -387,6 +397,7 @@ function CircularMeter({
 
 export function MyNutrition({ onBack }: MyNutritionProps) {
   const [language, setLanguage] = useState<AppLanguage>(() => getActiveLanguage(getStoredLanguage()));
+  const [styleGender, setStyleGender] = useState(() => readStoredStyleGender());
   const isArabic = language === 'ar';
   const legacyCopy = {
     title: isArabic ? 'تغذيتي' : 'My Nutrition',
@@ -431,6 +442,39 @@ export function MyNutrition({ onBack }: MyNutritionProps) {
   const [activeView, setActiveView] = useState<NutritionView>('meals');
   const [expandedMeals, setExpandedMeals] = useState<Record<string, boolean>>({});
   const userId = useMemo(() => getCurrentUserId(), []);
+  const isGirlsTheme = isGirlsStyleValue(styleGender);
+  const pageClassName = isGirlsTheme
+    ? 'bg-transparent text-[#4A4A4A]'
+    : 'bg-background';
+  const surfaceCardClassName = isGirlsTheme
+    ? 'border border-[#E2B4BD]/45 bg-[linear-gradient(145deg,rgba(255,255,255,0.88),rgba(255,245,245,0.78)_48%,rgba(247,214,208,0.34))] shadow-[0_16px_38px_rgba(226,180,189,0.16)] ring-1 ring-white/45'
+    : 'border border-white/5 bg-[#14181f]';
+  const innerPanelClassName = isGirlsTheme
+    ? 'border border-[#E2B4BD]/35 bg-white/65 text-[#795E67]'
+    : 'bg-white/5 text-text-secondary';
+  const primaryTextClassName = isGirlsTheme ? 'text-[#4A4A4A]' : 'text-white';
+  const secondaryTextClassName = isGirlsTheme ? 'text-[#795E67]' : 'text-text-secondary';
+  const tertiaryTextClassName = isGirlsTheme ? 'text-[#A87884]' : 'text-text-tertiary';
+  const accentTextClassName = isGirlsTheme ? 'text-[#A87884]' : 'text-cyan-400';
+  const iconBadgeClassName = isGirlsTheme ? 'bg-[#F9B2D7]/18 text-[#A87884]' : 'bg-cyan-400/10 text-cyan-400';
+  const accentColor = isGirlsTheme ? '#F9B2D7' : '#14d3df';
+  const accentColorAlt = isGirlsTheme ? '#E2B4BD' : '#0ea5e9';
+  const accentColorSoft = isGirlsTheme ? '#CFECF3' : '#22d3ee';
+  const meterTrackColor = isGirlsTheme ? 'rgba(226,180,189,0.32)' : 'rgba(255,255,255,0.13)';
+  const mainMeterTrackColor = isGirlsTheme ? 'rgba(226,180,189,0.34)' : 'rgba(255,255,255,0.1)';
+  const progressFillClassName = isGirlsTheme ? 'bg-[linear-gradient(90deg,#F9B2D7,#CFECF3)]' : 'bg-cyan-400';
+  const girlsHeroCardStyle: React.CSSProperties | undefined = isGirlsTheme
+    ? {
+        background: 'linear-gradient(145deg, rgba(255,245,245,0.96), rgba(249,178,215,0.24) 42%, rgba(207,236,243,0.36) 100%)',
+        boxShadow: '0 20px 48px rgba(226,180,189,0.22), inset 0 1px 0 rgba(255,255,255,0.65)',
+      }
+    : undefined;
+  const girlsSurfaceCardStyle: React.CSSProperties | undefined = isGirlsTheme
+    ? {
+        background: 'linear-gradient(145deg, rgba(255,255,255,0.92), rgba(255,245,245,0.82) 48%, rgba(247,214,208,0.38))',
+        boxShadow: '0 16px 38px rgba(226,180,189,0.16), inset 0 1px 0 rgba(255,255,255,0.62)',
+      }
+    : undefined;
 
   useEffect(() => {
     const handleLanguageChanged = () => {
@@ -442,6 +486,16 @@ export function MyNutrition({ onBack }: MyNutritionProps) {
     return () => {
       window.removeEventListener('app-language-changed', handleLanguageChanged);
       window.removeEventListener('storage', handleLanguageChanged);
+    };
+  }, []);
+
+  useEffect(() => {
+    const syncStyleGender = () => setStyleGender(readStoredStyleGender());
+    window.addEventListener('storage', syncStyleGender);
+    window.addEventListener('app-style-gender-changed', syncStyleGender);
+    return () => {
+      window.removeEventListener('storage', syncStyleGender);
+      window.removeEventListener('app-style-gender-changed', syncStyleGender);
     };
   }, []);
 
@@ -723,15 +777,15 @@ export function MyNutrition({ onBack }: MyNutritionProps) {
     setExpandedMeals((prev) => ({ ...prev, [mealKey]: !prev[mealKey] }));
 
   return (
-    <div dir={isArabic ? 'rtl' : 'ltr'} className={`flex-1 flex flex-col bg-background min-h-screen pb-24 ${isArabic ? 'text-right' : 'text-left'}`}>
+    <div dir={isArabic ? 'rtl' : 'ltr'} className={`flex-1 flex flex-col min-h-screen pb-24 ${pageClassName} ${isArabic ? 'text-right' : 'text-left'}`}>
       <div className="px-4 sm:px-6 pt-2">
-        <Header title={copy.title} onBack={onBack} />
+        <Header title={copy.title} onBack={onBack} titleClassName={isGirlsTheme ? '!text-[#4A4A4A] font-semibold' : ''} />
       </div>
 
       <div className="px-4 sm:px-6 space-y-4 pb-4">
         {loading && (
-          <Card className="border border-white/5 bg-card/80 p-4">
-            <div className="text-sm text-text-secondary">{copy.loadingPlan}</div>
+          <Card className={isGirlsTheme ? 'border border-[#E2B4BD]/45 bg-white/72 p-4 shadow-[0_12px_28px_rgba(226,180,189,0.12)]' : 'border border-white/5 bg-card/80 p-4'}>
+            <div className={`text-sm ${secondaryTextClassName}`}>{copy.loadingPlan}</div>
           </Card>
         )}
 
@@ -743,10 +797,13 @@ export function MyNutrition({ onBack }: MyNutritionProps) {
 
         {!loading && plan && (
           <>
-            <Card className="relative overflow-hidden border border-white/15 bg-[#14181f] p-4">
-              <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_85%_10%,rgba(34,211,238,0.2),transparent_45%)]" />
+            <Card
+              className={`relative overflow-hidden p-4 ${isGirlsTheme ? '!border-[#E2B4BD]/50 !bg-transparent !shadow-none ring-1 ring-white/55' : 'border border-white/15 bg-[#14181f]'}`}
+              style={girlsHeroCardStyle}
+            >
+              <div className={`pointer-events-none absolute inset-0 ${isGirlsTheme ? 'bg-[radial-gradient(circle_at_18%_18%,rgba(255,255,255,0.70),transparent_34%),radial-gradient(circle_at_88%_8%,rgba(249,178,215,0.30),transparent_42%),radial-gradient(circle_at_90%_92%,rgba(207,236,243,0.30),transparent_38%)]' : 'bg-[radial-gradient(circle_at_85%_10%,rgba(34,211,238,0.2),transparent_45%)]'}`} />
               <div className="relative">
-                <div className="text-center text-sm font-semibold text-text-secondary">{copy.today}</div>
+                <div className={`text-center text-sm font-semibold ${secondaryTextClassName}`}>{copy.today}</div>
 
                 <div className="mt-3 grid grid-cols-[126px_minmax(0,1fr)] items-center gap-3">
                   <CircularMeter
@@ -754,12 +811,12 @@ export function MyNutrition({ onBack }: MyNutritionProps) {
                     max={plan.targets.calories}
                     size={126}
                     strokeWidth={9}
-                    color="#14d3df"
-                    trackColor="rgba(255,255,255,0.1)"
+                    color={accentColor}
+                    trackColor={mainMeterTrackColor}
                     className="shrink-0">
                     <div className="text-center leading-none">
-                      <div className="text-[44px] font-black text-white">{Math.abs(caloriesRemaining)}</div>
-                      <div className="mt-1.5 text-[9px] uppercase tracking-[0.14em] text-text-secondary">
+                      <div className={`text-[44px] font-black ${primaryTextClassName}`}>{Math.abs(caloriesRemaining)}</div>
+                      <div className={`mt-1.5 text-[9px] uppercase tracking-[0.14em] ${secondaryTextClassName}`}>
                         {caloriesRemaining >= 0 ? copy.remaining : copy.over}
                       </div>
                     </div>
@@ -767,32 +824,32 @@ export function MyNutrition({ onBack }: MyNutritionProps) {
 
                   <div className="min-w-0 space-y-2.5">
                     <div className="flex items-start gap-2.5">
-                      <div className="mt-0.5 flex h-5 w-5 items-center justify-center rounded-full bg-cyan-400/10">
-                        <Flag size={13} className="text-cyan-400" />
+                      <div className={`mt-0.5 flex h-5 w-5 items-center justify-center rounded-full ${iconBadgeClassName}`}>
+                        <Flag size={13} />
                       </div>
                       <div className="leading-none">
-                        <div className="text-xs text-text-secondary">{copy.baseGoal}</div>
-                        <div className="mt-1 text-[30px] font-semibold tabular-nums text-white">{baseGoalCalories}</div>
+                        <div className={`text-xs ${secondaryTextClassName}`}>{copy.baseGoal}</div>
+                        <div className={`mt-1 text-[30px] font-semibold tabular-nums ${primaryTextClassName}`}>{baseGoalCalories}</div>
                       </div>
                     </div>
 
                     <div className="flex items-start gap-2.5">
-                      <div className="mt-0.5 flex h-5 w-5 items-center justify-center rounded-full bg-cyan-400/10">
-                        <UtensilsCrossed size={13} className="text-cyan-400" />
+                      <div className={`mt-0.5 flex h-5 w-5 items-center justify-center rounded-full ${iconBadgeClassName}`}>
+                        <UtensilsCrossed size={13} />
                       </div>
                       <div className="leading-none">
-                        <div className="text-xs text-text-secondary">{copy.food}</div>
-                        <div className="mt-1 text-[30px] font-semibold tabular-nums text-white">{plan.totals.calories}</div>
+                        <div className={`text-xs ${secondaryTextClassName}`}>{copy.food}</div>
+                        <div className={`mt-1 text-[30px] font-semibold tabular-nums ${primaryTextClassName}`}>{plan.totals.calories}</div>
                       </div>
                     </div>
 
                     <div className="flex items-start gap-2.5">
-                      <div className="mt-0.5 flex h-5 w-5 items-center justify-center rounded-full bg-cyan-400/10">
-                        <Dumbbell size={13} className="text-cyan-400" />
+                      <div className={`mt-0.5 flex h-5 w-5 items-center justify-center rounded-full ${iconBadgeClassName}`}>
+                        <Dumbbell size={13} />
                       </div>
                       <div className="leading-none">
-                        <div className="text-xs text-text-secondary">{copy.exercise}</div>
-                        <div className={`mt-1 text-[30px] font-semibold tabular-nums ${exerciseAdjustment >= 0 ? 'text-cyan-400' : 'text-orange-400'}`}>
+                        <div className={`text-xs ${secondaryTextClassName}`}>{copy.exercise}</div>
+                        <div className={`mt-1 text-[30px] font-semibold tabular-nums ${exerciseAdjustment >= 0 ? accentTextClassName : 'text-orange-400'}`}>
                           {formatSigned(exerciseAdjustment)}
                         </div>
                       </div>
@@ -800,48 +857,48 @@ export function MyNutrition({ onBack }: MyNutritionProps) {
                   </div>
                 </div>
 
-                <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-white/10">
+                <div className={`mt-3 h-1.5 overflow-hidden rounded-full ${isGirlsTheme ? 'bg-[#E2B4BD]/30' : 'bg-white/10'}`}>
                   <div
-                    className="h-full rounded-full bg-cyan-400 transition-all"
+                    className={`h-full rounded-full transition-all ${progressFillClassName}`}
                     style={{ width: `${Math.min(calorieProgress, 100)}%` }}
                   />
                 </div>
-                <div className="mt-3 text-[11px] leading-tight text-text-tertiary">
+                <div className={`mt-3 text-[11px] leading-tight ${tertiaryTextClassName}`}>
                   {copy.goalPrefix}: {localizedGoalDisplay}{tdee ? ` | ${copy.tdee} ${tdee} kcal` : ''}
                 </div>
               </div>
             </Card>
 
-            <Card className="border border-white/5 bg-[#14181f] p-4">
-              <div className="grid grid-cols-3 gap-1">
-                <div className="flex min-w-0 flex-col items-center gap-1.5">
-                  <div className="text-sm font-semibold text-white">{copy.carbs}</div>
-                  <CircularMeter value={plan.totals.carbs} max={plan.targets.carbs} size={64} strokeWidth={5} color="#14d3df">
-                    <div className="text-sm font-bold tabular-nums text-white">{plan.totals.carbs}g</div>
+            <Card className={`p-4 ${isGirlsTheme ? '!border-[#E2B4BD]/45 !bg-transparent !shadow-none ring-1 ring-white/45' : surfaceCardClassName}`} style={girlsSurfaceCardStyle}>
+              <div className="grid grid-cols-3 gap-2">
+                <div className={`flex min-w-0 flex-col items-center gap-1.5 rounded-2xl px-2 py-3 ${isGirlsTheme ? 'border border-[#F9B2D7]/30 bg-[#F9B2D7]/12 shadow-[inset_0_1px_0_rgba(255,255,255,0.50)]' : ''}`}>
+                  <div className={`text-sm font-semibold ${primaryTextClassName}`}>{copy.carbs}</div>
+                  <CircularMeter value={plan.totals.carbs} max={plan.targets.carbs} size={64} strokeWidth={5} color={accentColor} trackColor={meterTrackColor}>
+                    <div className={`text-sm font-bold tabular-nums ${primaryTextClassName}`}>{plan.totals.carbs}g</div>
                   </CircularMeter>
                 </div>
-                <div className="flex min-w-0 flex-col items-center gap-1.5">
-                  <div className="text-sm font-semibold text-white">{copy.protein}</div>
-                  <CircularMeter value={plan.totals.protein} max={plan.targets.protein} size={64} strokeWidth={5} color="#0ea5e9">
-                    <div className="text-sm font-bold tabular-nums text-white">{plan.totals.protein}g</div>
+                <div className={`flex min-w-0 flex-col items-center gap-1.5 rounded-2xl px-2 py-3 ${isGirlsTheme ? 'border border-[#E2B4BD]/35 bg-[#F7D6D0]/22 shadow-[inset_0_1px_0_rgba(255,255,255,0.50)]' : ''}`}>
+                  <div className={`text-sm font-semibold ${primaryTextClassName}`}>{copy.protein}</div>
+                  <CircularMeter value={plan.totals.protein} max={plan.targets.protein} size={64} strokeWidth={5} color={accentColorAlt} trackColor={meterTrackColor}>
+                    <div className={`text-sm font-bold tabular-nums ${primaryTextClassName}`}>{plan.totals.protein}g</div>
                   </CircularMeter>
                 </div>
-                <div className="flex min-w-0 flex-col items-center gap-1.5">
-                  <div className="text-sm font-semibold text-white">{copy.fat}</div>
-                  <CircularMeter value={plan.totals.fat} max={plan.targets.fat} size={64} strokeWidth={5} color="#22d3ee">
-                    <div className="text-sm font-bold tabular-nums text-white">{plan.totals.fat}g</div>
+                <div className={`flex min-w-0 flex-col items-center gap-1.5 rounded-2xl px-2 py-3 ${isGirlsTheme ? 'border border-[#CFECF3]/70 bg-[#CFECF3]/30 shadow-[inset_0_1px_0_rgba(255,255,255,0.50)]' : ''}`}>
+                  <div className={`text-sm font-semibold ${primaryTextClassName}`}>{copy.fat}</div>
+                  <CircularMeter value={plan.totals.fat} max={plan.targets.fat} size={64} strokeWidth={5} color={accentColorSoft} trackColor={meterTrackColor}>
+                    <div className={`text-sm font-bold tabular-nums ${primaryTextClassName}`}>{plan.totals.fat}g</div>
                   </CircularMeter>
                 </div>
               </div>
             </Card>
 
-            <div className="rounded-full border border-white/5 bg-card/90 p-1">
+            <div className={`rounded-full border p-1 ${isGirlsTheme ? 'border-[#E2B4BD]/45 bg-white/70 shadow-[0_10px_24px_rgba(226,180,189,0.12)] ring-1 ring-white/35' : 'border-white/5 bg-card/90'}`}>
               <div className="grid grid-cols-2 gap-1">
                 <button
                   onClick={() => setActiveView('meals')}
                   className={`
                     flex items-center justify-center gap-2 rounded-full px-3 py-2 text-sm font-semibold transition-colors
-                    ${activeView === 'meals' ? 'bg-cyan-400 text-black' : 'text-text-secondary hover:text-white'}
+                    ${activeView === 'meals' ? (isGirlsTheme ? 'bg-[#F9B2D7] text-[#4A4A4A] shadow-[0_8px_22px_rgba(249,178,215,0.22)]' : 'bg-cyan-400 text-black') : (isGirlsTheme ? 'text-[#795E67] hover:text-[#4A4A4A]' : 'text-text-secondary hover:text-white')}
                   `}>
                   <UtensilsCrossed size={15} />
                   {copy.meals}
@@ -850,7 +907,7 @@ export function MyNutrition({ onBack }: MyNutritionProps) {
                   onClick={() => setActiveView('activity')}
                   className={`
                     flex items-center justify-center gap-2 rounded-full px-3 py-2 text-sm font-semibold transition-colors
-                    ${activeView === 'activity' ? 'bg-cyan-400 text-black' : 'text-text-secondary hover:text-white'}
+                    ${activeView === 'activity' ? (isGirlsTheme ? 'bg-[#F9B2D7] text-[#4A4A4A] shadow-[0_8px_22px_rgba(249,178,215,0.22)]' : 'bg-cyan-400 text-black') : (isGirlsTheme ? 'text-[#795E67] hover:text-[#4A4A4A]' : 'text-text-secondary hover:text-white')}
                   `}>
                   <Flame size={15} />
                   {copy.activity}
@@ -866,35 +923,35 @@ export function MyNutrition({ onBack }: MyNutritionProps) {
                   const MealIcon = getMealIcon(meal.slot);
 
                   return (
-                    <div key={mealKey} className="overflow-hidden rounded-2xl border border-white/5 bg-card/95">
+                    <div key={mealKey} className={`overflow-hidden rounded-2xl border ${isGirlsTheme ? 'border-[#E2B4BD]/45 bg-white/72 shadow-[0_12px_28px_rgba(226,180,189,0.12)]' : 'border-white/5 bg-card/95'}`}>
                       <button
                         onClick={() => toggleMeal(mealKey)}
                         className={`flex w-full items-center justify-between gap-2 px-4 py-4 ${isArabic ? 'text-right' : 'text-left'}`}>
                         <div className="flex min-w-0 flex-1 items-center gap-2.5">
-                          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-cyan-400/10 text-cyan-400">
+                          <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${iconBadgeClassName}`}>
                             <MealIcon size={18} />
                           </div>
-                          <div className="text-lg font-semibold leading-tight text-white">
+                          <div className={`text-lg font-semibold leading-tight ${primaryTextClassName}`}>
                             {localizedMealTitles[index]}
                           </div>
                         </div>
                         <div className="flex shrink-0 items-center gap-2">
-                          <div className="whitespace-nowrap text-lg font-semibold leading-none text-white">{meal.totals.calories} kcal</div>
-                          {isExpanded ? <ChevronUp size={18} className="text-text-secondary" /> : <ChevronDown size={18} className="text-text-secondary" />}
+                          <div className={`whitespace-nowrap text-lg font-semibold leading-none ${primaryTextClassName}`}>{meal.totals.calories} kcal</div>
+                          {isExpanded ? <ChevronUp size={18} className={secondaryTextClassName} /> : <ChevronDown size={18} className={secondaryTextClassName} />}
                         </div>
                       </button>
 
                       {isExpanded && (
-                        <div className="space-y-2 border-t border-white/5 px-4 pb-4 pt-3">
+                        <div className={`space-y-2 border-t px-4 pb-4 pt-3 ${isGirlsTheme ? 'border-[#E2B4BD]/35' : 'border-white/5'}`}>
                           {meal.items.map((item, itemIndex) => (
-                            <div key={`${item.name}-${itemIndex}`} className="rounded-xl bg-white/5 px-3 py-2">
+                            <div key={`${item.name}-${itemIndex}`} className={`rounded-xl px-3 py-2 ${isGirlsTheme ? 'border border-[#E2B4BD]/30 bg-[#FFF5F5]/70' : 'bg-white/5'}`}>
                               <div className="flex items-start justify-between gap-3">
-                                <div className="text-sm font-semibold text-white">{item.name}</div>
-                                <div className="rounded-full bg-white/10 px-2 py-0.5 text-[10px] uppercase tracking-wide text-text-secondary">
+                                <div className={`text-sm font-semibold ${primaryTextClassName}`}>{item.name}</div>
+                                <div className={`rounded-full px-2 py-0.5 text-[10px] uppercase tracking-wide ${isGirlsTheme ? 'bg-[#F9B2D7]/18 text-[#A87884]' : 'bg-white/10 text-text-secondary'}`}>
                                   {localizeCategory(item.category)}
                                 </div>
                               </div>
-                              <div className="mt-1 text-[11px] text-text-secondary">
+                              <div className={`mt-1 text-[11px] ${secondaryTextClassName}`}>
                                 {item.calories} kcal | P {item.protein}g | C {item.carbs}g | F {item.fat}g
                               </div>
                             </div>
@@ -909,52 +966,52 @@ export function MyNutrition({ onBack }: MyNutritionProps) {
 
             {activeView === 'activity' && (
               <div className="space-y-3">
-                <Card className="border border-white/5 bg-[#14181f] p-4">
-                  <h3 className="mb-3 text-sm font-semibold text-white">{copy.hydration}</h3>
+                <Card className={`p-4 ${surfaceCardClassName}`}>
+                  <h3 className={`mb-3 text-sm font-semibold ${primaryTextClassName}`}>{copy.hydration}</h3>
                   <div className="grid grid-cols-3 gap-2 text-xs">
-                    <div className="rounded-xl bg-white/5 p-2.5">
-                      <div className="text-text-secondary">{copy.dailyWater}</div>
-                      <div className="mt-1 text-sm font-semibold text-white">{toLitersLabel(plan.hydration.recommendedWaterMl)}</div>
+                    <div className={`rounded-xl p-2.5 ${innerPanelClassName}`}>
+                      <div>{copy.dailyWater}</div>
+                      <div className={`mt-1 text-sm font-semibold ${primaryTextClassName}`}>{toLitersLabel(plan.hydration.recommendedWaterMl)}</div>
                     </div>
-                    <div className="rounded-xl bg-white/5 p-2.5">
-                      <div className="text-text-secondary">{copy.fromFoods}</div>
-                      <div className="mt-1 text-sm font-semibold text-white">{toLitersLabel(plan.hydration.waterFromFoodsMl)}</div>
+                    <div className={`rounded-xl p-2.5 ${innerPanelClassName}`}>
+                      <div>{copy.fromFoods}</div>
+                      <div className={`mt-1 text-sm font-semibold ${primaryTextClassName}`}>{toLitersLabel(plan.hydration.waterFromFoodsMl)}</div>
                     </div>
-                    <div className="rounded-xl bg-white/5 p-2.5">
-                      <div className="text-text-secondary">{copy.drinkDirectly}</div>
-                      <div className="mt-1 text-sm font-semibold text-white">{toLitersLabel(plan.hydration.remainingWaterMl)}</div>
+                    <div className={`rounded-xl p-2.5 ${innerPanelClassName}`}>
+                      <div>{copy.drinkDirectly}</div>
+                      <div className={`mt-1 text-sm font-semibold ${primaryTextClassName}`}>{toLitersLabel(plan.hydration.remainingWaterMl)}</div>
                     </div>
                   </div>
                 </Card>
 
-                <Card className="border border-white/5 bg-[#14181f] p-4">
-                  <h3 className="mb-3 text-sm font-semibold text-white">{copy.dailyTotals}</h3>
+                <Card className={`p-4 ${surfaceCardClassName}`}>
+                  <h3 className={`mb-3 text-sm font-semibold ${primaryTextClassName}`}>{copy.dailyTotals}</h3>
                   <div className="space-y-2">
                     <div>
-                      <div className="mb-1 flex justify-between text-[11px] text-text-secondary">
+                      <div className={`mb-1 flex justify-between text-[11px] ${secondaryTextClassName}`}>
                         <span>{copy.caloriesPlanned}</span>
-                        <span className="text-white">{plan.totals.calories} / {plan.targets.calories}</span>
+                        <span className={primaryTextClassName}>{plan.totals.calories} / {plan.targets.calories}</span>
                       </div>
-                      <div className="h-2 overflow-hidden rounded-full bg-white/10">
-                        <div className="h-full rounded-full bg-cyan-400" style={{ width: `${Math.min(calorieProgress, 100)}%` }} />
+                      <div className={`h-2 overflow-hidden rounded-full ${isGirlsTheme ? 'bg-[#E2B4BD]/30' : 'bg-white/10'}`}>
+                        <div className={`h-full rounded-full ${progressFillClassName}`} style={{ width: `${Math.min(calorieProgress, 100)}%` }} />
                       </div>
                     </div>
                     <div>
-                      <div className="mb-1 flex justify-between text-[11px] text-text-secondary">
+                      <div className={`mb-1 flex justify-between text-[11px] ${secondaryTextClassName}`}>
                         <span>{copy.proteinPlanned}</span>
-                        <span className="text-white">{plan.totals.protein}g / {plan.targets.protein}g</span>
+                        <span className={primaryTextClassName}>{plan.totals.protein}g / {plan.targets.protein}g</span>
                       </div>
-                      <div className="h-2 overflow-hidden rounded-full bg-white/10">
-                        <div className="h-full rounded-full bg-sky-500" style={{ width: `${Math.min(proteinProgress, 100)}%` }} />
+                      <div className={`h-2 overflow-hidden rounded-full ${isGirlsTheme ? 'bg-[#E2B4BD]/30' : 'bg-white/10'}`}>
+                        <div className={`h-full rounded-full ${isGirlsTheme ? 'bg-[linear-gradient(90deg,#E2B4BD,#CFECF3)]' : 'bg-sky-500'}`} style={{ width: `${Math.min(proteinProgress, 100)}%` }} />
                       </div>
                     </div>
                   </div>
 
                   <div className="mt-4 grid grid-cols-2 gap-2 text-xs">
-                    <div className="rounded-lg bg-white/5 p-2 text-text-secondary">{copy.carbs} <span className="font-semibold text-white">{plan.totals.carbs} g</span></div>
-                    <div className="rounded-lg bg-white/5 p-2 text-text-secondary">{copy.fat} <span className="font-semibold text-white">{plan.totals.fat} g</span></div>
-                    <div className="rounded-lg bg-white/5 p-2 text-text-secondary">{copy.fiber} <span className="font-semibold text-white">{plan.totals.fiber} g</span></div>
-                    <div className="rounded-lg bg-white/5 p-2 text-text-secondary">{copy.sodium} <span className="font-semibold text-white">{plan.totals.sodium} mg</span></div>
+                    <div className={`rounded-lg p-2 ${innerPanelClassName}`}>{copy.carbs} <span className={`font-semibold ${primaryTextClassName}`}>{plan.totals.carbs} g</span></div>
+                    <div className={`rounded-lg p-2 ${innerPanelClassName}`}>{copy.fat} <span className={`font-semibold ${primaryTextClassName}`}>{plan.totals.fat} g</span></div>
+                    <div className={`rounded-lg p-2 ${innerPanelClassName}`}>{copy.fiber} <span className={`font-semibold ${primaryTextClassName}`}>{plan.totals.fiber} g</span></div>
+                    <div className={`rounded-lg p-2 ${innerPanelClassName}`}>{copy.sodium} <span className={`font-semibold ${primaryTextClassName}`}>{plan.totals.sodium} mg</span></div>
                   </div>
                 </Card>
               </div>

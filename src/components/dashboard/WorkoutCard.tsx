@@ -1,7 +1,7 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 import { Clock3 } from 'lucide-react';
-import { emojiGymWallpaper, emojiRestDayBg } from '../../services/emojiTheme';
+import { emojiGirlWallpaper, emojiGymWallpaper, emojiRestDayBg } from '../../services/emojiTheme';
 import { AppLanguage, getActiveLanguage, getStoredLanguage, pickLanguage, repairMojibakeText } from '../../services/language';
 import { HOME_CARD_OVERLAY_CLASS } from '../home/homeCardStyles';
 
@@ -41,6 +41,7 @@ interface WorkoutCardProps {
   actionLabel?: string | null;
   progressCaption?: string;
   progressDisplayLabel?: string | null;
+  themeVariant?: 'default' | 'girls';
 }
 
 const cleanWorkoutLabel = (value: string) =>
@@ -401,7 +402,9 @@ export function WorkoutCard({
   actionLabel,
   progressCaption,
   progressDisplayLabel,
+  themeVariant = 'default',
 }: WorkoutCardProps) {
+  const isGirlsTheme = themeVariant === 'girls';
   const language = getActiveLanguage(getStoredLanguage());
   const copy = pickLanguage(language, {
     en: {
@@ -513,7 +516,11 @@ export function WorkoutCard({
         ? localizeWorkoutTitle(toTitleCase(workoutLabel), language)
         : copy.fullBodyFocus;
   const displayTitleText = localizeWorkoutTitle(displayTitle, language);
-  const cardBackgroundImage = isResolvedRestDay ? emojiRestDayBg : emojiGymWallpaper;
+  const cardBackgroundImage = isResolvedRestDay
+    ? emojiRestDayBg
+    : isGirlsTheme
+      ? emojiGirlWallpaper
+      : emojiGymWallpaper;
   const resolvedEyebrowLabel = eyebrowLabel || (isResolvedRestDay ? copy.restDay : copy.todayPlan);
   const resolvedSubtitle = subtitleOverride === null
     ? null
@@ -525,6 +532,18 @@ export function WorkoutCard({
     ? actionLabel
     : (isResolvedRestDay ? '' : copy.startWorkout);
   const resolvedProgressCaption = progressCaption || (isResolvedRestDay ? copy.recovery : copy.complete);
+  const cardClassName = isGirlsTheme
+    ? 'relative overflow-hidden rounded-2xl border border-[#E2B4BD]/60 bg-white/[0.78] p-5 text-[#4A4A4A] shadow-[0_18px_42px_rgba(226,180,189,0.20)] transition-shadow duration-300 hover:shadow-[0_20px_46px_rgba(249,178,215,0.24)]'
+    : 'surface-card relative overflow-hidden rounded-2xl border border-white/12 p-5 shadow-card transition-shadow duration-300 hover:shadow-[0_12px_32px_rgba(0,0,0,0.45),0_0_14px_rgba(191,255,0,0.07)]';
+  const overlayClassName = isGirlsTheme
+    ? 'pointer-events-none absolute inset-0 bg-[linear-gradient(120deg,rgba(255,245,245,0.70),rgba(247,214,208,0.46)),radial-gradient(circle_at_top_right,rgba(207,236,243,0.38),transparent_40%)]'
+    : HOME_CARD_OVERLAY_CLASS;
+  const mutedTextClass = isGirlsTheme ? 'text-[#795E67]' : 'text-text-secondary';
+  const primaryTextClass = isGirlsTheme ? 'text-[#4A4A4A]' : 'text-text-primary';
+  const tertiaryTextClass = isGirlsTheme ? 'text-[#A87884]' : 'text-text-tertiary';
+  const actionClassName = isGirlsTheme
+    ? 'mt-5 mx-auto flex w-fit items-center justify-center whitespace-nowrap rounded-full border border-[#E2B4BD]/60 bg-[#F9B2D7]/32 px-7 py-2.5 text-center text-[1rem] font-electrolize font-bold leading-none text-[#4A4A4A] shadow-[inset_0_1px_0_rgba(255,255,255,0.72),0_8px_18px_rgba(226,180,189,0.18)]'
+    : 'mt-5 mx-auto flex w-fit items-center justify-center whitespace-nowrap rounded-full border border-accent/30 bg-accent/20 px-7 py-2.5 text-center text-[1rem] font-electrolize font-bold leading-none text-text-primary shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_8px_18px_rgba(0,0,0,0.18)]';
 
   return (
     <motion.div
@@ -542,15 +561,15 @@ export function WorkoutCard({
         delay: 0.1,
       }}
       whileHover={{ y: -4 }}
-      className="surface-card relative overflow-hidden rounded-2xl border border-white/12 p-5 shadow-card transition-shadow duration-300 hover:shadow-[0_12px_32px_rgba(0,0,0,0.45),0_0_14px_rgba(191,255,0,0.07)]"
+      className={cardClassName}
     >
       <div
-        className="absolute inset-0 bg-cover bg-center opacity-60"
+        className={`absolute inset-0 bg-cover bg-center ${isGirlsTheme ? 'opacity-[0.34]' : 'opacity-60'}`}
         style={{ backgroundImage: `url(${cardBackgroundImage})` }}
         aria-hidden="true"
       />
       <div
-        className={HOME_CARD_OVERLAY_CLASS}
+        className={overlayClassName}
         data-coachmark-target={coachmarkGradientTargetId}
         aria-hidden="true"
       />
@@ -558,21 +577,21 @@ export function WorkoutCard({
       <div className="relative z-10 grid min-h-[10.75rem] grid-cols-[minmax(0,1fr)_auto] items-center gap-4">
         <div className="flex min-w-0 flex-col justify-between self-stretch text-left">
           <div>
-            <div className="text-sm font-medium text-text-secondary">
+            <div className={`text-sm font-medium ${mutedTextClass}`}>
               {resolvedEyebrowLabel}
             </div>
 
-            <h3 className="mt-2 text-[1.9rem] font-electrolize font-bold leading-tight text-text-primary">
+            <h3 className={`mt-2 text-[1.9rem] font-electrolize font-bold leading-tight ${primaryTextClass}`}>
               {displayTitleText}
             </h3>
 
             {resolvedSubtitle && (
-              <p className="mt-1 text-sm text-text-secondary">
+              <p className={`mt-1 text-sm ${mutedTextClass}`}>
                 {resolvedSubtitle}
               </p>
             )}
 
-            <div className="mt-4 space-y-1.5 text-sm font-medium text-text-secondary">
+            <div className={`mt-4 space-y-1.5 text-sm font-medium ${mutedTextClass}`}>
               {resolvedDetailLines ? (
                 resolvedDetailLines.map((line) => (
                   <div key={line}>{line}</div>
@@ -584,7 +603,7 @@ export function WorkoutCard({
                   <div>{copy.exercisesLabel(resolvedExerciseCount)}</div>
                   {!!durationMinutes && (
                     <div className="flex items-center gap-1.5">
-                      <Clock3 size={13} className="text-text-tertiary" />
+                      <Clock3 size={13} className={tertiaryTextClass} />
                       <span>{copy.estimated(durationMinutes)}</span>
                     </div>
                   )}
@@ -597,7 +616,7 @@ export function WorkoutCard({
             <button
               type="button"
               data-coachmark-target={coachmarkActionTargetId}
-              className="mt-5 mx-auto flex w-fit items-center justify-center whitespace-nowrap rounded-full border border-accent/30 bg-accent/20 px-7 py-2.5 text-center text-[1rem] font-electrolize font-bold leading-none text-text-primary shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_8px_18px_rgba(0,0,0,0.18)]"
+              className={actionClassName}
             >
               {resolvedActionLabel}
             </button>
@@ -607,13 +626,13 @@ export function WorkoutCard({
         <div className="flex shrink-0 flex-col items-center">
           <div className="relative h-36 w-36">
             <svg className="h-full w-full -rotate-90" viewBox="0 0 132 132">
-              <circle cx="66" cy="66" r={radius} stroke="rgb(var(--color-border) / 0.55)" strokeWidth="6" fill="transparent" />
+              <circle cx="66" cy="66" r={radius} stroke={isGirlsTheme ? 'rgba(226,180,189,0.38)' : 'rgb(var(--color-border) / 0.55)'} strokeWidth="6" fill="transparent" />
 
               <motion.circle
                 cx="66"
                 cy="66"
                 r={radius}
-                stroke="rgb(var(--color-accent))"
+                stroke={isGirlsTheme ? '#E2B4BD' : 'rgb(var(--color-accent))'}
                 strokeWidth="6"
                 fill="transparent"
                 strokeDasharray={circumference}
@@ -628,7 +647,8 @@ export function WorkoutCard({
                   ease: 'easeOut',
                 }}
                 strokeLinecap="round"
-                className="drop-shadow-[0_0_8px_rgba(187,255,92,0.2)]"
+                style={isGirlsTheme ? { filter: 'drop-shadow(0 0 8px rgba(226,180,189,0.35))' } : undefined}
+                className={isGirlsTheme ? '' : 'drop-shadow-[0_0_8px_rgba(187,255,0,0.2)]'}
               />
             </svg>
 
@@ -637,7 +657,7 @@ export function WorkoutCard({
               data-coachmark-target={coachmarkProgressTargetId}
             >
               <span
-                className={`max-w-full px-2 text-text-primary ${hasProgressDisplayLabel ? 'text-lg font-semibold uppercase tracking-[0.12em] leading-tight' : 'text-4xl leading-none font-electrolize'}`}
+                className={`max-w-full px-2 ${primaryTextClass} ${hasProgressDisplayLabel ? 'text-lg font-semibold uppercase tracking-[0.12em] leading-tight' : 'text-4xl leading-none font-electrolize'}`}
                 style={hasProgressDisplayLabel ? undefined : { fontSize: progressLabelSize }}
               >
                 {hasProgressDisplayLabel ? resolvedProgressDisplayLabel : `${displayedProgress}%`}

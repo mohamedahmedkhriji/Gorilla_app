@@ -310,10 +310,12 @@ function RankRewardProgressBar({
   value,
   label,
   className = 'bg-accent',
+  trackClassName = 'bg-white/10',
 }: {
   value: number;
   label: string;
   className?: string;
+  trackClassName?: string;
 }) {
   const safeValue = Math.min(100, Math.max(0, Math.round(Number(value) || 0)));
   return (
@@ -323,7 +325,7 @@ function RankRewardProgressBar({
       aria-valuemin={0}
       aria-valuemax={100}
       aria-valuenow={safeValue}
-      className="h-1.5 overflow-hidden rounded-full bg-white/10"
+      className={`h-1.5 overflow-hidden rounded-full ${trackClassName}`}
     >
       <div
         className={`h-full rounded-full transition-[width] duration-500 motion-reduce:transition-none ${className}`}
@@ -332,6 +334,19 @@ function RankRewardProgressBar({
     </div>
   );
 }
+
+const isGirlsStyleValue = (value: unknown) => {
+  const normalized = String(value || '').trim().toLowerCase();
+  return normalized === 'woman' || normalized === 'female' || normalized === 'f' || normalized === 'girls' || normalized === 'femme';
+};
+
+const readStoredStyleGender = () => {
+  try {
+    return String(localStorage.getItem('appStyleGender') || '').trim().toLowerCase();
+  } catch {
+    return '';
+  }
+};
 
 function CategoryGridSkeleton() {
   return (
@@ -358,6 +373,8 @@ function CategoryGridSkeleton() {
 
 export function RankingsRewardsScreen({ onBack }: RankingsRewardsScreenProps) {
   const { language, isArabic } = useAppLanguage();
+  const [styleGender, setStyleGender] = useState(() => readStoredStyleGender());
+  const isGirlsTheme = isGirlsStyleValue(styleGender);
   const copy = pickLanguage(language, {
     en: {
       title: 'Rank & Rewards',
@@ -693,6 +710,21 @@ export function RankingsRewardsScreen({ onBack }: RankingsRewardsScreenProps) {
   const [categoryDetailLoading, setCategoryDetailLoading] = useState(false);
   const [showInfo, setShowInfo] = useState(false);
 
+  useEffect(() => {
+    const handleThemeChanged = () => {
+      setStyleGender(readStoredStyleGender());
+    };
+
+    window.addEventListener('repset:app-style-gender-changed', handleThemeChanged);
+    window.addEventListener('repset:stored-user-changed', handleThemeChanged);
+    window.addEventListener('storage', handleThemeChanged);
+    return () => {
+      window.removeEventListener('repset:app-style-gender-changed', handleThemeChanged);
+      window.removeEventListener('repset:stored-user-changed', handleThemeChanged);
+      window.removeEventListener('storage', handleThemeChanged);
+    };
+  }, []);
+
   const appUser = JSON.parse(localStorage.getItem('appUser') || localStorage.getItem('user') || '{}');
   const userId = parseInt(String(appUser?.id || localStorage.getItem('appUserId') || localStorage.getItem('userId') || '0'), 10);
 
@@ -1015,6 +1047,31 @@ export function RankingsRewardsScreen({ onBack }: RankingsRewardsScreenProps) {
   const selectedMissionItems = categorizedActiveMissions[selectedCategory];
   const selectedChallengeItems = categorizedActiveChallenges[selectedCategory];
   const selectedHistoryItems = categorizedHistory[selectedCategory].slice(0, 8);
+  const mainClassName = isGirlsTheme
+    ? `flex-1 min-h-[100dvh] bg-[radial-gradient(circle_at_top_left,rgba(249,178,215,0.22),transparent_34%),radial-gradient(circle_at_85%_8%,rgba(207,236,243,0.34),transparent_32%),linear-gradient(180deg,#FFF5F5_0%,#F7D6D0_52%,#FFF5F5_100%)] text-[#4A4A4A] ${isArabic ? 'text-right' : 'text-left'}`
+    : `flex-1 min-h-[100dvh] bg-background text-text-primary ${isArabic ? 'text-right' : 'text-left'}`;
+  const iconButtonClassName = isGirlsTheme
+    ? 'flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-[#E2B4BD]/55 bg-white/70 text-[#4A4A4A] backdrop-blur-md transition active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#F9B2D7]/70'
+    : 'surface-glass flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-white/10 text-white transition active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent';
+  const secondaryIconButtonClassName = isGirlsTheme
+    ? 'flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-[#E2B4BD]/55 bg-white/70 text-[#795E67] backdrop-blur-md transition hover:border-[#F9B2D7]/70 hover:text-[#4A4A4A] active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#F9B2D7]/70'
+    : 'surface-glass flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-white/10 text-text-secondary transition hover:text-white active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent';
+  const cardClassName = isGirlsTheme
+    ? 'border-[#E2B4BD]/45 bg-white/72 shadow-[0_18px_44px_rgba(226,180,189,0.18)]'
+    : 'border-white/10 bg-card/80 shadow-[0_18px_44px_rgba(0,0,0,0.22)]';
+  const primaryTextClassName = isGirlsTheme ? 'text-[#4A4A4A]' : 'text-white';
+  const secondaryTextClassName = isGirlsTheme ? 'text-[#795E67]' : 'text-text-secondary';
+  const tertiaryTextClassName = isGirlsTheme ? 'text-[#A87884]' : 'text-text-tertiary';
+  const accentTextClassName = isGirlsTheme ? 'text-[#A87884]' : 'text-accent';
+  const accentButtonClassName = isGirlsTheme
+    ? 'bg-[#F9B2D7] text-[#4A4A4A] hover:bg-[#E2B4BD] focus-visible:ring-[#F9B2D7]/70 focus-visible:ring-offset-[#FFF5F5]'
+    : 'bg-accent text-black hover:brightness-95 focus-visible:ring-accent focus-visible:ring-offset-background';
+  const pinkProgressClassName = isGirlsTheme ? 'bg-[#F9B2D7]' : 'bg-accent';
+  const blueProgressClassName = isGirlsTheme ? 'bg-[#CFECF3]' : 'bg-blue-400';
+  const progressTrackClassName = isGirlsTheme ? 'bg-[#E2B4BD]/28' : 'bg-white/10';
+  const compactCardClassName = isGirlsTheme
+    ? '!border-[#E2B4BD]/45 !bg-white/72 !shadow-[0_10px_24px_rgba(226,180,189,0.12)]'
+    : '';
 
   const handleCategorySelect = (category: DashboardCategory) => {
     setSelectedCategory(category);
@@ -1038,28 +1095,28 @@ export function RankingsRewardsScreen({ onBack }: RankingsRewardsScreenProps) {
 
   if (showHistory) {
     return (
-      <div dir={isArabic ? 'rtl' : 'ltr'} className={`flex-1 flex min-h-screen flex-col bg-background pb-24 ${isArabic ? 'text-right' : 'text-left'}`}>
+      <div dir={isArabic ? 'rtl' : 'ltr'} className={`${mainClassName} flex flex-col pb-24`}>
         <div className="px-4 pt-2 sm:px-6">
-          <Header title={copy.history} onBack={() => setShowHistory(false)} compact />
+          <Header title={copy.history} onBack={() => setShowHistory(false)} compact titleClassName={isGirlsTheme ? '!text-[#4A4A4A]' : undefined} />
         </div>
 
         <div className="mt-4 space-y-6 px-4 sm:px-6">
           {Object.keys(missionHistoryByPeriod).length > 0 && (
             <div>
-              <h3 className="mb-3 text-xs font-bold uppercase tracking-wider text-text-secondary">{copy.missionHistory}</h3>
+              <h3 className={`mb-3 text-xs font-bold uppercase tracking-wider ${secondaryTextClassName}`}>{copy.missionHistory}</h3>
               <div className="space-y-4">
                 {Object.entries(missionHistoryByPeriod).map(([period, periodMissions]) => (
                   <div key={`mission-${period}`}>
-                    <h4 className="mb-2 text-xs font-bold uppercase tracking-wider text-text-secondary">{period}</h4>
+                    <h4 className={`mb-2 text-xs font-bold uppercase tracking-wider ${tertiaryTextClassName}`}>{period}</h4>
                     <div className="space-y-2">
                       {periodMissions.map((mission, idx) => (
-                        <Card key={`m-${period}-${idx}`} className="!p-4">
+                        <Card key={`m-${period}-${idx}`} className={`!p-4 ${compactCardClassName}`}>
                           <div className="flex items-start justify-between">
                             <div>
-                              <h5 className="font-bold text-white">{translateTitle(mission.title)}</h5>
-                              <p className="mt-1 text-xs text-text-secondary">{copy.completedOn(new Date(mission.completed_at))}</p>
+                              <h5 className={`font-bold ${primaryTextClassName}`}>{translateTitle(mission.title)}</h5>
+                              <p className={`mt-1 text-xs ${secondaryTextClassName}`}>{copy.completedOn(new Date(mission.completed_at))}</p>
                             </div>
-                            <p className="text-xs font-bold text-accent">+{mission.points_reward} {copy.pointsShort}</p>
+                            <p className={`text-xs font-bold ${accentTextClassName}`}>+{mission.points_reward} {copy.pointsShort}</p>
                           </div>
                         </Card>
                       ))}
@@ -1072,22 +1129,22 @@ export function RankingsRewardsScreen({ onBack }: RankingsRewardsScreenProps) {
 
           {Object.keys(challengeHistoryByPeriod).length > 0 && (
             <div>
-              <h3 className="mb-3 text-xs font-bold uppercase tracking-wider text-text-secondary">{copy.challengeHistory}</h3>
+              <h3 className={`mb-3 text-xs font-bold uppercase tracking-wider ${secondaryTextClassName}`}>{copy.challengeHistory}</h3>
               <div className="space-y-4">
                 {Object.entries(challengeHistoryByPeriod).map(([period, periodChallenges]) => (
                   <div key={`challenge-${period}`}>
-                    <h4 className="mb-2 text-xs font-bold uppercase tracking-wider text-text-secondary">{period}</h4>
+                    <h4 className={`mb-2 text-xs font-bold uppercase tracking-wider ${tertiaryTextClassName}`}>{period}</h4>
                     <div className="space-y-2">
                       {periodChallenges.map((challenge, idx) => (
-                        <Card key={`c-${period}-${idx}`} className="!p-4">
+                        <Card key={`c-${period}-${idx}`} className={`!p-4 ${compactCardClassName}`}>
                           <div className="flex items-start justify-between">
                             <div>
-                              <h5 className="font-bold text-white">{translateTitle(challenge.title)}</h5>
-                              <p className="mt-1 text-xs text-text-secondary">
+                              <h5 className={`font-bold ${primaryTextClassName}`}>{translateTitle(challenge.title)}</h5>
+                              <p className={`mt-1 text-xs ${secondaryTextClassName}`}>
                                 {copy.challengeType(challenge.challenge_type)} {copy.challengeWord}
                               </p>
                             </div>
-                            <p className="text-xs font-bold text-accent">+{challenge.points_reward} {copy.pointsShort}</p>
+                            <p className={`text-xs font-bold ${accentTextClassName}`}>+{challenge.points_reward} {copy.pointsShort}</p>
                           </div>
                         </Card>
                       ))}
@@ -1099,7 +1156,7 @@ export function RankingsRewardsScreen({ onBack }: RankingsRewardsScreenProps) {
           )}
 
           {Object.keys(missionHistoryByPeriod).length === 0 && Object.keys(challengeHistoryByPeriod).length === 0 && (
-            <p className="text-center text-sm text-text-secondary">{copy.noHistory}</p>
+            <p className={`text-center text-sm ${secondaryTextClassName}`}>{copy.noHistory}</p>
           )}
         </div>
       </div>
@@ -1108,7 +1165,7 @@ export function RankingsRewardsScreen({ onBack }: RankingsRewardsScreenProps) {
 
   if (showCategoryDetail) {
     return (
-      <div dir={isArabic ? 'rtl' : 'ltr'} className={`flex-1 flex min-h-screen flex-col bg-background pb-24 ${isArabic ? 'text-right' : 'text-left'}`}>
+      <div dir={isArabic ? 'rtl' : 'ltr'} className={`${mainClassName} flex flex-col pb-24`}>
         <div className="px-4 pt-2 sm:px-6">
           <Header
             title={categoryName(selectedCategory)}
@@ -1117,15 +1174,16 @@ export function RankingsRewardsScreen({ onBack }: RankingsRewardsScreenProps) {
               setShowCategoryDetail(false);
             }}
             compact
+            titleClassName={isGirlsTheme ? '!text-[#4A4A4A]' : undefined}
           />
         </div>
 
         <div className="mt-4 space-y-4 px-4 sm:px-6">
           {categoryDetailLoading ? (
             <div className="flex min-h-[40vh] flex-col items-center justify-center">
-              <div className="rounded-[28px] bg-white/[0.03] p-5 shadow-[0_12px_30px_rgba(0,0,0,0.18)]">
+              <div className={`rounded-[28px] p-5 ${isGirlsTheme ? 'bg-white/70 shadow-[0_12px_30px_rgba(226,180,189,0.16)]' : 'bg-white/[0.03] shadow-[0_12px_30px_rgba(0,0,0,0.18)]'}`}>
                 <div
-                  className="h-16 w-16 animate-spin rounded-full border-[6px] border-[#d7dbff] border-b-transparent border-l-transparent border-r-[#5b61ff] border-t-[#8d93ff]"
+                  className={`h-16 w-16 animate-spin rounded-full border-[6px] border-b-transparent border-l-transparent ${isGirlsTheme ? 'border-[#F7D6D0] border-r-[#F9B2D7] border-t-[#CFECF3]' : 'border-[#d7dbff] border-r-[#5b61ff] border-t-[#8d93ff]'}`}
                   aria-label="Loading category"
                 />
               </div>
@@ -1136,34 +1194,34 @@ export function RankingsRewardsScreen({ onBack }: RankingsRewardsScreenProps) {
             <div className="space-y-2">
               <div className="flex items-center gap-2">
                 <img src={emojiMissions} alt={copy.missionsAlt} className="h-4 w-4 object-contain" />
-                <h3 className="text-xs font-bold uppercase tracking-wider text-text-secondary">{copy.activeMissions}</h3>
+                <h3 className={`text-xs font-bold uppercase tracking-wider ${secondaryTextClassName}`}>{copy.activeMissions}</h3>
               </div>
               <div className="space-y-2">
                 {selectedMissionItems.map((mission) => (
-                  <Card key={mission.id} className="!p-2.5">
+                  <Card key={mission.id} className={`!p-2.5 ${compactCardClassName}`}>
                     <div className="mb-2 flex items-start justify-between">
                       <div className="flex items-center gap-1.5">
-                        <h4 className="text-sm font-semibold text-white">{translateTitle(mission.title)}</h4>
+                        <h4 className={`text-sm font-semibold ${primaryTextClassName}`}>{translateTitle(mission.title)}</h4>
                         {isNewWithin24Hours(mission.assigned_at || mission.created_at) && (
                           <img src={emojiNew} alt={copy.newAlt} className="h-4 w-6 object-contain" />
                         )}
                       </div>
-                      <span className="rounded bg-accent/10 px-2 py-0.5 text-xs font-bold text-accent">+{mission.points_reward}</span>
+                      <span className={`rounded px-2 py-0.5 text-xs font-bold ${isGirlsTheme ? 'bg-[#F9B2D7]/20 text-[#A87884]' : 'bg-accent/10 text-accent'}`}>+{mission.points_reward}</span>
                     </div>
-                    <p className="mb-1.5 text-xs text-text-secondary">{translateDescription(mission.description)}</p>
+                    <p className={`mb-1.5 text-xs ${secondaryTextClassName}`}>{translateDescription(mission.description)}</p>
                     <div className="space-y-0.5">
                       <div className="flex items-center gap-2">
-                        <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-white/5">
+                        <div className={`h-1.5 flex-1 overflow-hidden rounded-full ${progressTrackClassName}`}>
                           <div
-                            className="h-full rounded-full bg-accent"
+                            className={`h-full rounded-full ${pinkProgressClassName}`}
                             style={{ width: `${Math.min((mission.progress / Math.max(1, mission.target)) * 100, 100)}%` }}
                           />
                         </div>
-                        <span className="font-mono text-xs text-text-tertiary">
+                        <span className={`font-mono text-xs ${tertiaryTextClassName}`}>
                           {mission.progress}/{mission.target}
                         </span>
                       </div>
-                      <p className="text-xs text-text-tertiary">{copy.remaining(mission.remaining)}</p>
+                      <p className={`text-xs ${tertiaryTextClassName}`}>{copy.remaining(mission.remaining)}</p>
                     </div>
                   </Card>
                 ))}
@@ -1175,37 +1233,37 @@ export function RankingsRewardsScreen({ onBack }: RankingsRewardsScreenProps) {
             <div className="space-y-2">
               <div className="flex items-center gap-2">
                 <img src={emojiChallenges} alt={copy.challengesAlt} className="h-4 w-4 object-contain" />
-                <h3 className="text-xs font-bold uppercase tracking-wider text-text-secondary">{copy.activeChallenges}</h3>
+                <h3 className={`text-xs font-bold uppercase tracking-wider ${secondaryTextClassName}`}>{copy.activeChallenges}</h3>
               </div>
               <div className="space-y-2">
                 {selectedChallengeItems.map((challenge) => (
-                  <Card key={`${challenge.challenge_type}-${challenge.id}`} className="!p-2.5">
+                  <Card key={`${challenge.challenge_type}-${challenge.id}`} className={`!p-2.5 ${compactCardClassName}`}>
                     <div className="mb-2 flex items-start justify-between">
                       <div>
                         <div className="flex items-center gap-1.5">
-                          <h4 className="text-sm font-semibold text-white">{translateTitle(challenge.title)}</h4>
+                          <h4 className={`text-sm font-semibold ${primaryTextClassName}`}>{translateTitle(challenge.title)}</h4>
                           {isNewWithin24Hours(challenge.created_at) && (
                             <img src={emojiNew} alt={copy.newAlt} className="h-4 w-6 object-contain" />
                           )}
                         </div>
-                        <p className="mt-0.5 text-[11px] uppercase text-text-secondary">{copy.challengeType(challenge.challenge_type)}</p>
+                        <p className={`mt-0.5 text-[11px] uppercase ${secondaryTextClassName}`}>{copy.challengeType(challenge.challenge_type)}</p>
                       </div>
-                      <span className="rounded bg-blue-400/10 px-2 py-0.5 text-xs font-bold text-blue-400">+{challenge.points_reward}</span>
+                      <span className={`rounded px-2 py-0.5 text-xs font-bold ${isGirlsTheme ? 'bg-[#CFECF3]/45 text-[#795E67]' : 'bg-blue-400/10 text-blue-400'}`}>+{challenge.points_reward}</span>
                     </div>
-                    <p className="mb-1.5 text-xs text-text-secondary">{translateDescription(challenge.description)}</p>
+                    <p className={`mb-1.5 text-xs ${secondaryTextClassName}`}>{translateDescription(challenge.description)}</p>
                     <div className="space-y-0.5">
                       <div className="flex items-center gap-2">
-                        <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-white/5">
+                        <div className={`h-1.5 flex-1 overflow-hidden rounded-full ${progressTrackClassName}`}>
                           <div
-                            className="h-full rounded-full bg-blue-400"
+                            className={`h-full rounded-full ${blueProgressClassName}`}
                             style={{ width: `${Math.min((challenge.progress / Math.max(1, challenge.target)) * 100, 100)}%` }}
                           />
                         </div>
-                        <span className="font-mono text-xs text-text-tertiary">
+                        <span className={`font-mono text-xs ${tertiaryTextClassName}`}>
                           {challenge.progress}/{challenge.target}
                         </span>
                       </div>
-                      <p className="text-xs text-text-tertiary">{copy.remaining(challenge.remaining)}</p>
+                      <p className={`text-xs ${tertiaryTextClassName}`}>{copy.remaining(challenge.remaining)}</p>
                     </div>
                   </Card>
                 ))}
@@ -1216,27 +1274,27 @@ export function RankingsRewardsScreen({ onBack }: RankingsRewardsScreenProps) {
           {selectedHistoryItems.length > 0 && (
             <div className="space-y-2">
               <div className="flex items-center gap-2">
-                <Trophy size={16} className="text-green-500" />
-                <h3 className="text-xs font-bold uppercase tracking-wider text-text-secondary">{dashboardCopy.categoryHistory}</h3>
+                <Trophy size={16} className={isGirlsTheme ? 'text-[#A87884]' : 'text-green-500'} />
+                <h3 className={`text-xs font-bold uppercase tracking-wider ${secondaryTextClassName}`}>{dashboardCopy.categoryHistory}</h3>
               </div>
               <div className="space-y-2">
                 {selectedHistoryItems.map((item) => (
-                  <Card key={item.id} className="!p-2.5 opacity-75">
+                  <Card key={item.id} className={`!p-2.5 opacity-75 ${compactCardClassName}`}>
                     <div className="flex items-start justify-between gap-3">
                       <div>
                         <div className="flex items-center gap-2">
-                          <h4 className="text-sm font-semibold text-white">{translateTitle(item.title)}</h4>
-                          <span className="rounded-full border border-white/10 bg-white/[0.03] px-2 py-0.5 text-[10px] uppercase tracking-[0.12em] text-text-secondary">
+                          <h4 className={`text-sm font-semibold ${primaryTextClassName}`}>{translateTitle(item.title)}</h4>
+                          <span className={`rounded-full border px-2 py-0.5 text-[10px] uppercase tracking-[0.12em] ${isGirlsTheme ? 'border-[#E2B4BD]/40 bg-white/55 text-[#795E67]' : 'border-white/10 bg-white/[0.03] text-text-secondary'}`}>
                             {item.type === 'mission' ? dashboardCopy.missionLabel : copy.challengeWord}
                           </span>
                         </div>
-                        <p className="mt-1 text-xs text-text-secondary">{translateDescription(item.description)}</p>
+                        <p className={`mt-1 text-xs ${secondaryTextClassName}`}>{translateDescription(item.description)}</p>
                         {item.completed_at && (
-                          <p className="mt-1 text-[11px] text-text-tertiary">{copy.completedOn(new Date(item.completed_at))}</p>
+                          <p className={`mt-1 text-[11px] ${tertiaryTextClassName}`}>{copy.completedOn(new Date(item.completed_at))}</p>
                         )}
                       </div>
                       <div className="flex items-center gap-2">
-                        <span className="rounded bg-white/5 px-2 py-0.5 text-xs font-bold text-white">+{item.points_reward}</span>
+                        <span className={`rounded px-2 py-0.5 text-xs font-bold ${isGirlsTheme ? 'bg-[#F9B2D7]/18 text-[#A87884]' : 'bg-white/5 text-white'}`}>+{item.points_reward}</span>
                         <img src={emojiDone} alt={copy.doneAlt} className="h-4 w-4 object-contain" />
                       </div>
                     </div>
@@ -1247,7 +1305,7 @@ export function RankingsRewardsScreen({ onBack }: RankingsRewardsScreenProps) {
           )}
 
           {selectedMissionItems.length === 0 && selectedChallengeItems.length === 0 && selectedHistoryItems.length === 0 && (
-            <p className="text-center text-sm text-text-secondary">{copy.noMissions}</p>
+            <p className={`text-center text-sm ${secondaryTextClassName}`}>{copy.noMissions}</p>
           )}
             </>
           )}
@@ -1257,19 +1315,19 @@ export function RankingsRewardsScreen({ onBack }: RankingsRewardsScreenProps) {
   }
 
   return (
-    <main dir={isArabic ? 'rtl' : 'ltr'} className={`flex-1 min-h-[100dvh] bg-background text-text-primary ${isArabic ? 'text-right' : 'text-left'}`}>
+    <main dir={isArabic ? 'rtl' : 'ltr'} className={mainClassName}>
       <div className="mx-auto w-full max-w-md px-4 pb-[calc(env(safe-area-inset-bottom,0px)+6rem)] pt-[calc(env(safe-area-inset-top,0px)+1rem)]">
         <header className="flex items-center justify-between gap-3">
           <button
             type="button"
             onClick={onBack}
             aria-label="Go back"
-            className="surface-glass flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-white/10 text-white transition active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+            className={iconButtonClassName}
           >
             <ArrowLeft size={20} aria-hidden="true" />
           </button>
 
-          <h1 className="min-w-0 flex-1 truncate text-center text-2xl font-bold tracking-[-0.02em] text-white">
+          <h1 className={`min-w-0 flex-1 truncate text-center text-2xl font-bold tracking-[-0.02em] ${primaryTextClassName}`}>
             {copy.title}
           </h1>
 
@@ -1277,67 +1335,69 @@ export function RankingsRewardsScreen({ onBack }: RankingsRewardsScreenProps) {
             type="button"
             onClick={() => setShowInfo(true)}
             aria-label="How ranks and rewards work"
-            className="surface-glass flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-white/10 text-text-secondary transition hover:text-white active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+            className={secondaryIconButtonClassName}
           >
             <Info size={20} aria-hidden="true" />
           </button>
         </header>
 
-        <section className="mt-6 overflow-hidden rounded-[1.75rem] border border-white/10 bg-card/80 p-5 shadow-[0_18px_44px_rgba(0,0,0,0.22)]" aria-labelledby="rank-rewards-current-rank">
+        <section className={`mt-6 overflow-hidden rounded-[1.75rem] border p-5 ${cardClassName}`} aria-labelledby="rank-rewards-current-rank">
           <div className="flex items-center gap-4">
-            <div className="relative flex h-24 w-24 shrink-0 items-center justify-center rounded-[1.5rem] border border-amber-300/25 bg-amber-400/10">
-              <div className="absolute inset-3 rounded-full bg-amber-300/15 blur-xl" aria-hidden="true" />
+            <div className={`relative flex h-24 w-24 shrink-0 items-center justify-center rounded-[1.5rem] border ${isGirlsTheme ? 'border-[#E2B4BD]/45 bg-[#FFF5F5]/75' : 'border-amber-300/25 bg-amber-400/10'}`}>
+              <div className={`absolute inset-3 rounded-full blur-xl ${isGirlsTheme ? 'bg-[#F9B2D7]/24' : 'bg-amber-300/15'}`} aria-hidden="true" />
               <img src={rankBadgeImage} alt={rankNameDisplay} className="relative h-16 w-16 object-contain" />
             </div>
 
             <div className="min-w-0">
-              <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-amber-300">{experienceCopy.heroLabel}</p>
-              <h2 id="rank-rewards-current-rank" className="mt-1 text-4xl font-bold tracking-[-0.03em] text-white">
+              <p className={`text-[11px] font-bold uppercase tracking-[0.18em] ${isGirlsTheme ? 'text-[#A87884]' : 'text-amber-300'}`}>{experienceCopy.heroLabel}</p>
+              <h2 id="rank-rewards-current-rank" className={`mt-1 text-4xl font-bold tracking-[-0.03em] ${primaryTextClassName}`}>
                 {rankNameDisplay}
               </h2>
-              <p className="mt-1 text-base font-semibold text-white">{copy.points(summary.totalPoints)}</p>
+              <p className={`mt-1 text-base font-semibold ${primaryTextClassName}`}>{copy.points(summary.totalPoints)}</p>
             </div>
           </div>
 
           <div className="mt-5">
-            <div className="mb-2 flex items-center justify-between gap-3 text-[11px] font-bold uppercase tracking-[0.16em] text-text-tertiary">
-              <span className="text-amber-300">{rankNameDisplay}</span>
+            <div className={`mb-2 flex items-center justify-between gap-3 text-[11px] font-bold uppercase tracking-[0.16em] ${tertiaryTextClassName}`}>
+              <span className={isGirlsTheme ? 'text-[#A87884]' : 'text-amber-300'}>{rankNameDisplay}</span>
               <span>{summary.nextRank ? nextRankName : copy.topRank}</span>
             </div>
             <RankRewardProgressBar
               value={rankProgressPercent}
               label={`${rankProgressPercent}% progress from ${rankNameDisplay} to ${summary.nextRank ? nextRankName : copy.topRank}`}
+              className={pinkProgressClassName}
+              trackClassName={progressTrackClassName}
             />
             <div className="mt-3 flex items-center justify-between gap-3 text-sm">
-              <span className="min-w-0 text-text-secondary">
+              <span className={`min-w-0 ${secondaryTextClassName}`}>
                 {summary.nextRank ? `${remainingPoints} ${copy.pointsShort} to ${nextRankName}` : copy.topRank}
               </span>
-              <span className="shrink-0 font-bold text-white">{rankProgressPercent}%</span>
+              <span className={`shrink-0 font-bold ${primaryTextClassName}`}>{rankProgressPercent}%</span>
             </div>
             {summary.nextRank && (
-              <div className="mt-5 inline-flex min-h-11 max-w-full items-center rounded-full border border-white/10 bg-white/[0.04] px-4 text-sm text-text-secondary">
+              <div className={`mt-5 inline-flex min-h-11 max-w-full items-center rounded-full border px-4 text-sm ${isGirlsTheme ? 'border-[#E2B4BD]/45 bg-white/60 text-[#795E67]' : 'border-white/10 bg-white/[0.04] text-text-secondary'}`}>
                 <img src={getRankBadgeImage(summary.nextRank.name)} alt="" aria-hidden="true" className="mr-2 h-6 w-6 shrink-0 object-contain" />
-                <span className="min-w-0 truncate">Next reward: <strong className="text-white">{nextRankName} badge</strong></span>
+                <span className="min-w-0 truncate">Next reward: <strong className={primaryTextClassName}>{nextRankName} badge</strong></span>
               </div>
             )}
           </div>
         </section>
 
-        <section className="mt-4 rounded-[1.75rem] border border-accent/70 bg-accent/[0.055] p-5 shadow-[0_18px_44px_rgba(0,0,0,0.2)]" aria-labelledby="rank-rewards-next-mission">
+        <section className={`mt-4 rounded-[1.75rem] border p-5 shadow-[0_18px_44px_rgba(0,0,0,0.2)] ${isGirlsTheme ? 'border-[#F9B2D7]/65 bg-white/72 shadow-[0_18px_44px_rgba(249,178,215,0.16)]' : 'border-accent/70 bg-accent/[0.055]'}`} aria-labelledby="rank-rewards-next-mission">
           {nextMission ? (
             <>
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
-                  <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-accent">{experienceCopy.nextStepLabel}</p>
-                  <h2 id="rank-rewards-next-mission" className="mt-2 text-2xl font-bold leading-tight text-white">
+                  <p className={`text-[11px] font-bold uppercase tracking-[0.18em] ${accentTextClassName}`}>{experienceCopy.nextStepLabel}</p>
+                  <h2 id="rank-rewards-next-mission" className={`mt-2 text-2xl font-bold leading-tight ${primaryTextClassName}`}>
                     {nextMission.title}
                   </h2>
-                  <p className="mt-1 text-sm text-text-secondary">
+                  <p className={`mt-1 text-sm ${secondaryTextClassName}`}>
                     {nextMission.completed} of {nextMission.total} completed
                   </p>
                 </div>
                 {nextMission.rewardPoints > 0 && (
-                  <span className="shrink-0 rounded-full border border-accent/35 bg-accent/10 px-3 py-1.5 text-sm font-bold text-accent">
+                  <span className={`shrink-0 rounded-full border px-3 py-1.5 text-sm font-bold ${isGirlsTheme ? 'border-[#F9B2D7]/45 bg-[#F9B2D7]/20 text-[#795E67]' : 'border-accent/35 bg-accent/10 text-accent'}`}>
                     +{nextMission.rewardPoints} {copy.pointsShort}
                   </span>
                 )}
@@ -1347,13 +1407,15 @@ export function RankingsRewardsScreen({ onBack }: RankingsRewardsScreenProps) {
                 <RankRewardProgressBar
                   value={getProgressPercent(nextMission.completed, nextMission.total)}
                   label={`${nextMission.title}: ${getProgressPercent(nextMission.completed, nextMission.total)}% completed`}
+                  className={pinkProgressClassName}
+                  trackClassName={progressTrackClassName}
                 />
               </div>
 
               <button
                 type="button"
                 onClick={() => handleCategorySelect(nextMission.category)}
-                className="mt-4 flex min-h-12 w-full items-center justify-center rounded-2xl bg-accent px-5 text-sm font-bold text-black transition hover:brightness-95 active:scale-[0.985] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+                className={`mt-4 flex min-h-12 w-full items-center justify-center rounded-2xl px-5 text-sm font-bold transition active:scale-[0.985] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 ${accentButtonClassName}`}
               >
                 Continue
               </button>
@@ -1361,14 +1423,14 @@ export function RankingsRewardsScreen({ onBack }: RankingsRewardsScreenProps) {
           ) : (
             <div className="flex flex-col gap-4">
               <div>
-                <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-accent">{experienceCopy.nextStepLabel}</p>
-                <h2 id="rank-rewards-next-mission" className="mt-2 text-xl font-bold text-white">{experienceCopy.nextStepFallback}</h2>
-                <p className="mt-1 text-sm text-text-secondary">{experienceCopy.nextStepHint}</p>
+                <p className={`text-[11px] font-bold uppercase tracking-[0.18em] ${accentTextClassName}`}>{experienceCopy.nextStepLabel}</p>
+                <h2 id="rank-rewards-next-mission" className={`mt-2 text-xl font-bold ${primaryTextClassName}`}>{experienceCopy.nextStepFallback}</h2>
+                <p className={`mt-1 text-sm ${secondaryTextClassName}`}>{experienceCopy.nextStepHint}</p>
               </div>
               <button
                 type="button"
                 onClick={() => handleCategorySelect(selectedCategory)}
-                className="min-h-12 rounded-2xl bg-accent px-5 text-sm font-bold text-black transition active:scale-[0.985] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+                className={`min-h-12 rounded-2xl px-5 text-sm font-bold transition active:scale-[0.985] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 ${accentButtonClassName}`}
               >
                 View missions
               </button>
@@ -1377,9 +1439,9 @@ export function RankingsRewardsScreen({ onBack }: RankingsRewardsScreenProps) {
         </section>
 
         <section className="mt-7" aria-labelledby="rank-rewards-week-title">
-          <h2 id="rank-rewards-week-title" className="text-xl font-bold text-white">This week</h2>
+          <h2 id="rank-rewards-week-title" className={`text-xl font-bold ${primaryTextClassName}`}>This week</h2>
 
-          <div className="mt-3 overflow-hidden rounded-[1.5rem] border border-white/10 bg-card/75">
+          <div className={`mt-3 overflow-hidden rounded-[1.5rem] border ${isGirlsTheme ? 'border-[#E2B4BD]/45 bg-white/72 shadow-[0_12px_28px_rgba(226,180,189,0.12)]' : 'border-white/10 bg-card/75'}`}>
             {loading ? (
               <CategoryGridSkeleton />
             ) : CATEGORY_ORDER.map((category, index) => {
@@ -1396,7 +1458,7 @@ export function RankingsRewardsScreen({ onBack }: RankingsRewardsScreenProps) {
                   type="button"
                   onClick={() => handleCategorySelect(category)}
                   aria-label={`${categoryName(category)}, ${completionText}, ${stats.activeCount} active, ${progressValue}%`}
-                  className={`group flex min-h-[92px] w-full items-center gap-3 px-4 py-3 text-left transition hover:bg-white/[0.035] active:scale-[0.995] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent motion-reduce:transition-none ${index > 0 ? 'border-t border-white/10' : ''} ${isArabic ? 'text-right' : 'text-left'}`}
+                  className={`group flex min-h-[92px] w-full items-center gap-3 px-4 py-3 text-left transition active:scale-[0.995] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset motion-reduce:transition-none ${isGirlsTheme ? 'hover:bg-[#FFF5F5]/70 focus-visible:ring-[#F9B2D7]/70' : 'hover:bg-white/[0.035] focus-visible:ring-accent'} ${index > 0 ? (isGirlsTheme ? 'border-t border-[#E2B4BD]/35' : 'border-t border-white/10') : ''} ${isArabic ? 'text-right' : 'text-left'}`}
                 >
                   <span className={`flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl border ${meta.iconWrapClassName}`}>
                     <img src={meta.iconSrc} alt="" aria-hidden="true" className="h-8 w-8 object-contain" />
@@ -1404,20 +1466,21 @@ export function RankingsRewardsScreen({ onBack }: RankingsRewardsScreenProps) {
 
                   <span className="min-w-0 flex-1">
                     <span className="flex items-baseline justify-between gap-3">
-                      <span className="truncate text-base font-bold text-white">{categoryName(category)}</span>
-                      <span className={`shrink-0 text-base font-bold ${progressValue > 0 ? meta.accentClassName : 'text-text-secondary'}`}>
+                      <span className={`truncate text-base font-bold ${primaryTextClassName}`}>{categoryName(category)}</span>
+                      <span className={`shrink-0 text-base font-bold ${progressValue > 0 ? (isGirlsTheme ? 'text-[#A87884]' : meta.accentClassName) : secondaryTextClassName}`}>
                         {progressValue}%
                       </span>
                     </span>
-                    <span className="mt-0.5 flex items-center justify-between gap-3 text-sm text-text-secondary">
+                    <span className={`mt-0.5 flex items-center justify-between gap-3 text-sm ${secondaryTextClassName}`}>
                       <span className="min-w-0 truncate">{completionText}</span>
                       <span className="shrink-0">{stats.activeCount} active</span>
                     </span>
                     <span className="mt-2 block">
                       <RankRewardProgressBar
                         value={progressValue}
-                        className={meta.progressBarClassName}
+                        className={isGirlsTheme ? 'bg-gradient-to-r from-[#F9B2D7] via-[#E2B4BD] to-[#CFECF3]' : meta.progressBarClassName}
                         label={`${categoryName(category)} progress: ${progressValue}%`}
+                        trackClassName={progressTrackClassName}
                       />
                     </span>
                   </span>
@@ -1425,7 +1488,7 @@ export function RankingsRewardsScreen({ onBack }: RankingsRewardsScreenProps) {
                   <ChevronRight
                     size={20}
                     aria-hidden="true"
-                    className={`shrink-0 text-text-tertiary transition-transform group-hover:translate-x-0.5 ${isArabic ? 'rotate-180 group-hover:-translate-x-0.5' : ''}`}
+                    className={`shrink-0 transition-transform group-hover:translate-x-0.5 ${isGirlsTheme ? 'text-[#A87884]' : 'text-text-tertiary'} ${isArabic ? 'rotate-180 group-hover:-translate-x-0.5' : ''}`}
                   />
                 </button>
               );
@@ -1437,64 +1500,64 @@ export function RankingsRewardsScreen({ onBack }: RankingsRewardsScreenProps) {
           <button
             type="button"
             onClick={() => setShowLeaderboard(true)}
-            className="group relative min-h-[112px] rounded-[1.4rem] border border-white/10 bg-card/75 p-4 pr-9 text-left transition hover:border-accent/30 hover:bg-white/[0.04] active:scale-[0.985] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+            className={`group relative min-h-[112px] rounded-[1.4rem] border p-4 pr-9 text-left transition active:scale-[0.985] focus-visible:outline-none focus-visible:ring-2 ${isGirlsTheme ? 'border-[#E2B4BD]/45 bg-white/72 hover:border-[#F9B2D7]/70 hover:bg-white/85 focus-visible:ring-[#F9B2D7]/70' : 'border-white/10 bg-card/75 hover:border-accent/30 hover:bg-white/[0.04] focus-visible:ring-accent'}`}
           >
             <span className="block min-w-0">
               <span className="flex min-w-0 items-center gap-2">
                 <img src={emojiViewLeaderboard} alt="" aria-hidden="true" className="h-9 w-9 shrink-0 object-contain" />
-                <span className="min-w-0 text-[15px] font-bold leading-tight text-white">Leaderboard</span>
+                <span className={`min-w-0 text-[15px] font-bold leading-tight ${primaryTextClassName}`}>Leaderboard</span>
               </span>
-              <span className="mt-3 block text-sm leading-snug text-text-secondary">
+              <span className={`mt-3 block text-sm leading-snug ${secondaryTextClassName}`}>
                 {rivalry?.nextPlayerName
                   ? passPlayerLabel(Math.max(0, Number(rivalry.deltaToNextPlayer || 0)), rivalry.nextPlayerName)
                   : 'Gym rankings'}
               </span>
             </span>
-            <ChevronRight size={20} aria-hidden="true" className="absolute right-3 top-1/2 -translate-y-1/2 text-text-secondary transition-transform group-hover:translate-x-0.5" />
+            <ChevronRight size={20} aria-hidden="true" className={`absolute right-3 top-1/2 -translate-y-1/2 transition-transform group-hover:translate-x-0.5 ${secondaryTextClassName}`} />
           </button>
 
           <button
             type="button"
             onClick={() => setShowHistory(true)}
-            className="group relative min-h-[112px] rounded-[1.4rem] border border-white/10 bg-card/75 p-4 pr-9 text-left transition hover:border-accent/30 hover:bg-white/[0.04] active:scale-[0.985] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+            className={`group relative min-h-[112px] rounded-[1.4rem] border p-4 pr-9 text-left transition active:scale-[0.985] focus-visible:outline-none focus-visible:ring-2 ${isGirlsTheme ? 'border-[#E2B4BD]/45 bg-white/72 hover:border-[#F9B2D7]/70 hover:bg-white/85 focus-visible:ring-[#F9B2D7]/70' : 'border-white/10 bg-card/75 hover:border-accent/30 hover:bg-white/[0.04] focus-visible:ring-accent'}`}
           >
             <span className="block min-w-0">
               <span className="flex min-w-0 items-center gap-2">
                 <img src={emojiChallenges} alt="" aria-hidden="true" className="h-9 w-9 shrink-0 object-contain" />
-                <span className="min-w-0 text-[15px] font-bold leading-tight text-white">Mission History</span>
+                <span className={`min-w-0 text-[15px] font-bold leading-tight ${primaryTextClassName}`}>Mission History</span>
               </span>
-              <span className="mt-3 block text-sm leading-snug text-text-secondary">Completed rewards</span>
+              <span className={`mt-3 block text-sm leading-snug ${secondaryTextClassName}`}>Completed rewards</span>
             </span>
-            <ChevronRight size={20} aria-hidden="true" className="absolute right-3 top-1/2 -translate-y-1/2 text-text-secondary transition-transform group-hover:translate-x-0.5" />
+            <ChevronRight size={20} aria-hidden="true" className={`absolute right-3 top-1/2 -translate-y-1/2 transition-transform group-hover:translate-x-0.5 ${secondaryTextClassName}`} />
           </button>
         </section>
       </div>
 
       {showInfo && typeof document !== 'undefined' && createPortal(
         <div
-          className="fixed inset-0 z-[160] flex items-end justify-center bg-black/60 px-4 pb-4 pt-[calc(env(safe-area-inset-top,0px)+1rem)] sm:items-center"
+          className={`fixed inset-0 z-[160] flex items-end justify-center px-4 pb-4 pt-[calc(env(safe-area-inset-top,0px)+1rem)] sm:items-center ${isGirlsTheme ? 'bg-[#4A4A4A]/35 backdrop-blur-sm' : 'bg-black/60'}`}
           onClick={() => setShowInfo(false)}
           role="presentation"
         >
           <div
-            className="w-full max-w-md rounded-[1.5rem] border border-white/10 bg-card p-5 text-left shadow-[0_24px_60px_rgba(0,0,0,0.45)]"
+            className={`w-full max-w-md rounded-[1.5rem] border p-5 text-left shadow-[0_24px_60px_rgba(0,0,0,0.28)] ${isGirlsTheme ? 'border-[#E2B4BD]/45 bg-[#FFF5F5]' : 'border-white/10 bg-card'}`}
             role="dialog"
             aria-modal="true"
             aria-labelledby="rank-rewards-info-title"
             onClick={(event) => event.stopPropagation()}
           >
             <div className="flex items-center justify-between gap-3">
-              <h2 id="rank-rewards-info-title" className="text-lg font-bold text-white">How points work</h2>
+              <h2 id="rank-rewards-info-title" className={`text-lg font-bold ${primaryTextClassName}`}>How points work</h2>
               <button
                 type="button"
                 onClick={() => setShowInfo(false)}
-                className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 text-text-secondary transition hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+                className={`flex h-10 w-10 items-center justify-center rounded-xl border transition focus-visible:outline-none focus-visible:ring-2 ${isGirlsTheme ? 'border-[#E2B4BD]/45 bg-white/70 text-[#795E67] hover:text-[#4A4A4A] focus-visible:ring-[#F9B2D7]/70' : 'border-white/10 text-text-secondary hover:text-white focus-visible:ring-accent'}`}
                 aria-label="Close rank information"
               >
                 <Info size={18} aria-hidden="true" />
               </button>
             </div>
-            <div className="mt-4 space-y-3 text-sm leading-relaxed text-text-secondary">
+            <div className={`mt-4 space-y-3 text-sm leading-relaxed ${secondaryTextClassName}`}>
               <p>Earn points by completing missions, challenges, workouts, recovery check-ins, and community actions.</p>
               <p>Your rank is calculated from total points. Progress bars show real completion, so zero progress stays at 0%.</p>
               {summary.nextRank && <p>{remainingPoints} {copy.pointsShort} remain before {nextRankName}.</p>}

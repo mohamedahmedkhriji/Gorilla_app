@@ -5,6 +5,7 @@ import type { NotificationActionId, NotificationCardModel } from './types';
 interface NotificationCardProps {
   notification: NotificationCardModel;
   isRtl?: boolean;
+  themeVariant?: 'default' | 'girls';
   onOpen?: (notificationId: number) => void;
   onAction?: (notificationId: number, actionId: NotificationActionId) => void;
   onDismiss?: (notificationId: number) => void;
@@ -37,6 +38,7 @@ const actionToneClassName = {
 export function NotificationCard({
   notification,
   isRtl = false,
+  themeVariant = 'default',
   onOpen,
   onAction,
   onDismiss,
@@ -45,6 +47,7 @@ export function NotificationCard({
   const { visual } = notification;
   const Icon = visual.icon;
   const gradientId = `notification-grad-${notification.id}`;
+  const isGirlsTheme = themeVariant === 'girls';
 
   const handleKeyDown: React.KeyboardEventHandler<HTMLElement> = (event) => {
     if (!isInteractive) return;
@@ -74,7 +77,10 @@ export function NotificationCard({
       onKeyDown={handleKeyDown}
       onClick={isInteractive ? () => onOpen?.(notification.id) : undefined}
       className={cx(
-        'group relative overflow-hidden rounded-[1.6rem] p-0 shadow-[0_18px_45px_rgba(0,0,0,0.24)] backdrop-blur-xl transition-all duration-300 active:scale-[0.985] sm:rounded-[1.8rem]',
+        'group relative overflow-hidden rounded-[1.6rem] p-0 backdrop-blur-xl transition-all duration-300 active:scale-[0.985] sm:rounded-[1.8rem]',
+        isGirlsTheme
+          ? 'border border-[#E2B4BD]/45 bg-white/[0.70] shadow-[0_16px_38px_rgba(226,180,189,0.16)]'
+          : 'shadow-[0_18px_45px_rgba(0,0,0,0.24)]',
         notification.unread
           ? 'hover:-translate-y-1'
           : 'opacity-90 hover:-translate-y-1 hover:opacity-100',
@@ -83,7 +89,7 @@ export function NotificationCard({
       dir={isRtl ? 'rtl' : 'ltr'}
     >
       <svg
-        className="pointer-events-none absolute inset-0 h-full w-full"
+        className={cx('pointer-events-none absolute inset-0 h-full w-full', isGirlsTheme && 'hidden')}
         viewBox="0 0 380 104"
         preserveAspectRatio="none"
         aria-hidden="true"
@@ -105,7 +111,12 @@ export function NotificationCard({
       </svg>
 
       <div
-        className="pointer-events-none absolute inset-0 bg-[linear-gradient(135deg,rgba(255,255,255,0.035),rgba(255,255,255,0.01))]"
+        className={cx(
+          'pointer-events-none absolute inset-0',
+          isGirlsTheme
+            ? 'bg-[linear-gradient(135deg,rgba(255,255,255,0.42),rgba(255,245,245,0.08))]'
+            : 'bg-[linear-gradient(135deg,rgba(255,255,255,0.035),rgba(255,255,255,0.01))]',
+        )}
         aria-hidden="true"
       />
 
@@ -114,6 +125,7 @@ export function NotificationCard({
           <div
             className={cx(
               'flex h-10 w-10 items-center justify-center rounded-[1.1rem] border border-white/15 bg-white/[0.08] shadow-inner backdrop-blur-md sm:h-11 sm:w-11',
+              isGirlsTheme && 'border-[#E2B4BD]/40 bg-white/55',
               visual.backgroundClassName,
             )}
           >
@@ -122,7 +134,8 @@ export function NotificationCard({
           {notification.unread && (
             <span
               className={cx(
-                'absolute top-0 h-2.5 w-2.5 rounded-full bg-accent ring-4 ring-background',
+                'absolute top-0 h-2.5 w-2.5 rounded-full ring-4',
+                isGirlsTheme ? 'bg-[#F9B2D7] ring-[#FFF5F5]' : 'bg-accent ring-background',
                 isRtl ? 'left-0' : 'right-0',
               )}
               aria-label="Unread notification"
@@ -133,7 +146,7 @@ export function NotificationCard({
         <div className="min-w-0 flex-1">
           <div className={cx('flex items-start justify-between gap-3', isRtl && 'flex-row-reverse')}>
             <div className={cx('min-w-0 space-y-1', isRtl ? 'text-right' : 'text-left')}>
-              <h3 className="break-words text-sm font-semibold leading-6 text-white [overflow-wrap:anywhere] sm:text-[0.95rem]">
+              <h3 className={cx('break-words text-sm font-semibold leading-6 [overflow-wrap:anywhere] sm:text-[0.95rem]', isGirlsTheme ? 'text-[#4A4A4A]' : 'text-white')}>
                 {notification.title}
               </h3>
               {notification.metadata?.length ? (
@@ -153,17 +166,17 @@ export function NotificationCard({
               ) : null}
             </div>
 
-            <div className={cx('shrink-0 pt-0.5 text-[11px] text-text-tertiary', isRtl ? 'text-left' : 'text-right')}>
+            <div className={cx('shrink-0 pt-0.5 text-[11px]', isGirlsTheme ? 'text-[#A87884]' : 'text-text-tertiary', isRtl ? 'text-left' : 'text-right')}>
               {notification.timeLabel}
             </div>
           </div>
 
-          <p className="mt-2 break-words text-sm leading-6 text-text-secondary [overflow-wrap:anywhere]">
+          <p className={cx('mt-2 break-words text-sm leading-6 [overflow-wrap:anywhere]', isGirlsTheme ? 'text-[#795E67]' : 'text-text-secondary')}>
             {notification.message}
           </p>
 
           {notification.note ? (
-            <p className="mt-2 text-[11px] leading-5 text-text-tertiary">
+            <p className={cx('mt-2 text-[11px] leading-5', isGirlsTheme ? 'text-[#A87884]' : 'text-text-tertiary')}>
               {notification.note}
             </p>
           ) : null}

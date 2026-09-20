@@ -46,6 +46,7 @@ type FeedListProps = {
   onSave: (postId: number) => void;
   onDelete: (postId: number) => void;
   onHide: (postId: number) => void;
+  themeVariant?: 'default' | 'girls';
 };
 
 export default function FeedList({
@@ -76,6 +77,7 @@ export default function FeedList({
   onSave,
   onDelete,
   onHide,
+  themeVariant = 'default',
 }: FeedListProps) {
   const sentinelRef = useRef<HTMLDivElement | null>(null);
 
@@ -124,6 +126,7 @@ export default function FeedList({
           onDelete={() => onDelete(post.id)}
           onHide={() => onHide(post.id)}
           copy={copy}
+          themeVariant={themeVariant}
         />
       ))}
 
@@ -134,12 +137,12 @@ export default function FeedList({
           {Array.from({ length: 2 }).map((_, index) => (
             <PostSkeleton key={`feed-loading-${index}`} />
           ))}
-          <div className="py-2 text-center text-xs text-text-secondary">{loadingMoreLabel}</div>
+          <div className={`py-2 text-center text-xs ${themeVariant === 'girls' ? 'text-[#795E67]' : 'text-text-secondary'}`}>{loadingMoreLabel}</div>
         </div>
       ) : null}
 
       {!hasMore && posts.length > 0 ? (
-        <div className="py-3 text-center text-xs text-text-secondary">{caughtUpLabel}</div>
+        <div className={`py-3 text-center text-xs ${themeVariant === 'girls' ? 'text-[#795E67]' : 'text-text-secondary'}`}>{caughtUpLabel}</div>
       ) : null}
     </div>
   );

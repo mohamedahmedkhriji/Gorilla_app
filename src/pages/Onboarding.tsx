@@ -6,6 +6,7 @@ import { LanguageScreen } from '../components/onboarding/LanguageScreen';
 import { AthleteIdentityScreen } from '../components/onboarding/AthleteIdentityScreen';
 import { FirstNameScreen } from '../components/onboarding/FirstNameScreen';
 import { PersonalInfoScreen } from '../components/onboarding/PersonalInfoScreen';
+import { PeriodCycleScreen } from '../components/onboarding/PeriodCycleScreen';
 import { SportAgeGenderScreen } from '../components/onboarding/SportAgeGenderScreen';
 import { SportExperienceYearsScreen } from '../components/onboarding/SportExperienceYearsScreen';
 import { SportPlanChoiceScreen } from '../components/onboarding/SportPlanChoiceScreen';
@@ -49,6 +50,11 @@ const isSupportedOnboardingLanguage = (value: unknown): value is AppLanguage =>
 const resolveOnboardingLanguage = (value: unknown): AppLanguage | '' => {
   const normalized = String(value || '').trim().toLowerCase();
   return isSupportedOnboardingLanguage(normalized) ? normalized : '';
+};
+
+const isFemaleGender = (value: unknown) => {
+  const normalized = String(value || '').trim().toLowerCase();
+  return normalized === 'woman' || normalized === 'female' || normalized === 'f';
 };
 
 const mergeOnboardingIntoUser = (user: Record<string, any>, patch: Record<string, any>) => {
@@ -125,6 +131,11 @@ const mergeOnboardingIntoUser = (user: Record<string, any>, patch: Record<string
     next.workout_split_label = splitLabel;
   }
 
+  if (hasOwn(patch, 'periodCycle')) {
+    next.periodCycle = patch.periodCycle;
+    next.period_cycle = patch.periodCycle;
+  }
+
   return next;
 };
 
@@ -135,6 +146,7 @@ const STEP_COMPONENTS: Record<OnboardingStepId, React.ComponentType<any>> = {
   app_motivation: AppMotivationScreen,
   athlete_identity: AthleteIdentityScreen,
   personal_info: PersonalInfoScreen,
+  period_cycle: PeriodCycleScreen,
   fitness_background: FitnessBackgroundScreen,
   fitness_goals: FitnessGoalsScreen,
   body_type: BodyTypeSelectionScreen,
@@ -205,6 +217,13 @@ const buildStepIds = (
   }
 
   const combined = [...base, ...branch];
+  if (isFemaleGender(onboardingData?.gender) && !combined.includes('period_cycle')) {
+    const preferredPreviousStep = combined.includes('goals_availability')
+      ? 'goals_availability'
+      : 'personal_info';
+    const insertAfterIndex = combined.indexOf(preferredPreviousStep);
+    combined.splice(insertAfterIndex >= 0 ? insertAfterIndex + 1 : combined.length, 0, 'period_cycle');
+  }
   return combined.filter((id, index) => combined.indexOf(id) === index);
 };
 
@@ -396,6 +415,12 @@ export function Onboarding({ onComplete }: OnboardingProps) {
   const currentStep = steps[stepIndex];
   const CurrentComponent = currentStep?.component;
   const isLastStep = stepIndex === steps.length - 1;
+  const girlsThemeActive = Boolean(
+    currentStep
+    && isFemaleGender(onboardingData?.gender)
+    && currentStep.id !== 'personal_info'
+    && currentStep.id !== 'sport_age_gender',
+  );
 
   useEffect(() => {
     if (!CurrentComponent) {
@@ -452,9 +477,10 @@ export function Onboarding({ onComplete }: OnboardingProps) {
           ? resolveOnboardingTitle(currentStep.id, currentStep?.meta?.title || '', onboardingLanguage)
           : ''
       }
-      showBack={currentStep?.meta?.showBack !== false}
+      showBack={currentStep?.id !== 'language' && currentStep?.meta?.showBack !== false}
       showHeader={currentStep?.meta?.showHeader !== false}
       showProgress={currentStep?.meta?.showProgress !== false}
+      themeVariant={girlsThemeActive ? 'girls' : 'default'}
     >
       <CurrentComponent
         onNext={next}

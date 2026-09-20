@@ -62,6 +62,19 @@ const readStoredUser = () => {
   }
 };
 
+const isFemaleHomeUser = (value: unknown) => {
+  const normalized = String(value || '').trim().toLowerCase();
+  return normalized === 'woman' || normalized === 'female' || normalized === 'f';
+};
+
+const readHomeStyleGender = () => {
+  try {
+    return String(localStorage.getItem('appStyleGender') || '').trim().toLowerCase();
+  } catch {
+    return '';
+  }
+};
+
 const toScopePart = (value: unknown) =>
   String(value || '')
     .trim()
@@ -326,26 +339,29 @@ interface HomeQuickActionButtonProps {
   Icon: LucideIcon;
   onClick: () => void;
   coachmarkTargetId?: string;
+  isGirlsTheme?: boolean;
 }
 
-function HomeQuickActionButton({ label, Icon, onClick, coachmarkTargetId }: HomeQuickActionButtonProps) {
+function HomeQuickActionButton({ label, Icon, onClick, coachmarkTargetId, isGirlsTheme = false }: HomeQuickActionButtonProps) {
   return (
     <button
       type="button"
       data-coachmark-target={coachmarkTargetId}
       onClick={onClick}
-      className="group flex min-h-[48px] w-full items-center gap-3 rounded-xl border border-white/10 bg-[#111b2a]/90 px-3.5 py-3 text-left shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] transition-all duration-200 hover:border-accent/35 hover:bg-[#142032] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+      className={isGirlsTheme
+        ? 'group flex min-h-[48px] w-full items-center gap-3 rounded-xl border border-[#E2B4BD]/55 bg-white/72 px-3.5 py-3 text-left shadow-[inset_0_1px_0_rgba(255,255,255,0.78),0_12px_28px_rgba(226,180,189,0.14)] transition-all duration-200 hover:border-[#F9B2D7]/75 hover:bg-[#FFF5F5] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#F9B2D7]'
+        : 'group flex min-h-[48px] w-full items-center gap-3 rounded-xl border border-white/10 bg-[#111b2a]/90 px-3.5 py-3 text-left shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] transition-all duration-200 hover:border-accent/35 hover:bg-[#142032] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent'}
     >
-      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-accent">
+      <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${isGirlsTheme ? 'text-[#E2B4BD]' : 'text-accent'}`}>
         <Icon size={22} strokeWidth={2.1} aria-hidden="true" />
       </span>
-      <span className="min-w-0 flex-1 truncate text-[15px] font-electrolize font-semibold text-text-primary">
+      <span className={`min-w-0 flex-1 truncate text-[15px] font-electrolize font-semibold ${isGirlsTheme ? 'text-[#4A4A4A]' : 'text-text-primary'}`}>
         {label}
       </span>
       <ChevronRight
         size={18}
         aria-hidden="true"
-        className="shrink-0 text-text-secondary transition-transform duration-200 group-hover:translate-x-0.5 group-hover:text-accent"
+        className={`shrink-0 transition-transform duration-200 group-hover:translate-x-0.5 ${isGirlsTheme ? 'text-[#A87884] group-hover:text-[#E2B4BD]' : 'text-text-secondary group-hover:text-accent'}`}
       />
     </button>
   );
@@ -588,7 +604,24 @@ export function Home({
   onGuidedTourComplete,
   onGuidedTourDismiss,
 }: HomeProps) {
-  const currentUser = readStoredUser();
+  const [storedUserRefresh, setStoredUserRefresh] = useState(0);
+  useEffect(() => {
+    const refreshStoredUser = () => setStoredUserRefresh((current) => current + 1);
+    window.addEventListener('repset:stored-user-changed', refreshStoredUser);
+    window.addEventListener('repset:app-style-gender-changed', refreshStoredUser);
+    window.addEventListener('storage', refreshStoredUser);
+    return () => {
+      window.removeEventListener('repset:stored-user-changed', refreshStoredUser);
+      window.removeEventListener('repset:app-style-gender-changed', refreshStoredUser);
+      window.removeEventListener('storage', refreshStoredUser);
+    };
+  }, []);
+
+  const currentUser = useMemo(() => readStoredUser(), [storedUserRefresh]);
+  const savedStyleGender = readHomeStyleGender();
+  const isGirlsTheme = savedStyleGender
+    ? isFemaleHomeUser(savedStyleGender)
+    : isFemaleHomeUser(currentUser?.gender);
   const currentUserId = Number(currentUser?.id || 0);
   const workoutStorageScope = getUserStorageScope(currentUser);
   const workoutStorageKeys = getWorkoutStorageKeys(currentUser);
@@ -2190,27 +2223,39 @@ export function Home({
       </div>
     );
   }
+  const homePageClassName = isGirlsTheme
+    ? 'home-page home-page--girls -mx-4 min-h-[calc(100dvh-1rem)] bg-[radial-gradient(circle_at_top_left,rgba(249,178,215,0.22),transparent_34%),radial-gradient(circle_at_85%_10%,rgba(207,236,243,0.32),transparent_30%),linear-gradient(180deg,#FFF5F5_0%,#F7D6D0_52%,#FFF5F5_100%)] px-4 pb-24 pt-4 text-[#4A4A4A] sm:-mx-6 sm:px-6'
+    : 'home-page pb-24 pt-4';
+  const headerClassName = isGirlsTheme
+    ? 'relative mb-5 cursor-pointer overflow-hidden rounded-[28px] border border-[#E2B4BD]/60 bg-white/[0.74] px-4 py-4 shadow-[0_18px_42px_rgba(226,180,189,0.22)] transition-all duration-300 hover:-translate-y-0.5 hover:border-[#F9B2D7]/75 focus-within:border-[#F9B2D7]/70'
+    : 'relative mb-5 cursor-pointer overflow-hidden rounded-[28px] border border-white/10 bg-[#07101f] px-4 py-4 shadow-[0_18px_40px_rgba(0,0,0,0.28)] transition-all duration-300 hover:-translate-y-0.5 hover:border-white/15 focus-within:border-accent/25';
+  const headerOverlayClassName = isGirlsTheme
+    ? 'absolute inset-0 bg-[linear-gradient(90deg,rgba(255,245,245,0.76),rgba(247,214,208,0.52)),radial-gradient(circle_at_top_right,rgba(207,236,243,0.42),transparent_38%)]'
+    : 'absolute inset-0 bg-[linear-gradient(90deg,rgba(7,16,31,0.84),rgba(7,16,31,0.58)),radial-gradient(circle_at_top_right,rgba(205,255,88,0.12),transparent_34%)]';
+  const primaryHomeTextClass = isGirlsTheme ? 'text-[#4A4A4A]' : 'text-text-primary';
+  const secondaryHomeTextClass = isGirlsTheme ? 'text-[#795E67]' : 'text-text-secondary';
+
   return renderTransitionedView(
-    <div className="home-page pb-24 pt-4">
+    <div className={homePageClassName}>
       <ScreenSection index={0}>
         {/* Header Section */}
         <header
           data-coachmark-target="home_header_card"
           onClick={() => onNavigate('profile')}
-          className="relative mb-5 cursor-pointer overflow-hidden rounded-[28px] border border-white/10 bg-[#07101f] px-4 py-4 shadow-[0_18px_40px_rgba(0,0,0,0.28)] transition-all duration-300 hover:-translate-y-0.5 hover:border-white/15 focus-within:border-accent/25"
+          className={headerClassName}
         >
           <div
-            className="absolute inset-0 bg-cover bg-center opacity-60"
+            className={`absolute inset-0 bg-cover bg-center ${isGirlsTheme ? 'opacity-[0.32]' : 'opacity-60'}`}
             style={{ backgroundImage: `url(${emojiProfile})` }}
             aria-hidden="true"
           />
-          <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(7,16,31,0.84),rgba(7,16,31,0.58)),radial-gradient(circle_at_top_right,rgba(205,255,88,0.12),transparent_34%)]" aria-hidden="true" />
+          <div className={headerOverlayClassName} aria-hidden="true" />
           <div className="relative z-10 flex items-center justify-between gap-3">
             <div className="min-w-0">
-              <h1 className="truncate text-[15px] font-semibold leading-tight text-text-primary">
+              <h1 className={`truncate text-[15px] font-semibold leading-tight ${primaryHomeTextClass}`}>
                 {homeCopy.goodMorning}, {greeting}
               </h1>
-              <p className="mt-1 text-[13px] leading-snug text-text-secondary">
+              <p className={`mt-1 text-[13px] leading-snug ${secondaryHomeTextClass}`}>
                 {homeCopy.readyNextSession}
               </p>
             </div>
@@ -2223,13 +2268,15 @@ export function Home({
                   event.stopPropagation();
                   setView('rank');
                 }}
-                className="flex min-h-[48px] items-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-3 text-left transition-colors hover:border-accent/30 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+                className={isGirlsTheme
+                  ? 'flex min-h-[48px] items-center gap-2 rounded-xl border border-[#E2B4BD]/55 bg-white/[0.58] px-3 text-left transition-colors hover:border-[#F9B2D7]/75 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#F9B2D7]'
+                  : 'flex min-h-[48px] items-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-3 text-left transition-colors hover:border-accent/30 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent'}
               >
                 <span className="flex h-8 w-8 items-center justify-center rounded-xl border border-orange-300/30 bg-orange-400/10">
                   <img src={rankBadgeImage} alt={rankNameDisplay} className="h-5 w-5 object-contain" />
                 </span>
-                <span className="hidden min-w-0 text-xs font-semibold text-text-secondary min-[360px]:block">
-                  <span className="text-text-primary">{rankNameDisplay}</span>
+                <span className={`hidden min-w-0 text-xs font-semibold min-[360px]:block ${secondaryHomeTextClass}`}>
+                  <span className={primaryHomeTextClass}>{rankNameDisplay}</span>
                   <span> - {programProgress?.totalPoints || 0} RP</span>
                 </span>
               </button>
@@ -2242,7 +2289,9 @@ export function Home({
                   event.stopPropagation();
                   setView('notifications');
                 }}
-                className="relative flex h-12 w-12 items-center justify-center rounded-full border border-white/10 bg-white/[0.04] text-text-secondary transition-colors hover:border-accent/30 hover:text-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+                className={isGirlsTheme
+                  ? 'relative flex h-12 w-12 items-center justify-center rounded-full border border-[#E2B4BD]/55 bg-white/[0.58] text-[#795E67] transition-colors hover:border-[#F9B2D7]/75 hover:text-[#E2B4BD] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#F9B2D7]'
+                  : 'relative flex h-12 w-12 items-center justify-center rounded-full border border-white/10 bg-white/[0.04] text-text-secondary transition-colors hover:border-accent/30 hover:text-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent'}
               >
                 <Bell size={20} aria-hidden="true" />
                 {unreadCount > 0 && (
@@ -2278,6 +2327,7 @@ export function Home({
               actionLabel={workoutCardActionLabelDisplay}
               progressCaption={workoutCardProgressCaptionDisplay}
               progressDisplayLabel={workoutCardProgressDisplayLabel}
+              themeVariant={isGirlsTheme ? 'girls' : 'default'}
             />
           </div>
         </ScreenSection>
@@ -2288,23 +2338,30 @@ export function Home({
             type="button"
             data-coachmark-target="home_friends_card"
             onClick={() => setView('friends')}
-            className="group relative min-h-[96px] w-full overflow-hidden rounded-[22px] border border-white/10 bg-[#080d14] p-3.5 text-left shadow-[0_18px_40px_-28px_rgba(0,0,0,0.9)] ring-1 ring-inset ring-white/[0.03] transition-all duration-300 hover:-translate-y-1 hover:border-accent/25 active:scale-[0.985] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+            className={isGirlsTheme
+              ? 'group relative min-h-[96px] w-full overflow-hidden rounded-[22px] border border-[#E2B4BD]/60 bg-white/[0.74] p-3.5 text-left shadow-[0_18px_42px_rgba(226,180,189,0.20)] ring-1 ring-inset ring-white/60 transition-all duration-300 hover:-translate-y-1 hover:border-[#F9B2D7]/75 active:scale-[0.985] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#F9B2D7]'
+              : 'group relative min-h-[96px] w-full overflow-hidden rounded-[22px] border border-white/10 bg-[#080d14] p-3.5 text-left shadow-[0_18px_40px_-28px_rgba(0,0,0,0.9)] ring-1 ring-inset ring-white/[0.03] transition-all duration-300 hover:-translate-y-1 hover:border-accent/25 active:scale-[0.985] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent'}
           >
             <div
-              className="absolute inset-0 bg-cover bg-center opacity-60 transition-transform duration-300 group-hover:scale-105"
+              className={`absolute inset-0 bg-cover bg-center transition-transform duration-300 group-hover:scale-105 ${isGirlsTheme ? 'opacity-[0.34]' : 'opacity-60'}`}
               style={{ backgroundImage: `url(${emojiGymFriendsBg})` }}
               aria-hidden="true"
             />
-            <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(205,255,88,0.14),transparent_30%),linear-gradient(180deg,rgba(7,11,17,0.28),rgba(7,11,17,0.74))]" aria-hidden="true" />
-            <div className="absolute inset-x-4 top-0 h-px bg-gradient-to-r from-transparent via-white/25 to-transparent" aria-hidden="true" />
+            <div
+              className={isGirlsTheme
+                ? 'absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(249,178,215,0.22),transparent_36%),linear-gradient(180deg,rgba(255,245,245,0.62),rgba(247,214,208,0.48))]'
+                : 'absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(205,255,88,0.14),transparent_30%),linear-gradient(180deg,rgba(7,11,17,0.28),rgba(7,11,17,0.74))]'}
+              aria-hidden="true"
+            />
+            <div className={`absolute inset-x-4 top-0 h-px bg-gradient-to-r from-transparent to-transparent ${isGirlsTheme ? 'via-white/70' : 'via-white/25'}`} aria-hidden="true" />
 
             <div className="relative z-10 flex h-full items-center justify-center">
               <div className="min-w-0 text-center">
-                <div className="text-[11px] font-medium uppercase tracking-[0.16em] text-white/55">Community</div>
-                <div className={`mt-1.5 ${HOME_CARD_TITLE_CLASS}`}>
+                <div className={`text-[11px] font-medium uppercase tracking-[0.16em] ${isGirlsTheme ? 'text-[#A87884]' : 'text-white/55'}`}>Community</div>
+                <div className={`mt-1.5 ${isGirlsTheme ? 'truncate text-[1.9rem] font-electrolize font-bold leading-none text-[#4A4A4A]' : HOME_CARD_TITLE_CLASS}`}>
                   Friends
                 </div>
-                <div className="mt-1.5 text-xs font-medium text-text-secondary">
+                <div className={`mt-1.5 text-xs font-medium ${secondaryHomeTextClass}`}>
                   Connect with gym members
                 </div>
               </div>
@@ -2313,12 +2370,17 @@ export function Home({
         </ScreenSection>
 
         <ScreenSection index={3}>
-          <RecoveryIndicator coachmarkTargetId="home_recovery_card" percentage={overallRecovery} onClick={() => setView('recovery')} />
+          <RecoveryIndicator
+            coachmarkTargetId="home_recovery_card"
+            percentage={overallRecovery}
+            onClick={() => setView('recovery')}
+            themeVariant={isGirlsTheme ? 'girls' : 'default'}
+          />
         </ScreenSection>
 
         <ScreenSection index={4}>
           <section className="space-y-3" aria-labelledby="home-quick-actions-title">
-            <h2 id="home-quick-actions-title" className="px-1 text-[17px] font-semibold text-text-primary">
+            <h2 id="home-quick-actions-title" className={`px-1 text-[17px] font-semibold ${primaryHomeTextClass}`}>
               {homeCopy.quickActions}
             </h2>
             <div className="grid grid-cols-2 gap-2">
@@ -2327,24 +2389,28 @@ export function Home({
                 Icon={Bot}
                 onClick={() => setIsComingSoonOpen(true)}
                 coachmarkTargetId="home_repy_ai_card"
+                isGirlsTheme={isGirlsTheme}
               />
               <HomeQuickActionButton
                 label={homeCopy.shop}
                 Icon={ShoppingBag}
                 onClick={() => setView('shop')}
                 coachmarkTargetId="home_shop_card"
+                isGirlsTheme={isGirlsTheme}
               />
               <HomeQuickActionButton
                 label={homeCopy.library}
                 Icon={BookOpen}
                 onClick={() => setView('exercises')}
                 coachmarkTargetId="home_learning_exercises_card"
+                isGirlsTheme={isGirlsTheme}
               />
               <HomeQuickActionButton
                 label={homeCopy.nutrition}
                 Icon={Apple}
                 onClick={() => setView('nutrition')}
                 coachmarkTargetId="home_nutrition_card"
+                isGirlsTheme={isGirlsTheme}
               />
             </div>
           </section>
@@ -2363,32 +2429,41 @@ export function Home({
       onFinish={handleCoachmarkFinish}
       onSkip={handleCoachmarkSkip}
       onTargetAction={activeCoachmarkStep?.id === 'my_plan_tab' ? handleCoachmarkTargetAction : null}
+      themeVariant={isGirlsTheme ? 'girls' : 'default'}
     />
     {isComingSoonOpen ? (
       <div
-        className="fixed inset-0 z-[150] flex items-center justify-center bg-black/75 px-4 backdrop-blur-sm"
+        className={isGirlsTheme
+          ? 'fixed inset-0 z-[150] flex items-center justify-center bg-[#4A4A4A]/35 px-4 backdrop-blur-sm'
+          : 'fixed inset-0 z-[150] flex items-center justify-center bg-black/75 px-4 backdrop-blur-sm'}
         role="dialog"
         aria-modal="true"
         aria-labelledby="home-coming-soon-title"
         onClick={() => setIsComingSoonOpen(false)}
       >
         <div
-          className="w-full max-w-sm rounded-[28px] border border-accent/25 bg-[#080d14] p-6 text-center shadow-[0_24px_80px_rgba(0,0,0,0.45)]"
+          className={isGirlsTheme
+            ? 'w-full max-w-sm rounded-[28px] border border-[#E2B4BD]/60 bg-[#FFF5F5] p-6 text-center shadow-[0_24px_80px_rgba(226,180,189,0.32)]'
+            : 'w-full max-w-sm rounded-[28px] border border-accent/25 bg-[#080d14] p-6 text-center shadow-[0_24px_80px_rgba(0,0,0,0.45)]'}
           onClick={(event) => event.stopPropagation()}
         >
-          <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-3xl border border-accent/30 bg-accent/10">
+          <div className={isGirlsTheme
+            ? 'mx-auto flex h-16 w-16 items-center justify-center rounded-3xl border border-[#E2B4BD]/60 bg-[#F9B2D7]/25'
+            : 'mx-auto flex h-16 w-16 items-center justify-center rounded-3xl border border-accent/30 bg-accent/10'}>
             <img src={emojiShop} alt="" aria-hidden="true" className="h-8 w-8 object-contain" />
           </div>
-          <h2 id="home-coming-soon-title" className="mt-5 text-2xl font-electrolize text-text-primary">
+          <h2 id="home-coming-soon-title" className={`mt-5 text-2xl font-electrolize ${primaryHomeTextClass}`}>
             {homeCopy.comingSoon}
           </h2>
-          <p className="mt-2 text-sm leading-6 text-text-secondary">
+          <p className={`mt-2 text-sm leading-6 ${secondaryHomeTextClass}`}>
             {homeCopy.shop}
           </p>
           <button
             type="button"
             onClick={() => setIsComingSoonOpen(false)}
-            className="mt-6 w-full rounded-xl bg-accent px-5 py-3.5 font-marker font-semibold tracking-[0.08em] text-black transition hover:bg-accent/90"
+            className={isGirlsTheme
+              ? 'mt-6 w-full rounded-xl bg-[#E2B4BD] px-5 py-3.5 font-marker font-semibold tracking-[0.08em] text-[#4A4A4A] transition hover:bg-[#F9B2D7]'
+              : 'mt-6 w-full rounded-xl bg-accent px-5 py-3.5 font-marker font-semibold tracking-[0.08em] text-black transition hover:bg-accent/90'}
           >
             {homeCopy.ok}
           </button>

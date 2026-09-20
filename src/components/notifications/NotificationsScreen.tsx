@@ -41,6 +41,44 @@ const POLL_INTERVAL_MS = 10000;
 
 const cx = (...values: Array<string | false | null | undefined>) => values.filter(Boolean).join(' ');
 
+const isGirlsStyleValue = (value: unknown) => {
+  const normalized = String(value || '').trim().toLowerCase();
+  return normalized === 'woman' || normalized === 'female' || normalized === 'f' || normalized === 'girls';
+};
+
+const readNotificationsStyleGender = () => {
+  try {
+    return String(localStorage.getItem('appStyleGender') || '').trim().toLowerCase();
+  } catch {
+    return '';
+  }
+};
+
+const readNotificationsStoredUser = () => {
+  try {
+    return JSON.parse(localStorage.getItem('appUser') || localStorage.getItem('user') || '{}');
+  } catch {
+    return {};
+  }
+};
+
+const readNotificationsProfile = (user: any) => {
+  const rawProfile = user?.onboarding_profile || user?.onboardingProfile;
+  if (!rawProfile) return {};
+  if (typeof rawProfile === 'object') return rawProfile;
+  try {
+    return JSON.parse(String(rawProfile));
+  } catch {
+    return {};
+  }
+};
+
+const shouldUseGirlsNotificationsTheme = (user: any, styleGender: string) => {
+  if (styleGender) return isGirlsStyleValue(styleGender);
+  const profile = readNotificationsProfile(user);
+  return isGirlsStyleValue(user?.gender) || isGirlsStyleValue(profile?.gender) || profile?.onboardingTheme === 'girls';
+};
+
 const toFriendshipTerminalStatus = (value: unknown): FriendshipTerminalStatus | null => {
   const status = String(value || '').trim().toLowerCase();
   return status === 'accepted' || status === 'declined' ? status : null;
@@ -81,19 +119,23 @@ function NotificationEmptyState({
   title,
   body,
   isRtl,
+  themeVariant = 'default',
 }: {
   title: string;
   body: string;
   isRtl: boolean;
+  themeVariant?: 'default' | 'girls';
 }) {
+  const isGirlsTheme = themeVariant === 'girls';
   return (
-    <Card className="rounded-[1.8rem] border-white/10 bg-card/70 p-0">
-      <div className={cx('flex flex-col items-center px-6 py-10 text-center', isRtl && 'text-right')}>
-        <div className="flex h-16 w-16 items-center justify-center rounded-[1.4rem] border border-white/10 bg-white/5 text-text-secondary">
+    <Card className={isGirlsTheme ? 'relative overflow-hidden rounded-[1.8rem] border-[#E2B4BD]/45 bg-[linear-gradient(145deg,rgba(255,255,255,0.88),rgba(255,245,245,0.78)_52%,rgba(207,236,243,0.24))] p-0 shadow-[0_18px_42px_rgba(226,180,189,0.18)] ring-1 ring-white/45' : 'rounded-[1.8rem] border-white/10 bg-card/70 p-0'}>
+      {isGirlsTheme ? <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_82%_8%,rgba(249,178,215,0.24),transparent_44%)]" /> : null}
+      <div className={cx('relative flex flex-col items-center px-6 py-10 text-center', isRtl && 'text-right')}>
+        <div className={isGirlsTheme ? 'flex h-16 w-16 items-center justify-center rounded-[1.4rem] border border-[#E2B4BD]/50 bg-[#FFF5F5]/85 text-[#A87884] shadow-[0_12px_28px_rgba(226,180,189,0.18)]' : 'flex h-16 w-16 items-center justify-center rounded-[1.4rem] border border-white/10 bg-white/5 text-text-secondary'}>
           <Bell size={24} />
         </div>
-        <h2 className="mt-4 text-lg font-semibold text-white">{title}</h2>
-        <p className="mt-2 max-w-xs text-sm leading-6 text-text-secondary">{body}</p>
+        <h2 className={isGirlsTheme ? 'mt-4 text-lg font-semibold text-[#4A4A4A]' : 'mt-4 text-lg font-semibold text-white'}>{title}</h2>
+        <p className={isGirlsTheme ? 'mt-2 max-w-xs text-sm leading-6 text-[#795E67]' : 'mt-2 max-w-xs text-sm leading-6 text-text-secondary'}>{body}</p>
       </div>
     </Card>
   );
@@ -108,6 +150,7 @@ function ClearNotificationsDialog({
   busyLabel,
   busy,
   isRtl,
+  themeVariant = 'default',
   onCancel,
   onConfirm,
 }: {
@@ -119,10 +162,12 @@ function ClearNotificationsDialog({
   busyLabel: string;
   busy: boolean;
   isRtl: boolean;
+  themeVariant?: 'default' | 'girls';
   onCancel: () => void;
   onConfirm: () => void;
 }) {
   if (!open) return null;
+  const isGirlsTheme = themeVariant === 'girls';
 
   return (
     <AnimatePresence>
@@ -130,7 +175,7 @@ function ClearNotificationsDialog({
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
-        className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4 backdrop-blur-sm"
+        className={isGirlsTheme ? 'fixed inset-0 z-50 flex items-center justify-center bg-[#4A4A4A]/35 p-4 backdrop-blur-sm' : 'fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4 backdrop-blur-sm'}
         onClick={() => {
           if (!busy) onCancel();
         }}
@@ -141,18 +186,18 @@ function ClearNotificationsDialog({
           exit={{ opacity: 0, y: 10, scale: 0.98 }}
           transition={{ duration: 0.2, ease: 'easeOut' }}
           dir={isRtl ? 'rtl' : 'ltr'}
-          className="w-full max-w-sm rounded-[1.8rem] border border-white/10 bg-card/95 p-5 shadow-[0_30px_80px_rgba(0,0,0,0.5)]"
+          className={isGirlsTheme ? 'w-full max-w-sm rounded-[1.8rem] border border-[#E2B4BD]/55 bg-[#FFF5F5]/95 p-5 text-[#4A4A4A] shadow-[0_24px_72px_rgba(226,180,189,0.24)]' : 'w-full max-w-sm rounded-[1.8rem] border border-white/10 bg-card/95 p-5 shadow-[0_30px_80px_rgba(0,0,0,0.5)]'}
           onClick={(event) => event.stopPropagation()}
         >
-          <h2 className={cx('text-lg font-semibold text-white', isRtl ? 'text-right' : 'text-left')}>{title}</h2>
-          <p className={cx('mt-2 text-sm leading-6 text-text-secondary', isRtl ? 'text-right' : 'text-left')}>{message}</p>
+          <h2 className={cx('text-lg font-semibold', isGirlsTheme ? 'text-[#4A4A4A]' : 'text-white', isRtl ? 'text-right' : 'text-left')}>{title}</h2>
+          <p className={cx('mt-2 text-sm leading-6', isGirlsTheme ? 'text-[#795E67]' : 'text-text-secondary', isRtl ? 'text-right' : 'text-left')}>{message}</p>
 
           <div className="mt-5 grid grid-cols-2 gap-2">
             <button
               type="button"
               disabled={busy}
               onClick={onCancel}
-              className="min-h-11 rounded-2xl border border-white/10 bg-white/5 px-4 text-sm font-semibold text-text-primary transition-colors hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50"
+              className={isGirlsTheme ? 'min-h-11 rounded-2xl border border-[#E2B4BD]/45 bg-white/65 px-4 text-sm font-semibold text-[#795E67] transition-colors hover:bg-white/80 disabled:cursor-not-allowed disabled:opacity-50' : 'min-h-11 rounded-2xl border border-white/10 bg-white/5 px-4 text-sm font-semibold text-text-primary transition-colors hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50'}
             >
               {cancelLabel}
             </button>
@@ -184,9 +229,26 @@ export function NotificationsScreen({ onBack, onOpenAcceptedChallenge }: Notific
   const [actioningFriendshipId, setActioningFriendshipId] = useState<number | null>(null);
   const [challengeIntroTitle, setChallengeIntroTitle] = useState('');
   const [acceptedChallenge, setAcceptedChallenge] = useState<AcceptedChallengePayload | null>(null);
+  const [themeRefreshKey, setThemeRefreshKey] = useState(0);
   const pendingFriendshipIdsRef = useRef<Set<number>>(new Set());
 
   const userId = useMemo(() => readStoredUserId(), []);
+  const isGirlsTheme = useMemo(
+    () => shouldUseGirlsNotificationsTheme(readNotificationsStoredUser(), readNotificationsStyleGender()),
+    [themeRefreshKey],
+  );
+  const pageClassName = isGirlsTheme
+    ? 'flex min-h-screen flex-1 flex-col pb-24 bg-[radial-gradient(circle_at_top_left,rgba(249,178,215,0.22),transparent_34%),radial-gradient(circle_at_85%_8%,rgba(207,236,243,0.34),transparent_32%),linear-gradient(180deg,#FFF5F5_0%,#F7D6D0_52%,#FFF5F5_100%)] text-[#4A4A4A] [&_h1]:text-[#4A4A4A]'
+    : 'flex min-h-screen flex-1 flex-col bg-background pb-24';
+  const markAllButtonClassName = isGirlsTheme
+    ? 'min-h-10 rounded-xl border border-[#E2B4BD]/45 bg-white/60 px-3 text-[11px] font-semibold text-[#795E67] transition-colors hover:bg-white/80 disabled:cursor-not-allowed disabled:opacity-40 sm:text-xs'
+    : 'min-h-10 rounded-xl border border-white/10 bg-white/5 px-3 text-[11px] font-semibold text-text-primary transition-colors hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-40 sm:text-xs';
+  const clearAllButtonClassName = isGirlsTheme
+    ? 'min-h-10 rounded-xl border border-red-300/45 bg-red-50/80 px-3 text-[11px] font-semibold text-red-600 transition-colors hover:border-red-300/70 hover:bg-red-100/85 disabled:cursor-not-allowed disabled:text-red-400 disabled:opacity-70 sm:text-xs'
+    : 'min-h-10 rounded-xl border border-rose-500/20 bg-rose-500/10 px-3 text-[11px] font-semibold text-rose-200 transition-colors hover:bg-rose-500/15 disabled:cursor-not-allowed disabled:opacity-40 sm:text-xs';
+  const loadingCardClassName = isGirlsTheme
+    ? 'rounded-[1.8rem] border-[#E2B4BD]/45 bg-white/[0.70] text-[#4A4A4A] shadow-[0_16px_38px_rgba(226,180,189,0.16)]'
+    : 'rounded-[1.8rem] border-white/10 bg-card/70';
 
   const updateNotification = useCallback(
     (notificationId: number, updater: (notification: AppNotification) => AppNotification) => {
@@ -229,6 +291,18 @@ export function NotificationsScreen({ onBack, onOpenAcceptedChallenge }: Notific
     window.addEventListener('repset:notification:new', refresh);
     return () => window.removeEventListener('repset:notification:new', refresh);
   }, [fetchNotifications]);
+
+  useEffect(() => {
+    const refreshTheme = () => setThemeRefreshKey((current) => current + 1);
+    window.addEventListener('repset:stored-user-changed', refreshTheme);
+    window.addEventListener('repset:app-style-gender-changed', refreshTheme);
+    window.addEventListener('storage', refreshTheme);
+    return () => {
+      window.removeEventListener('repset:stored-user-changed', refreshTheme);
+      window.removeEventListener('repset:app-style-gender-changed', refreshTheme);
+      window.removeEventListener('storage', refreshTheme);
+    };
+  }, []);
 
   useEffect(() => {
     if (!challengeIntroTitle) return undefined;
@@ -585,7 +659,7 @@ export function NotificationsScreen({ onBack, onOpenAcceptedChallenge }: Notific
   ]);
 
   return (
-    <div dir={isArabic ? 'rtl' : 'ltr'} className="flex min-h-screen flex-1 flex-col bg-background pb-24">
+    <div dir={isArabic ? 'rtl' : 'ltr'} className={pageClassName}>
       <div className="px-4 pt-2 sm:px-6">
         <Header
           title={copy.title}
@@ -596,7 +670,7 @@ export function NotificationsScreen({ onBack, onOpenAcceptedChallenge }: Notific
                 type="button"
                 onClick={() => void handleMarkAllRead()}
                 disabled={!items.some((item) => item.unread)}
-                className="min-h-10 rounded-xl border border-white/10 bg-white/5 px-3 text-[11px] font-semibold text-text-primary transition-colors hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-40 sm:text-xs"
+                className={markAllButtonClassName}
               >
                 {language === 'ar' ? 'قراءة الكل' : language === 'fr' ? 'Tout lire' : 'Mark all read'}
               </button>
@@ -604,7 +678,7 @@ export function NotificationsScreen({ onBack, onOpenAcceptedChallenge }: Notific
                 type="button"
                 onClick={() => setShowClearConfirm(true)}
                 disabled={clearing || items.length === 0}
-                className="min-h-10 rounded-xl border border-rose-500/20 bg-rose-500/10 px-3 text-[11px] font-semibold text-rose-200 transition-colors hover:bg-rose-500/15 disabled:cursor-not-allowed disabled:opacity-40 sm:text-xs"
+                className={clearAllButtonClassName}
               >
                 {clearing ? copy.clearing : copy.clearAll}
               </button>
@@ -615,14 +689,14 @@ export function NotificationsScreen({ onBack, onOpenAcceptedChallenge }: Notific
 
       <div className="space-y-4 px-4 sm:px-6">
         {loading ? (
-          <Card className="rounded-[1.8rem] border-white/10 bg-card/70">
+          <Card className={loadingCardClassName}>
             <div className={cx('flex items-center gap-3', isArabic && 'flex-row-reverse')}>
-              <div className="flex h-11 w-11 items-center justify-center rounded-2xl border border-white/10 bg-white/5">
-                <LoaderCircle size={20} className="animate-spin text-text-secondary" />
+              <div className={isGirlsTheme ? 'flex h-11 w-11 items-center justify-center rounded-2xl border border-[#E2B4BD]/45 bg-white/55' : 'flex h-11 w-11 items-center justify-center rounded-2xl border border-white/10 bg-white/5'}>
+                <LoaderCircle size={20} className={isGirlsTheme ? 'animate-spin text-[#A87884]' : 'animate-spin text-text-secondary'} />
               </div>
               <div className={cx('space-y-1', isArabic ? 'text-right' : 'text-left')}>
-                <div className="text-sm font-semibold text-white">{copy.loadingTitle}</div>
-                <div className="text-sm text-text-secondary">{copy.loadingBody}</div>
+                <div className={isGirlsTheme ? 'text-sm font-semibold text-[#4A4A4A]' : 'text-sm font-semibold text-white'}>{copy.loadingTitle}</div>
+                <div className={isGirlsTheme ? 'text-sm text-[#795E67]' : 'text-sm text-text-secondary'}>{copy.loadingBody}</div>
               </div>
             </div>
           </Card>
@@ -635,7 +709,7 @@ export function NotificationsScreen({ onBack, onOpenAcceptedChallenge }: Notific
         ) : null}
 
         {!loading && !error && items.length === 0 ? (
-          <NotificationEmptyState title={copy.emptyTitle} body={copy.emptyBody} isRtl={isArabic} />
+          <NotificationEmptyState title={copy.emptyTitle} body={copy.emptyBody} isRtl={isArabic} themeVariant={isGirlsTheme ? 'girls' : 'default'} />
         ) : null}
 
         {!loading && !error && items.length > 0 ? (
@@ -646,6 +720,7 @@ export function NotificationsScreen({ onBack, onOpenAcceptedChallenge }: Notific
                   key={notification.id}
                   notification={notification}
                   isRtl={isArabic}
+                  themeVariant={isGirlsTheme ? 'girls' : 'default'}
                   onOpen={handleOpenNotification}
                   onAction={handleNotificationAction}
                   onDismiss={handleDismissNotification}
@@ -665,6 +740,7 @@ export function NotificationsScreen({ onBack, onOpenAcceptedChallenge }: Notific
         busyLabel={copy.removing}
         busy={clearing}
         isRtl={isArabic}
+        themeVariant={isGirlsTheme ? 'girls' : 'default'}
         onCancel={() => setShowClearConfirm(false)}
         onConfirm={() => void handleClearAll()}
       />

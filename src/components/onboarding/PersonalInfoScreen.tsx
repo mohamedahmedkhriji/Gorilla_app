@@ -349,6 +349,12 @@ function RulerCanvas({
     context.textAlign = 'center';
     context.font = '12px sans-serif';
 
+    const isGirlsTheme = Boolean(container.closest('.girls-onboarding-theme, .onboarding-layout--girls'));
+    const tickColor = isGirlsTheme ? 'rgba(121,94,103,0.38)' : 'rgba(255,255,255,0.25)';
+    const majorTickColor = isGirlsTheme ? 'rgba(74,74,74,0.5)' : 'rgba(255,255,255,0.34)';
+    const labelColor = isGirlsTheme ? 'rgba(74,74,74,0.62)' : 'rgba(255,255,255,0.5)';
+    const activeTickColor = isGirlsTheme ? 'rgba(249,178,215,0.98)' : selectedColor;
+
     const centerX = width / 2;
     const tickStart = labelPosition === 'above' ? 48 : 18;
     const labelY = labelPosition === 'above' ? 23 : 102;
@@ -369,7 +375,7 @@ function RulerCanvas({
       const y1 = tickStart;
       const y2 = tickStart + (tickDirection * tickHeight);
 
-      context.strokeStyle = selected ? selectedColor : 'rgba(255,255,255,0.25)';
+      context.strokeStyle = selected ? activeTickColor : major || medium ? majorTickColor : tickColor;
       context.lineWidth = selected ? 2 : major ? 1.5 : 1;
       context.beginPath();
       context.moveTo(x, y1);
@@ -377,7 +383,7 @@ function RulerCanvas({
       context.stroke();
 
       if (major) {
-        context.fillStyle = 'rgba(255,255,255,0.5)';
+        context.fillStyle = labelColor;
         context.fillText(decimals > 0 ? tickValue.toFixed(decimals) : String(Math.round(tickValue)), x, labelY);
       }
     }
@@ -460,6 +466,7 @@ export function PersonalInfoScreen({ onNext, onDataChange, onboardingData }: Per
     ? values.weightKg
     : values.weightKg * 2.2046226218;
   const canContinue = step !== 1 || Boolean(values.gender);
+  const girlsThemeActive = values.gender === 'woman' && step > 1;
 
   const updateValues = (patch: Partial<CalibrationState>) => {
     setValues((prev) => ({ ...prev, ...patch }));
@@ -473,6 +480,10 @@ export function PersonalInfoScreen({ onNext, onDataChange, onboardingData }: Per
 
   const handleGenderSelect = (gender: Exclude<Gender, ''>) => {
     updateValues({ gender });
+    onDataChange?.({
+      gender,
+      onboardingTheme: gender === 'woman' ? 'girls' : 'default',
+    });
 
     if (genderAdvanceTimeoutRef.current !== null) {
       window.clearTimeout(genderAdvanceTimeoutRef.current);
@@ -497,6 +508,7 @@ export function PersonalInfoScreen({ onNext, onDataChange, onboardingData }: Per
 
     const payload = {
       gender: values.gender,
+      onboardingTheme: values.gender === 'woman' ? 'girls' : 'default',
       age: values.age,
       heightCm: Number(values.heightCm.toFixed(1)),
       weightKg: Number(values.weightKg.toFixed(1)),
@@ -508,7 +520,7 @@ export function PersonalInfoScreen({ onNext, onDataChange, onboardingData }: Per
   };
 
   return (
-    <div className="flex-1 flex flex-col space-y-6">
+    <div className={`flex-1 flex flex-col space-y-6 ${girlsThemeActive ? 'girls-onboarding-theme' : ''}`}>
       <ProgressDots step={step} />
 
       <AnimatePresence mode="wait">

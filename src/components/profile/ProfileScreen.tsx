@@ -22,6 +22,19 @@ interface ProfileScreenProps {
   onLogout: () => void;
 }
 
+const readStoredStyleGender = () => {
+  try {
+    return String(localStorage.getItem('appStyleGender') || '').trim().toLowerCase();
+  } catch {
+    return '';
+  }
+};
+
+const isGirlsStyleValue = (value: unknown) => {
+  const normalized = String(value || '').trim().toLowerCase();
+  return normalized === 'woman' || normalized === 'female' || normalized === 'f' || normalized === 'girls' || normalized === 'femme';
+};
+
 interface CoachOption {
   id: number;
   name: string;
@@ -419,6 +432,8 @@ export function ProfileScreen({ onNavigate, onLogout }: ProfileScreenProps) {
   const [coachesLoading, setCoachesLoading] = useState(false);
   const [coachRequestingId, setCoachRequestingId] = useState<number | null>(null);
   const [language, setLanguage] = useState<AppLanguage>('en');
+  const [styleGender, setStyleGender] = useState(() => readStoredStyleGender());
+  const isGirlsTheme = isGirlsStyleValue(styleGender);
   const avatarInputRef = useRef<HTMLInputElement | null>(null);
   const createdAt = user?.created_at || user?.createdAt;
   const copy = { ...PROFILE_I18N.en, ...(PROFILE_I18N[language as keyof typeof PROFILE_I18N] || {}) };
@@ -445,6 +460,18 @@ export function ProfileScreen({ onNavigate, onLogout }: ProfileScreenProps) {
     return () => {
       window.removeEventListener('app-language-changed', handleLanguageChanged);
       window.removeEventListener('storage', handleLanguageChanged);
+    };
+  }, []);
+
+  useEffect(() => {
+    const handleThemeChanged = () => setStyleGender(readStoredStyleGender());
+    window.addEventListener('repset:app-style-gender-changed', handleThemeChanged);
+    window.addEventListener('repset:stored-user-changed', handleThemeChanged);
+    window.addEventListener('storage', handleThemeChanged);
+    return () => {
+      window.removeEventListener('repset:app-style-gender-changed', handleThemeChanged);
+      window.removeEventListener('repset:stored-user-changed', handleThemeChanged);
+      window.removeEventListener('storage', handleThemeChanged);
     };
   }, []);
   
@@ -737,32 +764,32 @@ export function ProfileScreen({ onNavigate, onLogout }: ProfileScreenProps) {
       data-coachmark-target={coachmarkTargetId}
       type="button"
       onClick={onClick}
-      className="group flex min-h-[58px] w-full items-center gap-3 border-b border-white/10 px-3 py-3 text-left last:border-b-0 transition-colors hover:bg-white/[0.035] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-accent"
+      className={`group flex min-h-[58px] w-full items-center gap-3 border-b px-3 py-3 text-left last:border-b-0 transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] ${isGirlsTheme ? 'border-[#E2B4BD]/30 hover:bg-white/70 focus-visible:outline-[#F9B2D7]' : 'border-white/10 hover:bg-white/[0.035] focus-visible:outline-accent'}`}
     >
-      <span className="flex h-8 w-8 shrink-0 items-center justify-center text-accent">
+      <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border ${isGirlsTheme ? 'border-[#F9B2D7]/45 bg-[#F9B2D7]/18 text-[#A87884] shadow-[0_8px_18px_rgba(249,178,215,0.14)]' : 'border-transparent text-accent'}`}>
         {icon}
       </span>
       <span className="min-w-0 flex-1">
-        <span className="block text-sm font-semibold text-text-primary">{title}</span>
-        {subtitle ? <span className="mt-0.5 block text-xs leading-4 text-text-secondary">{subtitle}</span> : null}
+        <span className={`block text-sm font-semibold ${isGirlsTheme ? 'text-[#4A4A4A]' : 'text-text-primary'}`}>{title}</span>
+        {subtitle ? <span className={`mt-0.5 block text-xs leading-4 ${isGirlsTheme ? 'text-[#795E67]' : 'text-text-secondary'}`}>{subtitle}</span> : null}
       </span>
-      <ChevronRight size={18} className="shrink-0 text-text-secondary transition-transform group-hover:translate-x-0.5 group-hover:text-accent" aria-hidden="true" />
+      <ChevronRight size={18} className={`shrink-0 transition-transform group-hover:translate-x-0.5 ${isGirlsTheme ? 'text-[#A87884] group-hover:text-[#4A4A4A]' : 'text-text-secondary group-hover:text-accent'}`} aria-hidden="true" />
     </button>
   );
   
   return (
     <div className="space-y-4 pb-24">
-      <h1 data-coachmark-target="profile_page_title" className="px-1 text-[22px] font-bold tracking-[-0.03em] text-white">{copy.profileTitle}</h1>
+      <h1 data-coachmark-target="profile_page_title" className={`px-1 text-[22px] font-bold tracking-[-0.03em] ${isGirlsTheme ? 'text-[#4A4A4A]' : 'text-white'}`}>{copy.profileTitle}</h1>
 
       <section
         data-coachmark-target="profile_summary_card"
-        className="overflow-hidden rounded-2xl border border-white/10 bg-[#0d1828] shadow-[0_18px_40px_-28px_rgba(0,0,0,0.9)]"
+        className={`overflow-hidden rounded-2xl border ${isGirlsTheme ? 'border-[#CFECF3]/70 bg-[linear-gradient(135deg,rgba(207,236,243,0.44),rgba(255,255,255,0.82)_48%,rgba(255,245,245,0.78))] shadow-[0_18px_44px_rgba(207,236,243,0.18)] ring-1 ring-white/45' : 'border-white/10 bg-[#0d1828] shadow-[0_18px_40px_-28px_rgba(0,0,0,0.9)]'}`}
       >
         <div className="flex items-center gap-4 px-4 py-4">
           <div className="relative shrink-0">
             <div
               data-coachmark-target="profile_avatar_button"
-              className="flex h-[74px] w-[74px] items-center justify-center overflow-hidden rounded-full border border-white/15 bg-[#121d2d] text-text-tertiary ring-1 ring-inset ring-white/10"
+              className={`flex h-[74px] w-[74px] items-center justify-center overflow-hidden rounded-full border ring-1 ring-inset ${isGirlsTheme ? 'border-[#CFECF3]/80 bg-white/75 text-[#A87884] shadow-[0_12px_28px_rgba(207,236,243,0.22)] ring-white/55' : 'border-white/15 bg-[#121d2d] text-text-tertiary ring-white/10'}`}
             >
               <button
                 type="button"
@@ -779,7 +806,7 @@ export function ProfileScreen({ onNavigate, onLogout }: ProfileScreenProps) {
             </div>
             <label
               data-coachmark-target="profile_avatar_upload_button"
-              className="absolute bottom-0 right-0 flex h-7 w-7 cursor-pointer items-center justify-center rounded-full border border-black/20 bg-accent text-black shadow-[0_10px_20px_-12px_rgba(205,255,88,0.7)] transition-all duration-200 hover:scale-105 active:scale-95"
+              className={`absolute bottom-0 right-0 flex h-7 w-7 cursor-pointer items-center justify-center rounded-full border transition-all duration-200 hover:scale-105 active:scale-95 ${isGirlsTheme ? 'border-white/70 bg-[linear-gradient(135deg,#F9B2D7,#E2B4BD)] text-[#4A4A4A] shadow-[0_10px_20px_-10px_rgba(249,178,215,0.8)]' : 'border-black/20 bg-accent text-black shadow-[0_10px_20px_-12px_rgba(205,255,88,0.7)]'}`}
               aria-label={copy.editProfile}
             >
               <Camera size={13} aria-hidden="true" />
@@ -788,60 +815,60 @@ export function ProfileScreen({ onNavigate, onLogout }: ProfileScreenProps) {
           </div>
 
           <div className="min-w-0 flex-1">
-            <h2 className="truncate text-[21px] font-bold tracking-[-0.03em] text-white">{userName}</h2>
-            <p className="mt-1 text-xs font-medium text-text-secondary">{memberSinceText}</p>
+            <h2 className={`truncate text-[21px] font-bold tracking-[-0.03em] ${isGirlsTheme ? 'text-[#4A4A4A]' : 'text-white'}`}>{userName}</h2>
+            <p className={`mt-1 text-xs font-medium ${isGirlsTheme ? 'text-[#795E67]' : 'text-text-secondary'}`}>{memberSinceText}</p>
             <button
               data-coachmark-target="profile_edit_button"
               type="button"
               onClick={() => onNavigate('settings')}
-              className="mt-3 min-h-8 rounded-md border border-accent bg-accent/10 px-4 text-[11px] font-black uppercase tracking-[0.08em] text-accent transition-colors hover:bg-accent hover:text-black focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+              className={`mt-3 min-h-8 rounded-md border px-4 text-[11px] font-black uppercase tracking-[0.08em] transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 ${isGirlsTheme ? 'border-[#CFECF3]/80 bg-[#CFECF3]/45 text-[#4A4A4A] shadow-[0_8px_18px_rgba(207,236,243,0.16)] hover:border-[#F9B2D7]/70 hover:bg-[#F9B2D7]/25 focus-visible:outline-[#F9B2D7]' : 'border-accent bg-accent/10 text-accent hover:bg-accent hover:text-black focus-visible:outline-accent'}`}
             >
               {copy.editProfile}
             </button>
           </div>
         </div>
 
-        <div data-coachmark-target="profile_stats_row" className="grid grid-cols-3 border-t border-white/10">
+        <div data-coachmark-target="profile_stats_row" className={`grid grid-cols-3 border-t ${isGirlsTheme ? 'border-[#CFECF3]/65 bg-white/35' : 'border-white/10'}`}>
           {[
             { icon: <Dumbbell size={16} aria-hidden="true" />, value: totalWorkoutCount, label: copy.workouts },
             { icon: <Flame size={16} aria-hidden="true" />, value: dayStreak, label: copy.dayStreak },
             { icon: <Users size={16} aria-hidden="true" />, value: friendsCount, label: copy.friends },
           ].map((stat, index) => (
-            <div key={stat.label} className={`px-3 py-3 text-center ${index > 0 ? 'border-l border-white/10' : ''}`}>
-              <div className="mx-auto flex h-5 items-center justify-center text-accent">{stat.icon}</div>
-              <div className="mt-1 text-xl font-bold leading-none text-white">{stat.value}</div>
-              <div className="mt-1 text-[11px] leading-none text-text-secondary">{stat.label}</div>
+            <div key={stat.label} className={`px-3 py-3 text-center ${index > 0 ? (isGirlsTheme ? 'border-l border-[#CFECF3]/65' : 'border-l border-white/10') : ''}`}>
+              <div className={`mx-auto flex h-5 items-center justify-center ${isGirlsTheme ? 'text-[#A87884]' : 'text-accent'}`}>{stat.icon}</div>
+              <div className={`mt-1 text-xl font-bold leading-none ${isGirlsTheme ? 'text-[#4A4A4A]' : 'text-white'}`}>{stat.value}</div>
+              <div className={`mt-1 text-[11px] leading-none ${isGirlsTheme ? 'text-[#795E67]' : 'text-text-secondary'}`}>{stat.label}</div>
             </div>
           ))}
         </div>
       </section>
 
       <section className="space-y-2" aria-labelledby="profile-weekly-goal-title">
-        <h2 id="profile-weekly-goal-title" className="px-1 text-base font-bold text-white">{copy.weeklyGoal}</h2>
+        <h2 id="profile-weekly-goal-title" className={`px-1 text-base font-bold ${isGirlsTheme ? 'text-[#4A4A4A]' : 'text-white'}`}>{copy.weeklyGoal}</h2>
         <button
           data-coachmark-target="profile_agenda_card"
           type="button"
           onClick={() => setIsAgendaSheetOpen(true)}
-          className="flex min-h-[66px] w-full items-center gap-3 rounded-xl border border-white/10 bg-[#0d1828] px-3 text-left transition-colors hover:border-accent/25 hover:bg-white/[0.035] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+          className={`flex min-h-[66px] w-full items-center gap-3 rounded-xl border px-3 text-left transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 ${isGirlsTheme ? 'border-[#F9B2D7]/45 bg-[linear-gradient(135deg,rgba(249,178,215,0.24),rgba(255,255,255,0.80)_48%,rgba(207,236,243,0.30))] shadow-[0_14px_32px_rgba(249,178,215,0.16)] ring-1 ring-white/45 hover:border-[#F9B2D7]/75 hover:bg-white/90 focus-visible:outline-[#F9B2D7]' : 'border-white/10 bg-[#0d1828] hover:border-accent/25 hover:bg-white/[0.035] focus-visible:outline-accent'}`}
         >
-          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-white/10 bg-white/[0.04] text-accent">
+          <span className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full border ${isGirlsTheme ? 'border-[#CFECF3]/80 bg-[#CFECF3]/48 text-[#A87884] shadow-[0_10px_22px_rgba(207,236,243,0.18)]' : 'border-white/10 bg-white/[0.04] text-accent'}`}>
             <CalendarDays size={20} aria-hidden="true" />
           </span>
           <span className="min-w-0 flex-1">
-            <span className="block text-sm font-bold text-white">{weeklyGoalDone} of {weeklyGoalTarget} {copy.workouts.toLowerCase()}</span>
-            <span className="mt-2 block h-1.5 overflow-hidden rounded-full bg-white/10">
-              <span className="block h-full rounded-full bg-accent" style={{ width: `${weeklyGoalPercent}%` }} />
+            <span className={`block text-sm font-bold ${isGirlsTheme ? 'text-[#4A4A4A]' : 'text-white'}`}>{weeklyGoalDone} of {weeklyGoalTarget} {copy.workouts.toLowerCase()}</span>
+            <span className={`mt-2 block h-1.5 overflow-hidden rounded-full ${isGirlsTheme ? 'bg-[#E2B4BD]/30' : 'bg-white/10'}`}>
+              <span className={`block h-full rounded-full ${isGirlsTheme ? 'bg-[linear-gradient(90deg,#F9B2D7,#CFECF3)]' : 'bg-accent'}`} style={{ width: `${weeklyGoalPercent}%` }} />
             </span>
-            <span className="mt-1 block text-[11px] text-text-secondary">{copy.completeFirstWorkoutThisWeek}</span>
+            <span className={`mt-1 block text-[11px] ${isGirlsTheme ? 'text-[#795E67]' : 'text-text-secondary'}`}>{copy.completeFirstWorkoutThisWeek}</span>
           </span>
-          <span className="text-[11px] font-bold text-accent">{weeklyGoalPercent}%</span>
-          <ChevronRight size={18} className="shrink-0 text-text-secondary" aria-hidden="true" />
+          <span className={`text-[11px] font-bold ${isGirlsTheme ? 'text-[#A87884]' : 'text-accent'}`}>{weeklyGoalPercent}%</span>
+          <ChevronRight size={18} className={`shrink-0 ${isGirlsTheme ? 'text-[#A87884]' : 'text-text-secondary'}`} aria-hidden="true" />
         </button>
       </section>
 
       <section className="space-y-2" aria-labelledby="profile-training-title">
-        <h2 id="profile-training-title" className="px-1 text-base font-bold text-white">{copy.trainingCommunity}</h2>
-        <div className="overflow-hidden rounded-xl border border-white/10 bg-[#0d1828]">
+        <h2 id="profile-training-title" className={`px-1 text-base font-bold ${isGirlsTheme ? 'text-[#4A4A4A]' : 'text-white'}`}>{copy.trainingCommunity}</h2>
+        <div className={`overflow-hidden rounded-xl border ${isGirlsTheme ? 'border-[#CFECF3]/70 bg-[linear-gradient(135deg,rgba(207,236,243,0.34),rgba(255,255,255,0.82)_46%,rgba(255,245,245,0.70))] shadow-[0_14px_34px_rgba(207,236,243,0.18)] ring-1 ring-white/45' : 'border-white/10 bg-[#0d1828]'}`}>
           {renderActionRow({
             icon: <ClipboardList size={20} aria-hidden="true" />,
             title: copy.myTrainingPlan,
@@ -870,48 +897,48 @@ export function ProfileScreen({ onNavigate, onLogout }: ProfileScreenProps) {
         data-coachmark-target="profile_logout_button"
         type="button"
         onClick={() => setIsLogoutOpen(true)}
-        className="flex min-h-12 w-full items-center justify-center rounded-lg border border-red-500/70 bg-transparent px-4 text-[12px] font-black uppercase tracking-[0.16em] text-red-400 transition-colors hover:bg-red-500/10 active:scale-[0.99] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-400"
+        className={`flex min-h-12 w-full items-center justify-center rounded-lg border bg-transparent px-4 text-[12px] font-black uppercase tracking-[0.16em] transition-colors active:scale-[0.99] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 ${isGirlsTheme ? 'border-red-400/60 bg-red-500/8 text-red-500 hover:border-red-400/80 hover:bg-red-500/12 focus-visible:outline-red-400' : 'border-red-500/70 text-red-400 hover:bg-red-500/10 focus-visible:outline-red-400'}`}
       >
         {copy.logOut}
       </button>
 
       {isAgendaSheetOpen && typeof document !== 'undefined' && createPortal((
         <div
-          className="fixed inset-0 z-[160] flex items-end justify-center bg-black/60 px-4 pb-4 pt-16 backdrop-blur-md"
+          className={`fixed inset-0 z-[160] flex items-end justify-center px-4 pb-4 pt-16 backdrop-blur-md ${isGirlsTheme ? 'bg-[#4A4A4A]/35' : 'bg-black/60'}`}
           onClick={() => setIsAgendaSheetOpen(false)}
         >
           <div
-            className={`${profilePanelClassName} w-full max-w-md rounded-[28px] p-4 shadow-[0_24px_80px_rgba(0,0,0,0.5)]`}
+            className={`${profilePanelClassName} w-full max-w-md rounded-[28px] p-4 ${isGirlsTheme ? '!border-[#E2B4BD]/50 !bg-[linear-gradient(145deg,rgba(255,255,255,0.90),rgba(255,245,245,0.78)_54%,rgba(207,236,243,0.24))] !shadow-[0_24px_60px_rgba(226,180,189,0.24)] ring-1 ring-white/45' : 'shadow-[0_24px_80px_rgba(0,0,0,0.5)]'}`}
             onClick={(event) => event.stopPropagation()}
           >
-            <div className="mx-auto mb-4 h-1 w-12 rounded-full bg-white/18" />
+            <div className={`mx-auto mb-4 h-1 w-12 rounded-full ${isGirlsTheme ? 'bg-[#E2B4BD]/65' : 'bg-white/18'}`} />
             <div className="flex items-center justify-between gap-3">
               <button
                 type="button"
                 onClick={() => changeAgendaMonth(-1)}
                 aria-label={copy.previousMonth}
-                className="flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-transparent text-text-secondary transition-all duration-200 hover:bg-white/[0.06] active:scale-95"
+                className={`flex h-10 w-10 items-center justify-center rounded-full border transition-all duration-200 active:scale-95 ${isGirlsTheme ? 'border-[#E2B4BD]/45 bg-white/60 text-[#A87884] hover:border-[#F9B2D7]/70 hover:bg-white/85 hover:text-[#4A4A4A]' : 'border-white/10 bg-transparent text-text-secondary hover:bg-white/[0.06]'}`}
               >
                 <ChevronLeft size={20} />
               </button>
-              <h3 className="text-lg font-semibold tracking-[-0.03em] text-white">{monthLabel}</h3>
+              <h3 className={`text-lg font-semibold tracking-[-0.03em] ${isGirlsTheme ? 'text-[#4A4A4A]' : 'text-white'}`}>{monthLabel}</h3>
               <button
                 type="button"
                 onClick={() => changeAgendaMonth(1)}
                 aria-label={copy.nextMonth}
-                className="flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-transparent text-text-secondary transition-all duration-200 hover:bg-white/[0.06] active:scale-95"
+                className={`flex h-10 w-10 items-center justify-center rounded-full border transition-all duration-200 active:scale-95 ${isGirlsTheme ? 'border-[#E2B4BD]/45 bg-white/60 text-[#A87884] hover:border-[#F9B2D7]/70 hover:bg-white/85 hover:text-[#4A4A4A]' : 'border-white/10 bg-transparent text-text-secondary hover:bg-white/[0.06]'}`}
               >
                 <ChevronRight size={20} />
               </button>
             </div>
 
-            <div className="mt-1 text-center text-[12px] font-medium text-text-secondary">
+            <div className={`mt-1 text-center text-[12px] font-medium ${isGirlsTheme ? 'text-[#795E67]' : 'text-text-secondary'}`}>
               {monthSummary.workouts} {monthSummary.workouts === 1 ? copy.workoutTotal : copy.workoutsTotal} - {monthSummary.minutes} {copy.min} - {Math.round(monthSummary.volume)} {copy.kg}
             </div>
 
             <div className="mt-5 grid grid-cols-7 gap-2 text-center">
               {['Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Su'].map((label) => (
-                <div key={label} className="text-[11px] font-semibold text-text-tertiary">{label}</div>
+                <div key={label} className={`text-[11px] font-semibold ${isGirlsTheme ? 'text-[#A87884]' : 'text-text-tertiary'}`}>{label}</div>
               ))}
               {Array.from({ length: monthLeadingCells }).map((_, index) => (
                 <div key={`empty-${index}`} className="aspect-square" />
@@ -929,11 +956,17 @@ export function ProfileScreen({ onNavigate, onLogout }: ProfileScreenProps) {
                     type="button"
                     onClick={() => handleAgendaDayClick(day)}
                     className={`relative flex aspect-square min-h-[38px] flex-col items-center justify-center rounded-[12px] border text-sm font-semibold transition-all duration-200 hover:-translate-y-0.5 active:scale-95 ${
-                      isDone
-                        ? 'border-accent/35 bg-accent/12 text-white'
-                        : isToday
-                          ? 'border-accent/50 bg-white/[0.05] text-white'
-                          : 'border-white/[0.06] bg-white/[0.025] text-text-secondary'
+                      isGirlsTheme
+                        ? isDone
+                          ? 'border-[#F9B2D7]/70 bg-[#F9B2D7]/24 text-[#4A4A4A] shadow-[0_8px_18px_rgba(249,178,215,0.16)]'
+                          : isToday
+                            ? 'border-[#F9B2D7]/75 bg-white/70 text-[#4A4A4A] shadow-[0_8px_18px_rgba(226,180,189,0.14)]'
+                            : 'border-[#E2B4BD]/35 bg-white/55 text-[#795E67] hover:border-[#F9B2D7]/65 hover:text-[#4A4A4A]'
+                        : isDone
+                          ? 'border-accent/35 bg-accent/12 text-white'
+                          : isToday
+                            ? 'border-accent/50 bg-white/[0.05] text-white'
+                            : 'border-white/[0.06] bg-white/[0.025] text-text-secondary'
                     }`}
                     aria-label={`${cellDate.toLocaleDateString(getLanguageLocale(language))} ${day ? getAgendaStatusLabel(day.status) : copy.rest}`}
                   >
@@ -941,39 +974,39 @@ export function ProfileScreen({ onNavigate, onLogout }: ProfileScreenProps) {
                     <i
                       className={`mt-1 h-1.5 w-1.5 rounded-full ${
                         isDone
-                          ? 'bg-accent'
+                          ? isGirlsTheme ? 'bg-[#F9B2D7]' : 'bg-accent'
                           : isRescheduled
                             ? 'bg-orange-400'
                             : isPlanned
-                              ? 'bg-text-tertiary'
+                              ? isGirlsTheme ? 'bg-[#A87884]' : 'bg-text-tertiary'
                               : 'bg-transparent'
                       }`}
                     />
-                    {isToday && <span className="absolute inset-0 rounded-[12px] ring-1 ring-accent" />}
+                    {isToday && <span className={`absolute inset-0 rounded-[12px] ring-1 ${isGirlsTheme ? 'ring-[#F9B2D7]' : 'ring-accent'}`} />}
                   </button>
                 );
               })}
             </div>
 
-            <div className="mt-4 flex flex-wrap items-center justify-center gap-4 text-[11px] font-medium text-text-secondary">
-              <span className="inline-flex items-center gap-1.5"><i className="h-2 w-2 rounded-full bg-accent" />{copy.trained}</span>
-              <span className="inline-flex items-center gap-1.5"><i className="h-2 w-2 rounded-full bg-text-tertiary" />{copy.planned}</span>
+            <div className={`mt-4 flex flex-wrap items-center justify-center gap-4 text-[11px] font-medium ${isGirlsTheme ? 'text-[#795E67]' : 'text-text-secondary'}`}>
+              <span className="inline-flex items-center gap-1.5"><i className={`h-2 w-2 rounded-full ${isGirlsTheme ? 'bg-[#F9B2D7]' : 'bg-accent'}`} />{copy.trained}</span>
+              <span className="inline-flex items-center gap-1.5"><i className={`h-2 w-2 rounded-full ${isGirlsTheme ? 'bg-[#A87884]' : 'bg-text-tertiary'}`} />{copy.planned}</span>
               <span className="inline-flex items-center gap-1.5"><i className="h-2 w-2 rounded-full bg-orange-400" />{copy.rescheduled}</span>
             </div>
 
             {selectedAgendaDay && (
-              <div className="mt-4 rounded-[18px] border border-accent/15 bg-accent/[0.06] p-3 text-sm">
+              <div className={`mt-4 rounded-[18px] border p-3 text-sm ${isGirlsTheme ? 'border-[#F9B2D7]/45 bg-[#F9B2D7]/14 shadow-[0_10px_22px_rgba(249,178,215,0.12)]' : 'border-accent/15 bg-accent/[0.06]'}`}>
                 <div className="flex items-center justify-between gap-3">
-                  <div className="font-semibold text-white">{formatAgendaDate(selectedAgendaDay)}</div>
-                  <div className="text-xs font-medium text-accent">{getAgendaStatusLabel(selectedAgendaDay.status)}</div>
+                  <div className={`font-semibold ${isGirlsTheme ? 'text-[#4A4A4A]' : 'text-white'}`}>{formatAgendaDate(selectedAgendaDay)}</div>
+                  <div className={`text-xs font-medium ${isGirlsTheme ? 'text-[#A87884]' : 'text-accent'}`}>{getAgendaStatusLabel(selectedAgendaDay.status)}</div>
                 </div>
-                <div className="mt-1 text-xs text-text-secondary">
+                <div className={`mt-1 text-xs ${isGirlsTheme ? 'text-[#795E67]' : 'text-text-secondary'}`}>
                   {selectedAgendaDay.workoutName} - {Number(selectedAgendaDay.setCount || 0)} {copy.sets} - {Number(selectedAgendaDay.exerciseCount || 0)} {copy.exercisesCount} - {Math.round(Number(selectedAgendaDay.totalVolumeKg || 0))} {copy.kg}
                 </div>
               </div>
             )}
 
-            <div className="mt-3 text-center text-[11px] font-medium text-text-tertiary">{copy.monthHint}</div>
+            <div className={`mt-3 text-center text-[11px] font-medium ${isGirlsTheme ? 'text-[#A87884]' : 'text-text-tertiary'}`}>{copy.monthHint}</div>
           </div>
         </div>
       ), document.body)}
@@ -1010,37 +1043,37 @@ export function ProfileScreen({ onNavigate, onLogout }: ProfileScreenProps) {
 
       {isLogoutOpen && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-[2px]"
+          className={`fixed inset-0 z-50 flex items-center justify-center p-4 backdrop-blur-[2px] ${isGirlsTheme ? 'bg-[#4A4A4A]/35' : 'bg-black/60'}`}
           onClick={() => setIsLogoutOpen(false)}
         >
           <div
-            className={`${profilePanelClassName} w-full max-w-sm rounded-[28px] p-5 shadow-card`}
+            className={`${profilePanelClassName} w-full max-w-sm rounded-[28px] p-5 ${isGirlsTheme ? '!border-[#E2B4BD]/50 !bg-[linear-gradient(145deg,rgba(255,255,255,0.90),rgba(255,245,245,0.78)_54%,rgba(207,236,243,0.24))] !shadow-[0_24px_60px_rgba(226,180,189,0.24)] ring-1 ring-white/45' : 'shadow-card'}`}
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="absolute inset-x-6 top-0 h-px bg-gradient-to-r from-transparent via-white/20 to-transparent" />
+            <div className={`absolute inset-x-6 top-0 h-px bg-gradient-to-r from-transparent ${isGirlsTheme ? 'via-[#F9B2D7]/55' : 'via-white/20'} to-transparent`} />
             <div className="flex items-center justify-between">
               <button
                 type="button"
                 onClick={() => setIsLogoutOpen(false)}
-                className="flex h-9 w-9 items-center justify-center rounded-full border border-white/10 bg-white/[0.05] text-text-secondary transition-all duration-200 hover:bg-white/[0.12] active:scale-95"
+                className={`flex h-9 w-9 items-center justify-center rounded-full border transition-all duration-200 active:scale-95 ${isGirlsTheme ? 'border-[#E2B4BD]/55 bg-white/70 text-[#795E67] shadow-[0_10px_22px_rgba(226,180,189,0.12)] hover:border-[#F9B2D7]/70 hover:text-[#4A4A4A]' : 'border-white/10 bg-white/[0.05] text-text-secondary hover:bg-white/[0.12]'}`}
                 aria-label={copy.closeLogoutDialog}
               >
                 <X size={18} />
               </button>
-              <h3 className="text-base font-semibold text-error">{copy.logoutTitle}</h3>
+              <h3 className={`text-base font-semibold ${isGirlsTheme ? 'text-[#A87884]' : 'text-error'}`}>{copy.logoutTitle}</h3>
               <div className="w-9 h-9" aria-hidden="true" />
             </div>
 
             <div className="mt-4 text-center">
-              <p className="text-sm font-semibold text-text-primary">{copy.logoutConfirm}</p>
-              <p className="text-xs text-text-secondary mt-1">{copy.logoutThanks}</p>
+              <p className={`text-sm font-semibold ${isGirlsTheme ? 'text-[#4A4A4A]' : 'text-text-primary'}`}>{copy.logoutConfirm}</p>
+              <p className={`mt-1 text-xs ${isGirlsTheme ? 'text-[#795E67]' : 'text-text-secondary'}`}>{copy.logoutThanks}</p>
             </div>
 
             <div className="mt-6 grid grid-cols-2 gap-3">
               <button
                 type="button"
                 onClick={() => setIsLogoutOpen(false)}
-                className="w-full rounded-full border border-success/30 bg-success/10 py-2.5 text-sm font-semibold text-success transition-all duration-200 hover:bg-success/20 active:scale-[0.99]"
+                className={`w-full rounded-full border py-2.5 text-sm font-semibold transition-all duration-200 active:scale-[0.99] ${isGirlsTheme ? 'border-[#CFECF3]/80 bg-[#CFECF3]/45 text-[#4A4A4A] shadow-[0_10px_22px_rgba(207,236,243,0.18)] hover:bg-[#CFECF3]/65' : 'border-success/30 bg-success/10 text-success hover:bg-success/20'}`}
               >
                 {copy.cancel}
               </button>
@@ -1050,7 +1083,7 @@ export function ProfileScreen({ onNavigate, onLogout }: ProfileScreenProps) {
                   setIsLogoutOpen(false);
                   onLogout();
                 }}
-                className="w-full rounded-full bg-success py-2.5 text-sm font-semibold text-text-primary shadow-[0_12px_24px_-16px_rgba(34,197,94,0.8)] transition-all duration-200 hover:bg-success/90 active:scale-[0.99]"
+                className={`w-full rounded-full py-2.5 text-sm font-semibold transition-all duration-200 active:scale-[0.99] ${isGirlsTheme ? 'bg-[linear-gradient(135deg,#F9B2D7,#E2B4BD)] text-[#4A4A4A] shadow-[0_14px_30px_rgba(249,178,215,0.30)] hover:brightness-[1.02]' : 'bg-success text-text-primary shadow-[0_12px_24px_-16px_rgba(34,197,94,0.8)] hover:bg-success/90'}`}
               >
                 {copy.yesLogout}
               </button>

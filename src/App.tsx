@@ -30,9 +30,33 @@ import {
 
 type GuidedTourStage = 'home' | 'my_plan' | 'blogs' | 'progress' | 'profile' | 'done';
 type HomeRequestedView = 'exercises';
+type ProgressRequestedView = 'recovery';
 
 const GUIDED_TOUR_ORDER: GuidedTourStage[] = ['home', 'my_plan', 'blogs', 'progress', 'profile'];
 const TAB_NAV_ORDER = ['home', 'workout', 'blogs', 'progress', 'profile'] as const;
+const GIRLS_APP_BACKGROUND =
+  'radial-gradient(circle at top left, rgba(249,178,215,0.22), transparent 34%), radial-gradient(circle at 85% 10%, rgba(207,236,243,0.32), transparent 30%), linear-gradient(180deg, #FFF5F5 0%, #F7D6D0 52%, #FFF5F5 100%)';
+
+const readStoredUser = () => {
+  try {
+    return JSON.parse(localStorage.getItem('appUser') || localStorage.getItem('user') || '{}');
+  } catch {
+    return {};
+  }
+};
+
+const readAppStyleGender = () => {
+  try {
+    return String(localStorage.getItem('appStyleGender') || '').trim().toLowerCase();
+  } catch {
+    return '';
+  }
+};
+
+const isFemaleStyleValue = (value: unknown) => {
+  const normalized = String(value || '').trim().toLowerCase();
+  return normalized === 'woman' || normalized === 'female' || normalized === 'f' || normalized === 'girls' || normalized === 'femme';
+};
 
 export function App() {
   const [isSplashComplete, setIsSplashComplete] = useState(false);
@@ -46,7 +70,9 @@ export function App() {
   const [workoutDay, setWorkoutDay] = useState('Push Day');
   const [workoutLaunchMode, setWorkoutLaunchMode] = useState<'default' | 'picked-plan'>('default');
   const [homeRequestedView, setHomeRequestedView] = useState<HomeRequestedView | null>(null);
+  const [progressRequestedView, setProgressRequestedView] = useState<ProgressRequestedView | null>(null);
   const [guidedTourStage, setGuidedTourStage] = useState<GuidedTourStage>('done');
+  const [styleRefreshKey, setStyleRefreshKey] = useState(0);
   const previousTabRef = useRef(activeTab);
   const scrollRootRef = useRef<HTMLDivElement | null>(null);
   const pendingNotificationRouteRef = useRef<NotificationEventPayload | null>(null);
@@ -76,18 +102,34 @@ export function App() {
 
   useManualScrollRestoration();
 
+  useEffect(() => {
+    const refreshStyle = () => setStyleRefreshKey((current) => current + 1);
+    window.addEventListener('repset:stored-user-changed', refreshStyle);
+    window.addEventListener('repset:app-style-gender-changed', refreshStyle);
+    window.addEventListener('storage', refreshStyle);
+    return () => {
+      window.removeEventListener('repset:stored-user-changed', refreshStyle);
+      window.removeEventListener('repset:app-style-gender-changed', refreshStyle);
+      window.removeEventListener('storage', refreshStyle);
+    };
+  }, []);
+
   const openNotificationRoute = useCallback((payload: NotificationEventPayload) => {
     const route = String(payload?.route || '').trim().toLowerCase();
     if (!route) return;
     if (route.startsWith('/workout') || route.startsWith('/plans')) {
       setWorkoutLaunchMode('default');
+      setProgressRequestedView(null);
       setActiveTab('workout');
     } else if (route.startsWith('/recovery')) {
+      setProgressRequestedView('recovery');
       setActiveTab('progress');
     } else if (route.startsWith('/posts')) {
+      setProgressRequestedView(null);
       setActiveTab('blogs');
       window.dispatchEvent(new CustomEvent('repset:open-post', { detail: payload }));
     } else {
+      setProgressRequestedView(null);
       sessionStorage.setItem('repSetPendingProfileRoute', JSON.stringify(payload));
       setActiveTab('profile');
       window.dispatchEvent(new CustomEvent('repset:open-profile-route', { detail: payload }));
@@ -229,6 +271,24 @@ export function App() {
     previousTabRef.current = activeTab;
   }, [activeTab]);
 
+  const savedStyleGender = readAppStyleGender();
+  const storedUser = useMemo(() => readStoredUser(), [styleRefreshKey]);
+  const isGirlsShell = savedStyleGender
+    ? isFemaleStyleValue(savedStyleGender)
+    : isFemaleStyleValue(storedUser?.gender);
+
+  useEffect(() => {
+    if (!isGirlsShell) return undefined;
+    const previousBodyBackground = document.body.style.background;
+    const previousHtmlBackground = document.documentElement.style.background;
+    document.body.style.background = GIRLS_APP_BACKGROUND;
+    document.documentElement.style.background = '#FFF5F5';
+    return () => {
+      document.body.style.background = previousBodyBackground;
+      document.documentElement.style.background = previousHtmlBackground;
+    };
+  }, [isGirlsShell]);
+
   const completeGuidedTourStage = useCallback((stage: Exclude<GuidedTourStage, 'done'>) => {
     const currentIndex = GUIDED_TOUR_ORDER.indexOf(stage);
     const nextStage = GUIDED_TOUR_ORDER[currentIndex + 1] || 'done';
@@ -263,12 +323,14 @@ export function App() {
     resetAllCoachmarkProgress(coachmarkScope);
     setWorkoutLaunchMode('default');
     setHomeRequestedView(null);
+    setProgressRequestedView(null);
     setActiveTab('home');
     setTabResetSignal((current) => current + 1);
     setGuidedTourStage('home');
   }, [coachmarkScope]);
 
   const handleNavigate = (tab: string, day?: string) => {
+    setProgressRequestedView(null);
     setActiveTab(tab);
     if (tab === 'home' && day === 'exercises') {
       setHomeRequestedView('exercises');
@@ -288,6 +350,7 @@ export function App() {
   };
 
   const handleTabChange = (tab: string) => {
+    setProgressRequestedView(null);
     setActiveTab(tab);
     if (tab === 'workout') {
       setWorkoutLaunchMode('default');
@@ -370,6 +433,7 @@ export function App() {
         return (
           <Progress
             resetSignal={tabResetSignal}
+            requestedView={progressRequestedView}
             guidedTourActive={guidedTourStage === 'progress'}
             onGuidedTourComplete={() => completeGuidedTourStage('progress')}
             onGuidedTourDismiss={() => dismissGuidedTour('progress')}
@@ -420,9 +484,12 @@ export function App() {
 
   return (
     <div
-      className={`min-h-[100dvh] pt-[env(safe-area-inset-top,0px)] text-text-primary font-sans selection:bg-accent/80 selection:text-black ${
-        activeTab === 'blogs' ? 'bg-background' : ''
+      className={`min-h-[100dvh] pt-[env(safe-area-inset-top,0px)] font-sans selection:bg-accent/80 selection:text-black ${
+        isGirlsShell ? 'text-[#4A4A4A]' : 'text-text-primary'
+      } ${
+        activeTab === 'blogs' && !isGirlsShell ? 'bg-background' : ''
       }`}
+      style={isGirlsShell ? { background: GIRLS_APP_BACKGROUND } : undefined}
     >
       <ScrollToTop
         navigationKey={navigationScrollKey}
@@ -434,11 +501,12 @@ export function App() {
         data-scroll-root
         className={`mx-auto min-h-[100dvh] w-full max-w-7xl pb-6 pt-4 ${
           activeTab === 'blogs'
-            ? `bg-background px-4 sm:px-6 ${isTabBarVisible ? 'pb-[calc(env(safe-area-inset-bottom,0px)+6.75rem)]' : 'pb-6'}`
+            ? `${isGirlsShell ? '' : 'bg-background'} px-4 sm:px-6 ${isTabBarVisible ? 'pb-[calc(env(safe-area-inset-bottom,0px)+6.75rem)]' : 'pb-6'}`
             : activeTab === 'profile' || activeTab === 'workout'
               ? `px-0 pt-0 ${isTabBarVisible ? 'pb-[calc(env(safe-area-inset-bottom,0px)+6.75rem)]' : 'pb-0'}`
-              : `px-4 sm:px-6 ${isTabBarVisible ? 'pb-[calc(env(safe-area-inset-bottom,0px)+6.75rem)]' : 'pb-6'}`
+              : `${isGirlsShell ? 'bg-[#FFF5F5]' : ''} px-4 sm:px-6 ${isTabBarVisible ? 'pb-[calc(env(safe-area-inset-bottom,0px)+6.75rem)]' : 'pb-6'}`
         }`}
+        style={isGirlsShell ? { background: GIRLS_APP_BACKGROUND } : undefined}
       >
         <ScreenTransition
           screenKey={activeTab}

@@ -73,26 +73,43 @@ const readCachedLeaderboardBundle = (userId: number, period: Period): Leaderboar
 
 const clampPercent = (value: number) => Math.min(100, Math.max(0, Math.round(Number(value) || 0)));
 
-function LeaderboardAvatar({ user, isCurrentUser }: { user: LeaderboardUser; isCurrentUser?: boolean }) {
+const readStoredStyleGender = () => {
+  try {
+    return String(localStorage.getItem('appStyleGender') || '').trim().toLowerCase();
+  } catch {
+    return '';
+  }
+};
+
+const isGirlsStyleValue = (value: unknown) => {
+  const normalized = String(value || '').trim().toLowerCase();
+  return normalized === 'woman' || normalized === 'female' || normalized === 'f' || normalized === 'girls' || normalized === 'femme';
+};
+
+function LeaderboardAvatar({ user, isCurrentUser, themeVariant = 'default' }: { user: LeaderboardUser; isCurrentUser?: boolean; themeVariant?: 'default' | 'girls' }) {
+  const isGirlsTheme = themeVariant === 'girls';
   return (
     <div
-      className={`flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-full bg-white/[0.06] ${
-        user.rank === 1 ? 'ring-1 ring-yellow-400/60' : isCurrentUser ? 'ring-1 ring-accent/60' : 'ring-1 ring-white/10'
+      className={`flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-full ${
+        isGirlsTheme
+          ? `bg-white/72 ${user.rank === 1 ? 'ring-2 ring-[#F9B2D7]/70' : isCurrentUser ? 'ring-2 ring-[#E2B4BD]/75' : 'ring-1 ring-[#E2B4BD]/40'}`
+          : `bg-white/[0.06] ${user.rank === 1 ? 'ring-1 ring-yellow-400/60' : isCurrentUser ? 'ring-1 ring-accent/60' : 'ring-1 ring-white/10'}`
       }`}
     >
       {user.profilePicture ? (
         <img src={user.profilePicture} alt={`${user.name}'s avatar`} className="h-full w-full object-cover" />
       ) : (
-        <UserRound size={23} className="text-text-tertiary" aria-hidden="true" />
+        <UserRound size={23} className={isGirlsTheme ? 'text-[#A87884]' : 'text-text-tertiary'} aria-hidden="true" />
       )}
     </div>
   );
 }
 
-function RankMarker({ user, isCurrentUser }: { user: LeaderboardUser; isCurrentUser?: boolean }) {
+function RankMarker({ user, isCurrentUser, themeVariant = 'default' }: { user: LeaderboardUser; isCurrentUser?: boolean; themeVariant?: 'default' | 'girls' }) {
+  const isGirlsTheme = themeVariant === 'girls';
   if (user.rank === 1) {
     return (
-      <div className="flex w-10 shrink-0 flex-col items-center text-yellow-300">
+      <div className={`flex w-10 shrink-0 flex-col items-center ${isGirlsTheme ? 'text-[#A87884]' : 'text-yellow-300'}`}>
         <Crown size={21} aria-hidden="true" />
         <span className="mt-1 text-sm font-bold">#1</span>
       </div>
@@ -102,7 +119,13 @@ function RankMarker({ user, isCurrentUser }: { user: LeaderboardUser; isCurrentU
   return (
     <div
       className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full border text-sm font-bold ${
-        isCurrentUser ? 'border-accent/70 text-accent' : 'border-white/15 text-text-secondary'
+        isGirlsTheme
+          ? isCurrentUser
+            ? 'border-[#F9B2D7]/70 bg-[#F9B2D7]/16 text-[#A87884]'
+            : 'border-[#E2B4BD]/45 bg-white/55 text-[#795E67]'
+          : isCurrentUser
+            ? 'border-accent/70 text-accent'
+            : 'border-white/15 text-text-secondary'
       }`}
     >
       #{user.rank || '-'}
@@ -286,6 +309,19 @@ export function LeaderboardScreen({ onBack }: LeaderboardScreenProps) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showInfo, setShowInfo] = useState(false);
+  const [styleGender, setStyleGender] = useState(() => readStoredStyleGender());
+
+  useEffect(() => {
+    const refreshStyleGender = () => setStyleGender(readStoredStyleGender());
+    window.addEventListener('repset:app-style-gender-changed', refreshStyleGender);
+    window.addEventListener('repset:stored-user-changed', refreshStyleGender);
+    window.addEventListener('storage', refreshStyleGender);
+    return () => {
+      window.removeEventListener('repset:app-style-gender-changed', refreshStyleGender);
+      window.removeEventListener('repset:stored-user-changed', refreshStyleGender);
+      window.removeEventListener('storage', refreshStyleGender);
+    };
+  }, []);
 
   useEffect(() => {
     const cachedLeaderboard = readCachedLeaderboardBundle(currentUserId, tab);
@@ -344,21 +380,26 @@ export function LeaderboardScreen({ onBack }: LeaderboardScreenProps) {
     ? clampPercent((Number(currentLeaderboardUser.points || 0) / Math.max(1, Number(leader.points || 0) + 1)) * 100)
     : 0;
   const hasVisibleContent = leaderboard.length > 0 || !!currentUserPreview || !!rivalry;
+  const isGirlsTheme = isGirlsStyleValue(styleGender);
+  const primaryTextClassName = isGirlsTheme ? 'text-[#4A4A4A]' : 'text-white';
+  const secondaryTextClassName = isGirlsTheme ? 'text-[#795E67]' : 'text-text-secondary';
+  const tertiaryTextClassName = isGirlsTheme ? 'text-[#A87884]' : 'text-text-tertiary';
+  const focusRingClassName = isGirlsTheme ? 'focus-visible:ring-[#F9B2D7]' : 'focus-visible:ring-accent';
 
   return (
-    <main dir={isArabic ? 'rtl' : 'ltr'} className={`flex-1 min-h-[100dvh] bg-background text-text-primary ${isArabic ? 'text-right' : 'text-left'}`}>
+    <main dir={isArabic ? 'rtl' : 'ltr'} className={`flex-1 min-h-[100dvh] ${isGirlsTheme ? 'bg-transparent text-[#4A4A4A]' : 'bg-background text-text-primary'} ${isArabic ? 'text-right' : 'text-left'}`}>
       <div className="mx-auto w-full max-w-md px-4 pb-[calc(env(safe-area-inset-bottom,0px)+6rem)] pt-[calc(env(safe-area-inset-top,0px)+1rem)]">
         <header className="flex items-center justify-between gap-3">
           <button
             type="button"
             onClick={onBack}
             aria-label="Go back"
-            className="surface-glass flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-white/10 text-white transition active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+            className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border transition active:scale-95 focus-visible:outline-none focus-visible:ring-2 ${focusRingClassName} ${isGirlsTheme ? 'border-[#E2B4BD]/55 bg-white/70 text-[#4A4A4A] shadow-[0_10px_22px_rgba(226,180,189,0.14)] backdrop-blur-md hover:border-[#F9B2D7]/70' : 'surface-glass border-white/10 text-white'}`}
           >
             <ArrowLeft size={20} aria-hidden="true" />
           </button>
 
-          <h1 className="min-w-0 flex-1 truncate text-center text-2xl font-bold tracking-[-0.02em] text-white">
+          <h1 className={`min-w-0 flex-1 truncate text-center text-2xl font-bold tracking-[-0.02em] ${primaryTextClassName}`}>
             {copy.title}
           </h1>
 
@@ -366,13 +407,13 @@ export function LeaderboardScreen({ onBack }: LeaderboardScreenProps) {
             type="button"
             onClick={() => setShowInfo(true)}
             aria-label="How the leaderboard works"
-            className="surface-glass flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-white/10 text-text-secondary transition hover:text-white active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+            className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border transition active:scale-95 focus-visible:outline-none focus-visible:ring-2 ${focusRingClassName} ${isGirlsTheme ? 'border-[#E2B4BD]/55 bg-white/70 text-[#A87884] shadow-[0_10px_22px_rgba(226,180,189,0.14)] backdrop-blur-md hover:border-[#F9B2D7]/70 hover:text-[#4A4A4A]' : 'surface-glass border-white/10 text-text-secondary hover:text-white'}`}
           >
             <Info size={20} aria-hidden="true" />
           </button>
         </header>
 
-        <div role="tablist" aria-label="Leaderboard period" className="mt-5 flex gap-1 rounded-2xl border border-white/10 bg-card p-1">
+        <div role="tablist" aria-label="Leaderboard period" className={`mt-5 flex gap-1 rounded-2xl border p-1 ${isGirlsTheme ? 'border-[#E2B4BD]/45 bg-white/70 shadow-[0_12px_26px_rgba(226,180,189,0.14)] ring-1 ring-white/45' : 'border-white/10 bg-card'}`}>
           {(['monthly', 'alltime'] as Period[]).map((period) => {
             const selected = tab === period;
             return (
@@ -382,8 +423,14 @@ export function LeaderboardScreen({ onBack }: LeaderboardScreenProps) {
                 role="tab"
                 aria-selected={selected}
                 onClick={() => setTab(period)}
-                className={`min-h-11 flex-1 rounded-xl px-4 text-sm font-bold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent ${
-                  selected ? 'bg-accent text-black shadow-[0_8px_24px_rgba(191,255,92,0.14)]' : 'text-text-secondary hover:bg-white/[0.04] hover:text-white'
+                className={`min-h-11 flex-1 rounded-xl px-4 text-sm font-bold transition focus-visible:outline-none focus-visible:ring-2 ${focusRingClassName} ${
+                  selected
+                    ? isGirlsTheme
+                      ? 'bg-[#F9B2D7] text-[#4A4A4A] shadow-[0_8px_20px_rgba(249,178,215,0.22)]'
+                      : 'bg-accent text-black shadow-[0_8px_24px_rgba(191,255,92,0.14)]'
+                    : isGirlsTheme
+                      ? 'text-[#795E67] hover:bg-white/75 hover:text-[#4A4A4A]'
+                      : 'text-text-secondary hover:bg-white/[0.04] hover:text-white'
                 }`}
               >
                 {period === 'monthly' ? copy.monthly : copy.allTime}
@@ -393,29 +440,29 @@ export function LeaderboardScreen({ onBack }: LeaderboardScreenProps) {
         </div>
 
         {currentLeaderboardUser && leader ? (
-          <section className="mt-5 rounded-[1.75rem] border border-white/10 bg-card/80 p-5 shadow-[0_18px_44px_rgba(0,0,0,0.22)]" aria-labelledby="leaderboard-position-title">
+          <section className={`mt-5 rounded-[1.75rem] border p-5 ${isGirlsTheme ? 'border-[#E2B4BD]/45 bg-[linear-gradient(145deg,rgba(255,255,255,0.86),rgba(255,245,245,0.76)_48%,rgba(207,236,243,0.30))] shadow-[0_18px_44px_rgba(226,180,189,0.18)] ring-1 ring-white/45' : 'border-white/10 bg-card/80 shadow-[0_18px_44px_rgba(0,0,0,0.22)]'}`} aria-labelledby="leaderboard-position-title">
             <div className="flex items-start justify-between gap-4">
               <div className="min-w-0">
-                <p className="text-sm font-medium text-text-secondary">{copy.yourPosition}</p>
-                <h2 id="leaderboard-position-title" className="mt-2 text-5xl font-bold tracking-tight text-white">
+                <p className={`text-sm font-medium ${secondaryTextClassName}`}>{copy.yourPosition}</p>
+                <h2 id="leaderboard-position-title" className={`mt-2 text-5xl font-bold tracking-tight ${primaryTextClassName}`}>
                   #{currentLeaderboardUser.rank || '-'}
                 </h2>
                 <div className="mt-2 flex flex-wrap items-center gap-2">
-                  <span className="text-lg font-semibold text-white">{currentLeaderboardUser.points} {copy.pts}</span>
-                  <span className="rounded-full border border-white/10 bg-white/[0.05] px-3 py-1 text-xs text-text-secondary">
+                  <span className={`text-lg font-semibold ${primaryTextClassName}`}>{currentLeaderboardUser.points} {copy.pts}</span>
+                  <span className={`rounded-full border px-3 py-1 text-xs ${isGirlsTheme ? 'border-[#E2B4BD]/45 bg-white/65 text-[#795E67]' : 'border-white/10 bg-white/[0.05] text-text-secondary'}`}>
                     {copy.level} {currentLeaderboardUser.level}
                   </span>
                 </div>
               </div>
-              <div className="rounded-full border border-accent/55 p-1">
-                <LeaderboardAvatar user={currentLeaderboardUser} isCurrentUser />
+              <div className={`rounded-full border p-1 ${isGirlsTheme ? 'border-[#F9B2D7]/55 bg-white/45' : 'border-accent/55'}`}>
+                <LeaderboardAvatar user={currentLeaderboardUser} isCurrentUser themeVariant={isGirlsTheme ? 'girls' : 'default'} />
               </div>
             </div>
 
             <div className="mt-5">
               <div className="flex items-center justify-between gap-3 text-sm">
-                <span className="text-text-secondary">{userIsLeader ? copy.leading : copy.takeFirst(pointsToFirst)}</span>
-                <span className="font-semibold text-white">{userIsLeader ? 100 : comparisonPercent}%</span>
+                <span className={secondaryTextClassName}>{userIsLeader ? copy.leading : copy.takeFirst(pointsToFirst)}</span>
+                <span className={`font-semibold ${primaryTextClassName}`}>{userIsLeader ? 100 : comparisonPercent}%</span>
               </div>
               <div
                 role="progressbar"
@@ -423,42 +470,42 @@ export function LeaderboardScreen({ onBack }: LeaderboardScreenProps) {
                 aria-valuemin={0}
                 aria-valuemax={100}
                 aria-valuenow={userIsLeader ? 100 : comparisonPercent}
-                className="mt-2 h-2 overflow-hidden rounded-full bg-white/10"
+                className={`mt-2 h-2 overflow-hidden rounded-full ${isGirlsTheme ? 'bg-[#E2B4BD]/30' : 'bg-white/10'}`}
               >
                 <div
-                  className="h-full rounded-full bg-accent transition-[width] duration-500 motion-reduce:transition-none"
+                  className={`h-full rounded-full transition-[width] duration-500 motion-reduce:transition-none ${isGirlsTheme ? 'bg-[linear-gradient(90deg,#F9B2D7,#CFECF3)]' : 'bg-accent'}`}
                   style={{ width: `${userIsLeader ? 100 : comparisonPercent}%` }}
                 />
               </div>
 
               {!userIsLeader && leader.name && (
-                <div className="mt-4 flex items-center gap-2 text-sm text-white">
-                  <Swords size={17} className="text-accent" aria-hidden="true" />
+                <div className={`mt-4 flex items-center gap-2 text-sm ${primaryTextClassName}`}>
+                  <Swords size={17} className={isGirlsTheme ? 'text-[#A87884]' : 'text-accent'} aria-hidden="true" />
                   <span>{copy.chasingLeader(leader.name)}</span>
                 </div>
               )}
             </div>
           </section>
         ) : (
-          <section className="mt-5 rounded-[1.75rem] border border-white/10 bg-card/80 p-5 text-center">
-            <Medal className="mx-auto text-text-tertiary" aria-hidden="true" />
-            <h2 className="mt-3 font-semibold text-white">{copy.noRankingTitle}</h2>
-            <p className="mt-1 text-sm text-text-secondary">{copy.noRankingBody}</p>
+          <section className={`mt-5 rounded-[1.75rem] border p-5 text-center ${isGirlsTheme ? 'border-[#E2B4BD]/45 bg-white/72 shadow-[0_14px_34px_rgba(226,180,189,0.14)]' : 'border-white/10 bg-card/80'}`}>
+            <Medal className={`mx-auto ${tertiaryTextClassName}`} aria-hidden="true" />
+            <h2 className={`mt-3 font-semibold ${primaryTextClassName}`}>{copy.noRankingTitle}</h2>
+            <p className={`mt-1 text-sm ${secondaryTextClassName}`}>{copy.noRankingBody}</p>
           </section>
         )}
 
-        {loading && !hasVisibleContent && <p className="text-sm text-text-secondary">{copy.loading}</p>}
+        {loading && !hasVisibleContent && <p className={`text-sm ${secondaryTextClassName}`}>{copy.loading}</p>}
         {!loading && error && <p className="text-sm text-red-400">{error}</p>}
 
         <section className="mt-7" aria-labelledby="leaderboard-members-title">
-          <h2 id="leaderboard-members-title" className="text-xl font-semibold text-white">{copy.topMembers}</h2>
-          <p className="mt-1 text-sm text-text-secondary">{tab === 'monthly' ? copy.monthlyRanking : copy.allTimeRanking}</p>
+          <h2 id="leaderboard-members-title" className={`text-xl font-semibold ${primaryTextClassName}`}>{copy.topMembers}</h2>
+          <p className={`mt-1 text-sm ${secondaryTextClassName}`}>{tab === 'monthly' ? copy.monthlyRanking : copy.allTimeRanking}</p>
 
-          <div className="mt-3 overflow-hidden rounded-[1.75rem] border border-white/10 bg-card/75">
+          <div className={`mt-3 overflow-hidden rounded-[1.75rem] border ${isGirlsTheme ? 'border-[#E2B4BD]/45 bg-white/72 shadow-[0_14px_34px_rgba(226,180,189,0.14)] ring-1 ring-white/40' : 'border-white/10 bg-card/75'}`}>
             {!loading && !error && sortedLeaderboard.length === 0 ? (
               <div className="px-5 py-8 text-center">
-                <p className="font-medium text-white">{copy.empty}</p>
-                <p className="mt-1 text-sm text-text-secondary">{copy.noRankingBody}</p>
+                <p className={`font-medium ${primaryTextClassName}`}>{copy.empty}</p>
+                <p className={`mt-1 text-sm ${secondaryTextClassName}`}>{copy.noRankingBody}</p>
               </div>
             ) : (
               sortedLeaderboard.map((user, index) => {
@@ -467,42 +514,48 @@ export function LeaderboardScreen({ onBack }: LeaderboardScreenProps) {
                   <button
                     key={user.userId}
                     type="button"
-                    className={`group flex min-h-[84px] w-full items-center gap-3 px-4 py-3 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent ${
-                      index > 0 ? 'border-t border-white/10' : ''
+                    className={`group flex min-h-[84px] w-full items-center gap-3 px-4 py-3 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset ${focusRingClassName} ${
+                      index > 0 ? (isGirlsTheme ? 'border-t border-[#E2B4BD]/30' : 'border-t border-white/10') : ''
                     } ${
                       isCurrentUser
-                        ? 'bg-accent/[0.075]'
+                        ? isGirlsTheme
+                          ? 'bg-[#F9B2D7]/16'
+                          : 'bg-accent/[0.075]'
                         : user.rank === 1
-                          ? 'bg-yellow-400/[0.035]'
-                          : 'hover:bg-white/[0.035]'
+                          ? isGirlsTheme
+                            ? 'bg-[#CFECF3]/30'
+                            : 'bg-yellow-400/[0.035]'
+                          : isGirlsTheme
+                            ? 'hover:bg-white/70'
+                            : 'hover:bg-white/[0.035]'
                     }`}
                   >
-                    <RankMarker user={user} isCurrentUser={isCurrentUser} />
-                    <LeaderboardAvatar user={user} isCurrentUser={isCurrentUser} />
+                    <RankMarker user={user} isCurrentUser={isCurrentUser} themeVariant={isGirlsTheme ? 'girls' : 'default'} />
+                    <LeaderboardAvatar user={user} isCurrentUser={isCurrentUser} themeVariant={isGirlsTheme ? 'girls' : 'default'} />
 
                     <span className="min-w-0 flex-1">
                       <span className="flex min-w-0 items-center gap-2">
-                        <span className={`truncate text-base font-semibold ${isCurrentUser ? 'text-accent' : 'text-white'}`}>
+                        <span className={`truncate text-base font-semibold ${isCurrentUser ? (isGirlsTheme ? 'text-[#A87884]' : 'text-accent') : primaryTextClassName}`}>
                           {user.name || copy.fallbackUser}
                         </span>
                         {isCurrentUser && (
-                          <span className="shrink-0 rounded-full bg-accent px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-black">
+                          <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${isGirlsTheme ? 'bg-[#F9B2D7] text-[#4A4A4A]' : 'bg-accent text-black'}`}>
                             {copy.you}
                           </span>
                         )}
                       </span>
-                      <span className="mt-0.5 block text-sm text-text-secondary">{copy.level} {user.level}</span>
+                      <span className={`mt-0.5 block text-sm ${secondaryTextClassName}`}>{copy.level} {user.level}</span>
                     </span>
 
                     <span className={`shrink-0 ${isArabic ? 'text-left' : 'text-right'}`}>
-                      <span className="block text-lg font-bold text-white">{user.points}</span>
-                      <span className="block text-[11px] text-text-secondary">{copy.pts}</span>
+                      <span className={`block text-lg font-bold ${primaryTextClassName}`}>{user.points}</span>
+                      <span className={`block text-[11px] ${secondaryTextClassName}`}>{copy.pts}</span>
                     </span>
 
                     <ChevronRight
                       size={18}
                       aria-hidden="true"
-                      className={`shrink-0 text-text-tertiary transition-transform ${isArabic ? 'rotate-180 group-hover:-translate-x-0.5' : 'group-hover:translate-x-0.5'}`}
+                      className={`shrink-0 transition-transform ${tertiaryTextClassName} ${isArabic ? 'rotate-180 group-hover:-translate-x-0.5' : 'group-hover:translate-x-0.5'}`}
                     />
                   </button>
                 );
@@ -511,34 +564,34 @@ export function LeaderboardScreen({ onBack }: LeaderboardScreenProps) {
           </div>
         </section>
 
-        <p className="mt-5 text-center text-xs text-text-tertiary">{copy.updateHint}</p>
+        <p className={`mt-5 text-center text-xs ${tertiaryTextClassName}`}>{copy.updateHint}</p>
       </div>
 
       {showInfo && typeof document !== 'undefined' && createPortal(
         <div
-          className="fixed inset-0 z-[160] flex items-end justify-center bg-black/60 px-4 pb-4 pt-[calc(env(safe-area-inset-top,0px)+1rem)] sm:items-center"
+          className={`fixed inset-0 z-[160] flex items-end justify-center px-4 pb-4 pt-[calc(env(safe-area-inset-top,0px)+1rem)] sm:items-center ${isGirlsTheme ? 'bg-[#4A4A4A]/35 backdrop-blur-sm' : 'bg-black/60'}`}
           onClick={() => setShowInfo(false)}
           role="presentation"
         >
           <div
-            className="w-full max-w-md rounded-[1.5rem] border border-white/10 bg-card p-5 text-left shadow-[0_24px_60px_rgba(0,0,0,0.45)]"
+            className={`w-full max-w-md rounded-[1.5rem] border p-5 text-left shadow-[0_24px_60px_rgba(0,0,0,0.28)] ${isGirlsTheme ? 'border-[#E2B4BD]/45 bg-[#FFF5F5] text-[#4A4A4A]' : 'border-white/10 bg-card'}`}
             role="dialog"
             aria-modal="true"
             aria-labelledby="leaderboard-info-title"
             onClick={(event) => event.stopPropagation()}
           >
             <div className="flex items-center justify-between gap-3">
-              <h2 id="leaderboard-info-title" className="text-lg font-bold text-white">{copy.infoTitle}</h2>
+              <h2 id="leaderboard-info-title" className={`text-lg font-bold ${primaryTextClassName}`}>{copy.infoTitle}</h2>
               <button
                 type="button"
                 onClick={() => setShowInfo(false)}
-                className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 text-text-secondary transition hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+                className={`flex h-10 w-10 items-center justify-center rounded-xl border transition focus-visible:outline-none focus-visible:ring-2 ${focusRingClassName} ${isGirlsTheme ? 'border-[#E2B4BD]/55 bg-white/70 text-[#A87884] hover:border-[#F9B2D7]/70 hover:text-[#4A4A4A]' : 'border-white/10 text-text-secondary hover:text-white'}`}
                 aria-label="Close leaderboard information"
               >
                 <Info size={18} aria-hidden="true" />
               </button>
             </div>
-            <div className="mt-4 space-y-3 text-sm leading-relaxed text-text-secondary">
+            <div className={`mt-4 space-y-3 text-sm leading-relaxed ${secondaryTextClassName}`}>
               <p>{copy.infoLine1}</p>
               <p>{copy.infoLine2}</p>
               {rivalry?.nextPlayerName && (

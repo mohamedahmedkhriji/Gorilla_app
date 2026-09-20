@@ -1,8 +1,8 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { StrengthChart } from './StrengthChart';
 import { Card } from '../ui/Card';
-import { Activity, CalendarDays, ChevronRight, CircleQuestionMark, Dumbbell, PlayCircle, Target, X } from 'lucide-react';
+import { Activity, CalendarDays, ChevronDown, ChevronRight, CircleQuestionMark, Dumbbell, PlayCircle, Target, X } from 'lucide-react';
 import { api } from '../../services/api';
 import { AppLanguage, getActiveLanguage, getStoredLanguage } from '../../services/language';
 import { offlineCacheKeys, readOfflineCacheValue } from '../../services/offlineCache';
@@ -18,6 +18,19 @@ interface ProgressDashboardProps {
   onViewMuscleReport: () => void;
   onStartWorkout: () => void;
 }
+
+const readStoredStyleGender = () => {
+  try {
+    return String(localStorage.getItem('appStyleGender') || '').trim().toLowerCase();
+  } catch {
+    return '';
+  }
+};
+
+const isGirlsStyleValue = (value: unknown) => {
+  const normalized = String(value || '').trim().toLowerCase();
+  return normalized === 'woman' || normalized === 'female' || normalized === 'f' || normalized === 'girls' || normalized === 'femme';
+};
 
 interface MuscleDistributionItem {
   name: string;
@@ -390,7 +403,11 @@ export function ProgressDashboard({ onViewReport, onViewTrainingVolume, onViewMu
   const [overloadRecommendation, setOverloadRecommendation] = useState<string | null>(null);
   const [showPageInfo, setShowPageInfo] = useState(false);
   const [language, setLanguage] = useState<AppLanguage>('en');
+  const [styleGender, setStyleGender] = useState(() => readStoredStyleGender());
+  const [isMetricMenuOpen, setIsMetricMenuOpen] = useState(false);
+  const metricMenuRef = useRef<HTMLDivElement | null>(null);
   const copy = PROGRESS_DASHBOARD_I18N[language as keyof typeof PROGRESS_DASHBOARD_I18N] || PROGRESS_DASHBOARD_I18N.en;
+  const isGirlsTheme = isGirlsStyleValue(styleGender);
 
   useEffect(() => {
     setLanguage(getActiveLanguage());
@@ -406,6 +423,31 @@ export function ProgressDashboard({ onViewReport, onViewTrainingVolume, onViewMu
       window.removeEventListener('storage', handleLanguageChanged);
     };
   }, []);
+
+  useEffect(() => {
+    const handleThemeChanged = () => setStyleGender(readStoredStyleGender());
+    window.addEventListener('repset:app-style-gender-changed', handleThemeChanged);
+    window.addEventListener('repset:stored-user-changed', handleThemeChanged);
+    window.addEventListener('storage', handleThemeChanged);
+    return () => {
+      window.removeEventListener('repset:app-style-gender-changed', handleThemeChanged);
+      window.removeEventListener('repset:stored-user-changed', handleThemeChanged);
+      window.removeEventListener('storage', handleThemeChanged);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!isMetricMenuOpen) return undefined;
+
+    const handlePointerDown = (event: PointerEvent) => {
+      if (metricMenuRef.current && !metricMenuRef.current.contains(event.target as Node)) {
+        setIsMetricMenuOpen(false);
+      }
+    };
+
+    window.addEventListener('pointerdown', handlePointerDown);
+    return () => window.removeEventListener('pointerdown', handlePointerDown);
+  }, [isMetricMenuOpen]);
 
   const getUserId = () => {
     const localUserId = Number(localStorage.getItem('appUserId') || localStorage.getItem('userId') || 0);
@@ -642,14 +684,27 @@ export function ProgressDashboard({ onViewReport, onViewTrainingVolume, onViewMu
     : '-';
   const muscleMax = Math.max(...muscleDistribution.map((item) => item.val), 1);
 
+  const primaryTextClassName = isGirlsTheme ? 'text-[#4A4A4A]' : 'text-white';
+  const secondaryTextClassName = isGirlsTheme ? 'text-[#795E67]' : 'text-text-secondary';
+  const tertiaryTextClassName = isGirlsTheme ? 'text-[#A87884]' : 'text-text-tertiary';
+  const girlsSurfaceClassName =
+    'border-[#E2B4BD]/50 !bg-[linear-gradient(135deg,rgba(255,255,255,0.84),rgba(255,245,245,0.70)_48%,rgba(207,236,243,0.34))] shadow-[0_18px_42px_rgba(226,180,189,0.18)] ring-1 ring-white/45';
+  const cardClassName = isGirlsTheme
+    ? 'border border-[#E2B4BD]/45 bg-[linear-gradient(145deg,rgba(255,255,255,0.82),rgba(255,245,245,0.66))] shadow-[0_12px_28px_rgba(226,180,189,0.14)] ring-1 ring-white/40'
+    : 'border border-white/10 bg-[#14202E]';
+  const accentTextClassName = isGirlsTheme ? 'text-[#A87884]' : 'text-accent';
+  const accentButtonClassName = isGirlsTheme ? 'bg-[linear-gradient(135deg,#F9B2D7,#E2B4BD)] text-[#4A4A4A] shadow-[0_14px_30px_rgba(249,178,215,0.30)]' : 'bg-accent text-black';
+  const progressTrackClassName = isGirlsTheme ? 'bg-[#E2B4BD]/28' : 'bg-white/10';
+  const progressFillClassName = isGirlsTheme ? 'bg-[linear-gradient(90deg,#F9B2D7,#CFECF3)]' : 'bg-accent';
+
   return (
-    <div data-coachmark-target="progress_dashboard" className="progress-dashboard space-y-6">
+    <div data-coachmark-target="progress_dashboard" className={`progress-dashboard space-y-6 ${isGirlsTheme ? 'progress-dashboard--girls text-[#4A4A4A]' : ''}`}>
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-white">Progress</h1>
+        <h1 className={`text-2xl font-bold ${primaryTextClassName}`}>Progress</h1>
         <button
           type="button"
           data-coachmark-target="progress_info_button"
-          className="flex h-9 w-9 items-center justify-center rounded-full border border-white/10 bg-card/70 text-text-secondary transition-colors hover:border-accent/30 hover:text-text-primary"
+          className={`flex h-9 w-9 items-center justify-center rounded-full border transition-colors ${isGirlsTheme ? 'border-[#E2B4BD]/45 bg-white/70 text-[#795E67] hover:border-[#F9B2D7]/70 hover:text-[#4A4A4A]' : 'border-white/10 bg-card/70 text-text-secondary hover:border-accent/30 hover:text-text-primary'}`}
           aria-label={copy.strengthScoreInfo}
           onClick={() => setShowPageInfo(true)}
         >
@@ -657,15 +712,17 @@ export function ProgressDashboard({ onViewReport, onViewTrainingVolume, onViewMu
         </button>
       </div>
 
-      <div className="grid grid-cols-3 rounded-2xl border border-white/10 bg-[#101824] p-1">
+      <div className={`grid grid-cols-3 rounded-2xl border p-1 ${isGirlsTheme ? 'border-[#E2B4BD]/45 bg-white/70 shadow-[0_10px_24px_rgba(226,180,189,0.12)] ring-1 ring-white/35' : 'border-white/10 bg-[#101824]'}`}>
         {RANGE_ITEMS.map((item) => (
           <button
             key={item.key}
             type="button"
             aria-pressed={range === item.key}
             onClick={() => setRange(item.key)}
-            className={`min-h-11 rounded-xl px-2 text-sm font-semibold transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent ${
-              range === item.key ? 'bg-accent text-black' : 'text-text-secondary hover:text-white'
+            className={`min-h-11 rounded-xl px-2 text-sm font-semibold transition-colors focus-visible:outline focus-visible:outline-2 ${
+              isGirlsTheme
+                ? range === item.key ? 'bg-[linear-gradient(135deg,#F9B2D7,#E2B4BD)] text-[#4A4A4A] shadow-[0_8px_18px_rgba(249,178,215,0.24)] focus-visible:outline-[#F9B2D7]' : 'text-[#795E67] hover:text-[#4A4A4A] focus-visible:outline-[#F9B2D7]'
+                : range === item.key ? 'bg-accent text-black' : 'text-text-secondary hover:text-white'
             }`}
           >
             {item.label}
@@ -673,73 +730,136 @@ export function ProgressDashboard({ onViewReport, onViewTrainingVolume, onViewMu
         ))}
       </div>
 
-      <Card coachmarkTargetId="progress_consistency_card" className="p-4">
-        <h2 className="mb-3 text-sm font-semibold uppercase tracking-[0.16em] text-text-secondary">Your overview</h2>
+      <Card coachmarkTargetId="progress_consistency_card" className={isGirlsTheme ? `p-4 !${girlsSurfaceClassName}` : 'p-4'}>
+        <h2 className={`mb-3 text-sm font-semibold uppercase tracking-[0.16em] ${secondaryTextClassName}`}>Your overview</h2>
         <div className="grid grid-cols-3 gap-2">
-          <div className="rounded-2xl border border-white/10 bg-[#14202E] p-3">
-            <Activity size={18} className="mb-2 text-accent" aria-hidden="true" />
-            <div className="text-[11px] text-text-secondary">Estimated 1RM</div>
-            <div className="mt-1 text-lg font-bold text-white">{currentStrengthText}</div>
+          <div className={`rounded-2xl p-3 ${isGirlsTheme ? 'border border-[#E2B4BD]/45 bg-[#FFF5F5]/80 shadow-[0_10px_22px_rgba(226,180,189,0.12)] ring-1 ring-white/45' : cardClassName}`}>
+            <Activity size={18} className={`mb-2 ${accentTextClassName}`} aria-hidden="true" />
+            <div className={`text-[11px] ${secondaryTextClassName}`}>Estimated 1RM</div>
+            <div className={`mt-1 text-lg font-bold ${primaryTextClassName}`}>{currentStrengthText}</div>
           </div>
           <button
             type="button"
             data-coachmark-target="progress_total_volume_card"
             onClick={onViewTrainingVolume}
-            className="rounded-2xl border border-accent/30 bg-accent/10 p-3 text-left transition-colors hover:bg-accent/15 focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
+            className={`rounded-2xl border p-3 text-left transition-colors focus-visible:outline focus-visible:outline-2 ${isGirlsTheme ? 'border-[#CFECF3]/70 bg-[linear-gradient(145deg,rgba(207,236,243,0.72),rgba(255,255,255,0.72))] shadow-[0_10px_22px_rgba(207,236,243,0.20)] hover:border-[#F9B2D7]/65 hover:bg-[#CFECF3]/80 focus-visible:outline-[#F9B2D7]' : 'border-accent/30 bg-accent/10 hover:bg-accent/15 focus-visible:outline-accent'}`}
           >
-            <Dumbbell size={18} className="mb-2 text-accent" aria-hidden="true" />
-            <div className="text-[11px] text-text-secondary">{copy.totalVolume}</div>
-            <div className="mt-1 text-lg font-bold text-white">{formatTrainingVolume(totalVolumeKg)}</div>
+            <Dumbbell size={18} className={`mb-2 ${accentTextClassName}`} aria-hidden="true" />
+            <div className={`text-[11px] ${secondaryTextClassName}`}>{copy.totalVolume}</div>
+            <div className={`mt-1 text-lg font-bold ${primaryTextClassName}`}>{formatTrainingVolume(totalVolumeKg)}</div>
           </button>
-          <div className="rounded-2xl border border-white/10 bg-[#14202E] p-3">
-            <Target size={18} className="mb-2 text-accent" aria-hidden="true" />
-            <div className="text-[11px] text-text-secondary">Strength change</div>
-            <div className="mt-1 text-lg font-bold text-white">{strengthChangeText}</div>
+          <div className={`rounded-2xl p-3 ${isGirlsTheme ? 'border border-[#F9B2D7]/45 bg-[linear-gradient(145deg,rgba(249,178,215,0.24),rgba(255,255,255,0.74))] shadow-[0_10px_22px_rgba(249,178,215,0.14)] ring-1 ring-white/45' : cardClassName}`}>
+            <Target size={18} className={`mb-2 ${accentTextClassName}`} aria-hidden="true" />
+            <div className={`text-[11px] ${secondaryTextClassName}`}>Strength change</div>
+            <div className={`mt-1 text-lg font-bold ${primaryTextClassName}`}>{strengthChangeText}</div>
           </div>
         </div>
       </Card>
 
       <div>
         <div className="mb-2 flex items-center justify-between">
-          <h2 className="text-lg font-semibold text-white">Strength trend</h2>
-          <select
-            className="min-h-11 rounded-xl border border-white/10 bg-[#101824] px-3 text-sm text-text-secondary focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
-            aria-label="Strength metric"
-            value="estimated-1rm"
-            onChange={() => undefined}
+          <h2 className={`text-lg font-semibold ${primaryTextClassName}`}>Strength trend</h2>
+          <div
+            ref={metricMenuRef}
+            className={`group relative z-20 min-w-[188px] overflow-visible rounded-[1.15rem] border transition-all duration-200 ${
+              isGirlsTheme
+                ? 'border-[#E2B4BD]/50 bg-[linear-gradient(135deg,rgba(255,255,255,0.88),rgba(255,245,245,0.74)_55%,rgba(207,236,243,0.28))] shadow-[0_12px_26px_rgba(226,180,189,0.16)] ring-1 ring-white/50 hover:border-[#F9B2D7]/70 focus-within:border-[#F9B2D7]/80 focus-within:ring-[#F9B2D7]/25'
+                : 'border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.075),rgba(255,255,255,0.025))] shadow-[0_14px_30px_rgba(0,0,0,0.22)] ring-1 ring-white/[0.03] hover:border-accent/35 focus-within:border-accent/65 focus-within:ring-accent/20'
+            }`}
           >
-            <option value="estimated-1rm">Estimated 1RM</option>
-          </select>
-        </div>
-        <StrengthChart coachmarkTargetId="progress_strength_chart" weeks={selectedRange.weeks} />
-        <div className="mt-2 grid grid-cols-2 gap-2 text-xs">
-          <div className="rounded-2xl border border-white/10 bg-[#101824] p-3">
-            <div className="text-text-tertiary">Baseline</div>
-            <div className="mt-1 font-semibold text-white">{baselineStrengthText}</div>
+            <div className="pointer-events-none absolute left-3 top-1/2 flex -translate-y-1/2 items-center gap-2">
+              <span
+                className={`grid h-7 w-7 place-items-center rounded-xl ${
+                  isGirlsTheme
+                    ? 'border border-[#F9B2D7]/40 bg-[#F9B2D7]/18 text-[#A87884]'
+                    : 'border border-accent/20 bg-accent/10 text-accent'
+                }`}
+                aria-hidden="true"
+              >
+                <Activity size={14} />
+              </span>
+              <span className={`hidden text-[10px] font-bold uppercase tracking-[0.14em] sm:inline ${isGirlsTheme ? 'text-[#A87884]' : 'text-text-tertiary'}`}>
+                Metric
+              </span>
+            </div>
+            <button
+              type="button"
+              aria-label="Strength metric"
+              aria-haspopup="listbox"
+              aria-expanded={isMetricMenuOpen}
+              onClick={() => setIsMetricMenuOpen((open) => !open)}
+              className={`min-h-12 w-full bg-transparent py-2 pl-12 pr-10 text-left text-sm font-bold outline-none transition-colors sm:pl-[5.95rem] ${
+                isGirlsTheme
+                  ? 'text-[#795E67] group-hover:text-[#4A4A4A]'
+                  : 'text-text-secondary group-hover:text-text-primary'
+              }`}
+            >
+              Estimated 1RM
+            </button>
+            <ChevronDown
+              size={16}
+              className={`pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 transition-transform duration-200 group-hover:translate-y-[-45%] ${isMetricMenuOpen ? 'rotate-180' : ''} ${
+                isGirlsTheme ? 'text-[#A87884] group-hover:text-[#4A4A4A]' : 'text-text-tertiary group-hover:text-accent'
+              }`}
+              aria-hidden="true"
+            />
+            {isMetricMenuOpen ? (
+              <div
+                role="listbox"
+                aria-label="Strength metric"
+                className={`absolute left-2 right-2 top-[calc(100%+0.35rem)] z-30 rounded-[1rem] border p-1.5 shadow-2xl backdrop-blur-xl ${
+                  isGirlsTheme
+                    ? 'border-[#E2B4BD]/55 bg-[#FFF5F5]/95 text-[#4A4A4A] shadow-[0_18px_34px_rgba(226,180,189,0.22)]'
+                    : 'border-white/10 bg-[#101824]/95 text-text-primary shadow-[0_18px_34px_rgba(0,0,0,0.34)]'
+                }`}
+              >
+                <button
+                  type="button"
+                  role="option"
+                  aria-selected="true"
+                  onClick={() => setIsMetricMenuOpen(false)}
+                  className={`flex min-h-10 w-full items-center justify-between rounded-[0.8rem] px-3 text-left text-sm font-semibold transition-colors ${
+                    isGirlsTheme
+                      ? 'bg-[#F9B2D7]/18 text-[#4A4A4A] hover:bg-[#F9B2D7]/28'
+                      : 'bg-accent/12 text-text-primary hover:bg-accent/18'
+                  }`}
+                >
+                  <span>Estimated 1RM</span>
+                  <span className={`h-2 w-2 rounded-full ${isGirlsTheme ? 'bg-[#F9B2D7]' : 'bg-accent'}`} aria-hidden="true" />
+                </button>
+              </div>
+            ) : null}
           </div>
-          <div className="rounded-2xl border border-white/10 bg-[#101824] p-3">
-            <div className="text-text-tertiary">Current</div>
-            <div className="mt-1 font-semibold text-white">{currentStrengthText}</div>
+        </div>
+        <StrengthChart coachmarkTargetId="progress_strength_chart" weeks={selectedRange.weeks} themeVariant={isGirlsTheme ? 'girls' : 'default'} />
+        <div className="mt-2 grid grid-cols-2 gap-2 text-xs">
+          <div className={`rounded-2xl border p-3 ${isGirlsTheme ? 'border-[#E2B4BD]/45 bg-white/70 shadow-[0_10px_22px_rgba(226,180,189,0.10)]' : 'border-white/10 bg-[#101824]'}`}>
+            <div className={tertiaryTextClassName}>Baseline</div>
+            <div className={`mt-1 font-semibold ${primaryTextClassName}`}>{baselineStrengthText}</div>
+          </div>
+          <div className={`rounded-2xl border p-3 ${isGirlsTheme ? 'border-[#CFECF3]/70 bg-[#CFECF3]/45 shadow-[0_10px_22px_rgba(207,236,243,0.14)]' : 'border-white/10 bg-[#101824]'}`}>
+            <div className={tertiaryTextClassName}>Current</div>
+            <div className={`mt-1 font-semibold ${primaryTextClassName}`}>{currentStrengthText}</div>
           </div>
         </div>
       </div>
 
-      <Card coachmarkTargetId="progress_muscle_distribution_card" className="p-4">
+      <Card coachmarkTargetId="progress_muscle_distribution_card" className={isGirlsTheme ? `p-4 !${girlsSurfaceClassName}` : 'p-4'}>
         <div>
-          <h3 className="font-semibold text-white">Training focus</h3>
-          <p className="mt-1 text-sm text-text-secondary">Leading muscle targets from your plan and history.</p>
+          <h3 className={`font-semibold ${primaryTextClassName}`}>Training focus</h3>
+          <p className={`mt-1 text-sm ${secondaryTextClassName}`}>Leading muscle targets from your plan and history.</p>
 
           {muscleDistribution.length > 0 ? (
             <div className="mt-4 space-y-3">
               {muscleDistribution.map((m) => (
                 <div key={m.name}>
                   <div className="mb-1 flex justify-between gap-3 text-sm">
-                    <span className="font-semibold text-white">{getLocalizedMuscleName(m.name, language)}</span>
-                    <span className="text-text-secondary">{Math.round(m.val)}%</span>
+                    <span className={`font-semibold ${primaryTextClassName}`}>{getLocalizedMuscleName(m.name, language)}</span>
+                    <span className={secondaryTextClassName}>{Math.round(m.val)}%</span>
                   </div>
-                  <div className="h-2 overflow-hidden rounded-full bg-white/10">
+                  <div className={`h-2 overflow-hidden rounded-full ${progressTrackClassName}`}>
                     <div
-                      className="h-full rounded-full bg-accent"
+                      className={`h-full rounded-full ${progressFillClassName}`}
                       style={{ width: `${Math.max(5, (m.val / muscleMax) * 100)}%` }}
                     />
                   </div>
@@ -748,37 +868,37 @@ export function ProgressDashboard({ onViewReport, onViewTrainingVolume, onViewMu
               <button
                 type="button"
                 onClick={onViewMuscleReport}
-                className="mt-2 flex min-h-12 w-full items-center justify-between rounded-2xl border border-white/10 bg-[#14202E] px-4 text-sm font-bold text-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
+                className={`mt-2 flex min-h-12 w-full items-center justify-between rounded-2xl border px-4 text-sm font-bold focus-visible:outline focus-visible:outline-2 ${isGirlsTheme ? 'border-[#E2B4BD]/45 bg-white/70 text-[#A87884] shadow-[0_10px_22px_rgba(226,180,189,0.10)] hover:border-[#F9B2D7]/70 focus-visible:outline-[#F9B2D7]' : 'border-white/10 bg-[#14202E] text-accent focus-visible:outline-accent'}`}
               >
                 VIEW MUSCLE REPORT
                 <ChevronRight size={18} aria-hidden="true" />
               </button>
             </div>
           ) : (
-            <div className="mt-4 rounded-2xl border border-white/8 bg-background/50 px-4 py-4 text-sm text-text-secondary">
+            <div className={`mt-4 rounded-2xl border px-4 py-4 text-sm ${isGirlsTheme ? 'border-[#E2B4BD]/45 bg-white/70 text-[#795E67]' : 'border-white/8 bg-background/50 text-text-secondary'}`}>
               {copy.noPlanDistribution}
             </div>
           )}
         </div>
       </Card>
 
-      <Card coachmarkTargetId="progress_overload_card" className="p-4">
-        <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-accent">Next Step</p>
+      <Card coachmarkTargetId="progress_overload_card" className={isGirlsTheme ? 'p-4 !border-[#F9B2D7]/45 !bg-[linear-gradient(135deg,rgba(249,178,215,0.25),rgba(255,255,255,0.78)_46%,rgba(207,236,243,0.30))] !shadow-[0_18px_42px_rgba(249,178,215,0.18)] ring-1 ring-white/45' : 'p-4'}>
+        <p className={`text-[11px] font-bold uppercase tracking-[0.16em] ${accentTextClassName}`}>Next Step</p>
         {overloadRecommendation ? (
           <>
-            <h3 className="mt-2 text-lg font-semibold text-white">Next overload is ready</h3>
-            <p className="mt-1 text-sm text-text-secondary">{overloadRecommendation}</p>
+            <h3 className={`mt-2 text-lg font-semibold ${primaryTextClassName}`}>Next overload is ready</h3>
+            <p className={`mt-1 text-sm ${secondaryTextClassName}`}>{overloadRecommendation}</p>
           </>
         ) : (
           <>
-            <h3 className="mt-2 text-lg font-semibold text-white">Keep logging your sets</h3>
-            <p className="mt-1 text-sm text-text-secondary">Complete more workouts to unlock your next overload recommendation.</p>
+            <h3 className={`mt-2 text-lg font-semibold ${primaryTextClassName}`}>Keep logging your sets</h3>
+            <p className={`mt-1 text-sm ${secondaryTextClassName}`}>Complete more workouts to unlock your next overload recommendation.</p>
           </>
         )}
         <button
           type="button"
           onClick={onStartWorkout}
-          className="mt-4 flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl bg-accent px-4 text-sm font-bold text-black focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+          className={`mt-4 flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl px-4 text-sm font-bold focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 ${accentButtonClassName} ${isGirlsTheme ? 'focus-visible:outline-[#F9B2D7]' : 'focus-visible:outline-accent'}`}
         >
           <PlayCircle size={18} aria-hidden="true" />
           START WORKOUT
@@ -789,40 +909,40 @@ export function ProgressDashboard({ onViewReport, onViewTrainingVolume, onViewMu
         type="button"
         data-coachmark-target="progress_biweekly_report_button"
         onClick={onViewReport}
-        className="flex min-h-12 w-full items-center justify-between rounded-2xl border border-white/10 bg-[#101824] px-4 text-left transition-colors hover:border-accent/30 focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
+        className={`flex min-h-12 w-full items-center justify-between rounded-2xl border px-4 text-left transition-colors focus-visible:outline focus-visible:outline-2 ${isGirlsTheme ? 'border-[#E2B4BD]/45 bg-white/75 shadow-[0_12px_28px_rgba(226,180,189,0.12)] hover:border-[#F9B2D7]/70 hover:bg-white/90 focus-visible:outline-[#F9B2D7]' : 'border-white/10 bg-[#101824] hover:border-accent/30 focus-visible:outline-accent'}`}
       >
-        <span className="flex items-center gap-3 text-sm font-semibold text-white">
-          <CalendarDays size={18} className="text-accent" aria-hidden="true" />
+        <span className={`flex items-center gap-3 text-sm font-semibold ${primaryTextClassName}`}>
+          <CalendarDays size={18} className={accentTextClassName} aria-hidden="true" />
           View bi-weekly report
         </span>
-        <ChevronRight size={18} className="text-text-secondary" aria-hidden="true" />
+        <ChevronRight size={18} className={secondaryTextClassName} aria-hidden="true" />
       </button>
 
       {showPageInfo && typeof document !== 'undefined' && createPortal(
         <div
-          className="fixed inset-0 z-[160] flex items-start justify-center overflow-y-auto bg-black/60 px-4 pb-6 pt-[calc(env(safe-area-inset-top,0px)+0.75rem)] sm:pt-8"
+          className={`fixed inset-0 z-[160] flex items-start justify-center overflow-y-auto px-4 pb-6 pt-[calc(env(safe-area-inset-top,0px)+0.75rem)] sm:pt-8 ${isGirlsTheme ? 'bg-[#4A4A4A]/35 backdrop-blur-sm' : 'bg-black/60'}`}
           onClick={() => setShowPageInfo(false)}
           role="presentation"
         >
           <div
-            className="w-full max-w-md max-h-[calc(100dvh-1.5rem)] overflow-y-auto rounded-2xl border border-white/10 bg-card p-5"
+            className={`w-full max-w-md max-h-[calc(100dvh-1.5rem)] overflow-y-auto rounded-2xl border p-5 ${isGirlsTheme ? 'border-[#E2B4BD]/45 bg-[#FFF5F5]' : 'border-white/10 bg-card'}`}
             onClick={(event) => event.stopPropagation()}
             role="dialog"
             aria-modal="true"
             aria-label={copy.progressDialogAria}
           >
             <div className="mb-4 flex items-center justify-between">
-              <h3 className="text-base font-semibold text-white">{copy.progressDialogTitle}</h3>
+              <h3 className={`text-base font-semibold ${primaryTextClassName}`}>{copy.progressDialogTitle}</h3>
               <button
                 type="button"
-                className="flex h-8 w-8 items-center justify-center rounded-full border border-white/10 text-text-secondary transition-colors hover:border-accent/30 hover:text-text-primary"
+                className={`flex h-8 w-8 items-center justify-center rounded-full border transition-colors ${isGirlsTheme ? 'border-[#E2B4BD]/45 bg-white/70 text-[#795E67] hover:text-[#4A4A4A]' : 'border-white/10 text-text-secondary hover:border-accent/30 hover:text-text-primary'}`}
                 onClick={() => setShowPageInfo(false)}
                 aria-label={copy.close}
               >
                 <X size={14} />
               </button>
             </div>
-            <div className="space-y-2 text-sm text-text-secondary">
+            <div className={`space-y-2 text-sm ${secondaryTextClassName}`}>
               <p>{copy.infoLine1}</p>
               <p>{copy.infoLine2}</p>
               <p>{copy.infoLine3}</p>

@@ -31,6 +31,7 @@ export const emojiSwimming = new URL('../../assets/emoji/Swimming.png', import.m
 export const emojiCombatSports = new URL('../../assets/emoji/Combat sports.png', import.meta.url).href;
 export const emojiComingSoon = new URL('../../assets/emoji/coming-soon.png', import.meta.url).href;
 export const emojiGymWallpaper = new URL('../../assets/emoji/gym wallpaper.webp', import.meta.url).href;
+export const emojiGirlWallpaper = new URL('../../assets/emoji/girl wallpapper.webp', import.meta.url).href;
 export const emojiGymFriendsBg = new URL('../../assets/emoji/gym friends bg.jpg', import.meta.url).href;
 export const emojiCoachSupportBg = new URL('../../assets/emoji/coach support bg.jpg', import.meta.url).href;
 export const emojiRightArrow = new URL('../../assets/emoji/right-arrow.png', import.meta.url).href;

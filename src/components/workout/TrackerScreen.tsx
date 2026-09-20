@@ -399,6 +399,35 @@ const createInitialSets = (plannedSets?: number): SetData[] => {
   });
 };
 
+const isGirlsStyleValue = (value: unknown) => {
+  const normalized = String(value || '').trim().toLowerCase();
+  return normalized === 'woman' || normalized === 'female' || normalized === 'f' || normalized === 'girls' || normalized === 'femme';
+};
+
+const safeParseStoredJson = (key: string) => {
+  try {
+    const rawValue = localStorage.getItem(key);
+    return rawValue ? JSON.parse(rawValue) : null;
+  } catch {
+    return null;
+  }
+};
+
+const readStoredStyleGender = () => {
+  if (typeof window === 'undefined') return '';
+  return String(localStorage.getItem('appStyleGender') || '').trim().toLowerCase();
+};
+
+const shouldUseGirlsTheme = () => {
+  if (typeof window === 'undefined') return false;
+  const styleGender = readStoredStyleGender();
+  if (styleGender) return isGirlsStyleValue(styleGender);
+
+  const profile = safeParseStoredJson('onboardingProfile');
+  const storedUser = safeParseStoredJson('appUser') || safeParseStoredJson('user');
+  return isGirlsStyleValue(storedUser?.gender) || isGirlsStyleValue(profile?.gender) || profile?.onboardingTheme === 'girls';
+};
+
 export function TrackerScreen({
   onBack,
   exerciseName,
@@ -432,6 +461,11 @@ export function TrackerScreen({
   const [removeError, setRemoveError] = useState<string | null>(null);
   const [isRemovingExercise, setIsRemovingExercise] = useState(false);
   const [showRemoveConfirm, setShowRemoveConfirm] = useState(false);
+  const [styleGender, setStyleGender] = useState(() => readStoredStyleGender());
+  const isGirlsTheme = useMemo(
+    () => (styleGender ? isGirlsStyleValue(styleGender) : shouldUseGirlsTheme()),
+    [styleGender],
+  );
   const restReminderLock = useRef(false);
   const setTimerIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const restTimerIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -442,6 +476,21 @@ export function TrackerScreen({
     restTimer: true,
     missionChallenge: true,
   });
+
+  useEffect(() => {
+    const handleThemeChanged = () => {
+      setStyleGender(readStoredStyleGender());
+    };
+
+    window.addEventListener('repset:app-style-gender-changed', handleThemeChanged);
+    window.addEventListener('repset:stored-user-changed', handleThemeChanged);
+    window.addEventListener('storage', handleThemeChanged);
+    return () => {
+      window.removeEventListener('repset:app-style-gender-changed', handleThemeChanged);
+      window.removeEventListener('repset:stored-user-changed', handleThemeChanged);
+      window.removeEventListener('storage', handleThemeChanged);
+    };
+  }, []);
 
   useEffect(() => {
     hasLocalEditsRef.current = false;
@@ -783,8 +832,20 @@ export function TrackerScreen({
     { key: 'all', label: copy.rangeAll },
   ];
 
+  const pageClassName = isGirlsTheme
+    ? 'flex-1 flex flex-col h-full pb-24 bg-[radial-gradient(circle_at_top_left,rgba(249,178,215,0.22),transparent_34%),radial-gradient(circle_at_85%_8%,rgba(207,236,243,0.34),transparent_32%),linear-gradient(180deg,#FFF5F5_0%,#F7D6D0_52%,#FFF5F5_100%)] text-[#4A4A4A] [&_h1]:text-[#4A4A4A]'
+    : 'flex-1 flex flex-col h-full bg-background pb-24';
+  const removeButtonClassName = isGirlsTheme
+    ? 'flex h-10 w-10 items-center justify-center rounded-xl border border-[#E2B4BD]/55 bg-white/70 text-[#A87884] backdrop-blur-md transition-colors hover:border-[#F9B2D7]/70 disabled:cursor-not-allowed disabled:opacity-60'
+    : 'flex h-10 w-10 items-center justify-center rounded-xl border border-red-500/25 bg-[rgb(var(--color-card))]/80 text-red-400 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] transition-colors hover:border-red-500/45 hover:bg-red-500/12 disabled:cursor-not-allowed disabled:opacity-60';
+  const mutedTextClassName = isGirlsTheme ? 'text-[#795E67]' : 'text-text-secondary';
+  const tertiaryTextClassName = isGirlsTheme ? 'text-[#A87884]' : 'text-text-tertiary';
+  const setInputClassName = isGirlsTheme
+    ? 'rounded-full border border-[#E2B4BD]/45 bg-white/65 px-4 py-2 text-center font-semibold text-[#4A4A4A] outline-none focus:border-[#F9B2D7]/80 disabled:cursor-not-allowed disabled:border-[#E2B4BD]/25 disabled:text-[#A87884]'
+    : 'bg-transparent rounded-full px-4 py-2 text-center text-white font-semibold border border-white/20 focus:border-accent outline-none disabled:cursor-not-allowed disabled:border-white/10 disabled:text-text-tertiary';
+
   return (
-    <div className="flex-1 flex flex-col h-full bg-background pb-24">
+    <div className={pageClassName}>
       <div className="px-4 sm:px-6 pt-2">
         <Header
           title={displayExerciseName || copy.title}
@@ -800,7 +861,7 @@ export function TrackerScreen({
                 setShowRemoveConfirm(true);
               }}
               disabled={isRemovingExercise}
-              className="flex h-10 w-10 items-center justify-center rounded-xl border border-red-500/25 bg-[rgb(var(--color-card))]/80 text-red-400 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] transition-colors hover:border-red-500/45 hover:bg-red-500/12 disabled:cursor-not-allowed disabled:opacity-60"
+              className={removeButtonClassName}
               aria-label={copy.removeExerciseAria}
             >
               <Trash2 size={17} />
@@ -811,7 +872,7 @@ export function TrackerScreen({
       <div className="px-4 sm:px-6 -mt-2 mb-2">
         <div className="w-full flex justify-center">
           <div
-            className="seven-seg-shell"
+            className={`seven-seg-shell ${isGirlsTheme ? 'seven-seg-shell--girls' : ''}`}
             role="timer"
             aria-label={copy.timerAria(timerText)}
             data-coachmark-target="workout_tracker_timer"
@@ -838,20 +899,20 @@ export function TrackerScreen({
             {removeError}
           </div>
         )}
-        <h2 className="text-2xl font-bold text-white mb-6 text-center">{displayExerciseName}</h2>
+        <h2 className={`mb-6 text-center text-2xl font-bold ${isGirlsTheme ? 'text-[#4A4A4A]' : 'text-white'}`}>{displayExerciseName}</h2>
 
         {showAnalytics ? (
           <div className="space-y-4 mb-8">
-            <button onClick={() => setShowAnalytics(false)} className={`text-accent text-sm mb-4 ${isArabic ? 'text-right' : ''}`}>
+            <button onClick={() => setShowAnalytics(false)} className={`mb-4 text-sm ${isGirlsTheme ? 'text-[#A87884]' : 'text-accent'} ${isArabic ? 'text-right' : ''}`}>
               {copy.backToTracker}
             </button>
-            <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+            <div className={`rounded-2xl border p-4 ${isGirlsTheme ? 'border-[#E2B4BD]/45 bg-white/70 shadow-[0_12px_28px_rgba(226,180,189,0.12)]' : 'border-white/10 bg-white/[0.03]'}`}>
               <div className="mb-3 flex items-start justify-between gap-3">
                 <div className="min-w-0">
-                  <h3 className="text-lg font-bold text-white">{displayExerciseName}</h3>
-                  <p className="mt-0.5 text-xs text-text-secondary">{copy.workoutAnalytics}</p>
+                  <h3 className={`text-lg font-bold ${isGirlsTheme ? 'text-[#4A4A4A]' : 'text-white'}`}>{displayExerciseName}</h3>
+                  <p className={`mt-0.5 text-xs ${mutedTextClassName}`}>{copy.workoutAnalytics}</p>
                 </div>
-                <div className="grid grid-cols-4 rounded-full border border-white/10 bg-black/20 p-1 text-[11px] font-bold text-text-secondary">
+                <div className={`grid grid-cols-4 rounded-full border p-1 text-[11px] font-bold ${isGirlsTheme ? 'border-[#E2B4BD]/45 bg-white/65 text-[#795E67]' : 'border-white/10 bg-black/20 text-text-secondary'}`}>
                   {rangeItems.map((item) => (
                     <button
                       key={item.key}
@@ -859,7 +920,9 @@ export function TrackerScreen({
                       aria-pressed={analyticsRange === item.key}
                       onClick={() => setAnalyticsRange(item.key)}
                       className={`min-h-8 rounded-full px-2 transition-colors ${
-                        analyticsRange === item.key ? 'bg-accent text-black' : 'hover:text-white'
+                        isGirlsTheme
+                          ? analyticsRange === item.key ? 'bg-[#F9B2D7] text-[#4A4A4A]' : 'hover:text-[#4A4A4A]'
+                          : analyticsRange === item.key ? 'bg-accent text-black' : 'hover:text-white'
                       }`}
                     >
                       {item.label}
@@ -869,27 +932,27 @@ export function TrackerScreen({
               </div>
 
               <div className="mb-3 flex items-end gap-2">
-                <div className="text-[2rem] font-bold leading-none text-white">
+                <div className={`text-[2rem] font-bold leading-none ${isGirlsTheme ? 'text-[#4A4A4A]' : 'text-white'}`}>
                   {Math.round(latestChartPoint?.volume || getTotalVolume()).toLocaleString()}
-                  <span className="ml-1 text-sm font-semibold text-text-secondary">{unitLabel}</span>
+                  <span className={`ml-1 text-sm font-semibold ${mutedTextClassName}`}>{unitLabel}</span>
                 </div>
                 {volumeDelta !== 0 && (
                   <span className={`pb-1 text-xs font-semibold ${volumeDelta > 0 ? 'text-accent' : 'text-red-300'}`}>
                     {volumeDelta > 0 ? '+' : ''}{Math.round(volumeDelta).toLocaleString()}
                   </span>
                 )}
-                <span className="ml-auto pb-1 text-[11px] text-text-tertiary">
+                <span className={`ml-auto pb-1 text-[11px] ${tertiaryTextClassName}`}>
                   {latestChartPoint ? formatChartDate(latestChartPoint.dateKey) : todayDateKey()}
                 </span>
               </div>
 
-              <div className="rounded-2xl border border-white/10 bg-[#151d28] p-2">
+              <div className={`rounded-2xl border p-2 ${isGirlsTheme ? 'border-[#E2B4BD]/45 bg-white/70' : 'border-white/10 bg-[#151d28]'}`}>
                 {chartPoints.length > 0 ? (
                   <svg viewBox="0 0 340 130" preserveAspectRatio="none" className="aspect-[340/130] w-full">
                     <defs>
                       <linearGradient id="trackerVolumeGradient" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0" stopColor="rgb(187 255 92)" stopOpacity="0.28" />
-                        <stop offset="1" stopColor="rgb(187 255 92)" stopOpacity="0" />
+                        <stop offset="0" stopColor={isGirlsTheme ? '#F9B2D7' : 'rgb(187 255 92)'} stopOpacity="0.28" />
+                        <stop offset="1" stopColor={isGirlsTheme ? '#F9B2D7' : 'rgb(187 255 92)'} stopOpacity="0" />
                       </linearGradient>
                     </defs>
                     {[0, 0.5, 1].map((ratio) => {
@@ -913,9 +976,9 @@ export function TrackerScreen({
                       </g>
                     ))}
                     {chartPath.area && <polygon points={chartPath.area} fill="url(#trackerVolumeGradient)" />}
-                    {chartPath.polyline && <polyline points={chartPath.polyline} fill="none" stroke="rgb(187 255 92)" strokeWidth="2.5" strokeLinejoin="round" strokeLinecap="round" />}
+                    {chartPath.polyline && <polyline points={chartPath.polyline} fill="none" stroke={isGirlsTheme ? '#A87884' : 'rgb(187 255 92)'} strokeWidth="2.5" strokeLinejoin="round" strokeLinecap="round" />}
                     {chartPath.coords.map((point, index) => (
-                      <circle key={`dot-${point.dateKey}-${index}`} cx={point.x} cy={point.y} r={index === chartPath.coords.length - 1 ? 4 : 2.8} fill="rgb(187 255 92)" />
+                      <circle key={`dot-${point.dateKey}-${index}`} cx={point.x} cy={point.y} r={index === chartPath.coords.length - 1 ? 4 : 2.8} fill={isGirlsTheme ? '#A87884' : 'rgb(187 255 92)'} />
                     ))}
                   </svg>
                 ) : (
@@ -927,14 +990,14 @@ export function TrackerScreen({
 
             </div>
             <div className="space-y-2">
-              <h4 className="text-sm font-bold text-text-secondary uppercase tracking-wider">{copy.setDetails}</h4>
+              <h4 className={`text-sm font-bold uppercase tracking-wider ${mutedTextClassName}`}>{copy.setDetails}</h4>
               {sets.filter(s => s.completed).map((set) => (
-                <div key={set.set} className="rounded-xl p-4 border border-white/10 bg-transparent">
+                <div key={set.set} className={`rounded-xl border p-4 ${isGirlsTheme ? 'border-[#E2B4BD]/45 bg-white/60' : 'border-white/10 bg-transparent'}`}>
                   <div className="flex justify-between items-center mb-2">
-                    <span className="text-white font-semibold">{copy.setNumber(set.set)}</span>
-                    <span className="text-text-secondary text-sm">{copy.repsTimesWeight(set.reps, set.weight, unitLabel)}</span>
+                    <span className={`font-semibold ${isGirlsTheme ? 'text-[#4A4A4A]' : 'text-white'}`}>{copy.setNumber(set.set)}</span>
+                    <span className={`${mutedTextClassName} text-sm`}>{copy.repsTimesWeight(set.reps, set.weight, unitLabel)}</span>
                   </div>
-                  <div className="flex gap-4 text-xs text-text-secondary">
+                  <div className={`flex gap-4 text-xs ${mutedTextClassName}`}>
                     <span>{copy.workLabel}: {formatTime(set.duration || 0)}</span>
                     {set.restTime && <span>{copy.restLabel}: {formatTime(set.restTime)}</span>}
                   </div>
@@ -951,17 +1014,23 @@ export function TrackerScreen({
                 disabled={!isRunning && areAllSetsCompleted}
                 className="flex flex-col items-center gap-2 disabled:cursor-not-allowed disabled:opacity-50"
               >
-                <div className={`w-12 h-12 rounded-full border-2 flex items-center justify-center ${
-                  isRunning
-                    ? 'border-red-500 bg-red-500/10'
-                    : areAllSetsCompleted
-                      ? 'border-white/15 bg-white/5'
-                      : 'border-green-500 bg-green-500/10'
+                <div className={`flex h-12 w-12 items-center justify-center rounded-full border-2 ${
+                  isGirlsTheme
+                    ? isRunning
+                      ? 'border-rose-300 bg-white/70'
+                      : areAllSetsCompleted
+                        ? 'border-[#E2B4BD]/35 bg-white/55'
+                        : 'border-[#F9B2D7] bg-white/75'
+                    : isRunning
+                      ? 'border-red-500 bg-red-500/10'
+                      : areAllSetsCompleted
+                        ? 'border-white/15 bg-white/5'
+                        : 'border-green-500 bg-green-500/10'
                 }`}>
                   {isRunning ? (
                     <Square size={18} className="text-red-500" />
                   ) : (
-                    <Play size={18} className={`${areAllSetsCompleted ? 'text-text-tertiary' : 'text-green-500'} ml-0.5`} />
+                    <Play size={18} className={`${isGirlsTheme ? (areAllSetsCompleted ? 'text-[#A87884]' : 'text-[#A87884]') : (areAllSetsCompleted ? 'text-text-tertiary' : 'text-green-500')} ml-0.5`} />
                   )}
                 </div>
               </button>
@@ -970,20 +1039,20 @@ export function TrackerScreen({
                 onClick={() => onVideoClick?.(exerciseName)}
                 className="flex flex-col items-center gap-2"
               >
-                <div className="w-12 h-12 rounded-full border-2 border-white/20 flex items-center justify-center">
-                  <Video size={20} className="text-white" />
+                <div className={`flex h-12 w-12 items-center justify-center rounded-full border-2 ${isGirlsTheme ? 'border-[#E2B4BD]/55 bg-white/70' : 'border-white/20'}`}>
+                  <Video size={20} className={isGirlsTheme ? 'text-[#A87884]' : 'text-white'} />
                 </div>
-                <span className="text-xs text-text-secondary">{copy.video}</span>
+                <span className={`text-xs ${mutedTextClassName}`}>{copy.video}</span>
               </button>
               <button
                 data-coachmark-target="workout_tracker_analytics_button"
                 onClick={() => setShowAnalytics(true)}
                 className="flex flex-col items-center gap-2"
               >
-                <div className="w-12 h-12 rounded-full border-2 border-white/20 flex items-center justify-center">
-                  <BarChart3 size={20} className="text-white" />
+                <div className={`flex h-12 w-12 items-center justify-center rounded-full border-2 ${isGirlsTheme ? 'border-[#E2B4BD]/55 bg-white/70' : 'border-white/20'}`}>
+                  <BarChart3 size={20} className={isGirlsTheme ? 'text-[#A87884]' : 'text-white'} />
                 </div>
-                <span className="text-xs text-text-secondary">{copy.analytics}</span>
+                <span className={`text-xs ${mutedTextClassName}`}>{copy.analytics}</span>
               </button>
 
             </div>
@@ -997,8 +1066,8 @@ export function TrackerScreen({
                     : 'border-white/10 bg-transparent'
               }`}>
                 <div className="flex items-center justify-between text-sm">
-                  <span className="text-white font-semibold">{copy.restTimerLabel(formatTime(restTime))}</span>
-                  <span className="text-text-secondary">{copy.restTarget}</span>
+                  <span className={`font-semibold ${isGirlsTheme ? 'text-[#4A4A4A]' : 'text-white'}`}>{copy.restTimerLabel(formatTime(restTime))}</span>
+                  <span className={mutedTextClassName}>{copy.restTarget}</span>
                 </div>
                 {restTime > REST_WINDOW_MAX_SECONDS && (
                   <p className="text-xs text-red-300 mt-2">{copy.restExceeded}</p>
@@ -1007,12 +1076,12 @@ export function TrackerScreen({
             )}
 
             {restReminderText && (
-              <div className="mb-4 rounded-xl border border-accent/40 bg-accent/10 p-3">
+              <div className={`mb-4 rounded-xl border p-3 ${isGirlsTheme ? 'border-[#F9B2D7]/55 bg-white/70' : 'border-accent/40 bg-accent/10'}`}>
                 <div className="flex items-center justify-between gap-2">
-                  <p className="text-sm text-white">{restReminderText}</p>
+                  <p className={`text-sm ${isGirlsTheme ? 'text-[#4A4A4A]' : 'text-white'}`}>{restReminderText}</p>
                   <button
                     onClick={() => setRestReminderText(null)}
-                    className="text-xs text-accent hover:text-white transition-colors"
+                    className={`text-xs transition-colors ${isGirlsTheme ? 'text-[#A87884] hover:text-[#4A4A4A]' : 'text-accent hover:text-white'}`}
                     type="button"
                   >
                     {copy.dismiss}
@@ -1027,14 +1096,14 @@ export function TrackerScreen({
               </div>
             )}
 
-            <h3 className="text-xs font-bold text-text-secondary uppercase tracking-wider mb-4">
+            <h3 className={`mb-4 text-xs font-bold uppercase tracking-wider ${mutedTextClassName}`}>
               {copy.effectiveSets}
             </h3>
 
             <div className="grid grid-cols-[60px_60px_80px_1fr] gap-3 mb-3 px-2">
-              <span className="text-xs text-text-secondary uppercase">{copy.setLabel}</span>
-              <span className="text-xs text-text-secondary uppercase">{copy.repsLabel}</span>
-              <span className="text-xs text-text-secondary uppercase">{copy.weightLabel}</span>
+              <span className={`text-xs uppercase ${mutedTextClassName}`}>{copy.setLabel}</span>
+              <span className={`text-xs uppercase ${mutedTextClassName}`}>{copy.repsLabel}</span>
+              <span className={`text-xs uppercase ${mutedTextClassName}`}>{copy.weightLabel}</span>
               <span></span>
             </div>
 
@@ -1057,10 +1126,14 @@ export function TrackerScreen({
                     swipedIndex === index ? '-translate-x-20' : ''
                   } ${set.completed ? 'opacity-50' : ''}`}>
                     <div className={`rounded-full px-4 py-2 text-center ${
-                      set.completed ? 'bg-green-500/20 border border-green-500' : 'bg-transparent border border-white/20'
+                      isGirlsTheme
+                        ? set.completed ? 'border border-emerald-300/55 bg-emerald-50/80' : 'border border-[#E2B4BD]/45 bg-white/65'
+                        : set.completed ? 'bg-green-500/20 border border-green-500' : 'bg-transparent border border-white/20'
                     }`}>
                       <span className={`font-semibold ${
-                        set.completed ? 'text-green-500' : 'text-white'
+                        isGirlsTheme
+                          ? set.completed ? 'text-emerald-700' : 'text-[#4A4A4A]'
+                          : set.completed ? 'text-green-500' : 'text-white'
                       }`}>{set.set}</span>
                     </div>
                     <input
@@ -1068,14 +1141,14 @@ export function TrackerScreen({
                       value={set.reps}
                       onChange={(e) => updateSet(index, 'reps', parseInt(e.target.value) || 0)}
                       disabled={set.completed}
-                      className="bg-transparent rounded-full px-4 py-2 text-center text-white font-semibold border border-white/20 focus:border-accent outline-none disabled:cursor-not-allowed disabled:border-white/10 disabled:text-text-tertiary"
+                      className={setInputClassName}
                     />
                     <input
                       type="number"
                       value={set.weight}
                       onChange={(e) => updateSet(index, 'weight', parseInt(e.target.value) || 0)}
                       disabled={set.completed}
-                      className="bg-transparent rounded-full px-4 py-2 text-center text-white font-semibold border border-white/20 focus:border-accent outline-none disabled:cursor-not-allowed disabled:border-white/10 disabled:text-text-tertiary"
+                      className={setInputClassName}
                     />
                     <div className="relative h-8">
                       {(() => {
@@ -1112,7 +1185,7 @@ export function TrackerScreen({
             <button
               data-coachmark-target="workout_tracker_add_set_button"
               onClick={() => persistSets([...sets, { set: sets.length + 1, reps: 8, weight: 80, completed: false }])}
-              className="w-full mt-6 py-3 bg-accent text-black font-bold rounded-full hover:bg-accent/90 transition-colors">
+              className={`mt-6 w-full rounded-full py-3 font-bold transition-colors ${isGirlsTheme ? 'border border-[#E2B4BD]/55 bg-[#F9B2D7] text-[#4A4A4A] hover:bg-[#E2B4BD]' : 'bg-accent text-black hover:bg-accent/90'}`}>
               {copy.addSet}
             </button>
           </>
@@ -1127,7 +1200,7 @@ export function TrackerScreen({
           }}
         >
           <div
-            className="w-full max-w-sm overflow-hidden rounded-[1.75rem] border border-white/12 bg-[rgb(var(--color-card))]/95 shadow-[0_24px_80px_rgba(0,0,0,0.35)]"
+            className={`w-full max-w-sm overflow-hidden rounded-[1.75rem] border shadow-[0_24px_80px_rgba(0,0,0,0.28)] ${isGirlsTheme ? 'border-[#E2B4BD]/45 bg-[#FFF5F5]' : 'border-white/12 bg-[rgb(var(--color-card))]/95'}`}
             onClick={(event) => event.stopPropagation()}
           >
             <div className="relative overflow-hidden px-6 pb-5 pt-6">
@@ -1135,22 +1208,22 @@ export function TrackerScreen({
                 <div className="flex h-14 w-14 items-center justify-center rounded-2xl border border-red-500/25 bg-red-500/12 text-red-400 shadow-[inset_0_1px_0_rgba(255,255,255,0.1)]">
                   <Trash2 size={22} />
                 </div>
-                <h3 className="mt-5 text-xl font-semibold text-text-primary">{copy.removeTitle}</h3>
-                <p className="mt-2 text-sm leading-relaxed text-text-secondary">
+                <h3 className={`mt-5 text-xl font-semibold ${isGirlsTheme ? 'text-[#4A4A4A]' : 'text-text-primary'}`}>{copy.removeTitle}</h3>
+                <p className={`mt-2 text-sm leading-relaxed ${isGirlsTheme ? 'text-[#795E67]' : 'text-text-secondary'}`}>
                   {copy.removeBody(displayExerciseName)}
                 </p>
-                <p className="mt-1 text-xs uppercase tracking-[0.18em] text-text-tertiary">
+                <p className={`mt-1 text-xs uppercase tracking-[0.18em] ${tertiaryTextClassName}`}>
                   {copy.removeFootnote}
                 </p>
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-3 border-t border-white/8 bg-black/5 px-6 py-5">
+            <div className={`grid grid-cols-2 gap-3 border-t px-6 py-5 ${isGirlsTheme ? 'border-[#E2B4BD]/35 bg-white/45' : 'border-white/8 bg-black/5'}`}>
               <button
                 type="button"
                 onClick={() => setShowRemoveConfirm(false)}
                 disabled={isRemovingExercise}
-                className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-text-primary transition-colors hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-60"
+                className={`rounded-2xl border px-4 py-3 text-sm font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-60 ${isGirlsTheme ? 'border-[#E2B4BD]/45 bg-white/70 text-[#795E67] hover:bg-white' : 'border-white/10 bg-white/5 text-text-primary hover:bg-white/10'}`}
               >
                 {copy.cancel}
               </button>
@@ -1367,6 +1440,14 @@ export function TrackerScreen({
 
         [data-theme='light'] .seven-seg-shell .seven-seg-colon .dot {
           box-shadow: 0 0 4px color-mix(in srgb, var(--seg-on) 65%, transparent), 0 0 7px color-mix(in srgb, var(--seg-on) 30%, transparent);
+        }
+
+        .seven-seg-shell--girls {
+          --seg-on: #A87884;
+          --seg-off: #E2B4BD;
+          border-color: rgba(226, 180, 189, 0.55);
+          background: linear-gradient(180deg, rgba(255, 255, 255, 0.78) 0%, rgba(255, 245, 245, 0.9) 100%);
+          box-shadow: inset 0 0 14px rgba(226, 180, 189, 0.22), 0 10px 24px rgba(226, 180, 189, 0.16);
         }
       `}</style>
     </div>

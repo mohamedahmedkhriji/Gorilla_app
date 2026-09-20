@@ -143,6 +143,36 @@ const isFemaleGender = (value: unknown) => {
   return normalized === 'female' || normalized === 'woman' || normalized === 'femme';
 };
 
+const isGirlsStyleValue = (value: unknown) => {
+  const normalized = String(value || '').trim().toLowerCase();
+  return normalized === 'woman' || normalized === 'female' || normalized === 'f' || normalized === 'girls' || normalized === 'femme';
+};
+
+const readExerciseVideoStyleGender = () => {
+  try {
+    return String(localStorage.getItem('appStyleGender') || '').trim().toLowerCase();
+  } catch {
+    return '';
+  }
+};
+
+const readExerciseVideoProfile = (user: any) => {
+  const rawProfile = user?.onboarding_profile || user?.onboardingProfile;
+  if (!rawProfile) return {};
+  if (typeof rawProfile === 'object') return rawProfile;
+  try {
+    return JSON.parse(String(rawProfile));
+  } catch {
+    return {};
+  }
+};
+
+const shouldUseGirlsExerciseVideoTheme = (user: any, styleGender: string) => {
+  if (styleGender) return isGirlsStyleValue(styleGender);
+  const profile = readExerciseVideoProfile(user);
+  return isGirlsStyleValue(user?.gender) || isGirlsStyleValue(profile?.gender) || profile?.onboardingTheme === 'girls';
+};
+
 const CARDIO_CONTEXT_PATTERN = /\b(cardio|conditioning|liss|hiit|treadmill|incline walk|incline treadmill|bike|cycling|cycle|row|rowing|jog|jogging|run|running|elliptical|stair|stepper|jump rope|skipping)\b/i;
 
 const isCardioExerciseContext = (exercise?: ExerciseVideoScreenProps['exercise']) => {
@@ -506,6 +536,7 @@ export function ExerciseVideoScreen({ onBack, exercise }: ExerciseVideoScreenPro
   const language = getActiveLanguage(getStoredLanguage());
   const copy = EXERCISE_VIDEO_I18N[language] || EXERCISE_VIDEO_I18N.en;
   const storedUser = getStoredAppUser();
+  const [themeRefreshKey, setThemeRefreshKey] = useState(0);
   const videoRef = useRef<HTMLVideoElement>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [catalogPrimaryMuscleDistribution, setCatalogPrimaryMuscleDistribution] = useState<MuscleDistributionEntry[]>([]);
@@ -514,6 +545,28 @@ export function ExerciseVideoScreen({ onBack, exercise }: ExerciseVideoScreenPro
   const cardioGuideVideoUrl = isFemaleGender(storedUser?.gender)
     ? cardioWomanVideoUrl
     : cardioManVideoUrl;
+  const isGirlsTheme = (() => {
+    void themeRefreshKey;
+    return shouldUseGirlsExerciseVideoTheme(storedUser, readExerciseVideoStyleGender());
+  })();
+  const pageClassName = isGirlsTheme
+    ? 'flex-1 flex flex-col h-full overflow-y-auto px-4 sm:px-6 bg-[radial-gradient(circle_at_top_left,rgba(249,178,215,0.22),transparent_34%),radial-gradient(circle_at_85%_8%,rgba(207,236,243,0.34),transparent_32%),linear-gradient(180deg,#FFF5F5_0%,#F7D6D0_52%,#FFF5F5_100%)] text-[#4A4A4A]'
+    : 'flex-1 flex flex-col h-full bg-background overflow-y-auto px-4 sm:px-6';
+  const videoFrameClassName = isGirlsTheme
+    ? 'relative mb-6 flex w-full items-center justify-center overflow-hidden rounded-2xl border border-[#E2B4BD]/55 bg-[linear-gradient(145deg,rgba(255,255,255,0.76),rgba(255,245,245,0.64)_48%,rgba(207,236,243,0.20))] shadow-[0_18px_42px_rgba(226,180,189,0.20)] ring-1 ring-white/45'
+    : 'relative mb-6 flex w-full items-center justify-center overflow-hidden rounded-2xl border border-white/10 bg-black';
+  const videoElementClassName = isGirlsTheme
+    ? 'block max-h-[72vh] w-full bg-[#FFF5F5] object-contain'
+    : 'block max-h-[72vh] w-full bg-black object-contain';
+  const backButtonClassName = isGirlsTheme
+    ? 'flex h-10 w-10 items-center justify-center rounded-xl border border-[#E2B4BD]/55 bg-white/70 text-[#4A4A4A] backdrop-blur-md transition-colors hover:border-[#F9B2D7]/70'
+    : 'flex h-10 w-10 items-center justify-center rounded-xl border border-white/15 bg-black/45 text-white backdrop-blur-md transition-colors hover:border-accent/40';
+  const videoPlayButtonClassName = isGirlsTheme
+    ? 'w-16 h-16 rounded-full bg-[#F9B2D7]/95 flex items-center justify-center text-[#4A4A4A] shadow-[0_0_28px_rgba(249,178,215,0.42)] cursor-pointer pointer-events-auto'
+    : 'w-16 h-16 rounded-full bg-accent/90 flex items-center justify-center text-black shadow-glow cursor-pointer pointer-events-auto';
+  const musclePillClassName = isGirlsTheme
+    ? 'px-2 py-1 bg-white/70 backdrop-blur-md rounded text-[10px] font-bold text-[#4A4A4A] uppercase border border-[#E2B4BD]/45'
+    : 'px-2 py-1 bg-black/60 backdrop-blur-md rounded text-[10px] font-bold text-white uppercase border border-white/10';
   const explicitTargetMuscles = dedupeMuscles([
     ...parseTargetMuscles(exercise?.targetMuscles),
     ...parseTargetMuscles(exercise?.anatomy),
@@ -614,6 +667,18 @@ export function ExerciseVideoScreen({ onBack, exercise }: ExerciseVideoScreenPro
   }, [exercise?.exerciseCatalogId, exercise?.name, exercise?.muscle, explicitTargetMuscles.join('|'), primaryMuscle]);
 
   useEffect(() => {
+    const refreshTheme = () => setThemeRefreshKey((current) => current + 1);
+    window.addEventListener('repset:stored-user-changed', refreshTheme);
+    window.addEventListener('repset:app-style-gender-changed', refreshTheme);
+    window.addEventListener('storage', refreshTheme);
+    return () => {
+      window.removeEventListener('repset:stored-user-changed', refreshTheme);
+      window.removeEventListener('repset:app-style-gender-changed', refreshTheme);
+      window.removeEventListener('storage', refreshTheme);
+    };
+  }, []);
+
+  useEffect(() => {
     setIsPlaying(false);
     const video = videoRef.current;
     if (!video) return;
@@ -651,6 +716,7 @@ export function ExerciseVideoScreen({ onBack, exercise }: ExerciseVideoScreenPro
             }}
             className="w-full"
             figureClassName="h-24 sm:h-28"
+            themeVariant={isGirlsTheme ? 'girls' : 'default'}
           />
         ))}
       </div>
@@ -671,10 +737,10 @@ export function ExerciseVideoScreen({ onBack, exercise }: ExerciseVideoScreenPro
   };
 
   return (
-    <div className="flex-1 flex flex-col h-full bg-background overflow-y-auto px-4 sm:px-6">
+    <div className={pageClassName}>
       {/* Video Player */}
       <div
-        className="relative mb-6 flex w-full items-center justify-center overflow-hidden rounded-2xl border border-white/10 bg-black"
+        className={videoFrameClassName}
         style={{ minHeight: 'clamp(16rem, 46vh, 24rem)', maxHeight: '72vh' }}
       >
         {resolvedVideoUrl ? (
@@ -685,7 +751,7 @@ export function ExerciseVideoScreen({ onBack, exercise }: ExerciseVideoScreenPro
               controls
               playsInline
               preload="metadata"
-              className="block max-h-[72vh] w-full bg-black object-contain"
+              className={videoElementClassName}
               src={resolvedVideoUrl}
               onPlay={() => setIsPlaying(true)}
               onPause={() => setIsPlaying(false)}
@@ -693,21 +759,21 @@ export function ExerciseVideoScreen({ onBack, exercise }: ExerciseVideoScreenPro
             </video>
             <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none">
               {!isPlaying && (
-                <div onClick={togglePlay} className="w-16 h-16 rounded-full bg-accent/90 flex items-center justify-center text-black shadow-glow cursor-pointer pointer-events-auto">
+                <div onClick={togglePlay} className={videoPlayButtonClassName}>
                   <Play size={24} fill="currentColor" className="ml-1" />
                 </div>
               )}
             </div>
           </>
         ) : (
-          <div className="flex h-full w-full items-center justify-center bg-white/5 px-6 text-center text-sm font-semibold uppercase tracking-[0.12em] text-text-secondary">
+          <div className={`flex h-full w-full items-center justify-center px-6 text-center text-sm font-semibold uppercase tracking-[0.12em] ${isGirlsTheme ? 'bg-white/55 text-[#795E67]' : 'bg-white/5 text-text-secondary'}`}>
             {copy.noVideo}
           </div>
         )}
         <div className="absolute left-4 right-4 top-4 z-10 flex items-center gap-4">
           <button
             onClick={onBack}
-            className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/15 bg-black/45 text-white backdrop-blur-md transition-colors hover:border-accent/40"
+            className={backButtonClassName}
           >
             <ArrowLeft size={18} />
           </button>
@@ -717,7 +783,7 @@ export function ExerciseVideoScreen({ onBack, exercise }: ExerciseVideoScreenPro
         </div>
         <div className="absolute bottom-4 left-4 right-4 pointer-events-none">
           <div className="flex gap-2 mt-2">
-            <span className="px-2 py-1 bg-black/60 backdrop-blur-md rounded text-[10px] font-bold text-white uppercase border border-white/10">
+            <span className={musclePillClassName}>
               {toLocalizedBaseMuscle(primaryMuscle)}
             </span>
           </div>

@@ -29,6 +29,7 @@ interface CoachmarkOverlayProps {
   onFinish: () => void;
   onSkip: () => void;
   onTargetAction?: (() => void) | null;
+  themeVariant?: 'default' | 'girls';
 }
 
 type MeasuredRect = {
@@ -66,6 +67,19 @@ const clamp = (value: number, min: number, max: number) => Math.min(Math.max(val
 const getTargetSelector = (targetId: string) => `[data-coachmark-target="${targetId}"]`;
 
 const queryTarget = (targetId: string) => document.querySelector<HTMLElement>(getTargetSelector(targetId));
+
+const readStoredStyleGender = () => {
+  try {
+    return String(localStorage.getItem('appStyleGender') || '').trim().toLowerCase();
+  } catch {
+    return '';
+  }
+};
+
+const isGirlsStyleValue = (value: unknown) => {
+  const normalized = String(value || '').trim().toLowerCase();
+  return normalized === 'woman' || normalized === 'female' || normalized === 'f' || normalized === 'girls' || normalized === 'femme';
+};
 
 const getScrollContainer = () => {
   const root = document.getElementById('root');
@@ -194,11 +208,26 @@ export function CoachmarkOverlay({
   onFinish,
   onSkip,
   onTargetAction,
+  themeVariant = 'default',
 }: CoachmarkOverlayProps) {
   const tooltipRef = useRef<HTMLDivElement | null>(null);
   const missingTargetAdvanceRef = useRef<string | null>(null);
   const [targetRect, setTargetRect] = useState<MeasuredRect | null>(null);
   const [tooltipHeight, setTooltipHeight] = useState(DEFAULT_TOOLTIP_HEIGHT);
+  const [storedStyleGender, setStoredStyleGender] = useState(() => readStoredStyleGender());
+
+  useEffect(() => {
+    const handleThemeChanged = () => {
+      setStoredStyleGender(readStoredStyleGender());
+    };
+
+    window.addEventListener('repset:app-style-gender-changed', handleThemeChanged);
+    window.addEventListener('storage', handleThemeChanged);
+    return () => {
+      window.removeEventListener('repset:app-style-gender-changed', handleThemeChanged);
+      window.removeEventListener('storage', handleThemeChanged);
+    };
+  }, []);
 
   useEffect(() => {
     if (!isOpen || !step) {
@@ -306,6 +335,13 @@ export function CoachmarkOverlay({
   }
 
   const isLastStep = stepIndex >= totalSteps - 1;
+  const isGirlsTheme = themeVariant === 'girls' || (themeVariant === 'default' && isGirlsStyleValue(storedStyleGender));
+  const dimShadow = isGirlsTheme
+    ? '0 0 0 9999px rgba(74, 74, 74, 0.28)'
+    : '0 0 0 9999px rgba(5, 9, 18, 0.68)';
+  const highlightShadow = isGirlsTheme
+    ? '0 0 0 1px rgba(226,180,189,0.38), 0 0 24px rgba(249,178,215,0.32), inset 0 0 0 1px rgba(255,255,255,0.62)'
+    : '0 0 0 1px rgba(187,255,92,0.22), 0 0 24px rgba(187,255,92,0.18), inset 0 0 0 1px rgba(255,255,255,0.08)';
 
   return createPortal(
     <AnimatePresence>
@@ -318,7 +354,9 @@ export function CoachmarkOverlay({
         aria-hidden={false}
       >
         <motion.div
-          className="pointer-events-none absolute border border-white/10 bg-transparent"
+          className={`pointer-events-none absolute bg-transparent ${
+            isGirlsTheme ? 'border border-[#E2B4BD]/45' : 'border border-white/10'
+          }`}
           initial={{ opacity: 0, scale: 0.96 }}
           animate={{
             opacity: 1,
@@ -332,12 +370,14 @@ export function CoachmarkOverlay({
           transition={{ duration: 0.24 }}
           style={{
             borderRadius: targetRect.radius,
-            boxShadow: '0 0 0 9999px rgba(5, 9, 18, 0.68)',
+            boxShadow: dimShadow,
           }}
         />
 
         <motion.div
-          className="pointer-events-none absolute border border-[rgba(187,255,92,0.82)]"
+          className={`pointer-events-none absolute border ${
+            isGirlsTheme ? 'border-[#F9B2D7]' : 'border-[rgba(187,255,92,0.82)]'
+          }`}
           initial={{ opacity: 0, scale: 0.96 }}
           animate={{
             opacity: 1,
@@ -351,7 +391,7 @@ export function CoachmarkOverlay({
           transition={{ duration: 0.28 }}
           style={{
             borderRadius: targetRect.radius,
-            boxShadow: '0 0 0 1px rgba(187,255,92,0.22), 0 0 24px rgba(187,255,92,0.18), inset 0 0 0 1px rgba(255,255,255,0.08)',
+            boxShadow: highlightShadow,
           }}
         />
 
@@ -377,7 +417,11 @@ export function CoachmarkOverlay({
           aria-modal="true"
           aria-labelledby={`coachmark-title-${step.id}`}
           aria-describedby={`coachmark-body-${step.id}`}
-          className="absolute overflow-y-auto rounded-[20px] border border-white/12 bg-[linear-gradient(180deg,rgba(18,28,42,0.96)_0%,rgba(10,16,27,0.98)_100%)] p-4 text-left shadow-[0_24px_72px_rgba(0,0,0,0.42)]"
+          className={`absolute overflow-y-auto rounded-[20px] border p-4 text-left ${
+            isGirlsTheme
+              ? 'border-[#E2B4BD]/55 bg-[linear-gradient(180deg,rgba(255,250,250,0.98)_0%,rgba(255,245,245,0.96)_100%)] shadow-[0_24px_72px_rgba(226,180,189,0.28)]'
+              : 'border-white/12 bg-[linear-gradient(180deg,rgba(18,28,42,0.96)_0%,rgba(10,16,27,0.98)_100%)] shadow-[0_24px_72px_rgba(0,0,0,0.42)]'
+          }`}
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0, y: 4 }}
@@ -385,13 +429,18 @@ export function CoachmarkOverlay({
           style={tooltipStyle}
         >
           <div className="flex items-start justify-between gap-3">
-            <div className="text-[11px] uppercase tracking-[0.22em] text-text-tertiary">
+            <div className={`text-[11px] uppercase tracking-[0.22em] ${
+              isGirlsTheme ? 'text-[#9A7782]' : 'text-text-tertiary'
+            }`}
+            >
               {stepIndex + 1} of {totalSteps}
             </div>
             <button
               type="button"
               onClick={onSkip}
-              className="text-sm font-medium text-text-secondary transition-colors hover:text-text-primary"
+              className={`text-sm font-medium transition-colors ${
+                isGirlsTheme ? 'text-[#795E67] hover:text-[#4A4A4A]' : 'text-text-secondary hover:text-text-primary'
+              }`}
             >
               {skipLabel}
             </button>
@@ -399,13 +448,17 @@ export function CoachmarkOverlay({
 
           <h3
             id={`coachmark-title-${step.id}`}
-            className="mt-3 text-lg font-semibold text-text-primary"
+            className={`mt-3 text-lg font-semibold ${
+              isGirlsTheme ? 'text-[#4A4A4A]' : 'text-text-primary'
+            }`}
           >
             {step.title}
           </h3>
           <p
             id={`coachmark-body-${step.id}`}
-            className="mt-2 text-sm leading-6 text-text-secondary"
+            className={`mt-2 text-sm leading-6 ${
+              isGirlsTheme ? 'text-[#795E67]' : 'text-text-secondary'
+            }`}
           >
             {step.body}
           </p>
@@ -416,7 +469,9 @@ export function CoachmarkOverlay({
                 <span
                   key={`coachmark-dot-${index}`}
                   className={`h-1.5 rounded-full transition-all duration-200 ${
-                    index === stepIndex ? 'w-5 bg-accent' : 'w-1.5 bg-white/16'
+                    index === stepIndex
+                      ? isGirlsTheme ? 'w-5 bg-[#F9B2D7]' : 'w-5 bg-accent'
+                      : isGirlsTheme ? 'w-1.5 bg-[#E2B4BD]/35' : 'w-1.5 bg-white/16'
                   }`}
                 />
               ))}
@@ -425,7 +480,9 @@ export function CoachmarkOverlay({
             <button
               type="button"
               onClick={isLastStep ? onFinish : onNext}
-              className="inline-flex min-h-[44px] items-center justify-center rounded-2xl bg-accent px-5 text-sm font-semibold text-black transition-transform duration-200 hover:scale-[1.01]"
+              className={`inline-flex min-h-[44px] items-center justify-center rounded-2xl px-5 text-sm font-semibold transition-transform duration-200 hover:scale-[1.01] ${
+                isGirlsTheme ? 'bg-[#F9B2D7] text-[#4A4A4A]' : 'bg-accent text-black'
+              }`}
             >
               {isLastStep ? finishLabel : nextLabel}
             </button>
