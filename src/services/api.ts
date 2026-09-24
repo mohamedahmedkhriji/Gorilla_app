@@ -1,5 +1,5 @@
 import { Capacitor } from '@capacitor/core';
-import { getStoredUserAuthToken } from '../shared/authStorage';
+import { getStoredAppUser, getStoredUserAuthToken } from '../shared/authStorage';
 import { getStoredAdminAuthToken } from '../shared/adminAuthStorage';
 import {
   isOfflineApiError,
@@ -29,6 +29,11 @@ const DEFAULT_API_ORIGIN =
 
 const API_URL = normalizeNativeLocalhostUrl(import.meta.env.VITE_API_URL || `${DEFAULT_API_ORIGIN}/api`);
 const nativeFetch = globalThis.fetch.bind(globalThis);
+
+const getStoredUserGender = () => {
+  const user = getStoredAppUser();
+  return String(user?.gender || user?.sex || '').trim();
+};
 
 type ApiError = Error & {
   status?: number;
@@ -945,6 +950,78 @@ export const api = {
     return parseApiResponse(res, 'Failed to fetch gym members');
   },
 
+  getRepyGameFriends: async () => {
+    const res = await fetch(`${API_URL}/repy-games/friends`);
+    return parseApiResponse(res, 'Failed to fetch RepyGames friends');
+  },
+
+  getActiveRepyGame: async () => {
+    const res = await fetch(`${API_URL}/repy-games/active`);
+    return parseApiResponse(res, 'Failed to fetch active RepyGames match');
+  },
+
+  getRepyGame: async (gameId: number) => {
+    const res = await fetch(`${API_URL}/repy-games/${gameId}`);
+    return parseApiResponse(res, 'Failed to fetch RepyGames match');
+  },
+
+  createRepyGame: async (input: {
+    gameType?: string;
+    invitedUserIds: number[];
+  }) => {
+    const res = await fetch(`${API_URL}/repy-games`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(input),
+    });
+    return parseApiResponse(res, 'Failed to create RepyGames match');
+  },
+
+  respondToRepyGameInvite: async (
+    gameId: number,
+    action: 'accept' | 'decline',
+  ) => {
+    const res = await fetch(`${API_URL}/repy-games/${gameId}/invitations/respond`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action }),
+    });
+    return parseApiResponse(res, 'Failed to respond to RepyGames invite');
+  },
+
+  startRepyGame: async (gameId: number) => {
+    const res = await fetch(`${API_URL}/repy-games/${gameId}/start`, {
+      method: 'POST',
+    });
+    return parseApiResponse(res, 'Failed to start RepyGames match');
+  },
+
+  drawRepyGameCard: async (gameId: number) => {
+    const res = await fetch(`${API_URL}/repy-games/${gameId}/draw`, {
+      method: 'POST',
+    });
+    return parseApiResponse(res, 'Failed to draw RepyGames card');
+  },
+
+  resolveRepyGameCard: async (
+    gameId: number,
+    result: 'completed' | 'failed' | 'continue',
+  ) => {
+    const res = await fetch(`${API_URL}/repy-games/${gameId}/resolve`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ result }),
+    });
+    return parseApiResponse(res, 'Failed to resolve RepyGames card');
+  },
+
+  cancelRepyGame: async (gameId: number) => {
+    const res = await fetch(`${API_URL}/repy-games/${gameId}/cancel`, {
+      method: 'POST',
+    });
+    return parseApiResponse(res, 'Failed to cancel RepyGames match');
+  },
+
   getFriendPlanPreview: async (viewerId: number, friendId: number) => {
     const res = await fetch(`${API_URL}/friends/${viewerId}/${friendId}/plan-preview`);
     return parseApiResponse(res, 'Failed to fetch friend plan preview');
@@ -1348,10 +1425,11 @@ export const api = {
     return res.json();
   },
 
-  getExerciseCatalog: async (filter = 'All', search = '', limit = 300) => {
+  getExerciseCatalog: async (filter = 'All', search = '', limit = 600, gender = getStoredUserGender()) => {
     const params = new URLSearchParams();
     if (filter) params.set('filter', filter);
     if (search) params.set('search', search);
+    if (gender) params.set('gender', gender);
     params.set('limit', String(limit));
     const res = await fetch(`${API_URL}/exercises/catalog?${params.toString()}`);
     return res.json();

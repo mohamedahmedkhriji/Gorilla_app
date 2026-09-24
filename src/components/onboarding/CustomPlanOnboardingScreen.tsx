@@ -3,10 +3,11 @@ import { Button } from '../ui/Button';
 import { api } from '../../services/api';
 import { getBodyPartImage } from '../../services/bodyPartTheme';
 import { stripExercisePrefix } from '../../services/exerciseName';
-import { resolveExerciseVideo } from '../../services/exerciseVideos';
+import { resolveExerciseVideo, type ExerciseRemoteMedia } from '../../services/exerciseVideos';
 import { localizeCustomPlanName } from '../../services/programI18n';
 import { getOnboardingLanguage } from './onboardingI18n';
 import { playMediaSafely } from '../../shared/mediaPlayback';
+import { ExerciseMedia } from '../workout/ExerciseMedia';
 
 interface CustomPlanOnboardingScreenProps {
   onNext: () => void;
@@ -44,6 +45,8 @@ type CatalogExercise = {
   name: string;
   muscle: string;
   bodyPart?: string | null;
+  primaryMedia?: ExerciseRemoteMedia | null;
+  media?: ExerciseRemoteMedia[];
 };
 
 type CatalogExerciseOption = CatalogExercise & {
@@ -51,6 +54,9 @@ type CatalogExerciseOption = CatalogExercise & {
   videoUrl: string | null;
   videoAssetName: string | null;
   videoMatchType: 'alias' | 'filename' | 'fallback' | 'none';
+  primaryMedia?: ExerciseRemoteMedia | null;
+  media?: ExerciseRemoteMedia[];
+  mediaType?: 'gif' | 'video' | 'image' | null;
 };
 
 interface RawCatalogExercise {
@@ -58,6 +64,8 @@ interface RawCatalogExercise {
   name?: string;
   muscle?: string;
   bodyPart?: string | null;
+  primaryMedia?: ExerciseRemoteMedia | null;
+  media?: ExerciseRemoteMedia[];
 }
 
 type MuscleOption = {
@@ -526,14 +534,20 @@ export function CustomPlanOnboardingScreen({
           muscle: exercise.muscle,
           bodyPart: exercise.bodyPart,
           targetMuscles: [exercise.bodyPart || exercise.muscle].filter(Boolean),
+          primaryMedia: exercise.primaryMedia,
+          media: exercise.media,
         });
-        const hasTrustedVideo = videoMatch.matchType === 'alias' || videoMatch.matchType === 'filename';
+        const hasRemoteMedia = Boolean(videoMatch.remoteMedia);
+        const hasTrustedVideo = hasRemoteMedia || videoMatch.matchType === 'alias' || videoMatch.matchType === 'filename';
         return {
           ...exercise,
           displayName: stripExercisePrefix(exercise.name),
           videoUrl: hasTrustedVideo ? videoMatch.url : null,
           videoAssetName: hasTrustedVideo ? videoMatch.assetName : null,
           videoMatchType: videoMatch.matchType,
+          primaryMedia: videoMatch.remoteMedia || exercise.primaryMedia || null,
+          media: Array.isArray(exercise.media) ? exercise.media : [],
+          mediaType: videoMatch.mediaType,
         };
       })
       .filter((exercise) => exercise.displayName.length > 0)
@@ -544,7 +558,7 @@ export function CustomPlanOnboardingScreen({
 
     const loadCatalog = async () => {
       try {
-        const catalogRes = await api.getExerciseCatalog('All', '', 500);
+        const catalogRes = await api.getExerciseCatalog('All', '', 600);
         if (cancelled) return;
         const nextCatalog = Array.isArray(catalogRes?.exercises)
           ? (catalogRes.exercises as RawCatalogExercise[])
@@ -553,6 +567,8 @@ export function CustomPlanOnboardingScreen({
               name: String(exercise.name || '').trim(),
               muscle: String(exercise.muscle || '').trim(),
               bodyPart: exercise.bodyPart ? String(exercise.bodyPart).trim() : null,
+              primaryMedia: exercise.primaryMedia || null,
+              media: Array.isArray(exercise.media) ? exercise.media : [],
             }))
             .filter((exercise) => exercise.id > 0 && exercise.name.length > 0)
           : [];
@@ -1248,20 +1264,25 @@ export function CustomPlanOnboardingScreen({
                                     >
                                       <div className="relative aspect-square overflow-hidden bg-white/5">
                                         {exercise.videoUrl ? (
-                                          <video
+                                          <ExerciseMedia
                                             src={exercise.videoUrl}
+                                            mediaType={exercise.mediaType}
+                                            alt={exercise.displayName}
                                             poster={getBodyPartImage(muscle)}
                                             className="block h-full w-full cursor-pointer bg-black object-cover"
-                                            muted
-                                            playsInline
-                                            autoPlay
-                                            loop
-                                            preload="metadata"
-                                            onClick={(event) => {
-                                              event.stopPropagation();
-                                              const video = event.currentTarget;
-                                              video.currentTime = 0;
-                                              void playMediaSafely(video);
+                                            videoProps={{
+                                              autoPlay: true,
+                                              onClick: (event) => {
+                                                event.stopPropagation();
+                                                const video = event.currentTarget;
+                                                video.currentTime = 0;
+                                                void playMediaSafely(video);
+                                              },
+                                            }}
+                                            imageProps={{
+                                              onClick: (event) => {
+                                                event.stopPropagation();
+                                              },
                                             }}
                                           />
                                         ) : (

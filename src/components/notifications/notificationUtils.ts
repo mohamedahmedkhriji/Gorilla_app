@@ -34,6 +34,7 @@ const KNOWN_NOTIFICATION_TYPES: NotificationType[] = [
   'plan_review_rejected',
   'friend_challenge_invite',
   'friend_challenge_response',
+  'repy_game_invite',
   'mission_completed',
   'workout_reminder',
   'recovery_alert',
@@ -54,6 +55,7 @@ const NOTIFICATION_TYPE_ALIASES: Record<string, NotificationType> = {
   missed_workout: 'workout_reminder',
   streak_protection: 'workout_reminder',
   challenge_invitation: 'friend_challenge_invite',
+  repy_game_invite: 'repy_game_invite',
   subscription_reminder: 'system',
   onboarding_reminder: 'system',
   shop_discount: 'system',
@@ -122,6 +124,11 @@ const NOTIFICATION_VISUALS: Record<NotificationType, NotificationVisual> = {
     icon: Flame,
     iconClassName: 'text-orange-300',
     backgroundClassName: 'bg-orange-500/12 ring-1 ring-orange-400/20',
+  },
+  repy_game_invite: {
+    icon: Trophy,
+    iconClassName: 'text-accent',
+    backgroundClassName: 'bg-accent/12 ring-1 ring-accent/20',
   },
   mission_completed: {
     icon: TrendingUp,
@@ -312,6 +319,10 @@ export const resolveNotificationType = (
   data: NotificationData,
 ): NotificationType => {
   const normalizedType = String(notification.type || '').trim().toLowerCase();
+  if (toPositiveInt(data.repyGameId)) {
+    return 'repy_game_invite';
+  }
+
   const aliasedType = NOTIFICATION_TYPE_ALIASES[normalizedType] || normalizedType;
   if (isKnownNotificationType(aliasedType)) return aliasedType;
 
@@ -370,6 +381,19 @@ export const localizeNotificationText = (notification: AppNotification, language
     });
   }
 
+  if (notificationType === 'repy_game_invite') {
+    return pickLanguage(language, {
+      en: {
+        title: 'RepyGames invite',
+        message: `${senderName} invited you to ${challengeTitle || 'Last Rep Standing'}.`,
+      },
+      ar: {
+        title: 'دعوة RepyGames',
+        message: `${senderName} دعاك إلى ${challengeTitle || 'Last Rep Standing'}.`,
+      },
+    });
+  }
+
   if (notificationType === 'friend_challenge_response' && responseStatus) {
     return pickLanguage(language, {
       en: {
@@ -404,8 +428,25 @@ export const buildNotificationMetadata = (
   const points = Number(data.points || 0);
   const streak = Number(data.streak || 0);
 
-  if (challengeTitle && (notificationType === 'friend_challenge_invite' || notificationType === 'friend_challenge_response')) {
+  if (challengeTitle && (
+    notificationType === 'friend_challenge_invite'
+    || notificationType === 'friend_challenge_response'
+    || notificationType === 'repy_game_invite'
+  )) {
     items.push({ label: challengeTitle, tone: 'accent' });
+  }
+
+  if (notificationType === 'repy_game_invite') {
+    const playerCount = Number(data.playerCount || 0);
+    if (Number.isFinite(playerCount) && playerCount > 0) {
+      items.push({
+        label: pickLanguage(language, {
+          en: `${playerCount} players`,
+          ar: `${playerCount} لاعبين`,
+        }),
+        tone: 'neutral',
+      });
+    }
   }
 
   if (Number.isFinite(points) && points > 0) {

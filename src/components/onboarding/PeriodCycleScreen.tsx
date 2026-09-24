@@ -184,6 +184,15 @@ const clamp = (value: number, min: number, max: number) => Math.min(max, Math.ma
 const average = (values: number[]) =>
   values.length ? values.reduce((total, value) => total + value, 0) / values.length : 0;
 
+const median = (values: number[]) => {
+  if (!values.length) return 0;
+  const sorted = [...values].sort((a, b) => a - b);
+  const middle = Math.floor(sorted.length / 2);
+  return sorted.length % 2
+    ? sorted[middle]
+    : (sorted[middle - 1] + sorted[middle]) / 2;
+};
+
 const standardDeviation = (values: number[]) => {
   if (values.length < 2) return 0;
   const avg = average(values);
@@ -225,16 +234,20 @@ const calculateCycleStats = ({
     .slice(1)
     .map((start, index) => daysBetween(starts[index], start))
     .filter((value): value is number => Boolean(value && value >= 18 && value <= 45));
-  const averageCycleLength = Math.round(
-    cycleLengths.length ? average(cycleLengths) : cycleLength || 29,
-  );
+  const averageCycleLength = cycleLengths.length >= 3
+    ? Math.round(median(cycleLengths))
+    : Math.round(cycleLength || 29);
   const averagePeriodLength = periodDuration || 5;
-  const cycleVariation = clamp(Math.round(standardDeviation(cycleLengths) || 2), 2, 7);
+  const cycleVariation = cycleLengths.length >= 3
+    ? clamp(Math.round(standardDeviation(cycleLengths)), 1, 10)
+    : cycleLengths.length >= 1
+      ? 4
+      : 7;
   const predictedNextStart = addDays(lastStart, averageCycleLength);
   const predictedNextEnd = addDays(predictedNextStart, averagePeriodLength - 1);
   const windowStart = addDays(predictedNextStart, -cycleVariation);
   const windowEnd = addDays(predictedNextStart, cycleVariation);
-  const confidence: Confidence = cycleLengths.length >= 3
+  const confidence: Confidence = cycleLengths.length >= 3 && cycleVariation <= 4
     ? 'high'
     : cycleLengths.length >= 1 || cycleLength
       ? 'medium'

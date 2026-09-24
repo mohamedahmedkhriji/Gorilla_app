@@ -17,12 +17,14 @@ export type MotivationOption = {
 export type AthleteSubItem = {
   id: string;
   label: string;
+  hidden?: boolean;
 };
 
 export type AthleteSubGroup = {
   id: string;
   title: string;
   items: AthleteSubItem[];
+  hidden?: boolean;
 };
 
 export type AthleteOption = {
@@ -33,6 +35,7 @@ export type AthleteOption = {
   iconUrl?: string;
   category: 'fitness' | 'athlete_sports';
   subGroups: AthleteSubGroup[];
+  hidden?: boolean;
 };
 
 export type GoalOption = {
@@ -237,9 +240,9 @@ export const DEFAULT_ONBOARDING_CONFIG: OnboardingConfig = {
               { id: 'powerlifting', label: 'Powerlifting' },
               { id: 'cutting', label: 'Cutting' },
               { id: 'bulking', label: 'Bulking' },
-              { id: 'beginner_gym', label: 'Beginner gym' },
-              { id: 'natural_athlete', label: 'Natural athlete' },
-              { id: 'classic_physique', label: 'Classic physique' },
+              { id: 'beginner_gym', label: 'Beginner gym', hidden: true },
+              { id: 'natural_athlete', label: 'Natural athlete', hidden: true },
+              { id: 'classic_physique', label: 'Classic physique', hidden: true },
             ],
           },
         ],
@@ -257,11 +260,27 @@ export const DEFAULT_ONBOARDING_CONFIG: OnboardingConfig = {
             items: [
               { id: 'fat_loss', label: 'Fat loss' },
               { id: 'endurance', label: 'Endurance' },
-              { id: 'conditioning', label: 'Conditioning' },
-              { id: 'heart_health', label: 'Heart health' },
+              { id: 'conditioning', label: 'Conditioning', hidden: true },
+              { id: 'heart_health', label: 'Heart health', hidden: true },
             ],
           },
         ],
+      },
+      {
+        id: 'hyrox',
+        label: 'Hyrox',
+        description: 'Train hybrid endurance, strength stations, running, and race-ready conditioning.',
+        iconKey: 'cardio',
+        category: 'athlete_sports',
+        subGroups: [],
+      },
+      {
+        id: 'box',
+        label: 'Box',
+        description: 'Build boxing conditioning, footwork, reaction speed, and punch endurance.',
+        iconKey: 'combat_sports',
+        category: 'athlete_sports',
+        subGroups: [],
       },
       {
         id: 'football',
@@ -269,6 +288,7 @@ export const DEFAULT_ONBOARDING_CONFIG: OnboardingConfig = {
         description: 'Improve speed, agility, power, and match endurance.',
         iconKey: 'football',
         category: 'athlete_sports',
+        hidden: true,
         subGroups: [
           {
             id: 'football_position',
@@ -309,6 +329,7 @@ export const DEFAULT_ONBOARDING_CONFIG: OnboardingConfig = {
         description: 'Train explosiveness, vertical power, and court conditioning.',
         iconKey: 'basketball',
         category: 'athlete_sports',
+        hidden: true,
         subGroups: [
           {
             id: 'basketball_role',
@@ -347,6 +368,7 @@ export const DEFAULT_ONBOARDING_CONFIG: OnboardingConfig = {
         description: 'Boost rotational power, acceleration, and repeat stamina.',
         iconKey: 'handball',
         category: 'athlete_sports',
+        hidden: true,
         subGroups: [
           {
             id: 'handball_position',
@@ -385,6 +407,7 @@ export const DEFAULT_ONBOARDING_CONFIG: OnboardingConfig = {
         description: 'Develop full-body endurance, lung capacity, and control.',
         iconKey: 'swimming',
         category: 'athlete_sports',
+        hidden: true,
         subGroups: [
           {
             id: 'swimming_stroke',
@@ -423,6 +446,7 @@ export const DEFAULT_ONBOARDING_CONFIG: OnboardingConfig = {
         description: 'Build conditioning, reaction speed, and functional power.',
         iconKey: 'combat_sports',
         category: 'athlete_sports',
+        hidden: true,
         subGroups: [
           {
             id: 'combat_sport_type',

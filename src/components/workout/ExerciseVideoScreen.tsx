@@ -1,8 +1,8 @@
-import { useEffect, useRef, useState } from 'react';
-import { ArrowLeft, Play } from 'lucide-react';
+import { useEffect, useRef, useState, type PointerEvent } from 'react';
+import { ArrowLeft } from 'lucide-react';
 import { MuscleSvgBadge } from './MuscleSvgBadge';
 import { api } from '../../services/api';
-import { resolveExerciseVideoUrl } from '../../services/exerciseVideos';
+import { resolveExerciseVideo, resolveExerciseVideoUrl, type ExerciseRemoteMedia } from '../../services/exerciseVideos';
 import { LocalizedLanguageRecord, getActiveLanguage, getStoredLanguage } from '../../services/language';
 import { stripExercisePrefix } from '../../services/exerciseName';
 import { playMediaSafely } from '../../shared/mediaPlayback';
@@ -11,6 +11,7 @@ import { getStoredAppUser } from '../../shared/authStorage';
 import cardioManVideoUrl from '../../../assets/Workout/body part/cardio/cardio man.mp4';
 import cardioWomanVideoUrl from '../../../assets/Workout/body part/cardio/cardio woman.mp4';
 import genericCardioPlaceholderVideoUrl from '../../../assets/intro.mp4';
+import { ExerciseMedia } from './ExerciseMedia';
 
 interface ExerciseVideoScreenProps {
   onBack: () => void;
@@ -18,6 +19,8 @@ interface ExerciseVideoScreenProps {
     name: string;
     muscle?: string;
     video?: string | null;
+    primaryMedia?: ExerciseRemoteMedia | null;
+    media?: ExerciseRemoteMedia[];
     exerciseCatalogId?: number | null;
     targetMuscles?: string | string[];
     importance?: string;
@@ -53,6 +56,14 @@ const toTitleCase = (value = '') =>
     .filter(Boolean)
     .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
     .join(' ');
+
+const formatVideoTime = (seconds: number) => {
+  if (!Number.isFinite(seconds) || seconds <= 0) return '0:00';
+  const totalSeconds = Math.floor(seconds);
+  const minutes = Math.floor(totalSeconds / 60);
+  const remainingSeconds = totalSeconds % 60;
+  return `${minutes}:${String(remainingSeconds).padStart(2, '0')}`;
+};
 
 const canonicalizeMuscleLabel = (value: unknown) => {
   const key = String(value || '').trim().toLowerCase();
@@ -136,11 +147,6 @@ const dedupeMuscles = (muscles: string[]) => {
   });
 
   return result;
-};
-
-const isFemaleGender = (value: unknown) => {
-  const normalized = String(value || '').trim().toLowerCase();
-  return normalized === 'female' || normalized === 'woman' || normalized === 'femme';
 };
 
 const isGirlsStyleValue = (value: unknown) => {
@@ -538,17 +544,26 @@ export function ExerciseVideoScreen({ onBack, exercise }: ExerciseVideoScreenPro
   const storedUser = getStoredAppUser();
   const [themeRefreshKey, setThemeRefreshKey] = useState(0);
   const videoRef = useRef<HTMLVideoElement>(null);
+  const clickTimerRef = useRef<number | null>(null);
+  const holdTimerRef = useRef<number | null>(null);
+  const rewindIntervalRef = useRef<number | null>(null);
+  const wasPlayingBeforeHoldRef = useRef(false);
+  const holdActiveRef = useRef(false);
+  const ignoreNextClickRef = useRef(false);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [videoCurrentTime, setVideoCurrentTime] = useState(0);
+  const [videoDuration, setVideoDuration] = useState(0);
   const [catalogPrimaryMuscleDistribution, setCatalogPrimaryMuscleDistribution] = useState<MuscleDistributionEntry[]>([]);
   const displayExerciseName = getDisplayExerciseName(exercise?.name);
   const isCardioContext = isCardioExerciseContext(exercise);
-  const cardioGuideVideoUrl = isFemaleGender(storedUser?.gender)
-    ? cardioWomanVideoUrl
-    : cardioManVideoUrl;
   const isGirlsTheme = (() => {
     void themeRefreshKey;
     return shouldUseGirlsExerciseVideoTheme(storedUser, readExerciseVideoStyleGender());
   })();
+  const preferredMediaAudience = isGirlsTheme ? 'female' : 'male';
+  const cardioGuideVideoUrl = preferredMediaAudience === 'female'
+    ? cardioWomanVideoUrl
+    : cardioManVideoUrl;
   const pageClassName = isGirlsTheme
     ? 'flex-1 flex flex-col h-full overflow-y-auto px-4 sm:px-6 bg-[radial-gradient(circle_at_top_left,rgba(249,178,215,0.22),transparent_34%),radial-gradient(circle_at_85%_8%,rgba(207,236,243,0.34),transparent_32%),linear-gradient(180deg,#FFF5F5_0%,#F7D6D0_52%,#FFF5F5_100%)] text-[#4A4A4A]'
     : 'flex-1 flex flex-col h-full bg-background overflow-y-auto px-4 sm:px-6';
@@ -561,12 +576,15 @@ export function ExerciseVideoScreen({ onBack, exercise }: ExerciseVideoScreenPro
   const backButtonClassName = isGirlsTheme
     ? 'flex h-10 w-10 items-center justify-center rounded-xl border border-[#E2B4BD]/55 bg-white/70 text-[#4A4A4A] backdrop-blur-md transition-colors hover:border-[#F9B2D7]/70'
     : 'flex h-10 w-10 items-center justify-center rounded-xl border border-white/15 bg-black/45 text-white backdrop-blur-md transition-colors hover:border-accent/40';
-  const videoPlayButtonClassName = isGirlsTheme
-    ? 'w-16 h-16 rounded-full bg-[#F9B2D7]/95 flex items-center justify-center text-[#4A4A4A] shadow-[0_0_28px_rgba(249,178,215,0.42)] cursor-pointer pointer-events-auto'
-    : 'w-16 h-16 rounded-full bg-accent/90 flex items-center justify-center text-black shadow-glow cursor-pointer pointer-events-auto';
   const musclePillClassName = isGirlsTheme
     ? 'px-2 py-1 bg-white/70 backdrop-blur-md rounded text-[10px] font-bold text-[#4A4A4A] uppercase border border-[#E2B4BD]/45'
     : 'px-2 py-1 bg-black/60 backdrop-blur-md rounded text-[10px] font-bold text-white uppercase border border-white/10';
+  const timelineTrackClassName = isGirlsTheme
+    ? 'h-1.5 w-full cursor-pointer appearance-none rounded-full bg-[#E2B4BD]/45 outline-none accent-[#F9B2D7]'
+    : 'h-1.5 w-full cursor-pointer appearance-none rounded-full bg-white/20 outline-none accent-accent';
+  const timelineTextClassName = isGirlsTheme
+    ? 'text-[10px] font-semibold tabular-nums text-[#4A4A4A]'
+    : 'text-[10px] font-semibold tabular-nums text-white/85';
   const explicitTargetMuscles = dedupeMuscles([
     ...parseTargetMuscles(exercise?.targetMuscles),
     ...parseTargetMuscles(exercise?.anatomy),
@@ -610,11 +628,23 @@ export function ExerciseVideoScreen({ onBack, exercise }: ExerciseVideoScreenPro
     || toBaseMuscleGroup(inferredTargetMuscles[0])
     || 'General'
   );
-  const resolvedVideoUrlFromExercise = exercise?.video || resolveExerciseVideoUrl({
+  const resolvedVideoMatch = resolveExerciseVideo({
     name: exercise?.name,
     muscle: primaryMuscle,
     bodyPart: targetMuscles.join(', ') || String(exercise?.anatomy || exercise?.muscle || ''),
     targetMuscles,
+    primaryMedia: exercise?.primaryMedia,
+    media: exercise?.media,
+    preferredAudience: preferredMediaAudience,
+  });
+  const resolvedVideoUrlFromExercise = resolvedVideoMatch.url || exercise?.video || resolveExerciseVideoUrl({
+    name: exercise?.name,
+    muscle: primaryMuscle,
+    bodyPart: targetMuscles.join(', ') || String(exercise?.anatomy || exercise?.muscle || ''),
+    targetMuscles,
+    primaryMedia: exercise?.primaryMedia,
+    media: exercise?.media,
+    preferredAudience: preferredMediaAudience,
   }) || undefined;
   const shouldUseCardioGuideVideo = isCardioContext && (
     !resolvedVideoUrlFromExercise
@@ -623,6 +653,8 @@ export function ExerciseVideoScreen({ onBack, exercise }: ExerciseVideoScreenPro
   const resolvedVideoUrl = shouldUseCardioGuideVideo
     ? cardioGuideVideoUrl
     : resolvedVideoUrlFromExercise;
+  const resolvedMediaType = shouldUseCardioGuideVideo ? 'video' : (resolvedVideoMatch.mediaType || 'video');
+  const isResolvedVideo = resolvedMediaType === 'video';
   useEffect(() => {
     let cancelled = false;
     const exerciseCatalogId = Number(exercise?.exerciseCatalogId || 0) || null;
@@ -680,11 +712,22 @@ export function ExerciseVideoScreen({ onBack, exercise }: ExerciseVideoScreenPro
 
   useEffect(() => {
     setIsPlaying(false);
+    setVideoCurrentTime(0);
+    setVideoDuration(0);
     const video = videoRef.current;
     if (!video) return;
     video.pause();
+    video.playbackRate = 1;
     video.load();
   }, [resolvedVideoUrl]);
+
+  useEffect(() => {
+    return () => {
+      if (clickTimerRef.current) window.clearTimeout(clickTimerRef.current);
+      if (holdTimerRef.current) window.clearTimeout(holdTimerRef.current);
+      if (rewindIntervalRef.current) window.clearInterval(rewindIntervalRef.current);
+    };
+  }, []);
 
   const toLocalizedSubMuscle = (value: string) => {
     const key = String(value || '').trim().toLowerCase();
@@ -704,10 +747,11 @@ export function ExerciseVideoScreen({ onBack, exercise }: ExerciseVideoScreenPro
 
   const renderMuscleSection = (muscles: MuscleDistributionEntry[]) => {
     if (!muscles.length) return null;
+    const visibleMuscles = muscles.slice(0, 3);
 
     return (
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-        {muscles.map((muscle) => (
+        {visibleMuscles.map((muscle) => (
           <MuscleSvgBadge
             key={muscle.name}
             muscle={{
@@ -736,6 +780,112 @@ export function ExerciseVideoScreen({ onBack, exercise }: ExerciseVideoScreenPro
     setIsPlaying(false);
   };
 
+  const toggleFullscreen = async () => {
+    const video = videoRef.current;
+    if (!video) return;
+
+    try {
+      if (document.fullscreenElement) {
+        await document.exitFullscreen();
+        return;
+      }
+
+      await video.requestFullscreen();
+    } catch {
+      // Fullscreen can be blocked by the browser if the gesture is not accepted.
+    }
+  };
+
+  const handleVideoClick = () => {
+    if (ignoreNextClickRef.current) {
+      ignoreNextClickRef.current = false;
+      return;
+    }
+
+    if (clickTimerRef.current) {
+      window.clearTimeout(clickTimerRef.current);
+      clickTimerRef.current = null;
+      void toggleFullscreen();
+      return;
+    }
+
+    clickTimerRef.current = window.setTimeout(() => {
+      togglePlay();
+      clickTimerRef.current = null;
+    }, 180);
+  };
+
+  const stopHoldScrub = () => {
+    if (holdTimerRef.current) {
+      window.clearTimeout(holdTimerRef.current);
+      holdTimerRef.current = null;
+    }
+
+    if (rewindIntervalRef.current) {
+      window.clearInterval(rewindIntervalRef.current);
+      rewindIntervalRef.current = null;
+    }
+
+    const video = videoRef.current;
+    const wasHoldActive = holdActiveRef.current;
+    holdActiveRef.current = false;
+
+    if (!video) return;
+    video.playbackRate = 1;
+
+    if (wasHoldActive) {
+      ignoreNextClickRef.current = true;
+      if (wasPlayingBeforeHoldRef.current) {
+        void playMediaSafely(video);
+      } else {
+        video.pause();
+        setIsPlaying(false);
+      }
+    }
+  };
+
+  const handleVideoPointerDown = (event: PointerEvent<HTMLVideoElement>) => {
+    if (event.button !== 0) return;
+
+    const video = videoRef.current;
+    if (!video) return;
+
+    const bounds = event.currentTarget.getBoundingClientRect();
+    const isLeftSide = event.clientX < bounds.left + bounds.width / 2;
+
+    wasPlayingBeforeHoldRef.current = !video.paused;
+    holdActiveRef.current = false;
+
+    if (holdTimerRef.current) window.clearTimeout(holdTimerRef.current);
+    holdTimerRef.current = window.setTimeout(() => {
+      holdActiveRef.current = true;
+
+      if (isLeftSide) {
+        video.pause();
+        setIsPlaying(false);
+        rewindIntervalRef.current = window.setInterval(() => {
+          const nextTime = Math.max(0, video.currentTime - 0.18);
+          video.currentTime = nextTime;
+          setVideoCurrentTime(nextTime);
+        }, 90);
+        return;
+      }
+
+      video.playbackRate = 2;
+      void playMediaSafely(video);
+    }, 280);
+  };
+
+  const handleTimelineChange = (event: { target: HTMLInputElement }) => {
+    const video = videoRef.current;
+    const nextTime = Number(event.target.value);
+    setVideoCurrentTime(nextTime);
+    if (video) video.currentTime = nextTime;
+  };
+
+  const videoTimelineMax = Math.max(videoDuration || videoCurrentTime || 0, 0);
+  const videoTimelineValue = Math.min(videoCurrentTime, videoTimelineMax);
+
   return (
     <div className={pageClassName}>
       {/* Video Player */}
@@ -745,25 +895,61 @@ export function ExerciseVideoScreen({ onBack, exercise }: ExerciseVideoScreenPro
       >
         {resolvedVideoUrl ? (
           <>
-            <video
-              key={resolvedVideoUrl}
-              ref={videoRef}
-              controls
-              playsInline
-              preload="metadata"
-              className={videoElementClassName}
-              src={resolvedVideoUrl}
-              onPlay={() => setIsPlaying(true)}
-              onPause={() => setIsPlaying(false)}
-              onEnded={() => setIsPlaying(false)}>
-            </video>
-            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none">
-              {!isPlaying && (
-                <div onClick={togglePlay} className={videoPlayButtonClassName}>
-                  <Play size={24} fill="currentColor" className="ml-1" />
+            {isResolvedVideo ? (
+              <>
+                <video
+                  key={resolvedVideoUrl}
+                  ref={videoRef}
+                  playsInline
+                  disablePictureInPicture
+                  preload="metadata"
+                  className={`${videoElementClassName} cursor-pointer select-none`}
+                  src={resolvedVideoUrl}
+                  onClick={handleVideoClick}
+                  onPointerDown={handleVideoPointerDown}
+                  onPointerUp={stopHoldScrub}
+                  onPointerLeave={stopHoldScrub}
+                  onPointerCancel={stopHoldScrub}
+                  onContextMenu={(event) => event.preventDefault()}
+                  onLoadedMetadata={(event) => {
+                    setVideoDuration(event.currentTarget.duration || 0);
+                    setVideoCurrentTime(event.currentTarget.currentTime || 0);
+                  }}
+                  onDurationChange={(event) => setVideoDuration(event.currentTarget.duration || 0)}
+                  onTimeUpdate={(event) => setVideoCurrentTime(event.currentTarget.currentTime || 0)}
+                  onPlay={() => setIsPlaying(true)}
+                  onPause={() => setIsPlaying(false)}
+                  onEnded={(event) => {
+                    event.currentTarget.playbackRate = 1;
+                    setIsPlaying(false);
+                  }}>
+                </video>
+                <div className="pointer-events-auto absolute bottom-3 left-4 right-4 z-10">
+                  <input
+                    type="range"
+                    min="0"
+                    max={videoTimelineMax}
+                    step="0.01"
+                    value={videoTimelineValue}
+                    onChange={handleTimelineChange}
+                    className={timelineTrackClassName}
+                    aria-label="Video timeline"
+                  />
+                  <div className="mt-1 flex items-center justify-between">
+                    <span className={timelineTextClassName}>{formatVideoTime(videoCurrentTime)}</span>
+                    <span className={timelineTextClassName}>{formatVideoTime(videoDuration)}</span>
+                  </div>
                 </div>
-              )}
-            </div>
+              </>
+            ) : (
+              <ExerciseMedia
+                src={resolvedVideoUrl}
+                mediaType={resolvedMediaType}
+                alt={displayExerciseName}
+                className={videoElementClassName}
+                imageProps={{ draggable: false }}
+              />
+            )}
           </>
         ) : (
           <div className={`flex h-full w-full items-center justify-center px-6 text-center text-sm font-semibold uppercase tracking-[0.12em] ${isGirlsTheme ? 'bg-white/55 text-[#795E67]' : 'bg-white/5 text-text-secondary'}`}>
@@ -781,7 +967,7 @@ export function ExerciseVideoScreen({ onBack, exercise }: ExerciseVideoScreenPro
             {displayExerciseName}
           </h1>
         </div>
-        <div className="absolute bottom-4 left-4 right-4 pointer-events-none">
+        <div className="absolute bottom-12 left-4 right-4 pointer-events-none">
           <div className="flex gap-2 mt-2">
             <span className={musclePillClassName}>
               {toLocalizedBaseMuscle(primaryMuscle)}

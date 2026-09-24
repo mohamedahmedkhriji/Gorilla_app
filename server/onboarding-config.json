@@ -125,6 +125,22 @@
         ]
       },
       {
+        "id": "hyrox",
+        "label": "Hyrox",
+        "description": "Train hybrid endurance, strength stations, running, and race-ready conditioning.",
+        "iconKey": "cardio",
+        "category": "athlete_sports",
+        "subGroups": []
+      },
+      {
+        "id": "box",
+        "label": "Box",
+        "description": "Build boxing conditioning, footwork, reaction speed, and punch endurance.",
+        "iconKey": "combat_sports",
+        "category": "athlete_sports",
+        "subGroups": []
+      },
+      {
         "id": "football",
         "label": "Football",
         "description": "Improve speed, agility, power, and match endurance.",

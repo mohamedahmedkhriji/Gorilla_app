@@ -20,7 +20,8 @@
     "backfill:workout-catalog": "node server/scripts/backfillWorkoutSetCatalogIds.js",
     "migrate:sql": "node server/scripts/runMigration.js",
     "migrate:pending": "node server/scripts/runPendingMigrations.js",
-    "test:notifications": "node --test server/notifications/*.test.js"
+    "test:notifications": "node --test server/notifications/*.test.js",
+    "test:repygames": "node --test server/services/repyGamesPoints.test.js"
   },
   "dependencies": {
     "@capacitor/android": "^8.3.0",
@@ -33,6 +34,7 @@
     "@ionic/utils-fs": "^3.1.7",
     "@ionic/utils-subprocess": "^3.0.1",
     "@mediapipe/tasks-vision": "^0.10.34",
+    "@supabase/supabase-js": "^2.116.0",
     "airtable": "^0.12.2",
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",

@@ -216,7 +216,7 @@ function ClearNotificationsDialog({
   );
 }
 
-export function NotificationsScreen({ onBack, onOpenAcceptedChallenge }: NotificationsScreenProps) {
+export function NotificationsScreen({ onBack, onOpenAcceptedChallenge, onOpenRepyGame }: NotificationsScreenProps) {
   const { language, isArabic } = useAppLanguage();
   const copy = getNotificationsCopy(language);
 
@@ -499,6 +499,67 @@ export function NotificationsScreen({ onBack, onOpenAcceptedChallenge }: Notific
     userId,
   ]);
 
+  const handleRepyGameInviteResponse = useCallback(async (
+    notification: AppNotification,
+    action: 'accept' | 'decline',
+  ) => {
+    if (!userId) return;
+
+    const notificationData = parseNotificationData(notification.data);
+    const gameId = toPositiveInt(notificationData.repyGameId);
+    if (!gameId) return;
+
+    setError('');
+    setActioningNotificationId(notification.id);
+
+    try {
+      let resolvedStatus: ChallengeInviteTerminalStatus = action === 'accept' ? 'accepted' : 'declined';
+
+      try {
+        const response = await api.respondToRepyGameInvite(gameId, action);
+        const payload = response as Record<string, unknown> | null;
+        resolvedStatus = toChallengeInviteTerminalStatus(payload?.status) || resolvedStatus;
+      } catch (requestError) {
+        const conflictStatus = getChallengeInviteConflictStatus(requestError);
+        if (!conflictStatus) {
+          setError(getErrorMessage(
+            requestError,
+            action === 'accept' ? copy.failedAcceptChallengeInvite : copy.failedDeclineChallengeInvite,
+          ));
+          return;
+        }
+        resolvedStatus = conflictStatus;
+      }
+
+      updateNotification(notification.id, (item) => {
+        const itemData = parseNotificationData(item.data);
+        return {
+          ...item,
+          unread: false,
+          message: resolvedStatus === 'accepted'
+            ? 'You accepted this RepyGames invite.'
+            : 'You declined this RepyGames invite.',
+          data: {
+            ...itemData,
+            responseStatus: resolvedStatus,
+          },
+        };
+      });
+
+      if (resolvedStatus === 'accepted') {
+        onOpenRepyGame?.({ gameId });
+      }
+    } finally {
+      setActioningNotificationId(null);
+    }
+  }, [
+    copy.failedAcceptChallengeInvite,
+    copy.failedDeclineChallengeInvite,
+    onOpenRepyGame,
+    updateNotification,
+    userId,
+  ]);
+
   const handleNotificationAction = useCallback((notificationId: number, actionId: NotificationActionId) => {
     const notification = items.find((item) => item.id === notificationId);
     if (!notification) return;
@@ -511,8 +572,13 @@ export function NotificationsScreen({ onBack, onOpenAcceptedChallenge }: Notific
 
     if (type === 'friend_challenge_invite' && (actionId === 'accept' || actionId === 'decline')) {
       void handleChallengeInviteResponse(notification, actionId);
+      return;
     }
-  }, [handleChallengeInviteResponse, handleFriendRequestResponse, items]);
+
+    if (type === 'repy_game_invite' && (actionId === 'accept' || actionId === 'decline')) {
+      void handleRepyGameInviteResponse(notification, actionId);
+    }
+  }, [handleChallengeInviteResponse, handleFriendRequestResponse, handleRepyGameInviteResponse, items]);
 
   const handleOpenNotification = useCallback((notificationId: number) => {
     const notification = items.find((item) => item.id === notificationId);
@@ -574,8 +640,10 @@ export function NotificationsScreen({ onBack, onOpenAcceptedChallenge }: Notific
       const responseStatus = getNotificationResponseStatus(data);
       const friendshipId = toPositiveInt(data.friendshipId);
       const isChallengeInvite = type === 'friend_challenge_invite';
+      const isRepyGameInvite = type === 'repy_game_invite';
       const showFriendRequestActions = isFriendRequestNotification(type, data) && !responseStatus;
       const showChallengeInviteActions = isChallengeInvite && !responseStatus;
+      const showRepyGameInviteActions = isRepyGameInvite && !responseStatus;
       const actionBusy = actioningNotificationId === notification.id
         || (!!friendshipId && actioningFriendshipId === friendshipId);
 
@@ -588,10 +656,12 @@ export function NotificationsScreen({ onBack, onOpenAcceptedChallenge }: Notific
         unread: Boolean(notification.unread),
         visual,
         metadata: buildNotificationMetadata(type, data, language),
-        note: showChallengeInviteActions ? copy.challengeInvitePendingNote : undefined,
+        note: showRepyGameInviteActions
+          ? 'Accept to join. Gameplay happens on the host phone.'
+          : showChallengeInviteActions ? copy.challengeInvitePendingNote : undefined,
         statusLabel: responseStatus
           ? {
-            label: isChallengeInvite
+            label: (isChallengeInvite || isRepyGameInvite)
               ? (
                 responseStatus === 'accepted'
                   ? copy.challengeInviteAccepted
@@ -637,6 +707,21 @@ export function NotificationsScreen({ onBack, onOpenAcceptedChallenge }: Notific
                 disabled: actionBusy,
               },
             ]
+            : showRepyGameInviteActions
+              ? [
+                {
+                  id: 'accept',
+                  label: actionBusy ? copy.processing : 'Accept',
+                  tone: 'primary',
+                  disabled: actionBusy,
+                },
+                {
+                  id: 'decline',
+                  label: 'Decline',
+                  tone: 'secondary',
+                  disabled: actionBusy,
+                },
+              ]
             : undefined,
       };
     })

@@ -46,10 +46,27 @@ export type BodyMapMuscle = (typeof BODY_MAP_MUSCLES)[number];
 export type BodyMapLevels = Partial<Record<BodyMapMuscle, number>>;
 
 const normalizeMuscleKey = (value: unknown) => String(value || '').trim().toLowerCase();
+const FULL_BODY_MUSCLES: BodyMapMuscle[] = [...BODY_MAP_MUSCLES];
+const LOWER_BODY_MUSCLES: BodyMapMuscle[] = ['quadriceps', 'hamstring', 'gluteal', 'adductors', 'calves', 'tibialis'];
 
 export function recoveryMuscleToBodyMapSlugs(value: unknown): BodyMapMuscle[] {
   const key = normalizeMuscleKey(value);
 
+  if (key === 'fu') {
+    return LOWER_BODY_MUSCLES;
+  }
+  if (
+    key.includes('full body')
+    || key.includes('full-body')
+    || key.includes('whole body')
+    || key.includes('total body')
+    || key === 'full'
+    || key.includes('hybrid')
+    || key.includes('hyrox')
+    || key === 'hy'
+  ) {
+    return FULL_BODY_MUSCLES;
+  }
   if (key.includes('chest') || key.includes('pectoral') || key.includes('pectoralis') || key.includes('pec')) return ['chest'];
   if (key.includes('trap')) return ['trapezius'];
   if (key.includes('back') || key.includes('lat')) return ['trapezius', 'upper-back', 'lower-back'];
@@ -67,6 +84,9 @@ export function recoveryMuscleToBodyMapSlugs(value: unknown): BodyMapMuscle[] {
     || key.includes('grip')
   ) return ['forearm'];
   if (key.includes('quad')) return ['quadriceps'];
+  if (key === 'leg' || key === 'legs' || key.includes('lower body') || key.includes('lower-body')) {
+    return LOWER_BODY_MUSCLES;
+  }
   if (key.includes('hamstring')) return ['hamstring'];
   if (key.includes('glute')) return ['gluteal'];
   if (

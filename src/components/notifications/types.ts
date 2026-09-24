@@ -8,9 +8,14 @@ export interface AcceptedChallengePayload {
   challengeSessionId: number;
 }
 
+export interface AcceptedRepyGamePayload {
+  gameId: number;
+}
+
 export interface NotificationsScreenProps {
   onBack: () => void;
   onOpenAcceptedChallenge?: (challenge: AcceptedChallengePayload) => void;
+  onOpenRepyGame?: (payload: AcceptedRepyGamePayload) => void;
 }
 
 export interface AppNotification {
@@ -36,6 +41,9 @@ export interface NotificationData extends Record<string, unknown> {
   senderName?: unknown;
   sessionId?: unknown;
   receiverNotificationId?: unknown;
+  repyGameId?: unknown;
+  repyGameType?: unknown;
+  playerCount?: unknown;
   points?: unknown;
   streak?: unknown;
   route?: unknown;
@@ -55,6 +63,7 @@ export type NotificationType =
   | 'plan_review_rejected'
   | 'friend_challenge_invite'
   | 'friend_challenge_response'
+  | 'repy_game_invite'
   | 'mission_completed'
   | 'workout_reminder'
   | 'recovery_alert'

@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Apple, ArrowLeft, Bell, Bot, BookOpen, ChevronRight, MoonStar, ShoppingBag, type LucideIcon } from 'lucide-react';
+import { Apple, ArrowLeft, Bell, Bot, BookOpen, Check, ChevronRight, Crown, Gamepad2, LoaderCircle, MoonStar, Search, ShoppingBag, X, type LucideIcon } from 'lucide-react';
 import { CoachmarkOverlay, type CoachmarkStep } from '../components/coachmarks/CoachmarkOverlay';
 import { WorkoutCard } from '../components/dashboard/WorkoutCard';
 import { RecoveryIndicator } from '../components/dashboard/RecoveryIndicator';
@@ -9,6 +9,7 @@ import { CoachList } from './CoachList';
 import { Messaging } from './Messaging';
 import { Calculator } from './Calculator';
 import { ExerciseLibrary } from './ExerciseLibrary';
+import type { ExerciseRemoteMedia } from '../services/exerciseVideos';
 import { BooksLibrary } from './BooksLibrary';
 import { MyNutrition } from './MyNutrition';
 import { Shop } from './Shop';
@@ -19,6 +20,7 @@ import { FriendChallengeScreen } from '../components/profile/FriendChallengeScre
 import { NotificationsScreen } from '../components/notifications/NotificationsScreen';
 import { HOME_CARD_TITLE_CLASS } from '../components/home/homeCardStyles';
 import { api } from '../services/api';
+import { socketService } from '../services/socket';
 import {
   getCoachmarkUserScope,
   HOME_COACHMARK_TOUR_ID,
@@ -367,6 +369,787 @@ function HomeQuickActionButton({ label, Icon, onClick, coachmarkTargetId, isGirl
   );
 }
 
+function RunoCardPreview({ isGirlsTheme = false }: { isGirlsTheme?: boolean }) {
+  return (
+    <div className="pointer-events-none absolute right-2 top-1/2 z-10 -translate-y-1/2 sm:right-4" aria-hidden="true">
+      <div className={`relative h-[148px] w-[94px] rotate-[8deg] rounded-[18px] bg-[#fffffd] p-2 ring-1 ring-black/10 transition-transform duration-300 group-hover:rotate-[3deg] group-hover:scale-105 sm:h-[168px] sm:w-[108px] ${isGirlsTheme ? 'shadow-[0_22px_34px_rgba(226,180,189,0.30)]' : 'shadow-[0_22px_34px_rgba(0,0,0,0.34)]'}`}>
+        <div className={`relative h-full w-full overflow-hidden rounded-[14px] ${isGirlsTheme ? 'bg-[#4A4A4A]' : 'bg-[#191f1f]'}`}>
+          <div className={`absolute inset-0 rounded-full ${isGirlsTheme ? 'bg-[#F9B2D7]' : 'bg-[#cb0323]'} [transform:scale(0.9)_skewX(-22deg)]`} />
+          <div className={isGirlsTheme ? 'absolute inset-0 bg-[radial-gradient(circle_at_22%_18%,rgba(255,255,255,0.30),transparent_16%),radial-gradient(circle_at_82%_78%,rgba(207,236,243,0.34),transparent_18%)]' : 'absolute inset-0 bg-[radial-gradient(circle_at_22%_18%,rgba(255,255,255,0.22),transparent_16%),radial-gradient(circle_at_82%_78%,rgba(228,199,19,0.18),transparent_18%)]'} />
+          <div className={`absolute left-2 top-2 text-[13px] font-black leading-none ${isGirlsTheme ? 'text-[#CFECF3] [text-shadow:1px_1px_#fffffd,2px_2px_#795E67]' : 'text-[#e4c713] [text-shadow:1px_1px_#fffffd,2px_2px_#191f1f]'}`}>
+            R
+          </div>
+          <div className={`absolute bottom-2 right-2 rotate-180 text-[13px] font-black leading-none ${isGirlsTheme ? 'text-[#CFECF3] [text-shadow:1px_1px_#fffffd,2px_2px_#795E67]' : 'text-[#e4c713] [text-shadow:1px_1px_#fffffd,2px_2px_#191f1f]'}`}>
+            R
+          </div>
+          <div className="absolute inset-0 flex items-center justify-center">
+            <div className={`-rotate-12 text-[29px] font-black tracking-[-0.06em] sm:text-[34px] ${isGirlsTheme ? 'text-[#CFECF3] [text-shadow:2px_2px_#fffffd,4px_4px_#795E67]' : 'text-[#e4c713] [text-shadow:2px_2px_#fffffd,4px_4px_#191f1f]'}`}>
+              RUNO
+            </div>
+          </div>
+        </div>
+      </div>
+      <div className={`absolute -bottom-7 left-4 h-10 w-24 rounded-full blur-xl ${isGirlsTheme ? 'bg-[#E2B4BD]/35' : 'bg-black/35'}`} />
+    </div>
+  );
+}
+
+interface RepyGamesLibraryProps {
+  onBack: () => void;
+  onOpenRuno: () => void;
+  isGirlsTheme?: boolean;
+}
+
+function RepyGamesLibrary({ onBack, onOpenRuno, isGirlsTheme = false }: RepyGamesLibraryProps) {
+  const pageClassName = isGirlsTheme
+    ? '-mx-4 min-h-[calc(100dvh-1rem)] bg-[radial-gradient(circle_at_top_left,rgba(249,178,215,0.22),transparent_34%),radial-gradient(circle_at_85%_10%,rgba(207,236,243,0.32),transparent_30%),linear-gradient(180deg,#FFF5F5_0%,#F7D6D0_52%,#FFF5F5_100%)] px-4 pb-24 pt-4 text-[#4A4A4A] sm:-mx-6 sm:px-6'
+    : 'min-h-screen pb-24 pt-4 text-text-primary';
+  const backButtonClassName = isGirlsTheme
+    ? 'flex h-10 w-10 items-center justify-center rounded-xl border border-[#E2B4BD]/55 bg-white/72 text-[#A87884] shadow-[0_10px_24px_rgba(226,180,189,0.16)] transition-colors hover:border-[#F9B2D7]/75 hover:text-[#4A4A4A]'
+    : 'surface-glass flex h-10 w-10 items-center justify-center rounded-xl text-text-primary transition-colors hover:border-accent/40';
+  const cardClassName = isGirlsTheme
+    ? 'group relative min-h-[190px] overflow-hidden rounded-[26px] border border-[#E2B4BD]/60 bg-white/[0.78] p-4 text-left shadow-[0_20px_48px_rgba(226,180,189,0.22)] ring-1 ring-white/60 transition-all duration-300 hover:-translate-y-1 hover:border-[#F9B2D7]/80'
+    : 'group relative min-h-[190px] overflow-hidden rounded-[26px] border border-white/10 bg-[#07101f] p-4 text-left shadow-[0_18px_44px_rgba(0,0,0,0.28)] ring-1 ring-white/[0.04] transition-all duration-300 hover:-translate-y-1 hover:border-accent/35';
+
+  return (
+    <div className={pageClassName}>
+      <div className="mb-6 flex items-center gap-4">
+        <button type="button" onClick={onBack} className={backButtonClassName} aria-label="Back">
+          <ArrowLeft size={18} aria-hidden="true" />
+        </button>
+        <div className="min-w-0">
+          <h1 className={`text-xl font-semibold ${isGirlsTheme ? 'text-[#4A4A4A]' : 'text-text-primary'}`}>RepyGames</h1>
+          <p className={`mt-1 text-xs ${isGirlsTheme ? 'text-[#795E67]' : 'text-text-secondary'}`}>Choose a game</p>
+        </div>
+      </div>
+
+      <button type="button" onClick={onOpenRuno} className={cardClassName}>
+        <div
+          className={isGirlsTheme
+            ? 'absolute inset-0 bg-[radial-gradient(circle_at_18%_18%,rgba(249,178,215,0.38),transparent_30%),radial-gradient(circle_at_88%_14%,rgba(207,236,243,0.52),transparent_32%),linear-gradient(135deg,rgba(255,245,245,0.88),rgba(247,214,208,0.54))]'
+            : 'absolute inset-0 bg-[radial-gradient(circle_at_18%_18%,rgba(205,255,88,0.18),transparent_30%),radial-gradient(circle_at_88%_14%,rgba(59,130,246,0.18),transparent_30%),linear-gradient(135deg,#0d1726,#111b2a_58%,#07101f)]'}
+          aria-hidden="true"
+        />
+        <RunoCardPreview isGirlsTheme={isGirlsTheme} />
+        <div className="relative z-10 max-w-[70%]">
+          <span className={`inline-flex h-10 w-10 items-center justify-center rounded-2xl ${isGirlsTheme ? 'bg-white/70 text-[#A87884]' : 'bg-accent/12 text-accent'}`}>
+            <Gamepad2 size={22} aria-hidden="true" />
+          </span>
+          <div className={`mt-5 text-4xl font-electrolize font-bold leading-none ${isGirlsTheme ? 'text-[#4A4A4A]' : 'text-white'}`}>
+            Runo
+          </div>
+          <div className={`mt-2 text-sm font-medium ${isGirlsTheme ? 'text-[#795E67]' : 'text-text-secondary'}`}>
+            Uno-style card battle
+          </div>
+          <div className={`mt-5 inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-semibold ${isGirlsTheme ? 'bg-[#F9B2D7]/35 text-[#4A4A4A]' : 'bg-white/10 text-text-primary'}`}>
+            Play
+            <ChevronRight size={14} aria-hidden="true" />
+          </div>
+        </div>
+      </button>
+    </div>
+  );
+}
+
+type RepyGameFriend = {
+  userId: number;
+  displayName: string;
+  username?: string;
+  profileImage?: string | null;
+};
+
+type RepyGameParticipant = {
+  participantId: number;
+  userId: number;
+  name: string;
+  username?: string;
+  profilePicture?: string | null;
+  role: 'host' | 'player' | string;
+  inviteStatus: 'pending' | 'accepted' | 'declined' | 'expired' | string;
+  status?: string;
+  livesRemaining?: number;
+  isViewer?: boolean;
+};
+
+type RepyGameCard = {
+  id: string;
+  type: string;
+  category: string;
+  title: string;
+  exercise?: string | null;
+  value?: number;
+  mode?: string | null;
+  effect?: string | null;
+  label?: string;
+};
+
+type RepyGameGameplay = {
+  phase: string;
+  currentPlayerUserId?: number | null;
+  currentPlayerName?: string;
+  direction?: number;
+  round?: number;
+  drawCount?: number;
+  currentCard?: RepyGameCard | null;
+  currentChallenge?: any;
+  lastResult?: any;
+  strikes?: Record<string, number>;
+};
+
+type RepyGameLobby = {
+  gameId: number;
+  title: string;
+  status: string;
+  hostUserId: number;
+  hostName: string;
+  viewerRole?: string | null;
+  viewerInviteStatus?: string | null;
+  participants: RepyGameParticipant[];
+  totalPlayers: number;
+  acceptedCount: number;
+  pendingCount: number;
+  declinedCount: number;
+  allReady: boolean;
+  gameplay?: RepyGameGameplay;
+};
+
+const getInitials = (name: string) => {
+  const parts = String(name || 'P').trim().split(/\s+/).filter(Boolean);
+  return (parts[0]?.[0] || 'P').toUpperCase() + (parts[1]?.[0] || '').toUpperCase();
+};
+
+function RepyGameAvatar({
+  name,
+  src,
+  isGirlsTheme = false,
+}: {
+  name: string;
+  src?: string | null;
+  isGirlsTheme?: boolean;
+}) {
+  return (
+    <div className={`flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-2xl border text-sm font-bold ${isGirlsTheme ? 'border-[#E2B4BD]/50 bg-white/70 text-[#A87884]' : 'border-white/10 bg-white/10 text-accent'}`}>
+      {src ? <img src={src} alt="" className="h-full w-full object-cover" /> : getInitials(name)}
+    </div>
+  );
+}
+
+function RepyGamePlayerSelection({
+  currentUser,
+  onBack,
+  onGameCreated,
+  isGirlsTheme = false,
+}: {
+  currentUser: any;
+  onBack: () => void;
+  onGameCreated: (game: RepyGameLobby) => void;
+  isGirlsTheme?: boolean;
+}) {
+  const [friends, setFriends] = useState<RepyGameFriend[]>([]);
+  const [selectedIds, setSelectedIds] = useState<number[]>([]);
+  const [search, setSearch] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [creating, setCreating] = useState(false);
+  const [error, setError] = useState('');
+  const [feedback, setFeedback] = useState('');
+  const hostName = String(currentUser?.name || 'You').trim() || 'You';
+  const totalPlayers = selectedIds.length + 1;
+  const canInvite = selectedIds.length >= 1 && selectedIds.length <= 4 && !creating;
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    setError('');
+    api.getRepyGameFriends()
+      .then((response: any) => {
+        if (cancelled) return;
+        setFriends(Array.isArray(response?.friends) ? response.friends : []);
+      })
+      .catch((requestError) => {
+        if (cancelled) return;
+        setError(requestError instanceof Error ? requestError.message : 'Failed to load friends.');
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const filteredFriends = useMemo(() => {
+    const query = search.trim().toLowerCase();
+    if (!query) return friends;
+    return friends.filter((friend) => (
+      friend.displayName.toLowerCase().includes(query)
+      || String(friend.username || '').toLowerCase().includes(query)
+    ));
+  }, [friends, search]);
+
+  const toggleFriend = (friendId: number) => {
+    setFeedback('');
+    setSelectedIds((current) => {
+      if (current.includes(friendId)) return current.filter((id) => id !== friendId);
+      if (current.length >= 4) {
+        setFeedback('Maximum 5 players per game.');
+        return current;
+      }
+      return [...current, friendId];
+    });
+  };
+
+  const handleInvite = async () => {
+    if (!canInvite) return;
+    setCreating(true);
+    setError('');
+    try {
+      const response: any = await api.createRepyGame({
+        gameType: 'last_rep_standing',
+        invitedUserIds: selectedIds,
+      });
+      if (response?.game) {
+        onGameCreated(response.game as RepyGameLobby);
+      }
+    } catch (requestError) {
+      const activeGameId = Number((requestError as { data?: { gameId?: number } })?.data?.gameId || 0);
+      if (activeGameId > 0) {
+        try {
+          const response: any = await api.getRepyGame(activeGameId);
+          if (response?.game) {
+            onGameCreated(response.game as RepyGameLobby);
+            return;
+          }
+        } catch {
+          // Fall through to the original API error so the user still gets feedback.
+        }
+      }
+      setError(requestError instanceof Error ? requestError.message : 'Failed to invite players.');
+    } finally {
+      setCreating(false);
+    }
+  };
+
+  return (
+    <div className={isGirlsTheme ? '-mx-4 min-h-[calc(100dvh-1rem)] bg-[#FFF5F5] px-4 pb-24 pt-4 text-[#4A4A4A] sm:-mx-6 sm:px-6' : 'min-h-screen pb-24 pt-4 text-text-primary'}>
+      <div className="mb-6 flex items-center gap-4">
+        <button type="button" onClick={onBack} className={isGirlsTheme ? 'flex h-10 w-10 items-center justify-center rounded-xl border border-[#E2B4BD]/55 bg-white/72 text-[#A87884]' : 'surface-glass flex h-10 w-10 items-center justify-center rounded-xl text-text-primary'}>
+          <ArrowLeft size={18} aria-hidden="true" />
+        </button>
+        <div>
+          <h1 className="text-xl font-semibold">Last Rep Standing</h1>
+          <p className={isGirlsTheme ? 'mt-1 text-xs text-[#795E67]' : 'mt-1 text-xs text-text-secondary'}>Pick 1-4 friends to join you.</p>
+        </div>
+      </div>
+
+      <div className={isGirlsTheme ? 'rounded-3xl border border-[#E2B4BD]/50 bg-white/75 p-4' : 'rounded-3xl border border-white/10 bg-card p-4'}>
+        <div className="mb-4 flex items-center justify-between">
+          <div className="text-sm font-semibold">Your team</div>
+          <div className={isGirlsTheme ? 'rounded-full bg-[#F9B2D7]/30 px-3 py-1 text-xs font-bold text-[#4A4A4A]' : 'rounded-full bg-accent/12 px-3 py-1 text-xs font-bold text-accent'}>
+            {totalPlayers} / 5 players
+          </div>
+        </div>
+        <div className={isGirlsTheme ? 'flex items-center gap-3 rounded-2xl border border-[#E2B4BD]/45 bg-white/65 p-3' : 'flex items-center gap-3 rounded-2xl border border-white/10 bg-white/5 p-3'}>
+          <RepyGameAvatar name={hostName} src={currentUser?.profile_picture || currentUser?.profilePicture} isGirlsTheme={isGirlsTheme} />
+          <div className="min-w-0 flex-1">
+            <div className="truncate text-sm font-semibold">{hostName}</div>
+            <div className={isGirlsTheme ? 'text-[11px] font-bold uppercase text-[#A87884]' : 'text-[11px] font-bold uppercase text-accent'}>You - Host</div>
+          </div>
+          <Crown size={18} className={isGirlsTheme ? 'text-[#A87884]' : 'text-accent'} />
+        </div>
+      </div>
+
+      <div className="relative mt-5">
+        <Search size={17} className={isGirlsTheme ? 'absolute left-4 top-1/2 -translate-y-1/2 text-[#A87884]' : 'absolute left-4 top-1/2 -translate-y-1/2 text-text-tertiary'} />
+        <input
+          value={search}
+          onChange={(event) => setSearch(event.target.value)}
+          placeholder="Search friends..."
+          className={isGirlsTheme ? 'w-full rounded-2xl border border-[#E2B4BD]/45 bg-white/75 py-3.5 pl-11 pr-4 text-sm text-[#4A4A4A] outline-none' : 'surface-glass w-full rounded-2xl border border-white/15 py-3.5 pl-11 pr-4 text-sm text-text-primary outline-none'}
+        />
+      </div>
+
+      {error ? <div className={isGirlsTheme ? 'mt-4 rounded-2xl border border-rose-300/55 bg-rose-50/80 p-3 text-sm text-rose-600' : 'mt-4 rounded-2xl border border-rose-500/20 bg-rose-500/10 p-3 text-sm text-rose-200'}>{error}</div> : null}
+      {feedback ? <div className={isGirlsTheme ? 'mt-4 rounded-2xl border border-[#E2B4BD]/55 bg-white/72 p-3 text-sm text-[#A87884]' : 'mt-4 rounded-2xl border border-amber-500/20 bg-amber-500/10 p-3 text-sm text-amber-200'}>{feedback}</div> : null}
+
+      <div className="mt-5 space-y-3">
+        <div className={isGirlsTheme ? 'text-xs font-bold uppercase tracking-[0.14em] text-[#A87884]' : 'text-xs font-bold uppercase tracking-[0.14em] text-text-secondary'}>Friends</div>
+        {loading ? (
+          <div className={`flex items-center gap-2 text-sm ${isGirlsTheme ? 'text-[#795E67]' : 'text-text-secondary'}`}><LoaderCircle size={16} className="animate-spin" /> Loading friends...</div>
+        ) : filteredFriends.length ? filteredFriends.map((friend) => {
+          const selected = selectedIds.includes(friend.userId);
+          return (
+            <button
+              key={friend.userId}
+              type="button"
+              onClick={() => toggleFriend(friend.userId)}
+              className={isGirlsTheme
+                ? `flex w-full items-center gap-3 rounded-2xl border p-3 text-left transition ${selected ? 'border-[#F9B2D7] bg-[#F9B2D7]/22' : 'border-[#E2B4BD]/45 bg-white/70'}`
+                : `flex w-full items-center gap-3 rounded-2xl border p-3 text-left transition ${selected ? 'border-accent/45 bg-accent/10' : 'border-white/10 bg-card hover:bg-white/5'}`}
+            >
+              <RepyGameAvatar name={friend.displayName} src={friend.profileImage} isGirlsTheme={isGirlsTheme} />
+              <div className="min-w-0 flex-1">
+                <div className="truncate text-sm font-semibold">{friend.displayName}</div>
+                <div className={isGirlsTheme ? 'truncate text-xs text-[#795E67]' : 'truncate text-xs text-text-secondary'}>
+                  {friend.username ? `@${friend.username}` : 'Friend'}
+                </div>
+              </div>
+              <span className={`flex h-8 w-8 items-center justify-center rounded-full border ${selected ? (isGirlsTheme ? 'border-[#F9B2D7] bg-[#F9B2D7] text-[#4A4A4A]' : 'border-accent bg-accent text-black') : 'border-white/20 text-text-tertiary'}`}>
+                {selected ? <Check size={16} /> : null}
+              </span>
+            </button>
+          );
+        }) : (
+          <div className={isGirlsTheme ? 'rounded-2xl border border-[#E2B4BD]/45 bg-white/70 p-4 text-sm text-[#795E67]' : 'surface-card rounded-2xl border border-white/10 p-4 text-sm text-text-secondary'}>
+            No friends found
+          </div>
+        )}
+      </div>
+
+      <div className={isGirlsTheme ? 'fixed inset-x-0 bottom-0 z-40 mx-auto max-w-7xl bg-gradient-to-t from-[#FFF5F5] via-[#FFF5F5]/95 to-transparent px-4 pb-4 pt-8 sm:px-6' : 'fixed inset-x-0 bottom-0 z-40 mx-auto max-w-7xl bg-gradient-to-t from-background via-background/95 to-transparent px-4 pb-4 pt-8 sm:px-6'}>
+        <button
+          type="button"
+          disabled={!canInvite}
+          onClick={() => void handleInvite()}
+          className={isGirlsTheme
+            ? 'min-h-12 w-full rounded-2xl bg-[#E2B4BD] px-4 text-sm font-bold text-[#4A4A4A] disabled:opacity-50'
+            : 'min-h-12 w-full rounded-2xl bg-accent px-4 text-sm font-bold text-black disabled:opacity-50'}
+        >
+          {creating ? 'Inviting players...' : selectedIds.length ? `Invite ${selectedIds.length} player${selectedIds.length === 1 ? '' : 's'}` : 'Select at least 1 friend'}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+const getRepyGameLives = (participant: RepyGameParticipant) => {
+  const lives = Math.max(0, Number(participant.livesRemaining || 0));
+  if (participant.status === 'eliminated' || lives <= 0) return '☠';
+  return '♥'.repeat(lives);
+};
+
+function RepyGamePlayingCard({
+  card,
+  revealed,
+  pending,
+  disabled,
+  onClick,
+  isGirlsTheme = false,
+}: {
+  card?: RepyGameCard | null;
+  revealed: boolean;
+  pending: boolean;
+  disabled: boolean;
+  onClick: () => void;
+  isGirlsTheme?: boolean;
+}) {
+  const cardTitle = String(card?.title || 'REPY');
+  const cardValue = Number(card?.value || 0);
+  const cardLabel = String(card?.label || (card?.effect ? 'SPECIAL CARD' : 'TAP TO DRAW'));
+  const frontTone = card?.type === 'special'
+    ? isGirlsTheme
+      ? 'from-[#F9B2D7] via-[#E2B4BD] to-[#CFECF3]'
+      : 'from-[#101820] via-[#17253A] to-[#07101F]'
+    : card?.category === 'gold'
+      ? isGirlsTheme
+        ? 'from-[#FFF5F5] via-[#F9B2D7] to-[#E2B4BD]'
+        : 'from-[#F4D35E] via-[#C59720] to-[#5C3B00]'
+      : isGirlsTheme
+        ? 'from-[#F9B2D7] via-[#E2B4BD] to-[#A87884]'
+        : 'from-[#CB0323] via-[#B80524] to-[#6D0013]';
+
+  return (
+    <button
+      type="button"
+      disabled={disabled}
+      onClick={onClick}
+      className="group relative mx-auto block h-[300px] w-[190px] touch-manipulation outline-none [perspective:900px] disabled:cursor-default"
+      aria-label={revealed ? cardLabel : 'Tap to draw RepyGames card'}
+    >
+      <div
+        className={`absolute inset-0 rounded-[1.25rem] transition-transform duration-700 [transform-style:preserve-3d] ${revealed ? '[transform:rotateY(180deg)]' : '[transform:rotateY(0deg)]'} ${pending ? '-translate-y-2 scale-[1.03]' : ''}`}
+      >
+        <div className={`absolute inset-0 overflow-hidden rounded-[1.25rem] bg-[#FFFFFD] p-2 [backface-visibility:hidden] ${isGirlsTheme ? 'shadow-[0_22px_45px_rgba(226,180,189,0.28)]' : 'shadow-[0_22px_45px_rgba(0,0,0,0.35)]'}`}>
+          <div className={`relative flex h-full items-center justify-center overflow-hidden rounded-[1rem] ${isGirlsTheme ? 'bg-[#4A4A4A]' : 'bg-[#191F1F]'}`}>
+            <div className={`absolute inset-0 m-auto h-[82%] w-[96%] -skew-x-[22deg] rounded-full ${isGirlsTheme ? 'bg-[#F9B2D7]' : 'bg-[#CB0323]'}`} />
+            <div className={`relative -rotate-12 text-center font-electrolize text-[42px] font-black leading-[0.9] ${isGirlsTheme ? 'text-[#CFECF3] [text-shadow:2px_2px_0_#FFFFFD,-5px_5px_0_#795E67]' : 'text-[#E4C713] [text-shadow:2px_2px_0_#F1E8AD,-5px_5px_0_#191F1F]'}`}>
+              REPY<br />GAMES
+            </div>
+          </div>
+        </div>
+        <div className={`absolute inset-0 overflow-hidden rounded-[1.25rem] bg-[#FFFFFD] p-2 [backface-visibility:hidden] [transform:rotateY(180deg)] ${isGirlsTheme ? 'shadow-[0_22px_45px_rgba(226,180,189,0.28)]' : 'shadow-[0_22px_45px_rgba(0,0,0,0.35)]'}`}>
+          <div className={`relative flex h-full flex-col items-center justify-between overflow-hidden rounded-[1rem] bg-gradient-to-br ${frontTone} p-4 ${isGirlsTheme ? 'text-[#4A4A4A]' : 'text-white'}`}>
+            <div className={`absolute inset-3 -skew-x-[20deg] rounded-full border-[10px] opacity-95 ${isGirlsTheme ? 'border-white/90' : 'border-white/95'}`} />
+            <div className="relative z-10 flex w-full items-center justify-between text-sm font-black uppercase">
+              <span>{cardTitle}</span>
+              {cardValue ? <span>{cardValue}</span> : <span>{card?.effect === 'reverse' ? 'REV' : card?.effect === 'skip' ? 'SKIP' : ''}</span>}
+            </div>
+            <div className="relative z-10 flex flex-1 flex-col items-center justify-center text-center">
+              <div className="text-[64px] font-black leading-none">{cardValue || (card?.effect === 'reverse' ? '↻' : '⏭')}</div>
+              <div className="mt-3 text-2xl font-black uppercase tracking-wide">{cardTitle}</div>
+              <div className={isGirlsTheme ? 'mt-1 text-sm font-bold uppercase text-[#795E67]' : 'mt-1 text-sm font-bold uppercase text-white/80'}>{cardLabel}</div>
+            </div>
+            <div className="relative z-10 w-full text-right text-xs font-black uppercase opacity-80">RepyGames</div>
+          </div>
+        </div>
+      </div>
+      {!revealed ? (
+        <div className={`absolute -bottom-12 left-1/2 w-max -translate-x-1/2 text-xs font-black uppercase tracking-[0.22em] ${isGirlsTheme ? 'text-[#A87884]' : 'text-accent'}`}>
+          {pending ? 'Drawing...' : 'Tap to draw'}
+        </div>
+      ) : null}
+    </button>
+  );
+}
+
+function RepyGameTable({
+  game,
+  isHost,
+  onGameUpdate,
+  isGirlsTheme = false,
+}: {
+  game: RepyGameLobby;
+  isHost: boolean;
+  onGameUpdate: (game: RepyGameLobby) => void;
+  isGirlsTheme?: boolean;
+}) {
+  const [cardState, setCardState] = useState<'idle' | 'draw_requested' | 'card_revealing' | 'challenge_active' | 'challenge_resolving'>(
+    game.gameplay?.currentCard ? 'challenge_active' : 'idle',
+  );
+  const [error, setError] = useState('');
+  const [busy, setBusy] = useState('');
+  const gameplay = game.gameplay || { phase: 'awaiting_draw' };
+  const currentPlayer = game.participants.find((participant) => participant.userId === Number(gameplay.currentPlayerUserId || 0));
+  const currentCard = gameplay.currentCard || null;
+  const isCardActive = Boolean(currentCard);
+  const canDraw = isHost && gameplay.phase === 'awaiting_draw' && !isCardActive && cardState === 'idle';
+  const isExerciseCard = currentCard?.type === 'challenge';
+
+  useEffect(() => {
+    if (gameplay.currentCard) {
+      setCardState((current) => current === 'draw_requested' || current === 'card_revealing' ? current : 'challenge_active');
+    } else {
+      setCardState('idle');
+    }
+  }, [gameplay.currentCard?.id, gameplay.phase, gameplay.currentPlayerUserId]);
+
+  const drawCard = async () => {
+    if (!canDraw) return;
+    setError('');
+    setCardState('draw_requested');
+    try {
+      await new Promise((resolve) => window.setTimeout(resolve, 150));
+      const response: any = await api.drawRepyGameCard(game.gameId);
+      if (response?.game) onGameUpdate(response.game as RepyGameLobby);
+      setCardState('card_revealing');
+      window.setTimeout(() => setCardState('challenge_active'), 760);
+    } catch (requestError) {
+      setCardState('idle');
+      setError(requestError instanceof Error ? requestError.message : 'Failed to draw card.');
+    }
+  };
+
+  const resolveCard = async (result: 'completed' | 'failed' | 'continue') => {
+    if (!isHost || !currentCard) return;
+    setBusy(result);
+    setError('');
+    setCardState('challenge_resolving');
+    try {
+      const response: any = await api.resolveRepyGameCard(game.gameId, result);
+      if (response?.game) onGameUpdate(response.game as RepyGameLobby);
+      window.setTimeout(() => setCardState('idle'), 500);
+    } catch (requestError) {
+      setCardState('challenge_active');
+      setError(requestError instanceof Error ? requestError.message : 'Failed to resolve card.');
+    } finally {
+      setBusy('');
+    }
+  };
+
+  return (
+    <div className={isGirlsTheme ? 'relative -mx-4 min-h-[calc(100dvh-1rem)] overflow-hidden bg-[#FFF5F5] px-4 pb-8 pt-2 text-[#4A4A4A] sm:-mx-6 sm:px-6' : 'relative -mx-4 min-h-[calc(100dvh-1rem)] overflow-hidden bg-[#07101F] px-4 pb-8 pt-2 text-white sm:-mx-6 sm:px-6'}>
+      <div className={isGirlsTheme ? 'absolute inset-0 bg-[radial-gradient(circle_at_18%_18%,rgba(249,178,215,0.30),transparent_30%),radial-gradient(circle_at_82%_8%,rgba(226,180,189,0.28),transparent_28%)]' : 'absolute inset-0 bg-[radial-gradient(circle_at_18%_18%,rgba(205,255,88,0.16),transparent_30%),radial-gradient(circle_at_88%_14%,rgba(59,130,246,0.16),transparent_30%)]'} aria-hidden="true" />
+      <div className="relative z-10 mx-auto flex min-h-[calc(100dvh-3rem)] max-w-md flex-col">
+        <div className="flex items-center justify-between py-3">
+          <div className="font-electrolize text-lg font-black">RepyGames</div>
+          <div className={isGirlsTheme ? 'rounded-full bg-white/70 px-3 py-1 text-xs font-black text-[#A87884]' : 'rounded-full bg-white/10 px-3 py-1 text-xs font-black text-accent'}>
+            R{gameplay.round || 1}
+          </div>
+        </div>
+
+        <div className="flex gap-2 overflow-x-auto pb-3">
+          {game.participants.map((participant) => {
+            const active = participant.userId === Number(gameplay.currentPlayerUserId || 0);
+            return (
+              <div key={participant.userId} className={`min-w-[84px] rounded-2xl border px-3 py-2 text-center ${active ? (isGirlsTheme ? 'border-[#F9B2D7] bg-white text-[#4A4A4A]' : 'border-accent bg-accent/12 text-white') : (isGirlsTheme ? 'border-[#E2B4BD]/45 bg-white/60' : 'border-white/10 bg-white/5')}`}>
+                <div className="truncate text-xs font-black">{participant.name.split(' ')[0]}</div>
+                <div className={`mt-1 text-xs font-black ${participant.status === 'eliminated' ? (isGirlsTheme ? 'text-rose-500' : 'text-rose-300') : ''}`}>{getRepyGameLives(participant)}</div>
+                {gameplay.strikes?.[String(participant.userId)] ? <div className={`mt-0.5 text-[10px] font-bold ${isGirlsTheme ? 'text-[#A87884]' : 'text-amber-300'}`}>S{gameplay.strikes[String(participant.userId)]}</div> : null}
+              </div>
+            );
+          })}
+        </div>
+
+        <div className="flex flex-1 flex-col items-center justify-center py-6 text-center">
+          <div className={isGirlsTheme ? 'text-xs font-black uppercase tracking-[0.22em] text-[#A87884]' : 'text-xs font-black uppercase tracking-[0.22em] text-accent'}>
+            {currentPlayer?.name || gameplay.currentPlayerName || 'Player'}
+          </div>
+          <div className="mt-2 text-3xl font-black uppercase leading-tight">
+            {isCardActive ? (isExerciseCard ? currentCard?.label : currentCard?.title) : `${currentPlayer?.name || 'Player'}'s turn`}
+          </div>
+          <div className={isGirlsTheme ? 'mt-2 text-sm font-semibold text-[#795E67]' : 'mt-2 text-sm font-semibold text-white/65'}>
+            {isHost ? (isCardActive ? 'Resolve the card on this phone' : `${currentPlayer?.name || 'Player'}, pick your card`) : `Use ${game.hostName}'s phone`}
+          </div>
+
+          <div className="mt-10">
+            <RepyGamePlayingCard
+              card={currentCard}
+              revealed={isCardActive && cardState !== 'draw_requested'}
+              pending={cardState === 'draw_requested'}
+              disabled={!canDraw}
+              onClick={() => void drawCard()}
+              isGirlsTheme={isGirlsTheme}
+            />
+          </div>
+
+          {gameplay.lastResult && !isCardActive ? (
+            <div className={`mt-16 rounded-2xl px-4 py-3 text-sm font-black uppercase ${isGirlsTheme ? 'bg-white/70 text-[#A87884]' : 'bg-white/10 text-accent'}`}>
+              {gameplay.lastResult.label || gameplay.lastResult.result}
+            </div>
+          ) : null}
+
+          {error ? <div className={isGirlsTheme ? 'mt-16 rounded-2xl border border-rose-300/55 bg-rose-50/85 px-4 py-3 text-sm text-rose-600' : 'mt-16 rounded-2xl border border-rose-500/25 bg-rose-500/10 px-4 py-3 text-sm text-rose-200'}>{error}</div> : null}
+        </div>
+
+        {isHost && isCardActive && cardState === 'challenge_active' ? (
+          <div className="grid grid-cols-2 gap-3 pb-3">
+            {isExerciseCard ? (
+              <>
+                <button type="button" disabled={Boolean(busy)} onClick={() => void resolveCard('completed')} className={isGirlsTheme ? 'min-h-12 rounded-2xl bg-[#E2B4BD] text-sm font-black text-[#4A4A4A]' : 'min-h-12 rounded-2xl bg-emerald-400 text-sm font-black text-black'}>
+                  {busy === 'completed' ? 'Saving...' : 'Completed'}
+                </button>
+                <button type="button" disabled={Boolean(busy)} onClick={() => void resolveCard('failed')} className={isGirlsTheme ? 'min-h-12 rounded-2xl border border-rose-300/60 bg-rose-50 text-sm font-black text-rose-600' : 'min-h-12 rounded-2xl bg-rose-500 text-sm font-black text-white'}>
+                  {busy === 'failed' ? 'Saving...' : 'Failed'}
+                </button>
+              </>
+            ) : (
+              <button type="button" disabled={Boolean(busy)} onClick={() => void resolveCard('continue')} className={isGirlsTheme ? 'col-span-2 min-h-12 rounded-2xl bg-[#E2B4BD] text-sm font-black text-[#4A4A4A]' : 'col-span-2 min-h-12 rounded-2xl bg-accent text-sm font-black text-black'}>
+                {busy === 'continue' ? 'Applying...' : 'Continue'}
+              </button>
+            )}
+          </div>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
+function RepyGameLobbyScreen({
+  currentUserId,
+  gameId,
+  initialGame,
+  onBack,
+  isGirlsTheme = false,
+}: {
+  currentUserId: number;
+  gameId: number | null;
+  initialGame?: RepyGameLobby | null;
+  onBack: () => void;
+  isGirlsTheme?: boolean;
+}) {
+  const [game, setGame] = useState<RepyGameLobby | null>(initialGame || null);
+  const [loading, setLoading] = useState(!initialGame);
+  const [error, setError] = useState('');
+  const [busy, setBusy] = useState('');
+  const resolvedGameId = Number(gameId || initialGame?.gameId || game?.gameId || 0);
+
+  const loadGame = useMemo(() => async () => {
+    if (!resolvedGameId) return;
+    setLoading(true);
+    setError('');
+    try {
+      const response: any = await api.getRepyGame(resolvedGameId);
+      setGame(response?.game || null);
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : 'Failed to load RepyGames match.');
+    } finally {
+      setLoading(false);
+    }
+  }, [resolvedGameId]);
+
+  useEffect(() => {
+    if (!initialGame) void loadGame();
+  }, [initialGame, loadGame]);
+
+  useEffect(() => {
+    const unsubscribe = socketService.onRepyGameLobbyUpdated((payload) => {
+      if (Number(payload?.gameId || 0) !== resolvedGameId) return;
+      setGame(payload as RepyGameLobby);
+    });
+    return unsubscribe;
+  }, [resolvedGameId]);
+
+  const isHost = Number(game?.hostUserId || 0) === currentUserId || game?.viewerRole === 'host';
+  const isPlaying = game?.status === 'playing' || game?.status === 'active';
+  const isFinished = ['completed', 'cancelled', 'expired', 'abandoned', 'invalid'].includes(String(game?.status || ''));
+  const winner = game?.participants.find((participant) => participant.userId === Number(game?.gameplay?.currentPlayerUserId || 0));
+  const canStart = isHost && Boolean(game?.allReady) && !isPlaying && !isFinished;
+
+  const runAction = async (action: 'start' | 'cancel') => {
+    if (!resolvedGameId) return;
+    setBusy(action);
+    setError('');
+    try {
+      const response: any = action === 'start'
+        ? await api.startRepyGame(resolvedGameId)
+        : await api.cancelRepyGame(resolvedGameId);
+      setGame(response?.game || null);
+    } catch (requestError) {
+      const responseGame = (requestError as { data?: { game?: RepyGameLobby } })?.data?.game;
+      if (responseGame) {
+        setGame(responseGame);
+        if (action === 'cancel' && ['completed', 'cancelled', 'expired', 'abandoned', 'invalid'].includes(String(responseGame.status || ''))) {
+          return;
+        }
+      }
+      if (action === 'cancel') {
+        try {
+          const response: any = await api.getRepyGame(resolvedGameId);
+          if (response?.game) {
+            setGame(response.game as RepyGameLobby);
+            return;
+          }
+        } catch {
+          // Keep the original error below.
+        }
+      }
+      setError(requestError instanceof Error ? requestError.message : `Failed to ${action} game.`);
+    } finally {
+      setBusy('');
+    }
+  };
+
+  const statusLabel = (participant: RepyGameParticipant) => {
+    if (participant.role === 'host') return 'Host';
+    if (participant.inviteStatus === 'accepted') return 'Ready';
+    if (participant.inviteStatus === 'declined') return 'Declined';
+    if (participant.inviteStatus === 'expired') return 'Expired';
+    return 'Waiting...';
+  };
+
+  return (
+    <div className={isGirlsTheme ? '-mx-4 min-h-[calc(100dvh-1rem)] bg-[#FFF5F5] px-4 pb-24 pt-4 text-[#4A4A4A] sm:-mx-6 sm:px-6' : 'min-h-screen pb-24 pt-4 text-text-primary'}>
+      <div className="mb-6 flex items-center gap-4">
+        <button type="button" onClick={onBack} className={isGirlsTheme ? 'flex h-10 w-10 items-center justify-center rounded-xl border border-[#E2B4BD]/55 bg-white/72 text-[#A87884]' : 'surface-glass flex h-10 w-10 items-center justify-center rounded-xl text-text-primary'}>
+          <ArrowLeft size={18} aria-hidden="true" />
+        </button>
+        <div>
+          <h1 className="text-xl font-semibold">Last Rep Standing</h1>
+          <p className={isGirlsTheme ? 'mt-1 text-xs text-[#795E67]' : 'mt-1 text-xs text-text-secondary'}>
+            {isPlaying ? 'Game in progress' : isHost ? 'Waiting for players' : "You're in"}
+          </p>
+        </div>
+      </div>
+
+      {loading ? (
+        <div className={`flex items-center gap-2 text-sm ${isGirlsTheme ? 'text-[#795E67]' : 'text-text-secondary'}`}><LoaderCircle size={16} className="animate-spin" /> Loading game...</div>
+      ) : error ? (
+        <div className={isGirlsTheme ? 'rounded-2xl border border-rose-300/55 bg-rose-50/85 p-4 text-sm text-rose-600' : 'rounded-2xl border border-rose-500/20 bg-rose-500/10 p-4 text-sm text-rose-200'}>{error}</div>
+      ) : game ? (
+        <div className="space-y-5">
+          <div className={isGirlsTheme ? 'rounded-3xl border border-[#E2B4BD]/50 bg-white/75 p-5' : 'rounded-3xl border border-white/10 bg-card p-5'}>
+            <div className="flex items-center justify-between">
+              <div>
+                <div className={isGirlsTheme ? 'text-xs font-bold uppercase text-[#A87884]' : 'text-xs font-bold uppercase text-accent'}>
+                  {isPlaying ? 'Host phone game' : game.allReady ? 'Everyone is ready' : 'Waiting room'}
+                </div>
+                <div className="mt-2 text-3xl font-electrolize font-bold">
+                  {isPlaying ? (isHost ? 'Host controls' : 'Play on host phone') : `${game.acceptedCount} / ${game.totalPlayers} ready`}
+                </div>
+              </div>
+              {game.allReady && !isPlaying ? <Check className={isGirlsTheme ? 'text-[#A87884]' : 'text-accent'} size={28} /> : null}
+            </div>
+            {!isHost && (
+              <p className={isGirlsTheme ? 'mt-4 text-sm leading-6 text-[#795E67]' : 'mt-4 text-sm leading-6 text-text-secondary'}>
+                All gameplay happens on {game.hostName}'s phone. Keep this screen for status only.
+              </p>
+            )}
+          </div>
+
+          <div className="space-y-3">
+            {game.participants.map((participant) => (
+              <div key={participant.userId} className={isGirlsTheme ? 'flex items-center gap-3 rounded-2xl border border-[#E2B4BD]/45 bg-white/70 p-3' : 'flex items-center gap-3 rounded-2xl border border-white/10 bg-card p-3'}>
+                <RepyGameAvatar name={participant.name} src={participant.profilePicture} isGirlsTheme={isGirlsTheme} />
+                <div className="min-w-0 flex-1">
+                  <div className="truncate text-sm font-semibold">{participant.name}</div>
+                  <div className={isGirlsTheme ? 'text-xs text-[#795E67]' : 'text-xs text-text-secondary'}>{statusLabel(participant)}</div>
+                </div>
+                {participant.role === 'host' ? <Crown size={18} className={isGirlsTheme ? 'text-[#A87884]' : 'text-accent'} /> : participant.inviteStatus === 'accepted' ? <Check size={18} className={isGirlsTheme ? 'text-[#A87884]' : 'text-emerald-300'} /> : participant.inviteStatus === 'declined' ? <X size={18} className={isGirlsTheme ? 'text-rose-500' : 'text-rose-300'} /> : <LoaderCircle size={18} className={`animate-spin ${isGirlsTheme ? 'text-[#A87884]' : 'text-text-tertiary'}`} />}
+              </div>
+            ))}
+          </div>
+
+            {isFinished ? (
+              <div className={isGirlsTheme ? 'rounded-3xl border border-[#E2B4BD]/50 bg-white/75 p-5' : 'rounded-3xl border border-white/10 bg-card p-5'}>
+                <div className={isGirlsTheme ? 'text-xs font-bold uppercase text-[#A87884]' : 'text-xs font-bold uppercase text-accent'}>
+                  Match finished
+                </div>
+                <div className="mt-2 text-3xl font-electrolize font-bold">
+                  {game.status === 'completed' && winner ? `${winner.name} wins` : 'Game ended'}
+                </div>
+                <button
+                  type="button"
+                  onClick={onBack}
+                  className={isGirlsTheme ? 'mt-5 min-h-12 w-full rounded-2xl bg-[#E2B4BD] text-sm font-bold text-[#4A4A4A]' : 'mt-5 min-h-12 w-full rounded-2xl bg-accent text-sm font-bold text-black'}
+                >
+                  Back to RepyGames
+                </button>
+              </div>
+            ) : isPlaying ? (
+            isHost ? (
+              <RepyGameTable
+                game={game}
+                isHost={isHost}
+                onGameUpdate={setGame}
+                isGirlsTheme={isGirlsTheme}
+              />
+            ) : (
+              <div className={isGirlsTheme ? 'rounded-3xl border border-[#E2B4BD]/50 bg-white/75 p-5' : 'rounded-3xl border border-white/10 bg-card p-5'}>
+                <div className="text-sm font-semibold">Companion status</div>
+                <p className={isGirlsTheme ? 'mt-2 text-sm leading-6 text-[#795E67]' : 'mt-2 text-sm leading-6 text-text-secondary'}>
+                  Game is running on {game.hostName}'s phone. When it is your turn, use the host phone to draw your card.
+                </p>
+              </div>
+            )
+          ) : (
+            <div className="grid grid-cols-1 gap-3">
+              {canStart ? (
+                <button
+                  type="button"
+                  disabled={busy === 'start'}
+                  onClick={() => void runAction('start')}
+                  className={isGirlsTheme ? 'min-h-12 rounded-2xl bg-[#E2B4BD] text-sm font-bold text-[#4A4A4A]' : 'min-h-12 rounded-2xl bg-accent text-sm font-bold text-black'}
+                >
+                  {busy === 'start' ? 'Starting...' : 'Start on host phone'}
+                </button>
+              ) : null}
+              {isHost && !isFinished ? (
+                <button
+                  type="button"
+                  disabled={busy === 'cancel'}
+                  onClick={() => void runAction('cancel')}
+                  className={isGirlsTheme ? 'min-h-12 rounded-2xl border border-rose-300/60 bg-rose-50 text-sm font-bold text-rose-600' : 'min-h-12 rounded-2xl border border-rose-500/20 bg-rose-500/10 text-sm font-bold text-rose-200'}
+                >
+                  {busy === 'cancel' ? 'Cancelling...' : 'Cancel game'}
+                </button>
+              ) : null}
+            </div>
+          )}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 const getGenericWorkoutLabels = (language: AppLanguage) =>
   pickLanguage(language, {
     en: {
@@ -561,6 +1344,9 @@ type HomeView =
 'friends' |
 'friendProfile' |
 'friendChallenge' |
+'repyGames' |
+'repyGamePlayers' |
+'repyGameLobby' |
 'coachList' |
 'chat' |
 'calculator' |
@@ -583,6 +1369,9 @@ const HOME_VIEW_ORDER: HomeView[] = [
   'friends',
   'friendProfile',
   'friendChallenge',
+  'repyGames',
+  'repyGamePlayers',
+  'repyGameLobby',
   'coachList',
   'chat',
   'calculator',
@@ -630,10 +1419,14 @@ export function Home({
 
   const [view, setView] = useState<HomeView>('main');
   const [isComingSoonOpen, setIsComingSoonOpen] = useState(false);
+  const [selectedRepyGame, setSelectedRepyGame] = useState<RepyGameLobby | null>(null);
+  const [selectedRepyGameId, setSelectedRepyGameId] = useState<number | null>(null);
   const [selectedExercise, setSelectedExercise] = useState<{
     name: string;
     muscle: string;
     video?: string | null;
+    primaryMedia?: ExerciseRemoteMedia | null;
+    media?: ExerciseRemoteMedia[];
     exerciseCatalogId?: number | null;
     targetMuscles?: string[];
     anatomy?: string | string[];
@@ -952,7 +1745,7 @@ export function Home({
         goodMorning: 'Good morning',
         readyNextSession: 'Ready for your next session?',
         quickActions: 'Quick actions',
-        repyAi: 'Repy AI',
+        repyAi: 'RepyGames',
         library: 'Library',
         nutrition: 'Nutrition',
         tagline: 'Ready to crush your goals today?',
@@ -981,7 +1774,7 @@ export function Home({
         goodMorning: '\u0635\u0628\u0627\u062d \u0627\u0644\u062e\u064a\u0631',
         readyNextSession: '\u062c\u0627\u0647\u0632 \u0644\u062c\u0644\u0633\u062a\u0643 \u0627\u0644\u0642\u0627\u062f\u0645\u0629\u061f',
         quickActions: '\u0625\u062c\u0631\u0627\u0621\u0627\u062a \u0633\u0631\u064a\u0639\u0629',
-        repyAi: 'Repy AI',
+        repyAi: 'RepyGames',
         library: '\u0627\u0644\u0645\u0643\u062a\u0628\u0629',
         nutrition: '\u0627\u0644\u062a\u063a\u0630\u064a\u0629',
         tagline: '\u062c\u0627\u0647\u0632 \u0644\u062a\u062d\u0642\u064a\u0642 \u0623\u0647\u062f\u0627\u0641\u0643 \u0627\u0644\u064a\u0648\u0645\u061f',
@@ -1010,7 +1803,7 @@ export function Home({
         goodMorning: 'Buongiorno',
         readyNextSession: 'Pronto per la prossima sessione?',
         quickActions: 'Azioni rapide',
-        repyAi: 'Repy AI',
+        repyAi: 'RepyGames',
         library: 'Libreria',
         nutrition: 'Nutrizione',
         tagline: 'Pronto a raggiungere i tuoi obiettivi oggi?',
@@ -1039,7 +1832,7 @@ export function Home({
         goodMorning: 'Guten Morgen',
         readyNextSession: 'Bereit fur deine nachste Einheit?',
         quickActions: 'Schnellaktionen',
-        repyAi: 'Repy AI',
+        repyAi: 'RepyGames',
         library: 'Bibliothek',
         nutrition: 'Ernahrung',
         tagline: 'Bereit, heute deine Ziele zu erreichen?',
@@ -1068,7 +1861,7 @@ export function Home({
         goodMorning: 'Bonjour',
         readyNextSession: 'Pret pour ta prochaine seance ?',
         quickActions: 'Actions rapides',
-        repyAi: 'Repy AI',
+        repyAi: 'RepyGames',
         library: 'Bibliotheque',
         nutrition: 'Nutrition',
         tagline: 'Pret a atteindre tes objectifs aujourd hui ?',
@@ -1123,8 +1916,8 @@ export function Home({
         notificationsBody: 'This bell keeps important updates close, including friend activity, challenges, and reminders.',
         friendsTitle: 'Train with your people',
         friendsBody: 'Open Friends to connect with gym members, compare progress, and start challenges.',
-        repyAiTitle: 'Ask Repy AI',
-        repyAiBody: 'Use Repy AI for quick coaching help and smart guidance when this assistant is available.',
+        repyAiTitle: 'Ask RepyGames',
+        repyAiBody: 'Use RepyGames for quick coaching help and smart guidance when this assistant is available.',
         shopTitle: 'Open the shop',
         shopBody: 'The Shop area is where app gear, offers, and future upgrades will live.',
         nutritionTitle: 'Fuel your results',
@@ -1162,8 +1955,8 @@ export function Home({
         notificationsBody: '\u064a\u062d\u062a\u0641\u0638 \u0632\u0631 \u0627\u0644\u062c\u0631\u0633 \u0628\u0627\u0644\u062a\u062d\u062f\u064a\u062b\u0627\u062a \u0627\u0644\u0645\u0647\u0645\u0629 \u0645\u062b\u0644 \u0646\u0634\u0627\u0637 \u0627\u0644\u0623\u0635\u062f\u0642\u0627\u0621 \u0648\u0627\u0644\u062a\u062d\u062f\u064a\u0627\u062a \u0648\u0627\u0644\u062a\u0630\u0643\u064a\u0631\u0627\u062a.',
         friendsTitle: '\u062a\u062f\u0631\u0628 \u0645\u0639 \u0623\u0635\u062f\u0642\u0627\u0626\u0643',
         friendsBody: '\u0627\u0641\u062a\u062d \u0627\u0644\u0623\u0635\u062f\u0642\u0627\u0621 \u0644\u0644\u062a\u0648\u0627\u0635\u0644 \u0645\u0639 \u0623\u0639\u0636\u0627\u0621 \u0627\u0644\u062c\u064a\u0645 \u0648\u0645\u0642\u0627\u0631\u0646\u0629 \u0627\u0644\u062a\u0642\u062f\u0645 \u0648\u0628\u062f\u0621 \u0627\u0644\u062a\u062d\u062f\u064a\u0627\u062a.',
-        repyAiTitle: '\u0627\u0633\u0623\u0644 Repy AI',
-        repyAiBody: '\u0627\u0633\u062a\u062e\u062f\u0645 Repy AI \u0644\u0644\u0645\u0633\u0627\u0639\u062f\u0629 \u0627\u0644\u062a\u062f\u0631\u064a\u0628\u064a\u0629 \u0627\u0644\u0633\u0631\u064a\u0639\u0629 \u0648\u0627\u0644\u0625\u0631\u0634\u0627\u062f \u0627\u0644\u0630\u0643\u064a \u0639\u0646\u062f \u062a\u0648\u0641\u0631\u0647.',
+        repyAiTitle: '\u0627\u0633\u0623\u0644 RepyGames',
+        repyAiBody: '\u0627\u0633\u062a\u062e\u062f\u0645 RepyGames \u0644\u0644\u0645\u0633\u0627\u0639\u062f\u0629 \u0627\u0644\u062a\u062f\u0631\u064a\u0628\u064a\u0629 \u0627\u0644\u0633\u0631\u064a\u0639\u0629 \u0648\u0627\u0644\u0625\u0631\u0634\u0627\u062f \u0627\u0644\u0630\u0643\u064a \u0639\u0646\u062f \u062a\u0648\u0641\u0631\u0647.',
         shopTitle: '\u0627\u0641\u062a\u062d \u0627\u0644\u0645\u062a\u062c\u0631',
         shopBody: '\u0645\u0646\u0637\u0642\u0629 \u0627\u0644\u0645\u062a\u062c\u0631 \u0645\u062e\u0635\u0635\u0629 \u0644\u0645\u0639\u062f\u0627\u062a \u0627\u0644\u062a\u0637\u0628\u064a\u0642 \u0648\u0627\u0644\u0639\u0631\u0648\u0636 \u0648\u0627\u0644\u062a\u0631\u0642\u064a\u0627\u062a \u0627\u0644\u0642\u0627\u062f\u0645\u0629.',
         nutritionTitle: '\u063a\u0630 \u0646\u062a\u0627\u0626\u062c\u0643',
@@ -1201,8 +1994,8 @@ export function Home({
         notificationsBody: 'La campanella raccoglie aggiornamenti importanti, attivita degli amici, sfide e promemoria.',
         friendsTitle: 'Allenati con i tuoi amici',
         friendsBody: 'Apri Amici per connetterti con membri della palestra, confrontare i progressi e iniziare sfide.',
-        repyAiTitle: 'Chiedi a Repy AI',
-        repyAiBody: 'Usa Repy AI per un aiuto rapido di coaching e consigli intelligenti quando disponibile.',
+        repyAiTitle: 'Chiedi a RepyGames',
+        repyAiBody: 'Usa RepyGames per un aiuto rapido di coaching e consigli intelligenti quando disponibile.',
         shopTitle: 'Apri lo shop',
         shopBody: 'Lo Shop raccogliera gear, offerte e futuri upgrade dell app.',
         nutritionTitle: 'Nutri i tuoi risultati',
@@ -1240,8 +2033,8 @@ export function Home({
         notificationsBody: 'Die Glocke sammelt wichtige Updates, Freundesaktivitaeten, Challenges und Erinnerungen.',
         friendsTitle: 'Trainiere mit deinen Leuten',
         friendsBody: 'Offne Freunde, um dich mit Gym-Mitgliedern zu verbinden, Fortschritte zu vergleichen und Challenges zu starten.',
-        repyAiTitle: 'Frag Repy AI',
-        repyAiBody: 'Nutze Repy AI fur schnelle Coaching-Hilfe und smarte Hinweise, sobald der Assistent verfugbar ist.',
+        repyAiTitle: 'Frag RepyGames',
+        repyAiBody: 'Nutze RepyGames fur schnelle Coaching-Hilfe und smarte Hinweise, sobald der Assistent verfugbar ist.',
         shopTitle: 'Shop offnen',
         shopBody: 'Im Shop findest du kunftig App-Gear, Angebote und Upgrades.',
         nutritionTitle: 'Unterstutze deine Ergebnisse',
@@ -1279,8 +2072,8 @@ export function Home({
         notificationsBody: 'La cloche garde les mises a jour importantes, activites d amis, defis et rappels a portee de main.',
         friendsTitle: 'Entraine-toi avec ton cercle',
         friendsBody: 'Ouvre Amis pour te connecter avec les membres de la salle, comparer les progres et lancer des defis.',
-        repyAiTitle: 'Demande a Repy AI',
-        repyAiBody: 'Utilise Repy AI pour une aide coaching rapide et des conseils intelligents quand l assistant est disponible.',
+        repyAiTitle: 'Demande a RepyGames',
+        repyAiBody: 'Utilise RepyGames pour une aide coaching rapide et des conseils intelligents quand l assistant est disponible.',
         shopTitle: 'Ouvre la boutique',
         shopBody: 'La Boutique accueillera les equipements, offres et futures ameliorations de l app.',
         nutritionTitle: 'Alimente tes resultats',
@@ -2074,6 +2867,23 @@ export function Home({
     </ScreenTransition>
   );
 
+  const openRunoGame = async () => {
+    try {
+      const response: any = await api.getActiveRepyGame();
+      if (response?.game) {
+        setSelectedRepyGame(response.game as RepyGameLobby);
+        setSelectedRepyGameId(Number(response.game.gameId || 0));
+        setView('repyGameLobby');
+        return;
+      }
+    } catch {
+      // If recovery lookup fails, still let the user open player selection.
+    }
+    setSelectedRepyGame(null);
+    setSelectedRepyGameId(null);
+    setView('repyGamePlayers');
+  };
+
   if (view === 'nutrition') {
     return renderTransitionedView(<MyNutrition onBack={() => setView('main')} />);
   }
@@ -2160,6 +2970,40 @@ export function Home({
       />
     );
   }
+  if (view === 'repyGames') {
+    return renderTransitionedView(
+      <RepyGamesLibrary
+        onBack={() => setView('main')}
+        onOpenRuno={() => void openRunoGame()}
+        isGirlsTheme={isGirlsTheme}
+      />
+    );
+  }
+  if (view === 'repyGamePlayers') {
+    return renderTransitionedView(
+      <RepyGamePlayerSelection
+        currentUser={currentUser}
+        onBack={() => setView('repyGames')}
+        onGameCreated={(game) => {
+          setSelectedRepyGame(game);
+          setSelectedRepyGameId(Number(game.gameId || 0));
+          setView('repyGameLobby');
+        }}
+        isGirlsTheme={isGirlsTheme}
+      />
+    );
+  }
+  if (view === 'repyGameLobby') {
+    return renderTransitionedView(
+      <RepyGameLobbyScreen
+        currentUserId={currentUserId}
+        gameId={selectedRepyGameId}
+        initialGame={selectedRepyGame}
+        onBack={() => setView('repyGames')}
+        isGirlsTheme={isGirlsTheme}
+      />
+    );
+  }
   if (view === 'coachList')
   return renderTransitionedView(<CoachList onBack={() => setView('main')} onSelectCoach={(id, name) => { setSelectedCoach({id, name}); setView('chat'); }} />);
   if (view === 'chat') return renderTransitionedView(<Messaging onBack={() => setView('coachList')} coachId={selectedCoach?.id} coachName={selectedCoach?.name} />);
@@ -2192,6 +3036,11 @@ export function Home({
       onOpenAcceptedChallenge={(challenge) => {
         setAcceptedChallengeContext(challenge);
         setView('notificationChallenge');
+      }}
+      onOpenRepyGame={({ gameId }) => {
+        setSelectedRepyGame(null);
+        setSelectedRepyGameId(gameId);
+        setView('repyGameLobby');
       }}
     />
   );
@@ -2387,7 +3236,7 @@ export function Home({
               <HomeQuickActionButton
                 label={homeCopy.repyAi}
                 Icon={Bot}
-                onClick={() => setIsComingSoonOpen(true)}
+                onClick={() => setView('repyGames')}
                 coachmarkTargetId="home_repy_ai_card"
                 isGirlsTheme={isGirlsTheme}
               />

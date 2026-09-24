@@ -2,9 +2,10 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowLeft, Heart, Play } from 'lucide-react';
 import { Card } from '../components/ui/Card';
 import { Header } from '../components/ui/Header';
+import { ExerciseMedia } from '../components/workout/ExerciseMedia';
 import { MuscleSvgBadge } from '../components/workout/MuscleSvgBadge';
 import { api } from '../services/api';
-import { listExerciseVideoAssets, resolveExerciseVideo } from '../services/exerciseVideos';
+import { ExerciseRemoteMedia, listExerciseVideoAssets, resolveExerciseVideo } from '../services/exerciseVideos';
 import { AppLanguage, getActiveLanguage, getStoredLanguage, pickLanguage } from '../services/language';
 import { inferExerciseVideoBodyPart, normalizeExerciseVideoLookup } from '../shared/exerciseVideoManifest.js';
 import { useScreenshotProtection } from '../shared/useScreenshotProtection';
@@ -33,6 +34,8 @@ interface ExerciseLibraryProps {
     name: string;
     muscle: string;
     video?: string | null;
+    primaryMedia?: ExerciseRemoteMedia | null;
+    media?: ExerciseRemoteMedia[];
     exerciseCatalogId?: number | null;
     targetMuscles?: string[];
     anatomy?: string | string[];
@@ -50,11 +53,15 @@ interface CatalogExercise {
   hasLinkedVideo?: boolean;
   linkedVideoAsset?: string | null;
   linkedVideoMatchType?: 'alias' | 'filename' | 'fallback' | 'none' | null;
+  primaryMedia?: ExerciseRemoteMedia | null;
+  media?: ExerciseRemoteMedia[];
 }
 
 type CatalogExerciseWithVideo = CatalogExercise & {
   videoUrl: string;
   videoAssetName: string;
+  primaryMedia: ExerciseRemoteMedia | null;
+  media: ExerciseRemoteMedia[];
 };
 
 type LibraryExercise = {
@@ -65,6 +72,8 @@ type LibraryExercise = {
   sourceFolder?: string | null;
   videoUrl: string;
   videoAssetName: string;
+  primaryMedia: ExerciseRemoteMedia | null;
+  media: ExerciseRemoteMedia[];
 };
 
 const toTitleCase = (value: string) =>
@@ -87,6 +96,13 @@ const toFallbackExerciseName = (fileName: string) =>
     .replace(/\s+/g, ' ')
     .replace(/\s*&\s*/g, ' & ')
     .trim();
+
+const getExerciseMediaDisplayName = (value?: string | null) => {
+  const raw = String(value || '').trim();
+  if (!raw) return '';
+  const filename = raw.replace(/\\/g, '/').split('/').filter(Boolean).pop() || raw;
+  return filename.replace(/\.[a-z0-9]+$/i, '');
+};
 
 const toCanonicalExerciseLibraryMuscle = (value?: string | null) => {
   const key = normalizeFilterKey(String(value || ''));
@@ -311,12 +327,14 @@ export function ExerciseLibrary({
   const [error, setError] = useState<string | null>(null);
   const [likes, setLikes] = useState<{ [key: string]: { count: number; liked: boolean } }>({});
   const [activeIntroFilter, setActiveIntroFilter] = useState<string | null>(null);
+  const [activePreviewKey, setActivePreviewKey] = useState<string | null>(null);
   const bodyPartSkeletons = Array.from({ length: 6 }, (_, index) => `body-part-skeleton-${index}`);
   const exerciseSkeletons = Array.from({ length: 6 }, (_, index) => `exercise-skeleton-${index}`);
   const isGirlsTheme = useMemo(
     () => shouldUseGirlsExerciseLibraryTheme(readExerciseLibraryStoredUser(), readExerciseLibraryStyleGender()),
     [themeRefreshKey],
   );
+  const preferredMediaAudience = isGirlsTheme ? 'female' : 'male';
   const pageClassName = isGirlsTheme
     ? 'flex min-h-screen flex-1 flex-col pb-24 bg-[radial-gradient(circle_at_top_left,rgba(249,178,215,0.22),transparent_34%),radial-gradient(circle_at_85%_8%,rgba(207,236,243,0.34),transparent_32%),linear-gradient(180deg,#FFF5F5_0%,#F7D6D0_52%,#FFF5F5_100%)] text-[#4A4A4A] [&_.surface-glass]:border-[#E2B4BD]/45 [&_.surface-glass]:bg-white/60 [&_.surface-glass]:text-[#4A4A4A] [&_h1]:text-[#4A4A4A]'
     : 'flex min-h-screen flex-1 flex-col bg-background pb-24';
@@ -476,7 +494,7 @@ export function ExerciseLibrary({
 
         const [filtersData, catalogData] = await Promise.all([
           api.getExerciseCatalogFilters(),
-          api.getExerciseCatalog('All', '', 500),
+          api.getExerciseCatalog('All', '', 600),
         ]);
 
         if (Array.isArray(filtersData?.filters) && filtersData.filters.length) {
@@ -544,6 +562,10 @@ export function ExerciseLibrary({
             name: exercise.name,
             muscle: exercise.muscle,
             bodyPart: exercise.bodyPart,
+            targetMuscles: exercise.muscle ? [exercise.muscle] : undefined,
+            primaryMedia: exercise.primaryMedia,
+            media: exercise.media,
+            preferredAudience: preferredMediaAudience,
           });
           const videoAssetName = resolvedVideo.assetName || exercise.linkedVideoAsset || '';
           if (!resolvedVideo.url || !videoAssetName) return null;
@@ -551,10 +573,12 @@ export function ExerciseLibrary({
             ...exercise,
             videoUrl: resolvedVideo.url,
             videoAssetName,
+            primaryMedia: resolvedVideo.remoteMedia || exercise.primaryMedia || null,
+            media: Array.isArray(exercise.media) ? exercise.media : [],
           };
         })
-        .filter((exercise): exercise is CatalogExerciseWithVideo => Boolean(exercise)),
-    [exercises],
+        .filter((exercise): exercise is CatalogExerciseWithVideo => exercise !== null),
+    [exercises, preferredMediaAudience],
   );
 
   const dedupedCatalogExercises = useMemo(
@@ -589,6 +613,8 @@ export function ExerciseLibrary({
           sourceFolder: toTitleCase(asset.folderName),
           videoUrl: asset.url,
           videoAssetName: asset.fileName,
+          primaryMedia: null,
+          media: [],
         }));
     },
     [allVideoAssets, dedupedCatalogExercises],
@@ -614,6 +640,8 @@ export function ExerciseLibrary({
           sourceFolder: folderByAssetName.get(exercise.videoAssetName) || null,
           videoUrl: exercise.videoUrl,
           videoAssetName: exercise.videoAssetName,
+          primaryMedia: exercise.primaryMedia || null,
+          media: Array.isArray(exercise.media) ? exercise.media : [],
         })),
         ...fallbackVideoExercises,
       ];
@@ -755,6 +783,34 @@ export function ExerciseLibrary({
       return muscleMatch || folderMatch;
     });
   }, [exercisesWithVideo, selectedFilter]);
+
+  useEffect(() => {
+    if (selectedFilter === 'All' || filteredExercises.length === 0) {
+      setActivePreviewKey(null);
+      return;
+    }
+
+    const previewKeys = filteredExercises
+      .filter((exercise) => Boolean(exercise.videoUrl))
+      .map((exercise) => `${exercise.id}-${exercise.videoAssetName}`);
+
+    if (previewKeys.length === 0) {
+      setActivePreviewKey(null);
+      return;
+    }
+
+    const pickNextPreview = () => {
+      setActivePreviewKey((current) => {
+        if (previewKeys.length === 1) return previewKeys[0];
+        const nextPool = previewKeys.filter((key) => key !== current);
+        return nextPool[Math.floor(Math.random() * nextPool.length)] || previewKeys[0];
+      });
+    };
+
+    pickNextPreview();
+    const timer = window.setInterval(pickNextPreview, 3500);
+    return () => window.clearInterval(timer);
+  }, [filteredExercises, selectedFilter]);
 
   const isRtl = language === 'ar';
   const groupedMuscleSections = useMemo(() => {
@@ -898,8 +954,15 @@ export function ExerciseLibrary({
               const likeKey = `${exercise.muscle}:${exercise.videoAssetName}`;
               const likeData = likes[likeKey] || { count: 0, liked: false };
               const videoUrl = exercise.videoUrl;
+              const previewKey = `${exercise.id}-${exercise.videoAssetName}`;
               const thumbnailMuscle = exercise.muscle || exercise.bodyPart || selectedFilter;
               const thumbnailLabel = getMuscleLabel(bodyPartToMuscleLabel(thumbnailMuscle));
+              const primaryMedia = exercise.primaryMedia || exercise.media?.[0] || null;
+              const mediaType = primaryMedia?.mediaType || 'video';
+              const displayName =
+                getExerciseMediaDisplayName(exercise.name) ||
+                getExerciseMediaDisplayName(exercise.videoAssetName) ||
+                exercise.name;
 
               return (
                 <Card
@@ -908,6 +971,8 @@ export function ExerciseLibrary({
                     name: exercise.name,
                     muscle: exercise.muscle,
                     video: videoUrl,
+                    primaryMedia: exercise.primaryMedia || null,
+                    media: Array.isArray(exercise.media) ? exercise.media : [],
                     exerciseCatalogId: typeof exercise.id === 'number' ? exercise.id : null,
                     targetMuscles: exercise.muscle ? [exercise.muscle] : undefined,
                     anatomy: exercise.muscle || exercise.bodyPart || undefined,
@@ -915,15 +980,37 @@ export function ExerciseLibrary({
                   className={exerciseCardClassName}
                 >
                   <div className={exerciseThumbClassName}>
-                    <MuscleSvgBadge
-                      muscle={{ label: thumbnailLabel, sourceName: thumbnailMuscle }}
-                      align="center"
-                      className="h-full w-full"
-                      figureClassName="h-full"
-                      showLabel={false}
-                      variant="bare"
-                      themeVariant={isGirlsTheme ? 'girls' : 'default'}
-                    />
+                    {videoUrl ? (
+                      <ExerciseMedia
+                        key={previewKey}
+                        src={videoUrl}
+                        mediaType={mediaType}
+                        alt={displayName}
+                        className="h-full w-full object-cover"
+                        videoProps={{
+                          autoPlay: true,
+                          onLoadedMetadata: (event) => {
+                            const video = event.currentTarget;
+                            if (Number.isFinite(video.duration) && video.duration > 4) {
+                              const seed = String(previewKey)
+                                .split('')
+                                .reduce((total, char) => total + char.charCodeAt(0), 0);
+                              video.currentTime = (seed % 100) / 100 * Math.max(0, video.duration - 3);
+                            }
+                          },
+                        }}
+                      />
+                    ) : (
+                      <MuscleSvgBadge
+                        muscle={{ label: thumbnailLabel, sourceName: thumbnailMuscle }}
+                        align="center"
+                        className="h-full w-full"
+                        figureClassName="h-full"
+                        showLabel={false}
+                        variant="bare"
+                        themeVariant={isGirlsTheme ? 'girls' : 'default'}
+                      />
+                    )}
                     <div className={playOverlayClassName}>
                       <div className={playButtonClassName}>
                         <Play size={12} fill="currentColor" />
@@ -933,7 +1020,7 @@ export function ExerciseLibrary({
                   <div className="px-3 pb-3 pt-3">
                     <div className="flex items-center justify-between gap-2">
                       <div className={exerciseNameClassName}>
-                        {exercise.name}
+                        {displayName}
                       </div>
                       <button
                         onClick={(e) => toggleLike(likeKey, e)}

@@ -2,15 +2,17 @@ import React, { useEffect, useMemo, useState, useCallback, useRef } from 'react'
 import { createPortal } from 'react-dom';
 import { Header } from '../ui/Header';
 import { api } from '../../services/api';
-import { CalendarX2, Check, Play, Search, TriangleAlert, X } from 'lucide-react';
+import { CalendarX2, Check, Flag, FlagTriangleRight, Play, Search, TriangleAlert, X } from 'lucide-react';
 import { getBodyPartImage } from '../../services/bodyPartTheme';
-import { resolveExerciseVideo } from '../../services/exerciseVideos';
+import { resolveExerciseCategoryVideo, resolveExerciseVideo } from '../../services/exerciseVideos';
 import { AppLanguage, LocalizedLanguageRecord, getActiveLanguage, getStoredLanguage } from '../../services/language';
 import { formatWorkoutDayLabel, normalizeWorkoutDayKey } from '../../services/workoutDayLabel';
 import { stripExercisePrefix } from '../../services/exerciseName';
 import { translateProgramText } from '../../services/programI18n';
 import { useScreenshotProtection } from '../../shared/useScreenshotProtection';
 import { MuscleSvgBadge } from './MuscleSvgBadge';
+import { ExerciseMedia } from './ExerciseMedia';
+import type { ExerciseRemoteMedia } from '../../services/exerciseVideos';
 
 interface WorkoutPlanScreenProps {
   onBack: () => void;
@@ -28,6 +30,7 @@ interface WorkoutPlanScreenProps {
   loading: boolean;
   allowEditing?: boolean;
   isDayFullyDone?: boolean;
+  isHyroxMode?: boolean;
 }
 
 type CatalogExercise = {
@@ -35,6 +38,8 @@ type CatalogExercise = {
   name: string;
   muscle: string;
   bodyPart?: string | null;
+  primaryMedia?: ExerciseRemoteMedia | null;
+  media?: ExerciseRemoteMedia[];
 };
 
 type WorkoutExerciseCard = {
@@ -45,6 +50,8 @@ type WorkoutExerciseCard = {
   targetWeight: number | null;
   notes: string;
   targetMuscles: string[];
+  primaryMedia?: ExerciseRemoteMedia | null;
+  media?: ExerciseRemoteMedia[];
 };
 
 const normalizeExerciseKey = (value: string) =>
@@ -138,7 +145,28 @@ const getMuscleImage = (muscle: string) => getBodyPartImage(muscle);
 
 type TargetMuscleDisplay = {
   name: string;
+  sourceName?: string;
   score: number;
+};
+
+const LOWER_BODY_MUSCLES = new Set(['Quadriceps', 'Hamstrings', 'Glutes', 'Calves', 'Adductors', 'Tibialis', 'Legs']);
+
+const toMuscleDisplayGroup = (muscle: string) => {
+  const canonical = canonicalizeMuscleLabel(muscle);
+  if (LOWER_BODY_MUSCLES.has(canonical)) return 'Legs';
+  if (canonical === 'Lats' || canonical === 'Traps' || canonical.toLowerCase().includes('back')) return 'Back';
+  return canonical;
+};
+
+const resolveWorkoutMusclePriority = (workoutText: string) => {
+  const normalized = String(workoutText || '').trim().toLowerCase();
+  const isLegDay = /\b(leg|legs|lower|quad|hamstring|glute|calf|calves)\b/.test(normalized)
+    || normalized.includes('lower body');
+  const isBackDay = /\b(back|pull|lat|lats|row|pulldown|pull-up|pull up)\b/.test(normalized);
+
+  if (isLegDay) return ['Legs', 'Back'];
+  if (isBackDay) return ['Back', 'Legs'];
+  return [];
 };
 
 const isGirlsStyleValue = (value: unknown) => {
@@ -176,7 +204,7 @@ function TargetMuscleCards({ muscles, themeVariant = 'default' }: { muscles: Tar
       {muscles.map((muscle) => (
         <MuscleSvgBadge
           key={muscle.name}
-          muscle={{ label: muscle.name, sourceName: canonicalizeMuscleLabel(muscle.name) }}
+          muscle={{ label: muscle.name, sourceName: muscle.sourceName || canonicalizeMuscleLabel(muscle.name) }}
           className="w-full"
           figureClassName="h-24 sm:h-28"
           themeVariant={themeVariant}
@@ -543,6 +571,7 @@ export function WorkoutPlanScreen({
   loading,
   allowEditing = true,
   isDayFullyDone = false,
+  isHyroxMode = false,
 }: WorkoutPlanScreenProps) {
   useScreenshotProtection();
   const [language, setLanguage] = useState<AppLanguage>('en');
@@ -570,6 +599,7 @@ export function WorkoutPlanScreen({
     () => (styleGender ? isGirlsStyleValue(styleGender) : shouldUseGirlsTheme()),
     [styleGender],
   );
+  const preferredMediaAudience = isGirlsTheme ? 'female' : 'male';
 
   const toLocalizedMuscleLabel = useCallback(
     (value: string) => {
@@ -635,7 +665,7 @@ export function WorkoutPlanScreen({
       try {
         setCatalogLoading(true);
         setCatalogError(null);
-        const result = await api.getExerciseCatalog('All', '', 500);
+        const result = await api.getExerciseCatalog('All', '', 600);
         const nextCatalog = Array.isArray(result?.exercises)
           ? result.exercises
             .map((exercise: any) => ({
@@ -643,6 +673,8 @@ export function WorkoutPlanScreen({
               name: String(exercise?.name || '').trim(),
               muscle: String(exercise?.muscle || exercise?.bodyPart || '').trim(),
               bodyPart: exercise?.bodyPart ? String(exercise.bodyPart) : null,
+              primaryMedia: exercise?.primaryMedia || null,
+              media: Array.isArray(exercise?.media) ? exercise.media : [],
             }))
             .filter((exercise: CatalogExercise) => exercise.id > 0 && exercise.name.length > 0)
           : [];
@@ -723,9 +755,11 @@ export function WorkoutPlanScreen({
       reps: String(ex.reps || ''),
       rest: ex.rest,
       targetWeight: Number(ex.targetWeight || 0) || null,
-      notes: String(ex.notes || ''),
-      targetMuscles,
-    };
+        notes: String(ex.notes || ''),
+        targetMuscles,
+        primaryMedia: ex.primaryMedia || null,
+        media: Array.isArray(ex.media) ? ex.media : [],
+      };
   });
 
   const completedLookup = new Set(completedExercises.map((name) => String(name || '').trim().toLowerCase()));
@@ -746,10 +780,31 @@ export function WorkoutPlanScreen({
         muscle: primaryMuscle,
         bodyPart: exercise.targetMuscles.join(' '),
         targetMuscles: exercise.targetMuscles,
+        primaryMedia: exercise.primaryMedia,
+        media: exercise.media,
+        preferredAudience: preferredMediaAudience,
       });
       return { primaryMuscle, videoMatch };
     })
-  ), [exercises]);
+  ), [exercises, preferredMediaAudience]);
+
+  const isHyroxWorkout = useMemo(() => {
+    const haystack = [
+      workoutDay,
+      workoutDayLabel,
+      ...exercises.flatMap((exercise) => [
+        exercise.name,
+        exercise.notes,
+        ...exercise.targetMuscles,
+      ]),
+    ].join(' ').toLowerCase();
+
+    const hasHyroxLabel = /\bhyrox\b/.test(haystack);
+    const hasHyroxStation = /skierg|sled push|sled pull|wall balls?|burpee broad|farmer carry/.test(haystack);
+    const hasRaceContext = /race primer|race-pace|simulation|compromised running|\brun\b|\brunning\b|\bstation\b|\bengine\b/.test(haystack);
+
+    return isHyroxMode || hasHyroxLabel || (hasHyroxStation && hasRaceContext);
+  }, [exercises, isHyroxMode, workoutDay, workoutDayLabel]);
 
   const displayTargetMuscles = useMemo(() => {
     const plannedLoadByMuscle = new Map<string, number>();
@@ -757,13 +812,15 @@ export function WorkoutPlanScreen({
     exercises.forEach((exercise) => {
       const muscles = exercise.targetMuscles
         .map((entry) => canonicalizeMuscleLabel(entry))
+        .map((entry) => toMuscleDisplayGroup(entry))
         .filter(Boolean);
       if (!muscles.length) return;
 
+      const groupedMuscles = [...new Set(muscles)];
       const setCount = Math.max(1, Number.isFinite(exercise.sets) ? exercise.sets : Number(exercise.sets || 0) || 1);
-      const contribution = setCount / muscles.length;
+      const contribution = setCount / groupedMuscles.length;
 
-      muscles.forEach((muscle) => {
+      groupedMuscles.forEach((muscle) => {
         plannedLoadByMuscle.set(muscle, (plannedLoadByMuscle.get(muscle) || 0) + contribution);
       });
     });
@@ -771,16 +828,27 @@ export function WorkoutPlanScreen({
     const totalLoad = Array.from(plannedLoadByMuscle.values()).reduce((sum, value) => sum + value, 0);
     if (totalLoad <= 0) return [];
 
+    const priority = resolveWorkoutMusclePriority(`${workoutDayLabel || ''} ${workoutDay || ''}`);
+    const byName = new Map(Array.from(plannedLoadByMuscle.entries()));
+    if (priority.length) {
+      return priority.map((name, index) => ({
+        name,
+        sourceName: name,
+        score: Math.max(1, Math.round(((byName.get(name) || (index === 0 ? totalLoad : totalLoad * 0.5)) / totalLoad) * 100)),
+      }));
+    }
+
     return Array.from(plannedLoadByMuscle.entries())
       .map(([name, load]) => ({
         name,
+        sourceName: name,
         score: Math.max(1, Math.round((load / totalLoad) * 100)),
         load,
       }))
       .sort((left, right) => right.load - left.load || left.name.localeCompare(right.name))
-      .slice(0, 4)
-      .map(({ name, score }) => ({ name, score }));
-  }, [exercises]);
+      .slice(0, 3)
+      .map(({ name, sourceName, score }) => ({ name, sourceName, score }));
+  }, [exercises, workoutDay, workoutDayLabel]);
 
   const catalogMuscles = useMemo(() => {
     const counts = new Map<string, number>();
@@ -990,7 +1058,7 @@ export function WorkoutPlanScreen({
           </h3>
         </div>
 
-        <div className="space-y-3">
+        <div className={isHyroxWorkout && exercises.length > 0 ? 'relative py-3' : 'space-y-3'}>
           {exercises.length === 0 && (
             <div className={exerciseEmptyClassName}>
               {isRestDayView
@@ -999,7 +1067,153 @@ export function WorkoutPlanScreen({
             </div>
           )}
 
-          {exercises.map((exercise, index) => {
+          {isHyroxWorkout && exercises.length > 0 ? (
+            <>
+              <div className="pointer-events-none absolute inset-y-4 left-1/2 w-16 -translate-x-1/2" aria-hidden="true">
+                <svg className="h-full w-full" viewBox="0 0 64 520" preserveAspectRatio="none">
+                  <path
+                    d="M23 4 C7 70 43 116 25 184 C8 250 48 306 28 378 C16 424 18 470 10 516"
+                    fill="none"
+                    stroke={isGirlsTheme ? 'rgba(168,120,132,0.34)' : 'rgba(255,255,255,0.22)'}
+                    strokeWidth="3.5"
+                    strokeLinecap="round"
+                  />
+                  <path
+                    d="M39 4 C23 70 59 116 41 184 C24 250 64 306 44 378 C32 424 34 470 26 516"
+                    fill="none"
+                    stroke={isGirlsTheme ? 'rgba(249,178,215,0.52)' : 'rgba(187,255,92,0.30)'}
+                    strokeWidth="3.5"
+                    strokeLinecap="round"
+                  />
+                </svg>
+              </div>
+              <div className="relative space-y-4">
+                {exercises.map((exercise, index) => {
+                  const isCompleted = completedLookup.has(String(exercise.name || '').trim().toLowerCase());
+                  const isNext = nextExercise?.name === exercise.name && !isCompleted;
+                  const visual = exerciseVisuals[index];
+                  const primaryMuscle = visual?.primaryMuscle || resolvePrimaryExerciseMuscle(exercise);
+                  const videoUrl = visual?.videoMatch?.url || null;
+                  const lastWeight = lastWeights[normalizeExerciseKey(exercise.name)];
+                  const isLeft = index % 2 === 0;
+
+                  const card = (
+                    <button
+                      key={exercise.name || index}
+                      data-coachmark-target={isNext || (!nextExercise && index === 0) ? 'workout_plan_first_exercise_card' : undefined}
+                      type="button"
+                      onClick={() => onExerciseClick(exercise.name)}
+                      className={`group relative aspect-square w-full overflow-hidden rounded-[1.35rem] border p-2 text-left transition-all active:scale-[0.985] ${
+                        isGirlsTheme
+                          ? isCompleted
+                            ? 'border-emerald-300/50 bg-emerald-50/80 shadow-[0_14px_30px_rgba(16,185,129,0.12)]'
+                            : isNext
+                              ? 'border-[#F9B2D7]/80 bg-white/86 shadow-[0_18px_38px_rgba(249,178,215,0.22)]'
+                              : 'border-[#E2B4BD]/50 bg-white/76 shadow-[0_14px_30px_rgba(226,180,189,0.16)] hover:border-[#F9B2D7]/75'
+                          : isCompleted
+                            ? 'border-green-500/35 bg-green-500/10'
+                            : isNext
+                              ? 'border-accent/50 bg-accent/10 shadow-[0_16px_36px_rgba(187,255,92,0.12)]'
+                              : 'border-white/[0.10] bg-card/80 hover:border-accent/25'
+                      }`}
+                    >
+                      <div className={`relative h-[54%] overflow-hidden rounded-2xl border ${isGirlsTheme ? 'border-[#E2B4BD]/40 bg-white/65' : 'border-white/10 bg-white/5'}`}>
+                        {videoUrl ? (
+                          <>
+                            <ExerciseMedia
+                              src={videoUrl}
+                              mediaType={visual?.videoMatch?.mediaType}
+                              alt={stripExercisePrefix(exercise.name)}
+                              poster={getMuscleImage(primaryMuscle)}
+                              className="block h-full w-full bg-black object-cover"
+                              videoProps={{ autoPlay: true }}
+                            />
+                            <div className={`pointer-events-none absolute inset-0 flex items-center justify-center ${isGirlsTheme ? 'bg-[#4A4A4A]/12' : 'bg-black/28'}`}>
+                              <div className={`flex h-7 w-7 items-center justify-center rounded-full ${isGirlsTheme ? 'bg-white/80 text-[#A87884]' : 'bg-black/55 text-white'}`}>
+                                <Play size={11} fill="currentColor" />
+                              </div>
+                            </div>
+                          </>
+                        ) : (
+                          <>
+                            <MuscleSvgBadge
+                              muscle={{ label: toLocalizedMuscleLabel(primaryMuscle), sourceName: canonicalizeMuscleLabel(primaryMuscle) }}
+                              className="h-full w-full"
+                              figureClassName="h-full"
+                              showLabel={false}
+                              variant="bare"
+                              themeVariant={isGirlsTheme ? 'girls' : 'default'}
+                            />
+                            <div className={`pointer-events-none absolute inset-x-0 bottom-0 px-1.5 py-1 text-center text-[8px] font-semibold uppercase tracking-[0.1em] ${isGirlsTheme ? 'bg-white/84 text-[#A87884]' : 'bg-black/70 text-amber-200'}`}>
+                              {copy.videoMissing}
+                            </div>
+                          </>
+                        )}
+                      </div>
+
+                      <div className="min-w-0 px-1 pt-2">
+                        <h4 className={`line-clamp-2 text-[12px] font-bold leading-4 ${isGirlsTheme ? 'text-[#4A4A4A]' : 'text-white'}`}>
+                          {stripExercisePrefix(exercise.name)}
+                        </h4>
+                        <p className={`mt-1 truncate text-[10px] ${isGirlsTheme ? 'text-[#795E67]' : 'text-text-secondary'}`}>
+                          {exercise.sets} {copy.setsLabel} - {exercise.reps || '--'} {copy.repsLabel}
+                        </p>
+                        <p className={`mt-0.5 truncate text-[10px] ${isGirlsTheme ? 'text-[#A87884]' : 'text-text-tertiary'}`}>
+                          {exercise.targetWeight ? `${exercise.targetWeight} ${copy.kgLabel}` : formatRestLabel(exercise.rest)}
+                          {lastWeight ? ` - ${copy.lastWeightLabel} ${lastWeight} ${copy.kgLabel}` : ''}
+                        </p>
+                        {!!exercise.targetMuscles.length && (
+                          <p className={`mt-1 truncate text-[9px] ${isGirlsTheme ? 'text-[#A87884]' : 'text-text-tertiary'}`}>
+                            {exercise.targetMuscles.map((entry) => toLocalizedMuscleLabel(entry)).join(' - ')}
+                          </p>
+                        )}
+                      </div>
+                    </button>
+                  );
+
+                  return (
+                    <div
+                      key={exercise.name || index}
+                      className="grid grid-cols-[minmax(0,1fr)_3.6rem_minmax(0,1fr)] items-center gap-2"
+                    >
+                      <div className={isLeft ? 'col-start-1' : 'col-start-3'}>{card}</div>
+                      <div className="col-start-2 row-start-1 flex justify-center">
+                        {(() => {
+                          const isStartMarker = index === 0;
+                          const isFinishMarker = index === exercises.length - 1;
+                          const markerLabel = isStartMarker
+                            ? 'Start'
+                            : isFinishMarker
+                              ? 'Finish'
+                              : String(index + 1);
+
+                          return (
+                        <span
+                          aria-label={markerLabel}
+                          title={markerLabel}
+                          className={`flex h-8 w-8 items-center justify-center rounded-full border text-[11px] font-black shadow-lg ${
+                            isGirlsTheme
+                              ? 'border-[#E2B4BD]/55 bg-white/88 text-[#A87884]'
+                              : 'border-accent/35 bg-[#101824] text-accent'
+                          }`}
+                        >
+                          {isStartMarker ? (
+                            <Flag size={14} strokeWidth={2.4} aria-hidden="true" />
+                          ) : isFinishMarker ? (
+                            <FlagTriangleRight size={15} strokeWidth={2.4} aria-hidden="true" />
+                          ) : (
+                            index + 1
+                          )}
+                        </span>
+                          );
+                        })()}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </>
+          ) : exercises.map((exercise, index) => {
             const isCompleted = completedLookup.has(String(exercise.name || '').trim().toLowerCase());
             const isNext = nextExercise?.name === exercise.name && !isCompleted;
             const visual = exerciseVisuals[index];
@@ -1031,15 +1245,13 @@ export function WorkoutPlanScreen({
                   <div className={`relative h-20 w-20 shrink-0 overflow-hidden rounded-2xl border ${isGirlsTheme ? 'border-[#E2B4BD]/40 bg-white/65' : 'border-white/10 bg-white/5'}`}>
                     {videoUrl ? (
                       <>
-                        <video
+                        <ExerciseMedia
                           src={videoUrl}
+                          mediaType={visual?.videoMatch?.mediaType}
+                          alt={stripExercisePrefix(exercise.name)}
                           poster={getMuscleImage(primaryMuscle)}
                           className="block h-full w-full bg-black object-cover"
-                          autoPlay
-                          loop
-                          playsInline
-                          muted
-                          preload="metadata"
+                          videoProps={{ autoPlay: true }}
                         />
                         <div className={`pointer-events-none absolute inset-0 flex items-center justify-center ${isGirlsTheme ? 'bg-[#4A4A4A]/16' : 'bg-black/30'}`}>
                           <div className={`flex h-7 w-7 items-center justify-center rounded-full ${isGirlsTheme ? 'bg-white/75 text-[#A87884]' : 'bg-black/55 text-white'}`}>
@@ -1049,10 +1261,13 @@ export function WorkoutPlanScreen({
                       </>
                     ) : (
                       <>
-                        <img
-                          src={getMuscleImage(primaryMuscle)}
-                          alt={exercise.name}
-                          className="h-full w-full object-cover"
+                        <MuscleSvgBadge
+                          muscle={{ label: toLocalizedMuscleLabel(primaryMuscle), sourceName: canonicalizeMuscleLabel(primaryMuscle) }}
+                          className="h-full w-full"
+                          figureClassName="h-full"
+                          showLabel={false}
+                          variant="bare"
+                          themeVariant={isGirlsTheme ? 'girls' : 'default'}
                         />
                         <div className={`pointer-events-none absolute inset-x-0 bottom-0 px-2 py-1 text-center text-[9px] font-semibold uppercase tracking-[0.12em] ${isGirlsTheme ? 'bg-white/82 text-[#A87884]' : 'bg-black/70 text-amber-200'}`}>
                           {copy.videoMissing}
@@ -1190,6 +1405,16 @@ export function WorkoutPlanScreen({
                       <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3">
                         {filteredCatalog.map((exercise) => {
                           const muscleLabel = toTitleCase(exercise.muscle || exercise.bodyPart || selectedCatalogMuscle || 'General');
+                          const videoMatch = resolveExerciseVideo({
+                            name: exercise.name,
+                            muscle: muscleLabel,
+                            bodyPart: exercise.bodyPart || selectedCatalogMuscle || muscleLabel,
+                            targetMuscles: [muscleLabel],
+                            primaryMedia: exercise.primaryMedia,
+                            media: exercise.media,
+                            preferredAudience: preferredMediaAudience,
+                          });
+                          const previewUrl = videoMatch.url || null;
                           return (
                             <button
                               key={exercise.id}
@@ -1205,11 +1430,22 @@ export function WorkoutPlanScreen({
                               className={`rounded-2xl border p-3 transition-colors group ${isGirlsTheme ? 'border-[#E2B4BD]/45 bg-white/70 shadow-[0_10px_24px_rgba(226,180,189,0.12)] hover:border-[#F9B2D7]/70' : 'surface-card hover:border-accent/20'} ${isArabic ? 'text-right' : 'text-left'}`}
                             >
                               <div className={`relative -mx-3 -mt-3 mb-3 aspect-video overflow-hidden rounded-t-2xl border-b ${isGirlsTheme ? 'border-[#E2B4BD]/35 bg-white/65' : 'border-white/[0.08] bg-white/5'}`}>
-                                <img
-                                  src={getMuscleImage(muscleLabel)}
-                                  alt={exercise.name}
-                                  className="h-full w-full object-cover transition-transform duration-200 group-hover:scale-105"
-                                />
+                                {previewUrl ? (
+                                  <ExerciseMedia
+                                    src={previewUrl}
+                                    mediaType={videoMatch.mediaType}
+                                    alt={exercise.name}
+                                    poster={getMuscleImage(muscleLabel)}
+                                    className="h-full w-full bg-black object-cover transition-transform duration-200 group-hover:scale-105"
+                                    videoProps={{ autoPlay: true }}
+                                  />
+                                ) : (
+                                  <img
+                                    src={getMuscleImage(muscleLabel)}
+                                    alt={exercise.name}
+                                    className="h-full w-full object-cover transition-transform duration-200 group-hover:scale-105"
+                                  />
+                                )}
                               <div className={`absolute inset-0 flex items-center justify-center ${isGirlsTheme ? 'bg-[#4A4A4A]/16' : 'bg-black/35'}`}>
                                 <button
                                   type="button"
@@ -1265,6 +1501,7 @@ export function WorkoutPlanScreen({
                       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
                         {catalogMuscles.map((muscle) => {
                           const isSelected = selectedCatalogMuscle === muscle.name;
+                          const categoryVideo = resolveExerciseCategoryVideo(muscle.name);
                           return (
                             <button
                               key={muscle.name}
@@ -1284,11 +1521,22 @@ export function WorkoutPlanScreen({
                               }`}
                             >
                               <div className={`-mx-3 -mt-3 mb-3 aspect-[4/3] overflow-hidden rounded-t-2xl border-b ${isGirlsTheme ? 'border-[#E2B4BD]/35 bg-white/65' : 'border-white/[0.08] bg-white/5'}`}>
-                                <img
-                                  src={getMuscleImage(muscle.name)}
-                                  alt={toLocalizedMuscleLabel(muscle.name)}
-                                  className="h-full w-full object-contain p-3"
-                                />
+                                {categoryVideo ? (
+                                  <ExerciseMedia
+                                    src={categoryVideo.url}
+                                    mediaType="video"
+                                    alt={toLocalizedMuscleLabel(muscle.name)}
+                                    poster={getMuscleImage(muscle.name)}
+                                    className="h-full w-full bg-black object-cover"
+                                    videoProps={{ autoPlay: true }}
+                                  />
+                                ) : (
+                                  <img
+                                    src={getMuscleImage(muscle.name)}
+                                    alt={toLocalizedMuscleLabel(muscle.name)}
+                                    className="h-full w-full object-contain p-3"
+                                  />
+                                )}
                               </div>
                               <div className="mt-3">
                                 <div className={`truncate text-sm font-semibold ${isGirlsTheme ? 'text-[#4A4A4A]' : 'text-white'}`}>{toLocalizedMuscleLabel(muscle.name)}</div>

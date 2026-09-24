@@ -188,6 +188,7 @@ const buildStepIds = (
   onboardingData: any,
   track: OnboardingTrack,
 ) => {
+  const selectedAthleteIdentity = normalizeAthleteIdentity(onboardingData?.athleteIdentity);
   const splitPreference = String(onboardingData?.workoutSplitPreference || '').trim().toLowerCase();
   const isCustom = splitPreference === 'custom';
   const includeAiTuning = splitPreference === 'auto';
@@ -205,6 +206,11 @@ const buildStepIds = (
     ...ensureLanguageStep(config.steps.intro),
     ...(track === 'bodybuilding' ? config.steps.bodybuilding : config.steps.sport),
   ];
+
+  if (selectedAthleteIdentity === 'hyrox') {
+    const hyroxSteps = [...ensureLanguageStep(config.steps.intro), 'ai_analysis', 'body_results'] as OnboardingStepId[];
+    return hyroxSteps.filter((id, index) => hyroxSteps.indexOf(id) === index);
+  }
 
   let branch = isCustom
     ? config.steps.branchBySplit.custom
@@ -415,11 +421,14 @@ export function Onboarding({ onComplete }: OnboardingProps) {
   const currentStep = steps[stepIndex];
   const CurrentComponent = currentStep?.component;
   const isLastStep = stepIndex === steps.length - 1;
+  const genderThemeUnlocked = Boolean(
+    currentStep
+    && !['welcome', 'language', 'first_name', 'personal_info', 'sport_age_gender'].includes(currentStep.id),
+  );
   const girlsThemeActive = Boolean(
     currentStep
+    && genderThemeUnlocked
     && isFemaleGender(onboardingData?.gender)
-    && currentStep.id !== 'personal_info'
-    && currentStep.id !== 'sport_age_gender',
   );
 
   useEffect(() => {

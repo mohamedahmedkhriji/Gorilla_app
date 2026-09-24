@@ -62,6 +62,7 @@ const io = new SocketIOServer(server, {
 });
 const notificationService = new NotificationService({ pool, io });
 app.locals.notificationService = notificationService;
+app.locals.io = io;
 
 // Middleware
 app.use(createSecurityHeadersMiddleware());

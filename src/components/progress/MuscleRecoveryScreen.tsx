@@ -664,7 +664,8 @@ const getPeriodCarouselCopy = (language: AppLanguage) => {
       activePeriod: 'أيام الدورة',
       likelyNow: 'قد تبدأ قريباً',
       training: 'اقتراح التدريب',
-      softer: 'اختاري تمارين أخف وركزي على الراحة.',
+      softer: 'يمكنك التدريب بشكل طبيعي إذا كنت مرتاحة. خففي الشدة إذا كانت الأعراض أو الطاقة تجعل التدريب صعباً.',
+      periodSoon: 'قد تبدأ الدورة قريباً. تدربي بشكل طبيعي مع مراقبة الطاقة والأعراض.',
       normal: 'يمكنك التدريب بشكل طبيعي مع مراقبة الطاقة.',
       around: 'حوالي',
       detailsTitle: 'تفاصيل الدورة',
@@ -677,6 +678,7 @@ const getPeriodCarouselCopy = (language: AppLanguage) => {
       confidence: 'الثقة',
       cycleAverageBody: 'متوسط مدة الدورة',
       showCard: 'عرض بطاقة الدورة',
+      jointPainNote: 'تجنبي التحميل الثقيل على المنطقة المؤلمة.',
     };
   }
   if (language === 'fr') {
@@ -692,7 +694,8 @@ const getPeriodCarouselCopy = (language: AppLanguage) => {
       activePeriod: 'Periode en cours',
       likelyNow: 'Peut commencer bientot',
       training: 'Conseil training',
-      softer: 'Choisis une seance plus douce et garde plus de recuperation.',
+      softer: 'Tu peux t entrainer normalement si tu te sens bien. Reduis l intensite si les symptomes ou l energie rendent la seance difficile.',
+      periodSoon: 'Ta periode peut commencer bientot. Entraine-toi normalement en surveillant energie et symptomes.',
       normal: 'Tu peux t entrainer normalement en surveillant ton energie.',
       around: 'Autour du',
       detailsTitle: 'Details du cycle',
@@ -705,6 +708,7 @@ const getPeriodCarouselCopy = (language: AppLanguage) => {
       confidence: 'Confiance',
       cycleAverageBody: 'moyenne du cycle',
       showCard: 'Afficher la carte cycle',
+      jointPainNote: 'Evite les charges lourdes sur la zone douloureuse.',
     };
   }
   if (language === 'it') {
@@ -720,7 +724,8 @@ const getPeriodCarouselCopy = (language: AppLanguage) => {
       activePeriod: 'Periodo in corso',
       likelyNow: 'Potrebbe iniziare presto',
       training: 'Consiglio training',
-      softer: 'Scegli lavoro piu leggero e piu recupero.',
+      softer: 'Puoi allenarti normalmente se ti senti a tuo agio. Riduci l intensita se sintomi o energia rendono difficile allenarti.',
+      periodSoon: 'Il ciclo potrebbe iniziare presto. Allenati normalmente monitorando energia e sintomi.',
       normal: 'Puoi allenarti normalmente monitorando energia e sintomi.',
       around: 'Intorno al',
       detailsTitle: 'Dettagli ciclo',
@@ -733,6 +738,7 @@ const getPeriodCarouselCopy = (language: AppLanguage) => {
       confidence: 'Confidenza',
       cycleAverageBody: 'media del ciclo',
       showCard: 'Mostra scheda ciclo',
+      jointPainNote: 'Evita carichi pesanti sulla zona dolorante.',
     };
   }
   if (language === 'de') {
@@ -748,7 +754,8 @@ const getPeriodCarouselCopy = (language: AppLanguage) => {
       activePeriod: 'Periode aktiv',
       likelyNow: 'Kann bald starten',
       training: 'Trainingstipp',
-      softer: 'Waehle leichteres Training und mehr Erholung.',
+      softer: 'Du kannst normal trainieren, wenn du dich wohl fuehlst. Reduziere die Intensitaet, wenn Symptome oder Energie das Training erschweren.',
+      periodSoon: 'Deine Periode kann bald beginnen. Trainiere normal und beobachte Energie und Symptome.',
       normal: 'Du kannst normal trainieren und deine Energie beobachten.',
       around: 'Um den',
       detailsTitle: 'Zyklusdetails',
@@ -761,6 +768,7 @@ const getPeriodCarouselCopy = (language: AppLanguage) => {
       confidence: 'Sicherheit',
       cycleAverageBody: 'Zyklusdurchschnitt',
       showCard: 'Zykluskarte anzeigen',
+      jointPainNote: 'Vermeide schwere Belastung im schmerzenden Bereich.',
     };
   }
   return {
@@ -775,7 +783,8 @@ const getPeriodCarouselCopy = (language: AppLanguage) => {
     activePeriod: 'Period days',
     likelyNow: 'May start soon',
     training: 'Training note',
-    softer: 'Choose lighter work and give recovery a little more room.',
+    softer: 'You can train normally if you feel comfortable. Reduce intensity if symptoms or energy make training difficult.',
+    periodSoon: 'Your period may start soon. Train normally while monitoring energy and symptoms.',
     normal: 'Train normally while watching energy and symptoms.',
     around: 'Around',
     detailsTitle: 'Period details',
@@ -788,10 +797,11 @@ const getPeriodCarouselCopy = (language: AppLanguage) => {
     confidence: 'Confidence',
     cycleAverageBody: 'cycle average',
     showCard: 'Show cycle card',
+    jointPainNote: 'Avoid heavy loading on the painful area.',
   };
 };
 
-function GirlsPeriodCarousel({ language }: { language: AppLanguage }) {
+function GirlsPeriodCarousel({ language, jointPainLevel = 0 }: { language: AppLanguage; jointPainLevel?: number }) {
   const [activeIndex, setActiveIndex] = useState(0);
   const [showPeriodDetails, setShowPeriodDetails] = useState(false);
   const touchStartXRef = useRef<number | null>(null);
@@ -802,7 +812,11 @@ function GirlsPeriodCarousel({ language }: { language: AppLanguage }) {
   const stats = periodCycle?.stats || {};
   const cycleLength = Math.round(Number(stats.averageCycleLength || periodCycle?.typicalCycleLength || periodCycle?.typical_cycle_length || 29));
   const periodLength = Math.round(Number(stats.averagePeriodLength || periodCycle?.typicalPeriodDuration || periodCycle?.typical_period_duration || 5));
-  const variation = Math.max(2, Math.min(7, Math.round(Number(stats.cycleVariation || 2))));
+  const cycleLengths = Array.isArray(stats.cycleLengths) ? stats.cycleLengths : [];
+  const variation = Math.max(1, Math.min(10, Math.round(Number(
+    stats.cycleVariation
+    || (cycleLengths.length >= 1 ? 4 : 7),
+  ))));
   const confidence = String(stats.confidence || (lastStart ? 'medium' : 'low'));
   const predictedStart = String(stats.predictedNextStart || (lastStart ? addRecoveryDays(lastStart, cycleLength) : '')).slice(0, 10);
   const predictedEnd = String(stats.predictedNextEnd || (predictedStart ? addRecoveryDays(predictedStart, periodLength - 1) : '')).slice(0, 10);
@@ -813,7 +827,14 @@ function GirlsPeriodCarousel({ language }: { language: AppLanguage }) {
   const cycleDay = lastStart ? Math.max(1, (daysBetweenRecoveryDates(lastStart, today) || 0) + 1) : null;
   const currentPeriodEnd = lastStart ? addRecoveryDays(lastStart, periodLength - 1) : '';
   const inPeriod = lastStart && currentPeriodEnd && today >= lastStart && today <= currentPeriodEnd;
-  const shouldTrainSofter = inPeriod || (daysUntil !== null && daysUntil <= 2);
+  const periodMayStartSoon = daysUntil !== null && daysUntil >= 0 && daysUntil <= 2;
+  const trainingNote = jointPainLevel >= 7
+    ? copy.jointPainNote
+    : inPeriod
+      ? copy.softer
+      : periodMayStartSoon
+        ? copy.periodSoon
+        : copy.normal;
 
   const cards = lastStart && predictedStart ? [
     {
@@ -834,9 +855,9 @@ function GirlsPeriodCarousel({ language }: { language: AppLanguage }) {
     },
     {
       eyebrow: copy.training,
-      title: shouldTrainSofter ? copy.softer : copy.normal,
+      title: trainingNote,
       body: predictedEnd ? `${copy.estimated}: ${formatRecoveryPeriodDate(predictedStart, language)} - ${formatRecoveryPeriodDate(predictedEnd, language)}` : copy.normal,
-      stat: shouldTrainSofter ? '!' : 'OK',
+      stat: jointPainLevel >= 7 || inPeriod || periodMayStartSoon ? '!' : 'OK',
       tint: 'from-[#CFECF3]/60 via-white to-[#FFF5F5]',
       ring: 'border-[#CFECF3]/80',
     },
@@ -975,7 +996,7 @@ function GirlsPeriodCarousel({ language }: { language: AppLanguage }) {
                 ))}
               </div>
               <p className="rounded-2xl border border-[#CFECF3]/70 bg-[#CFECF3]/35 px-3 py-3 text-sm leading-6 text-[#795E67]">
-                {shouldTrainSofter ? copy.softer : copy.normal}
+                {trainingNote}
               </p>
             </div>
           </div>
@@ -1613,7 +1634,7 @@ export function MuscleRecoveryScreen({ onBack }: MuscleRecoveryScreenProps) {
         )}
 
         {!error && isGirlsTheme && recoveryPageMuscles.length > 0 && (
-          <GirlsPeriodCarousel language={language} />
+          <GirlsPeriodCarousel language={language} jointPainLevel={Number(factors.jointPain || 0)} />
         )}
 
         {recoverySections.map((section) => (

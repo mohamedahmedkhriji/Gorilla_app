@@ -61,42 +61,48 @@ const MUSCLE_GROUPS = {
 } as const;
 
 const INTENSITY_FACTORS = {
-  low: 0.7,
-  moderate: 1.0,
-  high: 1.3,
-} as const;
-
-const VOLUME_FACTORS = {
-  low: 0.8,
+  low: 0.85,
   moderate: 1.0,
   high: 1.2,
 } as const;
 
-const ECCENTRIC_FACTOR = 1.15;
+const VOLUME_FACTORS = {
+  low: 0.85,
+  moderate: 1.0,
+  high: 1.12,
+} as const;
+
+const ECCENTRIC_FACTOR = 1.12;
 
 const NUTRITION_FACTORS = {
-  optimal: 0.9,
-  suboptimal: 1.1,
+  optimal: 0.97,
+  suboptimal: 1.06,
 } as const;
 
 const STRESS_FACTORS = {
-  low: 0.95,
+  low: 0.97,
   moderate: 1.0,
-  high: 1.15,
+  high: 1.08,
 } as const;
 
 function getAgeFactor(age: number): number {
-  if (age < 25) return 0.9;
-  if (age < 35) return 1.0;
-  if (age < 45) return 1.1;
-  return 1.2;
+  if (age < 40) return 1.0;
+  if (age < 50) return 1.03;
+  if (age < 60) return 1.07;
+  return 1.12;
 }
 
 function getSleepFactor(hours: number): number {
-  if (hours >= 8) return 0.9;
+  if (hours >= 9) return 0.94;
+  if (hours >= 8) return 0.97;
   if (hours >= 7) return 1.0;
-  if (hours >= 6) return 1.1;
-  return 1.2;
+  if (hours >= 6) return 1.07;
+  if (hours >= 5) return 1.13;
+  return 1.20;
+}
+
+function clamp(value: number, minimum: number, maximum: number): number {
+  return Math.min(maximum, Math.max(minimum, value));
 }
 
 function normalizeMuscleGroup(muscleGroup: string): string {
@@ -113,18 +119,26 @@ export class RecoveryCalculator {
     const normalizedMuscle = normalizeMuscleGroup(session.muscleGroup);
     const baseTime = BASE_RECOVERY_TIMES[normalizedMuscle] ?? 48;
 
-    let totalTime = baseTime;
-    totalTime *= INTENSITY_FACTORS[session.intensity] ?? 1;
-    totalTime *= VOLUME_FACTORS[session.volume] ?? 1;
-
-    if (session.eccentricFocus) {
-      totalTime *= ECCENTRIC_FACTOR;
-    }
-
-    totalTime *= getAgeFactor(factors.age);
-    totalTime *= getSleepFactor(factors.sleepHours);
-    totalTime *= NUTRITION_FACTORS[factors.nutritionQuality] ?? 1;
-    totalTime *= STRESS_FACTORS[factors.stressLevel] ?? 1;
+    const trainingFactor = clamp(
+      (INTENSITY_FACTORS[session.intensity] ?? 1)
+      * (VOLUME_FACTORS[session.volume] ?? 1)
+      * (session.eccentricFocus ? ECCENTRIC_FACTOR : 1),
+      0.65,
+      1.80,
+    );
+    const lifestyleFactor = clamp(
+      getSleepFactor(factors.sleepHours)
+      * (NUTRITION_FACTORS[factors.nutritionQuality] ?? 1)
+      * (STRESS_FACTORS[factors.stressLevel] ?? 1),
+      0.80,
+      1.35,
+    );
+    const personalFactor = clamp(getAgeFactor(factors.age), 0.85, 1.50);
+    const totalTime = clamp(
+      baseTime * trainingFactor * lifestyleFactor * personalFactor,
+      baseTime * 0.60,
+      baseTime * 2.00,
+    );
 
     return Number(Math.max(12, totalTime).toFixed(2));
   }
@@ -132,11 +146,11 @@ export class RecoveryCalculator {
   calculateRecoveryPercentage(session: WorkoutSession, factors: RecoveryFactors): MuscleRecovery {
     const hoursNeeded = this.calculateRecoveryTime(session, factors);
     const hoursElapsed = Math.max(0, (Date.now() - session.timestamp.getTime()) / (1000 * 60 * 60));
-    const recoveryPercentage = Math.min(100, (hoursElapsed / hoursNeeded) * 100);
+    const recoveryPercentage = clamp(Math.round((hoursElapsed / hoursNeeded) * 100), 0, 100);
 
     return {
       muscleGroup: normalizeMuscleGroup(session.muscleGroup),
-      recoveryPercentage: Math.round(recoveryPercentage),
+      recoveryPercentage,
       hoursNeeded,
       hoursElapsed: Number(hoursElapsed.toFixed(2)),
       lastWorked: session.timestamp,

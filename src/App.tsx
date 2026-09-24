@@ -273,9 +273,11 @@ export function App() {
 
   const savedStyleGender = readAppStyleGender();
   const storedUser = useMemo(() => readStoredUser(), [styleRefreshKey]);
-  const isGirlsShell = savedStyleGender
-    ? isFemaleStyleValue(savedStyleGender)
-    : isFemaleStyleValue(storedUser?.gender);
+  const isGirlsShell = isLoggedIn && hasOnboarded && (
+    savedStyleGender
+      ? isFemaleStyleValue(savedStyleGender)
+      : isFemaleStyleValue(storedUser?.gender)
+  );
 
   useEffect(() => {
     if (!isGirlsShell) return undefined;

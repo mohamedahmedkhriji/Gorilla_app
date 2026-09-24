@@ -166,9 +166,9 @@ const FRIENDS_LIST_I18N = {
   en: {
     title: 'Friends',
     tabFriends: 'Friends',
-    tabGymMembers: 'Gym Members',
+    tabGymMembers: 'App Members',
     tabRequests: 'Requests',
-    searchPlaceholder: 'Search gym members by name...',
+    searchPlaceholder: 'Search app members by name...',
     invitationAlreadyPending: 'invitation already pending.',
     requestSentPrefix: 'Friend request sent to',
     requestSentTitle: 'Request sent',
@@ -187,7 +187,7 @@ const FRIENDS_LIST_I18N = {
     workouts: 'workouts',
     friendRequest: 'Friend request',
     requestSubtitle: 'Wants to connect with you',
-    sameGym: 'Same gym',
+    sameGym: 'App member',
     view: 'View',
     sending: 'Sending...',
     sendInvite: 'Send Invite',
@@ -201,9 +201,9 @@ const FRIENDS_LIST_I18N = {
   ar: {
     title: 'الأصدقاء',
     tabFriends: 'الأصدقاء',
-    tabGymMembers: 'أعضاء النادي',
+    tabGymMembers: 'أعضاء التطبيق',
     tabRequests: 'الطلبات',
-    searchPlaceholder: 'ابحث عن أعضاء النادي بالاسم...',
+    searchPlaceholder: 'ابحث عن أعضاء التطبيق بالاسم...',
     invitationAlreadyPending: 'الدعوة معلقة بالفعل.',
     requestSentPrefix: 'تم إرسال طلب صداقة إلى',
     requestSentTitle: 'تم إرسال الطلب',
@@ -222,7 +222,7 @@ const FRIENDS_LIST_I18N = {
     workouts: 'تمرين',
     friendRequest: 'طلب صداقة',
     requestSubtitle: 'يريد التواصل معك',
-    sameGym: 'نفس النادي',
+    sameGym: 'عضو التطبيق',
     view: 'عرض',
     sending: 'جارٍ الإرسال...',
     sendInvite: 'إرسال دعوة',
@@ -236,9 +236,9 @@ const FRIENDS_LIST_I18N = {
   it: {
     title: 'Amici',
     tabFriends: 'Amici',
-    tabGymMembers: 'Membri della Palestra',
+    tabGymMembers: 'Membri App',
     tabRequests: 'Richieste',
-    searchPlaceholder: 'Cerca membri della palestra per nome...',
+    searchPlaceholder: 'Cerca membri app per nome...',
     invitationAlreadyPending: 'invito gia in attesa.',
     requestSentPrefix: 'Richiesta di amicizia inviata a',
     requestSentTitle: 'Richiesta inviata',
@@ -257,7 +257,7 @@ const FRIENDS_LIST_I18N = {
     workouts: 'allenamenti',
     friendRequest: 'Richiesta di amicizia',
     requestSubtitle: 'Vuole connettersi con te',
-    sameGym: 'Stessa palestra',
+    sameGym: 'Membro app',
     view: 'Apri',
     sending: 'Invio...',
     sendInvite: 'Invia Invito',
@@ -271,9 +271,9 @@ const FRIENDS_LIST_I18N = {
   fr: {
     title: 'Amis',
     tabFriends: 'Amis',
-    tabGymMembers: 'Membres de la Salle',
+    tabGymMembers: 'Membres App',
     tabRequests: 'Demandes',
-    searchPlaceholder: 'Rechercher un membre de la salle par nom...',
+    searchPlaceholder: 'Rechercher un membre app par nom...',
     invitationAlreadyPending: 'invitation deja en attente.',
     requestSentPrefix: 'Demande d amitie envoyee a',
     requestSentTitle: 'Demande envoyee',
@@ -292,7 +292,7 @@ const FRIENDS_LIST_I18N = {
     workouts: 'entrainements',
     friendRequest: 'Demande d amitie',
     requestSubtitle: 'Veut se connecter avec toi',
-    sameGym: 'Meme salle',
+    sameGym: 'Membre app',
     view: 'Voir',
     sending: 'Envoi...',
     sendInvite: 'Envoyer',
@@ -306,9 +306,9 @@ const FRIENDS_LIST_I18N = {
   de: {
     title: 'Freunde',
     tabFriends: 'Freunde',
-    tabGymMembers: 'Studio-Mitglieder',
+    tabGymMembers: 'App-Mitglieder',
     tabRequests: 'Anfragen',
-    searchPlaceholder: 'Suche Studio-Mitglieder nach Namen...',
+    searchPlaceholder: 'Suche App-Mitglieder nach Namen...',
     invitationAlreadyPending: 'Einladung bereits ausstehend.',
     requestSentPrefix: 'Freundschaftsanfrage gesendet an',
     requestSentTitle: 'Anfrage gesendet',
@@ -327,7 +327,7 @@ const FRIENDS_LIST_I18N = {
     workouts: 'Workouts',
     friendRequest: 'Freundschaftsanfrage',
     requestSubtitle: 'Moechte sich mit dir verbinden',
-    sameGym: 'Gleiches Studio',
+    sameGym: 'App-Mitglied',
     view: 'Ansehen',
     sending: 'Wird gesendet...',
     sendInvite: 'Einladen',
@@ -344,7 +344,7 @@ export function FriendsList({ onBack, onFriendClick }: FriendsListProps) {
   const [members, setMembers] = useState<FriendMember[]>([]);
   const [loadingMembers, setLoadingMembers] = useState(true);
   const [search, setSearch] = useState('');
-  const [filter, setFilter] = useState<'all' | 'friends' | 'requests' | 'rank'>('friends');
+  const [filter, setFilter] = useState<'all' | 'friends' | 'requests' | 'rank'>('all');
   const [activeUserId, setActiveUserId] = useState<number>(0);
   const [busyMemberId, setBusyMemberId] = useState<number | null>(null);
   const [refreshTick, setRefreshTick] = useState(0);
@@ -440,7 +440,7 @@ export function FriendsList({ onBack, onFriendClick }: FriendsListProps) {
           setMembers(rawMembers.map((member: FriendMember) => normalizeMember(member)));
         }
       } catch (error) {
-        console.error('Failed to load gym members:', error);
+        console.error('Failed to load app members:', error);
       } finally {
         hasLoadedMembersRef.current = true;
         if (!cancelled) {

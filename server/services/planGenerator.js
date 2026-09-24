@@ -1,6 +1,6 @@
 /* eslint-env node */
-import { resolveExerciseVideoManifest } from '../../src/shared/exerciseVideoManifest.js';
 import { getPhaseForWeek } from './adaptiveTraining/rulesPlanDraft.js';
+import { listSupabaseExercises } from './supabaseExerciseCatalogService.js';
 
 const GOAL_PRESETS = {
   hypertrophy: { repRange: [8, 12], restSeconds: 90, rpeBase: 7.5, setBase: 3 },
@@ -99,6 +99,13 @@ const normalizeEquipment = (value) =>
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, ' ')
     .trim();
+
+const difficultyLevelToPlanLevel = (difficultyLevel) => {
+  const value = Number(difficultyLevel || 0);
+  if (!Number.isFinite(value) || value <= 2) return 'beginner';
+  if (value <= 3) return 'intermediate';
+  return 'advanced';
+};
 
 const normalizeName = (value) =>
   String(value || '')
@@ -1619,44 +1626,49 @@ const pickAthleteAnchorExercises = ({
   return selected;
 };
 
-const loadCatalogPool = async (conn, { userLevel, equipmentPrefs }) => {
-  const [rows] = await conn.execute(
-    `SELECT id, canonical_name, normalized_name, body_part, equipment, level, exercise_type, description, is_stretch
-     FROM exercise_catalog
-     WHERE is_active = 1`,
-  );
-
+const loadCatalogPool = async (_conn, { userLevel, equipmentPrefs }) => {
+  const { exercises } = await listSupabaseExercises({ limit: 1000 });
   const allowedEquipment = new Set(equipmentPrefs);
   const hasEquipmentRestriction = allowedEquipment.size > 0;
   const userLevelRank = levelRank(userLevel);
 
-  return rows
-    .map((row) => {
-      const videoLink = resolveExerciseVideoManifest({
-        name: row.canonical_name,
-        bodyPart: row.body_part,
-      });
-
-      const exactBackVideoLink = videoLink.bodyPart === 'back' && videoLink.matchType === 'alias';
-      const exerciseType = String(row.exercise_type || '');
-      const description = String(row.description || '');
-      const canonicalName = String(row.canonical_name || '');
+  return exercises
+    .map((exercise) => {
+      const categoryNames = Array.isArray(exercise.categories)
+        ? exercise.categories.map((category) => category?.name).filter(Boolean)
+        : [];
+      const muscleNames = Array.isArray(exercise.muscles)
+        ? exercise.muscles.map((muscle) => muscle?.name).filter(Boolean)
+        : [];
+      const primaryMuscle = normalizeMuscleGroup([
+        exercise.bodyPart,
+        ...categoryNames,
+        ...muscleNames,
+      ].filter(Boolean).join(' '));
+      const exerciseType = [exercise.mechanics, exercise.forceType, ...categoryNames].filter(Boolean).join(' ');
+      const description = String(exercise.description || '');
+      const canonicalName = String(exercise.name || '');
 
       return {
-        id: Number(row.id),
+        id: Number(exercise.id),
+        supabaseExerciseId: Number(exercise.id),
         name: canonicalName,
-        normalizedName: normalizeName(row.normalized_name || canonicalName),
-        primaryMuscle: normalizeMuscleGroup(row.body_part),
-        equipment: normalizeEquipment(row.equipment),
-        level: String(row.level || '').toLowerCase(),
+        slug: exercise.slug || null,
+        normalizedName: normalizeName(canonicalName),
+        primaryMuscle,
+        equipment: normalizeEquipment(exercise.equipment),
+        level: difficultyLevelToPlanLevel(exercise.difficultyLevel),
         exerciseType,
         description,
-        isStretch: Number(row.is_stretch || 0) === 1 || /stretch/i.test(exerciseType),
+        isStretch: /stretch/i.test(`${exerciseType} ${canonicalName}`),
         isExplosive: isExplosiveExercise({ exerciseType, name: canonicalName, description }),
         isIsometric: isIsometricExercise({ exerciseType, name: canonicalName, description }),
-        linkedVideoAsset: videoLink.fileName || null,
-        linkedVideoMatchType: videoLink.matchType,
-        selectionPriority: exactBackVideoLink ? 100 + Number(videoLink.priority || 0) : 0,
+        linkedVideoAsset: null,
+        linkedVideoMatchType: null,
+        selectionPriority: exercise.primaryMedia ? 50 : 0,
+        categories: exercise.categories || [],
+        muscles: exercise.muscles || [],
+        primaryMedia: exercise.primaryMedia || null,
       };
     })
     .filter((ex) => !ex.isStretch)

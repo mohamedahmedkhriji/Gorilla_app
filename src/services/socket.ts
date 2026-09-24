@@ -131,9 +131,18 @@ export const socketService = {
     };
   },
 
+  onRepyGameLobbyUpdated: (callback: (payload: any) => void) => {
+    const handler = (payload: any) => callback(payload);
+    socket.on('repy-game:lobby-updated', handler);
+    return () => {
+      socket.off('repy-game:lobby-updated', handler);
+    };
+  },
+
   disconnect: () => {
     socket.off('newMessage');
     socket.off('typing');
+    socket.off('repy-game:lobby-updated');
     socket.off('messageError');
     clearPendingDisconnect();
     pendingDisconnectTimer = setTimeout(() => {

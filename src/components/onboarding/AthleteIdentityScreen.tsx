@@ -52,6 +52,22 @@ const LEGACY_MAIN_ID_MAP: Record<string, string> = {
   swimmer: 'swimming',
 };
 
+const VISIBLE_MAIN_OPTION_IDS = new Set(['bodybuilding', 'cardio', 'hyrox', 'box']);
+const VISIBLE_SUB_ITEM_IDS: Record<string, Set<string>> = {
+  bodybuilding: new Set(['hypertrophy', 'powerlifting', 'cutting', 'bulking']),
+  cardio: new Set(['fat_loss', 'endurance']),
+};
+
+const REQUIRED_VISIBLE_OPTIONS = DEFAULT_ONBOARDING_CONFIG.options.athleteIdentity.filter((option) =>
+  option.id === 'hyrox' || option.id === 'box'
+);
+
+const withRequiredVisibleOptions = (options: AthleteOption[]) => {
+  const existingIds = new Set(options.map((option) => option.id));
+  const missingRequired = REQUIRED_VISIBLE_OPTIONS.filter((option) => !existingIds.has(option.id));
+  return missingRequired.length ? [...options, ...missingRequired] : options;
+};
+
 const getGroupLimit = (groupId: string, limits: Record<string, number>) => limits[groupId] ?? 1;
 
 const coerceSelectionMap = (value: unknown): GroupSelectionMap => {
@@ -67,6 +83,19 @@ const coerceSelectionMap = (value: unknown): GroupSelectionMap => {
 
 const pickGroupForItem = (option: AthleteOption, itemId: string) =>
   option.subGroups.find((group) => group.items.some((item) => item.id === itemId));
+
+const getVisibleSubGroups = (option: AthleteOption) =>
+  option.subGroups
+    .filter((group) => !group.hidden)
+    .map((group) => ({
+      ...group,
+      items: group.items.filter((item) => {
+        if (item.hidden) return false;
+        const visibleItemIds = VISIBLE_SUB_ITEM_IDS[option.id];
+        return !visibleItemIds || visibleItemIds.has(item.id);
+      }),
+    }))
+    .filter((group) => group.items.length > 0);
 
 const applyLimit = (current: string[], nextId: string, limit: number) => {
   if (limit <= 1) return [nextId];
@@ -141,12 +170,12 @@ export function AthleteIdentityScreen({
   const normalizedGender = String(onboardingData?.gender || '').trim().toLowerCase();
   const isFemale = normalizedGender === 'female' || normalizedGender === 'woman' || normalizedGender === 'f';
   const athleteOptions = options?.length
-    ? options
+    ? withRequiredVisibleOptions(options)
     : DEFAULT_ONBOARDING_CONFIG.options.athleteIdentity;
-  const localizedOptions = localizeAthleteOptions(athleteOptions, language, normalizedGender);
+  const localizedOptions = localizeAthleteOptions(athleteOptions, language);
   const visibleOptions = useMemo(
-    () => localizedOptions.filter((option) => !isFemale || option.category === 'fitness'),
-    [isFemale, localizedOptions],
+    () => localizedOptions.filter((option) => !option.hidden && VISIBLE_MAIN_OPTION_IDS.has(option.id)),
+    [localizedOptions],
   );
   const selectionLimits = groupSelectionLimits
     ? { ...DEFAULT_ONBOARDING_CONFIG.options.athleteIdentityGroupLimits, ...groupSelectionLimits }
@@ -204,7 +233,7 @@ export function AthleteIdentityScreen({
   const availableSubItemsByGroup = useMemo(
     () =>
       selectedOption
-        ? selectedOption.subGroups.reduce<Record<string, Set<string>>>((acc, group) => {
+        ? getVisibleSubGroups(selectedOption).reduce<Record<string, Set<string>>>((acc, group) => {
             acc[group.id] = new Set(group.items.map((item) => item.id));
             return acc;
           }, {})
@@ -214,7 +243,7 @@ export function AthleteIdentityScreen({
 
   const effectiveSelections = useMemo(() => {
     if (!selectedOption) return {};
-    return selectedOption.subGroups.reduce<GroupSelectionMap>((acc, group) => {
+    return getVisibleSubGroups(selectedOption).reduce<GroupSelectionMap>((acc, group) => {
       const available = availableSubItemsByGroup[group.id] ?? new Set<string>();
       const limit = getGroupLimit(group.id, selectionLimits);
       const current = (selectedSubItemsByGroup[group.id] ?? []).filter((id) => available.has(id));
@@ -224,10 +253,26 @@ export function AthleteIdentityScreen({
   }, [availableSubItemsByGroup, selectedOption, selectedSubItemsByGroup, selectionLimits]);
 
   const persistMainSelection = (option: AthleteOption) => {
+    const hyroxDefaults = option.id === 'hyrox'
+      ? {
+          fitnessGoal: 'Endurance',
+          primaryGoal: 'Endurance',
+          experienceLevel: 'beginner',
+          experienceLevelSource: 'hyrox_auto',
+          workoutDays: 4,
+          sessionDuration: 60,
+          workoutSplitPreference: 'auto',
+          workoutSplitLabel: 'HYROX Beginner 12-Week Plan',
+          athleteGoal: 'HYROX Beginner 12-week race preparation',
+          hyroxLevel: 'beginner',
+          hyroxAutoProgression: true,
+        }
+      : {};
     onDataChange?.({
       athleteIdentity: option.id,
       athleteIdentityLabel: option.label,
       athleteIdentityCategory: option.category,
+      ...hyroxDefaults,
     });
   };
 
@@ -256,7 +301,7 @@ export function AthleteIdentityScreen({
   }, [selectedId, visibleOptions]);
 
   const handleSelectMain = (nextId: string) => {
-    const selected = athleteOptions.find((option) => option.id === nextId);
+    const selected = visibleOptions.find((option) => option.id === nextId);
     if (!selected) return;
 
     if (selectedId === nextId) {
@@ -281,7 +326,7 @@ export function AthleteIdentityScreen({
   };
 
   const persistSubSelections = (option: AthleteOption, selections: GroupSelectionMap) => {
-    const groupDetails = option.subGroups.map((group) => {
+    const groupDetails = getVisibleSubGroups(option).map((group) => {
       const ids = selections[group.id] ?? [];
       const labels = group.items.filter((item) => ids.includes(item.id)).map((item) => item.label);
       return {
@@ -335,7 +380,7 @@ export function AthleteIdentityScreen({
         {isArabic ? `${option.label} - ${copy.subCategories}` : `${option.label.toUpperCase()} - ${copy.subCategories}`}
       </h3>
 
-      {option.subGroups.map((group) => (
+      {getVisibleSubGroups(option).map((group) => (
         <div key={group.id} className="space-y-2">
           <div className="flex items-center justify-between gap-2">
             <p className="text-sm font-semibold text-white">{group.title}</p>
@@ -400,14 +445,14 @@ export function AthleteIdentityScreen({
             <SelectionCheck selected={isSelected} size={22} className="mt-1 shrink-0" />
           </div>
         </button>
-        {isSelected && renderSubCategoryPanel(option)}
+        {isSelected && getVisibleSubGroups(option).length > 0 ? renderSubCategoryPanel(option) : null}
       </div>
     );
   };
 
   const canContinue = Boolean(
     selectedOption &&
-      selectedOption.subGroups.every((group) => (effectiveSelections[group.id]?.length ?? 0) >= 1),
+      getVisibleSubGroups(selectedOption).every((group) => (effectiveSelections[group.id]?.length ?? 0) >= 1),
   );
 
   return (

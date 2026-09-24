@@ -1,4 +1,5 @@
 import express from 'express';
+import crypto from 'node:crypto';
 import fs from 'fs/promises';
 import process from 'node:process';
 import path from 'path';
@@ -29,7 +30,6 @@ import {
 } from './services/insightPersistence.js';
 import { generateDailyNutritionPlan } from './services/nutritionPlanner.js';
 import { buildActiveUserStateClause, buildVisibleUserClause } from './services/userStatusService.js';
-import { resolveExerciseVideoManifest } from '../src/shared/exerciseVideoManifest.js';
 import {
   buildCustomProgramPayloadFromClaudePlan,
   generateTwoMonthPlanWithClaude,
@@ -46,7 +46,20 @@ import { buildGamificationSummary } from './services/gamification/summaryService
 import { getLeaderboardBundle } from './services/gamification/rivalryService.js';
 import { enrichMissionCollection } from './services/gamification/missionEngine.js';
 import { getExerciseFallbackMuscleRows } from './services/exerciseMuscleProfiles.js';
+import {
+  getSupabaseExerciseMuscles,
+  listSupabaseExerciseFilters,
+  listSupabaseExercises,
+  resolveSupabaseExerciseMusclesByName,
+} from './services/supabaseExerciseCatalogService.js';
+import { getExerciseMediaForExercises } from './services/exerciseMediaService.js';
 import { hasOpenAIConfig, requestOpenAIChatCompletion } from './services/openaiProxy.js';
+import {
+  REPY_GAME_SOURCE_TYPE,
+  buildRepyGameAwardAnalyticsEvent,
+  calculateLastRepStandingPlacements,
+  isRepyGameEligibleForLeaderboardAwards,
+} from './services/repyGamesPoints.js';
 import { NOTIFICATION_TYPES } from './notifications/types.js';
 import { didRecoveryCrossThreshold } from './notifications/rules.js';
 
@@ -1731,64 +1744,66 @@ const MUSCLE_WEIGHTS = {
   biceps: 0.8,
   triceps: 0.8,
   forearms: 0.6,
-  adductors: 0.9,
+  adductors: 0.85,
   calves: 0.8,
   tibialis: 0.55,
   abs: 0.7,
 };
 
 const INTENSITY_FACTORS = {
-  low: 0.7,
-  moderate: 1.0,
-  high: 1.3,
-};
-
-const VOLUME_FACTORS = {
-  low: 0.8,
+  low: 0.85,
   moderate: 1.0,
   high: 1.2,
 };
 
-const ECCENTRIC_FACTOR = 1.15;
+const VOLUME_FACTORS = {
+  low: 0.85,
+  moderate: 1.0,
+  high: 1.12,
+};
+
+const ECCENTRIC_FACTOR = 1.12;
 
 const NUTRITION_FACTORS = {
-  optimal: 0.9,
-  suboptimal: 1.1,
+  optimal: 0.97,
+  suboptimal: 1.06,
 };
 
 const STRESS_FACTORS = {
-  low: 0.95,
+  low: 0.97,
   moderate: 1.0,
-  high: 1.15,
+  high: 1.08,
 };
 
 const getAgeFactor = (age) => {
   if (age == null) return 1.0;
-  if (age < 25) return 0.9;
-  if (age < 35) return 1.0;
-  if (age < 45) return 1.1;
-  return 1.2;
+  if (age < 40) return 1.0;
+  if (age < 50) return 1.03;
+  if (age < 60) return 1.07;
+  return 1.12;
 };
 
 const getSleepFactor = (hours) => {
   if (hours == null) return 1.0;
-  if (hours >= 8) return 0.9;
+  if (hours >= 9) return 0.94;
+  if (hours >= 8) return 0.97;
   if (hours >= 7) return 1.0;
-  if (hours >= 6) return 1.1;
-  return 1.2;
+  if (hours >= 6) return 1.07;
+  if (hours >= 5) return 1.13;
+  return 1.20;
 };
 
 const getProteinFactor = (proteinIntake) => {
   if (proteinIntake == null) return 1.0;
-  if (proteinIntake >= 1.6) return 0.95;
+  if (proteinIntake >= 1.6) return 0.97;
   if (proteinIntake >= 1.0) return 1.0;
-  return 1.08;
+  return 1.06;
 };
 
 const getSupplementFactor = (supplements) => {
   const key = String(supplements || '').trim().toLowerCase();
-  if (key === 'full') return 0.93;
-  if (key === 'creatine') return 0.97;
+  if (key === 'full') return 0.98;
+  if (key === 'creatine') return 0.99;
   return 1.0;
 };
 
@@ -1871,23 +1886,24 @@ const getSignalRecoveryFactor = ({
   jointPainLevel = 0,
   pumpScore = 0,
 }) => {
-  let factor = 1;
-  factor *= 1 + Math.max(0, sorenessLevel - 3) * 0.025;
-  factor *= 1 + Math.max(0, fatigueLevel - 4) * 0.03;
-  factor *= 1 + Math.max(0, 6 - energyLevel) * 0.025;
-  factor *= 1 + Math.max(0, 6 - moodLevel) * 0.012;
-  factor *= 1 + Math.max(0, jointPainLevel) * 0.035;
+  let adjustment = 0;
+
+  adjustment += Math.max(0, Number(sorenessLevel || 0)) * 0.025;
+  adjustment += Math.max(0, Number(fatigueLevel || 0)) * 0.020;
+  adjustment += Math.max(0, 10 - Number(energyLevel || 0)) * 0.012;
+  adjustment += Math.max(0, 10 - Number(moodLevel || 0)) * 0.005;
+  adjustment += Math.max(0, Number(jointPainLevel || 0)) * 0.035;
 
   if (
-    pumpScore >= 8
-    && sorenessLevel <= 5
-    && fatigueLevel <= 6
-    && jointPainLevel <= 3
+    pumpScore >= 7
+    && sorenessLevel <= 4
+    && fatigueLevel <= 4
+    && jointPainLevel <= 2
   ) {
-    factor *= 0.98;
+    adjustment -= 0.03;
   }
 
-  return Math.max(0.82, Math.min(1.8, Number(factor.toFixed(3))));
+  return clampRecoveryValue(Number((1 + adjustment).toFixed(3)), 0.95, 1.45);
 };
 
 const getRecoveryFactorMultiplier = ({
@@ -1902,12 +1918,78 @@ const getRecoveryFactorMultiplier = ({
   moodLevel = 6,
   jointPainLevel = 0,
   pumpScore = 0,
-}) => (
+}) => {
+  const lifestyleFactor = clampRecoveryValue(
+    getSleepFactor(sleepHours)
+    * (NUTRITION_FACTORS[nutritionQuality] || 1.0)
+    * (STRESS_FACTORS[stressLevel] || 1.0)
+    * getProteinFactor(proteinIntake)
+    * getSupplementFactor(supplements),
+    0.80,
+    1.35,
+  );
+  const personalFactor = clampRecoveryValue(
+    getSignalRecoveryFactor({
+      sorenessLevel,
+      energyLevel,
+      fatigueLevel,
+      moodLevel,
+      jointPainLevel,
+      pumpScore,
+    }),
+    0.85,
+    1.50,
+  );
+
+  return Number((lifestyleFactor * personalFactor).toFixed(4));
+};
+
+const getIntensityFactorFromRpe = (averageRpe) => {
+  const normalized = Number(averageRpe);
+  if (!Number.isFinite(normalized)) return 1.0;
+  if (normalized >= 9.5) return 1.30;
+  if (normalized >= 8.5) return 1.20;
+  if (normalized >= 7.0) return 1.10;
+  if (normalized >= 5.5) return 1.00;
+  return 0.85;
+};
+
+const getResolvedIntensityFactor = (intensity) => {
+  if (typeof intensity === 'number') return clampRecoveryValue(intensity, 0.65, 1.80);
+  return INTENSITY_FACTORS[String(intensity || '').trim().toLowerCase()] || 1.0;
+};
+
+const getResolvedVolumeFactor = (volume) => {
+  if (typeof volume === 'number') return clampRecoveryValue(volume, 0.65, 1.80);
+  return VOLUME_FACTORS[String(volume || '').trim().toLowerCase()] || 1.0;
+};
+
+const getLifestyleFactor = ({
+  sleepHours = 7,
+  nutritionQuality = 'optimal',
+  stressLevel = 'moderate',
+  proteinIntake = null,
+  supplements = 'none',
+}) => clampRecoveryValue(
   getSleepFactor(sleepHours)
   * (NUTRITION_FACTORS[nutritionQuality] || 1.0)
   * (STRESS_FACTORS[stressLevel] || 1.0)
   * getProteinFactor(proteinIntake)
-  * getSupplementFactor(supplements)
+  * getSupplementFactor(supplements),
+  0.80,
+  1.35,
+);
+
+const getPersonalFactor = ({
+  age = null,
+  sorenessLevel = 3,
+  energyLevel = 6,
+  fatigueLevel = 4,
+  moodLevel = 6,
+  jointPainLevel = 0,
+  pumpScore = 0,
+}) => clampRecoveryValue(
+  getAgeFactor(age)
   * getSignalRecoveryFactor({
     sorenessLevel,
     energyLevel,
@@ -1915,7 +1997,9 @@ const getRecoveryFactorMultiplier = ({
     moodLevel,
     jointPainLevel,
     pumpScore,
-  })
+  }),
+  0.85,
+  1.50,
 );
 
 const normalizeMuscleName = (muscle = '') => {
@@ -2050,11 +2134,7 @@ const inferMusclesFromExerciseName = (exerciseName = '') => {
 };
 
 const deriveIntensityFromRpe = (rpeValue) => {
-  const normalized = Number(rpeValue);
-  if (!Number.isFinite(normalized)) return 'moderate';
-  if (normalized >= 8) return 'high';
-  if (normalized <= 5) return 'low';
-  return 'moderate';
+  return getIntensityFactorFromRpe(rpeValue);
 };
 
 const deriveVolumeFromSetCount = (setCount) => {
@@ -2083,17 +2163,18 @@ const deriveVolumeFromWorkoutLoad = ({
 
   let score = 0;
 
-  if (safeSetCount >= 6) score += 2;
-  else if (safeSetCount >= 3) score += 1;
+  if (safeSetCount >= 4) score += 1;
+  if (safeSetCount >= 8) score += 1;
+  if (safeSetCount >= 12) score += 1;
 
-  if (safeTotalReps >= 40) score += 2;
-  else if (safeTotalReps >= 18) score += 1;
+  if (safeTotalReps >= 40) score += 1;
+  if (safeTotalReps >= 80) score += 1;
 
   const normalizedLoad = safeTotalLoad > 0
-    ? (safeBodyweight > 0 ? safeTotalLoad / safeBodyweight : safeTotalLoad / 100)
+    ? (safeBodyweight > 0 ? safeTotalLoad / safeBodyweight : 0)
     : 0;
-  if (normalizedLoad >= 16) score += 2;
-  else if (normalizedLoad >= 6) score += 1;
+  if (normalizedLoad >= 20) score += 1;
+  if (normalizedLoad >= 40) score += 1;
 
   const relativeTopLoad = safeBodyweight > 0
     ? safeHeaviestWeight / safeBodyweight
@@ -2102,9 +2183,10 @@ const deriveVolumeFromWorkoutLoad = ({
     score += 1;
   }
 
-  if (score >= 4) return 'high';
-  if (score <= 1) return deriveVolumeFromSetCount(safeSetCount);
-  return 'moderate';
+  if (score <= 1) return 0.85;
+  if (score <= 3) return 1.00;
+  if (score <= 5) return 1.12;
+  return 1.22;
 };
 
 const computeCatalogRecoveryLoadMultiplier = (profile = {}, loadFactor = 1) => {
@@ -2113,7 +2195,7 @@ const computeCatalogRecoveryLoadMultiplier = (profile = {}, loadFactor = 1) => {
   const weightedStress = (systemic * 0.65) + (cns * 0.35);
   const raw = weightedStress * Number(loadFactor || 1);
   if (!Number.isFinite(raw) || raw <= 0) return 1;
-  return Math.max(0.5, Math.min(2.5, Number(raw.toFixed(3))));
+  return clampRecoveryValue(Number(raw.toFixed(3)), 0.95, 1.12);
 };
 
 const resolveCatalogIdsByNormalizedNames = async (normalizedNames = []) => {
@@ -2329,17 +2411,23 @@ const calculateRecoveryHours = ({
   const canonicalMuscle = normalizeMuscleName(muscleGroup) || 'Chest';
   const base = BASE_RECOVERY_TIMES[canonicalMuscle] || 48;
 
-  let hours = base;
-  hours *= INTENSITY_FACTORS[intensity] || 1.0;
-  hours *= VOLUME_FACTORS[volume] || 1.0;
-  if (eccentricFocus) hours *= ECCENTRIC_FACTOR;
-  hours *= getAgeFactor(age);
-  hours *= getSleepFactor(sleepHours);
-  hours *= NUTRITION_FACTORS[nutritionQuality] || 1.0;
-  hours *= STRESS_FACTORS[stressLevel] || 1.0;
-  hours *= getProteinFactor(proteinIntake);
-  hours *= getSupplementFactor(supplements);
-  hours *= getSignalRecoveryFactor({
+  const trainingFactor = clampRecoveryValue(
+    getResolvedIntensityFactor(intensity)
+    * getResolvedVolumeFactor(volume)
+    * (eccentricFocus ? ECCENTRIC_FACTOR : 1.0)
+    * (Number.isFinite(Number(loadMultiplier)) ? Number(loadMultiplier) : 1),
+    0.65,
+    1.80,
+  );
+  const lifestyleFactor = getLifestyleFactor({
+    sleepHours,
+    nutritionQuality,
+    stressLevel,
+    proteinIntake,
+    supplements,
+  });
+  const personalFactor = getPersonalFactor({
+    age,
     sorenessLevel,
     energyLevel,
     fatigueLevel,
@@ -2347,7 +2435,11 @@ const calculateRecoveryHours = ({
     jointPainLevel,
     pumpScore,
   });
-  hours *= Number.isFinite(Number(loadMultiplier)) ? Number(loadMultiplier) : 1;
+  const hours = clampRecoveryValue(
+    base * trainingFactor * lifestyleFactor * personalFactor,
+    base * 0.60,
+    base * 2.00,
+  );
 
   return Number(Math.max(12, hours).toFixed(2));
 };
@@ -2363,13 +2455,13 @@ const combineMuscleRecoveryHours = ({
   if (!current) return Number(next.toFixed(2));
   if (!next) return Number(current.toFixed(2));
 
-  const canonicalMuscle = normalizeMuscleName(muscleGroup) || 'Chest';
-  const base = BASE_RECOVERY_TIMES[canonicalMuscle] || 48;
-  const accumulationFactor = exposureCount <= 1 ? 0.45 : exposureCount === 2 ? 0.35 : 0.25;
-  const combined = current + (next * accumulationFactor);
-  const cap = base * 2.75;
+  const primary = Math.max(current, next);
+  const secondary = Math.min(current, next);
+  const secondaryFactor = exposureCount <= 1 ? 0.25 : 0.10;
+  const combined = primary + (secondary * secondaryFactor);
+  const cap = primary * 1.50;
 
-  return Number(Math.min(cap, Math.max(current, combined)).toFixed(2));
+  return Number(Math.min(cap, combined).toFixed(2));
 };
 
 const calculateDynamicRecovery = (lastWorked, hoursNeeded) => {
@@ -2566,7 +2658,7 @@ const normalizeAthleteIdentity = (value) => {
     'combat_sport': 'combat_sports',
   };
   const normalized = aliasMap[key] || key;
-  if (['bodybuilding', 'football', 'basketball', 'handball', 'swimming', 'combat_sports'].includes(normalized)) {
+  if (['bodybuilding', 'cardio', 'hyrox', 'box', 'football', 'basketball', 'handball', 'swimming', 'combat_sports'].includes(normalized)) {
     return normalized;
   }
   return null;
@@ -2637,6 +2729,7 @@ const XP_LEVELS = [
 const BLOG_POST_UPLOAD_POINTS = 20;
 
 const clampPercentage = (value) => Math.max(0, Math.min(100, Number(value || 0)));
+const clampRecoveryValue = (value, minimum, maximum) => Math.min(maximum, Math.max(minimum, Number(value || 0)));
 
 const getRankFromPoints = (points = 0) => {
   const normalized = Math.max(0, Math.round(Number(points || 0)));
@@ -3775,6 +3868,315 @@ const ensureFriendChallengeInfrastructureOnce = async () => {
     });
   }
   return friendChallengeInfrastructurePromise;
+};
+
+const ensureRepyGameInfrastructure = async () => {
+  const userIdColumnSql = await getUsersIdReferenceColumnSql();
+
+  await pool.execute(
+    `CREATE TABLE IF NOT EXISTS repy_games (
+      id BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
+      host_user_id ${userIdColumnSql} NULL,
+      game_key VARCHAR(80) NOT NULL DEFAULT 'last_rep_standing',
+      status ENUM('pending','waiting_for_players','ready','starting','playing','active','completed','cancelled','expired','abandoned','invalid') NOT NULL DEFAULT 'pending',
+      winner_user_id ${userIdColumnSql} NULL,
+      metadata_json JSON NULL,
+      started_at DATETIME NULL,
+      completed_at DATETIME NULL,
+      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      KEY idx_repy_games_status (status, completed_at),
+      KEY idx_repy_games_host (host_user_id, status),
+      KEY idx_repy_games_winner (winner_user_id, completed_at),
+      CONSTRAINT fk_repy_games_host FOREIGN KEY (host_user_id) REFERENCES users(id) ON DELETE SET NULL ON UPDATE CASCADE,
+      CONSTRAINT fk_repy_games_winner FOREIGN KEY (winner_user_id) REFERENCES users(id) ON DELETE SET NULL ON UPDATE CASCADE
+    ) ENGINE=InnoDB`,
+  );
+
+  await pool.execute(
+    `ALTER TABLE repy_games
+     MODIFY status ENUM('pending','waiting_for_players','ready','starting','playing','active','completed','cancelled','expired','abandoned','invalid') NOT NULL DEFAULT 'pending'`,
+  );
+  await pool.execute(
+    `ALTER TABLE repy_games
+     ADD COLUMN IF NOT EXISTS host_user_id ${userIdColumnSql} NULL AFTER id`,
+  );
+
+  await pool.execute(
+    `CREATE TABLE IF NOT EXISTS repy_game_participants (
+      id BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
+      game_id BIGINT UNSIGNED NOT NULL,
+      user_id ${userIdColumnSql} NOT NULL,
+      role ENUM('host','player') NOT NULL DEFAULT 'player',
+      invite_status ENUM('pending','accepted','declined','expired') NOT NULL DEFAULT 'pending',
+      status ENUM('active','eliminated','completed','abandoned','cancelled') NOT NULL DEFAULT 'active',
+      elimination_order INT NULL,
+      final_placement INT NULL,
+      points_awarded INT NOT NULL DEFAULT 0,
+      total_reps INT NOT NULL DEFAULT 0,
+      duels_won INT NOT NULL DEFAULT 0,
+      lives_remaining INT NOT NULL DEFAULT 0,
+      notification_id BIGINT NULL,
+      joined_at DATETIME NULL,
+      accepted_at DATETIME NULL,
+      declined_at DATETIME NULL,
+      connected TINYINT(1) NOT NULL DEFAULT 0,
+      eliminated_at DATETIME NULL,
+      completed_at DATETIME NULL,
+      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      UNIQUE KEY uk_repy_game_participant (game_id, user_id),
+      KEY idx_repy_game_participants_user (user_id, game_id),
+      CONSTRAINT fk_repy_game_participants_game FOREIGN KEY (game_id) REFERENCES repy_games(id) ON DELETE CASCADE ON UPDATE CASCADE,
+      CONSTRAINT fk_repy_game_participants_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE ON UPDATE CASCADE
+    ) ENGINE=InnoDB`,
+  );
+
+  await pool.execute(
+    `ALTER TABLE repy_game_participants
+     ADD COLUMN IF NOT EXISTS role ENUM('host','player') NOT NULL DEFAULT 'player' AFTER user_id`,
+  );
+  await pool.execute(
+    `ALTER TABLE repy_game_participants
+     ADD COLUMN IF NOT EXISTS invite_status ENUM('pending','accepted','declined','expired') NOT NULL DEFAULT 'pending' AFTER role`,
+  );
+  await pool.execute(
+    `ALTER TABLE repy_game_participants
+     ADD COLUMN IF NOT EXISTS notification_id BIGINT NULL AFTER lives_remaining`,
+  );
+  await pool.execute(
+    `ALTER TABLE repy_game_participants
+     ADD COLUMN IF NOT EXISTS joined_at DATETIME NULL AFTER notification_id`,
+  );
+  await pool.execute(
+    `ALTER TABLE repy_game_participants
+     ADD COLUMN IF NOT EXISTS accepted_at DATETIME NULL AFTER joined_at`,
+  );
+  await pool.execute(
+    `ALTER TABLE repy_game_participants
+     ADD COLUMN IF NOT EXISTS declined_at DATETIME NULL AFTER accepted_at`,
+  );
+  await pool.execute(
+    `ALTER TABLE repy_game_participants
+     ADD COLUMN IF NOT EXISTS connected TINYINT(1) NOT NULL DEFAULT 0 AFTER declined_at`,
+  );
+
+  await pool.execute(
+    `CREATE TABLE IF NOT EXISTS repy_game_point_awards (
+      id BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
+      game_id BIGINT UNSIGNED NOT NULL,
+      user_id ${userIdColumnSql} NOT NULL,
+      source_type VARCHAR(40) NOT NULL DEFAULT 'repy_game',
+      source_id VARCHAR(120) NOT NULL,
+      placement INT NOT NULL,
+      points_awarded INT NOT NULL,
+      metadata_json JSON NULL,
+      awarded_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE KEY uk_repy_game_award_user (game_id, user_id),
+      UNIQUE KEY uk_repy_game_award_source (source_type, source_id, user_id),
+      KEY idx_repy_game_awards_user (user_id, awarded_at),
+      CONSTRAINT fk_repy_game_awards_game FOREIGN KEY (game_id) REFERENCES repy_games(id) ON DELETE CASCADE ON UPDATE CASCADE,
+      CONSTRAINT fk_repy_game_awards_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE ON UPDATE CASCADE
+    ) ENGINE=InnoDB`,
+  );
+
+  await pool.execute(
+    `CREATE TABLE IF NOT EXISTS repy_game_analytics_events (
+      id BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
+      event_name VARCHAR(80) NOT NULL,
+      game_id BIGINT UNSIGNED NULL,
+      user_id ${userIdColumnSql} NULL,
+      properties_json JSON NULL,
+      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      KEY idx_repy_game_analytics_event (event_name, created_at),
+      KEY idx_repy_game_analytics_game (game_id, created_at),
+      CONSTRAINT fk_repy_game_analytics_game FOREIGN KEY (game_id) REFERENCES repy_games(id) ON DELETE SET NULL ON UPDATE CASCADE,
+      CONSTRAINT fk_repy_game_analytics_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL ON UPDATE CASCADE
+    ) ENGINE=InnoDB`,
+  );
+};
+
+let repyGameInfrastructurePromise;
+const ensureRepyGameInfrastructureOnce = async () => {
+  if (!repyGameInfrastructurePromise) {
+    repyGameInfrastructurePromise = ensureRepyGameInfrastructure().catch((error) => {
+      repyGameInfrastructurePromise = null;
+      throw error;
+    });
+  }
+  return repyGameInfrastructurePromise;
+};
+
+const awardRepyGameLeaderboardPoints = async (gameId) => {
+  const normalizedGameId = toNumber(gameId);
+  if (!normalizedGameId || normalizedGameId <= 0) {
+    return { success: false, error: 'Valid gameId is required', statusCode: 400 };
+  }
+
+  await ensureRepyGameInfrastructureOnce();
+  await gamificationReady;
+
+  let conn;
+  try {
+    conn = await pool.getConnection();
+    await conn.beginTransaction();
+
+    const [gameRows] = await conn.execute(
+      `SELECT id, game_key, status, winner_user_id, started_at, completed_at
+       FROM repy_games
+       WHERE id = ?
+       LIMIT 1
+       FOR UPDATE`,
+      [normalizedGameId],
+    );
+
+    if (!gameRows.length) {
+      await conn.rollback();
+      return { success: false, error: 'RepyGames match not found', statusCode: 404 };
+    }
+
+    const game = gameRows[0];
+    if (!isRepyGameEligibleForLeaderboardAwards(game)) {
+      await conn.rollback();
+      return {
+        success: false,
+        error: 'RepyGames points can only be awarded after a legitimate completed game',
+        statusCode: 409,
+      };
+    }
+
+    const [participantRows] = await conn.execute(
+      `SELECT user_id, status, elimination_order, eliminated_at, total_reps, duels_won, lives_remaining
+       FROM repy_game_participants
+       WHERE game_id = ?
+       FOR UPDATE`,
+      [normalizedGameId],
+    );
+
+    const placements = calculateLastRepStandingPlacements({
+      winnerUserId: game.winner_user_id,
+      participants: participantRows,
+    });
+
+    if (placements.length < 3) {
+      await conn.rollback();
+      return {
+        success: false,
+        error: 'A completed Last Rep Standing game needs at least 3 valid non-abandoned players',
+        statusCode: 409,
+      };
+    }
+
+    const [existingAwardRows] = await conn.execute(
+      `SELECT user_id, placement, points_awarded
+       FROM repy_game_point_awards
+       WHERE game_id = ?
+       ORDER BY placement ASC`,
+      [normalizedGameId],
+    );
+
+    if (existingAwardRows.length) {
+      await conn.commit();
+      return {
+        success: true,
+        alreadyAwarded: true,
+        gameId: normalizedGameId,
+        awards: existingAwardRows.map((row) => ({
+          userId: Number(row.user_id || 0),
+          placement: Number(row.placement || 0),
+          pointsAwarded: Number(row.points_awarded || 0),
+        })),
+      };
+    }
+
+    const playerCount = placements.length;
+    const gameDuration = game.started_at && game.completed_at
+      ? Math.max(0, Math.floor((new Date(game.completed_at).getTime() - new Date(game.started_at).getTime()) / 1000))
+      : 0;
+    const sourceId = String(normalizedGameId);
+
+    for (const placement of placements) {
+      const metadata = {
+        gameKey: String(game.game_key || 'last_rep_standing'),
+        playerCount,
+        gameDuration,
+        totalReps: placement.totalReps,
+        duelsWon: placement.duelsWon,
+        livesRemaining: placement.livesRemaining,
+      };
+
+      await conn.execute(
+        `INSERT INTO repy_game_point_awards
+           (game_id, user_id, source_type, source_id, placement, points_awarded, metadata_json, awarded_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, NOW())`,
+        [
+          normalizedGameId,
+          placement.userId,
+          REPY_GAME_SOURCE_TYPE,
+          sourceId,
+          placement.placement,
+          placement.pointsAwarded,
+          JSON.stringify(metadata),
+        ],
+      );
+
+      await conn.execute(
+        `UPDATE repy_game_participants
+         SET final_placement = ?, points_awarded = ?, completed_at = COALESCE(completed_at, NOW())
+         WHERE game_id = ? AND user_id = ?`,
+        [placement.placement, placement.pointsAwarded, normalizedGameId, placement.userId],
+      );
+
+      const analyticsEvent = buildRepyGameAwardAnalyticsEvent({
+        gameId: normalizedGameId,
+        userId: placement.userId,
+        placement: placement.placement,
+        pointsAwarded: placement.pointsAwarded,
+        gameDuration,
+        playerCount,
+      });
+
+      await conn.execute(
+        `INSERT INTO repy_game_analytics_events
+           (event_name, game_id, user_id, properties_json)
+         VALUES (?, ?, ?, ?)`,
+        [
+          analyticsEvent.eventName,
+          normalizedGameId,
+          placement.userId,
+          JSON.stringify(analyticsEvent.properties),
+        ],
+      );
+    }
+
+    await conn.commit();
+
+    const refreshedUsers = await Promise.all(
+      placements.map((placement) => refreshGamificationForUser(placement.userId)),
+    );
+    const refreshedByUserId = new Map(
+      refreshedUsers
+        .filter(Boolean)
+        .map((summary) => [Number(summary.userId || 0), summary]),
+    );
+
+    return {
+      success: true,
+      alreadyAwarded: false,
+      gameId: normalizedGameId,
+      awards: placements.map((placement) => ({
+        ...placement,
+        totalPoints: Number(refreshedByUserId.get(placement.userId)?.totalPoints || 0),
+        rank: String(refreshedByUserId.get(placement.userId)?.rank || 'Bronze'),
+      })),
+    };
+  } catch (error) {
+    if (conn) await conn.rollback();
+    throw error;
+  } finally {
+    if (conn) conn.release();
+  }
 };
 
 const ensureProgramChangeRequestInfrastructure = async () => {
@@ -5906,10 +6308,13 @@ const syncUserChallengeProgress = async (userId, metrics, now = new Date()) => {
 };
 
 const updateUserPointsAndRank = async (userId, metrics) => {
+  await ensureRepyGameInfrastructureOnce();
+
   const [
     [missionPointRows],
     [challengePointRows],
     [friendChallengePointRows],
+    [repyGamePointRows],
     [completedMissionRows],
     [completedChallengeRows],
   ] = await Promise.all([
@@ -5940,6 +6345,12 @@ const updateUserPointsAndRank = async (userId, metrics) => {
       [userId, userId, userId, userId],
     ),
     pool.execute(
+      `SELECT COALESCE(SUM(points_awarded), 0) AS total_points
+       FROM repy_game_point_awards
+       WHERE user_id = ?`,
+      [userId],
+    ),
+    pool.execute(
       `SELECT COUNT(*) AS completed_count
        FROM user_missions
        WHERE user_id = ? AND status = 'completed'`,
@@ -5956,6 +6367,7 @@ const updateUserPointsAndRank = async (userId, metrics) => {
   const missionPoints = Number(missionPointRows[0]?.total_points || 0);
   const challengePoints = Number(challengePointRows[0]?.total_points || 0);
   const friendChallengePoints = Number(friendChallengePointRows[0]?.total_points || 0);
+  const repyGamePoints = Number(repyGamePointRows[0]?.total_points || 0);
   let blogPostCount = 0;
   try {
     const [blogRows] = await pool.execute(
@@ -5969,7 +6381,7 @@ const updateUserPointsAndRank = async (userId, metrics) => {
     blogPostCount = 0;
   }
   const blogPoints = Math.max(0, blogPostCount) * BLOG_POST_UPLOAD_POINTS;
-  const totalPoints = missionPoints + challengePoints + friendChallengePoints + blogPoints;
+  const totalPoints = missionPoints + challengePoints + friendChallengePoints + repyGamePoints + blogPoints;
   const totalWorkouts = Math.max(0, Math.floor(Number(metrics.training_days || 0)));
   const rank = getRankFromPoints(totalPoints);
 
@@ -5987,6 +6399,7 @@ const updateUserPointsAndRank = async (userId, metrics) => {
     missionPoints,
     challengePoints,
     friendChallengePoints,
+    repyGamePoints,
     blogPostCount: Math.max(0, blogPostCount),
     blogPoints,
     completedMissions: Number(completedMissionRows[0]?.completed_count || 0),
@@ -6494,7 +6907,7 @@ const buildCustomProgramDraft = async (conn, userId, rawPayload = {}) => {
   }
 
   if (weekPlansRaw.length > 0) {
-    const normalizedWeekCount = Math.max(1, Math.min(2, cycleWeeks));
+    const normalizedWeekCount = Math.max(1, Math.min(cycleWeeks, weekPlansRaw.length));
     const normalizedWeekPlans = weekPlansRaw.slice(0, normalizedWeekCount).map((week, index) => {
       const weeklyWorkouts = Array.isArray(week?.weeklyWorkouts)
         ? week.weeklyWorkouts
@@ -7055,6 +7468,314 @@ const persistCustomProgramDraft = async (
   };
 };
 
+const HYROX_BEGINNER_DAYS = ['monday', 'tuesday', 'thursday', 'saturday'];
+const HYROX_INTERMEDIATE_DAYS = ['monday', 'tuesday', 'wednesday', 'friday', 'saturday'];
+
+const hyroxExercise = ({
+  name,
+  sets = 1,
+  reps = 'work',
+  rest = 90,
+  rpe = 6,
+  muscles = ['Legs', 'Abs'],
+  notes = null,
+}) => ({
+  exerciseName: name,
+  sets,
+  reps: String(reps).slice(0, 20),
+  restSeconds: rest,
+  rpeTarget: rpe,
+  targetMuscles: muscles,
+  notes,
+});
+
+const hyroxWorkout = (dayName, workoutName, workoutType, durationMinutes, notes, exercises) => ({
+  dayName,
+  workoutName,
+  workoutType,
+  estimatedDurationMinutes: durationMinutes,
+  notes,
+  exercises,
+});
+
+const beginnerHyroxWeeks = [
+  {
+    phase: 'Movement foundation',
+    workouts: [
+      hyroxWorkout('monday', 'Full-body strength', 'HYROX Strength', 60, 'RPE 6. Rest 75-90 seconds.', [
+        hyroxExercise({ name: 'Goblet squat', sets: 3, reps: '10', muscles: ['Legs'] }),
+        hyroxExercise({ name: 'Dumbbell Romanian deadlift', sets: 3, reps: '10', muscles: ['Hamstrings', 'Glutes'] }),
+        hyroxExercise({ name: 'Dumbbell bench press', sets: 3, reps: '10', muscles: ['Chest', 'Arms'] }),
+        hyroxExercise({ name: 'Seated cable row', sets: 3, reps: '12', muscles: ['Back'] }),
+        hyroxExercise({ name: 'Reverse lunges', sets: 2, reps: '8/leg', muscles: ['Legs', 'Glutes'] }),
+        hyroxExercise({ name: 'Farmer carry', sets: 3, reps: '30m', muscles: ['Back', 'Abs'] }),
+        hyroxExercise({ name: 'Front plank', sets: 3, reps: '30s', muscles: ['Abs'] }),
+      ]),
+      hyroxWorkout('tuesday', 'Run/walk foundation', 'HYROX Running', 40, '5-minute brisk walk, then 8 rounds easy run/walk. Target RPE 3-4.', [
+        hyroxExercise({ name: 'Easy run', sets: 8, reps: '2 min', rest: 60, rpe: 4, muscles: ['Legs'], notes: 'Walk 1 minute after each run.' }),
+        hyroxExercise({ name: 'Easy walk cooldown', sets: 1, reps: '5 min', rest: 60, rpe: 3, muscles: ['Legs'] }),
+      ]),
+      hyroxWorkout('thursday', 'HYROX introduction', 'HYROX Conditioning', 50, 'Three rounds. Rest 2 minutes after each round. Target RPE 5.', [
+        hyroxExercise({ name: 'SkiErg', sets: 3, reps: '300m', rest: 120, rpe: 5, muscles: ['Back', 'Arms'] }),
+        hyroxExercise({ name: 'Sled push light', sets: 3, reps: '15m', rest: 120, rpe: 5, muscles: ['Legs'] }),
+        hyroxExercise({ name: 'Sled pull light', sets: 3, reps: '15m', rest: 120, rpe: 5, muscles: ['Back', 'Legs'] }),
+        hyroxExercise({ name: 'Row', sets: 3, reps: '300m', rest: 120, rpe: 5, muscles: ['Back', 'Legs'] }),
+        hyroxExercise({ name: 'Farmer carry', sets: 3, reps: '30m', rest: 120, rpe: 5, muscles: ['Back', 'Abs'] }),
+        hyroxExercise({ name: 'Wall balls', sets: 3, reps: '10', rest: 120, rpe: 5, muscles: ['Legs', 'Shoulders'] }),
+      ]),
+      hyroxWorkout('saturday', 'Easy endurance', 'HYROX Endurance', 45, 'Run/walk 35 minutes using 4 minutes running and 1 minute walking. RPE 3-4.', [
+        hyroxExercise({ name: 'Run/walk endurance', sets: 7, reps: '5 min', rest: 30, rpe: 4, muscles: ['Legs'] }),
+      ]),
+    ],
+  },
+  {
+    phase: 'Basic capacity',
+    workouts: [
+      hyroxWorkout('monday', 'Full-body strength', 'HYROX Strength', 60, 'RPE 6.', [
+        hyroxExercise({ name: 'Goblet squat', sets: 3, reps: '10', muscles: ['Legs'] }),
+        hyroxExercise({ name: 'Romanian deadlift', sets: 3, reps: '10', muscles: ['Hamstrings', 'Glutes'] }),
+        hyroxExercise({ name: 'Dumbbell shoulder press', sets: 3, reps: '10', muscles: ['Shoulders', 'Arms'] }),
+        hyroxExercise({ name: 'Lat pulldown', sets: 3, reps: '10', muscles: ['Back'] }),
+        hyroxExercise({ name: 'Step-ups', sets: 3, reps: '8/leg', muscles: ['Legs', 'Glutes'] }),
+        hyroxExercise({ name: 'Farmer carry', sets: 3, reps: '40m', muscles: ['Back', 'Abs'] }),
+        hyroxExercise({ name: 'Dead bug', sets: 3, reps: '8/side', muscles: ['Abs'] }),
+      ]),
+      hyroxWorkout('tuesday', 'Run/walk progression', 'HYROX Running', 38, 'Seven rounds. RPE 3-4.', [
+        hyroxExercise({ name: 'Run', sets: 7, reps: '3 min', rest: 60, rpe: 4, muscles: ['Legs'], notes: 'Walk 1 minute after each run.' }),
+      ]),
+      hyroxWorkout('thursday', 'Technique circuit', 'HYROX Conditioning', 55, 'Three rounds. Rest 2 minutes. RPE 5-6.', [
+        hyroxExercise({ name: 'Run', sets: 3, reps: '400m', rest: 120, rpe: 6, muscles: ['Legs'] }),
+        hyroxExercise({ name: 'SkiErg', sets: 3, reps: '300m', rest: 120, rpe: 6, muscles: ['Back', 'Arms'] }),
+        hyroxExercise({ name: 'Burpee broad jumps', sets: 3, reps: '6', rest: 120, rpe: 6, muscles: ['Legs', 'Chest'] }),
+        hyroxExercise({ name: 'Sandbag lunges', sets: 3, reps: '20m', rest: 120, rpe: 6, muscles: ['Legs', 'Glutes'] }),
+        hyroxExercise({ name: 'Wall balls', sets: 3, reps: '12', rest: 120, rpe: 6, muscles: ['Legs', 'Shoulders'] }),
+      ]),
+      hyroxWorkout('saturday', 'Easy endurance', 'HYROX Endurance', 50, '40 minutes. Run 5 minutes, walk 1 minute. RPE 3-4.', [
+        hyroxExercise({ name: 'Run/walk endurance', sets: 7, reps: '6 min', rest: 30, rpe: 4, muscles: ['Legs'] }),
+      ]),
+    ],
+  },
+  {
+    phase: 'First compromised running',
+    workouts: [
+      hyroxWorkout('monday', 'Strength', 'HYROX Strength', 65, 'RPE 6-7.', [
+        hyroxExercise({ name: 'Goblet or front squat', sets: 3, reps: '8', rpe: 7, muscles: ['Legs'] }),
+        hyroxExercise({ name: 'Romanian deadlift', sets: 3, reps: '8', rpe: 7, muscles: ['Hamstrings', 'Glutes'] }),
+        hyroxExercise({ name: 'Dumbbell bench press', sets: 3, reps: '10', rpe: 7, muscles: ['Chest', 'Arms'] }),
+        hyroxExercise({ name: 'Seated row', sets: 3, reps: '10', rpe: 7, muscles: ['Back'] }),
+        hyroxExercise({ name: 'Walking lunges', sets: 3, reps: '10/leg', rpe: 7, muscles: ['Legs', 'Glutes'] }),
+        hyroxExercise({ name: 'Farmer carry', sets: 4, reps: '30m', rpe: 7, muscles: ['Back', 'Abs'] }),
+        hyroxExercise({ name: 'Plank', sets: 3, reps: '40s', rpe: 6, muscles: ['Abs'] }),
+      ]),
+      hyroxWorkout('tuesday', 'Running intervals', 'HYROX Running', 45, 'Easy run 10 minutes, then 6 x 400m at RPE 6. Cool down 5 minutes.', [
+        hyroxExercise({ name: 'Easy run warm-up', sets: 1, reps: '10 min', rest: 60, rpe: 4, muscles: ['Legs'] }),
+        hyroxExercise({ name: 'Run interval', sets: 6, reps: '400m', rest: 90, rpe: 6, muscles: ['Legs'] }),
+        hyroxExercise({ name: 'Easy cooldown', sets: 1, reps: '5 min', rest: 60, rpe: 3, muscles: ['Legs'] }),
+      ]),
+      hyroxWorkout('thursday', 'Compromised circuit', 'HYROX Conditioning', 60, 'Four rounds. Alternate stations. Rest 90 seconds after every round.', [
+        hyroxExercise({ name: 'Run', sets: 4, reps: '500m', rest: 90, rpe: 6, muscles: ['Legs'] }),
+        hyroxExercise({ name: 'SkiErg', sets: 1, reps: '400m', rest: 90, rpe: 6, muscles: ['Back', 'Arms'] }),
+        hyroxExercise({ name: 'Sled push', sets: 1, reps: '20m', rest: 90, rpe: 6, muscles: ['Legs'] }),
+        hyroxExercise({ name: 'Row', sets: 1, reps: '400m', rest: 90, rpe: 6, muscles: ['Back', 'Legs'] }),
+        hyroxExercise({ name: 'Wall balls', sets: 1, reps: '15', rest: 90, rpe: 6, muscles: ['Legs', 'Shoulders'] }),
+      ]),
+      hyroxWorkout('saturday', 'Long easy run', 'HYROX Endurance', 55, '45 minutes continuous easy running or run/walk. RPE 3-4.', [
+        hyroxExercise({ name: 'Long easy run', sets: 1, reps: '45 min', rest: 60, rpe: 4, muscles: ['Legs'] }),
+      ]),
+    ],
+  },
+  {
+    phase: 'Deload and benchmark',
+    workouts: [
+      hyroxWorkout('monday', 'Light strength', 'HYROX Strength', 45, 'Reduce volume by about 35%. Two sets each, RPE 5.', [
+        hyroxExercise({ name: 'Goblet squat', sets: 2, reps: '10', rpe: 5, muscles: ['Legs'] }),
+        hyroxExercise({ name: 'Romanian deadlift', sets: 2, reps: '10', rpe: 5, muscles: ['Hamstrings', 'Glutes'] }),
+        hyroxExercise({ name: 'Push-ups or DB press', sets: 2, reps: '10', rpe: 5, muscles: ['Chest', 'Arms'] }),
+        hyroxExercise({ name: 'Cable row', sets: 2, reps: '12', rpe: 5, muscles: ['Back'] }),
+        hyroxExercise({ name: 'Reverse lunges', sets: 2, reps: '8/leg', rpe: 5, muscles: ['Legs', 'Glutes'] }),
+        hyroxExercise({ name: 'Farmer carry', sets: 2, reps: '30m', rpe: 5, muscles: ['Back', 'Abs'] }),
+      ]),
+      hyroxWorkout('tuesday', 'Easy running', 'HYROX Running', 35, 'Easy run 25 minutes. Finish with relaxed strides.', [
+        hyroxExercise({ name: 'Easy run', sets: 1, reps: '25 min', rest: 60, rpe: 4, muscles: ['Legs'] }),
+        hyroxExercise({ name: 'Relaxed strides', sets: 4, reps: '15s', rest: 45, rpe: 6, muscles: ['Legs'] }),
+      ]),
+      hyroxWorkout('thursday', 'Technique practice', 'HYROX Conditioning', 45, 'Two rounds. RPE 4-5.', [
+        hyroxExercise({ name: 'SkiErg', sets: 2, reps: '300m', rest: 90, rpe: 5, muscles: ['Back', 'Arms'] }),
+        hyroxExercise({ name: 'Sled push', sets: 2, reps: '15m', rest: 90, rpe: 5, muscles: ['Legs'] }),
+        hyroxExercise({ name: 'Sled pull', sets: 2, reps: '15m', rest: 90, rpe: 5, muscles: ['Back', 'Legs'] }),
+        hyroxExercise({ name: 'Burpee broad jumps', sets: 2, reps: '5', rest: 90, rpe: 5, muscles: ['Legs', 'Chest'] }),
+        hyroxExercise({ name: 'Row', sets: 2, reps: '300m', rest: 90, rpe: 5, muscles: ['Back', 'Legs'] }),
+        hyroxExercise({ name: 'Wall balls', sets: 2, reps: '10', rest: 90, rpe: 5, muscles: ['Legs', 'Shoulders'] }),
+      ]),
+      hyroxWorkout('saturday', 'Benchmark', 'HYROX Benchmark', 55, 'Four rounds. Record time, pace, HR, wall-ball breaks, RPE, and pain/discomfort. Do not exceed RPE 8.', [
+        hyroxExercise({ name: 'Run', sets: 4, reps: '500m', rest: 90, rpe: 8, muscles: ['Legs'] }),
+        hyroxExercise({ name: 'SkiErg or row', sets: 4, reps: '250m', rest: 90, rpe: 8, muscles: ['Back', 'Legs'] }),
+        hyroxExercise({ name: 'Wall balls', sets: 4, reps: '10', rest: 90, rpe: 8, muscles: ['Legs', 'Shoulders'] }),
+        hyroxExercise({ name: 'Farmer carry', sets: 4, reps: '20m', rest: 90, rpe: 8, muscles: ['Back', 'Abs'] }),
+      ]),
+    ],
+  },
+];
+
+const buildProgressiveHyroxBeginnerWeeks = () => {
+  const base = [...beginnerHyroxWeeks];
+  const templates = [
+    ['Strength and running development', 'Strength', 'Running intervals', 'HYROX circuit', 'Long run', '4 x 800m', '50 min', 7],
+    ['Increased station volume', 'Strength', 'Running intervals', 'Compromised running', 'Long run', '5 x 800m', '55 min', 7],
+    ['One-kilometre repeats', 'Strength', 'Running intervals', 'HYROX four-round session', 'Long run', '4 x 1km', '60 min', 8],
+    ['Deload and half simulation', 'Light strength', 'Easy running', 'Station technique', 'Half-HYROX simulation', '30 min', '45 min', 7],
+    ['Race-specific capacity', 'Strength maintenance', 'One-kilometre intervals', 'Station-capacity circuit', '60% simulation', '5 x 1km', '60% race', 8],
+    ['Peak training', 'Strength maintenance', 'Race-pace repeats', 'Short compromised intervals', '75% simulation', '6 x 1km', '75% race', 8],
+    ['Peak consolidation', 'Light strength', 'Race-pace intervals', 'Technique circuit', '40% simulation', '4 x 1km', '40% race', 7],
+    ['Race taper', 'Easy run', 'Light activation', 'Race primer', 'Rest or walk', '20 min', 'primer', 6],
+  ];
+
+  templates.forEach(([phase, monday, tuesday, thursday, saturday, runDose, simDose, rpe], index) => {
+    const weekNumber = index + 5;
+    const deload = /deload|taper/i.test(String(phase));
+    base.push({
+      phase,
+      workouts: [
+        hyroxWorkout('monday', monday, 'HYROX Strength', deload ? 45 : 60, `Week ${weekNumber}. ${phase}.`, [
+          hyroxExercise({ name: deload ? 'Light squat pattern' : 'Squat pattern', sets: deload ? 2 : 4, reps: deload ? '10' : '8', rpe: Number(rpe), muscles: ['Legs'] }),
+          hyroxExercise({ name: deload ? 'Light hinge pattern' : 'Deadlift or hinge', sets: deload ? 2 : 4, reps: deload ? '10' : '8', rpe: Number(rpe), muscles: ['Hamstrings', 'Glutes'] }),
+          hyroxExercise({ name: 'Upper push', sets: deload ? 2 : 3, reps: '10', rpe: Number(rpe), muscles: ['Chest', 'Shoulders'] }),
+          hyroxExercise({ name: 'Upper pull', sets: deload ? 2 : 3, reps: '10', rpe: Number(rpe), muscles: ['Back'] }),
+          hyroxExercise({ name: 'Loaded carry', sets: deload ? 2 : 4, reps: deload ? '30m' : '40m', rpe: Number(rpe), muscles: ['Back', 'Abs'] }),
+        ]),
+        hyroxWorkout('tuesday', tuesday, 'HYROX Running', deload ? 35 : 50, `Run dose: ${runDose}. Keep form clean and stop before breakdown.`, [
+          hyroxExercise({ name: 'Easy run warm-up', sets: 1, reps: '10 min', rest: 60, rpe: 4, muscles: ['Legs'] }),
+          hyroxExercise({ name: 'Run interval block', sets: deload ? 4 : 6, reps: String(runDose), rest: deload ? 90 : 120, rpe: Number(rpe), muscles: ['Legs'] }),
+        ]),
+        hyroxWorkout('thursday', thursday, 'HYROX Conditioning', deload ? 45 : 65, `Race stations with controlled compromised running. RPE ${rpe}.`, [
+          hyroxExercise({ name: 'Run', sets: deload ? 3 : 5, reps: deload ? '400m' : '600m', rest: 90, rpe: Number(rpe), muscles: ['Legs'] }),
+          hyroxExercise({ name: 'SkiErg', sets: deload ? 2 : 4, reps: deload ? '300m' : '500m', rest: 90, rpe: Number(rpe), muscles: ['Back', 'Arms'] }),
+          hyroxExercise({ name: 'Sled push or pull', sets: deload ? 2 : 4, reps: deload ? '15m' : '25m', rest: 90, rpe: Number(rpe), muscles: ['Legs', 'Back'] }),
+          hyroxExercise({ name: 'Row', sets: deload ? 2 : 4, reps: deload ? '300m' : '500m', rest: 90, rpe: Number(rpe), muscles: ['Back', 'Legs'] }),
+          hyroxExercise({ name: 'Wall balls', sets: deload ? 2 : 4, reps: deload ? '10' : '20', rest: 90, rpe: Number(rpe), muscles: ['Legs', 'Shoulders'] }),
+        ]),
+        hyroxWorkout('saturday', saturday, /simulation/i.test(String(saturday)) ? 'HYROX Simulation' : 'HYROX Endurance', deload ? 55 : 75, `Dose: ${simDose}. Log total time, breaks, average RPE, and any pain.`, [
+          hyroxExercise({ name: /simulation/i.test(String(saturday)) ? 'HYROX simulation block' : 'Long easy run', sets: 1, reps: String(simDose), rest: 120, rpe: Number(rpe), muscles: ['Legs', 'Back', 'Abs'] }),
+        ]),
+      ],
+    });
+  });
+
+  return base.slice(0, 12);
+};
+
+const buildHyroxIntermediateWeeks = () => Array.from({ length: 12 }, (_unused, index) => {
+  const week = index + 1;
+  const deload = week === 4 || week === 8 || week === 12;
+  const peak = week >= 9 && week <= 10;
+  const rpe = deload ? 6 : peak ? 8 : 7;
+  const simulationLabel = week === 4
+    ? 'Benchmark'
+    : week === 7
+      ? '60% simulation'
+      : week === 8
+        ? '50% simulation'
+        : week === 9
+          ? '70% simulation'
+          : week === 10
+            ? '80-90% simulation'
+            : week === 11
+              ? '50% simulation'
+              : week === 12
+                ? 'Race primer'
+                : 'Compromised running';
+
+  return {
+    phase: deload ? (week === 12 ? 'Taper' : 'Deload') : peak ? 'Peak week' : `Intermediate build week ${week}`,
+    workouts: [
+      hyroxWorkout('monday', deload ? 'Light lower-body strength' : 'Lower-body strength', 'HYROX Strength', deload ? 45 : 65, `Intermediate week ${week}.`, [
+        hyroxExercise({ name: 'Back squat or front squat', sets: deload ? 2 : 4, reps: deload ? '8' : '6', rpe, muscles: ['Legs'] }),
+        hyroxExercise({ name: 'Romanian deadlift', sets: deload ? 2 : 4, reps: deload ? '8' : '8', rpe, muscles: ['Hamstrings', 'Glutes'] }),
+        hyroxExercise({ name: 'Walking lunges', sets: deload ? 2 : 3, reps: '12/leg', rpe, muscles: ['Legs', 'Glutes'] }),
+        hyroxExercise({ name: 'Heavy farmer carry', sets: deload ? 2 : 4, reps: '40m', rpe, muscles: ['Back', 'Abs'] }),
+      ]),
+      hyroxWorkout('tuesday', week === 12 ? 'Activation' : 'Speed foundation', 'HYROX Running', deload ? 35 : 50, 'Run speed with relaxed mechanics.', [
+        hyroxExercise({ name: 'Run interval', sets: deload ? 4 : 8, reps: week >= 7 ? '1km' : '400m', rest: deload ? 90 : 120, rpe, muscles: ['Legs'] }),
+      ]),
+      hyroxWorkout('wednesday', 'Upper body and ergs', 'HYROX Strength', deload ? 45 : 60, 'Upper-body durability plus erg capacity.', [
+        hyroxExercise({ name: 'Dumbbell bench press', sets: deload ? 2 : 3, reps: '10', rpe, muscles: ['Chest'] }),
+        hyroxExercise({ name: 'Pull or row variation', sets: deload ? 2 : 3, reps: '10', rpe, muscles: ['Back'] }),
+        hyroxExercise({ name: 'SkiErg', sets: deload ? 3 : 5, reps: deload ? '300m' : '500m', rest: 90, rpe, muscles: ['Back', 'Arms'] }),
+        hyroxExercise({ name: 'Row', sets: deload ? 3 : 5, reps: deload ? '300m' : '500m', rest: 90, rpe, muscles: ['Back', 'Legs'] }),
+      ]),
+      hyroxWorkout('friday', simulationLabel, /simulation|benchmark|primer/i.test(simulationLabel) ? 'HYROX Simulation' : 'HYROX Conditioning', peak ? 85 : deload ? 55 : 70, `Race-specific stations. ${simulationLabel}.`, [
+        hyroxExercise({ name: 'Run', sets: deload ? 4 : 6, reps: peak ? '1km' : '600m', rest: 90, rpe, muscles: ['Legs'] }),
+        hyroxExercise({ name: 'SkiErg', sets: deload ? 2 : 4, reps: deload ? '400m' : '700m', rest: 90, rpe, muscles: ['Back', 'Arms'] }),
+        hyroxExercise({ name: 'Sled push/pull', sets: deload ? 2 : 4, reps: deload ? '20m' : '30m', rest: 90, rpe, muscles: ['Legs', 'Back'] }),
+        hyroxExercise({ name: 'Burpee broad jumps', sets: deload ? 2 : 4, reps: deload ? '6' : '10', rest: 90, rpe, muscles: ['Legs', 'Chest'] }),
+        hyroxExercise({ name: 'Wall balls', sets: deload ? 2 : 4, reps: peak ? '25' : '18', rest: 90, rpe, muscles: ['Legs', 'Shoulders'] }),
+      ]),
+      hyroxWorkout('saturday', 'Endurance', 'HYROX Endurance', deload ? 45 : 70, 'Aerobic base. Keep it controlled.', [
+        hyroxExercise({ name: 'Long endurance run', sets: 1, reps: deload ? '40 min' : '60 min', rest: 60, rpe: deload ? 4 : 5, muscles: ['Legs'] }),
+      ]),
+    ],
+  };
+});
+
+const buildHyroxProgramPayload = ({ level = 'beginner' } = {}) => {
+  const normalizedLevel = String(level || 'beginner').trim().toLowerCase() === 'intermediate' ? 'intermediate' : 'beginner';
+  const weeks = normalizedLevel === 'intermediate'
+    ? buildHyroxIntermediateWeeks()
+    : buildProgressiveHyroxBeginnerWeeks();
+  const selectedDays = normalizedLevel === 'intermediate' ? HYROX_INTERMEDIATE_DAYS : HYROX_BEGINNER_DAYS;
+  const titleLevel = normalizedLevel === 'intermediate' ? 'Intermediate' : 'Beginner';
+
+  return {
+    planName: `HYROX ${titleLevel} 12-Week Plan`,
+    description:
+      normalizedLevel === 'intermediate'
+        ? 'Second 12-week HYROX block: 5 days per week with strength, speed, upper/erg work, simulations, endurance, deloads, and taper.'
+        : 'First 12-week HYROX block: 4 days per week with strength, running, HYROX stations, simulations, deloads, and race taper. Automatically upgrades to intermediate after completion.',
+    cycleWeeks: 12,
+    selectedDays,
+    weekPlans: weeks.map((week, index) => ({
+      weekNumber: index + 1,
+      weeklyWorkouts: week.workouts.map((workout) => ({
+        ...workout,
+        notes: `HYROX ${titleLevel} Week ${index + 1}: ${week.phase}. ${workout.notes || ''}`.trim(),
+      })),
+    })),
+  };
+};
+
+const assignHyroxProgramToUser = async (conn, {
+  userId,
+  level = 'beginner',
+  assignmentReason = 'user_request',
+  assignmentSource = 'ai',
+} = {}) => {
+  const payload = buildHyroxProgramPayload({ level });
+  const draft = await buildCustomProgramDraft(conn, userId, payload);
+  const normalizedLevel = String(level || 'beginner').trim().toLowerCase() === 'intermediate' ? 'intermediate' : 'beginner';
+  const persisted = await persistCustomProgramDraft(conn, {
+    userId,
+    draft,
+    assignmentReason,
+    assignmentSource,
+    assignmentNote:
+      normalizedLevel === 'intermediate'
+        ? 'HYROX auto-upgrade: Intermediate 12-week block after beginner completion.'
+        : 'HYROX onboarding: Beginner 12-week block. Auto-upgrades to Intermediate when week 12 ends.',
+    actorUserId: userId,
+  });
+
+  return {
+    ...persisted,
+    assignedProgram: {
+      ...persisted.assignedProgram,
+      programType: 'hyrox',
+      goal: 'endurance',
+      hyroxLevel: normalizedLevel,
+      nextHyroxLevel: normalizedLevel === 'beginner' ? 'intermediate' : null,
+    },
+  };
+};
+
 const normalizeProgramChangeReasonForStorage = (reason) => {
   const normalized = String(reason || '').trim().toLowerCase();
   if (normalized === 'injury_adjustment') {
@@ -7536,6 +8257,62 @@ const getCurrentWeek = (startDate, cycleWeeks) => {
   const rawWeek = Math.max(1, Math.floor((now - start) / msPerWeek) + 1);
   const maxWeeks = Math.max(1, Number(cycleWeeks || 1));
   return Math.min(rawWeek, maxWeeks);
+};
+
+const getRawProgramWeek = (startDate) => {
+  const start = new Date(startDate);
+  const now = new Date();
+  const msPerWeek = 7 * 24 * 60 * 60 * 1000;
+  return Math.max(1, Math.floor((now - start) / msPerWeek) + 1);
+};
+
+const ensureHyroxAutoProgression = async (userId) => {
+  const normalizedUserId = Number(userId || 0);
+  if (!Number.isFinite(normalizedUserId) || normalizedUserId <= 0) return null;
+
+  let conn;
+  try {
+    conn = await pool.getConnection();
+    await conn.beginTransaction();
+
+    const [assignmentRows] = await conn.execute(
+      `SELECT pa.id, pa.program_id, pa.start_date, p.name, p.cycle_weeks
+       FROM program_assignments pa
+       JOIN programs p ON p.id = pa.program_id
+       WHERE pa.user_id = ? AND pa.status = 'active'
+       ORDER BY pa.created_at DESC
+       LIMIT 1
+       FOR UPDATE`,
+      [normalizedUserId],
+    );
+
+    const active = assignmentRows[0];
+    const programName = String(active?.name || '').trim().toLowerCase();
+    const isBeginnerHyrox = programName.includes('hyrox') && programName.includes('beginner');
+    const rawWeek = active ? getRawProgramWeek(active.start_date) : 1;
+    const cycleWeeks = Number(active?.cycle_weeks || 0);
+
+    if (!active || !isBeginnerHyrox || rawWeek <= cycleWeeks) {
+      await conn.commit();
+      return null;
+    }
+
+    const result = await assignHyroxProgramToUser(conn, {
+      userId: normalizedUserId,
+      level: 'intermediate',
+      assignmentReason: 'user_request',
+      assignmentSource: 'ai',
+    });
+
+    await conn.commit();
+    return result.assignedProgram;
+  } catch (error) {
+    if (conn) await conn.rollback();
+    console.warn('[hyrox] Auto progression failed:', error?.message || error);
+    return null;
+  } finally {
+    if (conn) conn.release();
+  }
 };
 
 const computeWorkoutStreak = (dateRows, missedDateRows = []) => {
@@ -9740,6 +10517,7 @@ router.post('/user/onboarding', authMutationRateLimit, requireAuth('user'), asyn
       athleteIdentityCategory || req.body.athlete_identity_category,
     );
     const prefersCardioPlan = normalizedAthleteIdentity === 'cardio';
+    const prefersHyroxPlan = normalizedAthleteIdentity === 'hyrox';
     const normalizedAthleteSubCategoryId = normalizeShortText(
       athleteSubCategoryId || req.body.athlete_sub_category_id,
       100,
@@ -9796,7 +10574,7 @@ router.post('/user/onboarding', authMutationRateLimit, requireAuth('user'), asyn
       gender: normalizedGender,
       heightCm: normalizedHeight,
       weightKg: normalizedWeight,
-      goal: prefersCardioPlan ? 'endurance' : normalizedGoal,
+      goal: (prefersCardioPlan || prefersHyroxPlan) ? 'endurance' : normalizedGoal,
       experienceLevel: normalizedExperience || 'intermediate',
       daysPerWeek: normalizedDays,
       sessionDuration: normalizedSessionDuration,
@@ -9829,10 +10607,11 @@ router.post('/user/onboarding', authMutationRateLimit, requireAuth('user'), asyn
     const shouldUseClaude =
       toBooleanFlag(useClaude, claudeEnabled)
       && !prefersCardioPlan
+      && !prefersHyroxPlan
       && !prefersFemaleSpecializedStrengthPlan;
     const shouldDisableClaude = toBooleanFlag(disableClaude, false);
     const templateEligibleSplit = ['full_body', 'upper_lower', 'push_pull_legs', 'hybrid'].includes(normalizedSplitPreference);
-    const aiPlanRequested = normalizedSplitPreference !== 'custom' && !prefersCardioPlan;
+    const aiPlanRequested = normalizedSplitPreference !== 'custom' && !prefersCardioPlan && !prefersHyroxPlan;
     const hasCustomPlanPayload = customPlan && typeof customPlan === 'object';
     const adaptiveConfig = resolveAdaptiveTrainingConfig();
     const adaptiveRulesMode =
@@ -9843,7 +10622,8 @@ router.post('/user/onboarding', authMutationRateLimit, requireAuth('user'), asyn
       && aiPlanRequested
       && normalizedSplitPreference !== 'custom'
       && !hasCustomPlanPayload
-      && !prefersCardioPlan;
+      && !prefersCardioPlan
+      && !prefersHyroxPlan;
     let claudeExerciseAnchors = [];
     let claudeGeneration = null;
     let warning = null;
@@ -10041,7 +10821,27 @@ router.post('/user/onboarding', authMutationRateLimit, requireAuth('user'), asyn
     let planSource = 'template';
 
     try {
-      if (shouldUseAdaptiveRules) {
+      if (prefersHyroxPlan) {
+        const hyroxResult = await assignHyroxProgramToUser(conn, {
+          userId: normalizedUserId,
+          level: 'beginner',
+          assignmentReason: 'user_request',
+          assignmentSource: 'ai',
+        });
+
+        assignedProgram = hyroxResult.assignedProgram;
+        assignmentInfo = hyroxResult.assignment;
+        planSource = 'hyrox_template';
+        claudePlan = null;
+        customAdvice = {
+          type: 'hyrox_progression',
+          level: 'beginner',
+          weeks: 12,
+          daysPerWeek: 4,
+          nextLevel: 'intermediate',
+          message: 'Your first HYROX block is 12 weeks. After week 12, RepSet upgrades you to the intermediate 12-week block automatically.',
+        };
+      } else if (shouldUseAdaptiveRules) {
         const adaptiveResult = await generateAndPersistAdaptivePlan(conn, {
           userId: normalizedUserId,
           gymId: normalizedGymId,
@@ -11500,9 +12300,9 @@ router.get('/user/:userId/gym-members', async (req, res) => {
       return res.status(500).json({ error: 'No profile image column found on users table' });
     }
 
-    const [userRows] = await pool.execute('SELECT id, gym_id FROM users WHERE id = ?', [userId]);
+    const [userRows] = await pool.execute('SELECT id FROM users WHERE id = ?', [userId]);
     const user = userRows[0];
-    if (!user || !user.gym_id) {
+    if (!user) {
       return res.json({ members: [] });
     }
 
@@ -11510,9 +12310,9 @@ router.get('/user/:userId/gym-members', async (req, res) => {
       `SELECT id, name, gym_id, ${profileImageColumn} AS profile_picture, total_points, total_workouts, \`rank\`,
               workout_split_preference, workout_split_label
        FROM users
-       WHERE gym_id = ? AND id <> ? AND role = 'user' AND is_active = 1
+       WHERE id <> ? AND role = 'user' AND is_active = 1
        ORDER BY total_points DESC`,
-      [user.gym_id, userId]
+      [userId]
     );
 
     const memberIds = members
@@ -11859,11 +12659,6 @@ router.post('/friends/request', authMutationRateLimit, requireAuth('user'), requ
       return res.status(404).json({ error: 'User not found' });
     }
 
-    if (Number(sender.gym_id || 0) <= 0 || Number(sender.gym_id || 0) !== Number(target.gym_id || 0)) {
-      await conn.rollback();
-      return res.status(403).json({ error: 'Friend requests are only allowed between members of the same gym' });
-    }
-
     if (String(sender.role || '').toLowerCase() !== 'user' || String(target.role || '').toLowerCase() !== 'user') {
       await conn.rollback();
       return res.status(403).json({ error: 'Friend requests are available for users only' });
@@ -12013,6 +12808,16 @@ router.post('/friends/respond', authMutationRateLimit, requireAuth('user'), requ
       await conn.rollback();
       return res.status(403).json({ error: 'Request sender cannot respond to their own friend request' });
     }
+    if (currentStatus !== 'pending' && ['accepted', 'declined'].includes(currentStatus)) {
+      await conn.rollback();
+      return res.json({
+        success: true,
+        friendshipId,
+        status: currentStatus,
+        alreadyResolved: true,
+      });
+    }
+
     if (currentStatus !== 'pending') {
       await conn.rollback();
       return res.status(409).json({ error: 'Friend request is no longer pending', status: currentStatus });
@@ -12814,6 +13619,7 @@ router.get('/friends/:viewerId/:friendId/plan-preview', requireAuth('user'), req
     const [exerciseRows] = await pool.execute(
       `SELECT
           we.id AS workout_exercise_id,
+          we.exercise_id,
           we.workout_id,
           we.order_index,
           we.exercise_name_snapshot,
@@ -12837,6 +13643,8 @@ router.get('/friends/:viewerId/:friendId/plan-preview', requireAuth('user'), req
       if (!exercisesByWorkout.has(row.workout_id)) exercisesByWorkout.set(row.workout_id, []);
       exercisesByWorkout.get(row.workout_id).push({
         id: Number(row.workout_exercise_id || 0) || null,
+        exerciseCatalogId: null,
+        legacyExerciseId: Number(row.exercise_id || 0) || null,
         exerciseName: row.exercise_name_snapshot,
         targetMuscles: parseMuscleGroups(row.muscle_group_snapshot),
         muscleGroup: parseMuscleGroups(row.muscle_group_snapshot)[0] || null,
@@ -12847,6 +13655,8 @@ router.get('/friends/:viewerId/:friendId/plan-preview', requireAuth('user'), req
         tempo: row.tempo,
         rpeTarget: row.rpe_target,
         notes: row.notes,
+        primaryMedia: null,
+        media: [],
       });
     });
 
@@ -13197,6 +14007,916 @@ router.post('/friend-challenges/complete', authMutationRateLimit, requireAuth('u
   }
 });
 
+const REPY_GAME_INVITE_TIMEOUT_SECONDS = Number(process.env.REPY_GAME_INVITE_TIMEOUT_SECONDS || 90);
+const REPY_GAME_STATUS_WAITING = 'waiting_for_players';
+const REPY_GAME_STATUS_READY = 'ready';
+const REPY_GAME_STATUS_PLAYING = 'playing';
+const REPY_GAME_STATUS_CANCELLED = 'cancelled';
+const REPY_GAME_KEY_LAST_REP = 'last_rep_standing';
+const REPY_GAME_PHASE_AWAITING_DRAW = 'awaiting_draw';
+const REPY_GAME_PHASE_CHALLENGE_ACTIVE = 'challenge_active';
+const REPY_GAME_PHASE_SPECIAL_ACTIVE = 'special_active';
+
+const REPY_GAME_CARD_PACK = [
+  { id: 'challenge_push_08', type: 'challenge', category: 'challenge', title: 'PUSH-UPS', exercise: 'push_up', value: 8, mode: 'reps', label: '8 PUSH-UPS' },
+  { id: 'challenge_squat_12', type: 'challenge', category: 'challenge', title: 'SQUATS', exercise: 'squat', value: 12, mode: 'reps', label: '12 SQUATS' },
+  { id: 'challenge_lunge_10', type: 'challenge', category: 'challenge', title: 'LUNGES', exercise: 'lunge', value: 10, mode: 'reps', label: '10 LUNGES' },
+  { id: 'challenge_plank_30', type: 'challenge', category: 'challenge', title: 'PLANK', exercise: 'plank', value: 30, mode: 'seconds', label: '30 SEC PLANK' },
+  { id: 'special_reverse', type: 'special', category: 'special', title: 'REVERSE', effect: 'reverse', label: 'CHANGE DIRECTION' },
+  { id: 'special_skip', type: 'special', category: 'special', title: 'SKIP', effect: 'skip', label: 'SKIP NEXT PLAYER' },
+];
+
+const sanitizeRepyGameCard = (card) => {
+  if (!card || typeof card !== 'object') return null;
+  return {
+    id: String(card.id || ''),
+    type: String(card.type || 'challenge'),
+    category: String(card.category || card.type || 'challenge'),
+    title: String(card.title || 'CHALLENGE'),
+    exercise: card.exercise ? String(card.exercise) : null,
+    value: Number(card.value || 0),
+    mode: card.mode ? String(card.mode) : null,
+    effect: card.effect ? String(card.effect) : null,
+    label: String(card.label || card.title || 'CHALLENGE'),
+  };
+};
+
+const pickRepyGameCard = () => sanitizeRepyGameCard(REPY_GAME_CARD_PACK[crypto.randomInt(0, REPY_GAME_CARD_PACK.length)]);
+
+const normalizeRepyGameMetadata = (value) => {
+  const metadata = safeParseJson(value, {});
+  return metadata && typeof metadata === 'object' ? metadata : {};
+};
+
+const getActiveRepyGamePlayers = (participantRows = []) => participantRows
+  .map((row) => ({
+    userId: Number(row.user_id || 0),
+    participantId: Number(row.id || 0),
+    status: String(row.status || 'active'),
+    inviteStatus: String(row.invite_status || 'pending'),
+    livesRemaining: Number(row.lives_remaining || 0),
+  }))
+  .filter((player) => player.userId > 0 && player.inviteStatus === 'accepted' && player.status === 'active' && player.livesRemaining > 0);
+
+const createInitialRepyGameState = (participantRows = []) => {
+  const activePlayers = getActiveRepyGamePlayers(participantRows);
+  const turnOrder = activePlayers.map((player) => player.userId);
+  return {
+    phase: REPY_GAME_PHASE_AWAITING_DRAW,
+    turnOrder,
+    turnIndex: 0,
+    currentPlayerUserId: turnOrder[0] || null,
+    direction: 1,
+    round: 1,
+    drawCount: 0,
+    currentCard: null,
+    currentChallenge: null,
+    lastResult: null,
+    strikes: Object.fromEntries(turnOrder.map((userId) => [String(userId), 0])),
+  };
+};
+
+const getCurrentRepyGameState = (metadata = {}, participantRows = []) => {
+  const existing = metadata?.gameplay && typeof metadata.gameplay === 'object' ? metadata.gameplay : null;
+  const fallback = createInitialRepyGameState(participantRows);
+  const turnOrder = Array.isArray(existing?.turnOrder) && existing.turnOrder.length
+    ? existing.turnOrder.map((id) => Number(id || 0)).filter(Boolean)
+    : fallback.turnOrder;
+  const currentPlayerUserId = Number(existing?.currentPlayerUserId || 0) || turnOrder[0] || null;
+  return {
+    ...fallback,
+    ...(existing || {}),
+    turnOrder,
+    turnIndex: Math.max(0, Number(existing?.turnIndex || 0)),
+    currentPlayerUserId,
+    direction: Number(existing?.direction || 1) < 0 ? -1 : 1,
+    round: Math.max(1, Number(existing?.round || 1)),
+    drawCount: Math.max(0, Number(existing?.drawCount || 0)),
+    currentCard: sanitizeRepyGameCard(existing?.currentCard),
+    currentChallenge: existing?.currentChallenge || null,
+    strikes: existing?.strikes && typeof existing.strikes === 'object' ? existing.strikes : fallback.strikes,
+    lastResult: existing?.lastResult || null,
+  };
+};
+
+const getNextTurnForRepyGame = ({ state, participantRows, skipCount = 0 }) => {
+  const activeUserIds = new Set(getActiveRepyGamePlayers(participantRows).map((player) => player.userId));
+  const turnOrder = (Array.isArray(state.turnOrder) ? state.turnOrder : [])
+    .map((id) => Number(id || 0))
+    .filter((id) => id && activeUserIds.has(id));
+  if (!turnOrder.length) {
+    return { turnOrder: [], turnIndex: 0, currentPlayerUserId: null, round: Number(state.round || 1) };
+  }
+
+  const direction = Number(state.direction || 1) < 0 ? -1 : 1;
+  const currentIndex = turnOrder.indexOf(Number(state.currentPlayerUserId || 0));
+  const baseIndex = currentIndex >= 0 ? currentIndex : Math.max(0, Math.min(Number(state.turnIndex || 0), turnOrder.length - 1));
+  const steps = 1 + Math.max(0, Number(skipCount || 0));
+  const rawNextIndex = baseIndex + (direction * steps);
+  const nextIndex = ((rawNextIndex % turnOrder.length) + turnOrder.length) % turnOrder.length;
+  const crossedRoundBoundary = direction > 0 ? rawNextIndex >= turnOrder.length : rawNextIndex < 0;
+
+  return {
+    turnOrder,
+    turnIndex: nextIndex,
+    currentPlayerUserId: turnOrder[nextIndex],
+    round: Math.max(1, Number(state.round || 1) + (crossedRoundBoundary ? 1 : 0)),
+  };
+};
+
+const publicRepyGameGameplay = (state = {}, participants = []) => {
+  const currentPlayerUserId = Number(state.currentPlayerUserId || 0);
+  const currentPlayer = participants.find((participant) => participant.userId === currentPlayerUserId) || null;
+  return {
+    phase: String(state.phase || REPY_GAME_PHASE_AWAITING_DRAW),
+    currentPlayerUserId: currentPlayerUserId || null,
+    currentPlayerName: currentPlayer?.name || 'Player',
+    direction: Number(state.direction || 1) < 0 ? -1 : 1,
+    round: Math.max(1, Number(state.round || 1)),
+    drawCount: Math.max(0, Number(state.drawCount || 0)),
+    currentCard: sanitizeRepyGameCard(state.currentCard),
+    currentChallenge: state.currentChallenge || null,
+    lastResult: state.lastResult || null,
+    strikes: state.strikes || {},
+  };
+};
+
+const emitRepyGameUpdate = (req, gameId, payload = {}) => {
+  const io = req.app?.locals?.io;
+  const participantIds = Array.isArray(payload.participantIds) ? payload.participantIds : [];
+  const eventPayload = { gameId: Number(gameId || 0), ...payload };
+  participantIds.forEach((participantId) => {
+    io?.to(`user-${participantId}`).emit('repy-game:lobby-updated', eventPayload);
+  });
+};
+
+const buildRepyGameLobbyResponse = async (gameId, viewerUserId = 0) => {
+  const normalizedGameId = toNumber(gameId);
+  const profileImageColumn = await getProfileImageColumn();
+  const hostProfileImageSql = profileImageColumn ? `h.${profileImageColumn}` : 'NULL';
+  const participantProfileImageSql = profileImageColumn ? `u.${profileImageColumn}` : 'NULL';
+
+  const [gameRows] = await pool.execute(
+    `SELECT g.id, g.host_user_id, g.game_key, g.status, g.metadata_json, g.started_at, g.completed_at,
+            h.name AS host_name, ${hostProfileImageSql} AS host_profile_picture
+     FROM repy_games g
+     LEFT JOIN users h ON h.id = g.host_user_id
+     WHERE g.id = ?
+     LIMIT 1`,
+    [normalizedGameId],
+  );
+  const game = gameRows[0];
+  if (!game) return null;
+
+  const [participantRows] = await pool.execute(
+    `SELECT p.id, p.game_id, p.user_id, p.role, p.invite_status, p.status, p.lives_remaining,
+            p.notification_id, p.accepted_at, p.declined_at, p.connected,
+            u.name, u.email, ${participantProfileImageSql} AS profile_picture
+     FROM repy_game_participants p
+     JOIN users u ON u.id = p.user_id
+     WHERE p.game_id = ?
+     ORDER BY FIELD(p.role, 'host', 'player'), p.id ASC`,
+    [normalizedGameId],
+  );
+
+  const participants = participantRows.map((row) => ({
+    participantId: Number(row.id || 0),
+    userId: Number(row.user_id || 0),
+    name: String(row.name || 'Player').trim() || 'Player',
+    username: String(row.email || '').trim(),
+    profilePicture: row.profile_picture || null,
+    role: String(row.role || 'player'),
+    inviteStatus: String(row.invite_status || 'pending'),
+    status: String(row.status || 'active'),
+    livesRemaining: Number(row.lives_remaining || 0),
+    notificationId: row.notification_id == null ? null : Number(row.notification_id || 0),
+    connected: Boolean(row.connected),
+    acceptedAt: row.accepted_at || null,
+    declinedAt: row.declined_at || null,
+    isViewer: Number(row.user_id || 0) === Number(viewerUserId || 0),
+  }));
+
+  const participantIds = participants.map((participant) => participant.userId).filter(Boolean);
+  const acceptedCount = participants.filter((participant) => participant.inviteStatus === 'accepted').length;
+  const pendingCount = participants.filter((participant) => participant.inviteStatus === 'pending').length;
+  const declinedCount = participants.filter((participant) => participant.inviteStatus === 'declined').length;
+  const viewer = participants.find((participant) => participant.userId === Number(viewerUserId || 0)) || null;
+  const metadata = normalizeRepyGameMetadata(game.metadata_json);
+  const gameplayState = getCurrentRepyGameState(metadata, participantRows);
+
+  return {
+    id: Number(game.id || 0),
+    gameId: Number(game.id || 0),
+    gameKey: String(game.game_key || REPY_GAME_KEY_LAST_REP),
+    title: 'Last Rep Standing',
+    status: String(game.status || 'pending'),
+    hostUserId: Number(game.host_user_id || 0),
+    hostName: String(game.host_name || 'Host').trim() || 'Host',
+    hostProfilePicture: game.host_profile_picture || null,
+    viewerRole: viewer?.role || null,
+    viewerInviteStatus: viewer?.inviteStatus || null,
+    participantIds,
+    participants,
+    totalPlayers: participants.length,
+    acceptedCount,
+    pendingCount,
+    declinedCount,
+    allReady: participants.length >= 2 && participants.every((participant) => participant.inviteStatus === 'accepted'),
+    gameplay: publicRepyGameGameplay(gameplayState, participants),
+    inviteTimeoutSeconds: REPY_GAME_INVITE_TIMEOUT_SECONDS,
+    startedAt: game.started_at || null,
+    completedAt: game.completed_at || null,
+  };
+};
+
+router.get('/repy-games/friends', requireAuth('user'), async (req, res) => {
+  try {
+    await ensureFriendshipInfrastructureOnce();
+    const userId = getRequestUserId(req);
+    const profileImageColumn = await getProfileImageColumn();
+    const profileImageSql = profileImageColumn ? `u.${profileImageColumn}` : 'NULL';
+
+    const [rows] = await pool.execute(
+      `SELECT u.id, u.name, u.email, ${profileImageSql} AS profile_picture
+       FROM friendships f
+       JOIN users u ON u.id = CASE WHEN f.user_id = ? THEN f.friend_id ELSE f.user_id END
+       WHERE (f.user_id = ? OR f.friend_id = ?)
+         AND f.status = 'accepted'
+         AND u.role = 'user'
+         AND u.is_active = 1
+       ORDER BY u.name ASC`,
+      [userId, userId, userId],
+    );
+
+    return res.json({
+      friends: rows.map((row) => ({
+        userId: Number(row.id || 0),
+        displayName: String(row.name || 'Friend').trim() || 'Friend',
+        username: String(row.email || '').trim(),
+        profileImage: row.profile_picture || null,
+      })),
+    });
+  } catch (error) {
+    return res.status(500).json({ error: error.message || 'Failed to load RepyGames friends' });
+  }
+});
+
+router.post('/repy-games', authMutationRateLimit, requireAuth('user'), async (req, res) => {
+  let conn;
+  try {
+    await ensureFriendshipInfrastructureOnce();
+    await ensureRepyGameInfrastructureOnce();
+
+    const hostUserId = getRequestUserId(req);
+    const invitedUserIds = Array.from(new Set(
+      (Array.isArray(req.body?.invitedUserIds) ? req.body.invitedUserIds : [])
+        .map((value) => toNumber(value))
+        .filter((id) => id && id > 0),
+    ));
+
+    if (invitedUserIds.includes(hostUserId)) {
+      return res.status(400).json({ error: 'Host is automatically included. Do not invite yourself.' });
+    }
+    if (invitedUserIds.length < 1 || invitedUserIds.length > 4) {
+      return res.status(400).json({ error: 'Pick 1 to 4 friends.' });
+    }
+
+    for (const invitedUserId of invitedUserIds) {
+      const friendship = await getAcceptedFriendship(hostUserId, invitedUserId);
+      if (!friendship) {
+        return res.status(403).json({ error: 'RepyGames invitations are available only between accepted friends.' });
+      }
+    }
+
+    const [activeRows] = await pool.execute(
+      `SELECT g.id AS game_id
+       FROM repy_game_participants p
+       JOIN repy_games g ON g.id = p.game_id
+       WHERE p.user_id = ?
+         AND g.status IN ('pending','waiting_for_players','ready','starting','playing','active')
+       LIMIT 1`,
+      [hostUserId],
+    );
+    if (activeRows.length) {
+      return res.status(409).json({ error: 'You already have an active RepyGames match.', gameId: Number(activeRows[0].game_id || 0) });
+    }
+
+    conn = await pool.getConnection();
+    await conn.beginTransaction();
+
+    const [gameResult] = await conn.execute(
+      `INSERT INTO repy_games (host_user_id, game_key, status, metadata_json)
+       VALUES (?, ?, ?, ?)`,
+      [
+        hostUserId,
+        REPY_GAME_KEY_LAST_REP,
+        REPY_GAME_STATUS_WAITING,
+        JSON.stringify({ invitedUserIds, inviteTimeoutSeconds: REPY_GAME_INVITE_TIMEOUT_SECONDS }),
+      ],
+    );
+    const gameId = Number(gameResult.insertId || 0);
+
+    await conn.execute(
+      `INSERT INTO repy_game_participants
+         (game_id, user_id, role, invite_status, status, lives_remaining, joined_at, accepted_at)
+       VALUES (?, ?, 'host', 'accepted', 'active', 2, NOW(), NOW())`,
+      [gameId, hostUserId],
+    );
+
+    for (const invitedUserId of invitedUserIds) {
+      await conn.execute(
+        `INSERT INTO repy_game_participants
+           (game_id, user_id, role, invite_status, status, lives_remaining)
+         VALUES (?, ?, 'player', 'pending', 'active', 2)`,
+        [gameId, invitedUserId],
+      );
+    }
+
+    await conn.commit();
+    conn.release();
+    conn = null;
+
+    const [hostRows] = await pool.execute('SELECT name FROM users WHERE id = ? LIMIT 1', [hostUserId]);
+    const hostName = String(hostRows[0]?.name || 'Someone').trim() || 'Someone';
+
+    for (const invitedUserId of invitedUserIds) {
+      const notificationResult = await req.app.locals.notificationService.sendNotification({
+        userId: invitedUserId,
+        type: NOTIFICATION_TYPES.CHALLENGE_INVITATION,
+        title: 'RepyGames invite',
+        body: `${hostName} invited you to Last Rep Standing.`,
+        route: `/repy-games/invite/${gameId}`,
+        entityType: 'repy_game',
+        entityId: gameId,
+        data: {
+          repyGameId: gameId,
+          repyGameType: REPY_GAME_KEY_LAST_REP,
+          challengeTitle: 'Last Rep Standing',
+          senderUserId: hostUserId,
+          senderName: hostName,
+          responseStatus: 'pending',
+          playerCount: invitedUserIds.length + 1,
+        },
+        notificationKey: `REPY_GAME_INVITE:${gameId}:${invitedUserId}`,
+      });
+
+      const notificationId = Number(notificationResult?.notification?.id || 0);
+      if (notificationId) {
+        await pool.execute(
+          `UPDATE repy_game_participants
+           SET notification_id = ?
+           WHERE game_id = ? AND user_id = ?`,
+          [notificationId, gameId, invitedUserId],
+        );
+      }
+    }
+
+    const lobby = await buildRepyGameLobbyResponse(gameId, hostUserId);
+    emitRepyGameUpdate(req, gameId, lobby || {});
+    return res.json({ success: true, game: lobby });
+  } catch (error) {
+    if (conn) await conn.rollback();
+    return res.status(500).json({ error: error.message || 'Failed to create RepyGames match' });
+  } finally {
+    if (conn) conn.release();
+  }
+});
+
+router.get('/repy-games/active', requireAuth('user'), async (req, res) => {
+  try {
+    await ensureRepyGameInfrastructureOnce();
+    const userId = getRequestUserId(req);
+    const [rows] = await pool.execute(
+      `SELECT p.game_id
+       FROM repy_game_participants p
+       JOIN repy_games g ON g.id = p.game_id
+       WHERE p.user_id = ?
+         AND g.status IN ('pending','waiting_for_players','ready','starting','playing','active')
+       ORDER BY g.updated_at DESC
+       LIMIT 1`,
+      [userId],
+    );
+    const gameId = Number(rows[0]?.game_id || 0);
+    if (!gameId) return res.json({ game: null });
+    return res.json({ game: await buildRepyGameLobbyResponse(gameId, userId) });
+  } catch (error) {
+    return res.status(500).json({ error: error.message || 'Failed to load active RepyGames match' });
+  }
+});
+
+router.get('/repy-games/:gameId', requireAuth('user'), async (req, res) => {
+  try {
+    await ensureRepyGameInfrastructureOnce();
+    const gameId = toNumber(req.params?.gameId);
+    const userId = getRequestUserId(req);
+    const game = await buildRepyGameLobbyResponse(gameId, userId);
+    if (!game) return res.status(404).json({ error: 'RepyGames match not found' });
+    if (!game.participantIds.includes(userId)) {
+      return res.status(403).json({ error: 'Only participants can view this RepyGames match' });
+    }
+    return res.json({ game });
+  } catch (error) {
+    return res.status(500).json({ error: error.message || 'Failed to load RepyGames match' });
+  }
+});
+
+router.post('/repy-games/:gameId/invitations/respond', authMutationRateLimit, requireAuth('user'), async (req, res) => {
+  let conn;
+  try {
+    await ensureRepyGameInfrastructureOnce();
+    const gameId = toNumber(req.params?.gameId);
+    const userId = getRequestUserId(req);
+    const action = String(req.body?.action || '').trim().toLowerCase();
+    if (!gameId || !['accept', 'decline'].includes(action)) {
+      return res.status(400).json({ error: 'Valid gameId and action are required' });
+    }
+
+    conn = await pool.getConnection();
+    await conn.beginTransaction();
+
+    const [gameRows] = await conn.execute(
+      `SELECT id, status FROM repy_games WHERE id = ? LIMIT 1 FOR UPDATE`,
+      [gameId],
+    );
+    const game = gameRows[0];
+    if (!game) {
+      await conn.rollback();
+      return res.status(404).json({ error: 'RepyGames match not found' });
+    }
+    const gameStatus = String(game.status || '');
+    if (!['pending', REPY_GAME_STATUS_WAITING, REPY_GAME_STATUS_READY].includes(gameStatus)) {
+      await conn.rollback();
+      return res.status(409).json({ error: 'This RepyGames invitation is no longer active', status: gameStatus });
+    }
+
+    const [participantRows] = await conn.execute(
+      `SELECT id, invite_status, notification_id
+       FROM repy_game_participants
+       WHERE game_id = ? AND user_id = ? AND role = 'player'
+       LIMIT 1
+       FOR UPDATE`,
+      [gameId, userId],
+    );
+    const participant = participantRows[0];
+    if (!participant) {
+      await conn.rollback();
+      return res.status(403).json({ error: 'You are not invited to this RepyGames match' });
+    }
+
+    const currentInviteStatus = String(participant.invite_status || 'pending');
+    if (['accepted', 'declined'].includes(currentInviteStatus)) {
+      await conn.commit();
+      const lobby = await buildRepyGameLobbyResponse(gameId, userId);
+      return res.json({ success: true, status: currentInviteStatus, alreadyResolved: true, game: lobby });
+    }
+
+    const nextStatus = action === 'accept' ? 'accepted' : 'declined';
+    await conn.execute(
+      `UPDATE repy_game_participants
+       SET invite_status = ?,
+           joined_at = CASE WHEN ? = 'accepted' THEN COALESCE(joined_at, NOW()) ELSE joined_at END,
+           accepted_at = CASE WHEN ? = 'accepted' THEN NOW() ELSE accepted_at END,
+           declined_at = CASE WHEN ? = 'declined' THEN NOW() ELSE declined_at END
+       WHERE id = ?`,
+      [nextStatus, nextStatus, nextStatus, nextStatus, Number(participant.id || 0)],
+    );
+
+    const responsePayload = {
+      responseStatus: nextStatus,
+      repyGameId: gameId,
+      challengeTitle: 'Last Rep Standing',
+    };
+    if (participant.notification_id) {
+      const [notificationRows] = await conn.execute(
+        `SELECT data
+         FROM notifications
+         WHERE id = ? AND user_id = ?
+         LIMIT 1`,
+        [Number(participant.notification_id || 0), userId],
+      );
+      const existingNotificationData = safeParseJson(notificationRows[0]?.data, {});
+      await conn.execute(
+        `UPDATE notifications
+         SET data = ?,
+             is_read = 1,
+             read_at = NOW()
+         WHERE id = ? AND user_id = ?`,
+        [
+          JSON.stringify({ ...(existingNotificationData || {}), ...responsePayload }),
+          Number(participant.notification_id || 0),
+          userId,
+        ],
+      );
+    }
+
+    const [pendingRows] = await conn.execute(
+      `SELECT COUNT(*) AS pending_count
+       FROM repy_game_participants
+       WHERE game_id = ? AND invite_status <> 'accepted'`,
+      [gameId],
+    );
+    const pendingCount = Number(pendingRows[0]?.pending_count || 0);
+    if (pendingCount === 0 && gameStatus === REPY_GAME_STATUS_WAITING) {
+      await conn.execute(
+        `UPDATE repy_games SET status = ? WHERE id = ? AND status = ?`,
+        [REPY_GAME_STATUS_READY, gameId, REPY_GAME_STATUS_WAITING],
+      );
+    }
+
+    await conn.commit();
+    const lobby = await buildRepyGameLobbyResponse(gameId, userId);
+    emitRepyGameUpdate(req, gameId, lobby || {});
+    return res.json({ success: true, status: nextStatus, game: lobby });
+  } catch (error) {
+    if (conn) await conn.rollback();
+    return res.status(500).json({ error: error.message || 'Failed to respond to RepyGames invitation' });
+  } finally {
+    if (conn) conn.release();
+  }
+});
+
+router.post('/repy-games/:gameId/start', authMutationRateLimit, requireAuth('user'), async (req, res) => {
+  let conn;
+  try {
+    await ensureRepyGameInfrastructureOnce();
+    const gameId = toNumber(req.params?.gameId);
+    const userId = getRequestUserId(req);
+    conn = await pool.getConnection();
+    await conn.beginTransaction();
+
+    const [gameRows] = await conn.execute(
+      `SELECT id, host_user_id, status, metadata_json FROM repy_games WHERE id = ? LIMIT 1 FOR UPDATE`,
+      [gameId],
+    );
+    const game = gameRows[0];
+    if (!game) {
+      await conn.rollback();
+      return res.status(404).json({ error: 'RepyGames match not found' });
+    }
+    if (Number(game.host_user_id || 0) !== userId) {
+      await conn.rollback();
+      return res.status(403).json({ error: 'Only the host can start this RepyGames match' });
+    }
+
+    const [participantRows] = await conn.execute(
+      `SELECT id, user_id, invite_status, status, lives_remaining FROM repy_game_participants WHERE game_id = ? ORDER BY id ASC`,
+      [gameId],
+    );
+    const allReady = participantRows.length >= 2 && participantRows.every((row) => String(row.invite_status || '') === 'accepted');
+    if (!allReady) {
+      await conn.rollback();
+      return res.status(409).json({ error: 'All players must accept before starting' });
+    }
+
+    const metadata = normalizeRepyGameMetadata(game.metadata_json);
+    const gameplay = metadata.gameplay && typeof metadata.gameplay === 'object'
+      ? getCurrentRepyGameState(metadata, participantRows)
+      : createInitialRepyGameState(participantRows);
+
+    await conn.execute(
+      `UPDATE repy_games
+       SET status = ?, started_at = COALESCE(started_at, NOW()), metadata_json = ?
+       WHERE id = ? AND status IN (?, ?)`,
+      [
+        REPY_GAME_STATUS_PLAYING,
+        JSON.stringify({ ...metadata, gameplay }),
+        gameId,
+        REPY_GAME_STATUS_READY,
+        REPY_GAME_STATUS_WAITING,
+      ],
+    );
+
+    await conn.commit();
+    const lobby = await buildRepyGameLobbyResponse(gameId, userId);
+    emitRepyGameUpdate(req, gameId, lobby || {});
+    return res.json({ success: true, game: lobby });
+  } catch (error) {
+    if (conn) await conn.rollback();
+    return res.status(500).json({ error: error.message || 'Failed to start RepyGames match' });
+  } finally {
+    if (conn) conn.release();
+  }
+});
+
+router.post('/repy-games/:gameId/draw', authMutationRateLimit, requireAuth('user'), async (req, res) => {
+  let conn;
+  try {
+    await ensureRepyGameInfrastructureOnce();
+    const gameId = toNumber(req.params?.gameId);
+    const userId = getRequestUserId(req);
+    conn = await pool.getConnection();
+    await conn.beginTransaction();
+
+    const [gameRows] = await conn.execute(
+      `SELECT id, host_user_id, status, metadata_json FROM repy_games WHERE id = ? LIMIT 1 FOR UPDATE`,
+      [gameId],
+    );
+    const game = gameRows[0];
+    if (!game) {
+      await conn.rollback();
+      return res.status(404).json({ error: 'RepyGames match not found' });
+    }
+    if (Number(game.host_user_id || 0) !== userId) {
+      await conn.rollback();
+      return res.status(403).json({ error: 'Only the host phone can draw RepyGames cards' });
+    }
+    if (String(game.status || '') !== REPY_GAME_STATUS_PLAYING) {
+      await conn.rollback();
+      return res.status(409).json({ error: 'Cards can only be drawn after the game starts' });
+    }
+
+    const [participantRows] = await conn.execute(
+      `SELECT id, user_id, invite_status, status, lives_remaining
+       FROM repy_game_participants
+       WHERE game_id = ?
+       ORDER BY id ASC
+       FOR UPDATE`,
+      [gameId],
+    );
+    const metadata = normalizeRepyGameMetadata(game.metadata_json);
+    const state = getCurrentRepyGameState(metadata, participantRows);
+    if (state.currentChallenge && !state.currentChallenge.resolvedAt) {
+      await conn.rollback();
+      return res.status(409).json({ error: 'Resolve the current card before drawing again' });
+    }
+    if (state.phase !== REPY_GAME_PHASE_AWAITING_DRAW) {
+      await conn.rollback();
+      return res.status(409).json({ error: 'Card draw is not available right now' });
+    }
+
+    const currentPlayer = getActiveRepyGamePlayers(participantRows)
+      .find((player) => player.userId === Number(state.currentPlayerUserId || 0));
+    if (!currentPlayer) {
+      await conn.rollback();
+      return res.status(409).json({ error: 'Current player is not active' });
+    }
+
+    const card = pickRepyGameCard();
+    const challenge = {
+      id: `${gameId}:${Date.now()}:${crypto.randomUUID()}`,
+      cardId: card.id,
+      cardType: card.type,
+      playerUserId: currentPlayer.userId,
+      status: 'active',
+      drawnAt: new Date().toISOString(),
+    };
+    const nextState = {
+      ...state,
+      phase: card.type === 'challenge' ? REPY_GAME_PHASE_CHALLENGE_ACTIVE : REPY_GAME_PHASE_SPECIAL_ACTIVE,
+      drawCount: Number(state.drawCount || 0) + 1,
+      currentCard: card,
+      currentChallenge: challenge,
+      lastResult: null,
+    };
+
+    await conn.execute(
+      `UPDATE repy_games SET metadata_json = ? WHERE id = ?`,
+      [JSON.stringify({ ...metadata, gameplay: nextState }), gameId],
+    );
+
+    await conn.commit();
+    const lobby = await buildRepyGameLobbyResponse(gameId, userId);
+    emitRepyGameUpdate(req, gameId, lobby || {});
+    return res.json({ success: true, game: lobby, currentPlayerId: currentPlayer.userId, card });
+  } catch (error) {
+    if (conn) await conn.rollback();
+    return res.status(500).json({ error: error.message || 'Failed to draw RepyGames card' });
+  } finally {
+    if (conn) conn.release();
+  }
+});
+
+router.post('/repy-games/:gameId/resolve', authMutationRateLimit, requireAuth('user'), async (req, res) => {
+  let conn;
+  try {
+    await ensureRepyGameInfrastructureOnce();
+    const gameId = toNumber(req.params?.gameId);
+    const userId = getRequestUserId(req);
+    const result = String(req.body?.result || '').trim().toLowerCase();
+    if (!['completed', 'failed', 'continue'].includes(result)) {
+      return res.status(400).json({ error: 'Result must be completed, failed, or continue' });
+    }
+
+    conn = await pool.getConnection();
+    await conn.beginTransaction();
+
+    const [gameRows] = await conn.execute(
+      `SELECT id, host_user_id, status, metadata_json FROM repy_games WHERE id = ? LIMIT 1 FOR UPDATE`,
+      [gameId],
+    );
+    const game = gameRows[0];
+    if (!game) {
+      await conn.rollback();
+      return res.status(404).json({ error: 'RepyGames match not found' });
+    }
+    if (Number(game.host_user_id || 0) !== userId) {
+      await conn.rollback();
+      return res.status(403).json({ error: 'Only the host phone can resolve RepyGames cards' });
+    }
+    if (String(game.status || '') !== REPY_GAME_STATUS_PLAYING) {
+      await conn.rollback();
+      return res.status(409).json({ error: 'This RepyGames match is not playing' });
+    }
+
+    const [participantRows] = await conn.execute(
+      `SELECT id, user_id, invite_status, status, lives_remaining
+       FROM repy_game_participants
+       WHERE game_id = ?
+       ORDER BY id ASC
+       FOR UPDATE`,
+      [gameId],
+    );
+    const metadata = normalizeRepyGameMetadata(game.metadata_json);
+    const state = getCurrentRepyGameState(metadata, participantRows);
+    const card = sanitizeRepyGameCard(state.currentCard);
+    const challenge = state.currentChallenge;
+    if (!card || !challenge || challenge.resolvedAt) {
+      await conn.rollback();
+      return res.status(409).json({ error: 'There is no active card to resolve' });
+    }
+
+    const currentPlayerUserId = Number(challenge.playerUserId || state.currentPlayerUserId || 0);
+    const strikes = { ...(state.strikes || {}) };
+    let feedback = { result, playerUserId: currentPlayerUserId, card };
+    let skipCount = 0;
+
+    if (card.type === 'challenge') {
+      if (!['completed', 'failed'].includes(result)) {
+        await conn.rollback();
+        return res.status(400).json({ error: 'Exercise cards must be completed or failed' });
+      }
+      if (result === 'completed') {
+        if (card.mode === 'reps' && Number(card.value || 0) > 0) {
+          await conn.execute(
+            `UPDATE repy_game_participants
+             SET total_reps = total_reps + ?, duels_won = duels_won + 1
+             WHERE game_id = ? AND user_id = ?`,
+            [Number(card.value || 0), gameId, currentPlayerUserId],
+          );
+        } else {
+          await conn.execute(
+            `UPDATE repy_game_participants SET duels_won = duels_won + 1 WHERE game_id = ? AND user_id = ?`,
+            [gameId, currentPlayerUserId],
+          );
+        }
+        feedback = { ...feedback, label: `+${card.mode === 'reps' ? Number(card.value || 0) : 1} ${card.mode === 'reps' ? 'REPS' : 'WIN'}` };
+      } else {
+        const nextStrikes = Number(strikes[String(currentPlayerUserId)] || 0) + 1;
+        if (nextStrikes >= 2) {
+          strikes[String(currentPlayerUserId)] = 0;
+          await conn.execute(
+            `UPDATE repy_game_participants
+             SET lives_remaining = GREATEST(lives_remaining - 1, 0),
+                 status = CASE WHEN lives_remaining <= 1 THEN 'eliminated' ELSE status END,
+                 eliminated_at = CASE WHEN lives_remaining <= 1 THEN COALESCE(eliminated_at, NOW()) ELSE eliminated_at END
+             WHERE game_id = ? AND user_id = ?`,
+            [gameId, currentPlayerUserId],
+          );
+          feedback = { ...feedback, label: 'LIFE LOST', lifeLost: true };
+        } else {
+          strikes[String(currentPlayerUserId)] = nextStrikes;
+          feedback = { ...feedback, label: '+1 STRIKE', strike: nextStrikes };
+        }
+      }
+    } else if (card.effect === 'reverse') {
+      state.direction = Number(state.direction || 1) < 0 ? 1 : -1;
+      feedback = { ...feedback, result: 'special', label: 'DIRECTION REVERSED' };
+    } else if (card.effect === 'skip') {
+      skipCount = 1;
+      feedback = { ...feedback, result: 'special', label: 'NEXT PLAYER SKIPPED' };
+    }
+
+    const [updatedParticipantRows] = await conn.execute(
+      `SELECT id, user_id, invite_status, status, lives_remaining
+       FROM repy_game_participants
+       WHERE game_id = ?
+       ORDER BY id ASC
+       FOR UPDATE`,
+      [gameId],
+    );
+    const activePlayers = getActiveRepyGamePlayers(updatedParticipantRows);
+    const winnerUserId = activePlayers.length === 1 ? activePlayers[0].userId : null;
+    let nextState = {
+      ...state,
+      strikes,
+      currentCard: null,
+      currentChallenge: null,
+      phase: REPY_GAME_PHASE_AWAITING_DRAW,
+      lastResult: {
+        ...feedback,
+        resolvedAt: new Date().toISOString(),
+      },
+    };
+
+    if (winnerUserId) {
+      nextState = { ...nextState, phase: 'completed', currentPlayerUserId: winnerUserId };
+      await conn.execute(
+        `UPDATE repy_games SET status = 'completed', winner_user_id = ?, completed_at = COALESCE(completed_at, NOW()) WHERE id = ?`,
+        [winnerUserId, gameId],
+      );
+    } else {
+      const turn = getNextTurnForRepyGame({ state: nextState, participantRows: updatedParticipantRows, skipCount });
+      nextState = {
+        ...nextState,
+        turnOrder: turn.turnOrder,
+        turnIndex: turn.turnIndex,
+        currentPlayerUserId: turn.currentPlayerUserId,
+        round: turn.round,
+      };
+    }
+
+    await conn.execute(
+      `UPDATE repy_games SET metadata_json = ? WHERE id = ?`,
+      [JSON.stringify({ ...metadata, gameplay: nextState }), gameId],
+    );
+
+    await conn.commit();
+    const lobby = await buildRepyGameLobbyResponse(gameId, userId);
+    emitRepyGameUpdate(req, gameId, lobby || {});
+    return res.json({ success: true, game: lobby });
+  } catch (error) {
+    if (conn) await conn.rollback();
+    return res.status(500).json({ error: error.message || 'Failed to resolve RepyGames card' });
+  } finally {
+    if (conn) conn.release();
+  }
+});
+
+router.post('/repy-games/:gameId/cancel', authMutationRateLimit, requireAuth('user'), async (req, res) => {
+  try {
+    await ensureRepyGameInfrastructureOnce();
+    const gameId = toNumber(req.params?.gameId);
+    const userId = getRequestUserId(req);
+    const [gameRows] = await pool.execute(
+      `SELECT id, host_user_id, status FROM repy_games WHERE id = ? LIMIT 1`,
+      [gameId],
+    );
+    const game = gameRows[0];
+    if (!game) return res.status(404).json({ error: 'RepyGames match not found' });
+    if (Number(game.host_user_id || 0) !== userId) {
+      return res.status(403).json({ error: 'Only the host can end this RepyGames match' });
+    }
+    const currentStatus = String(game.status || '');
+    if (['completed', REPY_GAME_STATUS_CANCELLED, 'expired', 'abandoned', 'invalid'].includes(currentStatus)) {
+      const lobby = await buildRepyGameLobbyResponse(gameId, userId);
+      return res.json({ success: true, alreadyEnded: true, game: lobby });
+    }
+
+    const [result] = await pool.execute(
+      `UPDATE repy_games
+       SET status = ?, completed_at = COALESCE(completed_at, NOW())
+       WHERE id = ? AND host_user_id = ? AND status IN ('pending','waiting_for_players','ready','starting','playing','active')`,
+      [REPY_GAME_STATUS_CANCELLED, gameId, userId],
+    );
+    if (!Number(result?.affectedRows || 0)) {
+      const lobby = await buildRepyGameLobbyResponse(gameId, userId);
+      return res.status(409).json({ error: 'This RepyGames match cannot be cancelled', game: lobby });
+    }
+    await pool.execute(
+      `UPDATE repy_game_participants SET status = 'cancelled' WHERE game_id = ?`,
+      [gameId],
+    );
+    const lobby = await buildRepyGameLobbyResponse(gameId, userId);
+    emitRepyGameUpdate(req, gameId, lobby || {});
+    return res.json({ success: true, game: lobby });
+  } catch (error) {
+    return res.status(500).json({ error: error.message || 'Failed to cancel RepyGames match' });
+  }
+});
+
+router.post('/repy-games/:gameId/finalize', authMutationRateLimit, requireAuth('user'), async (req, res) => {
+  try {
+    const gameId = toNumber(req.params?.gameId);
+    const requestUserId = getRequestUserId(req);
+    if (!gameId || gameId <= 0) {
+      return res.status(400).json({ error: 'Valid gameId is required' });
+    }
+
+    await ensureRepyGameInfrastructureOnce();
+
+    const [participantRows] = await pool.execute(
+      `SELECT user_id
+       FROM repy_game_participants
+       WHERE game_id = ? AND user_id = ?
+       LIMIT 1`,
+      [gameId, requestUserId],
+    );
+
+    if (!participantRows.length) {
+      return res.status(403).json({ error: 'Only RepyGames participants can finalize this match' });
+    }
+
+    const result = await awardRepyGameLeaderboardPoints(gameId);
+    if (!result.success) {
+      return res.status(result.statusCode || 400).json({ error: result.error || 'Failed to award RepyGames points' });
+    }
+
+    return res.json(result);
+  } catch (error) {
+    return res.status(500).json({ error: error.message || 'Failed to finalize RepyGames match' });
+  }
+});
+
 // =========================
 // PROGRAMS
 // =========================
@@ -13204,12 +14924,15 @@ router.post('/friend-challenges/complete', authMutationRateLimit, requireAuth('u
 router.get('/user/:userId/program', async (req, res) => {
   try {
     const { userId } = req.params;
+    await ensureHyroxAutoProgression(userId);
 
     const [assignmentRows] = await pool.execute(
       `SELECT pa.id, pa.program_id, pa.start_date, pa.next_rotation_date, pa.rotation_weeks,
-              p.name, p.program_type, p.goal, p.days_per_week, p.cycle_weeks
+              p.name, p.program_type, p.goal, p.days_per_week, p.cycle_weeks,
+              u.gender
        FROM program_assignments pa
        JOIN programs p ON p.id = pa.program_id
+       LEFT JOIN users u ON u.id = pa.user_id
        WHERE pa.user_id = ? AND pa.status = 'active'
        ORDER BY pa.created_at DESC
        LIMIT 1`,
@@ -13257,21 +14980,40 @@ router.get('/user/:userId/program', async (req, res) => {
       [assignment.program_id]
     );
 
+    const normalizedExerciseRows = exerciseRows.map((row) => ({
+      id: Number(row.workout_exercise_id || 0) || null,
+      exerciseName: row.exercise_name_snapshot,
+      targetMuscles: parseMuscleGroups(row.muscle_group_snapshot),
+      muscleGroup: parseMuscleGroups(row.muscle_group_snapshot)[0] || null,
+      sets: row.target_sets,
+      reps: row.target_reps,
+      targetWeight: row.target_weight,
+      rest: row.rest_seconds,
+      tempo: row.tempo,
+      rpeTarget: row.rpe_target,
+      notes: row.notes,
+      workoutId: row.workout_id,
+    }));
+    const mediaLookup = await getExerciseMediaForExercises(
+      normalizedExerciseRows.map((exercise, index) => ({
+        mediaKey: String(exercise.id || `${exercise.exerciseName || 'exercise'}-${index}`),
+        id: exercise.id,
+        name: exercise.exerciseName,
+        exerciseName: exercise.exerciseName,
+      })),
+      { gender: assignment.gender },
+    );
+
     const exercisesByWorkout = new Map();
-    exerciseRows.forEach((row) => {
-      if (!exercisesByWorkout.has(row.workout_id)) exercisesByWorkout.set(row.workout_id, []);
-      exercisesByWorkout.get(row.workout_id).push({
-        id: Number(row.workout_exercise_id || 0) || null,
-        exerciseName: row.exercise_name_snapshot,
-        targetMuscles: parseMuscleGroups(row.muscle_group_snapshot),
-        muscleGroup: parseMuscleGroups(row.muscle_group_snapshot)[0] || null,
-        sets: row.target_sets,
-        reps: row.target_reps,
-        targetWeight: row.target_weight,
-        rest: row.rest_seconds,
-        tempo: row.tempo,
-        rpeTarget: row.rpe_target,
-        notes: row.notes,
+    normalizedExerciseRows.forEach((exercise, index) => {
+      if (!exercisesByWorkout.has(exercise.workoutId)) exercisesByWorkout.set(exercise.workoutId, []);
+      const mediaKey = String(exercise.id || `${exercise.exerciseName || 'exercise'}-${index}`);
+      const media = mediaLookup.byKey.get(mediaKey) || { primaryMedia: null, media: [] };
+      const { workoutId, ...exercisePayload } = exercise;
+      exercisesByWorkout.get(workoutId).push({
+        ...exercisePayload,
+        primaryMedia: media.primaryMedia || null,
+        media: Array.isArray(media.media) ? media.media : [],
       });
     });
 
@@ -13780,6 +15522,8 @@ router.get('/user/:userId/program-progress', async (req, res) => {
     if (!normalizedUserId) {
       return res.status(400).json({ error: 'Invalid userId' });
     }
+
+    await ensureHyroxAutoProgression(normalizedUserId);
 
     const [assignmentRows] = await pool.execute(
       `SELECT pa.id, pa.program_id, pa.start_date, pa.next_rotation_date, pa.rotation_weeks, pa.status,
@@ -17989,21 +19733,8 @@ router.get('/workout-summaries/:userId', requireAuth('user'), requireUserAccess(
 
 router.get('/exercises/catalog/filters', async (_req, res) => {
   try {
-    const [rows] = await pool.execute(
-      `SELECT body_part
-       FROM exercise_catalog
-       WHERE is_active = 1`,
-    );
-
-    const buckets = new Set(['All']);
-    rows.forEach((row) => {
-      const group = normalizeCatalogMuscleGroup(row.body_part);
-      if (group !== 'Other') buckets.add(group);
-    });
-
-    const preferredOrder = ['All', 'Chest', 'Back', 'Legs', 'Shoulders', 'Arms', 'Abs'];
-    const filters = preferredOrder.filter((f) => buckets.has(f));
-    return res.json({ filters });
+    const result = await listSupabaseExerciseFilters();
+    return res.json(result);
   } catch (error) {
     return res.status(500).json({ error: error.message });
   }
@@ -18017,8 +19748,15 @@ router.get('/exercises/catalog/muscles/resolve', async (req, res) => {
       return res.status(400).json({ error: 'Exercise name is required' });
     }
 
-    const exerciseId = await resolveCatalogIdByExerciseName(requestedName, requestedMuscle);
-    if (!exerciseId) {
+    const supabaseResult = await resolveSupabaseExerciseMusclesByName({
+      name: requestedName,
+      muscleHint: requestedMuscle,
+    });
+    if (supabaseResult) {
+      return res.json(supabaseResult);
+    }
+
+    {
       const fallbackRows = getExerciseFallbackMuscleRows({
         name: requestedName,
         bodyPart: requestedMuscle || null,
@@ -18052,47 +19790,6 @@ router.get('/exercises/catalog/muscles/resolve', async (req, res) => {
 
       return res.status(404).json({ error: 'Exercise catalog entry not found' });
     }
-
-    const [rows] = await pool.execute(
-      `SELECT
-         ec.id,
-         ec.canonical_name,
-         ec.body_part,
-         ecm.muscle_group,
-         ecm.role,
-         COALESCE(ecm.load_factor, 1) AS load_factor,
-         COALESCE(ecm.is_primary, 0) AS is_primary
-       FROM exercise_catalog ec
-       LEFT JOIN exercise_catalog_muscles ecm ON ecm.exercise_catalog_id = ec.id
-       WHERE ec.id = ? AND ec.is_active = 1
-       ORDER BY
-         COALESCE(ecm.is_primary, 0) DESC,
-         COALESCE(ecm.load_factor, 0) DESC,
-         ecm.muscle_group ASC`,
-      [exerciseId],
-    );
-
-    if (!Array.isArray(rows) || !rows.length) {
-      return res.status(404).json({ error: 'Exercise catalog entry not found' });
-    }
-
-    const firstRow = rows[0];
-    const fallbackRows = getExerciseFallbackMuscleRows({
-      name: firstRow.canonical_name,
-      bodyPart: firstRow.body_part,
-      muscleHint: requestedMuscle,
-    });
-    return res.json({
-      exercise: {
-        id: Number(firstRow.id || 0),
-        name: firstRow.canonical_name || null,
-        bodyPart: firstRow.body_part || null,
-      },
-      ...buildExerciseCatalogResponse({
-        rows,
-        fallbackRows,
-      }),
-    });
   } catch (error) {
     return res.status(500).json({ error: error.message });
   }
@@ -18105,46 +19802,12 @@ router.get('/exercises/catalog/:exerciseId/muscles', async (req, res) => {
       return res.status(400).json({ error: 'Invalid exercise catalog id' });
     }
 
-    const [rows] = await pool.execute(
-      `SELECT
-         ec.id,
-         ec.canonical_name,
-         ec.body_part,
-         ecm.muscle_group,
-         ecm.role,
-         COALESCE(ecm.load_factor, 1) AS load_factor,
-         COALESCE(ecm.is_primary, 0) AS is_primary
-       FROM exercise_catalog ec
-       LEFT JOIN exercise_catalog_muscles ecm ON ecm.exercise_catalog_id = ec.id
-       WHERE ec.id = ? AND ec.is_active = 1
-       ORDER BY
-         COALESCE(ecm.is_primary, 0) DESC,
-         COALESCE(ecm.load_factor, 0) DESC,
-         ecm.muscle_group ASC`,
-      [exerciseId],
-    );
-
-    if (!Array.isArray(rows) || !rows.length) {
+    const result = await getSupabaseExerciseMuscles(exerciseId);
+    if (!result) {
       return res.status(404).json({ error: 'Exercise catalog entry not found' });
     }
 
-    const firstRow = rows[0];
-    const fallbackRows = getExerciseFallbackMuscleRows({
-      name: firstRow.canonical_name,
-      bodyPart: firstRow.body_part,
-      muscleHint: firstRow.body_part,
-    });
-    return res.json({
-      exercise: {
-        id: Number(firstRow.id || 0),
-        name: firstRow.canonical_name || null,
-        bodyPart: firstRow.body_part || null,
-      },
-      ...buildExerciseCatalogResponse({
-        rows,
-        fallbackRows,
-      }),
-    });
+    return res.json(result);
   } catch (error) {
     return res.status(500).json({ error: error.message });
   }
@@ -18153,66 +19816,22 @@ router.get('/exercises/catalog/:exerciseId/muscles', async (req, res) => {
 router.get('/exercises/catalog', async (req, res) => {
   try {
     const limitRaw = Number(req.query.limit || 200);
-    const limit = Math.min(500, Math.max(1, Number.isFinite(limitRaw) ? limitRaw : 200));
+    const limit = Math.min(1000, Math.max(1, Number.isFinite(limitRaw) ? limitRaw : 1000));
+    const offsetRaw = Number(req.query.offset || 0);
+    const offset = Math.max(0, Number.isFinite(offsetRaw) ? offsetRaw : 0);
     const filter = String(req.query.filter || 'All').trim();
-    const search = String(req.query.search || '').trim().toLowerCase();
+    const search = String(req.query.search || '').trim();
+    const gender = String(req.query.gender || req.query.audience || '').trim();
 
-    const whereParts = ['ec.is_active = 1'];
-    const params = [];
-
-    if (search) {
-      whereParts.push('(LOWER(ec.canonical_name) LIKE ? OR LOWER(COALESCE(ec.description, \'\')) LIKE ?)');
-      params.push(`%${search}%`, `%${search}%`);
-    }
-
-    const filterLower = filter.toLowerCase();
-    if (filterLower !== 'all') {
-      if (filterLower === 'chest') whereParts.push(`LOWER(COALESCE(ec.body_part, '')) REGEXP 'chest|pector'`);
-      else if (filterLower === 'back') whereParts.push(`LOWER(COALESCE(ec.body_part, '')) REGEXP 'back|lat|trap|rhomboid|erector'`);
-      else if (filterLower === 'legs') whereParts.push(`LOWER(COALESCE(ec.body_part, '')) REGEXP 'quad|hamstring|glute|calf|leg'`);
-      else if (filterLower === 'shoulders') whereParts.push(`LOWER(COALESCE(ec.body_part, '')) REGEXP 'shoulder|delt'`);
-      else if (filterLower === 'arms') whereParts.push(`LOWER(COALESCE(ec.body_part, '')) REGEXP 'bicep|tricep|forearm|arm'`);
-      else if (filterLower === 'abs') whereParts.push(`LOWER(COALESCE(ec.body_part, '')) REGEXP 'abs|abdom|core|oblique'`);
-    }
-
-    const [rows] = await pool.query(
-      `SELECT
-         ec.id,
-         ec.canonical_name,
-         ec.body_part,
-         ec.description,
-         ec.equipment,
-         ec.level,
-         ec.exercise_type
-       FROM exercise_catalog ec
-       WHERE ${whereParts.join(' AND ')}
-       ORDER BY ec.canonical_name ASC
-       LIMIT ${limit}`,
-      params,
-    );
-
-    const normalized = rows.map((row) => {
-      const videoLink = resolveExerciseVideoManifest({
-        name: row.canonical_name,
-        bodyPart: row.body_part,
-      });
-
-      return {
-        id: Number(row.id),
-        name: row.canonical_name,
-        muscle: normalizeCatalogMuscleGroup(row.body_part),
-        bodyPart: row.body_part || null,
-        description: row.description || null,
-        equipment: row.equipment || null,
-        level: row.level || null,
-        type: row.exercise_type || null,
-        hasLinkedVideo: videoLink.matchType === 'alias',
-        linkedVideoAsset: videoLink.fileName || null,
-        linkedVideoMatchType: videoLink.matchType,
-      };
+    const result = await listSupabaseExercises({
+      filter,
+      search,
+      limit,
+      offset,
+      gender,
     });
 
-    return res.json({ exercises: normalized });
+    return res.json(result);
   } catch (error) {
     return res.status(500).json({ error: error.message });
   }

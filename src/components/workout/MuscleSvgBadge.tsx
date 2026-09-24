@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { memo, useEffect, useState } from 'react';
 import { useBodyPaths, type BodyPathView } from '../BodyMap';
 import {
   BODY_MAP_INERT,
@@ -53,7 +53,7 @@ const getMuscleBadgeViewBox = (view: BodyPathView, slugs: BodyMapMuscle[]) => {
   return `${cropX} ${cropY} ${cropWidth} ${cropHeight}`;
 };
 
-export function MuscleSvgBadge({
+export const MuscleSvgBadge = memo(function MuscleSvgBadge({
   muscle,
   align = 'left',
   className = 'w-[88px]',
@@ -164,4 +164,4 @@ export function MuscleSvgBadge({
       )}
     </div>
   );
-}
+});

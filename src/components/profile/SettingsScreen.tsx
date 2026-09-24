@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Header } from '../ui/Header';
-import { Bell, Shield, User, MapPin, ChevronDown, ChevronRight, Eye, EyeOff, Languages } from 'lucide-react';
+import { Bell, Shield, User, ChevronDown, ChevronRight, Eye, EyeOff, Languages } from 'lucide-react';
 import { applyTheme, getActiveTheme, getStoredTheme } from '../../services/theme';
 import { AppLanguage, applyLanguage, getActiveLanguage, getStoredLanguage, normalizeLocalizedValue } from '../../services/language';
 import { api } from '../../services/api';
@@ -33,6 +33,7 @@ type NotificationPreferenceKey =
   | 'subscription';
 
 const APP_STYLE_GENDER_STORAGE_KEY = 'appStyleGender';
+const APP_STYLE_GENDER_CHANGED_EVENT = 'repset:app-style-gender-changed';
 
 const normalizeStyleGender = (value: unknown): 'male' | 'female' => {
   const normalized = String(value || '').trim().toLowerCase();
@@ -43,14 +44,14 @@ const normalizeStyleGender = (value: unknown): 'male' | 'female' => {
 
 const getStoredAppStyleGender = () => {
   if (typeof window === 'undefined') return normalizeStyleGender(getStoredAppUser()?.gender);
-  const saved = window.localStorage.getItem(APP_STYLE_GENDER_STORAGE_KEY);
-  return saved ? normalizeStyleGender(saved) : normalizeStyleGender(getStoredAppUser()?.gender);
+  return normalizeStyleGender(getStoredAppUser()?.gender);
 };
 
-const setStoredAppStyleGender = (gender: 'male' | 'female') => {
+const syncStoredAppStyleGender = (gender: unknown) => {
   if (typeof window === 'undefined') return;
-  window.localStorage.setItem(APP_STYLE_GENDER_STORAGE_KEY, gender);
-  window.dispatchEvent(new CustomEvent('repset:app-style-gender-changed', { detail: { gender } }));
+  const normalizedGender = normalizeStyleGender(gender);
+  window.localStorage.setItem(APP_STYLE_GENDER_STORAGE_KEY, normalizedGender);
+  window.dispatchEvent(new CustomEvent(APP_STYLE_GENDER_CHANGED_EVENT, { detail: { gender: normalizedGender } }));
 };
 
 const NOTIFICATION_CATEGORY_LABELS: Record<AppLanguage, Record<Exclude<NotificationPreferenceKey, 'coachMessages' | 'restTimer' | 'missionChallenge'>, string>> = {
@@ -795,7 +796,7 @@ const PRIVACY_POLICY_DOCUMENT = {
     'RepSet © 2026. This document constitutes the complete privacy policy and governs your use of the RepSet application. Existing account holders are considered to have accepted these terms. All rights reserved.',
 } as const;
 
-export function SettingsScreen({ onBack, onOpenGym, onOpenHomeTour }: SettingsScreenProps) {
+export function SettingsScreen({ onBack, onOpenHomeTour }: SettingsScreenProps) {
   const [theme, setTheme] = useState<'dark' | 'light'>('dark');
   const [appStyleGender, setAppStyleGender] = useState<'male' | 'female'>('male');
   const [language, setLanguage] = useState<AppLanguage>('en');
@@ -925,6 +926,38 @@ export function SettingsScreen({ onBack, onOpenGym, onOpenHomeTour }: SettingsSc
     };
   }, []);
 
+  useEffect(() => {
+    const syncAppStyleFromProfile = async () => {
+      const storedUser = getStoredAppUser();
+      const userId = Number(storedUser?.id || storedUser?.userId || 0);
+      if (!userId) {
+        const fallbackGender = normalizeStyleGender(storedUser?.gender);
+        setAppStyleGender(fallbackGender);
+        syncStoredAppStyleGender(fallbackGender);
+        return;
+      }
+
+      try {
+        const details = await api.getProfileDetails(userId);
+        const databaseGender = details?.gender || storedUser?.gender;
+        const nextGender = normalizeStyleGender(databaseGender);
+        setAppStyleGender(nextGender);
+        setBodyMapBody(resolvePreferredBodyMapBody(nextGender));
+        syncStoredAppStyleGender(nextGender);
+        persistStoredUser({
+          ...storedUser,
+          gender: databaseGender || nextGender,
+        });
+      } catch {
+        const fallbackGender = normalizeStyleGender(storedUser?.gender);
+        setAppStyleGender(fallbackGender);
+        syncStoredAppStyleGender(fallbackGender);
+      }
+    };
+
+    void syncAppStyleFromProfile();
+  }, []);
+
   const handleThemeChange = (nextTheme: 'dark' | 'light') => {
     applyTheme(nextTheme, true);
     setTheme(nextTheme);
@@ -938,44 +971,6 @@ export function SettingsScreen({ onBack, onOpenGym, onOpenHomeTour }: SettingsSc
   const handleBodyMapBodyChange = (nextBody: BodyMapBody) => {
     setStoredBodyMapBodyPreference(nextBody);
     setBodyMapBody(nextBody);
-  };
-
-  const handleAppStyleGenderChange = (nextGender: 'male' | 'female') => {
-    setAppStyleGender(nextGender);
-    setStoredAppStyleGender(nextGender);
-    setStoredBodyMapBodyPreference(nextGender);
-    setBodyMapBody(nextGender);
-    setPersonalDetails((prev) => ({ ...prev, gender: nextGender }));
-
-    const storedUser = getStoredAppUser() || {};
-    persistStoredUser({
-      ...storedUser,
-      gender: nextGender,
-    });
-
-    const userId = Number(storedUser?.id || storedUser?.userId || 0);
-    if (!userId) return;
-
-    void (async () => {
-      try {
-        const details = await api.getProfileDetails(userId);
-        await api.updateProfileDetails(userId, {
-          name: details?.name || storedUser?.name || '',
-          email: details?.email || storedUser?.email || '',
-          age: details?.age ?? null,
-          gender: nextGender,
-          heightCm: details?.heightCm ?? null,
-          weightKg: details?.weightKg ?? null,
-          primaryGoal: details?.primaryGoal || '',
-          fitnessGoal: details?.fitnessGoal || '',
-          experienceLevel: details?.experienceLevel || '',
-          sessionDuration: details?.sessionDuration ?? undefined,
-          preferredTime: details?.preferredTime || undefined,
-        });
-      } catch (error) {
-        console.warn('Failed to sync app style gender to profile:', error);
-      }
-    })();
   };
 
   useEffect(() => {
@@ -1038,6 +1033,9 @@ export function SettingsScreen({ onBack, onOpenGym, onOpenHomeTour }: SettingsSc
           fitnessGoal: data?.fitnessGoal || '',
           experienceLevel: data?.experienceLevel || '',
         });
+        const nextGender = normalizeStyleGender(data?.gender);
+        setAppStyleGender(nextGender);
+        syncStoredAppStyleGender(nextGender);
       } catch (error: any) {
         const fallbackCopy = SETTINGS_I18N_WITH_DE[getStoredLanguage()] || SETTINGS_I18N_WITH_DE.en;
         setDetailsError(error?.message || fallbackCopy.failedLoadPersonalDetails);
@@ -1071,6 +1069,9 @@ export function SettingsScreen({ onBack, onOpenGym, onOpenHomeTour }: SettingsSc
         gender: personalDetails.gender,
       };
       persistStoredUser(nextUser);
+      const nextStyleGender = normalizeStyleGender(personalDetails.gender);
+      setAppStyleGender(nextStyleGender);
+      syncStoredAppStyleGender(nextStyleGender);
       setDetailsMessage(copy.savedSuccessfully);
     } catch (error: any) {
       setDetailsError(error?.message || copy.failedSavePersonalDetails);
@@ -1403,27 +1404,6 @@ export function SettingsScreen({ onBack, onOpenGym, onOpenHomeTour }: SettingsSc
       </div>
 
       <div className="px-4 sm:px-6 space-y-8">
-        <button
-          type="button"
-          onClick={() => onOpenGym?.()}
-          className={`w-full rounded-xl p-4 flex items-center justify-between transition-colors ${
-            isGirlsTheme
-              ? 'border border-[#CFECF3]/70 bg-[linear-gradient(135deg,rgba(255,255,255,0.84),rgba(207,236,243,0.34))] shadow-[0_14px_34px_rgba(207,236,243,0.18)] hover:border-[#F9B2D7]/70 hover:bg-white/80'
-              : 'bg-card border border-white/5 hover:bg-white/5'
-          }`}
-        >
-          <div className="flex items-center gap-3">
-            <div className={`p-2 rounded-lg ${iconChipClassName}`}>
-              <MapPin size={20} />
-            </div>
-            <div className="text-left">
-              <div className={`font-medium ${primaryTextClassName}`}>{copy.gymAccess}</div>
-              <div className={`text-xs ${secondaryTextClassName}`}>{copy.gymLocation}</div>
-            </div>
-          </div>
-          <ChevronRight size={20} className={tertiaryTextClassName} />
-        </button>
-
         {sections.map((section, i) =>
         <div key={i} className="space-y-3">
             <h3 className={`text-sm font-medium uppercase tracking-wider px-2 ${sectionTitleClassName}`}>
@@ -1648,17 +1628,18 @@ export function SettingsScreen({ onBack, onOpenGym, onOpenHomeTour }: SettingsSc
                     <button
                       key={option.value}
                       type="button"
-                      onClick={() => handleAppStyleGenderChange(option.value)}
                       aria-pressed={isActive}
+                      aria-disabled="true"
+                      disabled
                       className={`min-w-[74px] rounded-lg px-3 py-2 text-xs font-semibold transition-colors ${
                         isActive
                           ? option.value === 'female'
                             ? 'bg-[#F9B2D7] text-[#4A4A4A] shadow-[0_0_18px_rgba(226,180,189,0.28)]'
                             : 'bg-accent text-black shadow-[0_0_18px_rgba(var(--color-accent),0.25)]'
                           : isGirlsTheme
-                            ? 'text-[#795E67] hover:bg-white/70 hover:text-[#4A4A4A]'
-                            : 'text-text-secondary hover:bg-white/5 hover:text-white'
-                      }`}
+                            ? 'text-[#795E67]'
+                            : 'text-text-secondary'
+                      } cursor-not-allowed disabled:opacity-100`}
                     >
                       {option.label}
                     </button>

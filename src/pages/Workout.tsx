@@ -20,7 +20,7 @@ import {
   WORKOUT_TRACKER_COACHMARK_TOUR_ID,
   WORKOUT_TRACKER_COACHMARK_VERSION,
 } from '../services/coachmarks';
-import { resolveExerciseVideoUrl } from '../services/exerciseVideos';
+import { resolveExerciseVideoUrl, type ExerciseRemoteMedia } from '../services/exerciseVideos';
 import { formatWorkoutDayLabel, normalizeWorkoutDayKey } from '../services/workoutDayLabel';
 import { AppLanguage, getActiveLanguage, getStoredLanguage, pickLanguage } from '../services/language';
 import {
@@ -74,6 +74,8 @@ type TodayWorkoutExercise = {
   tempo: string | null;
   rpeTarget: number | null;
   notes: string | null;
+  primaryMedia?: ExerciseRemoteMedia | null;
+  media?: ExerciseRemoteMedia[];
   isExtra: boolean;
 };
 
@@ -86,6 +88,32 @@ type WeekPlanWorkout = {
   exercises: TodayWorkoutExercise[];
   isToday: boolean;
   dayOrder: number;
+};
+
+const isHyroxProgramSnapshot = (program: any) => {
+  const workoutText = [
+    program?.name,
+    program?.programName,
+    program?.programType,
+    program?.program_type,
+    program?.goal,
+    program?.athleteGoal,
+    program?.hyroxLevel,
+    program?.description,
+    ...(Array.isArray(program?.currentWeekWorkouts) ? program.currentWeekWorkouts : []),
+    ...(Array.isArray(program?.workouts) ? program.workouts : []),
+  ].map((entry: any) => {
+    if (!entry || typeof entry !== 'object') return String(entry || '');
+    return [
+      entry.workout_name,
+      entry.name,
+      entry.day_name,
+      entry.workout_type,
+      entry.notes,
+    ].join(' ');
+  }).join(' ').toLowerCase();
+
+  return /\bhyrox\b/.test(workoutText);
 };
 
 type RecoveryMuscleStatus = {
@@ -529,6 +557,8 @@ const normalizeWorkoutExerciseEntry = (ex: any, isExtra: boolean): TodayWorkoutE
   tempo: ex?.tempo || null,
   rpeTarget: Number(ex?.rpeTarget ?? ex?.rpe_target ?? 0) || null,
   notes: ex?.notes || null,
+  primaryMedia: ex?.primaryMedia || ex?.primary_media || null,
+  media: Array.isArray(ex?.media) ? ex.media : [],
   isExtra,
 });
 
@@ -557,8 +587,41 @@ const serializeTodayExercisesSnapshot = (exercises: TodayWorkoutExercise[]) =>
     tempo: exercise.tempo,
     rpeTarget: exercise.rpeTarget,
     notes: exercise.notes,
+    primaryMedia: exercise.primaryMedia || null,
+    media: Array.isArray(exercise.media) ? exercise.media : [],
     isExtra: exercise.isExtra,
   }));
+
+const mergeExerciseMediaFromPlan = (
+  exercises: TodayWorkoutExercise[],
+  planExercises: TodayWorkoutExercise[],
+) => {
+  const mediaByName = new Map<string, TodayWorkoutExercise>();
+  planExercises.forEach((exercise) => {
+    const key = normalizeExerciseLookupName(exercise.exerciseName);
+    if (!key) return;
+    if (exercise.primaryMedia || (Array.isArray(exercise.media) && exercise.media.length > 0)) {
+      mediaByName.set(key, exercise);
+    }
+  });
+
+  if (!mediaByName.size) return exercises;
+
+  return exercises.map((exercise) => {
+    if (exercise.primaryMedia || (Array.isArray(exercise.media) && exercise.media.length > 0)) {
+      return exercise;
+    }
+
+    const mediaSource = mediaByName.get(normalizeExerciseLookupName(exercise.exerciseName));
+    if (!mediaSource) return exercise;
+
+    return {
+      ...exercise,
+      primaryMedia: mediaSource.primaryMedia || null,
+      media: Array.isArray(mediaSource.media) ? mediaSource.media : [],
+    };
+  });
+};
 
 const getGenericWorkoutLabels = (language: AppLanguage) =>
   pickLanguage(language, {
@@ -1247,6 +1310,7 @@ export function Workout({
     ? todayExercises
     : (selectedWeekWorkout?.exercises || []);
   const detailCompletedExercises = isSelectedWorkoutPickedForToday ? completedExercises : [];
+  const isHyroxMode = useMemo(() => isHyroxProgramSnapshot(userProgram), [userProgram]);
   const planCoachmarkSteps = useMemo<CoachmarkStep[]>(
     () => [
       {
@@ -1812,7 +1876,7 @@ export function Workout({
 
         syncTodayExercises(
           storedState.hasExerciseSnapshot
-            ? normalizedSnapshot
+            ? mergeExerciseMediaFromPlan(normalizedSnapshot, nextSelectedWorkout.exercises || [])
             : [...(nextSelectedWorkout.exercises || []), ...normalizedExtras],
         );
         setCurrentWorkoutDayLabel(String(nextSelectedWorkout.dayLabel || workoutDay).trim() || 'Workout');
@@ -2906,6 +2970,7 @@ export function Workout({
           loading={isSelectedWorkoutPickedForToday ? loading : false}
           allowEditing={isSelectedWorkoutPickedForToday}
           isDayFullyDone={isSelectedWorkoutPickedForToday && !!todayWorkoutSelection?.completed}
+          isHyroxMode={isHyroxMode}
         />
       </>
     );
@@ -3001,6 +3066,8 @@ export function Workout({
           workoutType: String(currentWorkoutName || currentWorkoutDayLabel || '').trim(),
           isCardio: isCardioSession,
           exerciseCatalogId: selectedWorkoutExercise?.exerciseCatalogId ?? null,
+          primaryMedia: selectedWorkoutExercise?.primaryMedia || null,
+          media: Array.isArray(selectedWorkoutExercise?.media) ? selectedWorkoutExercise.media : [],
           targetMuscles,
           importance: `Technique reference for ${resolvedExerciseName}.`,
           anatomy: targetMuscles,
@@ -3009,6 +3076,8 @@ export function Workout({
             muscle: primaryMuscle,
             bodyPart: videoBodyPartHint,
             targetMuscles,
+            primaryMedia: selectedWorkoutExercise?.primaryMedia || null,
+            media: Array.isArray(selectedWorkoutExercise?.media) ? selectedWorkoutExercise.media : [],
           }),
         }}
       />

@@ -951,9 +951,48 @@ const getActiveViewerId = () => {
   }
 };
 
+const isGirlsStyleValue = (value: unknown) => {
+  const normalized = String(value || '').trim().toLowerCase();
+  return normalized === 'woman' || normalized === 'female' || normalized === 'f' || normalized === 'girls';
+};
+
+const readFriendProfileStyleGender = () => {
+  try {
+    return String(localStorage.getItem('appStyleGender') || '').trim().toLowerCase();
+  } catch {
+    return '';
+  }
+};
+
+const readFriendProfileStoredUser = () => {
+  try {
+    return JSON.parse(localStorage.getItem('appUser') || localStorage.getItem('user') || '{}');
+  } catch {
+    return {};
+  }
+};
+
+const readFriendProfileOnboardingProfile = (user: any) => {
+  const rawProfile = user?.onboarding_profile || user?.onboardingProfile;
+  if (!rawProfile) return {};
+  if (typeof rawProfile === 'object') return rawProfile;
+  try {
+    return JSON.parse(String(rawProfile));
+  } catch {
+    return {};
+  }
+};
+
+const shouldUseGirlsFriendProfileTheme = (user: any, styleGender: string) => {
+  if (styleGender) return isGirlsStyleValue(styleGender);
+  const profile = readFriendProfileOnboardingProfile(user);
+  return isGirlsStyleValue(user?.gender) || isGirlsStyleValue(profile?.gender) || profile?.onboardingTheme === 'girls';
+};
+
 export function FriendProfile({ onBack, onChallenge, friend }: FriendProfileProps) {
   useScreenshotProtection();
   const [language, setLanguage] = useState<AppLanguage>(() => getActiveLanguage());
+  const [themeRefreshKey, setThemeRefreshKey] = useState(0);
   const [showInvite, setShowInvite] = useState(false);
   const [showAvatarPreview, setShowAvatarPreview] = useState(false);
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
@@ -972,6 +1011,29 @@ export function FriendProfile({ onBack, onChallenge, friend }: FriendProfileProp
   const [friendChallengeWins, setFriendChallengeWins] = useState<FriendChallengeWinStats>(() => createEmptyChallengeWinStats());
 
   const copy = pickLanguage(language, FRIEND_PROFILE_I18N);
+  const isGirlsTheme = useMemo(
+    () => shouldUseGirlsFriendProfileTheme(readFriendProfileStoredUser(), readFriendProfileStyleGender()),
+    [themeRefreshKey],
+  );
+  const pageClassName = isGirlsTheme
+    ? 'flex-1 flex flex-col min-h-screen pb-24 bg-[radial-gradient(circle_at_top_left,rgba(249,178,215,0.22),transparent_34%),radial-gradient(circle_at_85%_8%,rgba(207,236,243,0.34),transparent_32%),linear-gradient(180deg,#FFF5F5_0%,#F7D6D0_52%,#FFF5F5_100%)] text-[#4A4A4A] [&_h1]:text-[#4A4A4A]'
+    : 'flex-1 flex flex-col bg-background min-h-screen pb-24';
+  const sectionTitleClassName = isGirlsTheme
+    ? 'text-sm font-bold uppercase tracking-wider text-[#A87884]'
+    : 'text-sm font-bold uppercase tracking-wider text-text-secondary';
+  const primaryTextClassName = isGirlsTheme ? 'text-[#4A4A4A]' : 'text-white';
+  const secondaryTextClassName = isGirlsTheme ? 'text-[#795E67]' : 'text-text-secondary';
+  const tertiaryTextClassName = isGirlsTheme ? 'text-[#A87884]' : 'text-text-tertiary';
+  const accentTextClassName = isGirlsTheme ? 'text-[#A87884]' : 'text-accent';
+  const accentButtonClassName = isGirlsTheme
+    ? 'bg-[#F9B2D7] text-[#4A4A4A] shadow-[0_14px_30px_rgba(249,178,215,0.24)] hover:bg-[#E2B4BD]'
+    : 'bg-accent text-black hover:bg-accent/90';
+  const softCardClassName = isGirlsTheme
+    ? 'border border-[#E2B4BD]/45 bg-white/[0.70] text-[#795E67] shadow-[0_12px_28px_rgba(226,180,189,0.12)]'
+    : 'border border-white/10 text-text-secondary';
+  const planCardClassName = isGirlsTheme
+    ? 'relative overflow-hidden border border-[#E2B4BD]/45 bg-[radial-gradient(circle_at_top_right,rgba(249,178,215,0.22),transparent_30%),radial-gradient(circle_at_bottom_left,rgba(207,236,243,0.28),transparent_28%),linear-gradient(160deg,rgba(255,255,255,0.88),rgba(255,245,245,0.82))] p-4 shadow-[0_16px_38px_rgba(226,180,189,0.18)] transition-all duration-200 hover:border-[#F9B2D7]/70'
+    : 'relative overflow-hidden border border-white/12 bg-[radial-gradient(circle_at_top_right,rgba(34,211,238,0.14),transparent_30%),radial-gradient(circle_at_bottom_left,rgba(187,255,92,0.1),transparent_28%),linear-gradient(160deg,rgba(20,24,31,0.98),rgba(11,15,24,0.98))] p-4 transition-all duration-200 hover:border-accent/35';
 
   const friendId = Number(friend?.id || 0);
   const fallbackFriendName = getLocalizedFriendFallbackName(language);
@@ -1003,6 +1065,18 @@ export function FriendProfile({ onBack, onChallenge, friend }: FriendProfileProp
     return () => {
       window.removeEventListener('app-language-changed', handleLanguageChanged);
       window.removeEventListener('storage', handleLanguageChanged);
+    };
+  }, []);
+
+  useEffect(() => {
+    const refreshTheme = () => setThemeRefreshKey((current) => current + 1);
+    window.addEventListener('repset:stored-user-changed', refreshTheme);
+    window.addEventListener('repset:app-style-gender-changed', refreshTheme);
+    window.addEventListener('storage', refreshTheme);
+    return () => {
+      window.removeEventListener('repset:stored-user-changed', refreshTheme);
+      window.removeEventListener('repset:app-style-gender-changed', refreshTheme);
+      window.removeEventListener('storage', refreshTheme);
     };
   }, []);
 
@@ -1278,18 +1352,18 @@ export function FriendProfile({ onBack, onChallenge, friend }: FriendProfileProp
 
   if (!canViewProfile) {
     return (
-      <div className="flex-1 flex flex-col bg-background min-h-screen pb-24">
+      <div className={pageClassName}>
         <div className="px-4 sm:px-6 pt-2">
           <Header title={copy.profileTitle} onBack={onBack} />
         </div>
         <div className="px-4 sm:px-6 pt-8">
-          <Card className="p-5 border border-white/10">
-            <h2 className="text-lg font-semibold text-white">{copy.lockedTitle}</h2>
-            <p className="mt-2 text-sm text-text-secondary">{copy.lockedBody}</p>
+          <Card className={`p-5 ${softCardClassName}`}>
+            <h2 className={`text-lg font-semibold ${primaryTextClassName}`}>{copy.lockedTitle}</h2>
+            <p className={`mt-2 text-sm ${secondaryTextClassName}`}>{copy.lockedBody}</p>
             <button
               type="button"
               onClick={onBack}
-              className="mt-4 w-full rounded-xl bg-accent py-2.5 font-semibold text-black transition-colors hover:bg-accent/90"
+              className={`mt-4 w-full rounded-xl py-2.5 font-semibold transition-colors ${accentButtonClassName}`}
             >
               {copy.backToFriends}
             </button>
@@ -1453,7 +1527,7 @@ export function FriendProfile({ onBack, onChallenge, friend }: FriendProfileProp
   );
 
   return (
-    <div className="flex-1 flex flex-col bg-background min-h-screen pb-24">
+    <div className={pageClassName}>
       <div className="px-4 sm:px-6 pt-2">
         <Header
           title={view === 'plan' ? copy.planTitle : copy.profileTitle}
@@ -1466,7 +1540,7 @@ export function FriendProfile({ onBack, onChallenge, friend }: FriendProfileProp
       ) : (
         <div className="px-4 sm:px-6 space-y-6">
           <div className="mb-8 flex flex-col items-center pt-2">
-            <div className="mb-4 h-24 w-24 rounded-full bg-white/10 text-2xl font-bold text-white">
+            <div className={`mb-4 h-24 w-24 rounded-full text-2xl font-bold ${isGirlsTheme ? 'bg-white/70 text-[#A87884] shadow-[0_14px_34px_rgba(226,180,189,0.18)] ring-1 ring-[#E2B4BD]/45' : 'bg-white/10 text-white'}`}>
               {friendProfilePicture ? (
                 <button
                   type="button"
@@ -1486,10 +1560,10 @@ export function FriendProfile({ onBack, onChallenge, friend }: FriendProfileProp
                 </div>
               )}
             </div>
-            <h2 className="text-2xl font-bold text-white">{friendName}</h2>
+            <h2 className={`text-2xl font-bold ${primaryTextClassName}`}>{friendName}</h2>
             <div className="mt-2 flex items-center gap-2">
-              <Trophy size={16} className="text-yellow-500" />
-              <span className="text-sm text-text-secondary">
+              <Trophy size={16} className={isGirlsTheme ? 'text-[#D69A2D]' : 'text-yellow-500'} />
+              <span className={`text-sm ${secondaryTextClassName}`}>
                 {friendRank} · {copy.level(friendLevel)}
               </span>
             </div>
@@ -1499,21 +1573,21 @@ export function FriendProfile({ onBack, onChallenge, friend }: FriendProfileProp
             <button
               type="button"
               onClick={() => setShowInvite(true)}
-              className="w-full rounded-xl bg-accent py-3 font-bold text-black transition-colors hover:bg-accent/90"
+              className={`w-full rounded-xl py-3 font-bold transition-colors ${accentButtonClassName}`}
             >
               {copy.inviteToGymDay}
             </button>
             <button
               type="button"
               onClick={onChallenge}
-              className="w-full rounded-xl border border-white/15 bg-white/5 py-3 font-bold text-white transition-colors hover:bg-white/10"
+              className={`w-full rounded-xl border py-3 font-bold transition-colors ${isGirlsTheme ? 'border-[#E2B4BD]/55 bg-white/60 text-[#A87884] hover:bg-white/80' : 'border-white/15 bg-white/5 text-white hover:bg-white/10'}`}
             >
               {copy.challenge}
             </button>
           </div>
 
           <div className="space-y-3">
-            <h3 className="text-sm font-bold uppercase tracking-wider text-text-secondary">
+            <h3 className={sectionTitleClassName}>
               {copy.badges}
             </h3>
             <div className="flex flex-wrap justify-center gap-4 pb-2">
@@ -1528,7 +1602,9 @@ export function FriendProfile({ onBack, onChallenge, friend }: FriendProfileProp
                   >
                     <div
                       className={`relative flex h-16 w-16 items-center justify-center overflow-hidden rounded-full border shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] ${
-                        isUnlocked ? 'border-accent/30 bg-accent/12' : 'border-white/10 bg-card'
+                        isUnlocked
+                          ? (isGirlsTheme ? 'border-[#F9B2D7]/55 bg-[#F9B2D7]/20' : 'border-accent/30 bg-accent/12')
+                          : (isGirlsTheme ? 'border-[#E2B4BD]/45 bg-white/70' : 'border-white/10 bg-card')
                       }`}
                     >
                       <div className={`absolute inset-0 bg-gradient-to-br ${badge.accentClassName} ${isUnlocked ? 'opacity-100' : 'opacity-45'}`} />
@@ -1541,7 +1617,7 @@ export function FriendProfile({ onBack, onChallenge, friend }: FriendProfileProp
                       ) : (
                         <span
                           aria-label={getLocalizedBadgeAlt(language, badge.key)}
-                          className={`relative text-sm font-black tracking-[0.12em] ${isUnlocked ? 'text-white' : 'text-text-secondary'}`}
+                          className={`relative text-sm font-black tracking-[0.12em] ${isUnlocked ? primaryTextClassName : secondaryTextClassName}`}
                         >
                           {badge.title
                             .split(/\s+/)
@@ -1552,10 +1628,10 @@ export function FriendProfile({ onBack, onChallenge, friend }: FriendProfileProp
                         </span>
                       )}
                     </div>
-                    <div className={`text-sm font-black ${isUnlocked ? 'text-accent' : 'text-text-tertiary'}`}>
+                    <div className={`text-sm font-black ${isUnlocked ? accentTextClassName : tertiaryTextClassName}`}>
                       {winCount}
                     </div>
-                    <div className="text-center text-[10px] font-semibold uppercase leading-tight tracking-[0.08em] text-text-secondary">
+                    <div className={`text-center text-[10px] font-semibold uppercase leading-tight tracking-[0.08em] ${secondaryTextClassName}`}>
                       {badge.title}
                     </div>
                   </div>
@@ -1565,7 +1641,7 @@ export function FriendProfile({ onBack, onChallenge, friend }: FriendProfileProp
           </div>
 
           <div className="space-y-3">
-            <h3 className="text-sm font-bold uppercase tracking-wider text-text-secondary">
+            <h3 className={sectionTitleClassName}>
               {copy.trainingSplit}
             </h3>
             <button
@@ -1573,47 +1649,47 @@ export function FriendProfile({ onBack, onChallenge, friend }: FriendProfileProp
               onClick={() => setView('plan')}
               className="block w-full text-left"
             >
-              <Card className="relative overflow-hidden border border-white/12 bg-[radial-gradient(circle_at_top_right,rgba(34,211,238,0.14),transparent_30%),radial-gradient(circle_at_bottom_left,rgba(187,255,92,0.1),transparent_28%),linear-gradient(160deg,rgba(20,24,31,0.98),rgba(11,15,24,0.98))] p-4 transition-all duration-200 hover:border-accent/35">
+              <Card className={planCardClassName}>
                 <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(135deg,rgba(255,255,255,0.04),transparent_58%)]" />
                 <div className="relative">
                   <div className="flex items-start justify-between gap-4">
                     <div className="min-w-0">
-                      <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-accent">
+                      <div className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] ${isGirlsTheme ? 'border-[#E2B4BD]/45 bg-white/55 text-[#A87884]' : 'border-white/10 bg-white/[0.04] text-accent'}`}>
                         <Dumbbell size={12} />
                         {copy.trainingSplit}
                       </div>
-                      <h4 className="mt-3 text-xl font-semibold leading-tight text-white">
+                      <h4 className={`mt-3 text-xl font-semibold leading-tight ${primaryTextClassName}`}>
                         {translateProgramText(friendProgramName, language)}
                       </h4>
-                      <p className="mt-1 text-sm text-text-secondary">
+                      <p className={`mt-1 text-sm ${secondaryTextClassName}`}>
                         {copy.weekLabel(friendCurrentWeek, friendTotalWeeks)} · {copy.workoutsLabel(friendWorkouts.length)}
                       </p>
                     </div>
-                    <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-accent/25 bg-accent/10 text-accent">
+                    <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border ${isGirlsTheme ? 'border-[#F9B2D7]/45 bg-[#F9B2D7]/20 text-[#A87884]' : 'border-accent/25 bg-accent/10 text-accent'}`}>
                       <ArrowRight size={18} />
                     </div>
                   </div>
 
-                  <div className="mt-4 space-y-2 rounded-2xl border border-white/8 bg-black/15 p-3">
+                  <div className={`mt-4 space-y-2 rounded-2xl border p-3 ${isGirlsTheme ? 'border-[#E2B4BD]/35 bg-white/45' : 'border-white/8 bg-black/15'}`}>
                     {friendPlanLoading ? (
-                      <div className="text-sm text-text-secondary">{copy.planLoading}</div>
+                      <div className={`text-sm ${secondaryTextClassName}`}>{copy.planLoading}</div>
                     ) : friendPlanFailed ? (
                       <div className="text-sm text-red-200">{copy.planError}</div>
                     ) : splitPreviewRows.length === 0 ? (
-                      <div className="text-sm text-text-secondary">{copy.emptyPlan}</div>
+                      <div className={`text-sm ${secondaryTextClassName}`}>{copy.emptyPlan}</div>
                     ) : (
                       splitPreviewRows.map((row) => (
                         <div key={`${row.label}-${row.days.join(',')}`} className="flex items-center justify-between gap-4 text-sm">
-                          <span className="font-semibold text-white">{row.label}</span>
-                          <span className="text-text-tertiary">{row.days.join(', ')}</span>
+                          <span className={`font-semibold ${primaryTextClassName}`}>{row.label}</span>
+                          <span className={tertiaryTextClassName}>{row.days.join(', ')}</span>
                         </div>
                       ))
                     )}
                   </div>
 
-                  <div className="mt-4 flex items-center justify-between gap-3 text-xs text-text-secondary">
+                  <div className={`mt-4 flex items-center justify-between gap-3 text-xs ${secondaryTextClassName}`}>
                     <span>{copy.planPeek}</span>
-                    <span className="font-semibold text-accent">{copy.viewFriendPlan}</span>
+                    <span className={`font-semibold ${accentTextClassName}`}>{copy.viewFriendPlan}</span>
                   </div>
                 </div>
               </Card>
@@ -1621,13 +1697,13 @@ export function FriendProfile({ onBack, onChallenge, friend }: FriendProfileProp
           </div>
 
           <div className="space-y-3">
-            <h3 className="text-sm font-bold uppercase tracking-wider text-text-secondary">
+            <h3 className={sectionTitleClassName}>
               {copy.posts}
             </h3>
             {loadingFriendPosts ? (
-              <Card className="!p-3 text-sm text-text-secondary">{copy.loadingPosts}</Card>
+              <Card className={`!p-3 text-sm ${softCardClassName}`}>{copy.loadingPosts}</Card>
             ) : friendPosts.length === 0 ? (
-              <Card className="!p-3 text-sm text-text-secondary">{copy.noPosts}</Card>
+              <Card className={`!p-3 text-sm ${softCardClassName}`}>{copy.noPosts}</Card>
             ) : (
               <div className="space-y-3">
                 {friendPosts.map((post) => (

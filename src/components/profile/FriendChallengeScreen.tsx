@@ -324,6 +324,36 @@ const resolveNotificationType = (notification: { type?: unknown; title?: unknown
   return normalizedType;
 };
 
+const isGirlsStyleValue = (value: unknown) => {
+  const normalized = String(value || '').trim().toLowerCase();
+  return normalized === 'woman' || normalized === 'female' || normalized === 'f' || normalized === 'girls';
+};
+
+const readChallengeStyleGender = () => {
+  try {
+    return String(localStorage.getItem('appStyleGender') || '').trim().toLowerCase();
+  } catch {
+    return '';
+  }
+};
+
+const readChallengeOnboardingProfile = (user: any) => {
+  const rawProfile = user?.onboarding_profile || user?.onboardingProfile;
+  if (!rawProfile) return {};
+  if (typeof rawProfile === 'object') return rawProfile;
+  try {
+    return JSON.parse(String(rawProfile));
+  } catch {
+    return {};
+  }
+};
+
+const shouldUseGirlsChallengeTheme = (user: any, styleGender: string) => {
+  if (styleGender) return isGirlsStyleValue(styleGender);
+  const profile = readChallengeOnboardingProfile(user);
+  return isGirlsStyleValue(user?.gender) || isGirlsStyleValue(profile?.gender) || profile?.onboardingTheme === 'girls';
+};
+
 export function FriendChallengeScreen({
   onBack,
   onExitHome,
@@ -335,6 +365,7 @@ export function FriendChallengeScreen({
   challengeSessionId = null,
 }: FriendChallengeScreenProps) {
   const [language, setLanguage] = useState<AppLanguage>(() => getActiveLanguage());
+  const [themeRefreshKey, setThemeRefreshKey] = useState(0);
   const [view, setView] = useState<ChallengeView>(initialView);
   const [introTargetChallengeId, setIntroTargetChallengeId] = useState<string | null>(directChallengeId);
   const [pushUpRounds, setPushUpRounds] = useState<PushUpRound[]>(() => [createPushUpRound(1)]);
@@ -373,6 +404,18 @@ export function FriendChallengeScreen({
     return () => {
       window.removeEventListener('app-language-changed', handleLanguageChanged);
       window.removeEventListener('storage', handleLanguageChanged);
+    };
+  }, []);
+
+  useEffect(() => {
+    const refreshTheme = () => setThemeRefreshKey((current) => current + 1);
+    window.addEventListener('repset:stored-user-changed', refreshTheme);
+    window.addEventListener('repset:app-style-gender-changed', refreshTheme);
+    window.addEventListener('storage', refreshTheme);
+    return () => {
+      window.removeEventListener('repset:stored-user-changed', refreshTheme);
+      window.removeEventListener('repset:app-style-gender-changed', refreshTheme);
+      window.removeEventListener('storage', refreshTheme);
     };
   }, []);
 
@@ -984,6 +1027,28 @@ export function FriendChallengeScreen({
   const lockWeightAndResultLabel = localizedDefaults.lockWeightAndResult;
   const saveMyResultLabel = localizedDefaults.saveMyResult;
   const storedUser = getStoredAppUser();
+  const isGirlsTheme = useMemo(
+    () => shouldUseGirlsChallengeTheme(storedUser, readChallengeStyleGender()),
+    [storedUser, themeRefreshKey],
+  );
+  const challengeListPageClassName = isGirlsTheme
+    ? 'min-h-screen bg-[radial-gradient(circle_at_top_left,rgba(249,178,215,0.22),transparent_34%),radial-gradient(circle_at_85%_8%,rgba(207,236,243,0.34),transparent_32%),linear-gradient(180deg,#FFF5F5_0%,#F7D6D0_52%,#FFF5F5_100%)] pb-24 text-[#4A4A4A]'
+    : 'min-h-screen bg-background pb-24';
+  const challengeBackButtonClassName = isGirlsTheme
+    ? 'inline-flex items-center gap-2 rounded-xl border border-[#E2B4BD]/45 bg-white/60 px-3 py-2 text-sm text-[#A87884] transition-colors hover:bg-white/80'
+    : 'inline-flex items-center gap-2 rounded-xl border border-white/12 bg-white/5 px-3 py-2 text-sm text-white transition-colors hover:bg-white/10';
+  const challengeShellClassName = isGirlsTheme
+    ? 'mt-6 overflow-hidden rounded-[2rem] border border-[#E2B4BD]/45 bg-[radial-gradient(circle_at_top_right,rgba(249,178,215,0.24),transparent_26%),radial-gradient(circle_at_bottom_left,rgba(207,236,243,0.3),transparent_30%),linear-gradient(160deg,rgba(255,255,255,0.88),rgba(255,245,245,0.82))] p-5 shadow-[0_24px_70px_rgba(226,180,189,0.22)] sm:p-6'
+    : 'mt-6 overflow-hidden rounded-[2rem] border border-white/12 bg-[radial-gradient(circle_at_top_right,rgba(187,255,92,0.14),transparent_26%),radial-gradient(circle_at_bottom_left,rgba(34,211,238,0.14),transparent_30%),linear-gradient(160deg,rgba(19,25,33,0.98),rgba(11,15,22,0.98))] p-5 shadow-[0_24px_80px_rgba(0,0,0,0.24)] sm:p-6';
+  const challengeBadgeClassName = isGirlsTheme
+    ? 'inline-flex items-center gap-2 rounded-full border border-[#E2B4BD]/45 bg-white/55 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-[#A87884]'
+    : 'inline-flex items-center gap-2 rounded-full border border-accent/20 bg-accent/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-accent';
+  const challengeTitleClassName = isGirlsTheme
+    ? 'mt-4 text-3xl font-black uppercase tracking-[0.06em] text-[#4A4A4A]'
+    : 'mt-4 text-3xl font-black uppercase tracking-[0.06em] text-white';
+  const challengeSubtitleClassName = isGirlsTheme
+    ? 'mt-2 max-w-xl text-sm leading-relaxed text-[#795E67]'
+    : 'mt-2 max-w-xl text-sm leading-relaxed text-text-secondary';
   const currentUserId = toPositiveInteger(getStoredUserId());
   const resolvedFriendId = toPositiveInteger(friendId);
   const currentUserName = getStoredDisplayName(storedUser);
@@ -2542,27 +2607,27 @@ export function FriendChallengeScreen({
 
   return (
     <>
-      <div className="min-h-screen bg-background pb-24">
+      <div className={challengeListPageClassName}>
         <div className="px-4 pb-6 pt-4 sm:px-6">
           <button
             type="button"
             onClick={handleBack}
-            className="inline-flex items-center gap-2 rounded-xl border border-white/12 bg-white/5 px-3 py-2 text-sm text-white transition-colors hover:bg-white/10"
+            className={challengeBackButtonClassName}
           >
             <ArrowLeft size={16} />
             {copy.back}
           </button>
 
-          <div className="mt-6 overflow-hidden rounded-[2rem] border border-white/12 bg-[radial-gradient(circle_at_top_right,rgba(187,255,92,0.14),transparent_26%),radial-gradient(circle_at_bottom_left,rgba(34,211,238,0.14),transparent_30%),linear-gradient(160deg,rgba(19,25,33,0.98),rgba(11,15,22,0.98))] p-5 shadow-[0_24px_80px_rgba(0,0,0,0.24)] sm:p-6">
-            <div className="inline-flex items-center gap-2 rounded-full border border-accent/20 bg-accent/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-accent">
+          <div className={challengeShellClassName}>
+            <div className={challengeBadgeClassName}>
               <Trophy size={12} className="relative animate-bounce" />
               {copy.badge}
             </div>
 
-            <h1 className="mt-4 text-3xl font-black uppercase tracking-[0.06em] text-white">
+            <h1 className={challengeTitleClassName}>
               {copy.title}
             </h1>
-            <p className="mt-2 max-w-xl text-sm leading-relaxed text-text-secondary">
+            <p className={challengeSubtitleClassName}>
               {copy.subtitle(resolvedFriendName)}
             </p>
 
@@ -2603,9 +2668,11 @@ export function FriendChallengeScreen({
                       type="button"
                       onClick={() => handleSelectChallenge(card)}
                       disabled={cardDisabled}
-                      className={`group relative min-h-[154px] overflow-hidden rounded-[1.5rem] border border-white/12 bg-white/[0.04] p-4 text-left transition-all duration-200 ${
+                      className={`group relative min-h-[154px] overflow-hidden rounded-[1.5rem] border p-4 text-left transition-all duration-200 ${
+                        isGirlsTheme ? 'border-[#E2B4BD]/45 bg-white/60 shadow-[0_12px_28px_rgba(226,180,189,0.14)]' : 'border-white/12 bg-white/[0.04]'
+                      } ${
                         !cardDisabled
-                          ? 'hover:-translate-y-0.5 hover:border-white/20 hover:bg-white/[0.06]'
+                          ? (isGirlsTheme ? 'hover:-translate-y-0.5 hover:border-[#F9B2D7]/70 hover:bg-white/80' : 'hover:-translate-y-0.5 hover:border-white/20 hover:bg-white/[0.06]')
                           : 'cursor-default opacity-85'
                       }`}
                     >
@@ -2614,7 +2681,7 @@ export function FriendChallengeScreen({
                         alt={card.title}
                         className="pointer-events-none absolute inset-0 h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
                       />
-                      <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(135deg,rgba(4,6,10,0.22),rgba(4,6,10,0.6)_48%,rgba(4,6,10,0.88)_100%)]" />
+                      <div className={`pointer-events-none absolute inset-0 ${isGirlsTheme ? 'bg-[linear-gradient(135deg,rgba(255,245,245,0.12),rgba(74,74,74,0.28)_48%,rgba(74,74,74,0.68)_100%)]' : 'bg-[linear-gradient(135deg,rgba(4,6,10,0.22),rgba(4,6,10,0.6)_48%,rgba(4,6,10,0.88)_100%)]'}`} />
                       <div className={`pointer-events-none absolute inset-0 bg-gradient-to-br ${card.accentClassName}`} />
                       <div className="relative flex min-h-[122px] items-end justify-between gap-4">
                         <div>

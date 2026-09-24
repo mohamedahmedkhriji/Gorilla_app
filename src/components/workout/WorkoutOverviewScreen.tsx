@@ -718,6 +718,26 @@ const toTitleCase = (value: string) =>
     .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
     .join(' ');
 
+const OVERVIEW_LOWER_BODY_MUSCLES = new Set(['Quadriceps', 'Hamstrings', 'Glutes', 'Calves', 'Adductors', 'Tibialis', 'Legs']);
+
+const toOverviewMuscleGroup = (muscle: string) => {
+  const canonical = toTitleCase(muscle);
+  if (OVERVIEW_LOWER_BODY_MUSCLES.has(canonical)) return 'Legs';
+  if (canonical === 'Lats' || canonical === 'Traps' || canonical.toLowerCase().includes('back')) return 'Back';
+  return canonical;
+};
+
+const resolveOverviewMusclePriority = (workoutText: string) => {
+  const normalized = String(workoutText || '').trim().toLowerCase();
+  const isLegDay = /\b(leg|legs|lower|quad|hamstring|glute|calf|calves)\b/.test(normalized)
+    || normalized.includes('lower body');
+  const isBackDay = /\b(back|pull|lat|lats|row|pulldown|pull-up|pull up)\b/.test(normalized);
+
+  if (isLegDay) return ['Legs', 'Back'];
+  if (isBackDay) return ['Back', 'Legs'];
+  return [];
+};
+
 const isGirlsStyleValue = (value: unknown) => {
   const normalized = String(value || '').trim().toLowerCase();
   return normalized === 'woman' || normalized === 'female' || normalized === 'f' || normalized === 'girls' || normalized === 'femme';
@@ -890,8 +910,11 @@ export function WorkoutOverviewScreen({
           })
         : null,
       localizedWorkoutName: localizeWorkoutText(workout.workoutName),
-      localizedMuscles: workout.targetMuscles.slice(0, 3).map((entry) => {
-        const label = localizeMuscle(toTitleCase(entry));
+      localizedMuscles: (resolveOverviewMusclePriority(`${workout.dayLabel || ''} ${workout.workoutName || ''}`).length
+        ? resolveOverviewMusclePriority(`${workout.dayLabel || ''} ${workout.workoutName || ''}`)
+        : [...new Set(workout.targetMuscles.map((entry) => toOverviewMuscleGroup(entry)))].slice(0, 3)
+      ).map((entry) => {
+        const label = localizeMuscle(entry);
         return {
           label,
           sourceName: entry,
