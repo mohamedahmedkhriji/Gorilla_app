@@ -26,6 +26,7 @@ type BodyMapProps = {
   levels?: BodyMapLevels;
   onMuscle?: (muscle: BodyMapMuscle) => void;
   selected?: BodyMapMuscle | null;
+  view?: 'front' | 'back' | 'both';
 };
 
 const getStoredBodyMapBody = () => resolvePreferredBodyMapBody(getStoredAppUser()?.gender);
@@ -93,6 +94,7 @@ export default function BodyMap({
   levels = {},
   onMuscle,
   selected = null,
+  view = 'both',
 }: BodyMapProps) {
   const paths = useBodyPaths();
   const [storedBody, setStoredBody] = useState(() => getStoredBodyMapBody());
@@ -123,14 +125,18 @@ export default function BodyMap({
     <div className={`bodymap${tappableClass} ${className}`}>
       {geometry ? (
         <>
-          <div className="bm-panel">
-            <BodyMapView view={geometry.front} levels={levels} onMuscle={onMuscle} selected={selected} />
-            <span className="bm-label">Front</span>
-          </div>
-          <div className="bm-panel">
-            <BodyMapView view={geometry.back} levels={levels} onMuscle={onMuscle} selected={selected} />
-            <span className="bm-label">Back</span>
-          </div>
+          {view === 'front' || view === 'both' ? (
+            <div className="bm-panel">
+              <BodyMapView view={geometry.front} levels={levels} onMuscle={onMuscle} selected={selected} />
+              <span className="bm-label">Front</span>
+            </div>
+          ) : null}
+          {view === 'back' || view === 'both' ? (
+            <div className="bm-panel">
+              <BodyMapView view={geometry.back} levels={levels} onMuscle={onMuscle} selected={selected} />
+              <span className="bm-label">Back</span>
+            </div>
+          ) : null}
         </>
       ) : (
         <div className="bm-ph" aria-hidden="true" />

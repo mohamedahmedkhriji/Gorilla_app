@@ -1,0 +1,89 @@
+.nutrition-water-wave {
+  animation: nutritionWaterWave 4.6s ease-in-out infinite;
+  transform-origin: center;
+}
+
+.nutrition-bubble {
+  animation: nutritionBubbleRise 5.2s ease-in-out infinite;
+}
+
+.nutrition-bubble-2,
+.nutrition-bubble-5 {
+  animation-duration: 4.3s;
+}
+
+.nutrition-bubble-3,
+.nutrition-bubble-6 {
+  animation-duration: 5.8s;
+}
+
+.nutrition-protein-pulse {
+  animation: nutritionProteinPulse 3.8s ease-in-out infinite;
+}
+
+.nutrition-carb-flow {
+  animation: nutritionCarbFlow 3.6s linear infinite;
+}
+
+.nutrition-fat-glow,
+.nutrition-fat-spark,
+.nutrition-overview-breathe {
+  animation: nutritionSoftGlow 4.8s ease-in-out infinite;
+}
+
+@keyframes nutritionWaterWave {
+  0%, 100% {
+    transform: translateX(-8px);
+  }
+  50% {
+    transform: translateX(8px);
+  }
+}
+
+@keyframes nutritionBubbleRise {
+  0%, 100% {
+    transform: translateY(8px);
+  }
+  50% {
+    transform: translateY(-18px);
+  }
+}
+
+@keyframes nutritionProteinPulse {
+  0%, 100% {
+    opacity: 0.82;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+@keyframes nutritionCarbFlow {
+  from {
+    stroke-dashoffset: 0;
+  }
+  to {
+    stroke-dashoffset: -84;
+  }
+}
+
+@keyframes nutritionSoftGlow {
+  0%, 100% {
+    opacity: 0.62;
+  }
+  50% {
+    opacity: 0.95;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .nutrition-water-wave,
+  .nutrition-bubble,
+  .nutrition-protein-pulse,
+  .nutrition-carb-flow,
+  .nutrition-fat-glow,
+  .nutrition-fat-spark,
+  .nutrition-overview-breathe {
+    animation: none !important;
+  }
+}

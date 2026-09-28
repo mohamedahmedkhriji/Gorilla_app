@@ -44,6 +44,8 @@ const normalizeStyleGender = (value: unknown): 'male' | 'female' => {
 
 const getStoredAppStyleGender = () => {
   if (typeof window === 'undefined') return normalizeStyleGender(getStoredAppUser()?.gender);
+  const storedStyleGender = window.localStorage.getItem(APP_STYLE_GENDER_STORAGE_KEY);
+  if (storedStyleGender) return normalizeStyleGender(storedStyleGender);
   return normalizeStyleGender(getStoredAppUser()?.gender);
 };
 
@@ -930,6 +932,16 @@ export function SettingsScreen({ onBack, onOpenHomeTour }: SettingsScreenProps) 
     const syncAppStyleFromProfile = async () => {
       const storedUser = getStoredAppUser();
       const userId = Number(storedUser?.id || storedUser?.userId || 0);
+      const storedStyleGender = typeof window === 'undefined'
+        ? ''
+        : String(window.localStorage.getItem(APP_STYLE_GENDER_STORAGE_KEY) || '').trim();
+      if (storedStyleGender) {
+        const nextGender = normalizeStyleGender(storedStyleGender);
+        setAppStyleGender(nextGender);
+        setBodyMapBody(resolvePreferredBodyMapBody(nextGender));
+        return;
+      }
+
       if (!userId) {
         const fallbackGender = normalizeStyleGender(storedUser?.gender);
         setAppStyleGender(fallbackGender);
@@ -971,6 +983,12 @@ export function SettingsScreen({ onBack, onOpenHomeTour }: SettingsScreenProps) 
   const handleBodyMapBodyChange = (nextBody: BodyMapBody) => {
     setStoredBodyMapBodyPreference(nextBody);
     setBodyMapBody(nextBody);
+  };
+
+  const handleAppStyleGenderChange = (nextGender: 'male' | 'female') => {
+    setAppStyleGender(nextGender);
+    syncStoredAppStyleGender(nextGender);
+    setBodyMapBody(resolvePreferredBodyMapBody(nextGender));
   };
 
   useEffect(() => {
@@ -1629,17 +1647,18 @@ export function SettingsScreen({ onBack, onOpenHomeTour }: SettingsScreenProps) 
                       key={option.value}
                       type="button"
                       aria-pressed={isActive}
-                      aria-disabled="true"
-                      disabled
+                      onClick={() => handleAppStyleGenderChange(option.value)}
                       className={`min-w-[74px] rounded-lg px-3 py-2 text-xs font-semibold transition-colors ${
                         isActive
                           ? option.value === 'female'
                             ? 'bg-[#F9B2D7] text-[#4A4A4A] shadow-[0_0_18px_rgba(226,180,189,0.28)]'
                             : 'bg-accent text-black shadow-[0_0_18px_rgba(var(--color-accent),0.25)]'
                           : isGirlsTheme
-                            ? 'text-[#795E67]'
-                            : 'text-text-secondary'
-                      } cursor-not-allowed disabled:opacity-100`}
+                            ? 'text-[#795E67] hover:bg-white/70 hover:text-[#4A4A4A]'
+                            : 'text-text-secondary hover:bg-white/5 hover:text-white'
+                      } focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset ${
+                        isGirlsTheme ? 'focus-visible:ring-[#F9B2D7]/70' : 'focus-visible:ring-accent/70'
+                      }`}
                     >
                       {option.label}
                     </button>

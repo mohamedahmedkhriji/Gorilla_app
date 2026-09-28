@@ -595,6 +595,29 @@ export const api = {
     );
   },
 
+  getNutritionProfile: async () => {
+    const res = await fetch(`${API_URL}/nutrition/profile`);
+    return parseApiResponse(res, 'Failed to load nutrition profile');
+  },
+
+  saveNutritionProfile: async (payload: any) => {
+    const res = await fetch(`${API_URL}/nutrition/profile`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    return parseApiResponse(res, 'Failed to save nutrition profile');
+  },
+
+  addHydration: async (payload: { amountMl: number; drinkType?: string }) => {
+    const res = await fetch(`${API_URL}/nutrition/hydration`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    return parseApiResponse(res, 'Failed to log hydration');
+  },
+
   getBlogsFeed: async (
     userId: number,
     options: {
