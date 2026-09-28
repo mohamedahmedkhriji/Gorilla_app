@@ -278,7 +278,7 @@ export default function PostCard({
               src={post.mediaThumbnail || post.mediaFull}
               alt={post.mediaAlt || copy.mediaAlt}
               loading={priorityMedia ? 'eager' : 'lazy'}
-              fetchPriority={priorityMedia ? 'high' : 'auto'}
+              fetchpriority={priorityMedia ? 'high' : 'auto'}
               decoding="async"
               className="relative h-full w-full object-contain transition-transform duration-300 group-hover:scale-[1.01]"
               onLoad={() => setMediaLoaded(true)}

@@ -1,0 +1,2 @@
+ALTER TABLE users
+  MODIFY COLUMN profile_picture LONGTEXT NULL;
