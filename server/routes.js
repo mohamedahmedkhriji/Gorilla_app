@@ -13285,7 +13285,8 @@ router.get('/friends/:viewerId/:friendId/plan-preview', requireAuth('user'), req
     }
 
     const [workoutRows] = await pool.execute(
-      `SELECT id, workout_name, workout_type, day_order, day_name, estimated_duration_minutes, notes
+      `SELECT id, workout_name, workout_type, day_order, day_name, estimated_duration_minutes, notes,
+              program_engine_week, program_engine_day, cardio_prescription_json, slot_metadata_json
        FROM workouts
        WHERE program_id = ?
        ORDER BY day_order ASC`,
@@ -13306,7 +13307,13 @@ router.get('/friends/:viewerId/:friendId/plan-preview', requireAuth('user'), req
           we.rest_seconds,
           we.tempo,
           we.rpe_target,
-          we.notes
+          we.notes,
+          we.exercise_catalog_id,
+          we.exercise_slug_snapshot,
+          we.slot_id,
+          we.slot_movement_pattern,
+          we.prescription_json,
+          we.progression_rule
        FROM workout_exercises we
        JOIN workouts w ON w.id = we.workout_id
        WHERE w.program_id = ?
@@ -14656,20 +14663,31 @@ router.get('/user/:userId/program', async (req, res) => {
       [assignment.program_id]
     );
 
-    const normalizedExerciseRows = exerciseRows.map((row) => ({
-      id: Number(row.workout_exercise_id || 0) || null,
-      exerciseName: row.exercise_name_snapshot,
-      targetMuscles: parseMuscleGroups(row.muscle_group_snapshot),
-      muscleGroup: parseMuscleGroups(row.muscle_group_snapshot)[0] || null,
-      sets: row.target_sets,
-      reps: row.target_reps,
-      targetWeight: row.target_weight,
-      rest: row.rest_seconds,
-      tempo: row.tempo,
-      rpeTarget: row.rpe_target,
-      notes: row.notes,
-      workoutId: row.workout_id,
-    }));
+    const normalizedExerciseRows = exerciseRows.map((row) => {
+      const prescription = safeParseJson(row.prescription_json, null);
+      const rirTarget = Number(prescription?.prescription?.effort?.target ?? prescription?.effort?.target);
+      return {
+        id: Number(row.workout_exercise_id || 0) || null,
+        exerciseCatalogId: Number(row.exercise_catalog_id || 0) || null,
+        exerciseSlug: row.exercise_slug_snapshot || null,
+        exerciseName: row.exercise_name_snapshot,
+        targetMuscles: parseMuscleGroups(row.muscle_group_snapshot),
+        muscleGroup: parseMuscleGroups(row.muscle_group_snapshot)[0] || null,
+        sets: row.target_sets,
+        reps: row.target_reps,
+        targetWeight: row.target_weight,
+        rest: row.rest_seconds,
+        tempo: row.tempo,
+        rpeTarget: row.rpe_target,
+        rirTarget: Number.isFinite(rirTarget) ? rirTarget : null,
+        notes: row.notes,
+        slotId: row.slot_id || null,
+        movementPattern: row.slot_movement_pattern || null,
+        prescription,
+        progressionRule: row.progression_rule || null,
+        workoutId: row.workout_id,
+      };
+    });
     const mediaLookup = await getExerciseMediaForExercises(
       normalizedExerciseRows.map((exercise, index) => ({
         mediaKey: String(exercise.id || `${exercise.exerciseName || 'exercise'}-${index}`),
@@ -14701,6 +14719,10 @@ router.get('/user/:userId/program', async (req, res) => {
       day_name: w.day_name,
       estimated_duration_minutes: w.estimated_duration_minutes,
       notes: w.notes,
+      program_engine_week: w.program_engine_week,
+      program_engine_day: w.program_engine_day,
+      cardioPrescription: safeParseJson(w.cardio_prescription_json, null),
+      slotMetadata: safeParseJson(w.slot_metadata_json, null),
       exercises: JSON.stringify(exercisesByWorkout.get(w.id) || []),
     })), assignment.days_per_week);
 
@@ -14751,6 +14773,8 @@ router.get('/user/:userId/program', async (req, res) => {
               workoutType: todayWorkout.workout_type,
               dayName: todayWorkout.day_name,
               estimatedDurationMinutes: todayWorkout.estimated_duration_minutes,
+              cardioPrescription: todayWorkout.cardioPrescription || null,
+              slotMetadata: todayWorkout.slotMetadata || null,
               exercises: JSON.parse(todayWorkout.exercises || '[]'),
             }
           : null,
