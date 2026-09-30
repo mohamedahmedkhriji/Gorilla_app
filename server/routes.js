@@ -28,12 +28,7 @@ import {
   saveOnboardingInsightsForUser,
   saveUserAnalysisInsightsForUser,
 } from './services/insightPersistence.js';
-import { generateDailyNutritionPlan } from './services/nutritionPlanner.js';
-import {
-  NUTRITION_ONBOARDING_VERSION,
-  buildNutritionSafetyDecision,
-  normalizeNutritionHealthProfile,
-} from './services/nutritionSafetyEngine.js';
+import { createNutritionRoutes } from './routes/nutrition.routes.js';
 import { buildActiveUserStateClause, buildVisibleUserClause } from './services/userStatusService.js';
 import {
   buildCustomProgramPayloadFromClaudePlan,
@@ -44,19 +39,19 @@ import {
   generateAndPersistAdaptivePlan,
 } from './services/adaptiveTraining/adaptivePlanService.js';
 import {
+  buildProgramEngineOnboardingInput,
+  generateAndPersistProgramEnginePlan,
+  routeProgramEngineRequest,
+} from './services/programEngine/index.js';
+import {
   resolveAdaptiveTrainingConfig,
 } from './services/adaptiveTraining/adaptiveTrainingConfig.js';
 import { processGamificationProgression } from './services/progressionService.js';
+import { createGamificationController } from './controllers/gamification.controller.js';
+import { createGamificationRoutes } from './routes/gamification.routes.js';
 import { buildGamificationSummary } from './services/gamification/summaryService.js';
 import { getLeaderboardBundle } from './services/gamification/rivalryService.js';
 import { enrichMissionCollection } from './services/gamification/missionEngine.js';
-import { getExerciseFallbackMuscleRows } from './services/exerciseMuscleProfiles.js';
-import {
-  getSupabaseExerciseMuscles,
-  listSupabaseExerciseFilters,
-  listSupabaseExercises,
-  resolveSupabaseExerciseMusclesByName,
-} from './services/supabaseExerciseCatalogService.js';
 import { getExerciseMediaForExercises } from './services/exerciseMediaService.js';
 import { hasOpenAIConfig, requestOpenAIChatCompletion } from './services/openaiProxy.js';
 import {
@@ -8428,53 +8423,6 @@ const normalizeCatalogMuscleGroup = (raw) => {
   return 'Other';
 };
 
-const CATALOG_MUSCLE_ROLE_PRIORITY = {
-  target: 0,
-  secondary: 1,
-  synergist: 2,
-  dynamic_stabilizer: 3,
-  stabilizer: 4,
-  antagonist: 5,
-};
-
-const normalizeCatalogMuscleRole = (value) => {
-  const key = String(value || '').trim().toLowerCase();
-  if (Object.prototype.hasOwnProperty.call(CATALOG_MUSCLE_ROLE_PRIORITY, key)) {
-    return key;
-  }
-  return 'secondary';
-};
-
-const toRoundedPercentages = (weights = []) => {
-  if (!Array.isArray(weights) || !weights.length) return [];
-
-  const safeWeights = weights.map((value) => {
-    const numeric = Number(value);
-    return Number.isFinite(numeric) && numeric > 0 ? numeric : 1;
-  });
-  const total = safeWeights.reduce((sum, value) => sum + value, 0) || safeWeights.length;
-  const rawPercentages = safeWeights.map((value) => (value / total) * 100);
-  const rounded = rawPercentages.map((value) => Math.floor(value));
-  let remaining = 100 - rounded.reduce((sum, value) => sum + value, 0);
-
-  const rankedByRemainder = rawPercentages
-    .map((value, index) => ({
-      index,
-      remainder: value - rounded[index],
-      weight: safeWeights[index],
-    }))
-    .sort((left, right) =>
-      right.remainder - left.remainder
-      || right.weight - left.weight
-      || left.index - right.index);
-
-  for (let i = 0; i < remaining; i += 1) {
-    rounded[rankedByRemainder[i % rankedByRemainder.length].index] += 1;
-  }
-
-  return rounded;
-};
-
 const getCatalogFallbackBaseMuscle = (value) => {
   const key = String(value || '').trim().toLowerCase();
   if (!key) return null;
@@ -8499,341 +8447,6 @@ const getCatalogFallbackBaseMuscle = (value) => {
 
   const grouped = normalizeCatalogMuscleGroup(value);
   return grouped === 'Other' ? null : grouped;
-};
-
-const GENERIC_CATALOG_TARGET_NAMES = new Set([
-  'Abs',
-  'Back',
-  'Biceps',
-  'Calves',
-  'Chest',
-  'Forearms',
-  'Glutes',
-  'Hamstrings',
-  'Legs',
-  'Quadriceps',
-  'Shoulders',
-  'Triceps',
-]);
-
-const canonicalizeCatalogTargetName = (value) => {
-  const key = String(value || '').trim().toLowerCase();
-  if (!key) return '';
-
-  if (/(lateral deltoid|medial deltoid|side delt)/.test(key)) return 'Side Delts';
-  if (/(anterior deltoid|front delt)/.test(key)) return 'Front Delts';
-  if (/(posterior deltoid|rear delt)/.test(key)) return 'Rear Delts';
-  if (/(deltoid|shoulder|supraspinatus|infraspinatus|teres minor|rotator cuff)/.test(key)) return 'Shoulders';
-  if (/(latissimus|\blats?\b)/.test(key)) return 'Lats';
-  if (/(trapezius|trap)/.test(key)) return 'Traps';
-  if (/(rhomboid)/.test(key)) return 'Rhomboids';
-  if (/(erector|spinae|lower back)/.test(key)) return 'Lower Back';
-  if (/(upper back|middle back)/.test(key)) return 'Upper Back';
-  if (/(clavicular|upper chest|upper pector)/.test(key)) return 'Upper Chest';
-  if (/(sternocostal|mid chest|middle chest|mid pector)/.test(key)) return 'Mid Chest';
-  if (/(lower chest)/.test(key)) return 'Lower Chest';
-  if (/(chest|pector|pec)/.test(key)) return 'Chest';
-
-  return String(value || '').trim();
-};
-
-const buildExerciseCatalogFallbackEntries = (fallbackBodyPart = null) => {
-  const normalizedBodyPart = String(fallbackBodyPart || '').trim();
-  const fallbackBaseMuscle = getCatalogFallbackBaseMuscle(normalizedBodyPart);
-  if (!normalizedBodyPart) {
-    return [];
-  }
-
-  return [{
-    name: canonicalizeCatalogTargetName(normalizedBodyPart) || normalizedBodyPart,
-    role: 'target',
-    loadFactor: 1,
-    isPrimary: true,
-    baseMuscle: fallbackBaseMuscle,
-    order: 0,
-  }];
-};
-
-const buildExerciseCatalogMuscleEntries = (rows = []) => {
-  if (!Array.isArray(rows) || !rows.length) {
-    return {
-      entries: [],
-      fallbackEntries: [],
-    };
-  }
-
-  const fallbackBodyPart = String(rows[0]?.body_part || '').trim();
-  const fallbackBaseMuscle = getCatalogFallbackBaseMuscle(fallbackBodyPart);
-  const byMuscle = new Map();
-
-  rows.forEach((row, index) => {
-    const rawName = String(row.muscle_group || '').trim();
-    const role = normalizeCatalogMuscleRole(row.role);
-    if (!rawName || role === 'antagonist') return;
-
-    const loadFactorRaw = Number(row.load_factor || 0);
-    const loadFactor = Number.isFinite(loadFactorRaw) && loadFactorRaw > 0 ? loadFactorRaw : 1;
-    const displayName = canonicalizeCatalogTargetName(rawName);
-    const key = normalizeExerciseLookupName(displayName || rawName) || rawName.toLowerCase();
-    const baseMuscle = getCatalogFallbackBaseMuscle(displayName || rawName) || fallbackBaseMuscle;
-    const isPrimary = Number(row.is_primary || 0) === 1;
-    const current = byMuscle.get(key);
-
-    if (!current) {
-      byMuscle.set(key, {
-        name: displayName || rawName,
-        role,
-        loadFactor,
-        isPrimary,
-        baseMuscle,
-        order: index,
-      });
-      return;
-    }
-
-    current.loadFactor += loadFactor;
-    current.isPrimary = current.isPrimary || isPrimary;
-    if ((CATALOG_MUSCLE_ROLE_PRIORITY[role] ?? 99) < (CATALOG_MUSCLE_ROLE_PRIORITY[current.role] ?? 99)) {
-      current.role = role;
-    }
-    if (!current.baseMuscle && baseMuscle) {
-      current.baseMuscle = baseMuscle;
-    }
-  });
-
-  let entries = Array.from(byMuscle.values());
-  if (!entries.length && fallbackBodyPart) {
-    entries = buildExerciseCatalogFallbackEntries(fallbackBodyPart);
-  }
-
-  return {
-    entries,
-    fallbackEntries: buildExerciseCatalogFallbackEntries(fallbackBodyPart),
-    fallbackBaseMuscle,
-  };
-};
-
-const mapCatalogEntriesToTargets = (entries = []) => {
-  if (!Array.isArray(entries) || !entries.length) return [];
-
-  const limitedEntries = [...entries].slice(0, 3);
-  const percentages = toRoundedPercentages(limitedEntries.map((entry) => entry.loadFactor));
-
-  return limitedEntries.map((entry, index) => ({
-    name: entry.name,
-    role: entry.role,
-    loadFactor: Number(entry.loadFactor.toFixed(3)),
-    isPrimary: entry.isPrimary,
-    baseMuscle: entry.baseMuscle || null,
-    percent: percentages[index] ?? 0,
-  }));
-};
-
-const buildVisibleCatalogEntries = (entries = [], fallbackEntries = []) => {
-  const targets = entries.filter((entry) => entry.isPrimary || entry.role === 'target');
-  const secondary = entries.filter((entry) => entry.role === 'secondary');
-  const synergists = entries.filter((entry) => entry.role === 'synergist');
-  let visible = targets.length ? targets : secondary.length ? secondary : synergists.length ? synergists : entries;
-
-  if (!visible.length && fallbackEntries.length) {
-    visible = fallbackEntries;
-  }
-
-  const specificBases = new Set(
-    visible
-      .filter((entry) => entry.baseMuscle && !GENERIC_CATALOG_TARGET_NAMES.has(String(entry.name || '').trim()))
-      .map((entry) => entry.baseMuscle),
-  );
-  const withoutGenericDuplicates = visible.filter((entry) => !(
-    entry.baseMuscle
-    && specificBases.has(entry.baseMuscle)
-    && GENERIC_CATALOG_TARGET_NAMES.has(String(entry.name || '').trim())
-  ));
-  if (withoutGenericDuplicates.length) {
-    visible = withoutGenericDuplicates;
-  }
-
-  visible.sort((left, right) =>
-    Number(right.isPrimary) - Number(left.isPrimary)
-    || right.loadFactor - left.loadFactor
-    || (CATALOG_MUSCLE_ROLE_PRIORITY[left.role] ?? 99) - (CATALOG_MUSCLE_ROLE_PRIORITY[right.role] ?? 99)
-    || left.order - right.order
-    || String(left.name || '').localeCompare(String(right.name || '')));
-
-  return visible;
-};
-
-const buildExerciseCatalogMuscleTargets = (rows = []) => {
-  const { entries, fallbackEntries } = buildExerciseCatalogMuscleEntries(rows);
-  const visible = buildVisibleCatalogEntries(entries, fallbackEntries);
-  return mapCatalogEntriesToTargets(visible);
-};
-
-const buildExerciseCatalogMuscleSections = (rows = []) => {
-  const { entries, fallbackEntries } = buildExerciseCatalogMuscleEntries(rows);
-
-  const primaryEntries = entries.filter((entry) => entry.isPrimary || entry.role === 'target');
-  const secondaryEntries = entries.filter((entry) =>
-    !(entry.isPrimary || entry.role === 'target')
-    && ['secondary', 'synergist', 'dynamic_stabilizer', 'stabilizer'].includes(entry.role));
-
-  const primaryMuscles = mapCatalogEntriesToTargets(primaryEntries.length ? primaryEntries : fallbackEntries);
-  const primaryNames = new Set(primaryMuscles.map((entry) => String(entry.name || '').trim().toLowerCase()));
-  const secondaryMuscles = mapCatalogEntriesToTargets(
-    secondaryEntries.filter((entry) => !primaryNames.has(String(entry.name || '').trim().toLowerCase())),
-  );
-
-  return {
-    muscles: mapCatalogEntriesToTargets(buildVisibleCatalogEntries(entries, fallbackEntries)),
-    primaryMuscles,
-    secondaryMuscles,
-  };
-};
-
-const hasSpecificCatalogTargets = (entries = []) =>
-  Array.isArray(entries) && entries.some((entry) => {
-    const name = String(entry?.name || '').trim();
-    return name && !GENERIC_CATALOG_TARGET_NAMES.has(name);
-  });
-
-const FRAGMENTED_CATALOG_TARGET_NAMES = new Set([
-  'anterior',
-  'posterior',
-  'lateral',
-  'medial',
-  'upper',
-  'lower',
-  'middle',
-  'inferior digitations',
-]);
-
-const UNFRIENDLY_CATALOG_TARGET_PATTERNS = [
-  /\bthighs\b/i,
-  /\bgastrocnemius\b/i,
-  /\bsoleus\b/i,
-  /\bgracilis\b/i,
-  /\bpopliteus\b/i,
-  /\bbiceps femoris\b/i,
-  /\bsemitendinosus\b/i,
-  /\bsemimembranosus\b/i,
-  /\brectus femoris\b/i,
-  /\bvastus (lateralis|medialis|intermedius)\b/i,
-  /\b(?:long|short)\s+head\s+biceps\b/i,
-  /\b(?:long|lateral|medial)\s+head\s+triceps\b/i,
-];
-
-const hasFragmentedCatalogTargets = (entries = []) =>
-  Array.isArray(entries) && entries.some((entry) => {
-    const name = String(entry?.name || '').trim().toLowerCase();
-    if (!name) return false;
-    return FRAGMENTED_CATALOG_TARGET_NAMES.has(name)
-      || /\b(?:long|short)\s+head\s+biceps\b/.test(name)
-      || /\b(?:long|lateral|medial)\s+head\s+triceps\b/.test(name);
-  });
-
-const hasUnfriendlyCatalogTargets = (entries = []) =>
-  Array.isArray(entries) && entries.some((entry) => {
-    const name = String(entry?.name || '').trim();
-    return name && UNFRIENDLY_CATALOG_TARGET_PATTERNS.some((pattern) => pattern.test(name));
-  });
-
-const hasGenericDuplicateBases = (entries = []) => {
-  const specificBases = new Set(
-    (Array.isArray(entries) ? entries : [])
-      .filter((entry) => {
-        const name = String(entry?.name || '').trim();
-        return name && !GENERIC_CATALOG_TARGET_NAMES.has(name);
-      })
-      .map((entry) => String(entry?.baseMuscle || '').trim())
-      .filter(Boolean),
-  );
-
-  return (Array.isArray(entries) ? entries : []).some((entry) => {
-    const name = String(entry?.name || '').trim();
-    const baseMuscle = String(entry?.baseMuscle || '').trim();
-    return name && GENERIC_CATALOG_TARGET_NAMES.has(name) && baseMuscle && specificBases.has(baseMuscle);
-  });
-};
-
-const getMuscleSectionQualityScore = (entries = []) => {
-  if (!Array.isArray(entries) || !entries.length) return Number.NEGATIVE_INFINITY;
-
-  let score = 0;
-  entries.forEach((entry, index) => {
-    const name = String(entry?.name || '').trim();
-    if (!name) return;
-
-    if (GENERIC_CATALOG_TARGET_NAMES.has(name)) {
-      score += 1;
-    } else if (UNFRIENDLY_CATALOG_TARGET_PATTERNS.some((pattern) => pattern.test(name))) {
-      score -= 1;
-    } else {
-      score += 3;
-    }
-
-    if (entry?.isPrimary || entry?.role === 'target') {
-      score += 1;
-    } else if (entry?.role === 'secondary') {
-      score += 0.5;
-    }
-
-    score += Math.max(0, 2 - index) * 0.1;
-  });
-
-  if (hasFragmentedCatalogTargets(entries)) score -= 3;
-  if (hasGenericDuplicateBases(entries)) score -= 3;
-  if (hasUnfriendlyCatalogTargets(entries)) score -= 3;
-
-  return score;
-};
-
-const chooseMuscleSection = (catalogEntries = [], fallbackEntries = []) => {
-  if (!fallbackEntries.length) return catalogEntries;
-  if (!catalogEntries.length) return fallbackEntries;
-
-  const catalogSpecific = hasSpecificCatalogTargets(catalogEntries);
-  const fallbackSpecific = hasSpecificCatalogTargets(fallbackEntries);
-  if (
-    hasFragmentedCatalogTargets(catalogEntries)
-    || hasGenericDuplicateBases(catalogEntries)
-    || hasUnfriendlyCatalogTargets(catalogEntries)
-  ) {
-    return fallbackEntries;
-  }
-  if (!catalogSpecific && (fallbackSpecific || fallbackEntries.length > catalogEntries.length)) {
-    return fallbackEntries;
-  }
-  if (!catalogSpecific && !fallbackSpecific && fallbackEntries.length > catalogEntries.length) {
-    return fallbackEntries;
-  }
-
-  if (getMuscleSectionQualityScore(fallbackEntries) > getMuscleSectionQualityScore(catalogEntries)) {
-    return fallbackEntries;
-  }
-
-  return catalogEntries;
-};
-
-const buildExerciseCatalogResponse = ({
-  rows = [],
-  fallbackRows = [],
-} = {}) => {
-  const catalogSections = buildExerciseCatalogMuscleSections(rows);
-  const fallbackSections = buildExerciseCatalogMuscleSections(fallbackRows);
-  const primaryMuscles = chooseMuscleSection(catalogSections.primaryMuscles, fallbackSections.primaryMuscles);
-  const secondaryMuscles = chooseMuscleSection(catalogSections.secondaryMuscles, fallbackSections.secondaryMuscles)
-    .filter((entry) =>
-      !primaryMuscles.some((primary) =>
-        String(primary?.name || '').trim().toLowerCase() === String(entry?.name || '').trim().toLowerCase()));
-  const muscles = primaryMuscles.length
-    ? primaryMuscles
-    : chooseMuscleSection(catalogSections.muscles, fallbackSections.muscles);
-
-  return {
-    muscles,
-    primaryMuscles,
-    secondaryMuscles,
-  };
 };
 
 // =========================
@@ -10523,6 +10136,7 @@ router.post('/user/onboarding', authMutationRateLimit, requireAuth('user'), asyn
     );
     const prefersCardioPlan = normalizedAthleteIdentity === 'cardio';
     const prefersHyroxPlan = normalizedAthleteIdentity === 'hyrox';
+    const prefersBoxingPlan = normalizedAthleteIdentity === 'box';
     const normalizedAthleteSubCategoryId = normalizeShortText(
       athleteSubCategoryId || req.body.athlete_sub_category_id,
       100,
@@ -10607,16 +10221,46 @@ router.post('/user/onboarding', authMutationRateLimit, requireAuth('user'), asyn
       bodyImagesProvided: normalizedBodyImages.length,
     });
     const onboardingProfileJson = JSON.stringify(onboardingProfilePayload);
+    const programEngineOnboardingInput = buildProgramEngineOnboardingInput({
+      age: normalizedAge,
+      gender: normalizedGender,
+      height: normalizedHeight,
+      weight: normalizedWeight,
+      bodyType: normalizedBodyType,
+      onboardingReason: normalizedOnboardingReason,
+      athleteIdentity: normalizedAthleteIdentity,
+      athleteSubCategoryId: normalizedAthleteSubCategoryId,
+      athleteSubCategoryIds: normalizedAthleteSubCategoryIds,
+      athleteSubCategoryLabel: normalizedAthleteSubCategoryLabel,
+      athleteGoal: normalizedAthleteGoal,
+      fitnessGoal: prefersCardioPlan ? 'endurance' : normalizedGoal,
+      primaryGoal: primaryGoalText,
+      experienceLevel: normalizedExperience || 'intermediate',
+      workoutDays: normalizedDays,
+      sessionDuration: normalizedSessionDuration,
+      preferredTime: normalizedPreferredTime,
+      aiTrainingFocus: normalizedAiTrainingFocus,
+      aiLimitations: normalizedAiLimitations,
+      aiRecoveryPriority: normalizedAiRecoveryPriority,
+      aiEquipmentNotes: normalizedAiEquipmentNotes,
+    });
+    const programEngineRouting = routeProgramEngineRequest({
+      onboardingInput: programEngineOnboardingInput,
+      splitPreference: normalizedSplitPreference,
+    });
+    const shouldUseProgramEngine = programEngineRouting.route === 'program_engine_v1';
 
     const claudeEnabled = hasAnthropicConfig();
     const shouldUseClaude =
       toBooleanFlag(useClaude, claudeEnabled)
+      && !shouldUseProgramEngine
       && !prefersCardioPlan
       && !prefersHyroxPlan
+      && !prefersBoxingPlan
       && !prefersFemaleSpecializedStrengthPlan;
     const shouldDisableClaude = toBooleanFlag(disableClaude, false);
     const templateEligibleSplit = ['full_body', 'upper_lower', 'push_pull_legs', 'hybrid'].includes(normalizedSplitPreference);
-    const aiPlanRequested = normalizedSplitPreference !== 'custom' && !prefersCardioPlan && !prefersHyroxPlan;
+    const aiPlanRequested = normalizedSplitPreference !== 'custom' && !prefersCardioPlan && !prefersHyroxPlan && !prefersBoxingPlan;
     const hasCustomPlanPayload = customPlan && typeof customPlan === 'object';
     const adaptiveConfig = resolveAdaptiveTrainingConfig();
     const adaptiveRulesMode =
@@ -10624,11 +10268,13 @@ router.post('/user/onboarding', authMutationRateLimit, requireAuth('user'), asyn
       && adaptiveConfig.mode === 'rules';
     const shouldUseAdaptiveRules =
       adaptiveRulesMode
+      && !shouldUseProgramEngine
       && aiPlanRequested
       && normalizedSplitPreference !== 'custom'
       && !hasCustomPlanPayload
       && !prefersCardioPlan
-      && !prefersHyroxPlan;
+      && !prefersHyroxPlan
+      && !prefersBoxingPlan;
     let claudeExerciseAnchors = [];
     let claudeGeneration = null;
     let warning = null;
@@ -10886,6 +10532,26 @@ router.post('/user/onboarding', authMutationRateLimit, requireAuth('user'), asyn
         planSource = adaptiveResult.planSource;
         claudePlan = null;
       } else {
+        if (!assignedProgram && !assignmentInfo && shouldUseProgramEngine) {
+          const engineResult = await generateAndPersistProgramEnginePlan(conn, {
+            userId: normalizedUserId,
+            gymId: normalizedGymId,
+            onboardingInput: programEngineOnboardingInput,
+            splitPreference: normalizedSplitPreference,
+            assignmentReason: 'user_request',
+            assignmentNote: `Program Engine v1.0 onboarding plan: goal=${programEngineRouting.profile.goal}, days=${programEngineRouting.profile.daysPerWeek}, level=${programEngineRouting.profile.experience}${normalizedOnboardingReason ? `, reason=${normalizedOnboardingReason}` : ''}${hasExplicitSplitPreference ? `, split=${normalizedSplitPreference}` : ''}`,
+            assignmentSource: 'ai',
+            actorUserId: normalizedUserId,
+          });
+
+          if (engineResult.route === 'program_engine_v1') {
+            assignedProgram = engineResult.assignedProgram;
+            assignmentInfo = engineResult.assignment;
+            planSource = 'program_engine_v1';
+            claudePlan = null;
+          }
+        }
+
         if (!assignedProgram && !assignmentInfo && normalizedSplitPreference === 'custom' && hasCustomPlanPayload && !prefersCardioPlan) {
         let customDraft;
         try {
@@ -11042,6 +10708,15 @@ router.post('/user/onboarding', authMutationRateLimit, requireAuth('user'), asyn
         }
       }
     } catch (planError) {
+      if (shouldUseProgramEngine) {
+        await conn.rollback();
+        const statusCode = Number(planError?.statusCode || 422);
+        return res.status(Number.isFinite(statusCode) ? statusCode : 422).json({
+          error: planError?.message || 'Program Engine generation failed',
+          code: planError?.code || planError?.name || 'PROGRAM_ENGINE_FAILED',
+          details: planError?.details || null,
+        });
+      }
       await conn.query('ROLLBACK TO SAVEPOINT onboarding_user_profile_saved');
       const rawWarning = planError?.message || 'Plan generation failed after onboarding data was saved';
       warning = warning || rawWarning;
@@ -12262,30 +11937,26 @@ router.get('/profile/:userId/stats', requireAuth(), requireUserAccess('userId', 
   }
 });
 
-router.get('/leaderboard/:userId', requireAuth('user'), requireUserAccess('userId', { allowSelf: true }), async (req, res) => {
-  try {
-    const userId = toNumber(req.params.userId);
-    if (!userId || userId <= 0) {
-      return res.status(400).json({ error: 'Invalid userId' });
-    }
-
-    const period = String(req.query.period || 'alltime').toLowerCase();
-    if (!['weekly', 'monthly', 'alltime'].includes(period)) {
-      return res.status(400).json({ error: "Invalid period. Use 'weekly', 'monthly' or 'alltime'" });
-    }
-
-    const bundle = await getLeaderboardBundle({ userId, period });
-    return res.json({
-      period: bundle.period,
-      leaderboard: bundle.leaderboard,
-      preview: bundle.preview,
-      rivalry: bundle.rivalry,
-      currentUser: bundle.currentUser,
-    });
-  } catch (error) {
-    return res.status(500).json({ error: error.message });
-  }
+const gamificationController = createGamificationController({
+  buildGamificationSummary,
+  collectUserGamificationMetrics,
+  dbPool: pool,
+  enrichMissionCollection,
+  gamificationReady,
+  getLeaderboardBundle,
+  getUserProgressionDetails,
+  getUserProgressionSnapshot,
+  refreshGamificationForUser,
+  runProgressionEventSafely,
+  toNumber,
 });
+
+router.use(createGamificationRoutes({
+  authMutationRateLimit,
+  controller: gamificationController,
+  requireAuth,
+  requireUserAccess,
+}));
 
 // =========================
 // FRIENDS / INVITATIONS
@@ -17457,325 +17128,6 @@ router.put('/notification-settings/:userId', authMutationRateLimit, requireAuth(
 });
 
 // =========================
-// MISSIONS
-// =========================
-
-router.get('/missions/:userId', requireAuth('user', 'coach', 'gym_owner'), requireUserAccess('userId', {
-  allowSelf: true,
-  allowAssignedCoach: true,
-  allowGymOwner: true,
-}), async (req, res) => {
-  try {
-    const userId = toNumber(req.params.userId);
-    if (!userId || userId <= 0) {
-      return res.status(400).json({ error: 'Invalid userId' });
-    }
-
-    const refreshed = await refreshGamificationForUser(userId);
-    const missions = await enrichMissionCollection(
-      (refreshed?.missions || []).filter((mission) => mission?.status !== 'expired'),
-    );
-    return res.json(missions);
-  } catch (error) {
-    return res.status(500).json({ error: error.message });
-  }
-});
-
-router.get('/missions/:userId/history', requireAuth('user', 'coach', 'gym_owner'), requireUserAccess('userId', {
-  allowSelf: true,
-  allowAssignedCoach: true,
-  allowGymOwner: true,
-}), async (req, res) => {
-  try {
-    const userId = toNumber(req.params.userId);
-    if (!userId || userId <= 0) {
-      return res.status(400).json({ error: 'Invalid userId' });
-    }
-
-    await refreshGamificationForUser(userId);
-
-    const [rows] = await pool.execute(
-      `SELECT m.title, m.points_reward, um.completed_at,
-              DATE_FORMAT(um.completed_at, '%M %Y') AS period
-       FROM user_missions um
-       JOIN missions m ON m.id = um.mission_id
-       WHERE um.user_id = ? AND um.status = 'completed' AND um.completed_at IS NOT NULL
-       ORDER BY um.completed_at DESC`,
-      [userId]
-    );
-
-    return res.json(rows);
-  } catch (error) {
-    return res.status(500).json({ error: error.message });
-  }
-});
-
-// =========================
-// CHALLENGES
-// =========================
-
-router.get('/challenges/:userId', requireAuth('user'), requireUserAccess('userId', { allowSelf: true }), async (req, res) => {
-  try {
-    const userId = toNumber(req.params.userId);
-    if (!userId || userId <= 0) {
-      return res.status(400).json({ error: 'Invalid userId' });
-    }
-
-    const refreshed = await refreshGamificationForUser(userId);
-    const challenges = refreshed?.challenges || [];
-    const visibleChallenges = challenges.filter((challenge) => challenge?.status !== 'expired');
-
-    return res.json({
-      daily: visibleChallenges.filter((c) => c.challenge_type === 'daily'),
-      weekly: visibleChallenges.filter((c) => c.challenge_type === 'weekly'),
-      totals: {
-        completed: visibleChallenges.filter((c) => c.completed).length,
-        active: visibleChallenges.filter((c) => c.status === 'active').length,
-      },
-    });
-  } catch (error) {
-    return res.status(500).json({ error: error.message });
-  }
-});
-
-router.get('/challenges/:userId/history', requireAuth('user'), requireUserAccess('userId', { allowSelf: true }), async (req, res) => {
-  try {
-    const userId = toNumber(req.params.userId);
-    if (!userId || userId <= 0) {
-      return res.status(400).json({ error: 'Invalid userId' });
-    }
-
-    await refreshGamificationForUser(userId);
-
-    const [rows] = await pool.execute(
-      `SELECT
-          ct.title,
-          ct.challenge_type,
-          ct.points_reward,
-          uc.instance_key,
-          uc.completed_at,
-          DATE_FORMAT(uc.completed_at, '%M %Y') AS period
-       FROM user_challenges uc
-       JOIN challenge_templates ct ON ct.id = uc.challenge_template_id
-       WHERE uc.user_id = ? AND uc.status = 'completed' AND uc.completed_at IS NOT NULL
-       ORDER BY uc.completed_at DESC`,
-      [userId],
-    );
-
-    return res.json(rows);
-  } catch (error) {
-    return res.status(500).json({ error: error.message });
-  }
-});
-
-router.get('/gamification/:userId/summary', requireAuth('user', 'coach', 'gym_owner'), requireUserAccess('userId', {
-  allowSelf: true,
-  allowAssignedCoach: true,
-  allowGymOwner: true,
-}), async (req, res) => {
-  try {
-    const userId = toNumber(req.params.userId);
-    if (!userId || userId <= 0) {
-      return res.status(400).json({ error: 'Invalid userId' });
-    }
-
-    const refreshed = await refreshGamificationForUser(userId);
-    if (!refreshed) {
-      return res.status(404).json({ error: 'User not found' });
-    }
-    const progression = await runProgressionEventSafely({
-      userId,
-      gamification: refreshed,
-    });
-    const progressionSnapshot = await getUserProgressionSnapshot(userId);
-    const summary = await buildGamificationSummary({
-      userId,
-      refreshedGamification: refreshed,
-      progressionSnapshot,
-      leaderboardPeriod: String(req.query?.leaderboardPeriod || 'weekly').trim().toLowerCase(),
-    });
-
-    return res.json({
-      ...summary,
-      userId: refreshed.userId,
-      totalPoints: refreshed.totalPoints,
-      missionPoints: refreshed.missionPoints,
-      challengePoints: refreshed.challengePoints,
-      rank: refreshed.rank,
-      nextRank: refreshed.nextRank,
-      totalWorkouts: refreshed.totalWorkouts,
-      totalXp: progressionSnapshot.totalXp,
-      currentLevel: progressionSnapshot.currentLevel,
-      nextLevel: progressionSnapshot.nextLevel,
-      unlockedBadges: progressionSnapshot.unlockedBadges,
-      unlockedAchievements: progressionSnapshot.unlockedAchievements,
-      availableRewards: progressionSnapshot.availableRewards,
-      completedMissions: refreshed.completedMissions,
-      completedChallenges: refreshed.completedChallenges,
-      activeMissions: refreshed.missions.filter((m) => m.status === 'active').length,
-      activeMissionCount: refreshed.missions.filter((m) => m.status === 'active').length,
-      activeChallenges: refreshed.challenges.filter((c) => c.status === 'active').length,
-      progression,
-    });
-  } catch (error) {
-    return res.status(500).json({ error: error.message });
-  }
-});
-
-router.get('/user-rank/:userId', requireAuth('user', 'coach', 'gym_owner'), requireUserAccess('userId', {
-  allowSelf: true,
-  allowAssignedCoach: true,
-  allowGymOwner: true,
-}), async (req, res) => {
-  try {
-    const userId = toNumber(req.params.userId);
-    if (!userId || userId <= 0) {
-      return res.status(400).json({ error: 'Invalid userId' });
-    }
-
-    const refreshed = await refreshGamificationForUser(userId);
-    if (!refreshed) {
-      return res.status(404).json({ error: 'User not found' });
-    }
-
-    const progressionSnapshot = await getUserProgressionSnapshot(userId);
-    const summary = await buildGamificationSummary({
-      userId,
-      refreshedGamification: refreshed,
-      progressionSnapshot,
-      leaderboardPeriod: 'weekly',
-    });
-
-    return res.json({
-      userId,
-      rank: summary.progress.rank,
-      level: summary.progress.level,
-      streaks: summary.progress.streaks,
-      rivalry: summary.progress.rivalry,
-      nextAction: summary.nextAction,
-      notificationTriggers: summary.notificationTriggers,
-    });
-  } catch (error) {
-    return res.status(500).json({ error: error.message });
-  }
-});
-
-router.post('/mission-progress', authMutationRateLimit, requireAuth('user'), requireUserAccess((req) => req.body?.userId, { allowSelf: true }), async (req, res) => {
-  try {
-    const userId = toNumber(req.body?.userId);
-    if (!userId || userId <= 0) {
-      return res.status(400).json({ error: 'Invalid userId' });
-    }
-
-    const refreshed = await refreshGamificationForUser(userId);
-    if (!refreshed) {
-      return res.status(404).json({ error: 'User not found' });
-    }
-
-    const progressionSnapshot = await getUserProgressionSnapshot(userId);
-    const summary = await buildGamificationSummary({
-      userId,
-      refreshedGamification: refreshed,
-      progressionSnapshot,
-      leaderboardPeriod: 'weekly',
-    });
-
-    return res.json({
-      success: true,
-      activeMissionList: summary.activeMissionList,
-      missionChains: summary.missionChains,
-      nextAction: summary.nextAction,
-      notificationTriggers: summary.notificationTriggers,
-    });
-  } catch (error) {
-    return res.status(500).json({ error: error.message });
-  }
-});
-
-router.get('/gamification/:userId/progression', requireAuth('user', 'coach', 'gym_owner'), requireUserAccess('userId', {
-  allowSelf: true,
-  allowAssignedCoach: true,
-  allowGymOwner: true,
-}), async (req, res) => {
-  try {
-    const userId = toNumber(req.params.userId);
-    if (!userId || userId <= 0) {
-      return res.status(400).json({ error: 'Invalid userId' });
-    }
-
-    const refreshed = await refreshGamificationForUser(userId);
-    if (!refreshed) {
-      return res.status(404).json({ error: 'User not found' });
-    }
-
-    const progression = await runProgressionEventSafely({
-      userId,
-      gamification: refreshed,
-    });
-
-    const xpTransactionsLimit = toNumber(req.query?.txLimit, 20);
-    const details = await getUserProgressionDetails(userId, {
-      xpTransactionsLimit,
-    });
-
-    return res.json({
-      userId: refreshed.userId,
-      points: {
-        total: refreshed.totalPoints,
-        mission: refreshed.missionPoints,
-        challenge: refreshed.challengePoints,
-        blog: refreshed.blogPoints,
-      },
-      rank: {
-        current: refreshed.rank,
-        next: refreshed.nextRank,
-      },
-      xp: {
-        total: details.snapshot.totalXp,
-        currentLevel: details.snapshot.currentLevel,
-        nextLevel: details.snapshot.nextLevel,
-      },
-      missions: {
-        completed: refreshed.completedMissions,
-        active: refreshed.missions.filter((m) => m.status === 'active').length,
-      },
-      challenges: {
-        completed: refreshed.completedChallenges,
-        active: refreshed.challenges.filter((c) => c.status === 'active').length,
-      },
-      badges: details.badges,
-      badgeTotals: details.badgeTotals,
-      achievements: details.achievements,
-      achievementTotals: details.achievementTotals,
-      rewards: details.rewards,
-      rewardTotals: details.rewardTotals,
-      xpTransactions: details.xpTransactions,
-      progression,
-    });
-  } catch (error) {
-    return res.status(500).json({ error: error.message });
-  }
-});
-
-router.get('/gamification/:userId/debug-metrics', requireAuth('user', 'coach', 'gym_owner'), requireUserAccess('userId', {
-  allowSelf: true,
-  allowAssignedCoach: true,
-  allowGymOwner: true,
-}), async (req, res) => {
-  try {
-    const userId = toNumber(req.params.userId);
-    if (!userId || userId <= 0) {
-      return res.status(400).json({ error: 'Invalid userId' });
-    }
-    await gamificationReady;
-    const metrics = await collectUserGamificationMetrics(userId, new Date());
-    return res.json({ userId, metrics });
-  } catch (error) {
-    return res.status(500).json({ error: error.message });
-  }
-});
-
-// =========================
 // WORKOUT SETS / HISTORY
 // =========================
 
@@ -19736,112 +19088,6 @@ router.get('/workout-summaries/:userId', requireAuth('user'), requireUserAccess(
   }
 });
 
-router.get('/exercises/catalog/filters', async (_req, res) => {
-  try {
-    const result = await listSupabaseExerciseFilters();
-    return res.json(result);
-  } catch (error) {
-    return res.status(500).json({ error: error.message });
-  }
-});
-
-router.get('/exercises/catalog/muscles/resolve', async (req, res) => {
-  try {
-    const requestedName = String(req.query.name || '').trim();
-    const requestedMuscle = String(req.query.muscle || '').trim();
-    if (!requestedName) {
-      return res.status(400).json({ error: 'Exercise name is required' });
-    }
-
-    const supabaseResult = await resolveSupabaseExerciseMusclesByName({
-      name: requestedName,
-      muscleHint: requestedMuscle,
-    });
-    if (supabaseResult) {
-      return res.json(supabaseResult);
-    }
-
-    {
-      const fallbackRows = getExerciseFallbackMuscleRows({
-        name: requestedName,
-        bodyPart: requestedMuscle || null,
-        muscleHint: requestedMuscle || null,
-      });
-      const genericFallbackRows = fallbackRows.length
-        ? fallbackRows
-        : (requestedMuscle
-          ? [{
-              body_part: requestedMuscle,
-              muscle_group: requestedMuscle,
-              role: 'target',
-              load_factor: 1,
-              is_primary: 1,
-            }]
-          : []);
-
-      if (genericFallbackRows.length) {
-        return res.json({
-          exercise: {
-            id: 0,
-            name: requestedName,
-            bodyPart: requestedMuscle || null,
-          },
-          ...buildExerciseCatalogResponse({
-            rows: [],
-            fallbackRows: genericFallbackRows,
-          }),
-        });
-      }
-
-      return res.status(404).json({ error: 'Exercise catalog entry not found' });
-    }
-  } catch (error) {
-    return res.status(500).json({ error: error.message });
-  }
-});
-
-router.get('/exercises/catalog/:exerciseId/muscles', async (req, res) => {
-  try {
-    const exerciseId = Number(req.params.exerciseId || 0);
-    if (!Number.isInteger(exerciseId) || exerciseId <= 0) {
-      return res.status(400).json({ error: 'Invalid exercise catalog id' });
-    }
-
-    const result = await getSupabaseExerciseMuscles(exerciseId);
-    if (!result) {
-      return res.status(404).json({ error: 'Exercise catalog entry not found' });
-    }
-
-    return res.json(result);
-  } catch (error) {
-    return res.status(500).json({ error: error.message });
-  }
-});
-
-router.get('/exercises/catalog', async (req, res) => {
-  try {
-    const limitRaw = Number(req.query.limit || 200);
-    const limit = Math.min(1000, Math.max(1, Number.isFinite(limitRaw) ? limitRaw : 1000));
-    const offsetRaw = Number(req.query.offset || 0);
-    const offset = Math.max(0, Number.isFinite(offsetRaw) ? offsetRaw : 0);
-    const filter = String(req.query.filter || 'All').trim();
-    const search = String(req.query.search || '').trim();
-    const gender = String(req.query.gender || req.query.audience || '').trim();
-
-    const result = await listSupabaseExercises({
-      filter,
-      search,
-      limit,
-      offset,
-      gender,
-    });
-
-    return res.json(result);
-  } catch (error) {
-    return res.status(500).json({ error: error.message });
-  }
-});
-
 const BLOG_CATEGORIES = new Set(['Training', 'Nutrition', 'Recovery', 'Mindset']);
 const BLOG_MEDIA_TYPES = new Set(['image', 'video']);
 const BLOG_REACTIONS = new Set(['love', 'fire', 'power', 'wow']);
@@ -21032,216 +20278,7 @@ router.post('/ai/chat-completions', authMutationRateLimit, requireAuth('user', '
   }
 });
 
-const ensureNutritionV2Tables = async () => {
-  await pool.execute(`
-    CREATE TABLE IF NOT EXISTS nutrition_health_profiles (
-      user_id INT PRIMARY KEY,
-      conditions_json JSON NULL,
-      allergies_json JSON NULL,
-      intolerances_json JSON NULL,
-      clinician_nutrition_plan TINYINT(1) NULL,
-      prefer_not_to_say TINYINT(1) NOT NULL DEFAULT 0,
-      no_known_condition TINYINT(1) NOT NULL DEFAULT 0,
-      onboarding_version INT NOT NULL DEFAULT 1,
-      completed_at DATETIME NULL,
-      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-      updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-      CONSTRAINT fk_nutrition_health_profiles_user
-        FOREIGN KEY (user_id) REFERENCES users(id)
-        ON DELETE CASCADE
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
-  `);
-
-  await pool.execute(`
-    CREATE TABLE IF NOT EXISTS nutrition_hydration_entries (
-      id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
-      user_id INT NOT NULL,
-      amount_ml INT UNSIGNED NOT NULL,
-      drink_type VARCHAR(40) NOT NULL DEFAULT 'water',
-      logged_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-      INDEX idx_nutrition_hydration_user_logged_at (user_id, logged_at),
-      CONSTRAINT fk_nutrition_hydration_entries_user
-        FOREIGN KEY (user_id) REFERENCES users(id)
-        ON DELETE CASCADE
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
-  `);
-};
-
-const parseJsonColumn = (value, fallback) => {
-  if (value == null || value === '') return fallback;
-  if (typeof value === 'object') return value;
-  try {
-    return JSON.parse(String(value));
-  } catch {
-    return fallback;
-  }
-};
-
-const mapNutritionHealthProfileRow = (row) => {
-  if (!row) {
-    return {
-      completed: false,
-      onboardingVersion: NUTRITION_ONBOARDING_VERSION,
-      completedAt: null,
-      healthProfile: null,
-    };
-  }
-
-  const healthProfile = normalizeNutritionHealthProfile({
-    conditions: parseJsonColumn(row.conditions_json, {}),
-    allergies: parseJsonColumn(row.allergies_json, []),
-    intolerances: parseJsonColumn(row.intolerances_json, []),
-    clinicianNutritionPlan: row.clinician_nutrition_plan == null ? null : Boolean(row.clinician_nutrition_plan),
-    preferNotToSay: Boolean(row.prefer_not_to_say),
-    noKnownCondition: Boolean(row.no_known_condition),
-    onboardingVersion: Number(row.onboarding_version || NUTRITION_ONBOARDING_VERSION),
-    completedAt: row.completed_at ? new Date(row.completed_at).toISOString() : null,
-  });
-
-  return {
-    completed: Boolean(row.completed_at),
-    onboardingVersion: Number(row.onboarding_version || NUTRITION_ONBOARDING_VERSION),
-    completedAt: row.completed_at ? new Date(row.completed_at).toISOString() : null,
-    healthProfile,
-  };
-};
-
-const getTodayHydrationSummary = async (userId) => {
-  const [rows] = await pool.execute(
-    `SELECT COALESCE(SUM(amount_ml), 0) AS total_ml, COUNT(*) AS entries_count
-     FROM nutrition_hydration_entries
-     WHERE user_id = ? AND DATE(logged_at) = CURDATE()`,
-    [userId],
-  );
-
-  return {
-    loggedMl: Number(rows[0]?.total_ml || 0),
-    entriesCount: Number(rows[0]?.entries_count || 0),
-  };
-};
-
-router.get('/nutrition/profile', requireAuth('user'), async (req, res) => {
-  try {
-    await ensureNutritionV2Tables();
-    const userId = Number(req.authUser?.id || 0);
-    const [rows] = await pool.execute(
-      `SELECT *
-       FROM nutrition_health_profiles
-       WHERE user_id = ?
-       LIMIT 1`,
-      [userId],
-    );
-    const profile = mapNutritionHealthProfileRow(rows[0] || null);
-    const hydration = await getTodayHydrationSummary(userId);
-
-    return res.json({
-      ...profile,
-      hydration,
-      safety: buildNutritionSafetyDecision({ healthProfile: profile.healthProfile || {} }),
-    });
-  } catch (error) {
-    return res.status(500).json({ error: error.message || 'Failed to load nutrition profile' });
-  }
-});
-
-router.put('/nutrition/profile', authMutationRateLimit, requireAuth('user'), async (req, res) => {
-  try {
-    await ensureNutritionV2Tables();
-    const userId = Number(req.authUser?.id || 0);
-    const healthProfile = normalizeNutritionHealthProfile(req.body || {});
-    const completedAt = new Date(healthProfile.completedAt || new Date()).toISOString().slice(0, 19).replace('T', ' ');
-    const clinicianPlan = healthProfile.clinicianNutritionPlan == null ? null : (healthProfile.clinicianNutritionPlan ? 1 : 0);
-
-    await pool.execute(
-      `INSERT INTO nutrition_health_profiles
-        (user_id, conditions_json, allergies_json, intolerances_json, clinician_nutrition_plan, prefer_not_to_say, no_known_condition, onboarding_version, completed_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-       ON DUPLICATE KEY UPDATE
-        conditions_json = VALUES(conditions_json),
-        allergies_json = VALUES(allergies_json),
-        intolerances_json = VALUES(intolerances_json),
-        clinician_nutrition_plan = VALUES(clinician_nutrition_plan),
-        prefer_not_to_say = VALUES(prefer_not_to_say),
-        no_known_condition = VALUES(no_known_condition),
-        onboarding_version = VALUES(onboarding_version),
-        completed_at = VALUES(completed_at)`,
-      [
-        userId,
-        JSON.stringify(healthProfile.conditions || {}),
-        JSON.stringify(healthProfile.allergies || []),
-        JSON.stringify(healthProfile.intolerances || []),
-        clinicianPlan,
-        healthProfile.preferNotToSay ? 1 : 0,
-        healthProfile.noKnownCondition ? 1 : 0,
-        NUTRITION_ONBOARDING_VERSION,
-        completedAt,
-      ],
-    );
-
-    return res.json({
-      completed: true,
-      onboardingVersion: NUTRITION_ONBOARDING_VERSION,
-      completedAt: new Date(completedAt).toISOString(),
-      healthProfile,
-      safety: buildNutritionSafetyDecision({ healthProfile }),
-    });
-  } catch (error) {
-    return res.status(500).json({ error: error.message || 'Failed to save nutrition profile' });
-  }
-});
-
-router.post('/nutrition/hydration', authMutationRateLimit, requireAuth('user'), async (req, res) => {
-  try {
-    await ensureNutritionV2Tables();
-    const userId = Number(req.authUser?.id || 0);
-    const amountMl = Math.round(Number(req.body?.amountMl || req.body?.amount_ml || 0));
-    const drinkTypeRaw = String(req.body?.drinkType || req.body?.drink_type || 'water').trim().toLowerCase();
-    const drinkType = ['water', 'coffee', 'tea', 'milk', 'juice', 'other'].includes(drinkTypeRaw) ? drinkTypeRaw : 'water';
-
-    if (!Number.isFinite(amountMl) || amountMl <= 0) {
-      return res.status(400).json({ error: 'Hydration amount must be greater than 0 ml' });
-    }
-    if (amountMl > 3000) {
-      return res.status(400).json({ error: 'Hydration amount is too large for one entry' });
-    }
-
-    await pool.execute(
-      `INSERT INTO nutrition_hydration_entries (user_id, amount_ml, drink_type, logged_at)
-       VALUES (?, ?, ?, NOW())`,
-      [userId, amountMl, drinkType],
-    );
-
-    const hydration = await getTodayHydrationSummary(userId);
-    return res.json({
-      success: true,
-      amountMl,
-      drinkType,
-      hydration,
-    });
-  } catch (error) {
-    return res.status(500).json({ error: error.message || 'Failed to log hydration' });
-  }
-});
-
-router.post('/nutrition/daily-plan', requireAuth('user'), async (req, res) => {
-  try {
-    const payload = req.body && typeof req.body === 'object' ? req.body : {};
-    const [profileRows] = await pool.execute(
-      `SELECT *
-       FROM nutrition_health_profiles
-       WHERE user_id = ?
-       LIMIT 1`,
-      [Number(req.authUser?.id || 0)],
-    ).catch(() => [[]]);
-    const healthProfile = mapNutritionHealthProfileRow(profileRows[0] || null).healthProfile || {};
-    const safety = buildNutritionSafetyDecision({ healthProfile, targets: payload });
-    const plan = await generateDailyNutritionPlan(payload);
-    return res.json({ ...plan, safety });
-  } catch (error) {
-    return res.status(500).json({ error: error.message || 'Failed to generate daily nutrition plan' });
-  }
-});
+router.use(createNutritionRoutes({ authMutationRateLimit, requireAuth }));
 
 router.get('/insights/datasets/overview', requireAuth('coach', 'gym_owner'), async (req, res) => {
   try {

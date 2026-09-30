@@ -2,6 +2,7 @@ import process from 'node:process';
 import express from 'express';
 import cors from 'cors';
 import routes from './routes.js';
+import exerciseRoutes from './routes/exercise.routes.js';
 import dotenv from 'dotenv';
 import http from 'http';
 import { Server as SocketIOServer } from 'socket.io';
@@ -72,6 +73,7 @@ app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ limit: '10mb', extended: true }));
 
 // Routes
+app.use('/api', exerciseRoutes);
 app.use('/api', routes);
 
 const emitToParticipant = (id, type, eventName, payload) => {
