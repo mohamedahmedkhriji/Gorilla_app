@@ -14635,7 +14635,8 @@ router.get('/user/:userId/program', async (req, res) => {
     }
 
     const [workoutRows] = await pool.execute(
-      `SELECT id, workout_name, workout_type, day_order, day_name, estimated_duration_minutes, notes
+      `SELECT id, workout_name, workout_type, day_order, day_name, estimated_duration_minutes, notes,
+              program_engine_week, program_engine_day, cardio_prescription_json, slot_metadata_json
        FROM workouts
        WHERE program_id = ?
        ORDER BY day_order ASC`,
@@ -14655,7 +14656,13 @@ router.get('/user/:userId/program', async (req, res) => {
           we.rest_seconds,
           we.tempo,
           we.rpe_target,
-          we.notes
+          we.notes,
+          we.exercise_catalog_id,
+          we.exercise_slug_snapshot,
+          we.slot_id,
+          we.slot_movement_pattern,
+          we.prescription_json,
+          we.progression_rule
        FROM workout_exercises we
        JOIN workouts w ON w.id = we.workout_id
        WHERE w.program_id = ?
