@@ -27,6 +27,14 @@ interface WorkoutPlanScreenProps {
   workoutDayLabel?: string;
   completedExercises: string[];
   todayExercises: any[];
+  cardioPrescription?: {
+    modality?: string;
+    intensity?: string;
+    durationMinutes?: number;
+    duration_minutes?: number;
+    intervals?: unknown;
+    notes?: string;
+  } | null;
   loading: boolean;
   allowEditing?: boolean;
   isDayFullyDone?: boolean;
@@ -171,7 +179,7 @@ const resolveWorkoutMusclePriority = (workoutText: string) => {
 
 const isGirlsStyleValue = (value: unknown) => {
   const normalized = String(value || '').trim().toLowerCase();
-  return normalized === 'woman' || normalized === 'female' || normalized === 'f' || normalized === 'girls' || normalized === 'femme';
+  return normalized === 'woman' || normalized === 'female' || normalized === 'f' || normalized === 'girl' || normalized === 'girls' || normalized === 'femme';
 };
 
 const safeParseStoredJson = (key: string) => {
@@ -190,11 +198,12 @@ const readStoredStyleGender = () => {
 
 const shouldUseGirlsTheme = () => {
   if (typeof window === 'undefined') return false;
-  const styleGender = readStoredStyleGender();
-  if (styleGender) return isGirlsStyleValue(styleGender);
-
   const user = safeParseStoredJson('appUser') || safeParseStoredJson('user');
   const profile = safeParseStoredJson('onboardingProfile');
+  const explicitGender = String(user?.gender || profile?.gender || '').trim().toLowerCase();
+  if (explicitGender === 'man' || explicitGender === 'male' || explicitGender === 'm') return false;
+  const styleGender = readStoredStyleGender();
+  if (styleGender) return isGirlsStyleValue(styleGender);
   return isGirlsStyleValue(user?.gender) || isGirlsStyleValue(profile?.gender) || profile?.onboardingTheme === 'girls';
 };
 
@@ -568,6 +577,7 @@ export function WorkoutPlanScreen({
   workoutDayLabel,
   completedExercises,
   todayExercises,
+  cardioPrescription,
   loading,
   allowEditing = true,
   isDayFullyDone = false,
@@ -595,10 +605,7 @@ export function WorkoutPlanScreen({
   const [styleGender, setStyleGender] = useState(() => readStoredStyleGender());
   const copy = LOCALIZED_WORKOUT_PLAN_I18N[language] || LOCALIZED_WORKOUT_PLAN_I18N.en;
   const isArabic = language === 'ar';
-  const isGirlsTheme = useMemo(
-    () => (styleGender ? isGirlsStyleValue(styleGender) : shouldUseGirlsTheme()),
-    [styleGender],
-  );
+  const isGirlsTheme = useMemo(() => shouldUseGirlsTheme(), [styleGender]);
   const preferredMediaAudience = isGirlsTheme ? 'female' : 'male';
 
   const toLocalizedMuscleLabel = useCallback(
@@ -771,6 +778,13 @@ export function WorkoutPlanScreen({
     if (Number.isFinite(numeric) && numeric > 0) return copy.restSeconds(numeric);
     return copy.restAsNeeded;
   };
+  const cardioDuration = Number(cardioPrescription?.durationMinutes ?? cardioPrescription?.duration_minutes ?? 0);
+  const cardioDetails = [
+    cardioPrescription?.modality ? String(cardioPrescription.modality) : '',
+    cardioPrescription?.intensity ? String(cardioPrescription.intensity) : '',
+    Number.isFinite(cardioDuration) && cardioDuration > 0 ? `${Math.round(cardioDuration)} min` : '',
+  ].filter(Boolean);
+  const isCardioOnlyPlan = !!cardioPrescription && exercises.length === 0;
 
   const exerciseVisuals = useMemo(() => (
     exercises.map((exercise) => {
@@ -807,6 +821,10 @@ export function WorkoutPlanScreen({
   }, [exercises, isHyroxMode, workoutDay, workoutDayLabel]);
 
   const displayTargetMuscles = useMemo(() => {
+    if (cardioPrescription && exercises.length === 0) {
+      return [{ name: 'Cardio', sourceName: 'Cardio', score: 100 }];
+    }
+
     const plannedLoadByMuscle = new Map<string, number>();
 
     exercises.forEach((exercise) => {
@@ -848,7 +866,7 @@ export function WorkoutPlanScreen({
       .sort((left, right) => right.load - left.load || left.name.localeCompare(right.name))
       .slice(0, 3)
       .map(({ name, sourceName, score }) => ({ name, sourceName, score }));
-  }, [exercises, workoutDay, workoutDayLabel]);
+  }, [cardioPrescription, exercises, workoutDay, workoutDayLabel]);
 
   const catalogMuscles = useMemo(() => {
     const counts = new Map<string, number>();
@@ -1059,7 +1077,25 @@ export function WorkoutPlanScreen({
         </div>
 
         <div className={isHyroxWorkout && exercises.length > 0 ? 'relative py-3' : 'space-y-3'}>
-          {exercises.length === 0 && (
+          {isCardioOnlyPlan && (
+            <div className={exerciseEmptyClassName}>
+              <div className={`text-sm font-semibold ${isGirlsTheme ? 'text-[#4A4A4A]' : 'text-white'}`}>
+                Cardio prescription
+              </div>
+              {cardioDetails.length > 0 && (
+                <div className="mt-1 text-xs">
+                  {cardioDetails.join(' - ')}
+                </div>
+              )}
+              {cardioPrescription?.notes && (
+                <div className="mt-2 text-xs">
+                  {String(cardioPrescription.notes)}
+                </div>
+              )}
+            </div>
+          )}
+
+          {exercises.length === 0 && !isCardioOnlyPlan && (
             <div className={exerciseEmptyClassName}>
               {isRestDayView
                 ? copy.restDayEmpty

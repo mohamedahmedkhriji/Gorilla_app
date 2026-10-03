@@ -1,14 +1,16 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { ShoppingBag } from 'lucide-react';
 import { Header } from '../components/ui/Header';
 import { emojiAutoNutrition, emojiMyNutrition, emojiShop } from '../services/emojiTheme';
+import { BooksLibrary } from './BooksLibrary';
 
 interface ShopProps {
   onBack: () => void;
 }
 
-const supplementFilters = ['Creatine', 'Protein', 'Pre-workout'] as const;
-type SupplementFilter = (typeof supplementFilters)[number];
+const shopFilters = ['Creatine', 'Protein', 'Pre-workout', 'Books'] as const;
+type ShopFilter = (typeof shopFilters)[number];
+type SupplementFilter = Exclude<ShopFilter, 'Books'>;
 
 type ShopProduct = {
   id: string;
@@ -40,19 +42,52 @@ const productsByFilter: Record<SupplementFilter, ShopProduct[]> = {
   ],
 };
 
+const isGirlsStyleValue = (value: unknown) => {
+  const normalized = String(value || '').trim().toLowerCase();
+  return normalized === 'woman' || normalized === 'female' || normalized === 'f' || normalized === 'girl' || normalized === 'girls' || normalized === 'femme';
+};
+
+const readStyleGender = () => {
+  try {
+    return String(localStorage.getItem('appStyleGender') || '').trim().toLowerCase();
+  } catch {
+    return '';
+  }
+};
+
 export function Shop({ onBack }: ShopProps) {
-  const [activeFilter, setActiveFilter] = useState<SupplementFilter>('Creatine');
-  const activeProducts = productsByFilter[activeFilter];
+  const [activeFilter, setActiveFilter] = useState<ShopFilter>('Creatine');
+  const [styleGender, setStyleGender] = useState(() => readStyleGender());
+  const activeProducts = activeFilter === 'Books' ? [] : productsByFilter[activeFilter];
+  const isGirlsTheme = isGirlsStyleValue(styleGender);
+
+  useEffect(() => {
+    const refreshStyleGender = () => setStyleGender(readStyleGender());
+
+    window.addEventListener('repset:app-style-gender-changed', refreshStyleGender);
+    window.addEventListener('storage', refreshStyleGender);
+
+    return () => {
+      window.removeEventListener('repset:app-style-gender-changed', refreshStyleGender);
+      window.removeEventListener('storage', refreshStyleGender);
+    };
+  }, []);
 
   return (
-    <div className="min-h-screen pb-[calc(env(safe-area-inset-bottom,0px)+1.5rem)]">
+    <div
+      className={`min-h-screen pb-[calc(env(safe-area-inset-bottom,0px)+1.5rem)] ${
+        isGirlsTheme
+          ? '-mx-4 bg-[radial-gradient(circle_at_top_left,rgba(249,178,215,0.22),transparent_34%),radial-gradient(circle_at_85%_10%,rgba(207,236,243,0.32),transparent_30%),linear-gradient(180deg,#FFF5F5_0%,#F7D6D0_52%,#FFF5F5_100%)] px-4 text-[#4A4A4A] sm:-mx-6 sm:px-6'
+          : ''
+      }`}
+    >
       <div className="px-4 pt-2 sm:px-6">
         <Header title="Shop" onBack={onBack} compact titleClassName="font-brand text-[2rem]" />
       </div>
 
       <main className="space-y-5 px-4 sm:px-6">
         <div className="flex gap-2 overflow-x-auto pb-1 [-webkit-overflow-scrolling:touch]">
-          {supplementFilters.map((filter) => {
+          {shopFilters.map((filter) => {
             const isActive = activeFilter === filter;
 
             return (
@@ -62,8 +97,12 @@ export function Shop({ onBack }: ShopProps) {
                 onClick={() => setActiveFilter(filter)}
                 className={`shrink-0 rounded-full border px-4 py-2 text-sm font-semibold transition-colors ${
                   isActive
-                    ? 'border-accent bg-accent text-black'
-                    : 'border-white/12 bg-white/[0.05] text-text-secondary hover:border-accent/40 hover:text-text-primary'
+                    ? isGirlsTheme
+                      ? 'border-[#D78DA4] bg-[#F6B6C8] text-[#4A4A4A] shadow-[0_12px_28px_rgba(183,110,138,0.20)]'
+                      : 'border-accent bg-accent text-black'
+                    : isGirlsTheme
+                      ? 'border-[#E2B4BD]/55 bg-white/65 text-[#795E67] hover:border-[#D78DA4] hover:text-[#4A4A4A]'
+                      : 'border-white/12 bg-white/[0.05] text-text-secondary hover:border-accent/40 hover:text-text-primary'
                 }`}
               >
                 {filter}
@@ -72,33 +111,37 @@ export function Shop({ onBack }: ShopProps) {
           })}
         </div>
 
-        <section className="grid place-items-center gap-4 sm:grid-cols-2">
-          {activeProducts.map((product) => (
-            <article key={product.id} className="shop-product-card">
-              <div className={`shop-product-orb bg-gradient-to-br ${product.tone}`}>
-                <img src={product.image} alt="" aria-hidden="true" className="shop-product-orb-image" />
-              </div>
-
-              <div className="shop-product-content">
-                <div className="shop-product-detail">
-                  <span>{product.title}</span>
-                  <p>{product.detail}</p>
-                  <strong>${product.price}</strong>
-                  <button type="button">
-                    <ShoppingBag size={13} />
-                    Buy
-                  </button>
+        {activeFilter === 'Books' ? (
+          <BooksLibrary embedded onBack={() => setActiveFilter('Creatine')} themeVariant={isGirlsTheme ? 'girls' : 'default'} />
+        ) : (
+          <section className="grid place-items-center gap-4 sm:grid-cols-2">
+            {activeProducts.map((product) => (
+              <article key={product.id} className="shop-product-card">
+                <div className={`shop-product-orb bg-gradient-to-br ${product.tone}`}>
+                  <img src={product.image} alt="" aria-hidden="true" className="shop-product-orb-image" />
                 </div>
 
-                <div className="shop-product-image-wrap">
-                  <div className={`shop-product-image-box bg-gradient-to-br ${product.tone}`}>
-                    <img src={product.image} alt="" aria-hidden="true" className="shop-product-image" />
+                <div className="shop-product-content">
+                  <div className="shop-product-detail">
+                    <span>{product.title}</span>
+                    <p>{product.detail}</p>
+                    <strong>${product.price}</strong>
+                    <button type="button">
+                      <ShoppingBag size={13} />
+                      Buy
+                    </button>
+                  </div>
+
+                  <div className="shop-product-image-wrap">
+                    <div className={`shop-product-image-box bg-gradient-to-br ${product.tone}`}>
+                      <img src={product.image} alt="" aria-hidden="true" className="shop-product-image" />
+                    </div>
                   </div>
                 </div>
-              </div>
-            </article>
-          ))}
-        </section>
+              </article>
+            ))}
+          </section>
+        )}
       </main>
     </div>
   );

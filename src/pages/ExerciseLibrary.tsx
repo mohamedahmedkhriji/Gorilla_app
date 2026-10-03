@@ -167,7 +167,7 @@ const LEG_SUBFILTER_KEYS = new Set(['quadricep', 'quadriceps', 'hamstring', 'ham
 
 const isGirlsStyleValue = (value: unknown) => {
   const normalized = String(value || '').trim().toLowerCase();
-  return normalized === 'woman' || normalized === 'female' || normalized === 'f' || normalized === 'girls';
+  return normalized === 'woman' || normalized === 'female' || normalized === 'f' || normalized === 'girl' || normalized === 'girls' || normalized === 'femme';
 };
 
 const readExerciseLibraryStyleGender = () => {
@@ -198,8 +198,10 @@ const readExerciseLibraryProfile = (user: any) => {
 };
 
 const shouldUseGirlsExerciseLibraryTheme = (user: any, styleGender: string) => {
-  if (styleGender) return isGirlsStyleValue(styleGender);
   const profile = readExerciseLibraryProfile(user);
+  const explicitGender = String(user?.gender || profile?.gender || '').trim().toLowerCase();
+  if (explicitGender === 'man' || explicitGender === 'male' || explicitGender === 'm') return false;
+  if (styleGender) return isGirlsStyleValue(styleGender);
   return isGirlsStyleValue(user?.gender) || isGirlsStyleValue(profile?.gender) || profile?.onboardingTheme === 'girls';
 };
 

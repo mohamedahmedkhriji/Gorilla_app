@@ -311,7 +311,7 @@ type SummaryItemProps = {
 
 const isFemaleGender = (value: unknown) => {
   const normalized = normalizeLower(value);
-  return normalized === 'woman' || normalized === 'female' || normalized === 'f';
+  return normalized === 'woman' || normalized === 'female' || normalized === 'f' || normalized === 'girl' || normalized === 'girls' || normalized === 'femme';
 };
 
 function ProfileItem({ icon, label, value, isGirlsTheme = false }: SummaryItemProps) {

@@ -833,6 +833,10 @@ const buildPayload = (language: AppLanguage, premiumConfig: T2PremiumConfig) => 
     selectedDays: weeks[0]?.days.filter((day) => !day.isRest).map((day) => DAY_NAME[day.dayLabel] || 'monday') || [],
     weeklyWorkouts: weekPlans[0]?.weeklyWorkouts || [],
     weekPlans,
+    bookScheduleConfig: {
+      scheduleMode: 'fixed_weekday',
+      weekStartsOn: 'monday',
+    },
   };
 };
 

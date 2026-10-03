@@ -54,7 +54,7 @@ const resolveOnboardingLanguage = (value: unknown): AppLanguage | '' => {
 
 const isFemaleGender = (value: unknown) => {
   const normalized = String(value || '').trim().toLowerCase();
-  return normalized === 'woman' || normalized === 'female' || normalized === 'f';
+  return normalized === 'woman' || normalized === 'female' || normalized === 'f' || normalized === 'girl' || normalized === 'girls' || normalized === 'femme';
 };
 
 const mergeOnboardingIntoUser = (user: Record<string, any>, patch: Record<string, any>) => {

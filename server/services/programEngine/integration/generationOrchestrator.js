@@ -1,8 +1,10 @@
 import {
-  buildCompleteGeneratedProgram,
   normalizeTrainingProfile,
   validateTrainingProfile,
 } from '../index.js';
+import { generateBrainDrivenProgram } from '../brainDriven/generateBrainDrivenProgram.js';
+import { validateBrainDrivenProgram } from '../brainDriven/validateBrainDrivenProgram.js';
+import { validateCompleteGeneratedProgram } from '../program/validateCompleteProgram.js';
 import { persistCompleteGeneratedProgram } from './persistenceAdapter.js';
 
 export class ProgramEngineOrchestrationError extends Error {
@@ -21,6 +23,29 @@ const normalizeSplitPreference = (value) => String(value || '')
   .replace(/[\s-]+/g, '_');
 
 const isCustomSplit = (value) => normalizeSplitPreference(value) === 'custom';
+
+const validateFinalBrainProgramForPersistence = ({ brainResult }) => {
+  const completeValidation = validateCompleteGeneratedProgram(brainResult?.generatedProgram);
+  const brainValidation = validateBrainDrivenProgram({
+    program: brainResult?.generatedProgram,
+    trainingStrategy: brainResult?.trainingStrategy,
+    engineInput: brainResult?.engineInput,
+  });
+
+  if (!completeValidation.valid || !brainValidation.valid) {
+    throw new ProgramEngineOrchestrationError('Brain-driven program failed final validation gate.', {
+      code: 'BRAIN_PROGRAM_FINAL_VALIDATION_FAILED',
+      statusCode: 422,
+      completeProgramErrors: completeValidation.errors,
+      brainProgramErrors: brainValidation.errors,
+    });
+  }
+
+  return {
+    completeValidation,
+    brainValidation,
+  };
+};
 
 export const buildProgramEngineOnboardingInput = ({
   age = null,
@@ -107,12 +132,14 @@ export const generateAndPersistProgramEnginePlan = async (
     return { route: route.route, profile: route.profile, validation: route.validation };
   }
 
+  let brainResult = null;
   let program;
   try {
-    program = await buildCompleteGeneratedProgram(route.profile, {
+    brainResult = await generateBrainDrivenProgram(onboardingInput, {
       catalogProvider,
-      splitPreference,
     });
+    validateFinalBrainProgramForPersistence({ brainResult });
+    program = brainResult.generatedProgram;
   } catch (error) {
     const code = error?.details?.code || error?.code || error?.name || 'PROGRAM_ENGINE_GENERATION_FAILED';
     throw new ProgramEngineOrchestrationError(error?.message || 'Program Engine generation failed.', {
@@ -129,7 +156,7 @@ export const generateAndPersistProgramEnginePlan = async (
     gymId,
     program,
     assignmentReason,
-    assignmentNote,
+    assignmentNote: assignmentNote || `Training Brain onboarding plan: goal=${program.goal}, available=${program.generationMetadata?.availableDaysPerWeek ?? program.daysPerWeek}, prescribed=${program.daysPerWeek}, split=${program.split?.id || 'unknown'}`,
     assignmentSource,
     actorUserId,
   });
@@ -138,6 +165,10 @@ export const generateAndPersistProgramEnginePlan = async (
     route: 'program_engine_v1',
     profile: route.profile,
     validation: route.validation,
+    trainingStrategy: brainResult.trainingStrategy,
+    referenceEvidence: brainResult.referenceEvidence,
+    engineInput: brainResult.engineInput,
+    finalValidation: brainResult.validation,
     completeProgram: program,
     ...persisted,
   };

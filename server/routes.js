@@ -1714,24 +1714,26 @@ const TRACKED_MUSCLES = [
 ];
 
 const BASE_RECOVERY_TIMES = {
-  Chest: 48,
-  Back: 48,
-  Legs: 72,
-  Quads: 72,
-  Quadriceps: 72,
-  Hamstrings: 72,
-  Glutes: 72,
-  Shoulders: 48,
-  Lats: 48,
-  Traps: 48,
+  Chest: 42,
+  Back: 46,
+  Legs: 48,
+  Quads: 48,
+  Quadriceps: 48,
+  Hamstrings: 54,
+  Glutes: 48,
+  Shoulders: 40,
+  Lats: 46,
+  Traps: 46,
   Biceps: 36,
   Triceps: 36,
-  Forearms: 24,
+  Forearms: 30,
   Adductors: 48,
-  Calves: 36,
-  Tibialis: 24,
+  Calves: 34,
+  Tibialis: 30,
   Abs: 24,
   Core: 24,
+  Erectors: 60,
+  'Spinal Erectors': 60,
 };
 
 const MUSCLE_WEIGHTS = {
@@ -1775,22 +1777,13 @@ const STRESS_FACTORS = {
   high: 1.08,
 };
 
-const getAgeFactor = (age) => {
-  if (age == null) return 1.0;
-  if (age < 40) return 1.0;
-  if (age < 50) return 1.03;
-  if (age < 60) return 1.07;
-  return 1.12;
-};
-
 const getSleepFactor = (hours) => {
   if (hours == null) return 1.0;
-  if (hours >= 9) return 0.94;
-  if (hours >= 8) return 0.97;
+  if (hours >= 9) return 1.0;
   if (hours >= 7) return 1.0;
-  if (hours >= 6) return 1.07;
-  if (hours >= 5) return 1.13;
-  return 1.20;
+  if (hours >= 6) return 1.03;
+  if (hours >= 5) return 1.08;
+  return 1.15;
 };
 
 const getProteinFactor = (proteinIntake) => {
@@ -1888,11 +1881,11 @@ const getSignalRecoveryFactor = ({
 }) => {
   let adjustment = 0;
 
-  adjustment += Math.max(0, Number(sorenessLevel || 0)) * 0.025;
-  adjustment += Math.max(0, Number(fatigueLevel || 0)) * 0.020;
-  adjustment += Math.max(0, 10 - Number(energyLevel || 0)) * 0.012;
+  adjustment += Math.max(0, Number(sorenessLevel || 0)) * 0.012;
+  adjustment += Math.max(0, Number(fatigueLevel || 0)) * 0.016;
+  adjustment += Math.max(0, 10 - Number(energyLevel || 0)) * 0.010;
   adjustment += Math.max(0, 10 - Number(moodLevel || 0)) * 0.005;
-  adjustment += Math.max(0, Number(jointPainLevel || 0)) * 0.035;
+  adjustment += Math.max(0, Number(jointPainLevel || 0)) * 0.030;
 
   if (
     pumpScore >= 7
@@ -1903,7 +1896,7 @@ const getSignalRecoveryFactor = ({
     adjustment -= 0.03;
   }
 
-  return clampRecoveryValue(Number((1 + adjustment).toFixed(3)), 0.95, 1.45);
+  return clampRecoveryValue(Number((1 + adjustment).toFixed(3)), 0.95, 1.25);
 };
 
 const getRecoveryFactorMultiplier = ({
@@ -1925,8 +1918,8 @@ const getRecoveryFactorMultiplier = ({
     * (STRESS_FACTORS[stressLevel] || 1.0)
     * getProteinFactor(proteinIntake)
     * getSupplementFactor(supplements),
-    0.80,
-    1.35,
+    0.90,
+    1.20,
   );
   const personalFactor = clampRecoveryValue(
     getSignalRecoveryFactor({
@@ -1937,8 +1930,8 @@ const getRecoveryFactorMultiplier = ({
       jointPainLevel,
       pumpScore,
     }),
-    0.85,
-    1.50,
+    0.90,
+    1.20,
   );
 
   return Number((lifestyleFactor * personalFactor).toFixed(4));
@@ -1963,44 +1956,6 @@ const getResolvedVolumeFactor = (volume) => {
   if (typeof volume === 'number') return clampRecoveryValue(volume, 0.65, 1.80);
   return VOLUME_FACTORS[String(volume || '').trim().toLowerCase()] || 1.0;
 };
-
-const getLifestyleFactor = ({
-  sleepHours = 7,
-  nutritionQuality = 'optimal',
-  stressLevel = 'moderate',
-  proteinIntake = null,
-  supplements = 'none',
-}) => clampRecoveryValue(
-  getSleepFactor(sleepHours)
-  * (NUTRITION_FACTORS[nutritionQuality] || 1.0)
-  * (STRESS_FACTORS[stressLevel] || 1.0)
-  * getProteinFactor(proteinIntake)
-  * getSupplementFactor(supplements),
-  0.80,
-  1.35,
-);
-
-const getPersonalFactor = ({
-  age = null,
-  sorenessLevel = 3,
-  energyLevel = 6,
-  fatigueLevel = 4,
-  moodLevel = 6,
-  jointPainLevel = 0,
-  pumpScore = 0,
-}) => clampRecoveryValue(
-  getAgeFactor(age)
-  * getSignalRecoveryFactor({
-    sorenessLevel,
-    energyLevel,
-    fatigueLevel,
-    moodLevel,
-    jointPainLevel,
-    pumpScore,
-  }),
-  0.85,
-  1.50,
-);
 
 const normalizeMuscleName = (muscle = '') => {
   const key = String(muscle).trim().toLowerCase();
@@ -2137,65 +2092,154 @@ const deriveIntensityFromRpe = (rpeValue) => {
   return getIntensityFactorFromRpe(rpeValue);
 };
 
-const deriveVolumeFromSetCount = (setCount) => {
-  const count = Number(setCount || 0);
-  if (count >= 5) return 'high';
-  if (count <= 2) return 'low';
-  return 'moderate';
-};
-
-const deriveVolumeFromWorkoutLoad = ({
-  setCount = 0,
-  totalReps = 0,
-  totalLoad = 0,
-  heaviestWeight = 0,
-  bodyweightKg = null,
-}) => {
-  const safeSetCount = Math.max(0, Number(setCount || 0));
-  const safeTotalReps = Math.max(0, Number(totalReps || 0));
-  const safeTotalLoad = Math.max(0, Number(totalLoad || 0));
-  const safeHeaviestWeight = Math.max(0, Number(heaviestWeight || 0));
-  const safeBodyweight = Math.max(0, Number(bodyweightKg || 0));
-
-  if (!safeSetCount && !safeTotalReps && !safeTotalLoad) {
-    return 'low';
+const getMuscleContributionFactor = (entry = {}) => {
+  const explicit = Number(entry.contribution || 0);
+  if (Number.isFinite(explicit) && explicit > 0) {
+    return clampRecoveryValue(explicit, 0.15, 1);
   }
 
-  let score = 0;
-
-  if (safeSetCount >= 4) score += 1;
-  if (safeSetCount >= 8) score += 1;
-  if (safeSetCount >= 12) score += 1;
-
-  if (safeTotalReps >= 40) score += 1;
-  if (safeTotalReps >= 80) score += 1;
-
-  const normalizedLoad = safeTotalLoad > 0
-    ? (safeBodyweight > 0 ? safeTotalLoad / safeBodyweight : 0)
-    : 0;
-  if (normalizedLoad >= 20) score += 1;
-  if (normalizedLoad >= 40) score += 1;
-
-  const relativeTopLoad = safeBodyweight > 0
-    ? safeHeaviestWeight / safeBodyweight
-    : 0;
-  if (relativeTopLoad >= 1.35 || (!safeBodyweight && safeHeaviestWeight >= 80)) {
-    score += 1;
-  }
-
-  if (score <= 1) return 0.85;
-  if (score <= 3) return 1.00;
-  if (score <= 5) return 1.12;
-  return 1.22;
+  const loadFactor = Number(entry.loadFactor || 1);
+  if (!Number.isFinite(loadFactor)) return 1;
+  if (loadFactor >= 0.85) return 1;
+  if (loadFactor >= 0.25) return 0.35;
+  return 0.15;
 };
 
-const computeCatalogRecoveryLoadMultiplier = (profile = {}, loadFactor = 1) => {
+const getCatalogMuscleContribution = (row = {}) => {
+  if (toBooleanFlag(row.is_primary, false)) return 1;
+  const role = String(row.role || '').trim().toLowerCase();
+  if (role === 'target' || role === 'primary') return 1;
+  if (role === 'secondary') return 0.35;
+  if (role === 'stabilizer') return 0.15;
+
+  const loadFactor = Number(row.load_factor || 1);
+  if (Number.isFinite(loadFactor) && loadFactor < 0.25) return 0.15;
+  if (Number.isFinite(loadFactor) && loadFactor < 0.85) return 0.35;
+  return 1;
+};
+
+const getRpeFatigueFactor = (rpeValue) => {
+  const rpe = Number(rpeValue);
+  if (!Number.isFinite(rpe)) return 0.9;
+  if (rpe >= 9.75) return 1.30;
+  if (rpe >= 8.75) return 1.12;
+  if (rpe >= 7.5) return 1.00;
+  if (rpe >= 6.5) return 0.90;
+  if (rpe >= 5.5) return 0.75;
+  return 0.65;
+};
+
+const estimateOneRepMax = ({ weight = 0, reps = 0 } = {}) => {
+  const safeWeight = Math.max(0, Number(weight || 0));
+  const safeReps = Math.max(0, Number(reps || 0));
+  if (!safeWeight || !safeReps) return 0;
+  return safeWeight * (1 + (safeReps / 30));
+};
+
+const getRelativeLoadFactor = ({ weight = 0, reps = 0, referenceE1RM = null } = {}) => {
+  const safeWeight = Math.max(0, Number(weight || 0));
+  const safeReps = Math.max(0, Number(reps || 0));
+  if (!safeWeight || !safeReps) return 0.75;
+
+  const estimatedE1RM = estimateOneRepMax({ weight: safeWeight, reps: safeReps });
+  const safeReference = Math.max(Number(referenceE1RM || 0), estimatedE1RM);
+  if (!safeReference) return 0.75;
+
+  const relativeLoad = safeWeight / safeReference;
+  if (relativeLoad >= 0.90) return 1.12;
+  if (relativeLoad >= 0.80) return 1.05;
+  if (relativeLoad >= 0.70) return 1.00;
+  if (relativeLoad >= 0.55) return 0.92;
+  return 0.85;
+};
+
+const getRestFatigueFactor = (actualRestSeconds, minimumRecommendedRestSeconds = 90) => {
+  const minimumRest = Math.max(30, Number(minimumRecommendedRestSeconds || 90));
+  const actualRest = Number(actualRestSeconds);
+  if (!Number.isFinite(actualRest) || actualRest <= 0) return 1.0;
+
+  const ratio = actualRest / minimumRest;
+  if (ratio >= 1) return 1.0;
+  if (ratio >= 0.75) return 1.03;
+  if (ratio >= 0.50) return 1.08;
+  return 1.12;
+};
+
+const getExerciseFatigueFactor = (profile = {}) => {
   const systemic = Number(profile.systemicStressScore ?? 1);
   const cns = Number(profile.cnsLoadScore ?? 1);
-  const weightedStress = (systemic * 0.65) + (cns * 0.35);
-  const raw = weightedStress * Number(loadFactor || 1);
-  if (!Number.isFinite(raw) || raw <= 0) return 1;
-  return clampRecoveryValue(Number(raw.toFixed(3)), 0.95, 1.12);
+  const eccentric = Number(profile.eccentricBiasScore ?? 1);
+  const weightedStress = ((Number.isFinite(systemic) ? systemic : 1) * 0.65)
+    + ((Number.isFinite(cns) ? cns : 1) * 0.35);
+
+  if (weightedStress >= 1.08 && eccentric >= 1.05) return 1.12;
+  if (weightedStress >= 1.05) return 1.10;
+  if (weightedStress <= 0.95) return 0.95;
+  return 1.0;
+};
+
+const getLengthenedFactor = (profile = {}, eccentricFocus = false) => {
+  const eccentric = Number(profile.eccentricBiasScore ?? 1);
+  if (eccentricFocus || eccentric >= 1.08) return 1.08;
+  if (eccentric >= 1.05) return 1.05;
+  return 1.0;
+};
+
+const getRecommendedRestSeconds = (profile = {}) => {
+  const systemic = Number(profile.systemicStressScore ?? 1);
+  const cns = Number(profile.cnsLoadScore ?? 1);
+  const weightedStress = ((Number.isFinite(systemic) ? systemic : 1) * 0.65)
+    + ((Number.isFinite(cns) ? cns : 1) * 0.35);
+
+  if (weightedStress >= 1.08) return 120;
+  if (weightedStress <= 0.95) return 60;
+  return 90;
+};
+
+const calculateSetDemandForMuscle = ({
+  muscleEntry,
+  set = {},
+  profile = {},
+  referenceE1RM = null,
+  eccentricFocus = false,
+}) => {
+  const contribution = getMuscleContributionFactor(muscleEntry);
+  const rpeFactor = getRpeFatigueFactor(set.rpe ?? 7);
+  const relativeLoadFactor = getRelativeLoadFactor({
+    weight: set.weight,
+    reps: set.reps,
+    referenceE1RM,
+  });
+  const restFactor = getRestFatigueFactor(set.restSeconds, getRecommendedRestSeconds(profile));
+  const exerciseFatigueFactor = getExerciseFatigueFactor(profile);
+  const lengthenedFactor = getLengthenedFactor(profile, eccentricFocus);
+  const rawDemand = contribution
+    * rpeFactor
+    * relativeLoadFactor
+    * restFactor
+    * exerciseFatigueFactor
+    * lengthenedFactor;
+
+  return clampRecoveryValue(Number(rawDemand.toFixed(4)), 0.05, 2.50);
+};
+
+const getDemandMultiplier = (muscleDemand) => {
+  const demand = Math.max(0, Number(muscleDemand || 0));
+  return clampRecoveryValue(Number((0.85 + (0.05 * demand)).toFixed(4)), 0.90, 1.60);
+};
+
+const getCarryoverFactor = (currentRecoveryScore = 100) => {
+  const score = clampRecoveryValue(Number(currentRecoveryScore ?? 100), 0, 100);
+  return clampRecoveryValue(Number((1 + ((1 - (score / 100)) * 0.35)).toFixed(4)), 1.0, 1.35);
+};
+
+const getRecoveryStatusLabel = (score = 100) => {
+  const normalized = clampRecoveryValue(Number(score), 0, 100);
+  if (normalized >= 90) return 'Fully Ready';
+  if (normalized >= 80) return 'Ready';
+  if (normalized >= 65) return 'Moderate';
+  if (normalized >= 45) return 'Fatigued';
+  return 'High Fatigue';
 };
 
 const resolveCatalogIdsByNormalizedNames = async (normalizedNames = []) => {
@@ -2371,17 +2415,28 @@ const getCatalogRecoveryContexts = async (catalogIds = []) => {
     const normalizedMuscle = normalizeCatalogRecoveryMuscle(row.muscle_group || row.body_part || '');
     if (!normalizedMuscle) return;
 
-    const currentLoad = context.musclesByName.get(normalizedMuscle) || 0;
-    const nextLoad = Math.max(currentLoad, Number(row.load_factor || 1));
-    context.musclesByName.set(normalizedMuscle, nextLoad);
+    const current = context.musclesByName.get(normalizedMuscle) || {
+      loadFactor: 0,
+      contribution: 0,
+    };
+    const nextLoad = Math.max(Number(current.loadFactor || 0), Number(row.load_factor || 1));
+    const nextContribution = Math.max(
+      Number(current.contribution || 0),
+      getCatalogMuscleContribution(row),
+    );
+    context.musclesByName.set(normalizedMuscle, {
+      loadFactor: nextLoad,
+      contribution: nextContribution,
+    });
   });
 
   contexts.forEach((context, catalogId) => {
     contexts.set(catalogId, {
       profile: context.profile,
-      muscles: Array.from(context.musclesByName.entries()).map(([muscle, loadFactor]) => ({
+      muscles: Array.from(context.musclesByName.entries()).map(([muscle, values]) => ({
         muscle,
-        loadFactor,
+        loadFactor: values.loadFactor,
+        contribution: values.contribution,
       })),
     });
   });
@@ -2394,7 +2449,6 @@ const calculateRecoveryHours = ({
   intensity = 'moderate',
   volume = 'moderate',
   eccentricFocus = false,
-  age = null,
   sleepHours = 7,
   nutritionQuality = 'optimal',
   stressLevel = 'moderate',
@@ -2407,38 +2461,48 @@ const calculateRecoveryHours = ({
   jointPainLevel = 0,
   pumpScore = 0,
   loadMultiplier = 1,
+  muscleDemand = null,
+  currentRecoveryScore = 100,
+  performanceCalibration = 1,
+  personalRecoveryFactor = null,
 }) => {
   const canonicalMuscle = normalizeMuscleName(muscleGroup) || 'Chest';
   const base = BASE_RECOVERY_TIMES[canonicalMuscle] || 48;
 
-  const trainingFactor = clampRecoveryValue(
-    getResolvedIntensityFactor(intensity)
-    * getResolvedVolumeFactor(volume)
-    * (eccentricFocus ? ECCENTRIC_FACTOR : 1.0)
-    * (Number.isFinite(Number(loadMultiplier)) ? Number(loadMultiplier) : 1),
-    0.65,
-    1.80,
-  );
-  const lifestyleFactor = getLifestyleFactor({
-    sleepHours,
-    nutritionQuality,
-    stressLevel,
-    proteinIntake,
-    supplements,
-  });
-  const personalFactor = getPersonalFactor({
-    age,
-    sorenessLevel,
-    energyLevel,
-    fatigueLevel,
-    moodLevel,
-    jointPainLevel,
-    pumpScore,
-  });
+  const hasDemand = Number.isFinite(Number(muscleDemand));
+  const resolvedMuscleDemand = hasDemand
+    ? Math.max(0, Number(muscleDemand))
+    : (
+      (
+        getResolvedIntensityFactor(intensity)
+        * getResolvedVolumeFactor(volume)
+        * (eccentricFocus ? ECCENTRIC_FACTOR : 1.0)
+        * (Number.isFinite(Number(loadMultiplier)) ? Number(loadMultiplier) : 1)
+      ) * 3
+    );
+
+  const personalFactor = personalRecoveryFactor == null
+    ? getRecoveryFactorMultiplier({
+      sleepHours,
+      nutritionQuality,
+      stressLevel,
+      proteinIntake,
+      supplements,
+      sorenessLevel,
+      energyLevel,
+      fatigueLevel,
+      moodLevel,
+      jointPainLevel,
+      pumpScore,
+    })
+    : clampRecoveryValue(Number(personalRecoveryFactor), 0.90, 1.20);
+  const calibration = clampRecoveryValue(Number(performanceCalibration || 1), 0.85, 1.25);
+  const demandMultiplier = getDemandMultiplier(resolvedMuscleDemand);
+  const carryoverFactor = getCarryoverFactor(currentRecoveryScore);
   const hours = clampRecoveryValue(
-    base * trainingFactor * lifestyleFactor * personalFactor,
-    base * 0.60,
-    base * 2.00,
+    base * demandMultiplier * carryoverFactor * personalFactor * calibration,
+    Math.max(12, base * 0.55),
+    Math.max(base + 24, base * 2.20),
   );
 
   return Number(Math.max(12, hours).toFixed(2));
@@ -2447,7 +2511,6 @@ const calculateRecoveryHours = ({
 const combineMuscleRecoveryHours = ({
   currentHoursNeeded = 0,
   nextHoursNeeded = 0,
-  muscleGroup,
   exposureCount = 1,
 }) => {
   const current = Number(currentHoursNeeded || 0);
@@ -2488,7 +2551,18 @@ const computeOverallRecovery = (muscles) => {
   });
 
   if (!totalWeight) return 100;
-  return Math.round(weightedTotal / totalWeight);
+  const weightedAverage = weightedTotal / totalWeight;
+  const lowestPrimaryScore = Math.min(
+    ...muscles.map((m) => Number(m.score)).filter((score) => Number.isFinite(score)),
+  );
+
+  if (!Number.isFinite(lowestPrimaryScore)) return Math.round(weightedAverage);
+
+  const guardedScore = lowestPrimaryScore < 65
+    ? Math.min(weightedAverage, (weightedAverage * 0.70) + (lowestPrimaryScore * 0.30))
+    : weightedAverage;
+
+  return Math.round(guardedScore);
 };
 
 const formatDateISO = (date) => {
@@ -4180,6 +4254,25 @@ const awardRepyGameLeaderboardPoints = async (gameId) => {
 };
 
 const ensureProgramChangeRequestInfrastructure = async () => {
+  await pool.execute(
+    `CREATE TABLE IF NOT EXISTS program_change_log (
+      id BIGINT PRIMARY KEY AUTO_INCREMENT,
+      assignment_id BIGINT NULL,
+      user_id BIGINT NOT NULL,
+      old_program_id BIGINT NULL,
+      new_program_id BIGINT NOT NULL,
+      changed_by_user_id BIGINT NULL,
+      change_reason VARCHAR(80) NOT NULL DEFAULT 'user_request',
+      notes VARCHAR(500) NULL,
+      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      INDEX idx_program_change_log_user_created (user_id, created_at),
+      INDEX idx_program_change_log_assignment (assignment_id),
+      INDEX idx_program_change_log_old_program (old_program_id),
+      INDEX idx_program_change_log_new_program (new_program_id),
+      INDEX idx_program_change_log_changed_by (changed_by_user_id)
+    ) ENGINE=InnoDB`,
+  );
+
   await pool.execute(
     `CREATE TABLE IF NOT EXISTS program_change_requests (
       id BIGINT PRIMARY KEY AUTO_INCREMENT,
@@ -10539,7 +10632,7 @@ router.post('/user/onboarding', authMutationRateLimit, requireAuth('user'), asyn
             onboardingInput: programEngineOnboardingInput,
             splitPreference: normalizedSplitPreference,
             assignmentReason: 'user_request',
-            assignmentNote: `Program Engine v1.0 onboarding plan: goal=${programEngineRouting.profile.goal}, days=${programEngineRouting.profile.daysPerWeek}, level=${programEngineRouting.profile.experience}${normalizedOnboardingReason ? `, reason=${normalizedOnboardingReason}` : ''}${hasExplicitSplitPreference ? `, split=${normalizedSplitPreference}` : ''}`,
+            assignmentNote: null,
             assignmentSource: 'ai',
             actorUserId: normalizedUserId,
           });
@@ -10862,6 +10955,7 @@ router.post('/user/:userId/program/generate-personalized', authMutationRateLimit
 router.post('/user/:userId/program/custom', authMutationRateLimit, async (req, res) => {
   let conn;
   try {
+    await ensureProgramChangeRequestInfrastructureOnce();
     conn = await pool.getConnection();
     await conn.beginTransaction();
 
@@ -10907,6 +11001,7 @@ router.post('/user/:userId/program/custom', authMutationRateLimit, async (req, r
 router.post('/user/:userId/program/custom/request', authMutationRateLimit, async (req, res) => {
   let conn;
   try {
+    await ensureProgramChangeRequestInfrastructureOnce();
     conn = await pool.getConnection();
     await conn.beginTransaction();
 
@@ -11070,6 +11165,7 @@ router.post('/user/:userId/coach/:coachId/plan-request', authMutationRateLimit, 
 router.post('/coach/:coachId/user/:userId/program/custom', authMutationRateLimit, requireAuth('coach', 'gym_owner'), requireCoachScope('coachId'), requireUserAccess('userId', { allowAssignedCoach: true, allowGymOwner: true }), async (req, res) => {
   let conn;
   try {
+    await ensureProgramChangeRequestInfrastructureOnce();
     conn = await pool.getConnection();
     await conn.beginTransaction();
 
@@ -15529,7 +15625,7 @@ const resolveMuscleLoadEntries = ({ context, fallbackMuscle, exerciseName }) => 
   const entries = [];
 
   normalizeRecoveryMuscleTargets(fallbackMuscle, 4).forEach((muscle) => {
-    entries.push({ muscle, loadFactor: 1 });
+    entries.push({ muscle, loadFactor: 1, contribution: 1 });
   });
 
   if (!entries.length && context && Array.isArray(context.muscles)) {
@@ -15540,13 +15636,14 @@ const resolveMuscleLoadEntries = ({ context, fallbackMuscle, exerciseName }) => 
       entries.push({
         muscle: normalizedMuscle,
         loadFactor: Number.isFinite(loadFactor) && loadFactor > 0 ? loadFactor : 1,
+        contribution: getMuscleContributionFactor(entry),
       });
     });
   }
 
   if (!entries.length) {
     inferMusclesFromExerciseName(exerciseName).forEach((muscle) => {
-      entries.push({ muscle, loadFactor: 1 });
+      entries.push({ muscle, loadFactor: 1, contribution: 1 });
     });
   }
 
@@ -15556,10 +15653,15 @@ const resolveMuscleLoadEntries = ({ context, fallbackMuscle, exerciseName }) => 
     if (!normalizedMuscle || !TRACKED_MUSCLES.includes(normalizedMuscle)) return;
 
     const current = deduped.get(normalizedMuscle);
-    if (!current || entry.loadFactor > current.loadFactor) {
+    if (
+      !current
+      || getMuscleContributionFactor(entry) > getMuscleContributionFactor(current)
+      || entry.loadFactor > current.loadFactor
+    ) {
       deduped.set(normalizedMuscle, {
         muscle: normalizedMuscle,
         loadFactor: entry.loadFactor,
+        contribution: getMuscleContributionFactor(entry),
       });
     }
   });
@@ -15959,6 +16061,7 @@ const rebuildTodayRecoveryStatusFromSets = async (userId) => {
         COALESCE(ws.weight, 0) AS weight,
         COALESCE(ws.reps, 0) AS reps,
         COALESCE(ws.rpe, 7) AS rpe,
+        COALESCE(ws.rest_seconds, 0) AS rest_seconds,
         ws.created_at
      FROM workout_sets ws
      LEFT JOIN workout_exercises we ON we.id = ws.workout_exercise_id
@@ -16013,6 +16116,7 @@ const rebuildTodayRecoveryStatusFromSets = async (userId) => {
         heaviestWeight: 0,
         lastLoggedAt: row.created_at,
         fallbackMuscle: row.muscle_group_snapshot || null,
+        sets: [],
       });
     }
 
@@ -16025,6 +16129,12 @@ const rebuildTodayRecoveryStatusFromSets = async (userId) => {
     summary.totalReps += rowReps;
     summary.totalLoad += rowWeight > 0 && rowReps > 0 ? rowWeight * rowReps : 0;
     summary.heaviestWeight = Math.max(Number(summary.heaviestWeight || 0), rowWeight);
+    summary.sets.push({
+      reps: rowReps,
+      weight: rowWeight,
+      rpe: Number(row.rpe || 7),
+      restSeconds: Number(row.rest_seconds || 0),
+    });
     if (
       !summary.lastLoggedAt
       || new Date(row.created_at).getTime() > new Date(summary.lastLoggedAt).getTime()
@@ -16082,6 +16192,18 @@ const rebuildTodayRecoveryStatusFromSets = async (userId) => {
 
   const factors = factorRows[0] || {};
   const byMuscle = new Map();
+  const [existingRecoveryRows] = await pool.execute(
+    `SELECT muscle_group, hours_needed, last_worked
+     FROM muscle_recovery_status
+     WHERE user_id = ?`,
+    [normalizedUserId],
+  );
+  const currentRecoveryByMuscle = new Map();
+  existingRecoveryRows.forEach((row) => {
+    const muscle = normalizeMuscleName(row.muscle_group);
+    if (!muscle) return;
+    currentRecoveryByMuscle.set(muscle, calculateDynamicRecovery(row.last_worked, row.hours_needed).score);
+  });
 
   exercisesByKey.forEach((exercise) => {
     const context = exercise.catalogId ? recoveryContextByCatalogId.get(Number(exercise.catalogId)) : null;
@@ -16092,29 +16214,31 @@ const rebuildTodayRecoveryStatusFromSets = async (userId) => {
     });
     if (!muscleEntries.length) return;
 
-    const avgRpe = exercise.rpeSamples
-      ? (exercise.totalRpe / exercise.rpeSamples)
-      : 7;
-    const inferredIntensity = deriveIntensityFromRpe(avgRpe);
-    const inferredVolume = deriveVolumeFromWorkoutLoad({
-      setCount: exercise.setCount,
-      totalReps: exercise.totalReps,
-      totalLoad: exercise.totalLoad,
-      heaviestWeight: exercise.heaviestWeight,
-      bodyweightKg: factors.latest_bodyweight_kg ?? null,
-    });
     const eccentricFocus = Number(context?.profile?.eccentricBiasScore || 1) >= 1.05;
+    const referenceE1RM = Math.max(
+      0,
+      ...exercise.sets.map((set) => estimateOneRepMax({
+        weight: set.weight,
+        reps: set.reps,
+      })),
+    );
 
     muscleEntries.forEach((muscleEntry) => {
-      const loadMultiplier = computeCatalogRecoveryLoadMultiplier(
-        context?.profile,
-        muscleEntry.loadFactor,
+      const muscleDemand = exercise.sets.reduce(
+        (total, set) => total + calculateSetDemandForMuscle({
+          muscleEntry,
+          set,
+          profile: context?.profile,
+          referenceE1RM,
+          eccentricFocus,
+        }),
+        0,
       );
 
       const hoursNeeded = calculateRecoveryHours({
         muscleGroup: muscleEntry.muscle,
-        intensity: inferredIntensity,
-        volume: inferredVolume,
+        muscleDemand,
+        currentRecoveryScore: currentRecoveryByMuscle.get(muscleEntry.muscle) ?? 100,
         eccentricFocus,
         age: factors.age ?? null,
         sleepHours: Number(factors.sleep_hours ?? 7),
@@ -16128,7 +16252,6 @@ const rebuildTodayRecoveryStatusFromSets = async (userId) => {
         moodLevel: Number(factors.mood_level ?? 6),
         jointPainLevel: Number(factors.joint_pain_level ?? 0),
         pumpScore: Number(factors.pump_score ?? 0),
-        loadMultiplier,
       });
 
       const existing = byMuscle.get(muscleEntry.muscle);
@@ -16368,6 +16491,7 @@ router.get('/user/:userId/recovery', async (req, res) => {
         hoursNeeded: roundMetric(hoursNeeded),
         hoursElapsed: roundMetric(hoursElapsed),
         hoursRemaining: roundMetric(Math.max(0, hoursNeeded - hoursElapsed)),
+        recoveryStatus: getRecoveryStatusLabel(base.score),
         plannedTodaySetUnits: roundMetric(plannedTodaySetUnits),
         completedTodaySetUnits: roundMetric(completedTodaySetUnits),
         todayPlanCompletionPct: toCompletion(completedTodaySetUnits, plannedTodaySetUnits),
@@ -18389,21 +18513,45 @@ router.post('/workout-sets', authMutationRateLimit, requireAuth('user'), require
         );
 
         const factors = factorRows[0] || {};
-        const inferredIntensity = deriveIntensityFromRpe(rpe);
-        // This path applies recovery for a single logged set, so treat volume as a low one-set exposure.
-        const inferredVolume = 'low';
         const eccentricFocus = Number(context.profile.eccentricBiasScore || 1) >= 1.05;
+        const currentSet = {
+          reps: Number(reps || 0),
+          weight: Number(weight || 0),
+          rpe: Number(rpe || 7),
+          restSeconds: Number(restTime || 0),
+        };
+        const referenceE1RM = estimateOneRepMax({
+          weight: currentSet.weight,
+          reps: currentSet.reps,
+        });
 
         await Promise.all(
           context.muscles.map(async (muscleEntry) => {
-            const loadMultiplier = computeCatalogRecoveryLoadMultiplier(
-              context.profile,
-              muscleEntry.loadFactor,
+            const [existingStatusRows] = await pool.execute(
+              `SELECT hours_needed, last_worked
+               FROM muscle_recovery_status
+               WHERE user_id = ? AND muscle_group = ?
+               LIMIT 1`,
+              [normalizedUserId, muscleEntry.muscle],
             );
+
+            const currentRecoveryScore = existingStatusRows.length
+              ? calculateDynamicRecovery(
+                existingStatusRows[0]?.last_worked,
+                existingStatusRows[0]?.hours_needed,
+              ).score
+              : 100;
+            const muscleDemand = calculateSetDemandForMuscle({
+              muscleEntry,
+              set: currentSet,
+              profile: context.profile,
+              referenceE1RM,
+              eccentricFocus,
+            });
             const hoursNeeded = calculateRecoveryHours({
               muscleGroup: muscleEntry.muscle,
-              intensity: inferredIntensity,
-              volume: inferredVolume,
+              muscleDemand,
+              currentRecoveryScore,
               eccentricFocus,
               age: factors.age ?? null,
               sleepHours: Number(factors.sleep_hours ?? 7),
@@ -18417,16 +18565,7 @@ router.post('/workout-sets', authMutationRateLimit, requireAuth('user'), require
               moodLevel: Number(factors.mood_level ?? 6),
               jointPainLevel: Number(factors.joint_pain_level ?? 0),
               pumpScore: Number(factors.pump_score ?? 0),
-              loadMultiplier,
             });
-
-            const [existingStatusRows] = await pool.execute(
-              `SELECT hours_needed
-               FROM muscle_recovery_status
-               WHERE user_id = ? AND muscle_group = ?
-               LIMIT 1`,
-              [normalizedUserId, muscleEntry.muscle],
-            );
 
             const existingHoursNeeded = Number(existingStatusRows[0]?.hours_needed || 0);
             const combinedHoursNeeded = combineMuscleRecoveryHours({

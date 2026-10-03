@@ -4,11 +4,15 @@ import { Play, Square, BarChart3, Video, Trash2 } from 'lucide-react';
 import { api } from '../../services/api';
 import { LocalizedLanguageRecord, getActiveLanguage, getStoredLanguage } from '../../services/language';
 import { stripExercisePrefix } from '../../services/exerciseName';
+import { buildT3OverloadAdvice } from '../../services/t3Overload';
 
 interface TrackerScreenProps {
   onBack: () => void;
   exerciseName: string;
   plannedSets?: number;
+  plannedReps?: string;
+  targetRpe?: number | null;
+  overloadStrategy?: 't3' | null;
   onVideoClick?: (exerciseName: string) => void;
   savedSets?: SetData[];
   onSaveSets?: (sets: SetData[]) => void;
@@ -32,18 +36,21 @@ const DEFAULT_SET_TEMPLATE: Array<{ reps: number; weight: number }> = [
 ];
 const REST_WINDOW_MIN_SECONDS = 60;
 const REST_WINDOW_MAX_SECONDS = 120;
-const SEGMENT_MAP: Record<string, [boolean, boolean, boolean, boolean, boolean, boolean, boolean]> = {
-  '0': [true, true, true, true, true, true, false],
-  '1': [false, true, true, false, false, false, false],
-  '2': [true, true, false, true, true, false, true],
-  '3': [true, true, true, true, false, false, true],
-  '4': [false, true, true, false, false, true, true],
-  '5': [true, false, true, true, false, true, true],
-  '6': [true, false, true, true, true, true, true],
-  '7': [true, true, true, false, false, false, false],
-  '8': [true, true, true, true, true, true, true],
-  '9': [true, true, true, true, false, true, true],
-};
+const LCD_SEGMENTS = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'] as const;
+
+const renderLcdDigits = (value: string) => (
+  value.split('').map((digit, index) => (
+    digit === ':' ? (
+      <span className="lcd-colon" aria-hidden="true" key={`colon-${index}`} />
+    ) : (
+      <span className="lcd-digit" data-digit={digit} aria-hidden="true" key={`${digit}-${index}`}>
+        {LCD_SEGMENTS.map((segment) => (
+          <span key={segment} className={`lcd-segment seg-${segment}`} />
+        ))}
+      </span>
+    )
+  ))
+);
 
 type HistorySetRow = {
   setNumber: number;
@@ -366,22 +373,6 @@ const TRACKER_I18N: LocalizedLanguageRecord<{
   },
 };
 
-function SevenSegmentDigit({ digit }: { digit: string }) {
-  const segments = SEGMENT_MAP[digit] || SEGMENT_MAP['0'];
-
-  return (
-    <div className="seven-seg-digit" aria-hidden="true">
-      <span className={`seg seg-a ${segments[0] ? 'on' : ''}`} />
-      <span className={`seg seg-b ${segments[1] ? 'on' : ''}`} />
-      <span className={`seg seg-c ${segments[2] ? 'on' : ''}`} />
-      <span className={`seg seg-d ${segments[3] ? 'on' : ''}`} />
-      <span className={`seg seg-e ${segments[4] ? 'on' : ''}`} />
-      <span className={`seg seg-f ${segments[5] ? 'on' : ''}`} />
-      <span className={`seg seg-g ${segments[6] ? 'on' : ''}`} />
-    </div>
-  );
-}
-
 const createInitialSets = (plannedSets?: number): SetData[] => {
   const requested = Number(plannedSets);
   const setCount = Number.isFinite(requested) && requested > 0
@@ -401,7 +392,7 @@ const createInitialSets = (plannedSets?: number): SetData[] => {
 
 const isGirlsStyleValue = (value: unknown) => {
   const normalized = String(value || '').trim().toLowerCase();
-  return normalized === 'woman' || normalized === 'female' || normalized === 'f' || normalized === 'girls' || normalized === 'femme';
+  return normalized === 'woman' || normalized === 'female' || normalized === 'f' || normalized === 'girl' || normalized === 'girls' || normalized === 'femme';
 };
 
 const safeParseStoredJson = (key: string) => {
@@ -420,11 +411,12 @@ const readStoredStyleGender = () => {
 
 const shouldUseGirlsTheme = () => {
   if (typeof window === 'undefined') return false;
-  const styleGender = readStoredStyleGender();
-  if (styleGender) return isGirlsStyleValue(styleGender);
-
   const profile = safeParseStoredJson('onboardingProfile');
   const storedUser = safeParseStoredJson('appUser') || safeParseStoredJson('user');
+  const explicitGender = String(storedUser?.gender || profile?.gender || '').trim().toLowerCase();
+  if (explicitGender === 'man' || explicitGender === 'male' || explicitGender === 'm') return false;
+  const styleGender = readStoredStyleGender();
+  if (styleGender) return isGirlsStyleValue(styleGender);
   return isGirlsStyleValue(storedUser?.gender) || isGirlsStyleValue(profile?.gender) || profile?.onboardingTheme === 'girls';
 };
 
@@ -432,6 +424,9 @@ export function TrackerScreen({
   onBack,
   exerciseName,
   plannedSets,
+  plannedReps,
+  targetRpe,
+  overloadStrategy,
   onVideoClick,
   savedSets,
   onSaveSets,
@@ -462,10 +457,7 @@ export function TrackerScreen({
   const [isRemovingExercise, setIsRemovingExercise] = useState(false);
   const [showRemoveConfirm, setShowRemoveConfirm] = useState(false);
   const [styleGender, setStyleGender] = useState(() => readStoredStyleGender());
-  const isGirlsTheme = useMemo(
-    () => (styleGender ? isGirlsStyleValue(styleGender) : shouldUseGirlsTheme()),
-    [styleGender],
-  );
+  const isGirlsTheme = useMemo(() => shouldUseGirlsTheme(), [styleGender]);
   const restReminderLock = useRef(false);
   const setTimerIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const restTimerIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -803,7 +795,44 @@ export function TrackerScreen({
   const getTotalVolume = () => sets.filter(s => s.completed).reduce((acc, set) => acc + (set.reps * set.weight), 0);
   const areAllSetsCompleted = sets.length > 0 && sets.every((set) => set.completed);
   const timerText = formatTime(setTimerSeconds);
-  const [m1, m2, s1, s2] = timerText.replace(':', '').split('');
+  const restTimerText = formatTime(restTime);
+  const firstIncompleteIndex = sets.findIndex((set) => !set.completed);
+  const activeTimerText = isResting ? restTimerText : timerText;
+  const timerRows = sets.map((set, index) => {
+    const isActiveSet = isRunning && index === firstIncompleteIndex;
+    const isRestAfterSet = isResting && index === firstIncompleteIndex - 1;
+    const workSeconds = isActiveSet ? setTimerSeconds : Math.max(0, set.duration || 0);
+    const restSeconds = isRestAfterSet ? restTime : Math.max(0, set.restTime || 0);
+
+    return {
+      set,
+      label: `REP ${set.set}`,
+      workText: formatTime(workSeconds),
+      restText: formatTime(restSeconds),
+      isActiveSet,
+      isRestAfterSet,
+      isDone: set.completed,
+      workWidth: Math.max(8, Math.min(100, (workSeconds / 90) * 100)),
+      restLeft: Math.max(0, Math.min(84, (workSeconds / 180) * 100)),
+      restWidth: Math.max(10, Math.min(54, (restSeconds / 120) * 100)),
+    };
+  });
+  const timelineTotalSeconds = timerRows.reduce((total, row) => total + Math.max(1, row.isActiveSet ? setTimerSeconds : row.set.duration || 0), 0);
+  let timelineCursor = 0;
+  const timelineSegments = timerRows.map((row) => {
+    const seconds = Math.max(1, row.isActiveSet ? setTimerSeconds : row.set.duration || 0);
+    const left = timelineTotalSeconds > 0 ? (timelineCursor / timelineTotalSeconds) * 100 : 0;
+    const width = timelineTotalSeconds > 0 ? (seconds / timelineTotalSeconds) * 100 : 0;
+    timelineCursor += seconds;
+
+    return {
+      key: row.set.set,
+      left,
+      width,
+      isActive: row.isActiveSet,
+      isDone: row.isDone,
+    };
+  });
   const completedSetRowsForChart = useMemo(() => sets
     .filter((set) => set.completed)
     .map((set) => ({
@@ -820,6 +849,11 @@ export function TrackerScreen({
     [analyticsRange, historyRows, completedSetRowsForChart],
   );
   const chartPath = useMemo(() => buildChartPath(chartPoints), [chartPoints]);
+  const t3OverloadAdvice = useMemo(() => (
+    overloadStrategy === 't3'
+      ? buildT3OverloadAdvice({ historyRows, plannedReps })
+      : null
+  ), [historyRows, overloadStrategy, plannedReps]);
   const latestChartPoint = chartPoints[chartPoints.length - 1] || null;
   const previousChartPoint = chartPoints[chartPoints.length - 2] || null;
   const volumeDelta = latestChartPoint && previousChartPoint
@@ -872,22 +906,35 @@ export function TrackerScreen({
       <div className="px-4 sm:px-6 -mt-2 mb-2">
         <div className="w-full flex justify-center">
           <div
-            className={`seven-seg-shell ${isGirlsTheme ? 'seven-seg-shell--girls' : ''}`}
+            className={`workout-timer-board ${isGirlsTheme ? 'workout-timer-board--girls' : ''}`}
             role="timer"
-            aria-label={copy.timerAria(timerText)}
+            aria-label={copy.timerAria(activeTimerText)}
             data-coachmark-target="workout_tracker_timer"
           >
-            <div className="seven-seg-group">
-              <SevenSegmentDigit digit={m1} />
-              <SevenSegmentDigit digit={m2} />
+            <div className="workout-timer-top">
+              <span className="workout-timer-title">REP TIMERS</span>
             </div>
-            <div className="seven-seg-colon" aria-hidden="true">
-              <span className="dot" />
-              <span className="dot" />
+            <div className="workout-timer-tiles">
+              {timerRows.map((row) => (
+                <div
+                  key={row.set.set}
+                  className={`workout-timer-tile ${
+                    row.isActiveSet ? 'is-active' : row.isRestAfterSet ? 'is-resting' : row.isDone ? 'is-done' : ''
+                  }`}
+                >
+                  <span className="timer-label">{row.label}</span>
+                  <span className="timer-value lcd" aria-label={row.workText}>{renderLcdDigits(row.workText)}</span>
+                </div>
+              ))}
             </div>
-            <div className="seven-seg-group">
-              <SevenSegmentDigit digit={s1} />
-              <SevenSegmentDigit digit={s2} />
+            <div className="workout-timeline-viewer" aria-hidden="true">
+              {timelineSegments.map((segment) => (
+                <div
+                  key={segment.key}
+                  className={`tl-child ${segment.isActive ? 'is-active' : ''} ${segment.isDone ? 'is-done' : ''}`}
+                  style={{ left: `${segment.left}%`, width: `${segment.width}%` }}
+                />
+              ))}
             </div>
           </div>
         </div>
@@ -1007,6 +1054,37 @@ export function TrackerScreen({
           </div>
         ) : (
           <>
+            {t3OverloadAdvice && (
+              <div
+                className={`mb-5 rounded-2xl border p-4 ${
+                  isGirlsTheme
+                    ? 'border-[#E2B4BD]/45 bg-white/70 text-[#4A4A4A]'
+                    : 'border-accent/25 bg-accent/5 text-text-primary'
+                }`}
+              >
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className={`rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] ${
+                    isGirlsTheme ? 'bg-[#F9B2D7]/35 text-[#795E67]' : 'bg-accent/15 text-accent'
+                  }`}>
+                    T-3 Overload
+                  </span>
+                  {plannedReps && (
+                    <span className={`text-[11px] font-semibold uppercase tracking-[0.12em] ${tertiaryTextClassName}`}>
+                      Target {plannedReps}
+                      {targetRpe ? ` @ RPE ${targetRpe}` : ''}
+                    </span>
+                  )}
+                </div>
+                <h3 className={`mt-3 text-sm font-semibold ${isGirlsTheme ? 'text-[#4A4A4A]' : 'text-white'}`}>
+                  {t3OverloadAdvice.title}
+                </h3>
+                <p className={`mt-1 text-xs ${mutedTextClassName}`}>{t3OverloadAdvice.body}</p>
+                <p className={`mt-2 text-xs ${isGirlsTheme ? 'text-[#795E67]' : 'text-text-secondary'}`}>
+                  {t3OverloadAdvice.detail}
+                </p>
+              </div>
+            )}
+
             <div className="flex justify-around mb-8">
               <button
                 data-coachmark-target="workout_tracker_play_button"
@@ -1057,21 +1135,9 @@ export function TrackerScreen({
 
             </div>
 
-            {isResting && (
-              <div className={`mb-4 rounded-xl border p-3 ${
-                restTime > REST_WINDOW_MAX_SECONDS
-                  ? 'border-red-500/50 bg-red-500/10'
-                  : restTime >= REST_WINDOW_MIN_SECONDS
-                    ? 'border-green-500/40 bg-green-500/10'
-                    : 'border-white/10 bg-transparent'
-              }`}>
-                <div className="flex items-center justify-between text-sm">
-                  <span className={`font-semibold ${isGirlsTheme ? 'text-[#4A4A4A]' : 'text-white'}`}>{copy.restTimerLabel(formatTime(restTime))}</span>
-                  <span className={mutedTextClassName}>{copy.restTarget}</span>
-                </div>
-                {restTime > REST_WINDOW_MAX_SECONDS && (
-                  <p className="text-xs text-red-300 mt-2">{copy.restExceeded}</p>
-                )}
+            {isResting && restTime > REST_WINDOW_MAX_SECONDS && (
+              <div className="mb-4 rounded-xl border border-red-500/50 bg-red-500/10 p-3">
+                <p className="text-xs text-red-300">{copy.restExceeded}</p>
               </div>
             )}
 
@@ -1347,107 +1413,321 @@ export function TrackerScreen({
           accent-color: #ef4444;
         }
 
-        .seven-seg-shell {
-          --seg-on: #bbff5c;
-          --seg-off: #26351f;
-          display: flex;
-          align-items: center;
-          gap: 10px;
-          padding: 10px 14px;
-          border-radius: 12px;
-          border: 1px solid rgba(187, 255, 92, 0.22);
-          background: linear-gradient(180deg, rgba(187, 255, 92, 0.08) 0%, rgba(12, 20, 14, 0.92) 100%);
-          box-shadow: inset 0 0 14px rgba(0, 0, 0, 0.38);
+        .workout-timer-board {
+          --timer-panel: #101824;
+          --timer-panel-dark: #14202e;
+          --timer-accent: rgb(var(--color-accent));
+          --timer-accent-muted: rgba(187, 255, 92, 0.7);
+          --timer-led-shadow: rgba(187, 255, 92, 0.5);
+          --timer-led-soft-shadow: rgba(187, 255, 92, 0.22);
+          --timer-track: rgba(187, 255, 92, 0.18);
+          width: 100%;
+          border: 1px solid rgba(187, 255, 92, 0.18);
+          border-radius: 18px;
+          background: var(--timer-panel);
+          box-shadow: 0 18px 34px rgba(0, 0, 0, 0.24);
+          padding: 18px 24px 22px;
+          color: var(--timer-accent);
+          direction: ltr;
         }
 
-        .seven-seg-group {
+        .workout-timer-top {
           display: flex;
           align-items: center;
+          justify-content: center;
+          gap: 16px;
+          margin-bottom: 12px;
+        }
+
+        .workout-timer-title {
+          color: var(--timer-accent);
+          font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+          font-size: 12px;
+          font-weight: 900;
+          letter-spacing: 0;
+          line-height: 1;
+        }
+
+        .workout-timer-tiles {
+          display: grid;
+          grid-template-columns: repeat(auto-fit, minmax(72px, 1fr));
           gap: 8px;
         }
 
-        .seven-seg-digit {
-          position: relative;
-          width: 34px;
-          height: 58px;
+        .timer-label {
+          display: block;
+          color: var(--timer-accent-muted);
+          font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+          font-size: 12px;
+          font-weight: 800;
+          letter-spacing: 0;
+          line-height: 1.1;
+          text-align: center;
+          white-space: nowrap;
         }
 
-        .seg {
-          position: absolute;
-          background: var(--seg-off);
-          border-radius: 999px;
-          opacity: 0.32;
-          transition: background 120ms ease, opacity 120ms ease, box-shadow 120ms ease;
+        .workout-timer-tile {
+          min-width: 0;
+          opacity: 0.66;
         }
 
-        .seg.on {
-          background: var(--seg-on);
+        .workout-timer-tile.is-done,
+        .workout-timer-tile.is-active,
+        .workout-timer-tile.is-resting {
           opacity: 1;
-          box-shadow: 0 0 3px color-mix(in srgb, var(--seg-on) 70%, transparent), 0 0 8px color-mix(in srgb, var(--seg-on) 28%, transparent);
         }
 
-        .seg-a,
-        .seg-d,
-        .seg-g {
-          width: 22px;
-          height: 6px;
-          left: 6px;
+        .workout-timer-tile.is-active .timer-value.lcd,
+        .workout-timer-tile.is-resting .timer-value.lcd {
+          box-shadow:
+            inset 0 0 0 1px color-mix(in srgb, var(--timer-accent) 32%, transparent),
+            inset 0 0 18px rgba(0, 0, 0, 0.34),
+            0 0 16px var(--timer-led-soft-shadow);
         }
 
-        .seg-a { top: 0; }
-        .seg-g { top: 26px; }
-        .seg-d { bottom: 0; }
-
-        .seg-b,
-        .seg-c,
-        .seg-e,
-        .seg-f {
-          width: 6px;
-          height: 22px;
-        }
-
-        .seg-b { right: 0; top: 3px; }
-        .seg-c { right: 0; bottom: 3px; }
-        .seg-f { left: 0; top: 3px; }
-        .seg-e { left: 0; bottom: 3px; }
-
-        .seven-seg-colon {
+        .timer-value.lcd {
+          position: relative;
           display: flex;
-          flex-direction: column;
+          align-items: center;
           justify-content: center;
-          gap: 10px;
-          margin: 0 2px;
+          isolation: isolate;
+          min-height: 48px;
+          margin-top: 6px;
+          overflow: hidden;
+          border: 1px solid color-mix(in srgb, var(--timer-accent) 18%, transparent);
+          border-radius: 6px;
+          background:
+            linear-gradient(180deg, rgba(255, 255, 255, 0.045), transparent 38%),
+            radial-gradient(circle at 50% 0%, color-mix(in srgb, var(--timer-accent) 12%, transparent), transparent 62%),
+            var(--timer-panel-dark);
+          padding: 7px 6px 3px;
+          color: var(--timer-accent);
+          gap: clamp(3px, 1vw, 6px);
+          box-shadow:
+            inset 0 0 0 1px rgba(255, 255, 255, 0.035),
+            inset 0 0 18px rgba(0, 0, 0, 0.32);
         }
 
-        .seven-seg-colon .dot {
-          width: 7px;
-          height: 7px;
+        .timer-value.lcd::before {
+          content: "";
+          position: absolute;
+          inset: 0;
+          z-index: -1;
+          background:
+            repeating-linear-gradient(
+              180deg,
+              rgba(255, 255, 255, 0.045) 0,
+              rgba(255, 255, 255, 0.045) 1px,
+              transparent 1px,
+              transparent 5px
+            );
+          opacity: 0.34;
+          pointer-events: none;
+        }
+
+        .lcd-digit {
+          position: relative;
+          display: inline-block;
+          width: clamp(18px, 5.8vw, 28px);
+          height: clamp(32px, 8.6vw, 42px);
+          flex: 0 0 auto;
+          filter: drop-shadow(0 0 3px var(--timer-led-soft-shadow));
+        }
+
+        .lcd-colon {
+          position: relative;
+          display: inline-block;
+          width: clamp(5px, 1.8vw, 8px);
+          height: clamp(32px, 8.6vw, 42px);
+          flex: 0 0 auto;
+          filter: drop-shadow(0 0 3px var(--timer-led-soft-shadow));
+        }
+
+        .lcd-colon::before,
+        .lcd-colon::after {
+          content: "";
+          position: absolute;
+          left: 50%;
+          width: clamp(3px, 1.1vw, 5px);
+          height: clamp(3px, 1.1vw, 5px);
+          border-radius: 50%;
+          background: var(--timer-accent);
+          box-shadow:
+            0 0 2px var(--timer-led-shadow),
+            0 0 8px var(--timer-led-soft-shadow),
+            0 0 14px var(--timer-led-soft-shadow);
+          transform: translateX(-50%);
+        }
+
+        .lcd-colon::before {
+          top: 30%;
+        }
+
+        .lcd-colon::after {
+          bottom: 30%;
+        }
+
+        .lcd-segment {
+          position: absolute;
+          display: block;
+          opacity: 0.12;
+          background: color-mix(in srgb, var(--timer-accent) 78%, transparent);
+          box-shadow: none;
+          transition: opacity 160ms ease, box-shadow 160ms ease;
+        }
+
+        .lcd-segment::before,
+        .lcd-segment::after {
+          content: "";
+          position: absolute;
+          width: 0;
+          height: 0;
+        }
+
+        .lcd-segment.seg-a,
+        .lcd-segment.seg-d,
+        .lcd-segment.seg-g {
+          left: 18%;
+          width: 64%;
+          height: 9%;
+          clip-path: polygon(10% 0, 90% 0, 100% 50%, 90% 100%, 10% 100%, 0 50%);
+        }
+
+        .lcd-segment.seg-a {
+          top: 0;
+        }
+
+        .lcd-segment.seg-g {
+          top: 45.5%;
+        }
+
+        .lcd-segment.seg-d {
+          bottom: 0;
+        }
+
+        .lcd-segment.seg-b,
+        .lcd-segment.seg-c,
+        .lcd-segment.seg-e,
+        .lcd-segment.seg-f,
+        .lcd-segment.seg-h {
+          width: 12%;
+          height: 38%;
+          clip-path: polygon(50% 0, 100% 10%, 100% 90%, 50% 100%, 0 90%, 0 10%);
+        }
+
+        .lcd-segment.seg-b {
+          top: 7%;
+          right: 2%;
+        }
+
+        .lcd-segment.seg-c {
+          right: 2%;
+          bottom: 7%;
+        }
+
+        .lcd-segment.seg-e {
+          left: 2%;
+          bottom: 7%;
+        }
+
+        .lcd-segment.seg-f {
+          top: 7%;
+          left: 2%;
+        }
+
+        .lcd-segment.seg-h {
+          top: 31%;
+          left: 44%;
+          height: 38%;
+          opacity: 0.08;
+        }
+
+        .lcd-digit[data-digit="0"] :is(.seg-a, .seg-b, .seg-c, .seg-d, .seg-e, .seg-f),
+        .lcd-digit[data-digit="1"] :is(.seg-b, .seg-c),
+        .lcd-digit[data-digit="2"] :is(.seg-a, .seg-b, .seg-g, .seg-e, .seg-d),
+        .lcd-digit[data-digit="3"] :is(.seg-a, .seg-b, .seg-g, .seg-c, .seg-d),
+        .lcd-digit[data-digit="4"] :is(.seg-f, .seg-g, .seg-b, .seg-c),
+        .lcd-digit[data-digit="5"] :is(.seg-a, .seg-f, .seg-g, .seg-c, .seg-d),
+        .lcd-digit[data-digit="6"] :is(.seg-a, .seg-f, .seg-g, .seg-e, .seg-c, .seg-d),
+        .lcd-digit[data-digit="7"] :is(.seg-a, .seg-b, .seg-c),
+        .lcd-digit[data-digit="8"] :is(.seg-a, .seg-b, .seg-c, .seg-d, .seg-e, .seg-f, .seg-g, .seg-h),
+        .lcd-digit[data-digit="9"] :is(.seg-a, .seg-b, .seg-c, .seg-d, .seg-f, .seg-g) {
+          opacity: 1;
+          background: var(--timer-accent);
+          box-shadow:
+            0 0 2px var(--timer-led-shadow),
+            0 0 8px var(--timer-led-soft-shadow),
+            0 0 14px var(--timer-led-soft-shadow);
+        }
+
+        .workout-timeline-viewer {
+          position: relative;
+          height: 24px;
+          margin-top: 24px;
+          border-left: 1px solid var(--timer-accent);
+          border-right: 2px solid var(--timer-accent);
+        }
+
+        .tl-child {
+          position: absolute;
+          top: 0;
+          height: 8px;
+          min-width: 3px;
           border-radius: 999px;
-          background: var(--seg-on);
-          box-shadow: 0 0 3px color-mix(in srgb, var(--seg-on) 65%, transparent), 0 0 7px color-mix(in srgb, var(--seg-on) 25%, transparent);
+          background: var(--timer-accent-muted);
+          transform: translateY(0);
         }
 
-        [data-theme='light'] .seven-seg-shell {
-          --seg-on: #9FCC2A;
-          --seg-off: #2f3f1f;
-          border-color: rgba(191, 255, 0, 0.35);
-          background: linear-gradient(180deg, #1f2a16 0%, #12190d 100%);
+        .tl-child:nth-child(2n) {
+          top: 9px;
         }
 
-        [data-theme='light'] .seven-seg-shell .seg.on {
-          box-shadow: 0 0 4px color-mix(in srgb, var(--seg-on) 70%, transparent), 0 0 8px color-mix(in srgb, var(--seg-on) 35%, transparent);
+        .tl-child:nth-child(3n) {
+          top: 15px;
         }
 
-        [data-theme='light'] .seven-seg-shell .seven-seg-colon .dot {
-          box-shadow: 0 0 4px color-mix(in srgb, var(--seg-on) 65%, transparent), 0 0 7px color-mix(in srgb, var(--seg-on) 30%, transparent);
+        .tl-child.is-active,
+        .tl-child.is-done {
+          background: var(--timer-accent);
         }
 
-        .seven-seg-shell--girls {
-          --seg-on: #A87884;
-          --seg-off: #E2B4BD;
+        [data-theme='light'] .workout-timer-board {
+          --timer-panel: #ffffff;
+          --timer-panel-dark: #f1f7e7;
+          --timer-accent: rgb(var(--color-accent-dark));
+          --timer-accent-muted: rgba(109, 149, 34, 0.68);
+          --timer-led-shadow: rgba(109, 149, 34, 0.44);
+          --timer-led-soft-shadow: rgba(155, 214, 52, 0.2);
+          --timer-track: rgba(155, 214, 52, 0.18);
+          border-color: rgba(155, 214, 52, 0.28);
+          box-shadow: 0 16px 30px rgba(90, 109, 133, 0.16);
+        }
+
+        .workout-timer-board--girls {
+          --timer-panel: rgba(255, 255, 255, 0.76);
+          --timer-panel-dark: #fff1f5;
+          --timer-accent: #a87884;
+          --timer-accent-muted: rgba(168, 120, 132, 0.72);
+          --timer-led-shadow: rgba(168, 120, 132, 0.42);
+          --timer-led-soft-shadow: rgba(249, 178, 215, 0.26);
+          --timer-track: rgba(249, 178, 215, 0.2);
           border-color: rgba(226, 180, 189, 0.55);
-          background: linear-gradient(180deg, rgba(255, 255, 255, 0.78) 0%, rgba(255, 245, 245, 0.9) 100%);
-          box-shadow: inset 0 0 14px rgba(226, 180, 189, 0.22), 0 10px 24px rgba(226, 180, 189, 0.16);
+          box-shadow: 0 14px 30px rgba(168, 120, 132, 0.18);
+        }
+
+        @media (max-width: 420px) {
+          .workout-timer-board {
+            padding: 16px 20px 20px;
+          }
+
+          .workout-timer-tiles {
+            gap: 7px;
+          }
+
+          .timer-value.lcd {
+            min-height: 43px;
+            font-size: clamp(25px, 8.6vw, 32px);
+          }
         }
       `}</style>
     </div>

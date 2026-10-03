@@ -6,7 +6,10 @@ import {
 } from '../config/engineConfig.js';
 import { getGoalStrategy } from '../strategies/index.js';
 import { buildWeekTemplate } from '../scheduling/weeklyScheduler.js';
-import { resolveProgramEngineSplitOverride } from '../scheduling/splitSelector.js';
+import {
+  getProgramEngineSplitById,
+  resolveProgramEngineSplitOverride,
+} from '../scheduling/splitSelector.js';
 import { buildSessionSlots } from '../slots/sessionTemplates.js';
 import { assertValidProgramBlueprint } from './validateBlueprint.js';
 
@@ -69,23 +72,54 @@ export const buildProgramBlueprint = (profileOrInput = {}, options = {}) => {
     });
   }
 
-  const splitOverride = resolveProgramEngineSplitOverride({
-    splitPreference: options.splitOverride ?? options.splitPreference,
-    profile: { ...profile, daysPerWeek, goal: profile.goal },
-    recommendedSplit: decision.split,
-  });
+  const selectedSplitStrategy = options.selectedSplitStrategy
+    ?? options.trainingStrategy?.architecture?.selectedStrategy
+    ?? options.trainingStrategy?.architecture?.splitStrategy
+    ?? null;
 
-  if (splitOverride.error) {
-    throw new ProgramBlueprintGenerationError(splitOverride.error.message, {
-      code: splitOverride.error.code,
-      splitPreference: splitOverride.requestedSplitPreference,
-      recommendedSplit: decision.split.id,
-      goal: profile.goal,
-      daysPerWeek,
+  let selectedSplit = null;
+  let splitOverride = null;
+
+  if (selectedSplitStrategy) {
+    selectedSplit = getProgramEngineSplitById(selectedSplitStrategy);
+    if (!selectedSplit) {
+      throw new ProgramBlueprintGenerationError(`Brain-selected split is not supported: ${selectedSplitStrategy}`, {
+        code: 'BRAIN_SELECTED_SPLIT_UNSUPPORTED',
+        selectedSplitStrategy,
+      });
+    }
+    if (selectedSplit.sessionSequence.length !== daysPerWeek) {
+      throw new ProgramBlueprintGenerationError('Brain-selected split does not match prescribed days per week.', {
+        code: 'BRAIN_SELECTED_SPLIT_FREQUENCY_MISMATCH',
+        selectedSplitStrategy,
+        selectedSplitDays: selectedSplit.sessionSequence.length,
+        prescribedDaysPerWeek: daysPerWeek,
+      });
+    }
+    splitOverride = {
+      split: selectedSplit,
+      applied: selectedSplit.id !== decision.split.id,
+      requestedSplitPreference: selectedSplitStrategy,
+    };
+  } else {
+    splitOverride = resolveProgramEngineSplitOverride({
+      splitPreference: options.splitOverride ?? options.splitPreference,
+      profile: { ...profile, daysPerWeek, goal: profile.goal },
+      recommendedSplit: decision.split,
     });
+
+    if (splitOverride.error) {
+      throw new ProgramBlueprintGenerationError(splitOverride.error.message, {
+        code: splitOverride.error.code,
+        splitPreference: splitOverride.requestedSplitPreference,
+        recommendedSplit: decision.split.id,
+        goal: profile.goal,
+        daysPerWeek,
+      });
+    }
   }
 
-  const selectedSplit = splitOverride.split || decision.split;
+  selectedSplit = selectedSplit || splitOverride.split || decision.split;
 
   const weekTemplate = buildWeekTemplate({
     daysPerWeek,
@@ -130,6 +164,8 @@ export const buildProgramBlueprint = (profileOrInput = {}, options = {}) => {
       recommendedSplitId: decision.split.id,
       splitOverrideApplied: Boolean(splitOverride.applied),
       requestedSplitPreference: splitOverride.requestedSplitPreference || 'auto',
+      selectedByTrainingBrain: Boolean(selectedSplitStrategy),
+      trainingBrainVersion: options.trainingStrategy?.brainVersion ?? null,
     },
   };
 

@@ -66,7 +66,7 @@ const readStoredUser = () => {
 
 const isFemaleHomeUser = (value: unknown) => {
   const normalized = String(value || '').trim().toLowerCase();
-  return normalized === 'woman' || normalized === 'female' || normalized === 'f';
+  return normalized === 'woman' || normalized === 'female' || normalized === 'f' || normalized === 'girl' || normalized === 'girls' || normalized === 'femme';
 };
 
 const readHomeStyleGender = () => {
@@ -1218,7 +1218,13 @@ const localizeGenericWorkoutName = (value: unknown, language: AppLanguage) => {
 
 const resolveWeekPlanWorkoutName = (raw: unknown, exercises: any[], language: AppLanguage) => {
   const trimmed = String(raw || '').trim();
-  if (trimmed) return localizeGenericWorkoutName(trimmed, language);
+  if (trimmed) {
+    const bookDisplayName = trimmed
+      .replace(/^week\s+\d+\s*[-:]\s*/i, '')
+      .replace(/^(?:t-?\s*[123](?:\s+(?:cutting|bulking))?|tank-?\s*1)\s*[-:]\s*/i, '')
+      .trim();
+    return localizeGenericWorkoutName(bookDisplayName || trimmed, language);
+  }
 
   const muscles = exercises
     .flatMap((exercise: any) => parseTargetMuscles(exercise?.targetMuscles ?? exercise?.muscles ?? exercise?.muscleGroup))

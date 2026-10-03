@@ -79,6 +79,15 @@ type TodayWorkoutExercise = {
   isExtra: boolean;
 };
 
+type CardioPrescription = {
+  modality?: string;
+  intensity?: string;
+  durationMinutes?: number;
+  duration_minutes?: number;
+  intervals?: unknown;
+  notes?: string;
+};
+
 type WeekPlanWorkout = {
   key: string;
   id: number | null;
@@ -86,6 +95,7 @@ type WeekPlanWorkout = {
   dayLabel: string;
   workoutName: string;
   exercises: TodayWorkoutExercise[];
+  cardioPrescription?: CardioPrescription | null;
   isToday: boolean;
   dayOrder: number;
 };
@@ -170,6 +180,16 @@ const readStoredUser = () => {
     return JSON.parse(localStorage.getItem('appUser') || localStorage.getItem('user') || '{}');
   } catch {
     return {};
+  }
+};
+
+const safeParseStoredJson = (key: string) => {
+  try {
+    const raw = localStorage.getItem(key);
+    if (!raw) return null;
+    return JSON.parse(raw);
+  } catch {
+    return null;
   }
 };
 
@@ -338,6 +358,24 @@ const parseTargetMuscles = (raw: unknown): string[] => {
   }
 
   return [];
+};
+
+const parseRpeTarget = (value: unknown) => {
+  const direct = Number(value);
+  if (Number.isFinite(direct) && direct > 0) return direct;
+
+  const text = String(value || '');
+  const targetMatch = text.match(/target\s*rpe:\s*(\d+(?:\.\d+)?)(?:\s*-\s*(\d+(?:\.\d+)?))?/i);
+  if (targetMatch) {
+    return Number(targetMatch[2] || targetMatch[1] || 0) || null;
+  }
+
+  const rpeMatch = text.match(/\brpe\s*(\d+(?:\.\d+)?)(?:\s*-\s*(\d+(?:\.\d+)?))?/i);
+  if (rpeMatch) {
+    return Number(rpeMatch[2] || rpeMatch[1] || 0) || null;
+  }
+
+  return null;
 };
 
 const normalizeExerciseLookupName = (value = '') =>
@@ -592,6 +630,20 @@ const serializeTodayExercisesSnapshot = (exercises: TodayWorkoutExercise[]) =>
     isExtra: exercise.isExtra,
   }));
 
+const normalizeCardioPrescription = (value: unknown): CardioPrescription | null => {
+  if (!value) return null;
+  if (typeof value === 'object') return value as CardioPrescription;
+  if (typeof value !== 'string') return null;
+  try {
+    const parsed = JSON.parse(value);
+    return parsed && typeof parsed === 'object' ? parsed as CardioPrescription : null;
+  } catch {
+    return null;
+  }
+};
+
+const hasCardioPrescription = (value: unknown) => !!normalizeCardioPrescription(value);
+
 const mergeExerciseMediaFromPlan = (
   exercises: TodayWorkoutExercise[],
   planExercises: TodayWorkoutExercise[],
@@ -774,18 +826,27 @@ const resolveWorkoutDisplayName = (
   const inferredLabel = inferWorkoutLabelFromExercises(exercises, language);
   if (!trimmedName) return inferredLabel || getGenericWorkoutLabels(language).workout;
 
-  const normalizedName = trimmedName.toLowerCase();
+  const bookDisplayName = trimmedName
+    .replace(/^week\s+\d+\s*[-:]\s*/i, '')
+    .replace(/^(?:t-?\s*[123](?:\s+(?:cutting|bulking))?|tank-?\s*1)\s*[-:]\s*/i, '')
+    .trim();
+
+  if (/^(push|pull|legs?|upper|lower|full body|rest|recovery|core)$/i.test(bookDisplayName)) {
+    return localizeGenericWorkoutName(bookDisplayName, language);
+  }
+
+  const normalizedName = bookDisplayName.toLowerCase();
   const isGenericSplitName = /(push|pull|leg|legs|upper|lower|full body|rest|recovery|core)/.test(normalizedName);
-  if (!isGenericSplitName || !inferredLabel) return localizeGenericWorkoutName(trimmedName, language);
+  if (!isGenericSplitName || !inferredLabel) return localizeGenericWorkoutName(bookDisplayName || trimmedName, language);
 
   const normalizedInferred = inferredLabel.toLowerCase();
-  if (normalizedName.includes(normalizedInferred)) return trimmedName;
+  if (normalizedName.includes(normalizedInferred)) return bookDisplayName;
 
   const inferredKey = normalizedInferred.split(' ')[0];
   const namedAsRest = normalizedName.includes('rest') || normalizedName.includes('recovery');
-  if (namedAsRest) return trimmedName;
+  if (namedAsRest) return bookDisplayName;
 
-  return inferredKey && !normalizedName.includes(inferredKey) ? inferredLabel : trimmedName;
+  return inferredKey && !normalizedName.includes(inferredKey) ? inferredLabel : bookDisplayName;
 };
 
 const resolveTodayWorkoutPayload = (program: any, language: AppLanguage) => {
@@ -850,6 +911,12 @@ const resolveTodayWorkoutPayload = (program: any, language: AppLanguage) => {
 
   return {
     exercises,
+    cardioPrescription: normalizeCardioPrescription(
+      resolvedWorkout?.cardioPrescription
+      ?? resolvedWorkout?.cardio_prescription
+      ?? todayWorkout?.cardioPrescription
+      ?? null,
+    ),
     dayLabel: formatWorkoutDayLabel(
       resolvedDayKey,
       getGenericWorkoutLabels(language).restDay,
@@ -876,6 +943,9 @@ const buildWeekPlanWorkouts = (program: any, language: AppLanguage): WeekPlanWor
   const normalized = weeklyWorkouts
     .map((workout: any, index: number) => {
       const exercises = parseWorkoutExercisesPayload(workout?.exercises, false);
+      const cardioPrescription = normalizeCardioPrescription(
+        workout?.cardioPrescription ?? workout?.cardio_prescription ?? null,
+      );
       const dayKey = normalizeWorkoutDayKey(workout?.day_name);
       const workoutName = resolveWorkoutDisplayName(workout?.workout_name || '', exercises, language);
       const isToday = !!(
@@ -894,6 +964,7 @@ const buildWeekPlanWorkouts = (program: any, language: AppLanguage): WeekPlanWor
         ),
         workoutName,
         exercises,
+        cardioPrescription,
         isToday,
         dayOrder: Number(workout?.day_order || index + 1) || (index + 1),
       };
@@ -908,6 +979,7 @@ const buildWeekPlanWorkouts = (program: any, language: AppLanguage): WeekPlanWor
       dayLabel: todayPayload.dayLabel,
       workoutName: todayPayload.name,
       exercises: Array.isArray(todayPayload.exercises) ? todayPayload.exercises : [],
+      cardioPrescription: todayPayload.cardioPrescription || null,
       isToday: true,
       dayOrder: 0,
     });
@@ -926,9 +998,18 @@ const findNextWeekPlanWorkout = (workouts: WeekPlanWorkout[], currentWorkoutKey?
 };
 
 const hasWorkoutExercises = (workout: WeekPlanWorkout | null | undefined) =>
-  !!(workout && Array.isArray(workout.exercises) && workout.exercises.length > 0);
+  !!(
+    workout
+    && (
+      (Array.isArray(workout.exercises) && workout.exercises.length > 0)
+      || hasCardioPrescription(workout.cardioPrescription)
+    )
+  );
 
 const getWorkoutTargetMuscles = (workout: WeekPlanWorkout | null | undefined) => {
+  if (workout?.cardioPrescription && (!Array.isArray(workout.exercises) || workout.exercises.length === 0)) {
+    return ['Cardio'];
+  }
   if (!workout || !Array.isArray(workout.exercises)) return [] as string[];
 
   return Array.from(
@@ -1088,6 +1169,24 @@ export function Workout({
     () => getActiveT2PremiumConfig(userProgram),
     [userProgram],
   );
+  const isT3ProgramActive = useMemo(() => {
+    const candidates = [
+      userProgram,
+      safeParseStoredJson('assignedProgramTemplate'),
+    ];
+
+    return candidates.some((program: any) => {
+      const text = [
+        program?.planName,
+        program?.name,
+        program?.description,
+        program?.t3PlanConfig?.planKind,
+        program?.t3PlanConfig?.strategy,
+      ].join(' ').toLowerCase();
+
+      return /t-?3|plp[_\s-]*upper[_\s/-]*lower|plp\s*\+/.test(text);
+    });
+  }, [userProgram]);
   const renewalCopy = useMemo(
     () => ({
       modalTitle: isArabic ? 'أنشئ خطة تمريني' : 'Create My Workout Plan',
@@ -1309,6 +1408,7 @@ export function Workout({
   const detailExercises = isSelectedWorkoutPickedForToday
     ? todayExercises
     : (selectedWeekWorkout?.exercises || []);
+  const detailCardioPrescription = normalizeCardioPrescription(selectedWeekWorkout?.cardioPrescription);
   const detailCompletedExercises = isSelectedWorkoutPickedForToday ? completedExercises : [];
   const isHyroxMode = useMemo(() => isHyroxProgramSnapshot(userProgram), [userProgram]);
   const planCoachmarkSteps = useMemo<CoachmarkStep[]>(
@@ -2040,10 +2140,11 @@ export function Workout({
 
     if (userId) {
       const targetMuscles = getWorkoutTargetMuscles(nextWorkout);
+      const cardioPrescription = normalizeCardioPrescription(nextWorkout.cardioPrescription);
       void api.syncPickedTodayWorkout(userId, {
         workoutName: nextWorkout.workoutName,
         dayLabel: nextWorkout.dayLabel,
-        durationMinutes: 60,
+        durationMinutes: Number(cardioPrescription?.durationMinutes ?? cardioPrescription?.duration_minutes ?? 60) || 60,
         muscleGroups: targetMuscles,
         muscleGroup: targetMuscles[0] || null,
         exercises: nextWorkout.exercises.map((exercise) => ({
@@ -2418,6 +2519,7 @@ export function Workout({
           durationSeconds: payload.durationSeconds,
           muscles: payload.muscles,
           exercises: payload.exercises,
+          programAssignmentId: Number(userProgram?.assignmentId || 0) || undefined,
         });
         const normalizedDelta = normalizeGamificationDelta(sessionResponse?.progression);
         setGamificationDelta(normalizedDelta);
@@ -2662,6 +2764,90 @@ export function Workout({
     }
   };
 
+  const completeCardioOnlyWorkoutDay = async (cardioPrescription: CardioPrescription) => {
+    if (!userId) {
+      return { completed: false, reason: 'User is not authenticated.' };
+    }
+
+    const durationMinutes = Math.max(
+      1,
+      Math.round(Number(cardioPrescription.durationMinutes ?? cardioPrescription.duration_minutes ?? 30) || 30),
+    );
+    const summaryDate = formatDateISO(new Date());
+    const workoutName = String(currentWorkoutName || workoutDay || 'Cardio').trim() || 'Cardio';
+    const muscles = [{ name: 'Cardio', score: 100 }];
+    const generated: WorkoutDaySummaryData = {
+      summaryDate,
+      workoutName,
+      durationSeconds: durationMinutes * 60,
+      estimatedCalories: Math.max(1, Math.round(durationMinutes * 8)),
+      totalVolume: 0,
+      recordsCount: 0,
+      muscles,
+      exercises: [],
+      summaryText: '',
+    };
+    const summaryText = buildSummaryShareText(generated);
+
+    setSummaryLoading(true);
+    setSummaryError(null);
+    try {
+      const sessionResponse = await api.completeWorkoutDaySession({
+        userId,
+        summaryDate,
+        workoutName,
+        durationSeconds: generated.durationSeconds,
+        muscles,
+        muscleGroups: ['Cardio'],
+        muscleGroup: 'Cardio',
+        exercises: [],
+        intensity: String(cardioPrescription.intensity || '').toLowerCase().includes('high') ? 'high' : 'moderate',
+        volume: 'moderate',
+        programAssignmentId: Number(userProgram?.assignmentId || 0) || undefined,
+      });
+      const normalizedDelta = normalizeGamificationDelta(sessionResponse?.progression);
+      setGamificationDelta(normalizedDelta);
+      window.dispatchEvent(new CustomEvent('gamification-updated', {
+        detail: {
+          delta: normalizedDelta,
+          source: 'workout_complete',
+        },
+      }));
+
+      try {
+        await api.recalculateTodayRecovery(userId);
+        const finalizeKey = `recoveryFinalized:${userId}:${new Date().toDateString()}`;
+        localStorage.setItem(finalizeKey, 'true');
+        localStorage.setItem('recoveryNeedsUpdate', 'true');
+        window.dispatchEvent(new CustomEvent('recovery-updated'));
+      } catch (recoveryError) {
+        console.error('Failed to finalize recovery after saving cardio workout:', recoveryError);
+      }
+
+      const response = await api.saveWorkoutDaySummary({
+        userId,
+        summaryDate,
+        workoutName,
+        durationSeconds: generated.durationSeconds,
+        estimatedCalories: generated.estimatedCalories,
+        totalVolume: generated.totalVolume,
+        recordsCount: generated.recordsCount,
+        muscles,
+        exercises: [],
+        summaryText,
+      });
+      setSummary(normalizeWorkoutSummary(response?.summary) || { ...generated, summaryText });
+      setHasLatestSummary(true);
+      setSummaryLoading(false);
+      return { completed: true };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Could not save today\'s cardio workout.';
+      setSummaryError(message);
+      setSummaryLoading(false);
+      return { completed: false, reason: message };
+    }
+  };
+
   const markSelectedWorkoutFullyDone = async () => {
     if (!isSelectedWorkoutPickedForToday || !todayWorkoutSelection?.workoutKey) {
       return {
@@ -2672,10 +2858,27 @@ export function Workout({
 
     const exercisesToComplete = todayExercises.filter((exercise) => String(exercise?.exerciseName || '').trim());
     if (!exercisesToComplete.length) {
-      return {
-        completed: false,
-        reason: 'No exercises were found for this workout day.',
-      };
+      const cardioPrescription = normalizeCardioPrescription(selectedWeekWorkout?.cardioPrescription);
+      if (!cardioPrescription) {
+        return {
+          completed: false,
+          reason: 'No exercises were found for this workout day.',
+        };
+      }
+
+      const cardioResult = await completeCardioOnlyWorkoutDay(cardioPrescription);
+      if (!cardioResult.completed) return cardioResult;
+
+      const nextSelection = markTodayWorkoutSelectionCompleted(workoutStorageScope, true);
+      setTodayWorkoutSelection(nextSelection);
+      localStorage.setItem(homeMetricStorageKeys.homeWorkoutProgress, '100');
+      window.dispatchEvent(new CustomEvent('workout-progress-updated'));
+      window.dispatchEvent(new CustomEvent('program-updated'));
+
+      const summaryKey = `${formatDateISO(new Date())}:${String(currentWorkoutName || '').trim().toLowerCase()}`;
+      setLastAutoSummaryKey(summaryKey);
+
+      return { completed: true };
     }
 
     const nextExerciseSets: Record<string, any[]> = {
@@ -2805,20 +3008,25 @@ export function Workout({
           onPickWorkoutForToday={pickWorkoutForToday}
           onOpenNewPlanFlow={() => setIsPlanChoiceOpen(true)}
           currentDayLabel={currentWorkoutDayLabel}
-          workouts={selectableWeekPlanWorkouts.map((workout) => ({
-            key: workout.key,
-            dayLabel: workout.dayLabel,
-            workoutName: workout.workoutName,
-            exerciseCount: workout.exercises.length,
-            exerciseNames: workout.exercises
-              .map((exercise) => String(exercise?.exerciseName || '').trim())
-              .filter(Boolean),
-            targetMuscles: getWorkoutTargetMuscles(workout).slice(0, 3),
-            isToday: workout.isToday,
-            isRecommendedNext: workout.key === recommendedRecoveryWorkout?.key,
-            isPickedForToday: workout.key === todayWorkoutSelection?.workoutKey,
-            isCompletedToday: workout.key === todayWorkoutSelection?.workoutKey && !!todayWorkoutSelection?.completed,
-          }))}
+          workouts={selectableWeekPlanWorkouts.map((workout) => {
+            const isCardioOnly = hasCardioPrescription(workout.cardioPrescription) && workout.exercises.length === 0;
+            return {
+              key: workout.key,
+              dayLabel: workout.dayLabel,
+              workoutName: workout.workoutName,
+              exerciseCount: isCardioOnly ? 1 : workout.exercises.length,
+              exerciseNames: isCardioOnly
+                ? ['Cardio prescription']
+                : workout.exercises
+                  .map((exercise) => String(exercise?.exerciseName || '').trim())
+                  .filter(Boolean),
+              targetMuscles: getWorkoutTargetMuscles(workout).slice(0, 3),
+              isToday: workout.isToday,
+              isRecommendedNext: workout.key === recommendedRecoveryWorkout?.key,
+              isPickedForToday: workout.key === todayWorkoutSelection?.workoutKey,
+              isCompletedToday: workout.key === todayWorkoutSelection?.workoutKey && !!todayWorkoutSelection?.completed,
+            };
+          })}
           selectedTodayWorkoutName={localizeGenericWorkoutName(
             todayWorkoutSelection?.workoutName || currentWorkoutName,
             language,
@@ -2967,6 +3175,7 @@ export function Workout({
           workoutDayLabel={detailWorkoutDayLabel}
           completedExercises={detailCompletedExercises}
           todayExercises={detailExercises}
+          cardioPrescription={detailCardioPrescription}
           loading={isSelectedWorkoutPickedForToday ? loading : false}
           allowEditing={isSelectedWorkoutPickedForToday}
           isDayFullyDone={isSelectedWorkoutPickedForToday && !!todayWorkoutSelection?.completed}
@@ -2989,6 +3198,9 @@ export function Workout({
           onBack={() => setView('plan')}
           exerciseName={selectedExercise}
           plannedSets={getPlannedSetsForExercise(selectedExercise) || undefined}
+          plannedReps={String(selectedWorkoutExercise?.reps || '') || undefined}
+          targetRpe={parseRpeTarget(selectedWorkoutExercise?.rpeTarget ?? selectedWorkoutExercise?.notes)}
+          overloadStrategy={isT3ProgramActive ? 't3' : null}
           onVideoClick={(exerciseName) => {
             setSelectedExercise(exerciseName);
             setVideoReturnView('tracker');

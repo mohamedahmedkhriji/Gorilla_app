@@ -953,7 +953,7 @@ const getActiveViewerId = () => {
 
 const isGirlsStyleValue = (value: unknown) => {
   const normalized = String(value || '').trim().toLowerCase();
-  return normalized === 'woman' || normalized === 'female' || normalized === 'f' || normalized === 'girls';
+  return normalized === 'woman' || normalized === 'female' || normalized === 'f' || normalized === 'girl' || normalized === 'girls' || normalized === 'femme';
 };
 
 const readFriendProfileStyleGender = () => {
@@ -984,8 +984,10 @@ const readFriendProfileOnboardingProfile = (user: any) => {
 };
 
 const shouldUseGirlsFriendProfileTheme = (user: any, styleGender: string) => {
-  if (styleGender) return isGirlsStyleValue(styleGender);
   const profile = readFriendProfileOnboardingProfile(user);
+  const explicitGender = String(user?.gender || profile?.gender || '').trim().toLowerCase();
+  if (explicitGender === 'man' || explicitGender === 'male' || explicitGender === 'm') return false;
+  if (styleGender) return isGirlsStyleValue(styleGender);
   return isGirlsStyleValue(user?.gender) || isGirlsStyleValue(profile?.gender) || profile?.onboardingTheme === 'girls';
 };
 

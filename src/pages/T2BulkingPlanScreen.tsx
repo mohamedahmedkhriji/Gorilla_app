@@ -1018,6 +1018,10 @@ const buildPayload = (language: AppLanguage, premiumConfig: T2BulkingPremiumConf
     selectedDays: Object.values(DAY_NAME),
     weeklyWorkouts: weekPlans[0]?.weeklyWorkouts || [],
     weekPlans,
+    bookScheduleConfig: {
+      scheduleMode: 'fixed_weekday',
+      weekStartsOn: 'monday',
+    },
   };
 };
 

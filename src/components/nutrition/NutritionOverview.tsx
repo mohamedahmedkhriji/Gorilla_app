@@ -3,6 +3,7 @@ import { ChevronLeft, ChevronRight, Droplets, Info, Plus, UtensilsCrossed, X } f
 import BodyMap from '../BodyMap';
 import { BODY_MAP_MUSCLES, type BodyMapLevels, type BodyMapMuscle } from '../../lib/muscle-map';
 import type { NutritionBodyMode } from './body-svg/nutritionBody.types';
+import { AppLanguage, pickLanguage } from '../../services/language';
 
 export type NutritionPlan = {
   targets: { calories: number; protein: number; carbs: number; fat: number; waterMl: number };
@@ -25,6 +26,91 @@ type ModeMeta = {
   remainingLabel: string;
 };
 
+const OVERVIEW_COPY = {
+  en: {
+    todayFuel: "Today's fuel",
+    complete: 'complete',
+    goal: 'Goal',
+    tdee: 'TDEE',
+    modes: { hydration: 'Hydration', protein: 'Protein', carbs: 'Carbs', fat: 'Fat' },
+    remaining: (value: string, unit: string) => `${value} ${unit} remaining`,
+    quickAddWater: 'Quick add water',
+    todayMeals: "Today's meals",
+    planned: (count: number) => `${count} planned`,
+    previousCard: 'Previous nutrition card',
+    nextCard: 'Next nutrition card',
+    goToCard: (index: number) => `Go to nutrition card ${index}`,
+    macros: { protein: 'P', carbs: 'C', fat: 'F' },
+    mealSlots: { breakfast: 'Breakfast', lunch: 'Lunch', dinner: 'Dinner', snack: 'Snack' },
+  },
+  ar: {
+    todayFuel: 'وقود اليوم',
+    complete: 'مكتمل',
+    goal: 'الهدف',
+    tdee: 'الصرف اليومي',
+    modes: { hydration: 'الترطيب', protein: 'البروتين', carbs: 'الكربوهيدرات', fat: 'الدهون' },
+    remaining: (value: string, unit: string) => `المتبقي ${value} ${unit}`,
+    quickAddWater: 'إضافة ماء سريعة',
+    todayMeals: 'وجبات اليوم',
+    planned: (count: number) => `${count} مخطط`,
+    previousCard: 'بطاقة التغذية السابقة',
+    nextCard: 'بطاقة التغذية التالية',
+    goToCard: (index: number) => `اذهب إلى بطاقة التغذية ${index}`,
+    macros: { protein: 'ب', carbs: 'ك', fat: 'د' },
+    mealSlots: { breakfast: 'الفطور', lunch: 'الغداء', dinner: 'العشاء', snack: 'وجبة خفيفة' },
+  },
+  it: {
+    todayFuel: 'Carburante di oggi',
+    complete: 'completo',
+    goal: 'Obiettivo',
+    tdee: 'TDEE',
+    modes: { hydration: 'Idratazione', protein: 'Proteine', carbs: 'Carboidrati', fat: 'Grassi' },
+    remaining: (value: string, unit: string) => `${value} ${unit} rimanenti`,
+    quickAddWater: 'Aggiungi acqua veloce',
+    todayMeals: 'Pasti di oggi',
+    planned: (count: number) => `${count} pianificati`,
+    previousCard: 'Scheda nutrizione precedente',
+    nextCard: 'Scheda nutrizione successiva',
+    goToCard: (index: number) => `Vai alla scheda nutrizione ${index}`,
+    macros: { protein: 'P', carbs: 'C', fat: 'G' },
+    mealSlots: { breakfast: 'Colazione', lunch: 'Pranzo', dinner: 'Cena', snack: 'Spuntino' },
+  },
+  de: {
+    todayFuel: 'Heutige Energie',
+    complete: 'vollstaendig',
+    goal: 'Ziel',
+    tdee: 'TDEE',
+    modes: { hydration: 'Hydration', protein: 'Protein', carbs: 'Kohlenhydrate', fat: 'Fett' },
+    remaining: (value: string, unit: string) => `${value} ${unit} uebrig`,
+    quickAddWater: 'Wasser schnell hinzufuegen',
+    todayMeals: 'Heutige Mahlzeiten',
+    planned: (count: number) => `${count} geplant`,
+    previousCard: 'Vorherige Ernaehrungskarte',
+    nextCard: 'Naechste Ernaehrungskarte',
+    goToCard: (index: number) => `Zur Ernaehrungskarte ${index}`,
+    macros: { protein: 'P', carbs: 'K', fat: 'F' },
+    mealSlots: { breakfast: 'Fruehstueck', lunch: 'Mittagessen', dinner: 'Abendessen', snack: 'Snack' },
+  },
+  fr: {
+    todayFuel: 'Energie du jour',
+    complete: 'termine',
+    goal: 'Objectif',
+    tdee: 'TDEE',
+    modes: { hydration: 'Hydratation', protein: 'Proteines', carbs: 'Glucides', fat: 'Lipides' },
+    remaining: (value: string, unit: string) => `${value} ${unit} restants`,
+    quickAddWater: 'Ajouter de leau rapidement',
+    todayMeals: 'Repas du jour',
+    planned: (count: number) => `${count} prevus`,
+    previousCard: 'Carte nutrition precedente',
+    nextCard: 'Carte nutrition suivante',
+    goToCard: (index: number) => `Aller a la carte nutrition ${index}`,
+    macros: { protein: 'P', carbs: 'G', fat: 'L' },
+    mealSlots: { breakfast: 'Petit-dejeuner', lunch: 'Dejeuner', dinner: 'Diner', snack: 'Collation' },
+  },
+} as const;
+
+type NutritionOverviewCopy = typeof OVERVIEW_COPY.en;
+
 const clampPercent = (current: number, target: number) => {
   if (!(target > 0)) return 0;
   return Math.max(0, Math.min(160, Math.round((current / target) * 100)));
@@ -36,6 +122,15 @@ const mealAccent = (slot: string) => {
   if (key.includes('lunch')) return 'from-cyan-400/24 via-sky-300/10';
   if (key.includes('dinner')) return 'from-indigo-400/26 via-cyan-300/10';
   return 'from-emerald-400/20 via-cyan-300/10';
+};
+
+const localizeMealSlot = (slot: string, copy: NutritionOverviewCopy) => {
+  const key = String(slot || '').trim().toLowerCase();
+  if (key.includes('break')) return copy.mealSlots.breakfast;
+  if (key.includes('lunch')) return copy.mealSlots.lunch;
+  if (key.includes('dinner')) return copy.mealSlots.dinner;
+  if (key.includes('snack')) return copy.mealSlots.snack;
+  return slot;
 };
 
 const getBodyMapLevel = (percent: number) => {
@@ -126,6 +221,7 @@ export function NutritionOverview({
   hydrationError,
   onAddHydration,
   themeVariant = 'default',
+  language = 'en',
 }: {
   plan: NutritionPlan;
   goalLabel: string;
@@ -135,7 +231,9 @@ export function NutritionOverview({
   hydrationError: string;
   onAddHydration: (amountMl: number) => void;
   themeVariant?: NutritionThemeVariant;
+  language?: AppLanguage;
 }) {
+  const copy = pickLanguage(language, OVERVIEW_COPY);
   const [mode, setMode] = useState<NutritionBodyMode>('hydration');
   const [activeMealIndex, setActiveMealIndex] = useState<number | null>(null);
   const [carouselIndex, setCarouselIndex] = useState(0);
@@ -146,37 +244,37 @@ export function NutritionOverview({
   const modes: ModeMeta[] = useMemo(() => [
     {
       mode: 'hydration',
-      label: 'Hydration',
+      label: copy.modes.hydration,
       current: hydrationLoggedMl,
       target: directHydrationTarget || Number(plan.targets.waterMl || 0),
       unit: 'ml',
-      remainingLabel: `${Math.max(0, (directHydrationTarget || plan.targets.waterMl) - hydrationLoggedMl).toLocaleString()} ml remaining`,
+      remainingLabel: copy.remaining(Math.max(0, (directHydrationTarget || plan.targets.waterMl) - hydrationLoggedMl).toLocaleString(), 'ml'),
     },
     {
       mode: 'protein',
-      label: 'Protein',
+      label: copy.modes.protein,
       current: Number(plan.totals.protein || 0),
       target: Number(plan.targets.protein || 0),
       unit: 'g',
-      remainingLabel: `${Math.max(0, Math.round(plan.targets.protein - plan.totals.protein)).toLocaleString()} g remaining`,
+      remainingLabel: copy.remaining(Math.max(0, Math.round(plan.targets.protein - plan.totals.protein)).toLocaleString(), 'g'),
     },
     {
       mode: 'carbs',
-      label: 'Carbs',
+      label: copy.modes.carbs,
       current: Number(plan.totals.carbs || 0),
       target: Number(plan.targets.carbs || 0),
       unit: 'g',
-      remainingLabel: `${Math.max(0, Math.round(plan.targets.carbs - plan.totals.carbs)).toLocaleString()} g remaining`,
+      remainingLabel: copy.remaining(Math.max(0, Math.round(plan.targets.carbs - plan.totals.carbs)).toLocaleString(), 'g'),
     },
     {
       mode: 'fat',
-      label: 'Fat',
+      label: copy.modes.fat,
       current: Number(plan.totals.fat || 0),
       target: Number(plan.targets.fat || 0),
       unit: 'g',
-      remainingLabel: `${Math.max(0, Math.round(plan.targets.fat - plan.totals.fat)).toLocaleString()} g remaining`,
+      remainingLabel: copy.remaining(Math.max(0, Math.round(plan.targets.fat - plan.totals.fat)).toLocaleString(), 'g'),
     },
-  ], [directHydrationTarget, hydrationLoggedMl, plan]);
+  ], [copy, directHydrationTarget, hydrationLoggedMl, plan]);
 
   const activeMode = modes.find((item) => item.mode === mode) || modes[0];
   const caloriesPercent = clampPercent(plan.totals.calories, plan.targets.calories);
@@ -224,20 +322,20 @@ export function NutritionOverview({
               <section className={`rounded-[1.5rem] border p-4 ${theme.innerCard}`}>
                 <div className="flex items-start justify-between gap-3">
                   <div>
-                    <div className={`text-[10px] font-bold uppercase tracking-[0.22em] ${theme.eyebrow}`}>Today&apos;s fuel</div>
+                    <div className={`text-[10px] font-bold uppercase tracking-[0.22em] ${theme.eyebrow}`}>{copy.todayFuel}</div>
                     <div className={`mt-1 text-3xl font-black ${theme.primaryText}`}>
                       {plan.totals.calories.toLocaleString()} <span className={`text-base font-semibold ${theme.secondaryText}`}>/ {plan.targets.calories.toLocaleString()} kcal</span>
                     </div>
                   </div>
                   <div className={`rounded-2xl border px-3 py-2 text-right ${theme.badge}`}>
                     <div className={`text-xl font-black ${theme.accentText}`}>{Math.min(caloriesPercent, 100)}%</div>
-                    <div className={`text-[10px] uppercase tracking-[0.14em] ${theme.mutedAccentText}`}>complete</div>
+                    <div className={`text-[10px] uppercase tracking-[0.14em] ${theme.mutedAccentText}`}>{copy.complete}</div>
                   </div>
                 </div>
                 <div className="mt-4 h-2 overflow-hidden rounded-full bg-black/10">
                   <div className={`h-full rounded-full ${caloriesRemaining < 0 ? 'bg-orange-400' : theme.progress}`} style={{ width: `${Math.min(caloriesPercent, 100)}%` }} />
                 </div>
-                <div className={`mt-3 text-[11px] ${theme.tertiaryText}`}>Goal: {goalLabel}{tdee ? ` | TDEE ${tdee.toLocaleString()} kcal` : ''}</div>
+                <div className={`mt-3 text-[11px] ${theme.tertiaryText}`}>{copy.goal}: {goalLabel}{tdee ? ` | ${copy.tdee} ${tdee.toLocaleString()} kcal` : ''}</div>
               </section>
 
               <div className="flex items-start justify-between gap-3">
@@ -279,7 +377,7 @@ export function NutritionOverview({
 
               {mode === 'hydration' ? (
                 <div className={`rounded-2xl border p-3 ${theme.innerCard}`}>
-                  <div className={`flex items-center gap-2 text-sm font-bold ${theme.primaryText}`}><Droplets size={16} className={theme.iconText} /> Quick add water</div>
+                  <div className={`flex items-center gap-2 text-sm font-bold ${theme.primaryText}`}><Droplets size={16} className={theme.iconText} /> {copy.quickAddWater}</div>
                   <div className="mt-3 grid grid-cols-2 gap-2">
                     {[250, 500].map((amount) => (
                       <button
@@ -302,8 +400,8 @@ export function NutritionOverview({
           <div className="w-full shrink-0 snap-start">
             <div className={`space-y-3 rounded-[1.5rem] border p-4 pb-16 ${theme.card}`}>
               <div className="flex items-center justify-between">
-                <h2 className={`text-lg font-black ${theme.primaryText}`}>Today&apos;s meals</h2>
-                <div className={`text-xs ${theme.secondaryText}`}>{plan.meals.length} planned</div>
+                <h2 className={`text-lg font-black ${theme.primaryText}`}>{copy.todayMeals}</h2>
+                <div className={`text-xs ${theme.secondaryText}`}>{copy.planned(plan.meals.length)}</div>
               </div>
               <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
                 {plan.meals.map((meal, index) => (
@@ -318,13 +416,13 @@ export function NutritionOverview({
                         <UtensilsCrossed size={18} />
                       </div>
                       <div className="max-w-[70%]">
-                        <div className={`text-xl font-black ${theme.primaryText}`}>{meal.slot}</div>
+                        <div className={`text-xl font-black ${theme.primaryText}`}>{localizeMealSlot(meal.slot, copy)}</div>
                         <div className={`mt-1 text-sm ${theme.secondaryText}`}>{meal.totals.calories} kcal</div>
                       </div>
                       <div className={`mt-5 flex gap-2 text-[11px] font-semibold ${theme.mealMacro}`}>
-                        <span>P {meal.totals.protein}g</span>
-                        <span>C {meal.totals.carbs}g</span>
-                        <span>F {meal.totals.fat}g</span>
+                        <span>{copy.macros.protein} {meal.totals.protein}g</span>
+                        <span>{copy.macros.carbs} {meal.totals.carbs}g</span>
+                        <span>{copy.macros.fat} {meal.totals.fat}g</span>
                       </div>
                     </div>
                     <div className={`flex items-center justify-between gap-2 px-4 py-3 text-sm ${theme.secondaryText}`}>
@@ -344,7 +442,7 @@ export function NutritionOverview({
             onClick={() => goToCarouselSlide(0)}
             disabled={carouselIndex === 0}
             className={`flex h-9 w-9 items-center justify-center rounded-full border transition disabled:cursor-not-allowed disabled:opacity-40 ${theme.carouselButton}`}
-            aria-label="Previous nutrition card"
+            aria-label={copy.previousCard}
           >
             <ChevronLeft size={18} />
           </button>
@@ -355,7 +453,7 @@ export function NutritionOverview({
                 type="button"
                 onClick={() => goToCarouselSlide(index)}
                 className={`h-2 rounded-full transition-all ${carouselIndex === index ? `w-6 ${theme.dotActive}` : `w-2 ${theme.dotInactive}`}`}
-                aria-label={`Go to nutrition card ${index + 1}`}
+                aria-label={copy.goToCard(index + 1)}
               />
             ))}
           </div>
@@ -364,7 +462,7 @@ export function NutritionOverview({
             onClick={() => goToCarouselSlide(1)}
             disabled={carouselIndex === 1}
             className={`flex h-9 w-9 items-center justify-center rounded-full border transition disabled:cursor-not-allowed disabled:opacity-40 ${theme.carouselButton}`}
-            aria-label="Next nutrition card"
+            aria-label={copy.nextCard}
           >
             <ChevronRight size={18} />
           </button>
@@ -376,7 +474,7 @@ export function NutritionOverview({
           <div className={`max-h-[84dvh] w-full max-w-xl overflow-y-auto rounded-[1.5rem] border shadow-2xl ${theme.modalCard}`}>
             <div className={`sticky top-0 z-10 flex items-center justify-between border-b p-4 backdrop-blur ${theme.modalHeader}`}>
               <div>
-                <div className={`text-xl font-black ${theme.primaryText}`}>{activeMeal.slot}</div>
+                <div className={`text-xl font-black ${theme.primaryText}`}>{localizeMealSlot(activeMeal.slot, copy)}</div>
                 <div className={`text-sm ${theme.secondaryText}`}>{activeMeal.totals.calories} kcal</div>
               </div>
               <button type="button" onClick={() => setActiveMealIndex(null)} className={`flex h-10 w-10 items-center justify-center rounded-full ${theme.closeButton}`}>
@@ -390,7 +488,7 @@ export function NutritionOverview({
                     <div className={`font-bold ${theme.primaryText}`}>{item.name}</div>
                     <div className={`shrink-0 text-sm font-bold ${theme.accentText}`}>{item.calories} kcal</div>
                   </div>
-                  <div className={`mt-2 text-xs ${theme.secondaryText}`}>P {item.protein}g | C {item.carbs}g | F {item.fat}g</div>
+                  <div className={`mt-2 text-xs ${theme.secondaryText}`}>{copy.macros.protein} {item.protein}g | {copy.macros.carbs} {item.carbs}g | {copy.macros.fat} {item.fat}g</div>
                 </div>
               ))}
             </div>

@@ -102,6 +102,10 @@ export const buildCompleteGeneratedProgram = async (
     programLengthWeeks = 8,
     splitOverride = null,
     splitPreference = null,
+    selectedSplitStrategy = null,
+    trainingStrategy = null,
+    referenceEvidence = null,
+    availableDaysPerWeek = null,
   } = {},
 ) => {
   const normalizedProfile = profileOrInput.engineTarget
@@ -110,6 +114,8 @@ export const buildCompleteGeneratedProgram = async (
   const blueprint = buildProgramBlueprint(profileOrInput, {
     programLengthWeeks,
     splitOverride: splitOverride ?? splitPreference,
+    selectedSplitStrategy,
+    trainingStrategy,
   });
   const constraints = parseGenerationConstraints({
     equipmentNotes: normalizedProfile.equipmentNotes,
@@ -148,11 +154,18 @@ export const buildCompleteGeneratedProgram = async (
     engineVersion: PROGRAM_ENGINE_VERSION,
     profile: blueprint.profile,
     daysPerWeek: blueprint.daysPerWeek,
+    availableDaysPerWeek: availableDaysPerWeek ?? normalizedProfile.availableDaysPerWeek ?? blueprint.daysPerWeek,
     sessionDurationMinutes: blueprint.sessionDurationMinutes,
     split: blueprint.split.id,
     modifiers: blueprint.modifiers,
     constraints: constraints.rawFlags,
+    trainingBrainVersion: trainingStrategy?.brainVersion ?? null,
+    referenceDatasetVersion: referenceEvidence?.datasetVersion ?? null,
   };
+
+  const generationSource = trainingStrategy
+    ? 'program_engine_brain_v1'
+    : 'program_engine_v1';
 
   const program = {
     engineVersion: PROGRAM_ENGINE_VERSION,
@@ -167,7 +180,7 @@ export const buildCompleteGeneratedProgram = async (
     progressionPolicy,
     volumeSummary: calculateProgramVolumeSummary(weeks),
     generationMetadata: {
-      source: 'program_engine_phase4',
+      source: generationSource,
       blueprintEngineVersion: blueprint.engineVersion,
       datasetRequired: false,
       resolvedExerciseCount: resolvedBySlotId.size,
@@ -177,6 +190,23 @@ export const buildCompleteGeneratedProgram = async (
       recommendedSplitId: blueprint.metadata.recommendedSplitId,
       splitOverrideApplied: blueprint.metadata.splitOverrideApplied,
       requestedSplitPreference: blueprint.metadata.requestedSplitPreference,
+      selectedByTrainingBrain: blueprint.metadata.selectedByTrainingBrain,
+      trainingBrainVersion: trainingStrategy?.brainVersion ?? null,
+      trainingBrainSelectedStrategy: trainingStrategy?.architecture?.selectedStrategy
+        ?? trainingStrategy?.architecture?.splitStrategy
+        ?? null,
+      availableDaysPerWeek: availableDaysPerWeek ?? normalizedProfile.availableDaysPerWeek ?? blueprint.daysPerWeek,
+      prescribedDaysPerWeek: blueprint.daysPerWeek,
+      referenceEvidence: referenceEvidence
+        ? {
+          dataset: referenceEvidence.dataset ?? null,
+          datasetVersion: referenceEvidence.datasetVersion ?? null,
+          available: Boolean(referenceEvidence.available ?? referenceEvidence.used),
+          matchedCount: referenceEvidence.matchedCount ?? 0,
+          supportLevel: referenceEvidence.supportLevel ?? 'none',
+          source: referenceEvidence.source ?? null,
+        }
+        : null,
     },
   };
 

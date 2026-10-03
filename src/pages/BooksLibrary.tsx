@@ -5,6 +5,7 @@ import { Card } from '../components/ui/Card';
 import { Tank1PlanScreen } from './Tank1PlanScreen';
 import { T2PlanScreen } from './T2PlanScreen';
 import { T2BulkingPlanScreen } from './T2BulkingPlanScreen';
+import { T3PlanScreen } from './T3PlanScreen';
 import { AppLanguage, LocalizedLanguageRecord, getActiveLanguage } from '../services/language';
 import { BOOK_USAGE_UPDATED_EVENT, readBookUsage, type BookUsageMap } from '../services/bookUsage';
 import { getAssignedBookPlan } from '../services/bookPlanSelection';
@@ -15,6 +16,8 @@ const vipIcon = new URL('../../assets/emoji/vip.png', import.meta.url).href;
 
 interface BooksLibraryProps {
   onBack: () => void;
+  embedded?: boolean;
+  themeVariant?: 'default' | 'girls';
 }
 
 type BooksLibraryCopy = {
@@ -26,6 +29,7 @@ type BooksLibraryCopy = {
   premium: string;
   t2CoverSubtitle: string;
   t2BulkCoverSubtitle: string;
+  t3CoverSubtitle: string;
   tank1Badge: string;
   tank1Author: string;
   tank1Description: string;
@@ -35,6 +39,9 @@ type BooksLibraryCopy = {
   t2BulkBadge: string;
   t2BulkAuthor: string;
   t2BulkDescription: string;
+  t3Badge: string;
+  t3Author: string;
+  t3Description: string;
 };
 
 const BOOKS_LIBRARY_I18N: LocalizedLanguageRecord<BooksLibraryCopy> = {
@@ -45,6 +52,9 @@ const BOOKS_LIBRARY_I18N: LocalizedLanguageRecord<BooksLibraryCopy> = {
     notUsedYet: 'Not used yet',
     activeNow: 'Active now',
     premium: 'Premium',
+    t2CoverSubtitle: 'Cutting',
+    t2BulkCoverSubtitle: 'Bulking',
+    t3CoverSubtitle: 'Hypertrophy',
     tank1Badge: 'RepSet Plan Template',
     tank1Author: 'By RepSet',
     tank1Description: 'Tank-1 is a RepSet bodybuilding plan with Month 1 and Month 2 progression, exact pairings, technique instructions, and RepSet coaching comments for every day.',
@@ -54,6 +64,9 @@ const BOOKS_LIBRARY_I18N: LocalizedLanguageRecord<BooksLibraryCopy> = {
     t2BulkBadge: 'RepSet Bulking Template',
     t2BulkAuthor: 'By RepSet',
     t2BulkDescription: 'T-2 Bulking is a 2-week rotating mass plan with a strength week, a hypertrophy stretch week, and smart overload built around chest, back, and leg growth.',
+    t3Badge: 'RepSet Hypertrophy Template',
+    t3Author: 'By RepSet',
+    t3Description: 'T-3 is an 8-week PLP + Upper/Lower hypertrophy plan with Pull, Legs, Push, Rest, Upper, Lower, Rest scheduling and 72-hour lower-body recovery spacing.',
   },
   ar: {
     title: 'الخطط',
@@ -62,6 +75,9 @@ const BOOKS_LIBRARY_I18N: LocalizedLanguageRecord<BooksLibraryCopy> = {
     notUsedYet: 'لم تستخدمه بعد',
     activeNow: 'نشطة الآن',
     premium: 'Premium',
+    t2CoverSubtitle: 'تنشيف',
+    t2BulkCoverSubtitle: 'تضخيم',
+    t3CoverSubtitle: 'تضخيم',
     tank1Badge: 'قالب خطة RepSet',
     tank1Author: 'بواسطة RepSet',
     tank1Description: 'Tank-1 هي خطة كمال أجسام من RepSet مع تدرج للشهر الأول والشهر الثاني، واقترانات دقيقة، وتعليمات تكنيك، وملاحظات تدريب RepSet لكل يوم.',
@@ -71,6 +87,9 @@ const BOOKS_LIBRARY_I18N: LocalizedLanguageRecord<BooksLibraryCopy> = {
     t2BulkBadge: 'قالب تضخيم من RepSet',
     t2BulkAuthor: 'بواسطة RepSet',
     t2BulkDescription: 'T-2 للتضخيم هي خطة كتلة بدوران أسبوعين تجمع بين أسبوع قوة وأسبوع تضخيم تمددي مع تدرج ذكي لزيادة الصدر والظهر والأرجل.',
+    t3Badge: 'قالب تضخيم من RepSet',
+    t3Author: 'بواسطة RepSet',
+    t3Description: 'T-3 هي خطة تضخيم 8 أسابيع بنظام Pull وLegs وPush وUpper وLower مع حماية 72 ساعة لاستشفاء الجزء السفلي.',
   },
   it: {
     title: 'Piani',
@@ -79,6 +98,9 @@ const BOOKS_LIBRARY_I18N: LocalizedLanguageRecord<BooksLibraryCopy> = {
     notUsedYet: 'Non usato ancora',
     activeNow: 'Attivo ora',
     premium: 'Premium',
+    t2CoverSubtitle: 'Definizione',
+    t2BulkCoverSubtitle: 'Massa',
+    t3CoverSubtitle: 'Ipertrofia',
     tank1Badge: 'Template Piano RepSet',
     tank1Author: 'Di RepSet',
     tank1Description: 'Tank-1 e un piano bodybuilding RepSet con progressione del mese 1 e del mese 2, abbinamenti esatti, istruzioni tecniche e commenti coaching RepSet per ogni giorno.',
@@ -88,6 +110,9 @@ const BOOKS_LIBRARY_I18N: LocalizedLanguageRecord<BooksLibraryCopy> = {
     t2BulkBadge: 'Template Bulk RepSet',
     t2BulkAuthor: 'Di RepSet',
     t2BulkDescription: 'T-2 Bulking e un piano massa a rotazione di 2 settimane con una settimana forza, una settimana stretch hypertrophy e overload smart.',
+    t3Badge: 'Template Ipertrofia RepSet',
+    t3Author: 'Di RepSet',
+    t3Description: 'T-3 e un piano ipertrofia di 8 settimane PLP + Upper/Lower con recupero lower-body protetto da 72 ore.',
   },
   de: {
     title: 'Plaene',
@@ -96,6 +121,9 @@ const BOOKS_LIBRARY_I18N: LocalizedLanguageRecord<BooksLibraryCopy> = {
     notUsedYet: 'Noch nicht genutzt',
     activeNow: 'Jetzt aktiv',
     premium: 'Premium',
+    t2CoverSubtitle: 'Definition',
+    t2BulkCoverSubtitle: 'Aufbau',
+    t3CoverSubtitle: 'Hypertrophie',
     tank1Badge: 'RepSet-Planvorlage',
     tank1Author: 'Von RepSet',
     tank1Description: 'Tank-1 ist ein RepSet-Bodybuilding-Plan mit Monat-1- und Monat-2-Fortschritt, exakten Kombinationen, Technikhinweisen und RepSet-Coaching-Kommentaren fuer jeden Tag.',
@@ -105,6 +133,9 @@ const BOOKS_LIBRARY_I18N: LocalizedLanguageRecord<BooksLibraryCopy> = {
     t2BulkBadge: 'RepSet-Bulking-Vorlage',
     t2BulkAuthor: 'Von RepSet',
     t2BulkDescription: 'T-2 Bulking ist ein 2-Wochen-Masseplan mit Kraftwoche, Stretch-Hypertrophie-Woche und smartem Overload fuer Brust, Ruecken und Beine.',
+    t3Badge: 'RepSet-Hypertrophie-Vorlage',
+    t3Author: 'Von RepSet',
+    t3Description: 'T-3 ist ein 8-Wochen-PLP + Upper/Lower-Hypertrophieplan mit 72 Stunden Lower-Body-Erholung.',
   },
   fr: {
     title: 'Plans',
@@ -115,6 +146,7 @@ const BOOKS_LIBRARY_I18N: LocalizedLanguageRecord<BooksLibraryCopy> = {
     premium: 'Premium',
     t2CoverSubtitle: 'Seche',
     t2BulkCoverSubtitle: 'Prise de masse',
+    t3CoverSubtitle: 'Hypertrophie',
     tank1Badge: 'Modele de plan RepSet',
     tank1Author: 'Par RepSet',
     tank1Description: 'Tank-1 est un plan bodybuilding RepSet avec progression Mois 1 et Mois 2, associations precises, consignes techniques et commentaires coaching RepSet pour chaque jour.',
@@ -124,6 +156,9 @@ const BOOKS_LIBRARY_I18N: LocalizedLanguageRecord<BooksLibraryCopy> = {
     t2BulkBadge: 'Modele Bulking RepSet',
     t2BulkAuthor: 'Par RepSet',
     t2BulkDescription: 'T-2 Bulking est un plan de prise de masse rotatif sur 2 semaines avec une semaine force, une semaine hypertrophie etiree et un overload intelligent centre sur la croissance du torse, du dos et des jambes.',
+    t3Badge: 'Modele Hypertrophie RepSet',
+    t3Author: 'Par RepSet',
+    t3Description: 'T-3 est un plan hypertrophie PLP + Upper/Lower de 8 semaines avec au moins 72 heures entre les seances bas du corps.',
   },
 };
 
@@ -158,6 +193,19 @@ const getPremiumOfferCopy = (language: AppLanguage) => {
     case 'en':
     default:
       return { top: 'Premium plans', bottom: 'Tap to open', button: 'Get Offer' };
+  }
+};
+
+const isGirlsStyleValue = (value: unknown) => {
+  const normalized = String(value || '').trim().toLowerCase();
+  return normalized === 'woman' || normalized === 'female' || normalized === 'f' || normalized === 'girl' || normalized === 'girls' || normalized === 'femme';
+};
+
+const readStyleGender = () => {
+  try {
+    return String(localStorage.getItem('appStyleGender') || '').trim().toLowerCase();
+  } catch {
+    return '';
   }
 };
 
@@ -203,21 +251,27 @@ function PremiumCover({
   tint,
   overlay,
   coverImageAlt,
+  isGirlsTheme = false,
 }: {
   title: string;
   subtitle: string;
   tint: string;
   overlay: string;
   coverImageAlt: string;
+  isGirlsTheme?: boolean;
 }) {
   return (
-    <div className={`relative flex aspect-[2/3] w-16 shrink-0 flex-col justify-between overflow-hidden rounded-lg border border-white/10 ${tint} p-2`}>
-      <img src={tank1CoverImage} alt={coverImageAlt} className="absolute inset-0 h-full w-full object-cover opacity-45" />
-      <div className={`absolute inset-0 ${overlay}`} />
-      <div className="absolute right-1 top-1 rounded-full border border-white/15 bg-black/35 p-1">
+    <div
+      className={`relative flex aspect-[2/3] w-16 shrink-0 flex-col justify-between overflow-hidden rounded-lg border ${
+        isGirlsTheme ? 'border-[#E2B4BD]/50 bg-[#FFF7F7]' : `border-white/10 ${tint}`
+      } p-2`}
+    >
+      <img src={tank1CoverImage} alt={coverImageAlt} className={`absolute inset-0 h-full w-full object-cover ${isGirlsTheme ? 'opacity-35' : 'opacity-45'}`} />
+      <div className={`absolute inset-0 ${isGirlsTheme ? 'bg-[linear-gradient(160deg,rgba(255,247,247,0.2),rgba(183,110,138,0.55))]' : overlay}`} />
+      <div className={`absolute right-1 top-1 rounded-full border p-1 ${isGirlsTheme ? 'border-white/70 bg-white/65' : 'border-white/15 bg-black/35'}`}>
         <img src={vipIcon} alt="VIP" className="h-3.5 w-3.5 object-contain" />
       </div>
-      <div className="relative text-[8px] font-semibold uppercase tracking-[0.18em] text-white/80">RepSet</div>
+      <div className={`relative text-[8px] font-semibold uppercase tracking-[0.18em] ${isGirlsTheme ? 'text-white/85' : 'text-white/80'}`}>RepSet</div>
       <div className="relative">
         <div className="font-electrolize text-xl leading-none text-white">{title}</div>
         <div className="mt-1 text-[8px] font-semibold uppercase tracking-[0.18em] text-white/85">{subtitle}</div>
@@ -241,6 +295,7 @@ function BookCard({
   onClick,
   cover,
   className,
+  isGirlsTheme = false,
 }: {
   title: string;
   badge: string;
@@ -256,18 +311,34 @@ function BookCard({
   onClick: () => void;
   cover: React.ReactNode;
   className: string;
+  isGirlsTheme?: boolean;
 }) {
   return (
-    <Card onClick={onClick} className={`cursor-pointer p-4 transition-colors hover:border-accent/40 ${className}`}>
+    <Card
+      onClick={onClick}
+      className={`cursor-pointer p-4 transition-colors ${
+        isGirlsTheme
+          ? 'border border-[#E2B4BD]/50 bg-white/72 shadow-[0_18px_48px_rgba(170,110,130,0.16)] hover:border-[#D78DA4]'
+          : `hover:border-accent/40 ${className}`
+      }`}
+    >
       <div className="flex gap-4">
         {cover}
         <div className="flex-1">
           <div className="mb-2 flex flex-wrap items-center gap-2">
-            <div className="inline-flex rounded-full bg-emerald-500/15 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-emerald-200">
+            <div
+              className={`inline-flex rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] ${
+                isGirlsTheme ? 'bg-[#F6B6C8]/45 text-[#8A4D62]' : 'bg-emerald-500/15 text-emerald-200'
+              }`}
+            >
               {badge}
             </div>
             {isPremium && (
-              <div className="inline-flex items-center gap-1 rounded-full border border-yellow-300/30 bg-yellow-300/10 px-2.5 py-1 text-[10px] font-semibold tracking-[0.12em] text-yellow-100">
+              <div
+                className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[10px] font-semibold tracking-[0.12em] ${
+                  isGirlsTheme ? 'border-[#E7B85E]/35 bg-[#FFF1C8]/70 text-[#7A5A18]' : 'border-yellow-300/30 bg-yellow-300/10 text-yellow-100'
+                }`}
+              >
                 <img src={vipIcon} alt="VIP" className="h-3 w-3 object-contain" />
                 {premiumLabel}
               </div>
@@ -275,41 +346,51 @@ function BookCard({
             <div
               className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[10px] font-semibold tracking-[0.12em] ${
                 usageActive
-                  ? 'border-accent/30 bg-accent/10 text-accent'
-                  : 'border-white/10 bg-white/5 text-text-secondary'
+                  ? isGirlsTheme
+                    ? 'border-[#D78DA4]/45 bg-[#F6B6C8]/35 text-[#9B526C]'
+                    : 'border-accent/30 bg-accent/10 text-accent'
+                  : isGirlsTheme
+                    ? 'border-[#E2B4BD]/45 bg-white/65 text-[#795E67]'
+                    : 'border-white/10 bg-white/5 text-text-secondary'
               }`}
             >
               <TrendingUp size={10} />
               {usageLabel}
             </div>
             {isCurrentPlan && (
-              <div className="inline-flex items-center gap-1 rounded-full border border-emerald-400/30 bg-emerald-400/10 px-2.5 py-1 text-[10px] font-semibold tracking-[0.12em] text-emerald-200">
+              <div
+                className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[10px] font-semibold tracking-[0.12em] ${
+                  isGirlsTheme ? 'border-[#D78DA4]/50 bg-[#F6B6C8]/40 text-[#8A4D62]' : 'border-emerald-400/30 bg-emerald-400/10 text-emerald-200'
+                }`}
+              >
                 <Crown size={10} />
                 {activeLabel}
               </div>
             )}
           </div>
-          <h3 className="font-bold text-white">{title}</h3>
-          <p className="mb-2 text-xs text-text-secondary">{author}</p>
-          <p className="text-xs text-text-tertiary">{description}</p>
-          <div className="mt-3 inline-flex items-center gap-1 text-xs font-bold text-accent">
+          <h3 className={`font-bold ${isGirlsTheme ? 'text-[#4A4A4A]' : 'text-white'}`}>{title}</h3>
+          <p className={`mb-2 text-xs ${isGirlsTheme ? 'text-[#795E67]' : 'text-text-secondary'}`}>{author}</p>
+          <p className={`text-xs ${isGirlsTheme ? 'text-[#8F707A]' : 'text-text-tertiary'}`}>{description}</p>
+          <div className={`mt-3 inline-flex items-center gap-1 text-xs font-bold ${isGirlsTheme ? 'text-[#B76E8A]' : 'text-accent'}`}>
             <ClipboardList size={12} /> {openLabel}
           </div>
         </div>
-        <ArrowRight size={16} className="mt-1 shrink-0 text-text-secondary" />
+        <ArrowRight size={16} className={`mt-1 shrink-0 ${isGirlsTheme ? 'text-[#A98490]' : 'text-text-secondary'}`} />
       </div>
     </Card>
   );
 }
 
-export function BooksLibrary({ onBack }: BooksLibraryProps) {
-  const [activePlan, setActivePlan] = useState<'tank-1' | 't-2' | 't-2-bulk' | null>(null);
-  const [showPremiumPlans, setShowPremiumPlans] = useState(false);
+export function BooksLibrary({ onBack, embedded = false, themeVariant = 'default' }: BooksLibraryProps) {
+  const [activePlan, setActivePlan] = useState<'tank-1' | 't-2' | 't-2-bulk' | 't-3' | null>(null);
+  const [showPremiumPlans, setShowPremiumPlans] = useState(() => embedded);
   const [language, setLanguage] = useState<AppLanguage>(() => getActiveLanguage());
   const [usage, setUsage] = useState<BookUsageMap>(() => readBookUsage());
   const [assignedPlanId, setAssignedPlanId] = useState(() => getAssignedBookPlan().id);
+  const [styleGender, setStyleGender] = useState(() => readStyleGender());
   const copy = useMemo(() => BOOKS_LIBRARY_I18N[language] || BOOKS_LIBRARY_I18N.en, [language]);
   const premiumOfferCopy = useMemo(() => getPremiumOfferCopy(language), [language]);
+  const isGirlsTheme = themeVariant === 'girls' || (themeVariant === 'default' && isGirlsStyleValue(styleGender));
 
   useScrollToTopOnChange([activePlan]);
 
@@ -322,34 +403,50 @@ export function BooksLibrary({ onBack }: BooksLibraryProps) {
       setUsage(readBookUsage());
       setAssignedPlanId(getAssignedBookPlan().id);
     };
+    const handleStyleGenderChange = () => setStyleGender(readStyleGender());
 
     window.addEventListener('app-language-changed', handleLanguageChange);
     window.addEventListener(BOOK_USAGE_UPDATED_EVENT, handleUsageChange);
     window.addEventListener('program-updated', handleUsageChange);
     window.addEventListener('storage', handleUsageChange);
+    window.addEventListener('storage', handleStyleGenderChange);
+    window.addEventListener('repset:app-style-gender-changed', handleStyleGenderChange);
 
     return () => {
       window.removeEventListener('app-language-changed', handleLanguageChange);
       window.removeEventListener(BOOK_USAGE_UPDATED_EVENT, handleUsageChange);
       window.removeEventListener('program-updated', handleUsageChange);
       window.removeEventListener('storage', handleUsageChange);
+      window.removeEventListener('storage', handleStyleGenderChange);
+      window.removeEventListener('repset:app-style-gender-changed', handleStyleGenderChange);
     };
   }, []);
 
   if (activePlan === 'tank-1') return <Tank1PlanScreen onBack={() => setActivePlan(null)} />;
   if (activePlan === 't-2') return <T2PlanScreen onBack={() => setActivePlan(null)} />;
   if (activePlan === 't-2-bulk') return <T2BulkingPlanScreen onBack={() => setActivePlan(null)} />;
+  if (activePlan === 't-3') return <T3PlanScreen onBack={() => setActivePlan(null)} />;
 
   return (
-    <div className="flex min-h-screen flex-1 flex-col bg-background pb-24">
-      <div className="px-4 pt-2 sm:px-6">
-        <Header title={copy.title} onBack={onBack} />
-      </div>
-
-      <div className="space-y-4 px-4 sm:px-6">
-        <div className="rounded-2xl border border-white/12 bg-white/5 px-4 py-4">
-          <p className="text-sm text-text-secondary">{copy.intro}</p>
+    <div
+      className={`flex flex-1 flex-col ${
+        isGirlsTheme
+          ? 'bg-transparent text-[#4A4A4A]'
+          : 'bg-background'
+      } ${embedded ? '' : 'min-h-screen pb-24'}`}
+    >
+      {!embedded && (
+        <div className="px-4 pt-2 sm:px-6">
+          <Header title={copy.title} onBack={onBack} />
         </div>
+      )}
+
+      <div className={`space-y-4 ${embedded ? '' : 'px-4 sm:px-6'}`}>
+        {!embedded && (
+          <div className={`rounded-2xl border px-4 py-4 ${isGirlsTheme ? 'border-[#E2B4BD]/45 bg-white/70 shadow-[0_18px_48px_rgba(170,110,130,0.14)]' : 'border-white/12 bg-white/5'}`}>
+            <p className={`text-sm ${isGirlsTheme ? 'text-[#795E67]' : 'text-text-secondary'}`}>{copy.intro}</p>
+          </div>
+        )}
 
         <BookCard
           title="Tank-1"
@@ -365,14 +462,20 @@ export function BooksLibrary({ onBack }: BooksLibraryProps) {
           openLabel={copy.openPlan}
           onClick={() => setActivePlan('tank-1')}
           className="border border-accent/20 bg-accent/5"
+          isGirlsTheme={isGirlsTheme}
           cover={(
-            <div className="aspect-[2/3] w-16 shrink-0 overflow-hidden rounded-lg border border-white/10 bg-gradient-to-br from-accent/30 via-accent/10 to-white/10">
+            <div
+              className={`aspect-[2/3] w-16 shrink-0 overflow-hidden rounded-lg border ${
+                isGirlsTheme ? 'border-[#E2B4BD]/50 bg-[#FFF7F7]' : 'border-white/10 bg-gradient-to-br from-accent/30 via-accent/10 to-white/10'
+              }`}
+            >
               <img src={tank1CoverImage} alt="Tank-1 cover" className="h-full w-full object-cover" />
             </div>
           )}
         />
 
-        <div className="py-3">
+        {!embedded && (
+          <div className="py-3">
           <PremiumOfferButton
             topLabel={premiumOfferCopy.top}
             bottomLabel={premiumOfferCopy.bottom}
@@ -380,7 +483,8 @@ export function BooksLibrary({ onBack }: BooksLibraryProps) {
             expanded={showPremiumPlans}
             onClick={() => setShowPremiumPlans(true)}
           />
-        </div>
+          </div>
+        )}
 
         {showPremiumPlans && (
           <div className="space-y-4 animate-premium-plan-reveal">
@@ -398,6 +502,7 @@ export function BooksLibrary({ onBack }: BooksLibraryProps) {
           openLabel={copy.openPlan}
           onClick={() => setActivePlan('t-2')}
           className="border border-white/12 bg-white/5"
+          isGirlsTheme={isGirlsTheme}
           cover={(
             <PremiumCover
               title="T-2"
@@ -405,6 +510,7 @@ export function BooksLibrary({ onBack }: BooksLibraryProps) {
               tint="bg-[radial-gradient(circle_at_top_left,rgba(201,255,89,0.45),transparent_38%),linear-gradient(160deg,rgba(24,30,18,1),rgba(44,55,35,0.96))]"
               overlay="bg-[linear-gradient(160deg,rgba(24,30,18,0.55),rgba(44,55,35,0.92))]"
               coverImageAlt="T-2 cover"
+              isGirlsTheme={isGirlsTheme}
             />
           )}
         />
@@ -423,6 +529,7 @@ export function BooksLibrary({ onBack }: BooksLibraryProps) {
           openLabel={copy.openPlan}
           onClick={() => setActivePlan('t-2-bulk')}
           className="border border-orange-300/20 bg-orange-300/5"
+          isGirlsTheme={isGirlsTheme}
           cover={(
             <PremiumCover
               title="T-2"
@@ -430,6 +537,34 @@ export function BooksLibrary({ onBack }: BooksLibraryProps) {
               tint="bg-[radial-gradient(circle_at_top_left,rgba(255,178,89,0.5),transparent_40%),linear-gradient(160deg,rgba(46,26,17,1),rgba(75,45,29,0.96))]"
               overlay="bg-[linear-gradient(160deg,rgba(46,26,17,0.55),rgba(75,45,29,0.92))]"
               coverImageAlt="T-2 Bulking cover"
+              isGirlsTheme={isGirlsTheme}
+            />
+          )}
+        />
+
+        <BookCard
+          title="T-3"
+          badge={copy.t3Badge}
+          author={copy.t3Author}
+          description={copy.t3Description}
+          usageLabel={formatBookUsage(language, usage['t-3']?.appliedCount || 0, copy.notUsedYet)}
+          usageActive={(usage['t-3']?.appliedCount || 0) > 0}
+          activeLabel={copy.activeNow}
+          isCurrentPlan={assignedPlanId === 't-3'}
+          premiumLabel={copy.premium}
+          isPremium
+          openLabel={copy.openPlan}
+          onClick={() => setActivePlan('t-3')}
+          className="border border-sky-300/20 bg-sky-300/5"
+          isGirlsTheme={isGirlsTheme}
+          cover={(
+            <PremiumCover
+              title="T-3"
+              subtitle={copy.t3CoverSubtitle}
+              tint="bg-[radial-gradient(circle_at_top_left,rgba(125,211,252,0.5),transparent_40%),linear-gradient(160deg,rgba(16,32,46,1),rgba(20,54,75,0.96))]"
+              overlay="bg-[linear-gradient(160deg,rgba(16,32,46,0.55),rgba(20,54,75,0.92))]"
+              coverImageAlt="T-3 cover"
+              isGirlsTheme={isGirlsTheme}
             />
           )}
         />

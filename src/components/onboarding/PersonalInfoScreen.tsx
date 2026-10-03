@@ -57,7 +57,7 @@ const roundToStep = (value: number, step: number, decimals = 0) => {
 
 const normalizeGender = (value: unknown): Gender => {
   const normalized = String(value || '').trim().toLowerCase();
-  if (normalized === 'female' || normalized === 'woman' || normalized === 'f') return 'woman';
+  if (normalized === 'female' || normalized === 'woman' || normalized === 'f' || normalized === 'girl' || normalized === 'girls' || normalized === 'femme') return 'woman';
   if (normalized === 'male' || normalized === 'man' || normalized === 'm') return 'man';
   return '';
 };

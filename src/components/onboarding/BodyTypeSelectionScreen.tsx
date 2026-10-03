@@ -197,7 +197,7 @@ const normalizeBodyType = (value: unknown): BodyTypeId => {
 
 const normalizeGender = (value: unknown): GenderShape => {
   const normalized = String(value || '').trim().toLowerCase();
-  return normalized === 'woman' || normalized === 'female' || normalized === 'f' ? 'woman' : 'man';
+  return normalized === 'woman' || normalized === 'female' || normalized === 'f' || normalized === 'girl' || normalized === 'girls' || normalized === 'femme' ? 'woman' : 'man';
 };
 
 function BodyFigure({ bodyType, gender }: { bodyType: BodyTypeId; gender: GenderShape }) {

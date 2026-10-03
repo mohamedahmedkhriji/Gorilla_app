@@ -1533,6 +1533,8 @@ export const api = {
     workoutName?: string;
     durationSeconds?: number;
     muscles?: Array<{ name: string; score?: number }>;
+    muscleGroups?: string[];
+    muscleGroup?: string | null;
     exercises?: Array<{
       name: string;
       sets?: Array<{ set: number; reps: number; weight: number }>;

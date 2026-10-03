@@ -37,7 +37,7 @@ const readStoredStyleGender = () => {
 
 const isGirlsStyleValue = (value: unknown) => {
   const normalized = String(value || '').trim().toLowerCase();
-  return normalized === 'woman' || normalized === 'female' || normalized === 'f' || normalized === 'girls' || normalized === 'femme';
+  return normalized === 'woman' || normalized === 'female' || normalized === 'f' || normalized === 'girl' || normalized === 'girls' || normalized === 'femme';
 };
 
 interface BlogsProps {
@@ -293,7 +293,8 @@ const normalizeReactionType = (value: unknown): ReactionType | null => {
     : null;
 };
 
-const isFemaleGender = (value: unknown) => ['female', 'woman', 'femme'].includes(String(value || '').trim().toLowerCase());
+const isFemaleGender = (value: unknown) =>
+  ['female', 'woman', 'f', 'girl', 'girls', 'femme'].includes(String(value || '').trim().toLowerCase());
 
 const buildOptimizedImageUrl = (value: string, width: number, quality = 72) => {
   const raw = String(value || '').trim();

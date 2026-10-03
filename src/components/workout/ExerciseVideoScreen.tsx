@@ -151,7 +151,7 @@ const dedupeMuscles = (muscles: string[]) => {
 
 const isGirlsStyleValue = (value: unknown) => {
   const normalized = String(value || '').trim().toLowerCase();
-  return normalized === 'woman' || normalized === 'female' || normalized === 'f' || normalized === 'girls' || normalized === 'femme';
+  return normalized === 'woman' || normalized === 'female' || normalized === 'f' || normalized === 'girl' || normalized === 'girls' || normalized === 'femme';
 };
 
 const readExerciseVideoStyleGender = () => {
@@ -174,8 +174,10 @@ const readExerciseVideoProfile = (user: any) => {
 };
 
 const shouldUseGirlsExerciseVideoTheme = (user: any, styleGender: string) => {
-  if (styleGender) return isGirlsStyleValue(styleGender);
   const profile = readExerciseVideoProfile(user);
+  const explicitGender = String(user?.gender || profile?.gender || '').trim().toLowerCase();
+  if (explicitGender === 'man' || explicitGender === 'male' || explicitGender === 'm') return false;
+  if (styleGender) return isGirlsStyleValue(styleGender);
   return isGirlsStyleValue(user?.gender) || isGirlsStyleValue(profile?.gender) || profile?.onboardingTheme === 'girls';
 };
 

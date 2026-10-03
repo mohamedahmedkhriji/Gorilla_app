@@ -15,7 +15,7 @@ const readStoredStyleGender = () => {
 };
 
 const isGirlsStyleValue = (value: string) =>
-  value === 'woman' || value === 'female' || value === 'f' || value === 'girls' || value === 'femme';
+  value === 'woman' || value === 'female' || value === 'f' || value === 'girl' || value === 'girls' || value === 'femme';
 
 export function GymAccessScreen({ onBack }: GymAccessScreenProps) {
   const [styleGender, setStyleGender] = useState(() => readStoredStyleGender());

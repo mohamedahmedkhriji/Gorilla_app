@@ -286,6 +286,10 @@ const LOCALIZED_COPY: LocalizedLanguageRecord<typeof COPY.en> = {
     planLocked: 'الخطة مقفلة',
     pickedForToday: 'محفوظ لليوم',
     completedForToday: 'مكتمل اليوم',
+    confirmTodayPlanTitle: 'استخدامها كخطة اليوم؟',
+    confirmTodayPlanBody: (workoutName: string) => `هل تريد تعيين ${workoutName} كتمرين اليوم؟`,
+    confirmTodayPlanYes: 'نعم',
+    confirmTodayPlanNo: 'لا',
     planFinishedTitle: 'اكتملت الخطة',
     planFinishedBody: 'أنهيت جميع أسابيع هذه الخطة. أنشئ خطة جديدة لتكمل التدريب في الأسابيع القادمة.',
     createNewPlan: 'أنشئ خطة جديدة',
@@ -740,7 +744,7 @@ const resolveOverviewMusclePriority = (workoutText: string) => {
 
 const isGirlsStyleValue = (value: unknown) => {
   const normalized = String(value || '').trim().toLowerCase();
-  return normalized === 'woman' || normalized === 'female' || normalized === 'f' || normalized === 'girls' || normalized === 'femme';
+  return normalized === 'woman' || normalized === 'female' || normalized === 'f' || normalized === 'girl' || normalized === 'girls' || normalized === 'femme';
 };
 
 const safeParseStoredJson = (key: string) => {
@@ -759,11 +763,12 @@ const readStoredStyleGender = () => {
 
 const shouldUseGirlsTheme = () => {
   if (typeof window === 'undefined') return false;
-  const styleGender = readStoredStyleGender();
-  if (styleGender) return isGirlsStyleValue(styleGender);
-
   const user = safeParseStoredJson('appUser') || safeParseStoredJson('user');
   const profile = safeParseStoredJson('onboardingProfile');
+  const explicitGender = String(user?.gender || profile?.gender || '').trim().toLowerCase();
+  if (explicitGender === 'man' || explicitGender === 'male' || explicitGender === 'm') return false;
+  const styleGender = readStoredStyleGender();
+  if (styleGender) return isGirlsStyleValue(styleGender);
   return isGirlsStyleValue(user?.gender) || isGirlsStyleValue(profile?.gender) || profile?.onboardingTheme === 'girls';
 };
 
@@ -821,18 +826,17 @@ export function WorkoutOverviewScreen({
   }, []);
 
   const copy = useMemo(() => {
+    const fallbackCopy = normalizeLocalizedValue(LOCALIZED_COPY.en);
     const localizedCopy = normalizeLocalizedValue(LOCALIZED_COPY[language] || LOCALIZED_COPY.en);
     const overrideCopy = normalizeLocalizedValue(WORKOUT_OVERVIEW_COPY_OVERRIDES[language] || {});
     return {
+      ...fallbackCopy,
       ...localizedCopy,
       ...overrideCopy,
     };
   }, [language]);
   const isArabic = language === 'ar';
-  const isGirlsTheme = useMemo(
-    () => (styleGender ? isGirlsStyleValue(styleGender) : shouldUseGirlsTheme()),
-    [styleGender],
-  );
+  const isGirlsTheme = useMemo(() => shouldUseGirlsTheme(), [styleGender]);
   const localizedMuscleLabels = useMemo(
     () => normalizeLocalizedValue(MUSCLE_LABELS[language] || {}),
     [language],

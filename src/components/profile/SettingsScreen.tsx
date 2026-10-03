@@ -37,7 +37,7 @@ const APP_STYLE_GENDER_CHANGED_EVENT = 'repset:app-style-gender-changed';
 
 const normalizeStyleGender = (value: unknown): 'male' | 'female' => {
   const normalized = String(value || '').trim().toLowerCase();
-  return normalized === 'woman' || normalized === 'female' || normalized === 'f' || normalized === 'girls' || normalized === 'femme'
+  return normalized === 'woman' || normalized === 'female' || normalized === 'f' || normalized === 'girl' || normalized === 'girls' || normalized === 'femme'
     ? 'female'
     : 'male';
 };

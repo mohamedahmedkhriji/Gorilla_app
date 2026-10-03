@@ -179,10 +179,46 @@ test('persists all eight weeks into existing program/workout tables', async () =
   assert.equal(result.assignedProgram.cycleWeeks, 8);
   assert.equal(conn.count(/^INSERT INTO programs/i), 1);
   assert.equal(conn.count(/^INSERT INTO workouts/i), 40);
+  assert.equal(conn.programInsertParams[11], 'program_engine_brain_v1');
+  assert.equal(conn.programInsertParams[12], 'ppl_upper_lower');
+  assert.equal(JSON.parse(conn.programInsertParams[13]).generationMetadata.trainingBrainSelectedStrategy, 'ppl_upper_lower');
   assert.ok(conn.count(/^INSERT INTO workout_exercises/i) > 0);
   assert.equal(conn.workoutInsertParams[0][7], 1);
   assert.equal(conn.workoutInsertParams.at(-1)[7], 8);
   assert.ok(conn.exerciseInsertParams.every((params) => Number.isInteger(params[9])));
+});
+
+test('fat loss production path persists Brain prescribed frequency instead of availability', async () => {
+  const conn = new FakeConn();
+  const result = await generateAndPersistProgramEnginePlan(conn, {
+    userId: 12,
+    gymId: 3,
+    onboardingInput: {
+      ...baseInput,
+      athleteIdentity: 'Cardio',
+      athleteSubCategoryId: 'fat_loss',
+      experienceLevel: 'beginner',
+      workoutDays: 6,
+      sessionDuration: 45,
+      gender: 'Man',
+    },
+    splitPreference: 'auto',
+    catalogProvider: provider,
+  });
+
+  const metadata = JSON.parse(conn.programInsertParams[13]);
+
+  assert.equal(result.trainingStrategy.schedule.availableDaysPerWeek, 6);
+  assert.equal(result.trainingStrategy.schedule.prescribedDaysPerWeek, 3);
+  assert.equal(result.completeProgram.split.id, 'fat_loss_3_day');
+  assert.equal(result.assignedProgram.daysPerWeek, 3);
+  assert.equal(conn.programInsertParams[7], 3);
+  assert.equal(conn.programInsertParams[11], 'program_engine_brain_v1');
+  assert.equal(conn.programInsertParams[12], 'fat_loss_3_day');
+  assert.equal(metadata.generationMetadata.availableDaysPerWeek, 6);
+  assert.equal(metadata.generationMetadata.prescribedDaysPerWeek, 3);
+  assert.equal(metadata.generationMetadata.referenceEvidence.dataset, 'fitness.project');
+  assert.equal(conn.count(/^INSERT INTO workouts/i), 24);
 });
 
 test('duplicate submit reuses the active generated program instead of inserting another copy', async () => {

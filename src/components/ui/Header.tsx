@@ -22,7 +22,7 @@ const readHeaderStyleGender = () => {
 };
 
 const isGirlsHeaderStyle = (value: string) =>
-  value === 'woman' || value === 'female' || value === 'f' || value === 'girls' || value === 'femme';
+  value === 'woman' || value === 'female' || value === 'f' || value === 'girl' || value === 'girls' || value === 'femme';
 
 export function Header({
   title,

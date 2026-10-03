@@ -9,6 +9,7 @@ export type AssignedBookPlan = {
 const STORAGE_KEY = 'assignedProgramTemplate';
 const TANK1_PATTERN = /\btank-?1\b/i;
 const T2_PATTERN = /\bt-?2\b/i;
+const T3_PATTERN = /\bt-?3\b|plp\s*\+\s*upper\/lower|plp\s*upper\s*lower/i;
 const BULK_PATTERN = /\bbulk(ing)?\b|تضخيم|massa|masse/i;
 const CUT_PATTERN = /\bcut(ting)?\b|تنشيف|cardio/i;
 
@@ -49,6 +50,10 @@ export const getAssignedBookPlan = (): AssignedBookPlan => {
 
   if (candidates.some((value) => TANK1_PATTERN.test(value))) {
     return { id: 'tank-1', name: resolvedName };
+  }
+
+  if (candidates.some((value) => T3_PATTERN.test(value))) {
+    return { id: 't-3', name: resolvedName };
   }
 
   if (candidates.some((value) => T2_PATTERN.test(value) && BULK_PATTERN.test(value))) {

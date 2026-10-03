@@ -4,7 +4,7 @@ import { Header } from '../components/ui/Header';
 import { Card } from '../components/ui/Card';
 import { api } from '../services/api';
 import { getNutritionInputsOverride, NUTRITION_INPUTS_UPDATED_EVENT } from '../services/nutritionOverrides';
-import { getActiveLanguage, getStoredLanguage } from '../services/language';
+import { AppLanguage, getActiveLanguage, pickLanguage } from '../services/language';
 import { NutritionHealthOnboarding, type NutritionHealthOnboardingPayload } from '../components/nutrition/NutritionHealthOnboarding';
 import { NutritionOverview, type NutritionPlan } from '../components/nutrition/NutritionOverview';
 
@@ -34,9 +34,119 @@ const normalizeGoal = (goal: string) =>
     .replace(/[_-]/g, ' ')
     .trim();
 
-const formatGoalLabel = (goal: string) => {
+const MY_NUTRITION_COPY = {
+  en: {
+    title: 'My Nutrition',
+    generalFitness: 'General Fitness',
+    noSession: 'No active user session found. Please login again.',
+    missingProfile: 'Missing profile data (age, weight, height). Update profile details to generate automatic nutrition.',
+    loadFailed: 'Failed to load Nutrition.',
+    saveFailed: 'Failed to save nutrition profile.',
+    hydrationFailed: 'Failed to log hydration.',
+    loading: 'Loading your visual nutrition dashboard...',
+    tryAgain: 'Try again',
+    goals: {
+      bulking: 'Bulking',
+      hypertrophy: 'Build Muscle',
+      muscle: 'Build Muscle',
+      fatLoss: 'Fat Loss',
+      strength: 'Strength',
+      endurance: 'Endurance',
+      recomp: 'Body Recomposition',
+    },
+  },
+  ar: {
+    title: 'تغذيتي',
+    generalFitness: 'لياقة عامة',
+    noSession: 'لا توجد جلسة مستخدم نشطة. يرجى تسجيل الدخول مرة أخرى.',
+    missingProfile: 'بيانات الملف الشخصي ناقصة (العمر، الوزن، الطول). حدّث تفاصيل الملف لإنشاء تغذية تلقائية.',
+    loadFailed: 'تعذر تحميل التغذية.',
+    saveFailed: 'تعذر حفظ ملف التغذية.',
+    hydrationFailed: 'تعذر تسجيل الترطيب.',
+    loading: 'جار تحميل لوحة التغذية المرئية...',
+    tryAgain: 'حاول مرة أخرى',
+    goals: {
+      bulking: 'زيادة الكتلة',
+      hypertrophy: 'بناء العضلات',
+      muscle: 'بناء العضلات',
+      fatLoss: 'خسارة الدهون',
+      strength: 'القوة',
+      endurance: 'التحمل',
+      recomp: 'إعادة تركيب الجسم',
+    },
+  },
+  it: {
+    title: 'La mia nutrizione',
+    generalFitness: 'Fitness generale',
+    noSession: 'Nessuna sessione utente attiva. Accedi di nuovo.',
+    missingProfile: 'Dati profilo mancanti (eta, peso, altezza). Aggiorna il profilo per generare la nutrizione automatica.',
+    loadFailed: 'Impossibile caricare la nutrizione.',
+    saveFailed: 'Impossibile salvare il profilo nutrizionale.',
+    hydrationFailed: 'Impossibile registrare lidratazione.',
+    loading: 'Caricamento della dashboard nutrizione visiva...',
+    tryAgain: 'Riprova',
+    goals: {
+      bulking: 'Massa',
+      hypertrophy: 'Aumentare muscolo',
+      muscle: 'Aumentare muscolo',
+      fatLoss: 'Perdita grasso',
+      strength: 'Forza',
+      endurance: 'Resistenza',
+      recomp: 'Ricomposizione corporea',
+    },
+  },
+  de: {
+    title: 'Meine Ernaehrung',
+    generalFitness: 'Allgemeine Fitness',
+    noSession: 'Keine aktive Benutzersitzung gefunden. Bitte erneut anmelden.',
+    missingProfile: 'Profildaten fehlen (Alter, Gewicht, Groesse). Aktualisiere dein Profil, um automatische Ernaehrung zu erstellen.',
+    loadFailed: 'Ernaehrung konnte nicht geladen werden.',
+    saveFailed: 'Ernaehrungsprofil konnte nicht gespeichert werden.',
+    hydrationFailed: 'Hydration konnte nicht protokolliert werden.',
+    loading: 'Visuelles Ernaehrungsdashboard wird geladen...',
+    tryAgain: 'Erneut versuchen',
+    goals: {
+      bulking: 'Muskelaufbau',
+      hypertrophy: 'Muskeln aufbauen',
+      muscle: 'Muskeln aufbauen',
+      fatLoss: 'Fettabbau',
+      strength: 'Kraft',
+      endurance: 'Ausdauer',
+      recomp: 'Koerperrekomposition',
+    },
+  },
+  fr: {
+    title: 'Ma Nutrition',
+    generalFitness: 'Forme generale',
+    noSession: 'Aucune session utilisateur active. Connecte-toi a nouveau.',
+    missingProfile: 'Donnees de profil manquantes (age, poids, taille). Mets a jour le profil pour generer la nutrition automatique.',
+    loadFailed: 'Impossible de charger la nutrition.',
+    saveFailed: 'Impossible denregistrer le profil nutrition.',
+    hydrationFailed: 'Impossible denregistrer lhydratation.',
+    loading: 'Chargement du tableau nutrition visuel...',
+    tryAgain: 'Reessayer',
+    goals: {
+      bulking: 'Prise de masse',
+      hypertrophy: 'Construire du muscle',
+      muscle: 'Construire du muscle',
+      fatLoss: 'Perte de graisse',
+      strength: 'Force',
+      endurance: 'Endurance',
+      recomp: 'Recomposition corporelle',
+    },
+  },
+} as const;
+
+const formatGoalLabel = (goal: string, copy: typeof MY_NUTRITION_COPY.en) => {
   const key = normalizeGoal(goal);
-  if (!key) return 'General Fitness';
+  if (!key) return copy.generalFitness;
+  if (key.includes('bulk')) return copy.goals.bulking;
+  if (key.includes('fat') || key.includes('loss')) return copy.goals.fatLoss;
+  if (key.includes('recomp')) return copy.goals.recomp;
+  if (key.includes('hypertrophy')) return copy.goals.hypertrophy;
+  if (key.includes('muscle')) return copy.goals.muscle;
+  if (key.includes('strength')) return copy.goals.strength;
+  if (key.includes('endurance')) return copy.goals.endurance;
   return key
     .split(' ')
     .filter(Boolean)
@@ -88,7 +198,7 @@ const clamp = (value: number, min: number, max: number) =>
 
 const isGirlsStyleValue = (value: unknown) => {
   const normalized = String(value || '').trim().toLowerCase();
-  return normalized === 'woman' || normalized === 'female' || normalized === 'f' || normalized === 'girls' || normalized === 'femme';
+  return normalized === 'woman' || normalized === 'female' || normalized === 'f' || normalized === 'girl' || normalized === 'girls' || normalized === 'femme';
 };
 
 const readStoredStyleGender = () => {
@@ -119,19 +229,22 @@ const readOnboardingProfile = (user: any) => {
 };
 
 const shouldUseGirlsTheme = () => {
-  const styleGender = readStoredStyleGender();
-  if (styleGender) return isGirlsStyleValue(styleGender);
   const user = readStoredUser();
   const profile = readOnboardingProfile(user);
+  const explicitGender = String(user?.gender || profile?.gender || '').trim().toLowerCase();
+  if (explicitGender === 'man' || explicitGender === 'male' || explicitGender === 'm') return false;
+  const styleGender = readStoredStyleGender();
+  if (styleGender) return isGirlsStyleValue(styleGender);
   return isGirlsStyleValue(user?.gender) || isGirlsStyleValue(profile?.gender) || profile?.onboardingTheme === 'girls';
 };
 
 export function MyNutrition({ onBack }: MyNutritionProps) {
-  const [language, setLanguage] = useState(() => getActiveLanguage(getStoredLanguage()));
+  const [language, setLanguage] = useState<AppLanguage>(() => getActiveLanguage());
+  const copy = useMemo(() => pickLanguage(language, MY_NUTRITION_COPY), [language]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [plan, setPlan] = useState<NutritionPlan | null>(null);
-  const [goalLabel, setGoalLabel] = useState('General Fitness');
+  const [goalLabel, setGoalLabel] = useState(copy.generalFitness);
   const [tdee, setTdee] = useState<number | null>(null);
   const [hydrationLoggedMl, setHydrationLoggedMl] = useState(0);
   const [onboardingComplete, setOnboardingComplete] = useState<boolean | null>(null);
@@ -143,10 +256,9 @@ export function MyNutrition({ onBack }: MyNutritionProps) {
   const [themeRefreshKey, setThemeRefreshKey] = useState(0);
   const userId = useMemo(() => getCurrentUserId(), []);
   const isGirlsTheme = useMemo(() => shouldUseGirlsTheme(), [themeRefreshKey]);
-  void language;
 
   useEffect(() => {
-    const handleLanguageChanged = () => setLanguage(getStoredLanguage());
+    const handleLanguageChanged = () => setLanguage(getActiveLanguage());
     window.addEventListener('app-language-changed', handleLanguageChanged);
     window.addEventListener('storage', handleLanguageChanged);
     return () => {
@@ -231,7 +343,7 @@ export function MyNutrition({ onBack }: MyNutritionProps) {
       setLoading(true);
       setError('');
       if (!userId) {
-        setError('No active user session found. Please login again.');
+        setError(copy.noSession);
         setLoading(false);
         return;
       }
@@ -250,7 +362,7 @@ export function MyNutrition({ onBack }: MyNutritionProps) {
         const nutritionContext = buildNutritionContext(profile, program);
         if (!nutritionContext) {
           setPlan(null);
-          setError('Missing profile data (age, weight, height). Update profile details to generate automatic nutrition.');
+          setError(copy.missingProfile);
           setLoading(false);
           return;
         }
@@ -259,12 +371,12 @@ export function MyNutrition({ onBack }: MyNutritionProps) {
         if (cancelled) return;
 
         setPlan(dailyPlan as NutritionPlan);
-        setGoalLabel(formatGoalLabel(nutritionContext.goalRaw));
+        setGoalLabel(formatGoalLabel(nutritionContext.goalRaw, copy));
         setTdee(nutritionContext.computedTdee);
       } catch (loadError: unknown) {
         if (!cancelled) {
           setPlan(null);
-          setError(loadError instanceof Error ? loadError.message : 'Failed to load Nutrition.');
+          setError(loadError instanceof Error ? loadError.message : copy.loadFailed);
         }
       } finally {
         if (!cancelled) setLoading(false);
@@ -275,7 +387,7 @@ export function MyNutrition({ onBack }: MyNutritionProps) {
     return () => {
       cancelled = true;
     };
-  }, [refreshSeed, userId]);
+  }, [copy, refreshSeed, userId]);
 
   const saveOnboarding = async (payload: NutritionHealthOnboardingPayload) => {
     try {
@@ -285,7 +397,7 @@ export function MyNutrition({ onBack }: MyNutritionProps) {
       setOnboardingComplete(true);
       setRefreshSeed((current) => current + 1);
     } catch (saveError: unknown) {
-      setOnboardingError(saveError instanceof Error ? saveError.message : 'Failed to save nutrition profile.');
+      setOnboardingError(saveError instanceof Error ? saveError.message : copy.saveFailed);
     } finally {
       setSavingOnboarding(false);
     }
@@ -298,7 +410,7 @@ export function MyNutrition({ onBack }: MyNutritionProps) {
       const result = await api.addHydration({ amountMl, drinkType: 'water' });
       setHydrationLoggedMl(Number(result?.hydration?.loggedMl || 0));
     } catch (addError: unknown) {
-      setHydrationError(addError instanceof Error ? addError.message : 'Failed to log hydration.');
+      setHydrationError(addError instanceof Error ? addError.message : copy.hydrationFailed);
     } finally {
       setAddingHydration(false);
     }
@@ -308,9 +420,9 @@ export function MyNutrition({ onBack }: MyNutritionProps) {
     return (
       <div className={`min-h-screen ${isGirlsTheme ? 'bg-[#FFF5F5] text-[#4A4A4A]' : 'bg-background text-white'}`}>
         <div className="px-4 pt-2 sm:px-6">
-          <Header title="My Nutrition" onBack={onBack} />
+          <Header title={copy.title} onBack={onBack} />
         </div>
-        <NutritionHealthOnboarding saving={savingOnboarding} error={onboardingError} onComplete={saveOnboarding} />
+        <NutritionHealthOnboarding saving={savingOnboarding} error={onboardingError} onComplete={saveOnboarding} language={language} />
       </div>
     );
   }
@@ -318,7 +430,7 @@ export function MyNutrition({ onBack }: MyNutritionProps) {
   return (
     <div className={`min-h-screen pb-24 text-left ${isGirlsTheme ? 'bg-[#FFF5F5] text-[#4A4A4A]' : 'bg-background text-white'}`}>
       <div className="px-4 pt-2 sm:px-6">
-        <Header title="My Nutrition" onBack={onBack} />
+        <Header title={copy.title} onBack={onBack} />
       </div>
 
       <div className="mx-auto max-w-7xl px-4 pb-[calc(env(safe-area-inset-bottom,0px)+1rem)] sm:px-6">
@@ -326,7 +438,7 @@ export function MyNutrition({ onBack }: MyNutritionProps) {
           <Card className="border border-white/10 bg-[#0d131c] p-5">
             <div className="flex items-center gap-3 text-sm text-text-secondary">
               <RefreshCw className="animate-spin text-cyan-300" size={18} />
-              Loading your visual nutrition dashboard...
+              {copy.loading}
             </div>
           </Card>
         ) : null}
@@ -339,7 +451,7 @@ export function MyNutrition({ onBack }: MyNutritionProps) {
               onClick={() => setRefreshSeed((current) => current + 1)}
               className="mt-4 rounded-xl bg-red-200 px-4 py-2 text-xs font-black text-red-950"
             >
-              Try again
+              {copy.tryAgain}
             </button>
           </Card>
         ) : null}
@@ -354,6 +466,7 @@ export function MyNutrition({ onBack }: MyNutritionProps) {
             hydrationError={hydrationError}
             onAddHydration={addHydration}
             themeVariant={isGirlsTheme ? 'girls' : 'default'}
+            language={language}
           />
         ) : null}
       </div>

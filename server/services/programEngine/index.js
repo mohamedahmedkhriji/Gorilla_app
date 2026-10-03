@@ -52,6 +52,7 @@ export {
 
 export {
   createStaticCatalogProvider,
+  loadMysqlProgramEngineCatalog,
   loadSupabaseProgramEngineCatalog,
 } from './catalog/catalogProvider.js';
 
@@ -91,4 +92,36 @@ export {
   CompleteProgramValidationError,
   validateCompleteGeneratedProgram,
 } from './program/validateCompleteProgram.js';
+
+export {
+  generateBrainDrivenProgram,
+  BrainDrivenGenerationError,
+} from './brainDriven/generateBrainDrivenProgram.js';
+
+export {
+  buildProgramEngineInputFromTrainingStrategy,
+  BrainProgramEngineContractError,
+} from './brainDriven/programEngineAdapter.js';
+
+export {
+  validateBrainDrivenProgram,
+} from './brainDriven/validateBrainDrivenProgram.js';
+
+export {
+  loadLocalReferenceArtifact,
+  loadLocalReferencePrograms,
+} from './referenceData/localReferenceProvider.js';
+
+export {
+  analyzeTrainingProfile,
+  assertValidTrainingStrategy,
+  buildTrainingStrategy,
+  evaluateCandidateStrategies,
+  evaluateReferenceEvidence,
+  generateCandidateStrategies,
+  TrainingBrainInputError,
+  TrainingStrategyValidationError,
+  TRAINING_BRAIN_VERSION,
+  validateTrainingStrategy,
+} from './trainingBrain/index.js';
 

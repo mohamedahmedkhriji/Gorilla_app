@@ -424,6 +424,10 @@ const buildTank1PlanPayload = (language: AppLanguage) => {
     selectedDays: Object.values(TANK1_DAY_NAME_BY_LABEL),
     weeklyWorkouts: weekPlans[0]?.weeklyWorkouts || [],
     weekPlans,
+    bookScheduleConfig: {
+      scheduleMode: 'fixed_weekday',
+      weekStartsOn: 'monday',
+    },
   };
 };
 

@@ -43,7 +43,7 @@ const cx = (...values: Array<string | false | null | undefined>) => values.filte
 
 const isGirlsStyleValue = (value: unknown) => {
   const normalized = String(value || '').trim().toLowerCase();
-  return normalized === 'woman' || normalized === 'female' || normalized === 'f' || normalized === 'girls';
+  return normalized === 'woman' || normalized === 'female' || normalized === 'f' || normalized === 'girl' || normalized === 'girls' || normalized === 'femme';
 };
 
 const readNotificationsStyleGender = () => {
@@ -74,8 +74,10 @@ const readNotificationsProfile = (user: any) => {
 };
 
 const shouldUseGirlsNotificationsTheme = (user: any, styleGender: string) => {
-  if (styleGender) return isGirlsStyleValue(styleGender);
   const profile = readNotificationsProfile(user);
+  const explicitGender = String(user?.gender || profile?.gender || '').trim().toLowerCase();
+  if (explicitGender === 'man' || explicitGender === 'male' || explicitGender === 'm') return false;
+  if (styleGender) return isGirlsStyleValue(styleGender);
   return isGirlsStyleValue(user?.gender) || isGirlsStyleValue(profile?.gender) || profile?.onboardingTheme === 'girls';
 };
 

@@ -54,7 +54,7 @@ const readAppStyleGender = () => {
   }
 };
 
-const isGirlsStyle = (value: string) => value === 'woman' || value === 'female' || value === 'f' || value === 'girls' || value === 'femme';
+const isGirlsStyle = (value: string) => value === 'woman' || value === 'female' || value === 'f' || value === 'girl' || value === 'girls' || value === 'femme';
 
 export function TabBar({ activeTab, onTabChange }: TabBarProps) {
   const [language, setLanguage] = useState<AppLanguage>('en');
