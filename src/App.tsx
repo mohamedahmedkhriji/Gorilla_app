@@ -11,6 +11,7 @@ import { TabBar } from './components/ui/TabBar';
 import { RepSetLoader } from './components/RepSetLoader';
 import { ScrollToTop } from './components/ui/ScrollToTop';
 import { ScreenTransition, getNavigationDirection } from './components/ui/ScreenTransition';
+import { BadgeCelebrationOverlay } from './components/gamification/BadgeCelebrationOverlay';
 import { OPEN_PICKED_WORKOUT_PLAN } from './services/workoutNavigation';
 import { useManualScrollRestoration } from './shared/scroll';
 import { clearStoredUserSession, getStoredAppUser, getStoredUserId, getStoredUserAuthToken, persistStoredUserSession } from './shared/authStorage';
@@ -383,25 +384,48 @@ export function App() {
   }, [handleSplashComplete, isSplashComplete]);
 
   if (!isSplashComplete) {
-    return <RepSetLoader />;
+    return (
+      <>
+        <RepSetLoader />
+        <BadgeCelebrationOverlay />
+      </>
+    );
   }
 
   if (!isSessionReady) {
-    return <div className="min-h-screen bg-background" />;
+    return (
+      <>
+        <div className="min-h-screen bg-background" />
+        <BadgeCelebrationOverlay />
+      </>
+    );
   }
 
   if (!isLoggedIn) {
     if (!showLogin) {
-      return <PublicLandingPage onGetStarted={() => setShowLogin(true)} />;
+      return (
+        <>
+          <PublicLandingPage onGetStarted={() => setShowLogin(true)} />
+          <BadgeCelebrationOverlay />
+        </>
+      );
     }
 
     return (
-      <LoginPage onLoginSuccess={handleLoginSuccess} />
+      <>
+        <LoginPage onLoginSuccess={handleLoginSuccess} />
+        <BadgeCelebrationOverlay />
+      </>
     );
   }
 
   if (!hasOnboarded) {
-    return <Onboarding onComplete={() => setHasOnboarded(true)} />;
+    return (
+      <>
+        <Onboarding onComplete={() => setHasOnboarded(true)} />
+        <BadgeCelebrationOverlay />
+      </>
+    );
   }
 
   const renderTab = () => {
@@ -520,6 +544,7 @@ export function App() {
       </div>
 
       {isTabBarVisible && <TabBar activeTab={activeTab} onTabChange={handleTabChange} />}
+      <BadgeCelebrationOverlay />
     </div>
   );
 }

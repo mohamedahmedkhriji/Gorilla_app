@@ -63,7 +63,15 @@ const readNotificationsStoredUser = () => {
 };
 
 const readNotificationsProfile = (user: any) => {
-  const rawProfile = user?.onboarding_profile || user?.onboardingProfile;
+  let storedProfile = {};
+  try {
+    const rawStoredProfile = localStorage.getItem('onboardingProfile');
+    storedProfile = rawStoredProfile ? JSON.parse(rawStoredProfile) : {};
+  } catch {
+    storedProfile = {};
+  }
+
+  const rawProfile = user?.onboarding_profile || user?.onboardingProfile || storedProfile;
   if (!rawProfile) return {};
   if (typeof rawProfile === 'object') return rawProfile;
   try {
@@ -76,8 +84,8 @@ const readNotificationsProfile = (user: any) => {
 const shouldUseGirlsNotificationsTheme = (user: any, styleGender: string) => {
   const profile = readNotificationsProfile(user);
   const explicitGender = String(user?.gender || profile?.gender || '').trim().toLowerCase();
-  if (explicitGender === 'man' || explicitGender === 'male' || explicitGender === 'm') return false;
   if (styleGender) return isGirlsStyleValue(styleGender);
+  if (explicitGender === 'man' || explicitGender === 'male' || explicitGender === 'm') return false;
   return isGirlsStyleValue(user?.gender) || isGirlsStyleValue(profile?.gender) || profile?.onboardingTheme === 'girls';
 };
 
@@ -130,7 +138,7 @@ function NotificationEmptyState({
 }) {
   const isGirlsTheme = themeVariant === 'girls';
   return (
-    <Card className={isGirlsTheme ? 'relative overflow-hidden rounded-[1.8rem] border-[#E2B4BD]/45 bg-[linear-gradient(145deg,rgba(255,255,255,0.88),rgba(255,245,245,0.78)_52%,rgba(207,236,243,0.24))] p-0 shadow-[0_18px_42px_rgba(226,180,189,0.18)] ring-1 ring-white/45' : 'rounded-[1.8rem] border-white/10 bg-card/70 p-0'}>
+    <Card className={isGirlsTheme ? 'relative overflow-hidden rounded-[1.8rem] !border-[#E2B4BD]/45 !bg-[linear-gradient(145deg,rgba(255,255,255,0.88),rgba(255,245,245,0.78)_52%,rgba(207,236,243,0.24))] p-0 shadow-[0_18px_42px_rgba(226,180,189,0.18)] !shadow-[0_18px_42px_rgba(226,180,189,0.18)] ring-1 ring-white/45' : 'rounded-[1.8rem] border-white/10 bg-card/70 p-0'}>
       {isGirlsTheme ? <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_82%_8%,rgba(249,178,215,0.24),transparent_44%)]" /> : null}
       <div className={cx('relative flex flex-col items-center px-6 py-10 text-center', isRtl && 'text-right')}>
         <div className={isGirlsTheme ? 'flex h-16 w-16 items-center justify-center rounded-[1.4rem] border border-[#E2B4BD]/50 bg-[#FFF5F5]/85 text-[#A87884] shadow-[0_12px_28px_rgba(226,180,189,0.18)]' : 'flex h-16 w-16 items-center justify-center rounded-[1.4rem] border border-white/10 bg-white/5 text-text-secondary'}>
@@ -249,7 +257,7 @@ export function NotificationsScreen({ onBack, onOpenAcceptedChallenge, onOpenRep
     ? 'min-h-10 rounded-xl border border-red-300/45 bg-red-50/80 px-3 text-[11px] font-semibold text-red-600 transition-colors hover:border-red-300/70 hover:bg-red-100/85 disabled:cursor-not-allowed disabled:text-red-400 disabled:opacity-70 sm:text-xs'
     : 'min-h-10 rounded-xl border border-rose-500/20 bg-rose-500/10 px-3 text-[11px] font-semibold text-rose-200 transition-colors hover:bg-rose-500/15 disabled:cursor-not-allowed disabled:opacity-40 sm:text-xs';
   const loadingCardClassName = isGirlsTheme
-    ? 'rounded-[1.8rem] border-[#E2B4BD]/45 bg-white/[0.70] text-[#4A4A4A] shadow-[0_16px_38px_rgba(226,180,189,0.16)]'
+    ? 'rounded-[1.8rem] !border-[#E2B4BD]/45 !bg-white/[0.70] text-[#4A4A4A] shadow-[0_16px_38px_rgba(226,180,189,0.16)] !shadow-[0_16px_38px_rgba(226,180,189,0.16)]'
     : 'rounded-[1.8rem] border-white/10 bg-card/70';
 
   const updateNotification = useCallback(

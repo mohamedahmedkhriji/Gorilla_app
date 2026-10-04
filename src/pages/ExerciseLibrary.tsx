@@ -187,7 +187,15 @@ const readExerciseLibraryStoredUser = () => {
 };
 
 const readExerciseLibraryProfile = (user: any) => {
-  const rawProfile = user?.onboarding_profile || user?.onboardingProfile;
+  let storedProfile = {};
+  try {
+    const rawStoredProfile = localStorage.getItem('onboardingProfile');
+    storedProfile = rawStoredProfile ? JSON.parse(rawStoredProfile) : {};
+  } catch {
+    storedProfile = {};
+  }
+
+  const rawProfile = user?.onboarding_profile || user?.onboardingProfile || storedProfile;
   if (!rawProfile) return {};
   if (typeof rawProfile === 'object') return rawProfile;
   try {
@@ -200,8 +208,8 @@ const readExerciseLibraryProfile = (user: any) => {
 const shouldUseGirlsExerciseLibraryTheme = (user: any, styleGender: string) => {
   const profile = readExerciseLibraryProfile(user);
   const explicitGender = String(user?.gender || profile?.gender || '').trim().toLowerCase();
-  if (explicitGender === 'man' || explicitGender === 'male' || explicitGender === 'm') return false;
   if (styleGender) return isGirlsStyleValue(styleGender);
+  if (explicitGender === 'man' || explicitGender === 'male' || explicitGender === 'm') return false;
   return isGirlsStyleValue(user?.gender) || isGirlsStyleValue(profile?.gender) || profile?.onboardingTheme === 'girls';
 };
 

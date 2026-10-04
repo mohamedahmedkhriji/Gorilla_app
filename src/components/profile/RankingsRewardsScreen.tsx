@@ -8,21 +8,15 @@ import { api } from '../../services/api';
 import { normalizeGamificationSummary } from '../../services/gamificationEvents';
 import { offlineCacheKeys, readOfflineCacheValue } from '../../services/offlineCache';
 import { getRankBadgeImage } from '../../services/rankTheme';
+import { getMissionBadgeImage } from '../../services/badgeTheme';
 import { LocalizedLanguageRecord, getLanguageLocale, pickLanguage } from '../../services/language';
 import { useAppLanguage } from '../../hooks/useAppLanguage';
 import type { GamificationSummaryResponse } from '../../types/gamification';
 import { RANK_BADGES } from '../../services/missions';
 import {
-  emojiChallenges,
-  emojiDone,
   emojiMissions,
   emojiNew,
-  emojiViewLeaderboard,
 } from '../../services/emojiTheme';
-import emojiConsistency from '../../../assets/emoji/Consistency.png';
-import emojiStrength from '../../../assets/emoji/Strengths.png';
-import emojiRecovery from '../../../assets/emoji/Recovery.png';
-import emojiEngagement from '../../../assets/emoji/Engagement.png';
 
 interface RankingsRewardsScreenProps {
   onBack: () => void;
@@ -34,6 +28,8 @@ type MissionItem = {
   description: string;
   points_reward: number;
   mission_type?: 'daily' | 'weekly' | 'monthly' | 'achievement' | 'special';
+  metric_key?: string | null;
+  category?: string | null;
   progress: number;
   target: number;
   completed: boolean;
@@ -49,6 +45,8 @@ type ChallengeItem = {
   title: string;
   description: string;
   challenge_type: 'daily' | 'weekly';
+  metric_key?: string | null;
+  category?: string | null;
   points_reward: number;
   progress: number;
   target: number;
@@ -66,16 +64,21 @@ type Summary = {
 };
 
 type DashboardCategory = 'consistency' | 'strength' | 'recovery' | 'engagement';
+type SvgIconProps = {
+  className?: string;
+};
 
 type CategoryHistoryItem = {
   id: string;
   title: string;
   description: string;
   points_reward: number;
+  target?: number;
   completed_at?: string | null;
   type: 'mission' | 'challenge';
   cadence?: 'daily' | 'weekly' | 'monthly';
   category: DashboardCategory;
+  metricKey?: string | null;
 };
 
 const CATEGORY_ORDER: DashboardCategory[] = ['consistency', 'strength', 'recovery', 'engagement'];
@@ -298,6 +301,74 @@ const getProgressPercent = (completed: number, total: number) => {
   if (total <= 0) return 0;
   return Math.min(100, Math.max(0, Math.round((completed / total) * 100)));
 };
+
+function ConsistencyIcon({ className = 'h-8 w-8' }: SvgIconProps) {
+  return (
+    <svg viewBox="0 0 48 48" className={className} fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+      <rect x="9" y="11" width="30" height="29" rx="8" fill="#10B981" fillOpacity="0.16" stroke="#34D399" strokeWidth="3" />
+      <path d="M16 8v7M32 8v7" stroke="#A7F3D0" strokeWidth="3" strokeLinecap="round" />
+      <path d="M16 24l5 5 11-12" stroke="#34D399" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M15 36h18" stroke="#D9F99D" strokeWidth="3" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function StrengthIcon({ className = 'h-8 w-8' }: SvgIconProps) {
+  return (
+    <svg viewBox="0 0 48 48" className={className} fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+      <path d="M8 24h32" stroke="#FDA4AF" strokeWidth="4" strokeLinecap="round" />
+      <path d="M15 17v14M33 17v14M10 19v10M38 19v10" stroke="#FB7185" strokeWidth="4" strokeLinecap="round" />
+      <path d="M20 24h8" stroke="#FFE4E6" strokeWidth="5" strokeLinecap="round" />
+      <path d="M24 10c4 2 6 5 6 9M24 38c-4-2-6-5-6-9" stroke="#FDBA74" strokeWidth="3" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function RecoveryIcon({ className = 'h-8 w-8' }: SvgIconProps) {
+  return (
+    <svg viewBox="0 0 48 48" className={className} fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+      <path d="M30.5 8.5c-2 8.2 2.5 16.6 10.4 19.4A17 17 0 1 1 20.1 7.1a17.5 17.5 0 0 0 10.4 1.4Z" fill="#38BDF8" fillOpacity="0.18" stroke="#7DD3FC" strokeWidth="3" strokeLinejoin="round" />
+      <path d="M17 29c2.2 3 5.6 4.7 9.3 4.7 4.1 0 7.8-2.1 9.9-5.3" stroke="#22D3EE" strokeWidth="3" strokeLinecap="round" />
+      <path d="M34 22h6v6" stroke="#BAE6FD" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M14 15l1.2 2.5L18 19l-2.8 1.5L14 23l-1.2-2.5L10 19l2.8-1.5L14 15Z" fill="#E0F2FE" />
+    </svg>
+  );
+}
+
+function EngagementIcon({ className = 'h-8 w-8' }: SvgIconProps) {
+  return (
+    <svg viewBox="0 0 48 48" className={className} fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+      <path d="M17.5 12c3.2 0 5.4 2.2 6.5 4.1C25.1 14.2 27.3 12 30.5 12 35 12 38 15.4 38 19.8c0 6.1-7.1 12.2-12 16.2a3.2 3.2 0 0 1-4 0c-4.9-4-12-10.1-12-16.2C10 15.4 13 12 17.5 12Z" fill="#C084FC" fillOpacity="0.2" stroke="#D8B4FE" strokeWidth="3" />
+      <path d="M15 34c-3 0-5.5 1.7-7 4M33 34c3 0 5.5 1.7 7 4" stroke="#F0ABFC" strokeWidth="3" strokeLinecap="round" />
+      <circle cx="13" cy="31" r="3" fill="#F9A8D4" />
+      <circle cx="35" cy="31" r="3" fill="#F9A8D4" />
+    </svg>
+  );
+}
+
+function LeaderboardIcon({ className = 'h-9 w-9' }: SvgIconProps) {
+  return (
+    <svg viewBox="0 0 48 48" className={className} fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+      <rect x="18" y="9" width="12" height="29" rx="4" fill="#FBBF24" fillOpacity="0.22" stroke="#FCD34D" strokeWidth="3" />
+      <rect x="6" y="20" width="12" height="18" rx="4" fill="#38BDF8" fillOpacity="0.18" stroke="#7DD3FC" strokeWidth="3" />
+      <rect x="30" y="16" width="12" height="22" rx="4" fill="#A78BFA" fillOpacity="0.18" stroke="#C4B5FD" strokeWidth="3" />
+      <path d="M24 14l1.5 3 3.3.5-2.4 2.3.6 3.2-3-1.5-3 1.5.6-3.2-2.4-2.3 3.3-.5L24 14Z" fill="#FEF3C7" />
+      <path d="M8 41h32" stroke="#E5E7EB" strokeWidth="3" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function ChallengesIcon({ className = 'h-9 w-9' }: SvgIconProps) {
+  return (
+    <svg viewBox="0 0 48 48" className={className} fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+      <circle cx="23" cy="24" r="16" fill="#60A5FA" fillOpacity="0.14" stroke="#93C5FD" strokeWidth="3" />
+      <circle cx="23" cy="24" r="9" fill="#A78BFA" fillOpacity="0.18" stroke="#C4B5FD" strokeWidth="3" />
+      <circle cx="23" cy="24" r="3.5" fill="#F9A8D4" />
+      <path d="M31 17l8-8v7h7l-8 8h-7v-7Z" fill="#34D399" fillOpacity="0.22" stroke="#6EE7B7" strokeWidth="3" strokeLinejoin="round" />
+      <path d="M23 24l11-11" stroke="#ECFEFF" strokeWidth="3" strokeLinecap="round" />
+    </svg>
+  );
+}
 
 const getCurrentRankMinPoints = (rankName: string) => {
   const match = Object.values(RANK_BADGES).find(
@@ -903,10 +974,12 @@ export function RankingsRewardsScreen({ onBack }: RankingsRewardsScreenProps) {
       title: String(mission.title || ''),
       description: String(mission.description || ''),
       points_reward: Number(mission.points_reward || 0),
+      target: Number(mission.target || mission.target_value || 0),
       completed_at: mission.completed_at || null,
       type: 'mission',
       cadence: undefined,
       category: inferDashboardCategory(String(mission.title || ''), String(mission.description || '')),
+      metricKey: mission.metric_key || null,
     }));
 
     const challengeEntries: CategoryHistoryItem[] = challengeHistory.map((challenge: any, index: number) => ({
@@ -914,10 +987,12 @@ export function RankingsRewardsScreen({ onBack }: RankingsRewardsScreenProps) {
       title: String(challenge.title || ''),
       description: String(challenge.description || ''),
       points_reward: Number(challenge.points_reward || 0),
+      target: Number(challenge.target || challenge.target_value || 0),
       completed_at: challenge.completed_at || null,
       type: 'challenge',
       cadence: challenge.challenge_type === 'daily' ? 'daily' : 'weekly',
       category: inferDashboardCategory(String(challenge.title || ''), String(challenge.description || '')),
+      metricKey: challenge.metric_key || null,
     }));
 
     return [...missionEntries, ...challengeEntries]
@@ -935,7 +1010,7 @@ export function RankingsRewardsScreen({ onBack }: RankingsRewardsScreenProps) {
 
   const categoryMeta = {
     consistency: {
-      iconSrc: emojiConsistency,
+      Icon: ConsistencyIcon,
       iconWrapClassName: 'bg-emerald-500/10 border-emerald-400/25',
       cardClassName: 'border-emerald-400/20 bg-emerald-500/[0.05]',
       selectedClassName: 'border-emerald-400/45 bg-emerald-500/[0.10]',
@@ -945,7 +1020,7 @@ export function RankingsRewardsScreen({ onBack }: RankingsRewardsScreenProps) {
       glowClassName: 'bg-emerald-400/20',
     },
     strength: {
-      iconSrc: emojiStrength,
+      Icon: StrengthIcon,
       iconWrapClassName: 'bg-rose-500/10 border-rose-400/25',
       cardClassName: 'border-rose-400/20 bg-rose-500/[0.05]',
       selectedClassName: 'border-rose-400/45 bg-rose-500/[0.10]',
@@ -955,7 +1030,7 @@ export function RankingsRewardsScreen({ onBack }: RankingsRewardsScreenProps) {
       glowClassName: 'bg-rose-400/20',
     },
     recovery: {
-      iconSrc: emojiRecovery,
+      Icon: RecoveryIcon,
       iconWrapClassName: 'bg-sky-500/10 border-sky-400/25',
       cardClassName: 'border-sky-400/20 bg-sky-500/[0.05]',
       selectedClassName: 'border-sky-400/45 bg-sky-500/[0.10]',
@@ -965,7 +1040,7 @@ export function RankingsRewardsScreen({ onBack }: RankingsRewardsScreenProps) {
       glowClassName: 'bg-sky-400/20',
     },
     engagement: {
-      iconSrc: emojiEngagement,
+      Icon: EngagementIcon,
       iconWrapClassName: 'bg-violet-500/10 border-violet-400/25',
       cardClassName: 'border-violet-400/20 bg-violet-500/[0.05]',
       selectedClassName: 'border-violet-400/45 bg-violet-500/[0.10]',
@@ -977,7 +1052,7 @@ export function RankingsRewardsScreen({ onBack }: RankingsRewardsScreenProps) {
   } satisfies Record<
     DashboardCategory,
     {
-      iconSrc: string;
+      Icon: React.ComponentType<SvgIconProps>;
       iconWrapClassName: string;
       cardClassName: string;
       selectedClassName: string;
@@ -1197,34 +1272,51 @@ export function RankingsRewardsScreen({ onBack }: RankingsRewardsScreenProps) {
                 <h3 className={`text-xs font-bold uppercase tracking-wider ${secondaryTextClassName}`}>{copy.activeMissions}</h3>
               </div>
               <div className="space-y-2">
-                {selectedMissionItems.map((mission) => (
-                  <Card key={mission.id} className={`!p-2.5 ${compactCardClassName}`}>
-                    <div className="mb-2 flex items-start justify-between">
-                      <div className="flex items-center gap-1.5">
-                        <h4 className={`text-sm font-semibold ${primaryTextClassName}`}>{translateTitle(mission.title)}</h4>
-                        {isNewWithin24Hours(mission.assigned_at || mission.created_at) && (
-                          <img src={emojiNew} alt={copy.newAlt} className="h-4 w-6 object-contain" />
-                        )}
-                      </div>
-                      <span className={`rounded px-2 py-0.5 text-xs font-bold ${isGirlsTheme ? 'bg-[#F9B2D7]/20 text-[#A87884]' : 'bg-accent/10 text-accent'}`}>+{mission.points_reward}</span>
-                    </div>
-                    <p className={`mb-1.5 text-xs ${secondaryTextClassName}`}>{translateDescription(mission.description)}</p>
-                    <div className="space-y-0.5">
-                      <div className="flex items-center gap-2">
-                        <div className={`h-1.5 flex-1 overflow-hidden rounded-full ${progressTrackClassName}`}>
-                          <div
-                            className={`h-full rounded-full ${pinkProgressClassName}`}
-                            style={{ width: `${Math.min((mission.progress / Math.max(1, mission.target)) * 100, 100)}%` }}
-                          />
+                {selectedMissionItems.map((mission) => {
+                  const badgeImage = getMissionBadgeImage({
+                    title: mission.title,
+                    description: mission.description,
+                    metricKey: mission.metric_key,
+                    target: mission.target,
+                    completed: mission.completed,
+                    type: mission.mission_type,
+                    category: mission.category,
+                  });
+
+                  return (
+                    <Card key={mission.id} className={`!p-2.5 ${compactCardClassName}`}>
+                      <div className="flex items-start gap-3">
+                        <img src={badgeImage} alt="" aria-hidden="true" className="h-12 w-12 shrink-0 object-contain" />
+                        <div className="min-w-0 flex-1">
+                          <div className="mb-2 flex items-start justify-between gap-2">
+                            <div className="flex min-w-0 items-center gap-1.5">
+                              <h4 className={`min-w-0 text-sm font-semibold ${primaryTextClassName}`}>{translateTitle(mission.title)}</h4>
+                              {isNewWithin24Hours(mission.assigned_at || mission.created_at) && (
+                                <img src={emojiNew} alt={copy.newAlt} className="h-4 w-6 shrink-0 object-contain" />
+                              )}
+                            </div>
+                            <span className={`shrink-0 rounded px-2 py-0.5 text-xs font-bold ${isGirlsTheme ? 'bg-[#F9B2D7]/20 text-[#A87884]' : 'bg-accent/10 text-accent'}`}>+{mission.points_reward}</span>
+                          </div>
+                          <p className={`mb-1.5 text-xs ${secondaryTextClassName}`}>{translateDescription(mission.description)}</p>
+                          <div className="space-y-0.5">
+                            <div className="flex items-center gap-2">
+                              <div className={`h-1.5 flex-1 overflow-hidden rounded-full ${progressTrackClassName}`}>
+                                <div
+                                  className={`h-full rounded-full ${pinkProgressClassName}`}
+                                  style={{ width: `${Math.min((mission.progress / Math.max(1, mission.target)) * 100, 100)}%` }}
+                                />
+                              </div>
+                              <span className={`font-mono text-xs ${tertiaryTextClassName}`}>
+                                {mission.progress}/{mission.target}
+                              </span>
+                            </div>
+                            <p className={`text-xs ${tertiaryTextClassName}`}>{copy.remaining(mission.remaining)}</p>
+                          </div>
                         </div>
-                        <span className={`font-mono text-xs ${tertiaryTextClassName}`}>
-                          {mission.progress}/{mission.target}
-                        </span>
                       </div>
-                      <p className={`text-xs ${tertiaryTextClassName}`}>{copy.remaining(mission.remaining)}</p>
-                    </div>
-                  </Card>
-                ))}
+                    </Card>
+                  );
+                })}
               </div>
             </div>
           )}
@@ -1232,41 +1324,58 @@ export function RankingsRewardsScreen({ onBack }: RankingsRewardsScreenProps) {
           {selectedChallengeItems.length > 0 && (
             <div className="space-y-2">
               <div className="flex items-center gap-2">
-                <img src={emojiChallenges} alt={copy.challengesAlt} className="h-4 w-4 object-contain" />
+                <ChallengesIcon className="h-4 w-4" />
                 <h3 className={`text-xs font-bold uppercase tracking-wider ${secondaryTextClassName}`}>{copy.activeChallenges}</h3>
               </div>
               <div className="space-y-2">
-                {selectedChallengeItems.map((challenge) => (
-                  <Card key={`${challenge.challenge_type}-${challenge.id}`} className={`!p-2.5 ${compactCardClassName}`}>
-                    <div className="mb-2 flex items-start justify-between">
-                      <div>
-                        <div className="flex items-center gap-1.5">
-                          <h4 className={`text-sm font-semibold ${primaryTextClassName}`}>{translateTitle(challenge.title)}</h4>
-                          {isNewWithin24Hours(challenge.created_at) && (
-                            <img src={emojiNew} alt={copy.newAlt} className="h-4 w-6 object-contain" />
-                          )}
+                {selectedChallengeItems.map((challenge) => {
+                  const badgeImage = getMissionBadgeImage({
+                    title: challenge.title,
+                    description: challenge.description,
+                    metricKey: challenge.metric_key,
+                    target: challenge.target,
+                    completed: challenge.completed,
+                    type: challenge.challenge_type,
+                    category: challenge.category,
+                  });
+
+                  return (
+                    <Card key={`${challenge.challenge_type}-${challenge.id}`} className={`!p-2.5 ${compactCardClassName}`}>
+                      <div className="flex items-start gap-3">
+                        <img src={badgeImage} alt="" aria-hidden="true" className="h-12 w-12 shrink-0 object-contain" />
+                        <div className="min-w-0 flex-1">
+                          <div className="mb-2 flex items-start justify-between gap-2">
+                            <div className="min-w-0">
+                              <div className="flex min-w-0 items-center gap-1.5">
+                                <h4 className={`min-w-0 text-sm font-semibold ${primaryTextClassName}`}>{translateTitle(challenge.title)}</h4>
+                                {isNewWithin24Hours(challenge.created_at) && (
+                                  <img src={emojiNew} alt={copy.newAlt} className="h-4 w-6 shrink-0 object-contain" />
+                                )}
+                              </div>
+                              <p className={`mt-0.5 text-[11px] uppercase ${secondaryTextClassName}`}>{copy.challengeType(challenge.challenge_type)}</p>
+                            </div>
+                            <span className={`shrink-0 rounded px-2 py-0.5 text-xs font-bold ${isGirlsTheme ? 'bg-[#CFECF3]/45 text-[#795E67]' : 'bg-blue-400/10 text-blue-400'}`}>+{challenge.points_reward}</span>
+                          </div>
+                          <p className={`mb-1.5 text-xs ${secondaryTextClassName}`}>{translateDescription(challenge.description)}</p>
+                          <div className="space-y-0.5">
+                            <div className="flex items-center gap-2">
+                              <div className={`h-1.5 flex-1 overflow-hidden rounded-full ${progressTrackClassName}`}>
+                                <div
+                                  className={`h-full rounded-full ${blueProgressClassName}`}
+                                  style={{ width: `${Math.min((challenge.progress / Math.max(1, challenge.target)) * 100, 100)}%` }}
+                                />
+                              </div>
+                              <span className={`font-mono text-xs ${tertiaryTextClassName}`}>
+                                {challenge.progress}/{challenge.target}
+                              </span>
+                            </div>
+                            <p className={`text-xs ${tertiaryTextClassName}`}>{copy.remaining(challenge.remaining)}</p>
+                          </div>
                         </div>
-                        <p className={`mt-0.5 text-[11px] uppercase ${secondaryTextClassName}`}>{copy.challengeType(challenge.challenge_type)}</p>
                       </div>
-                      <span className={`rounded px-2 py-0.5 text-xs font-bold ${isGirlsTheme ? 'bg-[#CFECF3]/45 text-[#795E67]' : 'bg-blue-400/10 text-blue-400'}`}>+{challenge.points_reward}</span>
-                    </div>
-                    <p className={`mb-1.5 text-xs ${secondaryTextClassName}`}>{translateDescription(challenge.description)}</p>
-                    <div className="space-y-0.5">
-                      <div className="flex items-center gap-2">
-                        <div className={`h-1.5 flex-1 overflow-hidden rounded-full ${progressTrackClassName}`}>
-                          <div
-                            className={`h-full rounded-full ${blueProgressClassName}`}
-                            style={{ width: `${Math.min((challenge.progress / Math.max(1, challenge.target)) * 100, 100)}%` }}
-                          />
-                        </div>
-                        <span className={`font-mono text-xs ${tertiaryTextClassName}`}>
-                          {challenge.progress}/{challenge.target}
-                        </span>
-                      </div>
-                      <p className={`text-xs ${tertiaryTextClassName}`}>{copy.remaining(challenge.remaining)}</p>
-                    </div>
-                  </Card>
-                ))}
+                    </Card>
+                  );
+                })}
               </div>
             </div>
           )}
@@ -1278,28 +1387,42 @@ export function RankingsRewardsScreen({ onBack }: RankingsRewardsScreenProps) {
                 <h3 className={`text-xs font-bold uppercase tracking-wider ${secondaryTextClassName}`}>{dashboardCopy.categoryHistory}</h3>
               </div>
               <div className="space-y-2">
-                {selectedHistoryItems.map((item) => (
-                  <Card key={item.id} className={`!p-2.5 opacity-75 ${compactCardClassName}`}>
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <h4 className={`text-sm font-semibold ${primaryTextClassName}`}>{translateTitle(item.title)}</h4>
-                          <span className={`rounded-full border px-2 py-0.5 text-[10px] uppercase tracking-[0.12em] ${isGirlsTheme ? 'border-[#E2B4BD]/40 bg-white/55 text-[#795E67]' : 'border-white/10 bg-white/[0.03] text-text-secondary'}`}>
-                            {item.type === 'mission' ? dashboardCopy.missionLabel : copy.challengeWord}
-                          </span>
+                {selectedHistoryItems.map((item) => {
+                  const badgeImage = getMissionBadgeImage({
+                    title: item.title,
+                    description: item.description,
+                    metricKey: item.metricKey,
+                    target: item.target,
+                    completed: true,
+                    type: item.type,
+                    category: item.category,
+                  });
+
+                  return (
+                    <Card key={item.id} className={`!p-2.5 opacity-75 ${compactCardClassName}`}>
+                      <div className="flex items-start gap-3">
+                        <img src={badgeImage} alt="" aria-hidden="true" className="h-12 w-12 shrink-0 object-contain" />
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="min-w-0">
+                              <div className="flex min-w-0 items-center gap-2">
+                                <h4 className={`min-w-0 text-sm font-semibold ${primaryTextClassName}`}>{translateTitle(item.title)}</h4>
+                                <span className={`shrink-0 rounded-full border px-2 py-0.5 text-[10px] uppercase tracking-[0.12em] ${isGirlsTheme ? 'border-[#E2B4BD]/40 bg-white/55 text-[#795E67]' : 'border-white/10 bg-white/[0.03] text-text-secondary'}`}>
+                                  {item.type === 'mission' ? dashboardCopy.missionLabel : copy.challengeWord}
+                                </span>
+                              </div>
+                              <p className={`mt-1 text-xs ${secondaryTextClassName}`}>{translateDescription(item.description)}</p>
+                              {item.completed_at && (
+                                <p className={`mt-1 text-[11px] ${tertiaryTextClassName}`}>{copy.completedOn(new Date(item.completed_at))}</p>
+                              )}
+                            </div>
+                            <span className={`shrink-0 rounded px-2 py-0.5 text-xs font-bold ${isGirlsTheme ? 'bg-[#F9B2D7]/18 text-[#A87884]' : 'bg-white/5 text-white'}`}>+{item.points_reward}</span>
+                          </div>
                         </div>
-                        <p className={`mt-1 text-xs ${secondaryTextClassName}`}>{translateDescription(item.description)}</p>
-                        {item.completed_at && (
-                          <p className={`mt-1 text-[11px] ${tertiaryTextClassName}`}>{copy.completedOn(new Date(item.completed_at))}</p>
-                        )}
                       </div>
-                      <div className="flex items-center gap-2">
-                        <span className={`rounded px-2 py-0.5 text-xs font-bold ${isGirlsTheme ? 'bg-[#F9B2D7]/18 text-[#A87884]' : 'bg-white/5 text-white'}`}>+{item.points_reward}</span>
-                        <img src={emojiDone} alt={copy.doneAlt} className="h-4 w-4 object-contain" />
-                      </div>
-                    </div>
-                  </Card>
-                ))}
+                    </Card>
+                  );
+                })}
               </div>
             </div>
           )}
@@ -1446,6 +1569,7 @@ export function RankingsRewardsScreen({ onBack }: RankingsRewardsScreenProps) {
               <CategoryGridSkeleton />
             ) : CATEGORY_ORDER.map((category, index) => {
               const meta = categoryMeta[category];
+              const CategoryIcon = meta.Icon;
               const stats = categoryStats[category];
               const progressValue = getProgressPercent(stats.completedCount, stats.trackedCount);
               const completionText = stats.trackedCount > 0
@@ -1461,7 +1585,7 @@ export function RankingsRewardsScreen({ onBack }: RankingsRewardsScreenProps) {
                   className={`group flex min-h-[92px] w-full items-center gap-3 px-4 py-3 text-left transition active:scale-[0.995] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset motion-reduce:transition-none ${isGirlsTheme ? 'hover:bg-[#FFF5F5]/70 focus-visible:ring-[#F9B2D7]/70' : 'hover:bg-white/[0.035] focus-visible:ring-accent'} ${index > 0 ? (isGirlsTheme ? 'border-t border-[#E2B4BD]/35' : 'border-t border-white/10') : ''} ${isArabic ? 'text-right' : 'text-left'}`}
                 >
                   <span className={`flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl border ${meta.iconWrapClassName}`}>
-                    <img src={meta.iconSrc} alt="" aria-hidden="true" className="h-8 w-8 object-contain" />
+                    <CategoryIcon className="h-8 w-8" />
                   </span>
 
                   <span className="min-w-0 flex-1">
@@ -1504,7 +1628,7 @@ export function RankingsRewardsScreen({ onBack }: RankingsRewardsScreenProps) {
           >
             <span className="block min-w-0">
               <span className="flex min-w-0 items-center gap-2">
-                <img src={emojiViewLeaderboard} alt="" aria-hidden="true" className="h-9 w-9 shrink-0 object-contain" />
+                <LeaderboardIcon className="h-9 w-9 shrink-0" />
                 <span className={`min-w-0 text-[15px] font-bold leading-tight ${primaryTextClassName}`}>Leaderboard</span>
               </span>
               <span className={`mt-3 block text-sm leading-snug ${secondaryTextClassName}`}>
@@ -1523,7 +1647,7 @@ export function RankingsRewardsScreen({ onBack }: RankingsRewardsScreenProps) {
           >
             <span className="block min-w-0">
               <span className="flex min-w-0 items-center gap-2">
-                <img src={emojiChallenges} alt="" aria-hidden="true" className="h-9 w-9 shrink-0 object-contain" />
+                <ChallengesIcon className="h-9 w-9 shrink-0" />
                 <span className={`min-w-0 text-[15px] font-bold leading-tight ${primaryTextClassName}`}>Mission History</span>
               </span>
               <span className={`mt-3 block text-sm leading-snug ${secondaryTextClassName}`}>Completed rewards</span>

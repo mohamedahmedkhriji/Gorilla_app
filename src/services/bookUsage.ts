@@ -1,6 +1,6 @@
 import { getStoredUserId } from '../shared/authStorage';
 
-export type BookId = 'tank-1' | 't-2' | 't-2-bulk' | 't-3';
+export type BookId = 'tank-1' | 't-2' | 't-2-bulk' | 't-3' | 'peach';
 
 type BookUsageRecord = {
   appliedCount: number;
@@ -23,6 +23,7 @@ const createEmptyUsage = (): BookUsageMap => ({
   't-2': { ...EMPTY_RECORD },
   't-2-bulk': { ...EMPTY_RECORD },
   't-3': { ...EMPTY_RECORD },
+  peach: { ...EMPTY_RECORD },
 });
 
 const hasWindow = () => typeof window !== 'undefined' && typeof window.localStorage !== 'undefined';
@@ -55,6 +56,7 @@ export const readBookUsage = (userId?: number | null): BookUsageMap => {
       't-2': normalizeRecord(parsed?.['t-2']),
       't-2-bulk': normalizeRecord(parsed?.['t-2-bulk']),
       't-3': normalizeRecord(parsed?.['t-3']),
+      peach: normalizeRecord(parsed?.peach),
     };
   } catch {
     return createEmptyUsage();

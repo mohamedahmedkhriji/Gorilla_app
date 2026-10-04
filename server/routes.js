@@ -6671,6 +6671,7 @@ const getUserProgressionDetails = async (userId, options = {}) => {
         b.name,
         b.slug,
         b.description,
+        b.icon_url,
         b.rarity,
         b.is_hidden,
         b.xp_reward,
@@ -6719,6 +6720,8 @@ const getUserProgressionDetails = async (userId, options = {}) => {
       category: row.category_name || null,
       name: revealed ? (row.name || 'Badge') : 'Hidden Badge',
       description: revealed ? (row.description || '') : 'Unlock this badge to reveal details.',
+      iconUrl: revealed ? (row.icon_url || null) : null,
+      lockedIconUrl: row.icon_url ? String(row.icon_url).replace(/(\.[^.]+)$/, '_off$1') : null,
       rarity: row.rarity || 'common',
       isHidden,
       revealed,
@@ -17724,22 +17727,28 @@ router.get('/progress/muscle-distribution/:userId', requireAuth('user', 'coach',
       // If no weight/reps are logged, keep a small proxy so the muscle still appears.
       const totalContribution = volumeLoad > 0 ? volumeLoad : (setCount * 100);
       const perMuscleContribution = totalContribution / muscles.length;
+      const perMuscleSetUnits = setCount / muscles.length;
 
       muscles.forEach((muscle) => {
+        const current = byMuscle.get(muscle) || { value: 0, setUnits: 0 };
         byMuscle.set(
           muscle,
-          Number((byMuscle.get(muscle) || 0) + perMuscleContribution),
+          {
+            value: Number(current.value || 0) + perMuscleContribution,
+            setUnits: Number(current.setUnits || 0) + perMuscleSetUnits,
+          },
         );
       });
     });
 
-    const total = Array.from(byMuscle.values()).reduce((sum, value) => sum + Number(value || 0), 0);
+    const total = Array.from(byMuscle.values()).reduce((sum, entry) => sum + Number(entry?.value || 0), 0);
 
     const distribution = Array.from(byMuscle.entries())
-      .map(([muscle, value]) => ({
+      .map(([muscle, entry]) => ({
         muscle,
-        value: Number(value.toFixed(2)),
-        percent: total > 0 ? Number(((value / total) * 100).toFixed(1)) : 0,
+        value: Number(Number(entry.value || 0).toFixed(2)),
+        setUnits: roundMetric(entry.setUnits || 0),
+        percent: total > 0 ? Number(((Number(entry.value || 0) / total) * 100).toFixed(1)) : 0,
       }))
       .sort((a, b) => b.percent - a.percent);
 

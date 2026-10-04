@@ -6,6 +6,7 @@ import { Tank1PlanScreen } from './Tank1PlanScreen';
 import { T2PlanScreen } from './T2PlanScreen';
 import { T2BulkingPlanScreen } from './T2BulkingPlanScreen';
 import { T3PlanScreen } from './T3PlanScreen';
+import { PeachPlanScreen } from './PeachPlanScreen';
 import { AppLanguage, LocalizedLanguageRecord, getActiveLanguage } from '../services/language';
 import { BOOK_USAGE_UPDATED_EVENT, readBookUsage, type BookUsageMap } from '../services/bookUsage';
 import { getAssignedBookPlan } from '../services/bookPlanSelection';
@@ -201,6 +202,9 @@ const isGirlsStyleValue = (value: unknown) => {
   return normalized === 'woman' || normalized === 'female' || normalized === 'f' || normalized === 'girl' || normalized === 'girls' || normalized === 'femme';
 };
 
+const GIRLS_BOOK_CARD_CLASS =
+  'border !border-[#E2B4BD]/55 !bg-[linear-gradient(145deg,rgba(255,255,255,0.90),rgba(255,245,245,0.78)_54%,rgba(207,236,243,0.22))] !shadow-[0_18px_48px_rgba(226,180,189,0.20)] ring-1 ring-white/45 hover:!border-[#F9B2D7]/80 hover:!shadow-[0_22px_56px_rgba(249,178,215,0.25)]';
+
 const readStyleGender = () => {
   try {
     return String(localStorage.getItem('appStyleGender') || '').trim().toLowerCase();
@@ -318,7 +322,7 @@ function BookCard({
       onClick={onClick}
       className={`cursor-pointer p-4 transition-colors ${
         isGirlsTheme
-          ? 'border border-[#E2B4BD]/50 bg-white/72 shadow-[0_18px_48px_rgba(170,110,130,0.16)] hover:border-[#D78DA4]'
+          ? GIRLS_BOOK_CARD_CLASS
           : `hover:border-accent/40 ${className}`
       }`}
     >
@@ -328,7 +332,7 @@ function BookCard({
           <div className="mb-2 flex flex-wrap items-center gap-2">
             <div
               className={`inline-flex rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] ${
-                isGirlsTheme ? 'bg-[#F6B6C8]/45 text-[#8A4D62]' : 'bg-emerald-500/15 text-emerald-200'
+                isGirlsTheme ? 'border border-[#E2B4BD]/35 bg-[#F9B2D7]/24 text-[#8A4D62]' : 'bg-emerald-500/15 text-emerald-200'
               }`}
             >
               {badge}
@@ -350,7 +354,7 @@ function BookCard({
                     ? 'border-[#D78DA4]/45 bg-[#F6B6C8]/35 text-[#9B526C]'
                     : 'border-accent/30 bg-accent/10 text-accent'
                   : isGirlsTheme
-                    ? 'border-[#E2B4BD]/45 bg-white/65 text-[#795E67]'
+                    ? 'border-[#E2B4BD]/45 bg-white/75 text-[#795E67] shadow-[0_6px_14px_rgba(226,180,189,0.10)]'
                     : 'border-white/10 bg-white/5 text-text-secondary'
               }`}
             >
@@ -371,7 +375,7 @@ function BookCard({
           <h3 className={`font-bold ${isGirlsTheme ? 'text-[#4A4A4A]' : 'text-white'}`}>{title}</h3>
           <p className={`mb-2 text-xs ${isGirlsTheme ? 'text-[#795E67]' : 'text-text-secondary'}`}>{author}</p>
           <p className={`text-xs ${isGirlsTheme ? 'text-[#8F707A]' : 'text-text-tertiary'}`}>{description}</p>
-          <div className={`mt-3 inline-flex items-center gap-1 text-xs font-bold ${isGirlsTheme ? 'text-[#B76E8A]' : 'text-accent'}`}>
+          <div className={`mt-3 inline-flex items-center gap-1 rounded-full text-xs font-bold ${isGirlsTheme ? 'border border-[#F9B2D7]/45 bg-white/55 px-2.5 py-1.5 text-[#B76E8A] shadow-[0_8px_18px_rgba(226,180,189,0.12)]' : 'text-accent'}`}>
             <ClipboardList size={12} /> {openLabel}
           </div>
         </div>
@@ -382,7 +386,7 @@ function BookCard({
 }
 
 export function BooksLibrary({ onBack, embedded = false, themeVariant = 'default' }: BooksLibraryProps) {
-  const [activePlan, setActivePlan] = useState<'tank-1' | 't-2' | 't-2-bulk' | 't-3' | null>(null);
+  const [activePlan, setActivePlan] = useState<'tank-1' | 't-2' | 't-2-bulk' | 't-3' | 'peach' | null>(null);
   const [showPremiumPlans, setShowPremiumPlans] = useState(() => embedded);
   const [language, setLanguage] = useState<AppLanguage>(() => getActiveLanguage());
   const [usage, setUsage] = useState<BookUsageMap>(() => readBookUsage());
@@ -426,6 +430,7 @@ export function BooksLibrary({ onBack, embedded = false, themeVariant = 'default
   if (activePlan === 't-2') return <T2PlanScreen onBack={() => setActivePlan(null)} />;
   if (activePlan === 't-2-bulk') return <T2BulkingPlanScreen onBack={() => setActivePlan(null)} />;
   if (activePlan === 't-3') return <T3PlanScreen onBack={() => setActivePlan(null)} />;
+  if (activePlan === 'peach') return <PeachPlanScreen onBack={() => setActivePlan(null)} />;
 
   return (
     <div
@@ -448,33 +453,58 @@ export function BooksLibrary({ onBack, embedded = false, themeVariant = 'default
           </div>
         )}
 
-        <BookCard
-          title="Tank-1"
-          badge={copy.tank1Badge}
-          author={copy.tank1Author}
-          description={copy.tank1Description}
-          usageLabel={formatBookUsage(language, usage['tank-1']?.appliedCount || 0, copy.notUsedYet)}
-          usageActive={(usage['tank-1']?.appliedCount || 0) > 0}
-          activeLabel={copy.activeNow}
-          isCurrentPlan={assignedPlanId === 'tank-1'}
-          premiumLabel={copy.premium}
-          isPremium={false}
-          openLabel={copy.openPlan}
-          onClick={() => setActivePlan('tank-1')}
-          className="border border-accent/20 bg-accent/5"
-          isGirlsTheme={isGirlsTheme}
-          cover={(
-            <div
-              className={`aspect-[2/3] w-16 shrink-0 overflow-hidden rounded-lg border ${
-                isGirlsTheme ? 'border-[#E2B4BD]/50 bg-[#FFF7F7]' : 'border-white/10 bg-gradient-to-br from-accent/30 via-accent/10 to-white/10'
-              }`}
-            >
-              <img src={tank1CoverImage} alt="Tank-1 cover" className="h-full w-full object-cover" />
-            </div>
-          )}
-        />
+        {isGirlsTheme ? (
+          <BookCard
+            title="Peach"
+            badge="Female Physique Template"
+            author="By RepSet"
+            description="Peach is a 4-day, 8-week women-focused hypertrophy plan for glutes, legs, shoulders, back shape, and core."
+            usageLabel={formatBookUsage(language, usage.peach?.appliedCount || 0, copy.notUsedYet)}
+            usageActive={(usage.peach?.appliedCount || 0) > 0}
+            activeLabel={copy.activeNow}
+            isCurrentPlan={assignedPlanId === 'peach'}
+            premiumLabel={copy.premium}
+            isPremium={false}
+            openLabel={copy.openPlan}
+            onClick={() => setActivePlan('peach')}
+            className="border border-[#E2B4BD]/50 bg-white/72"
+            isGirlsTheme={isGirlsTheme}
+            cover={(
+              <div className="relative flex aspect-[2/3] w-16 shrink-0 flex-col justify-between overflow-hidden rounded-lg border border-[#E2B4BD]/50 bg-[#FFF7F7] p-2">
+                <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_18%,rgba(249,178,215,0.56),transparent_38%),linear-gradient(160deg,#FFF7F7,#F6B6C8)]" />
+                <div className="relative text-[8px] font-semibold uppercase tracking-[0.18em] text-[#8A4D62]">RepSet</div>
+                <div className="relative">
+                  <div className="font-electrolize text-xl leading-none text-[#4A4A4A]">Peach</div>
+                  <div className="mt-1 text-[8px] font-semibold uppercase tracking-[0.18em] text-[#8A4D62]">Glutes</div>
+                </div>
+              </div>
+            )}
+          />
+        ) : (
+          <BookCard
+            title="Tank-1"
+            badge={copy.tank1Badge}
+            author={copy.tank1Author}
+            description={copy.tank1Description}
+            usageLabel={formatBookUsage(language, usage['tank-1']?.appliedCount || 0, copy.notUsedYet)}
+            usageActive={(usage['tank-1']?.appliedCount || 0) > 0}
+            activeLabel={copy.activeNow}
+            isCurrentPlan={assignedPlanId === 'tank-1'}
+            premiumLabel={copy.premium}
+            isPremium={false}
+            openLabel={copy.openPlan}
+            onClick={() => setActivePlan('tank-1')}
+            className="border border-accent/20 bg-accent/5"
+            isGirlsTheme={isGirlsTheme}
+            cover={(
+              <div className="aspect-[2/3] w-16 shrink-0 overflow-hidden rounded-lg border border-white/10 bg-gradient-to-br from-accent/30 via-accent/10 to-white/10">
+                <img src={tank1CoverImage} alt="Tank-1 cover" className="h-full w-full object-cover" />
+              </div>
+            )}
+          />
+        )}
 
-        {!embedded && (
+        {!embedded && !isGirlsTheme && (
           <div className="py-3">
           <PremiumOfferButton
             topLabel={premiumOfferCopy.top}
@@ -486,7 +516,7 @@ export function BooksLibrary({ onBack, embedded = false, themeVariant = 'default
           </div>
         )}
 
-        {showPremiumPlans && (
+        {showPremiumPlans && !isGirlsTheme && (
           <div className="space-y-4 animate-premium-plan-reveal">
         <BookCard
           title="T-2"

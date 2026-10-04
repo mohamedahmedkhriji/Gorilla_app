@@ -239,6 +239,7 @@ export function NutritionOverview({
   const [carouselIndex, setCarouselIndex] = useState(0);
   const carouselRef = useRef<HTMLDivElement>(null);
   const theme = nutritionThemes[themeVariant];
+  const isGirlsTheme = themeVariant === 'girls';
 
   const directHydrationTarget = Math.max(0, Number(plan.hydration?.remainingWaterMl || plan.targets.waterMl || 0));
   const modes: ModeMeta[] = useMemo(() => [
@@ -298,8 +299,8 @@ export function NutritionOverview({
   return (
     <div className="space-y-4 pb-4">
       {plan.safety?.warnings?.length ? (
-        <section className="rounded-[1.25rem] border border-amber-300/22 bg-amber-300/8 p-3">
-          <div className="flex gap-2 text-sm text-amber-100">
+        <section className={`rounded-[1.25rem] border p-3 ${isGirlsTheme ? 'border-[#E2B4BD]/45 bg-white/72' : 'border-amber-300/22 bg-amber-300/8'}`}>
+          <div className={`flex gap-2 text-sm ${isGirlsTheme ? 'text-black' : 'text-amber-100'}`}>
             <Info className="mt-0.5 shrink-0" size={16} />
             <div className="space-y-1">
               {plan.safety.warnings.slice(0, 2).map((warning) => <p key={warning}>{warning}</p>)}
@@ -351,7 +352,7 @@ export function NutritionOverview({
                 </div>
               </div>
               <div className={`mt-4 flex min-h-[20rem] items-center justify-center rounded-2xl border px-2 py-4 ${theme.softPanel}`}>
-                <BodyMap className="target-bodymap" levels={bodyMapLevels} view="front" />
+                <BodyMap className="target-bodymap" body={isGirlsTheme ? 'female' : undefined} levels={bodyMapLevels} view="front" />
               </div>
 
               <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">

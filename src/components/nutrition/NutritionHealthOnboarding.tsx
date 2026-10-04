@@ -192,13 +192,16 @@ export function NutritionHealthOnboarding({
   error,
   onComplete,
   language = 'en',
+  themeVariant = 'default',
 }: {
   saving: boolean;
   error?: string;
   onComplete: (payload: NutritionHealthOnboardingPayload) => Promise<void> | void;
   language?: AppLanguage;
+  themeVariant?: 'default' | 'girls';
 }) {
   const copy = pickLanguage(language, HEALTH_COPY);
+  const isGirlsTheme = themeVariant === 'girls';
   const [selected, setSelected] = useState<Record<string, boolean>>({ noKnownCondition: false, preferNotToSay: false });
   const [diabetesType, setDiabetesType] = useState<DiabetesType>('unknown');
   const [kidneyClinicianPlan, setKidneyClinicianPlan] = useState<boolean | null>(null);
@@ -249,17 +252,64 @@ export function NutritionHealthOnboarding({
     await onComplete(payload);
   };
 
+  const cardClassName = isGirlsTheme
+    ? 'rounded-[1.75rem] border border-[#E2B4BD]/45 bg-white/78 p-5 text-[#4A4A4A] shadow-[0_24px_70px_rgba(226,180,189,0.18)] ring-1 ring-white/50 backdrop-blur'
+    : 'rounded-[1.75rem] border border-white/10 bg-[#0d131c] p-5 shadow-[0_24px_80px_rgba(0,0,0,0.32)]';
+  const iconClassName = isGirlsTheme
+    ? 'flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-[#E2B4BD]/45 bg-[#FFF5F5]/85 text-[#A87884] shadow-[0_12px_28px_rgba(226,180,189,0.16)]'
+    : 'flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-cyan-400/12 text-cyan-300';
+  const eyebrowClassName = isGirlsTheme
+    ? 'text-xs font-bold uppercase tracking-[0.22em] text-[#A87884]'
+    : 'text-xs font-bold uppercase tracking-[0.22em] text-cyan-200/70';
+  const titleClassName = isGirlsTheme
+    ? 'mt-2 text-2xl font-black leading-tight text-[#4A4A4A]'
+    : 'mt-2 text-2xl font-black leading-tight text-white';
+  const bodyClassName = isGirlsTheme
+    ? 'mt-2 text-sm leading-6 text-[#795E67]'
+    : 'mt-2 text-sm leading-6 text-text-secondary';
+  const optionBaseClassName = 'rounded-2xl border text-left font-semibold transition';
+  const primaryOptionClassName = (active: boolean) => active
+    ? isGirlsTheme
+      ? 'border-[#F9B2D7]/80 bg-[#F9B2D7]/70 text-[#4A4A4A] shadow-[0_10px_24px_rgba(249,178,215,0.20)]'
+      : 'border-cyan-300 bg-cyan-300 text-black'
+    : isGirlsTheme
+      ? 'border-[#E2B4BD]/45 bg-white/60 text-[#4A4A4A] hover:border-[#F9B2D7]/70 hover:bg-white/80'
+      : 'border-white/10 bg-white/[0.035] text-white hover:border-cyan-300/45';
+  const conditionOptionClassName = (active: boolean) => active
+    ? isGirlsTheme
+      ? 'border-[#F9B2D7]/80 bg-[#F9B2D7]/26 text-[#4A4A4A]'
+      : 'border-cyan-300/80 bg-cyan-300/16 text-cyan-50'
+    : isGirlsTheme
+      ? 'border-[#E2B4BD]/45 bg-white/55 text-[#795E67] hover:border-[#F9B2D7]/70 hover:text-[#4A4A4A]'
+      : 'border-white/10 bg-white/[0.035] text-text-secondary hover:text-white';
+  const panelClassName = isGirlsTheme
+    ? 'mt-4 rounded-2xl border border-[#E2B4BD]/45 bg-[#FFF5F5]/60 p-3'
+    : 'mt-4 rounded-2xl border border-white/10 bg-black/18 p-3';
+  const labelClassName = isGirlsTheme ? 'text-xs font-semibold text-[#795E67]' : 'text-xs font-semibold text-text-secondary';
+  const inputClassName = isGirlsTheme
+    ? 'mt-1 w-full rounded-2xl border border-[#E2B4BD]/45 bg-white/70 px-3 py-3 text-sm text-[#4A4A4A] outline-none placeholder:text-[#A87884] focus:border-[#F9B2D7]/70'
+    : 'mt-1 w-full rounded-2xl border border-white/10 bg-black/24 px-3 py-3 text-sm text-white outline-none focus:border-cyan-300/70';
+  const acknowledgeClassName = isGirlsTheme
+    ? 'mt-5 flex gap-3 rounded-2xl border border-[#E2B4BD]/45 bg-white/58 p-3 text-sm leading-6 text-[#795E67]'
+    : 'mt-5 flex gap-3 rounded-2xl border border-white/10 bg-white/[0.035] p-3 text-sm leading-6 text-text-secondary';
+  const checkboxClassName = isGirlsTheme
+    ? 'mt-1 h-4 w-4 rounded border-[#E2B4BD]/60 bg-white text-[#F9B2D7]'
+    : 'mt-1 h-4 w-4 rounded border-white/20 bg-transparent text-cyan-300';
+  const submitClassName = isGirlsTheme
+    ? 'mt-5 min-h-12 w-full rounded-2xl bg-[#F9B2D7] px-4 text-sm font-black text-[#4A4A4A] transition hover:bg-[#F7C8DD] disabled:cursor-not-allowed disabled:opacity-45'
+    : 'mt-5 min-h-12 w-full rounded-2xl bg-cyan-300 px-4 text-sm font-black text-black transition hover:bg-cyan-200 disabled:cursor-not-allowed disabled:opacity-45';
+
   return (
     <div className="mx-auto flex min-h-[calc(100dvh-7rem)] w-full max-w-2xl flex-col justify-center px-4 pb-[calc(env(safe-area-inset-bottom,0px)+1.5rem)] pt-4">
-      <div className="rounded-[1.75rem] border border-white/10 bg-[#0d131c] p-5 shadow-[0_24px_80px_rgba(0,0,0,0.32)]">
+      <div className={cardClassName}>
         <div className="flex items-start gap-3">
-          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-cyan-400/12 text-cyan-300">
+          <div className={iconClassName}>
             <Shield size={21} />
           </div>
           <div>
-            <div className="text-xs font-bold uppercase tracking-[0.22em] text-cyan-200/70">{copy.eyebrow}</div>
-            <h2 className="mt-2 text-2xl font-black leading-tight text-white">{copy.title}</h2>
-            <p className="mt-2 text-sm leading-6 text-text-secondary">
+            <div className={eyebrowClassName}>{copy.eyebrow}</div>
+            <h2 className={titleClassName}>{copy.title}</h2>
+            <p className={bodyClassName}>
               {copy.body}
             </p>
           </div>
@@ -269,9 +319,7 @@ export function NutritionHealthOnboarding({
           <button
             type="button"
             onClick={() => toggle('noKnownCondition')}
-            className={`flex min-h-12 w-full items-center justify-between rounded-2xl border px-4 text-left text-sm font-semibold transition ${
-              selected.noKnownCondition ? 'border-cyan-300 bg-cyan-300 text-black' : 'border-white/10 bg-white/[0.035] text-white hover:border-cyan-300/45'
-            }`}
+            className={`flex min-h-12 w-full items-center justify-between px-4 text-sm ${optionBaseClassName} ${primaryOptionClassName(selected.noKnownCondition)}`}
           >
             {copy.noKnownCondition}
             {selected.noKnownCondition ? <Check size={17} /> : null}
@@ -283,9 +331,7 @@ export function NutritionHealthOnboarding({
                 key={option.id}
                 type="button"
                 onClick={() => toggle(option.id)}
-                className={`min-h-12 rounded-2xl border px-3 text-left text-xs font-semibold transition ${
-                  selected[option.id] ? 'border-cyan-300/80 bg-cyan-300/16 text-cyan-50' : 'border-white/10 bg-white/[0.035] text-text-secondary hover:text-white'
-                }`}
+                className={`min-h-12 px-3 text-xs ${optionBaseClassName} ${conditionOptionClassName(Boolean(selected[option.id]))}`}
               >
                 {copy.conditions[option.id]}
               </button>
@@ -295,9 +341,7 @@ export function NutritionHealthOnboarding({
           <button
             type="button"
             onClick={() => toggle('preferNotToSay')}
-            className={`flex min-h-12 w-full items-center justify-between rounded-2xl border px-4 text-left text-sm font-semibold transition ${
-              selected.preferNotToSay ? 'border-cyan-300 bg-cyan-300 text-black' : 'border-white/10 bg-white/[0.035] text-white hover:border-cyan-300/45'
-            }`}
+            className={`flex min-h-12 w-full items-center justify-between px-4 text-sm ${optionBaseClassName} ${primaryOptionClassName(selected.preferNotToSay)}`}
           >
             {copy.preferNotToSay}
             {selected.preferNotToSay ? <Check size={17} /> : null}
@@ -305,15 +349,15 @@ export function NutritionHealthOnboarding({
         </div>
 
         {selected.diabetes ? (
-          <div className="mt-4 rounded-2xl border border-white/10 bg-black/18 p-3">
-            <div className="text-xs font-semibold uppercase tracking-[0.16em] text-text-secondary">{copy.diabetesType}</div>
+          <div className={panelClassName}>
+            <div className={isGirlsTheme ? 'text-xs font-semibold uppercase tracking-[0.16em] text-[#A87884]' : 'text-xs font-semibold uppercase tracking-[0.16em] text-text-secondary'}>{copy.diabetesType}</div>
             <div className="mt-2 grid grid-cols-2 gap-2">
               {(['type1', 'type2', 'other', 'unknown'] as DiabetesType[]).map((type) => (
                 <button
                   key={type}
                   type="button"
                   onClick={() => setDiabetesType(type)}
-                  className={`rounded-xl px-3 py-2 text-xs font-semibold ${diabetesType === type ? 'bg-cyan-300 text-black' : 'bg-white/5 text-text-secondary'}`}
+                  className={`rounded-xl px-3 py-2 text-xs font-semibold ${diabetesType === type ? (isGirlsTheme ? 'bg-[#F9B2D7] text-[#4A4A4A]' : 'bg-cyan-300 text-black') : (isGirlsTheme ? 'bg-white/60 text-[#795E67]' : 'bg-white/5 text-text-secondary')}`}
                 >
                   {copy.diabetesTypes[type]}
                 </button>
@@ -336,18 +380,18 @@ export function NutritionHealthOnboarding({
         ) : null}
 
         <div className="mt-4 grid gap-3 sm:grid-cols-2">
-          <label className="text-xs font-semibold text-text-secondary">
+          <label className={labelClassName}>
             {copy.allergies}
-            <input value={allergiesText} onChange={(event) => setAllergiesText(event.target.value)} placeholder={copy.allergiesPlaceholder} className="mt-1 w-full rounded-2xl border border-white/10 bg-black/24 px-3 py-3 text-sm text-white outline-none focus:border-cyan-300/70" />
+            <input value={allergiesText} onChange={(event) => setAllergiesText(event.target.value)} placeholder={copy.allergiesPlaceholder} className={inputClassName} />
           </label>
-          <label className="text-xs font-semibold text-text-secondary">
+          <label className={labelClassName}>
             {copy.intolerances}
-            <input value={intolerancesText} onChange={(event) => setIntolerancesText(event.target.value)} placeholder={copy.intolerancesPlaceholder} className="mt-1 w-full rounded-2xl border border-white/10 bg-black/24 px-3 py-3 text-sm text-white outline-none focus:border-cyan-300/70" />
+            <input value={intolerancesText} onChange={(event) => setIntolerancesText(event.target.value)} placeholder={copy.intolerancesPlaceholder} className={inputClassName} />
           </label>
         </div>
 
-        <label className="mt-5 flex gap-3 rounded-2xl border border-white/10 bg-white/[0.035] p-3 text-sm leading-6 text-text-secondary">
-          <input type="checkbox" checked={acknowledged} onChange={(event) => setAcknowledged(event.target.checked)} className="mt-1 h-4 w-4 rounded border-white/20 bg-transparent text-cyan-300" />
+        <label className={acknowledgeClassName}>
+          <input type="checkbox" checked={acknowledged} onChange={(event) => setAcknowledged(event.target.checked)} className={checkboxClassName} />
           {copy.acknowledge}
         </label>
 
@@ -357,7 +401,7 @@ export function NutritionHealthOnboarding({
           type="button"
           disabled={saving || !acknowledged || (!hasCondition && !selected.noKnownCondition && !selected.preferNotToSay)}
           onClick={submit}
-          className="mt-5 min-h-12 w-full rounded-2xl bg-cyan-300 px-4 text-sm font-black text-black transition hover:bg-cyan-200 disabled:cursor-not-allowed disabled:opacity-45"
+          className={submitClassName}
         >
           {saving ? copy.saving : copy.continue}
         </button>

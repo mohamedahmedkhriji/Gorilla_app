@@ -163,7 +163,15 @@ const readExerciseVideoStyleGender = () => {
 };
 
 const readExerciseVideoProfile = (user: any) => {
-  const rawProfile = user?.onboarding_profile || user?.onboardingProfile;
+  let storedProfile = {};
+  try {
+    const rawStoredProfile = localStorage.getItem('onboardingProfile');
+    storedProfile = rawStoredProfile ? JSON.parse(rawStoredProfile) : {};
+  } catch {
+    storedProfile = {};
+  }
+
+  const rawProfile = user?.onboarding_profile || user?.onboardingProfile || storedProfile;
   if (!rawProfile) return {};
   if (typeof rawProfile === 'object') return rawProfile;
   try {
@@ -176,8 +184,8 @@ const readExerciseVideoProfile = (user: any) => {
 const shouldUseGirlsExerciseVideoTheme = (user: any, styleGender: string) => {
   const profile = readExerciseVideoProfile(user);
   const explicitGender = String(user?.gender || profile?.gender || '').trim().toLowerCase();
-  if (explicitGender === 'man' || explicitGender === 'male' || explicitGender === 'm') return false;
   if (styleGender) return isGirlsStyleValue(styleGender);
+  if (explicitGender === 'man' || explicitGender === 'male' || explicitGender === 'm') return false;
   return isGirlsStyleValue(user?.gender) || isGirlsStyleValue(profile?.gender) || profile?.onboardingTheme === 'girls';
 };
 
@@ -587,6 +595,15 @@ export function ExerciseVideoScreen({ onBack, exercise }: ExerciseVideoScreenPro
   const timelineTextClassName = isGirlsTheme
     ? 'text-[10px] font-semibold tabular-nums text-[#4A4A4A]'
     : 'text-[10px] font-semibold tabular-nums text-white/85';
+  const videoHeaderClassName = isGirlsTheme
+    ? 'absolute left-4 right-4 top-4 z-10 flex items-center gap-4 rounded-2xl border border-[#E2B4BD]/35 bg-white/45 p-2 pr-3 backdrop-blur-md'
+    : 'absolute left-4 right-4 top-4 z-10 flex items-center gap-4';
+  const titleClassName = isGirlsTheme
+    ? 'flex-1 text-base font-bold leading-tight text-[#4A4A4A] sm:text-xl'
+    : 'flex-1 text-base leading-tight text-white drop-shadow-md sm:text-xl';
+  const muscleOverlayClassName = isGirlsTheme
+    ? 'absolute bottom-12 left-4 right-4 pointer-events-none rounded-xl border border-[#E2B4BD]/30 bg-white/35 p-2 backdrop-blur-sm'
+    : 'absolute bottom-12 left-4 right-4 pointer-events-none';
   const explicitTargetMuscles = dedupeMuscles([
     ...parseTargetMuscles(exercise?.targetMuscles),
     ...parseTargetMuscles(exercise?.anatomy),
@@ -958,18 +975,18 @@ export function ExerciseVideoScreen({ onBack, exercise }: ExerciseVideoScreenPro
             {copy.noVideo}
           </div>
         )}
-        <div className="absolute left-4 right-4 top-4 z-10 flex items-center gap-4">
+        <div className={videoHeaderClassName}>
           <button
             onClick={onBack}
             className={backButtonClassName}
           >
             <ArrowLeft size={18} />
           </button>
-          <h1 className="flex-1 text-base leading-tight text-white drop-shadow-md sm:text-xl">
+          <h1 className={titleClassName}>
             {displayExerciseName}
           </h1>
         </div>
-        <div className="absolute bottom-12 left-4 right-4 pointer-events-none">
+        <div className={muscleOverlayClassName}>
           <div className="flex gap-2 mt-2">
             <span className={musclePillClassName}>
               {toLocalizedBaseMuscle(primaryMuscle)}

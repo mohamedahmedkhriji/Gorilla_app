@@ -3396,6 +3396,79 @@ button:hover .neon-checkbox__box,
 
 #root .bodymap.recovery-bodymap {
   gap: 1.25rem;
+  --recovery-bodymap-l1: rgb(var(--color-error));
+  --recovery-bodymap-l2: rgb(var(--color-purple));
+  --recovery-bodymap-l3: rgb(var(--color-accent-dark));
+  --recovery-bodymap-l4: rgb(var(--color-accent));
+}
+
+#root .bodymap.dashboard-bodymap {
+  align-items: center;
+  gap: clamp(0.75rem, 4vw, 1.25rem);
+}
+
+#root .dashboard-bodymap .bm-panel {
+  width: min(8.15rem, 42vw);
+  padding: 0;
+}
+
+#root .dashboard-bodymap .bm-v {
+  max-height: 15.75rem;
+}
+
+#root .dashboard-bodymap .bm-label {
+  display: none;
+}
+
+#root .dashboard-bodymap .bm-v path {
+  stroke: #101824;
+  stroke-width: 2.35;
+}
+
+#root .dashboard-bodymap .bm-sil,
+#root .dashboard-bodymap .bm-m.l0 {
+  fill: #2f3b49;
+}
+
+#root .dashboard-bodymap .bm-m.l1 {
+  fill: rgb(var(--color-accent));
+}
+
+#root .dashboard-bodymap .bm-m.l2 {
+  fill: #facc15;
+}
+
+#root .dashboard-bodymap .bm-m.l3 {
+  fill: #fb923c;
+}
+
+#root .dashboard-bodymap .bm-m.l4 {
+  fill: rgb(var(--color-error));
+}
+
+#root .dashboard-radar-card [role="img"] > div {
+  background: transparent !important;
+  border-color: transparent !important;
+}
+
+#root .dashboard-radar-card .bm-sil,
+#root .dashboard-radar-card .bm-m.l0 {
+  fill: #aeb7c2;
+  opacity: 0.82;
+}
+
+#root .dashboard-radar-card .bm-m.l4 {
+  fill: rgb(var(--color-accent));
+}
+
+#root .dashboard-radar-card .bm-m {
+  filter: drop-shadow(0 0 4px rgb(var(--color-accent) / 0.18));
+}
+
+#root .dashboard-radar-card button {
+  border: 0;
+  background: transparent;
+  padding: 0;
 }
 
 #root .recovery-battery {
@@ -3513,6 +3586,22 @@ button:hover .neon-checkbox__box,
   fill: #22c55e;
 }
 
+#root .recovery-bodymap .bm-m.l1 {
+  fill: var(--recovery-bodymap-l1);
+}
+
+#root .recovery-bodymap .bm-m.l2 {
+  fill: var(--recovery-bodymap-l2);
+}
+
+#root .recovery-bodymap .bm-m.l3 {
+  fill: var(--recovery-bodymap-l3);
+}
+
+#root .recovery-bodymap .bm-m.l4 {
+  fill: var(--recovery-bodymap-l4);
+}
+
 #root .bm-m.sel {
   stroke: rgb(var(--color-text-primary));
   stroke-width: 7;
@@ -3563,5 +3652,253 @@ button:hover .neon-checkbox__box,
 
 #root .target-muscle-body-map.is-glitching .target-bodymap .bm-m.l4 {
   animation: muscleMapPrimaryGlitch 3s steps(1, end) both;
+}
+
+.badge-celebration-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 220;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  pointer-events: none;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 50% 42%, rgb(16 185 129 / 0.20), transparent 28%),
+    radial-gradient(circle at 35% 35%, rgb(249 178 215 / 0.20), transparent 26%),
+    rgb(0 0 0 / 0.42);
+  animation: badge-celebration-fade 4.6s ease both;
+}
+
+.badge-celebration-card {
+  position: relative;
+  width: min(360px, 100%);
+  min-height: 360px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  border: 1px solid rgb(255 255 255 / 0.18);
+  border-radius: 28px;
+  padding: 34px 24px 28px;
+  text-align: center;
+  color: #fff;
+  background:
+    linear-gradient(145deg, rgb(15 23 42 / 0.88), rgb(5 10 20 / 0.92)),
+    radial-gradient(circle at top, rgb(255 255 255 / 0.22), transparent 45%);
+  box-shadow: 0 26px 80px rgb(0 0 0 / 0.42), inset 0 1px 0 rgb(255 255 255 / 0.20);
+  transform-style: preserve-3d;
+  animation: badge-celebration-card-in 4.6s cubic-bezier(.2,.9,.25,1) both;
+}
+
+.badge-celebration-glow {
+  position: absolute;
+  inset: 42px;
+  border-radius: 999px;
+  background: conic-gradient(from 120deg, #f9b2d7, #34d399, #60a5fa, #fbbf24, #f9b2d7);
+  filter: blur(28px);
+  opacity: 0.44;
+  animation: badge-celebration-glow-spin 2.8s linear infinite;
+}
+
+.badge-celebration-stage {
+  position: relative;
+  width: 148px;
+  height: 148px;
+  display: grid;
+  place-items: center;
+  perspective: 900px;
+  transform-style: preserve-3d;
+}
+
+.badge-celebration-stage::before {
+  content: '';
+  position: absolute;
+  width: 132px;
+  height: 22px;
+  bottom: 4px;
+  border-radius: 999px;
+  background: rgb(0 0 0 / 0.36);
+  filter: blur(8px);
+  transform: rotateX(72deg);
+}
+
+.badge-celebration-badge {
+  position: relative;
+  width: 132px;
+  height: 132px;
+  object-fit: contain;
+  filter: drop-shadow(0 18px 22px rgb(0 0 0 / 0.34));
+  transform-style: preserve-3d;
+  animation: badge-celebration-spin-3d 2.15s cubic-bezier(.16,.9,.24,1) infinite;
+}
+
+.badge-celebration-kicker {
+  position: relative;
+  margin-top: 18px;
+  color: #a7f3d0;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+
+.badge-celebration-title {
+  position: relative;
+  margin-top: 8px;
+  max-width: 100%;
+  color: #fff;
+  font-size: 28px;
+  line-height: 1.05;
+  font-weight: 900;
+  letter-spacing: 0;
+}
+
+.badge-celebration-description {
+  position: relative;
+  margin-top: 10px;
+  max-width: 280px;
+  color: rgb(226 232 240 / 0.84);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.badge-celebration-points {
+  position: relative;
+  margin-top: 16px;
+  border-radius: 999px;
+  border: 1px solid rgb(52 211 153 / 0.34);
+  padding: 7px 13px;
+  color: #d9f99d;
+  background: rgb(16 185 129 / 0.12);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.badge-celebration-burst {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.badge-celebration-confetti {
+  position: absolute;
+  left: 50%;
+  top: 46%;
+  width: 9px;
+  height: 16px;
+  border-radius: 3px;
+  background: #34d399;
+  opacity: 0;
+  transform: translate(-50%, -50%);
+  animation: badge-celebration-confetti 1.95s ease-out both;
+}
+
+.badge-celebration-confetti:nth-child(3n) {
+  background: #f9b2d7;
+}
+
+.badge-celebration-confetti:nth-child(4n) {
+  background: #60a5fa;
+}
+
+.badge-celebration-confetti:nth-child(5n) {
+  background: #fbbf24;
+}
+
+.badge-celebration-confetti:nth-child(1) { --x: -155px; --y: -245px; --r: 120deg; animation-delay: 0ms; }
+.badge-celebration-confetti:nth-child(2) { --x: -95px; --y: -225px; --r: 260deg; animation-delay: 25ms; }
+.badge-celebration-confetti:nth-child(3) { --x: -32px; --y: -265px; --r: 80deg; animation-delay: 45ms; }
+.badge-celebration-confetti:nth-child(4) { --x: 58px; --y: -245px; --r: 210deg; animation-delay: 65ms; }
+.badge-celebration-confetti:nth-child(5) { --x: 142px; --y: -218px; --r: 330deg; animation-delay: 85ms; }
+.badge-celebration-confetti:nth-child(6) { --x: -202px; --y: -120px; --r: 45deg; animation-delay: 110ms; }
+.badge-celebration-confetti:nth-child(7) { --x: 210px; --y: -126px; --r: 190deg; animation-delay: 125ms; }
+.badge-celebration-confetti:nth-child(8) { --x: -235px; --y: -28px; --r: 290deg; animation-delay: 145ms; }
+.badge-celebration-confetti:nth-child(9) { --x: 238px; --y: -32px; --r: 70deg; animation-delay: 165ms; }
+.badge-celebration-confetti:nth-child(10) { --x: -210px; --y: 84px; --r: 230deg; animation-delay: 185ms; }
+.badge-celebration-confetti:nth-child(11) { --x: 204px; --y: 92px; --r: 25deg; animation-delay: 205ms; }
+.badge-celebration-confetti:nth-child(12) { --x: -144px; --y: 176px; --r: 300deg; animation-delay: 225ms; }
+.badge-celebration-confetti:nth-child(13) { --x: -68px; --y: 212px; --r: 140deg; animation-delay: 245ms; }
+.badge-celebration-confetti:nth-child(14) { --x: 34px; --y: 226px; --r: 250deg; animation-delay: 265ms; }
+.badge-celebration-confetti:nth-child(15) { --x: 130px; --y: 184px; --r: 95deg; animation-delay: 285ms; }
+.badge-celebration-confetti:nth-child(16) { --x: -284px; --y: -178px; --r: 190deg; animation-delay: 55ms; }
+.badge-celebration-confetti:nth-child(17) { --x: 286px; --y: -172px; --r: 35deg; animation-delay: 75ms; }
+.badge-celebration-confetti:nth-child(18) { --x: -306px; --y: 28px; --r: 315deg; animation-delay: 95ms; }
+.badge-celebration-confetti:nth-child(19) { --x: 312px; --y: 38px; --r: 115deg; animation-delay: 115ms; }
+.badge-celebration-confetti:nth-child(20) { --x: -250px; --y: 190px; --r: 20deg; animation-delay: 135ms; }
+.badge-celebration-confetti:nth-child(21) { --x: 248px; --y: 186px; --r: 260deg; animation-delay: 155ms; }
+.badge-celebration-confetti:nth-child(22) { --x: -18px; --y: -326px; --r: 180deg; animation-delay: 175ms; }
+.badge-celebration-confetti:nth-child(23) { --x: 84px; --y: -304px; --r: 55deg; animation-delay: 195ms; }
+.badge-celebration-confetti:nth-child(24) { --x: -92px; --y: -312px; --r: 235deg; animation-delay: 215ms; }
+.badge-celebration-confetti:nth-child(25) { --x: -334px; --y: -66px; --r: 130deg; animation-delay: 235ms; }
+.badge-celebration-confetti:nth-child(26) { --x: 338px; --y: -72px; --r: 305deg; animation-delay: 255ms; }
+.badge-celebration-confetti:nth-child(27) { --x: -42px; --y: 316px; --r: 75deg; animation-delay: 275ms; }
+.badge-celebration-confetti:nth-child(28) { --x: 64px; --y: 306px; --r: 220deg; animation-delay: 295ms; }
+
+@keyframes badge-celebration-fade {
+  0% { opacity: 0; }
+  8% { opacity: 1; }
+  84% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+@keyframes badge-celebration-card-in {
+  0% {
+    opacity: 0;
+    transform: translateY(30px) scale(0.72) rotateX(24deg);
+  }
+  15% {
+    opacity: 1;
+    transform: translateY(0) scale(1.04) rotateX(0deg);
+  }
+  24% {
+    transform: translateY(0) scale(1) rotateX(0deg);
+  }
+  86% {
+    opacity: 1;
+    transform: translateY(0) scale(1) rotateX(0deg);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-18px) scale(0.94) rotateX(-10deg);
+  }
+}
+
+@keyframes badge-celebration-spin-3d {
+  0% { transform: rotateY(0deg) rotateX(0deg) translateZ(0); }
+  45% { transform: rotateY(180deg) rotateX(8deg) translateZ(28px); }
+  100% { transform: rotateY(360deg) rotateX(0deg) translateZ(0); }
+}
+
+@keyframes badge-celebration-glow-spin {
+  to { transform: rotate(360deg); }
+}
+
+@keyframes badge-celebration-confetti {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.3) rotate(0deg);
+  }
+  14% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translate(calc(-50% + var(--x)), calc(-50% + var(--y))) scale(1) rotate(var(--r));
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .badge-celebration-overlay,
+  .badge-celebration-card,
+  .badge-celebration-badge,
+  .badge-celebration-glow,
+  .badge-celebration-confetti {
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+  }
 }
 

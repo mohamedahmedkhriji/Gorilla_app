@@ -14,8 +14,8 @@ import {
 import { Header } from '../ui/Header';
 import { Card } from '../ui/Card';
 import { api } from '../../services/api';
-import { getBodyPartImage } from '../../services/bodyPartTheme';
 import { AppLanguage, getActiveLanguage, getStoredLanguage } from '../../services/language';
+import { MuscleSvgBadge } from '../workout/MuscleSvgBadge';
 
 interface StrengthScoreScreenProps {
   onBack: () => void;
@@ -74,8 +74,6 @@ type StrengthSupportData = {
   damagedMuscles: number;
   recovery: RecoveryMuscleItem[];
 };
-
-const getMuscleImage = (muscle: string) => getBodyPartImage(muscle);
 
 const rangeOptions: RangeKey[] = ['month', '6months', 'year', 'all'];
 
@@ -1361,7 +1359,14 @@ export function StrengthScoreScreen({ onBack }: StrengthScoreScreenProps) {
                   >
                     <div className="flex gap-3 sm:gap-4">
                       <div className="relative h-14 w-14 shrink-0 overflow-hidden rounded-2xl border border-white/10 bg-white/5">
-                        <img src={getMuscleImage(muscle.name)} alt={toLocalizedMuscle(muscle.name)} className="h-full w-full object-cover" />
+                        <MuscleSvgBadge
+                          muscle={{ label: toLocalizedMuscle(muscle.name), sourceName: muscle.name }}
+                          className="h-full w-full"
+                          figureClassName="h-full"
+                          showLabel={false}
+                          showContext={false}
+                          variant="bare"
+                        />
                         <div className="absolute left-1 top-1 rounded-full bg-black/70 px-1.5 py-0.5 text-[10px] font-semibold text-white">
                           #{index + 1}
                         </div>

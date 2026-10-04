@@ -573,19 +573,19 @@ function RecoveryBodyMap({
       />
       <div className={`mt-4 grid grid-cols-2 gap-2 text-xs sm:grid-cols-4 ${isGirlsTheme ? 'text-[#795E67]' : 'text-text-tertiary'}`}>
         <div className="flex items-center gap-1.5">
-          <span className="h-3 w-3 rounded-full bg-[#ef4444]" />
+          <span className="h-3 w-3 rounded-full bg-error" />
           <span>0-39%</span>
         </div>
         <div className="flex items-center gap-1.5">
-          <span className="h-3 w-3 rounded-full bg-[#f97316]" />
+          <span className="h-3 w-3 rounded-full bg-purple" />
           <span>{labels.damaged}</span>
         </div>
         <div className="flex items-center gap-1.5">
-          <span className="h-3 w-3 rounded-full bg-[#eab308]" />
+          <span className="h-3 w-3 rounded-full bg-accent-dark" />
           <span>{labels.almost}</span>
         </div>
         <div className="flex items-center gap-1.5">
-          <span className="h-3 w-3 rounded-full bg-[#22c55e]" />
+          <span className="h-3 w-3 rounded-full bg-accent" />
           <span>{labels.ready}</span>
         </div>
       </div>
@@ -803,7 +803,7 @@ const getPeriodCarouselCopy = (language: AppLanguage) => {
   };
 };
 
-function GirlsPeriodCarousel({ language, jointPainLevel = 0 }: { language: AppLanguage; jointPainLevel?: number }) {
+export function GirlsPeriodCarousel({ language, jointPainLevel = 0 }: { language: AppLanguage; jointPainLevel?: number }) {
   const [activeIndex, setActiveIndex] = useState(0);
   const [showPeriodDetails, setShowPeriodDetails] = useState(false);
   const touchStartXRef = useRef<number | null>(null);

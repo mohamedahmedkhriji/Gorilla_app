@@ -25,6 +25,38 @@ const pickXpReward = (targetValue, hidden = false) => {
   return 25;
 };
 
+const BADGE_ASSET_BY_SLUG = {
+  'session-one': 'firstWorkout',
+  'first-five': 'firstStep',
+  'new-routine': 'firstRoutine',
+  'first-bench-pr': 'firstRecord',
+  'double-digits': 'workouts10',
+  'fifty-strong': 'workouts50',
+  'century-club': 'workouts100',
+  'full-year-warrior': 'workouts365',
+  'one-week-strong': 'streak7',
+  '30-day-discipline': 'streak30',
+  'year-round-active': 'streak100',
+  '5k-volume': 'tonne1',
+  '10k-volume': 'tonnes10',
+  '100k-volume': 'tonnes100',
+  'recovery-aware': 'hours10',
+  'recovery-hero': 'hours50',
+  'wellness-master': 'hours100',
+  'push-up-base': 'sets100',
+  'push-up-ocean': 'sets1000',
+  'on-fire': 'streak3',
+};
+
+const getBadgeAssetUrls = (slug) => {
+  const assetName = BADGE_ASSET_BY_SLUG[slug];
+  if (!assetName) return { iconUrl: null, lockedIconUrl: null };
+  return {
+    iconUrl: `/assets/badges/${assetName}.webp`,
+    lockedIconUrl: `/assets/badges/${assetName}_off.webp`,
+  };
+};
+
 const createBadge = ({
   category,
   name,
@@ -38,23 +70,29 @@ const createBadge = ({
   rarity = null,
   xpReward = null,
   pointsReward = 0,
-}) => ({
-  category,
-  name,
-  slug: slugify(name),
-  description,
-  rarity: rarity || pickRarity(targetValue, isHidden),
-  isHidden,
-  xpReward: xpReward == null ? pickXpReward(targetValue, isHidden) : xpReward,
-  pointsReward,
-  rules: [{
-    conditionType,
-    operatorSymbol,
-    targetValue,
-    timeframeType,
-    timeframeDays,
-  }],
-});
+}) => {
+  const slug = slugify(name);
+  const assetUrls = getBadgeAssetUrls(slug);
+  return {
+    category,
+    name,
+    slug,
+    description,
+    iconUrl: assetUrls.iconUrl,
+    lockedIconUrl: assetUrls.lockedIconUrl,
+    rarity: rarity || pickRarity(targetValue, isHidden),
+    isHidden,
+    xpReward: xpReward == null ? pickXpReward(targetValue, isHidden) : xpReward,
+    pointsReward,
+    rules: [{
+      conditionType,
+      operatorSymbol,
+      targetValue,
+      timeframeType,
+      timeframeDays,
+    }],
+  };
+};
 
 const buildFromList = (category, list, defaults = {}) =>
   list.map((item) => createBadge({

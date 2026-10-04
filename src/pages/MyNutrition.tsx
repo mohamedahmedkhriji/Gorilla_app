@@ -229,12 +229,13 @@ const readOnboardingProfile = (user: any) => {
 };
 
 const shouldUseGirlsTheme = () => {
+  const styleGender = readStoredStyleGender();
+  if (styleGender) return isGirlsStyleValue(styleGender);
+
   const user = readStoredUser();
   const profile = readOnboardingProfile(user);
   const explicitGender = String(user?.gender || profile?.gender || '').trim().toLowerCase();
   if (explicitGender === 'man' || explicitGender === 'male' || explicitGender === 'm') return false;
-  const styleGender = readStoredStyleGender();
-  if (styleGender) return isGirlsStyleValue(styleGender);
   return isGirlsStyleValue(user?.gender) || isGirlsStyleValue(profile?.gender) || profile?.onboardingTheme === 'girls';
 };
 
@@ -422,7 +423,13 @@ export function MyNutrition({ onBack }: MyNutritionProps) {
         <div className="px-4 pt-2 sm:px-6">
           <Header title={copy.title} onBack={onBack} />
         </div>
-        <NutritionHealthOnboarding saving={savingOnboarding} error={onboardingError} onComplete={saveOnboarding} language={language} />
+        <NutritionHealthOnboarding
+          saving={savingOnboarding}
+          error={onboardingError}
+          onComplete={saveOnboarding}
+          language={language}
+          themeVariant={isGirlsTheme ? 'girls' : 'default'}
+        />
       </div>
     );
   }

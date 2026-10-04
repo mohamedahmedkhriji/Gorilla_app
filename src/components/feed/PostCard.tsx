@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Bookmark, MessageCircle, MoreHorizontal, Send } from 'lucide-react';
+import { MessageCircle, MoreHorizontal } from 'lucide-react';
 import type { Post, ReactionOption, ReactionType } from './types';
 
 type PostCardProps = {
@@ -123,7 +123,6 @@ export default function PostCard({
   post,
   index,
   currentUserId,
-  isSaved,
   priorityMedia,
   reactionOptions,
   openMenu,
@@ -139,8 +138,6 @@ export default function PostCard({
   onToggleReactions,
   onReact,
   onComments,
-  onShare,
-  onSave,
   onDelete,
   onHide,
   copy,
@@ -300,7 +297,7 @@ export default function PostCard({
 
         <div className={`-mx-4 h-px ${isGirlsTheme ? 'bg-[#E2B4BD]/35' : 'bg-white/10'}`} aria-hidden="true" />
 
-        <div className="grid grid-cols-4 gap-1">
+        <div className="grid grid-cols-2 gap-1">
             <div className="relative" data-no-open="true" data-reaction-menu-root="true">
               <button
                 type="button"
@@ -347,29 +344,6 @@ export default function PostCard({
               <span>{copy.comment}</span>
             </button>
 
-            <button
-              type="button"
-              onClick={onShare}
-              className={`flex min-h-[44px] items-center justify-center gap-1.5 rounded-xl px-1 text-xs font-semibold transition-all duration-200 active:scale-95 ${isGirlsTheme ? 'text-[#795E67] hover:bg-[#F9B2D7]/14 hover:text-[#4A4A4A]' : 'text-text-secondary hover:bg-white/8 hover:text-text-primary'}`}
-              aria-label={copy.share}
-            >
-              <Send size={18} aria-hidden="true" />
-              <span>{copy.share}</span>
-            </button>
-
-          <button
-            type="button"
-            onClick={onSave}
-            className={`flex min-h-[44px] items-center justify-center gap-1.5 rounded-xl px-1 text-xs font-semibold transition-all duration-200 active:scale-95 ${
-              isSaved
-                ? (isGirlsTheme ? 'text-[#A87884]' : 'text-accent')
-                : (isGirlsTheme ? 'text-[#795E67] hover:bg-[#F9B2D7]/14 hover:text-[#4A4A4A]' : 'text-text-secondary hover:bg-white/8 hover:text-text-primary')
-            }`}
-            aria-label={isSaved ? copy.saved : copy.save}
-          >
-            <Bookmark size={18} className={isSaved ? 'fill-current' : ''} aria-hidden="true" />
-            <span>{isSaved ? copy.saved : copy.save}</span>
-          </button>
         </div>
       </div>
     </article>

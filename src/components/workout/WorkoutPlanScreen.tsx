@@ -12,6 +12,7 @@ import { translateProgramText } from '../../services/programI18n';
 import { useScreenshotProtection } from '../../shared/useScreenshotProtection';
 import { MuscleSvgBadge } from './MuscleSvgBadge';
 import { ExerciseMedia } from './ExerciseMedia';
+import { playMyPlanSound } from '../../services/appSounds';
 import type { ExerciseRemoteMedia } from '../../services/exerciseVideos';
 
 interface WorkoutPlanScreenProps {
@@ -1012,6 +1013,7 @@ export function WorkoutPlanScreen({
     if (!onMarkDayFullyDone) return;
 
     try {
+      playMyPlanSound();
       setIsSubmittingMarkDone(true);
       setMarkDoneFeedback(null);
       const result = await onMarkDayFullyDone();

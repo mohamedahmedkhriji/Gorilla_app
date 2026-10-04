@@ -115,7 +115,15 @@ const readFriendsStyleGender = () => {
 };
 
 const readFriendsProfile = (user: any) => {
-  const rawProfile = user?.onboarding_profile || user?.onboardingProfile;
+  let storedProfile = {};
+  try {
+    const rawStoredProfile = localStorage.getItem('onboardingProfile');
+    storedProfile = rawStoredProfile ? JSON.parse(rawStoredProfile) : {};
+  } catch {
+    storedProfile = {};
+  }
+
+  const rawProfile = user?.onboarding_profile || user?.onboardingProfile || storedProfile;
   if (!rawProfile) return {};
   if (typeof rawProfile === 'object') return rawProfile;
   try {
@@ -128,10 +136,13 @@ const readFriendsProfile = (user: any) => {
 const shouldUseGirlsFriendsTheme = (user: any, styleGender: string) => {
   const profile = readFriendsProfile(user);
   const explicitGender = String(user?.gender || profile?.gender || '').trim().toLowerCase();
-  if (explicitGender === 'man' || explicitGender === 'male' || explicitGender === 'm') return false;
   if (styleGender) return isGirlsStyleValue(styleGender);
+  if (explicitGender === 'man' || explicitGender === 'male' || explicitGender === 'm') return false;
   return isGirlsStyleValue(user?.gender) || isGirlsStyleValue(profile?.gender) || profile?.onboardingTheme === 'girls';
 };
+
+const GIRLS_FRIEND_CARD_BASE =
+  '!border-[#E2B4BD]/55 !bg-[linear-gradient(145deg,rgba(255,255,255,0.88),rgba(255,245,245,0.78)_56%,rgba(207,236,243,0.22))] !shadow-[0_16px_38px_rgba(226,180,189,0.18)] ring-1 ring-white/45';
 
 const getActiveUserId = () => {
   const user = readStoredUser();
@@ -659,7 +670,7 @@ export function FriendsList({ onBack, onFriendClick }: FriendsListProps) {
 
       <div className="px-4 sm:px-6 space-y-4">
         {loadingMembers && (
-          <Card className={isGirlsTheme ? 'border border-[#E2B4BD]/45 bg-white/[0.70] p-6 shadow-[0_12px_28px_rgba(226,180,189,0.12)]' : 'border border-white/10 p-6'}>
+          <Card className={isGirlsTheme ? `${GIRLS_FRIEND_CARD_BASE} p-6` : 'border border-white/10 p-6'}>
             <div className="flex min-h-[160px] items-center justify-center">
               <div className={isGirlsTheme ? 'relative flex h-20 w-20 items-center justify-center rounded-[1.75rem] bg-white/55 shadow-[inset_0_1px_0_rgba(255,255,255,0.38)]' : 'relative flex h-20 w-20 items-center justify-center rounded-[1.75rem] bg-white/[0.04] shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]'}>
                 <div
@@ -689,10 +700,10 @@ export function FriendsList({ onBack, onFriendClick }: FriendsListProps) {
               }}
               className={`p-4 border transition-all ${
                 isIncomingRequest
-                  ? (isGirlsTheme ? 'border-[#F9B2D7]/45 bg-white/[0.72] shadow-[0_16px_38px_rgba(226,180,189,0.16)]' : 'border-white/12 bg-white/[0.03] shadow-[0_18px_40px_rgba(0,0,0,0.18)]')
+                  ? (isGirlsTheme ? `${GIRLS_FRIEND_CARD_BASE} hover:!border-[#F9B2D7]/75` : 'border-white/12 bg-white/[0.03] shadow-[0_18px_40px_rgba(0,0,0,0.18)]')
                   : canViewProfile
-                    ? (isGirlsTheme ? 'cursor-pointer border-[#E2B4BD]/45 bg-white/[0.70] hover:border-[#F9B2D7]/70 shadow-[0_12px_28px_rgba(226,180,189,0.12)]' : 'cursor-pointer border-accent/30 hover:border-accent')
-                    : (isGirlsTheme ? 'border-[#E2B4BD]/45 bg-white/[0.70] shadow-[0_12px_28px_rgba(226,180,189,0.12)]' : 'border-white/10')
+                    ? (isGirlsTheme ? `cursor-pointer ${GIRLS_FRIEND_CARD_BASE} hover:!border-[#F9B2D7]/75 hover:!shadow-[0_20px_46px_rgba(249,178,215,0.24)]` : 'cursor-pointer border-accent/30 hover:border-accent')
+                    : (isGirlsTheme ? GIRLS_FRIEND_CARD_BASE : 'border-white/10')
               }`}
             >
               <div
@@ -715,7 +726,9 @@ export function FriendsList({ onBack, onFriendClick }: FriendsListProps) {
                     className={`relative h-14 w-14 shrink-0 overflow-hidden rounded-full flex items-center justify-center font-bold ${
                       isGirlsTheme ? 'bg-white/65 text-[#A87884]' : 'bg-white/10 text-white'
                     } ${
-                      profileImage ? 'cursor-zoom-in ring-2 ring-white/15 shadow-lg shadow-black/20' : ''
+                      profileImage
+                        ? (isGirlsTheme ? 'cursor-zoom-in ring-2 ring-[#F9B2D7]/45 shadow-[0_10px_24px_rgba(226,180,189,0.20)]' : 'cursor-zoom-in ring-2 ring-white/15 shadow-lg shadow-black/20')
+                        : ''
                     }`}
                     aria-label={profileImage ? copy.openImagePreview : undefined}
                   >
@@ -746,13 +759,13 @@ export function FriendsList({ onBack, onFriendClick }: FriendsListProps) {
                       </div>
                     ) : (
                       <div className="flex items-center gap-2 mt-1 flex-wrap">
-                        <span className={isGirlsTheme ? 'text-xs text-[#A87884] bg-[#F9B2D7]/18 px-2 py-0.5 rounded font-medium flex items-center gap-1' : 'text-xs text-accent bg-accent/10 px-2 py-0.5 rounded font-medium flex items-center gap-1'}>
+                        <span className={isGirlsTheme ? 'text-xs text-[#A87884] bg-[#F9B2D7]/24 border border-[#E2B4BD]/35 px-2 py-0.5 rounded font-medium flex items-center gap-1' : 'text-xs text-accent bg-accent/10 px-2 py-0.5 rounded font-medium flex items-center gap-1'}>
                           <Trophy size={10} /> {member.rank || copy.member}
                         </span>
                         <span className={isGirlsTheme ? 'text-xs text-[#A87884]' : 'text-xs text-text-tertiary'}>
                           {toNonNegativeNumber(member.total_workouts)} {copy.workouts}
                         </span>
-                        <span className={isGirlsTheme ? 'text-[11px] text-[#795E67] bg-white/55 px-2 py-0.5 rounded' : 'text-[11px] text-text-secondary bg-white/5 px-2 py-0.5 rounded'}>
+                        <span className={isGirlsTheme ? 'text-[11px] text-[#795E67] bg-white/70 border border-[#E2B4BD]/25 px-2 py-0.5 rounded' : 'text-[11px] text-text-secondary bg-white/5 px-2 py-0.5 rounded'}>
                           {copy.sameGym}
                         </span>
                       </div>
@@ -769,7 +782,7 @@ export function FriendsList({ onBack, onFriendClick }: FriendsListProps) {
                         e.stopPropagation();
                         void handleSendInvite(member);
                       }}
-                      className={isGirlsTheme ? 'px-3 py-2 rounded-lg text-xs font-semibold border border-[#F9B2D7]/60 text-[#A87884] hover:bg-[#F9B2D7]/15 disabled:opacity-60' : 'px-3 py-2 rounded-lg text-xs font-semibold border border-accent/40 text-accent hover:bg-accent/10 disabled:opacity-60'}
+                      className={isGirlsTheme ? 'px-3 py-2 rounded-lg text-xs font-semibold border border-[#F9B2D7]/65 bg-white/60 text-[#A87884] shadow-[0_8px_18px_rgba(226,180,189,0.14)] hover:bg-[#F9B2D7]/20 disabled:opacity-60' : 'px-3 py-2 rounded-lg text-xs font-semibold border border-accent/40 text-accent hover:bg-accent/10 disabled:opacity-60'}
                     >
                       {isBusy ? copy.sending : copy.sendInvite}
                     </button>
@@ -785,7 +798,7 @@ export function FriendsList({ onBack, onFriendClick }: FriendsListProps) {
                       e.stopPropagation();
                       onFriendClick(member);
                     }}
-                    className={isGirlsTheme ? 'px-3 py-2 rounded-lg text-xs font-semibold bg-[#F9B2D7] text-[#4A4A4A] hover:bg-[#E2B4BD] transition-colors inline-flex items-center gap-1' : 'px-3 py-2 rounded-lg text-xs font-semibold bg-accent text-black hover:bg-accent/90 transition-colors inline-flex items-center gap-1'}
+                    className={isGirlsTheme ? 'px-3 py-2 rounded-lg text-xs font-semibold bg-[linear-gradient(135deg,#F9B2D7,#E2B4BD)] text-[#4A4A4A] shadow-[0_10px_22px_rgba(249,178,215,0.26)] hover:brightness-[1.02] transition-colors inline-flex items-center gap-1' : 'px-3 py-2 rounded-lg text-xs font-semibold bg-accent text-black hover:bg-accent/90 transition-colors inline-flex items-center gap-1'}
                   >
                     {copy.view}
                     <ChevronRight size={14} />
@@ -794,7 +807,7 @@ export function FriendsList({ onBack, onFriendClick }: FriendsListProps) {
               )}
 
               {status === 'outgoing_pending' && (
-                <span className={isGirlsTheme ? 'px-3 py-2 rounded-lg text-xs font-semibold border border-[#E2B4BD]/45 text-[#A87884]' : 'px-3 py-2 rounded-lg text-xs font-semibold border border-white/15 text-text-secondary'}>
+                <span className={isGirlsTheme ? 'px-3 py-2 rounded-lg text-xs font-semibold border border-[#E2B4BD]/45 bg-white/55 text-[#A87884]' : 'px-3 py-2 rounded-lg text-xs font-semibold border border-white/15 text-text-secondary'}>
                   {copy.pending}
                 </span>
               )}
@@ -808,7 +821,7 @@ export function FriendsList({ onBack, onFriendClick }: FriendsListProps) {
                       e.stopPropagation();
                       void handleRespond(member, 'accept');
                     }}
-                    className="min-w-[92px] rounded-full bg-[#51df78] px-4 py-2 text-xs font-semibold text-white shadow-[0_8px_24px_rgba(81,223,120,0.35)] transition hover:bg-[#46d06c] disabled:opacity-60"
+                    className={isGirlsTheme ? 'min-w-[92px] rounded-full border border-[#E2B4BD]/45 bg-white/70 px-4 py-2 text-xs font-semibold text-[#795E67] shadow-[0_8px_20px_rgba(226,180,189,0.16)] transition hover:border-[#F9B2D7]/70 hover:bg-[#F9B2D7]/18 disabled:opacity-60' : 'min-w-[92px] rounded-full bg-[#51df78] px-4 py-2 text-xs font-semibold text-white shadow-[0_8px_24px_rgba(81,223,120,0.35)] transition hover:bg-[#46d06c] disabled:opacity-60'}
                   >
                     {copy.accept}
                   </button>

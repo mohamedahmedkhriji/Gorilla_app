@@ -23,6 +23,10 @@ export const playNotificationSound = () => {
   playSound(notificationSoundUrl);
 };
 
+export const playBadgeCelebrationSound = () => {
+  playSound(notificationSoundUrl);
+};
+
 export const playReactionSound = () => {
   playSound(reactionSoundUrl);
 };

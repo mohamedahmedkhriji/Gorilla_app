@@ -1152,8 +1152,17 @@ export function Workout({
   useEffect(() => {
     if (!openPickedPlan || loading) return;
 
-    setView(todayWorkoutSelection?.workoutKey ? 'plan' : 'overview');
-  }, [loading, openPickedPlan, todayWorkoutSelection?.workoutKey]);
+    setView(
+      todayWorkoutSelection?.workoutKey && !todayWorkoutSelection?.completed
+        ? 'plan'
+        : 'overview',
+    );
+  }, [
+    loading,
+    openPickedPlan,
+    todayWorkoutSelection?.completed,
+    todayWorkoutSelection?.workoutKey,
+  ]);
 
   const normalizeExerciseName = (name: string) => String(name || '').trim().toLowerCase();
   const isSetCompleted = (setRow: any) =>
@@ -1219,6 +1228,10 @@ export function Workout({
       todayWorkoutSelection?.completed,
       todayWorkoutSelection?.workoutKey,
     ]);
+  const hasUnfinishedPickedWorkout = !!(
+    todayWorkoutSelection?.workoutKey
+    && !todayWorkoutSelection?.completed
+  );
   const isPlanCompleted = useMemo(() => {
     const summary = programProgress?.summary;
     const totalWeeks = Number(summary?.totalWeeks || userProgram?.totalWeeks || 0);
@@ -1607,8 +1620,14 @@ export function Workout({
   }, [workoutStorageScope]);
 
   useEffect(() => {
-    setView('overview');
-  }, [resetSignal]);
+    setView(hasUnfinishedPickedWorkout ? 'plan' : 'overview');
+  }, [hasUnfinishedPickedWorkout, resetSignal]);
+
+  useEffect(() => {
+    if (loading || !hasUnfinishedPickedWorkout || view !== 'overview') return;
+
+    setView('plan');
+  }, [hasUnfinishedPickedWorkout, loading, view]);
 
   useEffect(() => {
     setPostedSummaryTokens(readPostedWorkoutSummaryTokens(workoutStorageScope));
@@ -2069,8 +2088,8 @@ export function Workout({
   }, [isArabic, isCoachPickerOpen]);
 
   useEffect(() => {
-    setView('overview');
-  }, [resetSignal]);
+    setView(hasUnfinishedPickedWorkout ? 'plan' : 'overview');
+  }, [hasUnfinishedPickedWorkout, resetSignal]);
 
   const handleNewPlanSaved = useCallback(() => {
     setIsPlanChoiceOpen(false);
@@ -3149,7 +3168,14 @@ export function Workout({
     return renderTransitionedView(
       <>
         <WorkoutPlanScreen
-          onBack={() => setView('overview')}
+          onBack={() => {
+            if (hasUnfinishedPickedWorkout && isSelectedWorkoutPickedForToday) {
+              onBack();
+              return;
+            }
+
+            setView('overview');
+          }}
           onExerciseClick={(exercise) => {
             setSelectedExercise(exercise);
             if (isSelectedWorkoutPickedForToday) {

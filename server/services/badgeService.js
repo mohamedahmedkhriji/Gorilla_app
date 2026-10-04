@@ -351,8 +351,8 @@ const ensureBadgeInfrastructure = async () => {
 
     await pool.execute(
       `INSERT INTO badges
-         (category_id, name, slug, description, rarity, is_hidden, xp_reward, points_reward, active)
-       SELECT ?, ?, ?, ?, ?, ?, ?, ?, TRUE
+         (category_id, name, slug, description, icon_url, rarity, is_hidden, xp_reward, points_reward, active)
+       SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, TRUE
        WHERE NOT EXISTS (
          SELECT 1 FROM badges WHERE slug = ?
        )`,
@@ -361,12 +361,25 @@ const ensureBadgeInfrastructure = async () => {
         badge.name,
         badge.slug,
         badge.description,
+        badge.iconUrl || null,
         badge.rarity,
         badge.isHidden ? 1 : 0,
         badge.xpReward,
         badge.pointsReward,
         badge.slug,
       ],
+    );
+
+    await pool.execute(
+      `UPDATE badges
+       SET icon_url = ?
+       WHERE slug = ?
+         AND ? IS NOT NULL
+         AND (
+           (icon_url IS NULL AND ? IS NOT NULL)
+           OR COALESCE(icon_url, '') <> COALESCE(?, '')
+         )`,
+      [badge.iconUrl || null, badge.slug, badge.iconUrl || null, badge.iconUrl || null, badge.iconUrl || null],
     );
 
     const [badgeRows] = await pool.execute(
@@ -1473,6 +1486,8 @@ const buildBadgeRecord = (row) => ({
   name: row.name || 'Badge',
   slug: row.slug || '',
   description: row.description || '',
+  iconUrl: row.icon_url || null,
+  lockedIconUrl: row.icon_url ? String(row.icon_url).replace(/(\.[^.]+)$/, '_off$1') : null,
   rarity: row.rarity || 'common',
   isHidden: !!row.is_hidden,
   xpReward: Number(row.xp_reward || 0),
@@ -1492,6 +1507,7 @@ export const evaluateAndAwardBadges = async ({ userId } = {}) => {
         b.name,
         b.slug,
         b.description,
+        b.icon_url,
         b.rarity,
         b.is_hidden,
         b.xp_reward,

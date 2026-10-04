@@ -7,6 +7,7 @@ export type AssignedBookPlan = {
 };
 
 const STORAGE_KEY = 'assignedProgramTemplate';
+const PEACH_PATTERN = /\bpeach\b|peach_4day_v1/i;
 const TANK1_PATTERN = /\btank-?1\b/i;
 const T2_PATTERN = /\bt-?2\b/i;
 const T3_PATTERN = /\bt-?3\b|plp\s*\+\s*upper\/lower|plp\s*upper\s*lower/i;
@@ -39,6 +40,14 @@ export const getAssignedBookPlan = (): AssignedBookPlan => {
 
   const candidates = getCandidateNames(program);
   const resolvedName = candidates[0] || null;
+
+  if ((program?.peachPlanConfig as { programId?: string } | undefined)?.programId === 'peach_4day_v1') {
+    return { id: 'peach', name: resolvedName };
+  }
+
+  if (candidates.some((value) => PEACH_PATTERN.test(value))) {
+    return { id: 'peach', name: resolvedName };
+  }
 
   if ((program?.premiumBulkingConfig as { planKind?: string } | undefined)?.planKind === 't2-bulk') {
     return { id: 't-2-bulk', name: resolvedName };

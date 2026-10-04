@@ -34,9 +34,93 @@ const DEFAULT_SET_TEMPLATE: Array<{ reps: number; weight: number }> = [
   { reps: 8, weight: 80 },
   { reps: 8, weight: 80 },
 ];
+const PENDING_OVERLOAD_STORAGE_KEY = 'repset:pending-overload-targets';
 const REST_WINDOW_MIN_SECONDS = 60;
 const REST_WINDOW_MAX_SECONDS = 120;
 const LCD_SEGMENTS = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'] as const;
+
+type PendingOverloadTarget = {
+  name?: string;
+  normalizedName?: string;
+  current?: string;
+  next?: string;
+};
+
+const normalizeOverloadExerciseName = (value: unknown) =>
+  String(value || '')
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+const parseFirstNumber = (value: unknown) => {
+  const match = String(value || '').match(/-?\d+(?:\.\d+)?/);
+  if (!match) return null;
+  const parsed = Number(match[0]);
+  return Number.isFinite(parsed) ? parsed : null;
+};
+
+const readPendingOverloadTarget = (exerciseName: string): PendingOverloadTarget | null => {
+  if (typeof window === 'undefined') return null;
+  const normalizedName = normalizeOverloadExerciseName(exerciseName);
+  if (!normalizedName) return null;
+
+  try {
+    const targets = JSON.parse(localStorage.getItem(PENDING_OVERLOAD_STORAGE_KEY) || '{}') || {};
+    const direct = targets[normalizedName];
+    if (direct) return direct;
+
+    const matchedKey = Object.keys(targets).find((key) => (
+      key === normalizedName
+      || key.includes(normalizedName)
+      || normalizedName.includes(key)
+    ));
+    return matchedKey ? targets[matchedKey] : null;
+  } catch {
+    return null;
+  }
+};
+
+const consumePendingOverloadTarget = (exerciseName: string) => {
+  if (typeof window === 'undefined') return;
+  const normalizedName = normalizeOverloadExerciseName(exerciseName);
+  if (!normalizedName) return;
+
+  try {
+    const targets = JSON.parse(localStorage.getItem(PENDING_OVERLOAD_STORAGE_KEY) || '{}') || {};
+    const matchedKey = Object.keys(targets).find((key) => (
+      key === normalizedName
+      || key.includes(normalizedName)
+      || normalizedName.includes(key)
+    ));
+    if (!matchedKey) return;
+    delete targets[matchedKey];
+    localStorage.setItem(PENDING_OVERLOAD_STORAGE_KEY, JSON.stringify(targets));
+  } catch {
+    // Ignore malformed local data.
+  }
+};
+
+const applyPendingOverloadToSets = (sourceSets: SetData[], target: PendingOverloadTarget | null) => {
+  if (!target || !Array.isArray(sourceSets) || sourceSets.length === 0) return sourceSets;
+  const nextText = String(target.next || '').toLowerCase();
+  const currentText = String(target.current || '').toLowerCase();
+  const delta = parseFirstNumber(nextText);
+  if (delta == null || delta <= 0) return sourceSets;
+
+  const isRepTarget = nextText.includes('rep') || currentText.includes('rep');
+  const isWeightTarget = nextText.includes('kg') || currentText.includes('kg');
+  const currentValue = parseFirstNumber(target.current);
+  const targetValue = currentValue != null ? currentValue + delta : delta;
+
+  return sourceSets.map((set) => {
+    if (set.completed) return set;
+    if (isRepTarget) return { ...set, reps: Math.max(0, Math.round(targetValue)) };
+    if (isWeightTarget) return { ...set, weight: Math.max(0, Number(targetValue.toFixed(1))) };
+    return set;
+  });
+};
 
 const renderLcdDigits = (value: string) => (
   value.split('').map((digit, index) => (
@@ -51,6 +135,88 @@ const renderLcdDigits = (value: string) => (
     )
   ))
 );
+
+const getBarbellPlateSet = (weight: number) => {
+  const safeWeight = Number.isFinite(weight) ? Math.max(0, weight) : 0;
+  if (safeWeight > 50) {
+    return [
+      { key: 'heavy-teal', x: 10, width: 15, height: 36, fill: 'url(#barbellTeal)' },
+      { key: 'heavy-gold', x: 25, width: 8, height: 32, fill: 'url(#barbellGold)' },
+      { key: 'heavy-red', x: 33, width: 9, height: 35, fill: 'url(#barbellRed)' },
+    ];
+  }
+
+  if (safeWeight >= 20) {
+    return [
+      { key: 'medium-teal', x: 13, width: 15, height: 35, fill: 'url(#barbellTeal)' },
+      { key: 'medium-gold', x: 28, width: 9, height: 30, fill: 'url(#barbellGold)' },
+    ];
+  }
+
+  return [
+    { key: 'light-teal', x: 18, width: 16, height: 34, fill: 'url(#barbellTeal)' },
+  ];
+};
+
+function BarbellSliderThumb({ weight }: { weight: number }) {
+  const plates = getBarbellPlateSet(weight);
+  const collarX = Math.max(...plates.map((plate) => plate.x + plate.width)) + 2;
+
+  return (
+    <svg className="barbell-thumb-svg" viewBox="0 0 92 46" aria-hidden="true" focusable="false">
+      <defs>
+        <linearGradient id="barbellSteel" x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0" stopColor="#7b8491" />
+          <stop offset="0.42" stopColor="#f3f6f9" />
+          <stop offset="1" stopColor="#8c96a3" />
+        </linearGradient>
+        <linearGradient id="barbellDarkSteel" x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0" stopColor="#394150" />
+          <stop offset="0.48" stopColor="#d8dde5" />
+          <stop offset="1" stopColor="#404958" />
+        </linearGradient>
+        <linearGradient id="barbellTeal" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0" stopColor="#08959c" />
+          <stop offset="1" stopColor="#05656e" />
+        </linearGradient>
+        <linearGradient id="barbellGold" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0" stopColor="#ffd84f" />
+          <stop offset="1" stopColor="#d69a11" />
+        </linearGradient>
+        <linearGradient id="barbellBlue" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0" stopColor="#2f7fd7" />
+          <stop offset="1" stopColor="#1e4f9a" />
+        </linearGradient>
+        <linearGradient id="barbellRed" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0" stopColor="#e44755" />
+          <stop offset="1" stopColor="#a91f2e" />
+        </linearGradient>
+      </defs>
+      <ellipse cx="30" cy="40" rx="23" ry="4" fill="rgba(0,0,0,0.22)" />
+      <rect x={collarX + 2} y="21" width="50" height="4" rx="2" fill="url(#barbellSteel)" />
+      <rect x={collarX - 1} y="15" width="8" height="16" rx="3" fill="url(#barbellDarkSteel)" />
+      <circle cx={collarX + 3} cy="23" r="5.5" fill="url(#barbellSteel)" stroke="rgba(255,255,255,0.62)" strokeWidth="0.8" />
+      {plates.map((plate) => (
+        <rect
+          key={plate.key}
+          x={plate.x}
+          y={(46 - plate.height) / 2}
+          width={plate.width}
+          height={plate.height}
+          rx="3"
+          fill={plate.fill}
+          stroke="rgba(5,12,20,0.38)"
+          strokeWidth="0.8"
+        />
+      ))}
+      <rect x={collarX - 7} y="13" width="6" height="20" rx="2.5" fill="url(#barbellSteel)" stroke="rgba(5,12,20,0.25)" strokeWidth="0.7" />
+      <circle cx="13" cy="23" r="2.5" fill="#141922" stroke="#d9e0e8" strokeWidth="0.8" />
+      <circle cx="7" cy="20" r="2.2" fill="#141922" stroke="#d9e0e8" strokeWidth="0.8" />
+      <circle cx="7" cy="26" r="2.2" fill="#141922" stroke="#d9e0e8" strokeWidth="0.8" />
+      <path d="M14 17c4-4 9-6 15-6" stroke="rgba(255,255,255,0.34)" strokeWidth="1.4" strokeLinecap="round" />
+    </svg>
+  );
+}
 
 type HistorySetRow = {
   setNumber: number;
@@ -486,11 +652,23 @@ export function TrackerScreen({
 
   useEffect(() => {
     hasLocalEditsRef.current = false;
+    const pendingOverloadTarget = readPendingOverloadTarget(exerciseName);
     if (savedSets && savedSets.length > 0) {
-      setSets(savedSets);
+      const nextSets = applyPendingOverloadToSets(savedSets, pendingOverloadTarget);
+      setSets(nextSets);
+      if (pendingOverloadTarget && nextSets !== savedSets) {
+        onSaveSets?.(nextSets);
+        consumePendingOverloadTarget(exerciseName);
+      }
       return;
     }
-    setSets(createInitialSets(plannedSets));
+    const initialSets = createInitialSets(plannedSets);
+    const nextSets = applyPendingOverloadToSets(initialSets, pendingOverloadTarget);
+    setSets(nextSets);
+    if (pendingOverloadTarget && nextSets !== initialSets) {
+      onSaveSets?.(nextSets);
+      consumePendingOverloadTarget(exerciseName);
+    }
   }, [exerciseName, plannedSets, savedSets]);
 
   useEffect(() => {
@@ -512,9 +690,11 @@ export function TrackerScreen({
         const latestSets = getLatestHistorySets(normalizedHistory);
         if (latestSets.length === 0) return;
 
-        const prefilled = buildPrefilledSets(plannedSets, latestSets);
+        const pendingOverloadTarget = readPendingOverloadTarget(exerciseName);
+        const prefilled = applyPendingOverloadToSets(buildPrefilledSets(plannedSets, latestSets), pendingOverloadTarget);
         setSets(prefilled);
         onSaveSets?.(prefilled);
+        if (pendingOverloadTarget) consumePendingOverloadTarget(exerciseName);
       } catch (error) {
         // Ignore history load failures, fallback to defaults.
         setHistoryRows([]);
@@ -1212,7 +1392,8 @@ export function TrackerScreen({
                     <input
                       type="number"
                       value={set.weight}
-                      onChange={(e) => updateSet(index, 'weight', parseInt(e.target.value) || 0)}
+                      step="0.5"
+                      onChange={(e) => updateSet(index, 'weight', parseFloat(e.target.value) || 0)}
                       disabled={set.completed}
                       className={setInputClassName}
                     />
@@ -1225,8 +1406,9 @@ export function TrackerScreen({
                               type="range"
                               min="0"
                               max="200"
+                              step="0.5"
                               value={set.weight}
-                              onChange={(e) => updateSet(index, 'weight', parseInt(e.target.value))}
+                              onChange={(e) => updateSet(index, 'weight', parseFloat(e.target.value))}
                               disabled={set.completed}
                               className="barbell-slider-hit absolute inset-y-0 left-6 right-0 z-20 h-full w-auto cursor-pointer opacity-0 disabled:cursor-not-allowed"
                               aria-label={copy.setWeightAria(set.set)}
@@ -1235,8 +1417,7 @@ export function TrackerScreen({
                               <div className="barbell-track-fill" style={{ width: `${sliderPercent}%` }} />
                               <div className="barbell-track-remainder" style={{ left: `${sliderPercent}%` }} />
                               <div className="barbell-knob" style={{ left: `${sliderPercent}%` }}>
-                                <span className="plate plate-red" />
-                                <span className="plate plate-steel" />
+                                <BarbellSliderThumb weight={set.weight} />
                               </div>
                             </div>
                           </>
@@ -1375,30 +1556,16 @@ export function TrackerScreen({
           transform: translate(-50%, -50%);
           display: flex;
           align-items: center;
-          gap: 0;
-          filter: drop-shadow(0 3px 5px rgba(0, 0, 0, 0.45));
+          width: 92px;
+          height: 46px;
+          margin-left: 4px;
         }
 
-        .barbell-knob .plate {
-          display: inline-block;
-          border-radius: 2px;
-          border: 1px solid rgba(255, 255, 255, 0.22);
-        }
-
-        .barbell-knob .plate-red {
-          width: 11px;
-          height: 33px;
-          background: linear-gradient(180deg, #ff7a7a, #ef4444 65%, #b91c1c);
-          z-index: 2;
-        }
-
-        .barbell-knob .plate-steel {
-          width: 8px;
-          height: 25px;
-          margin-left: -1px;
-          border-color: rgba(255, 255, 255, 0.2);
-          background: linear-gradient(180deg, #374151, #1f2937 60%, #111827);
-          z-index: 1;
+        .barbell-thumb-svg {
+          display: block;
+          width: 92px;
+          height: 46px;
+          overflow: visible;
         }
 
         .barbell-slider-hit:focus-visible + .barbell-track-shell {

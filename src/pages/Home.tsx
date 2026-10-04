@@ -1,8 +1,8 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Apple, ArrowLeft, Bell, Bot, BookOpen, Check, ChevronRight, Crown, Gamepad2, LoaderCircle, MoonStar, Search, ShoppingBag, X, type LucideIcon } from 'lucide-react';
+import { Barbell, CirclesThree } from '@phosphor-icons/react';
 import { CoachmarkOverlay, type CoachmarkStep } from '../components/coachmarks/CoachmarkOverlay';
 import { WorkoutCard } from '../components/dashboard/WorkoutCard';
-import { RecoveryIndicator } from '../components/dashboard/RecoveryIndicator';
 import { FriendsList, FriendMember } from './FriendsList';
 import { FriendProfile } from './FriendProfile';
 import { CoachList } from './CoachList';
@@ -342,30 +342,427 @@ interface HomeQuickActionButtonProps {
   onClick: () => void;
   coachmarkTargetId?: string;
   isGirlsTheme?: boolean;
+  tone?: 'lime' | 'amber' | 'sky' | 'rose';
+  peekVariant?: 'default' | 'books' | 'gym' | 'nutrition';
 }
 
-function HomeQuickActionButton({ label, Icon, onClick, coachmarkTargetId, isGirlsTheme = false }: HomeQuickActionButtonProps) {
+function HomeQuickActionButton({ label, Icon: _Icon, onClick, coachmarkTargetId, isGirlsTheme = false, tone = 'lime', peekVariant = 'default' }: HomeQuickActionButtonProps) {
+  const toneClasses = {
+    lime: isGirlsTheme
+      ? {
+          peekLeft: 'bg-[#F5D2C4] text-[#E2B4BD]',
+          peekMid: 'bg-[#CFECF3] text-[#6D9DAA]',
+          peekRight: 'bg-[#D9C8F4] text-[#8B76C8]',
+          front: 'border-[#E2B4BD]/45 bg-gradient-to-b from-[#FFF8F8] to-[#FFECEF]',
+          before: 'bg-[#FFF8F8]',
+          text: 'text-[#4A4A4A]',
+          muted: 'text-[#A87884]',
+        }
+      : {
+          peekLeft: 'bg-[#2a3a28] text-[#a6d96a]',
+          peekMid: 'bg-[#342b1d] text-[#d39a32]',
+          peekRight: 'bg-[#22303e] text-[#e8edf2]',
+          front: 'border-white/10 bg-gradient-to-b from-[#182737] to-[#152231]',
+          before: 'bg-[#182737]',
+          text: 'text-[#f4f7fb]',
+          muted: 'text-[#93a3b5]',
+        },
+    amber: isGirlsTheme
+      ? {
+          peekLeft: 'bg-[#FFE1C2] text-[#D89C57]',
+          peekMid: 'bg-[#F4B7C6] text-[#C97998]',
+          peekRight: 'bg-[#D8C2F2] text-[#8B76C8]',
+          front: 'border-[#E2B4BD]/45 bg-gradient-to-b from-[#FFF8F8] to-[#FFECEF]',
+          before: 'bg-[#FFF8F8]',
+          text: 'text-[#4A4A4A]',
+          muted: 'text-[#A87884]',
+        }
+      : {
+          peekLeft: 'bg-[#332818] text-[#f6d26b]',
+          peekMid: 'bg-[#2f2b1c] text-[#d39a32]',
+          peekRight: 'bg-[#22303e] text-[#e8edf2]',
+          front: 'border-white/10 bg-gradient-to-b from-[#182737] to-[#152231]',
+          before: 'bg-[#182737]',
+          text: 'text-[#f4f7fb]',
+          muted: 'text-[#93a3b5]',
+        },
+    sky: isGirlsTheme
+      ? {
+          peekLeft: 'bg-[#CFECF3] text-[#6D9DAA]',
+          peekMid: 'bg-[#D8C2F2] text-[#8B76C8]',
+          peekRight: 'bg-[#F4B7C6] text-[#C97998]',
+          front: 'border-[#E2B4BD]/45 bg-gradient-to-b from-[#FFF8F8] to-[#FFECEF]',
+          before: 'bg-[#FFF8F8]',
+          text: 'text-[#4A4A4A]',
+          muted: 'text-[#A87884]',
+        }
+      : {
+          peekLeft: 'bg-[#1e3444] text-[#8ac7ff]',
+          peekMid: 'bg-[#262d42] text-[#a9a2ff]',
+          peekRight: 'bg-[#22303e] text-[#e8edf2]',
+          front: 'border-white/10 bg-gradient-to-b from-[#182737] to-[#152231]',
+          before: 'bg-[#182737]',
+          text: 'text-[#f4f7fb]',
+          muted: 'text-[#93a3b5]',
+        },
+    rose: isGirlsTheme
+      ? {
+          peekLeft: 'bg-[#F9B2D7] text-[#D983AD]',
+          peekMid: 'bg-[#CFECF3] text-[#6D9DAA]',
+          peekRight: 'bg-[#FFE1C2] text-[#D89C57]',
+          front: 'border-[#E2B4BD]/45 bg-gradient-to-b from-[#FFF8F8] to-[#FFECEF]',
+          before: 'bg-[#FFF8F8]',
+          text: 'text-[#4A4A4A]',
+          muted: 'text-[#A87884]',
+        }
+      : {
+          peekLeft: 'bg-[#3c202a] text-[#ff9ab0]',
+          peekMid: 'bg-[#1f3940] text-[#85d7df]',
+          peekRight: 'bg-[#342b1d] text-[#d39a32]',
+          front: 'border-white/10 bg-gradient-to-b from-[#182737] to-[#152231]',
+          before: 'bg-[#182737]',
+          text: 'text-[#f4f7fb]',
+          muted: 'text-[#93a3b5]',
+        },
+  }[tone];
+
   return (
     <button
       type="button"
       data-coachmark-target={coachmarkTargetId}
       onClick={onClick}
-      className={isGirlsTheme
-        ? 'group flex min-h-[48px] w-full items-center gap-3 rounded-xl border border-[#E2B4BD]/55 bg-white/72 px-3.5 py-3 text-left shadow-[inset_0_1px_0_rgba(255,255,255,0.78),0_12px_28px_rgba(226,180,189,0.14)] transition-all duration-200 hover:border-[#F9B2D7]/75 hover:bg-[#FFF5F5] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#F9B2D7]'
-        : 'group flex min-h-[48px] w-full items-center gap-3 rounded-xl border border-white/10 bg-[#111b2a]/90 px-3.5 py-3 text-left shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] transition-all duration-200 hover:border-accent/35 hover:bg-[#142032] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent'}
+      className={`group relative h-[118px] w-full overflow-visible bg-transparent p-0 text-left transition-transform duration-200 hover:-translate-y-0.5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 ${isGirlsTheme ? 'focus-visible:outline-[#F9B2D7]' : 'focus-visible:outline-accent'}`}
     >
-      <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${isGirlsTheme ? 'text-[#E2B4BD]' : 'text-accent'}`}>
-        <Icon size={22} strokeWidth={2.1} aria-hidden="true" />
+      <span className="relative mx-auto block h-full w-full max-w-[142px]">
+        <span className="absolute left-1/2 top-0 h-[58px] w-[116px] -translate-x-1/2" aria-hidden="true">
+          <MiniPeekIcon className={`left-0 top-2.5 z-[1] -rotate-[7deg] ${toneClasses.peekLeft}`}>
+            {peekVariant === 'books' ? <OpenBookIcon size={35} /> : peekVariant === 'gym' ? <GymMachineIcon size={34} /> : peekVariant === 'nutrition' ? <BananaIcon size={35} /> : <ControllerIcon size={34} />}
+          </MiniPeekIcon>
+          <MiniPeekIcon className={`left-[41px] top-[7px] z-[2] rotate-[5deg] ${toneClasses.peekMid}`}>
+            {peekVariant === 'books' ? <SingleBookIcon size={34} /> : peekVariant === 'nutrition' ? <KcalFlameIcon size={34} /> : <CirclesThree weight="bold" size={21} />}
+          </MiniPeekIcon>
+          <MiniPeekIcon className={`left-[33px] top-0 z-[3] -rotate-1 ${toneClasses.peekRight}`}>
+            {peekVariant === 'books' ? <BookStackIcon size={35} /> : <Barbell weight="bold" size={21} />}
+          </MiniPeekIcon>
+        </span>
+        <span
+          className={`absolute inset-x-0 bottom-0 h-[68px] rounded-b-2xl border px-3.5 pb-3 pt-[19px] shadow-[0_-6px_10px_rgba(0,0,0,0.22),0_10px_22px_rgba(0,0,0,0.16)] transition-all duration-200 group-hover:brightness-110 ${toneClasses.front}`}
+        >
+          <span className={`absolute inset-x-[-1px] -top-4 -z-[1] h-8 rounded-t-2xl ${toneClasses.before}`} aria-hidden="true" />
+          <span className={`relative block truncate text-[14px] font-extrabold leading-none tracking-[0.01em] ${toneClasses.text}`}>
+            {label}
+          </span>
+          <span className={`relative mt-[15px] block h-1 w-1 rounded-full ${isGirlsTheme ? 'bg-[#A87884]/50' : 'bg-white/45'}`} aria-hidden="true" />
+        </span>
       </span>
-      <span className={`min-w-0 flex-1 truncate text-[15px] font-electrolize font-semibold ${isGirlsTheme ? 'text-[#4A4A4A]' : 'text-text-primary'}`}>
-        {label}
-      </span>
-      <ChevronRight
-        size={18}
-        aria-hidden="true"
-        className={`shrink-0 transition-transform duration-200 group-hover:translate-x-0.5 ${isGirlsTheme ? 'text-[#A87884] group-hover:text-[#E2B4BD]' : 'text-text-secondary group-hover:text-accent'}`}
-      />
     </button>
+  );
+}
+
+function MiniPeekIcon({ children, className }: { children: React.ReactNode; className: string }) {
+  return (
+    <span
+      className={`absolute flex h-[54px] w-[50px] items-start justify-center rounded-xl pt-[10px] shadow-[0_2px_6px_rgba(0,0,0,0.35)] ring-1 ring-white/5 transition-transform duration-200 group-hover:-translate-y-1 ${className}`}
+    >
+      {children}
+    </span>
+  );
+}
+
+function ControllerIcon({ size = 64 }: { size?: number }) {
+  const gradientId = React.useId().replace(/:/g, '');
+
+  return (
+    <svg
+      width={size}
+      height={size * 0.72}
+      viewBox="0 0 120 86"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      aria-hidden="true"
+    >
+      <ellipse cx="60" cy="79" rx="43" ry="5" fill="rgba(0,0,0,0.18)" />
+      <path
+        d="M24 13C14 16 9 31 6 50C4 64 7 75 16 78C24 81 29 73 34 62C37 56 41 53 48 53H72C79 53 83 56 86 62C91 73 96 81 104 78C113 75 116 64 114 50C111 31 106 16 96 13C87 10 78 16 72 22H48C42 16 33 10 24 13Z"
+        fill={`url(#${gradientId})`}
+      />
+      <path d="M42 28H78L86 52H34L42 28Z" fill="#171D26" />
+      <path d="M44 18H76L72 27H48L44 18Z" fill="#8BB8FF" />
+      <circle cx="43" cy="55" r="11" fill="#202938" />
+      <circle cx="43" cy="55" r="7" fill="#111722" />
+      <circle cx="77" cy="55" r="11" fill="#202938" />
+      <circle cx="77" cy="55" r="7" fill="#111722" />
+      <rect x="22" y="37" width="7" height="22" rx="3" fill="#DDE5F2" stroke="#9AA6B8" />
+      <rect x="15" y="44" width="22" height="7" rx="3" fill="#DDE5F2" stroke="#9AA6B8" />
+      <circle cx="94" cy="38" r="5" fill="#E8EEF8" stroke="#9AA6B8" />
+      <circle cx="103" cy="47" r="5" fill="#E8EEF8" stroke="#9AA6B8" />
+      <circle cx="85" cy="47" r="5" fill="#E8EEF8" stroke="#9AA6B8" />
+      <circle cx="94" cy="56" r="5" fill="#E8EEF8" stroke="#9AA6B8" />
+      {[0, 1, 2, 3, 4].map((i) => (
+        <circle key={`top-${i}`} cx={54 + i * 3} cy="43" r="1" fill="#0E141D" />
+      ))}
+      {[0, 1, 2].map((i) => (
+        <circle key={`bottom-${i}`} cx={57 + i * 3} cy="47" r="1" fill="#0E141D" />
+      ))}
+      <defs>
+        <linearGradient id={gradientId} x1="60" y1="10" x2="60" y2="80">
+          <stop stopColor="#F5F8FF" />
+          <stop offset="1" stopColor="#C8D1DE" />
+        </linearGradient>
+      </defs>
+    </svg>
+  );
+}
+
+function GymMachineIcon({ size = 64 }: { size?: number }) {
+  const towerGradientId = React.useId().replace(/:/g, '');
+  const padGradientId = React.useId().replace(/:/g, '');
+
+  return (
+    <svg
+      width={size}
+      height={size * 0.72}
+      viewBox="0 0 120 86"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      aria-hidden="true"
+    >
+      <ellipse cx="60" cy="79" rx="42" ry="5" fill="rgba(0,0,0,0.18)" />
+      <path d="M28 74H91" stroke="#111722" strokeWidth="5" strokeLinecap="round" />
+      <path d="M36 74C34 63 39 54 47 49" stroke="#111722" strokeWidth="5" strokeLinecap="round" />
+      <path d="M35 21L47 13H61V73H35V21Z" fill={`url(#${towerGradientId})`} stroke="#0D1118" strokeWidth="3" strokeLinejoin="round" />
+      <path d="M42 25H55M42 32H55M42 39H55" stroke="#2F3745" strokeWidth="1.4" strokeLinecap="round" opacity="0.85" />
+      <path d="M38 23H42V63H38V23Z" fill="#C84F4A" opacity="0.78" />
+      <path d="M57 18H75V23H57V18Z" fill="#1B2430" />
+      <path d="M74 21V68" stroke="#111722" strokeWidth="4" strokeLinecap="round" />
+      <path d="M31 16L52 28H91" stroke="#111722" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M89 28V41" stroke="#111722" strokeWidth="4" strokeLinecap="round" />
+      <path d="M82 42H96V51" stroke="#111722" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M74 21L101 17" stroke="#111722" strokeWidth="4" strokeLinecap="round" />
+      <path d="M101 17L109 21" stroke="#111722" strokeWidth="4" strokeLinecap="round" />
+      <path d="M52 30H69C75 30 80 35 80 41V45H58C54 45 52 42 52 38V30Z" fill="#202938" stroke="#0D1118" strokeWidth="3" />
+      <rect x="52" y="42" width="18" height="29" rx="4" fill={`url(#${padGradientId})`} stroke="#111722" strokeWidth="3" transform="rotate(-4 52 42)" />
+      <path d="M67 65H87" stroke="#111722" strokeWidth="5" strokeLinecap="round" />
+      <path d="M86 65C91 60 94 61 96 66" stroke="#111722" strokeWidth="4" strokeLinecap="round" />
+      <path d="M84 72H98" stroke="#111722" strokeWidth="4" strokeLinecap="round" />
+      <circle cx="91" cy="63" r="3" fill="#DDE5F2" stroke="#111722" strokeWidth="2" />
+      <path d="M31 74L22 79M86 74L100 79" stroke="#111722" strokeWidth="4" strokeLinecap="round" />
+      <defs>
+        <linearGradient id={towerGradientId} x1="35" y1="13" x2="62" y2="73">
+          <stop stopColor="#2A313C" />
+          <stop offset="1" stopColor="#0E131B" />
+        </linearGradient>
+        <linearGradient id={padGradientId} x1="61" y1="42" x2="61" y2="71">
+          <stop stopColor="#6B7280" />
+          <stop offset="1" stopColor="#343B49" />
+        </linearGradient>
+      </defs>
+    </svg>
+  );
+}
+
+function SingleBookIcon({ size = 64 }: { size?: number }) {
+  const coverGradientId = React.useId().replace(/:/g, '');
+  const fruitGradientId = React.useId().replace(/:/g, '');
+
+  return (
+    <svg
+      width={size}
+      height={size * 0.72}
+      viewBox="0 0 120 86"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      aria-hidden="true"
+    >
+      <ellipse cx="62" cy="74" rx="42" ry="6" fill="rgba(0,0,0,0.18)" />
+      <path d="M21 28L70 12L104 31L55 49L21 28Z" fill={`url(#${coverGradientId})`} />
+      <path d="M55 49L104 31V40L55 59V49Z" fill="#C9D2DC" />
+      <path d="M21 28L55 49V59L21 38V28Z" fill="#151C25" />
+      <path d="M26 29L70 15L97 31L54 46L26 29Z" fill="#121922" stroke="#2E3A46" strokeWidth="1.5" />
+      <path d="M57 51L101 35" stroke="#8995A4" strokeWidth="1" opacity="0.55" />
+      <path d="M57 55L99 39" stroke="#8995A4" strokeWidth="1" opacity="0.35" />
+      <text x="36" y="28" fill="#E8EEF8" fontSize="6" fontWeight="700" transform="rotate(-17 36 28)">
+        NUTRITION
+      </text>
+      {[
+        [61, 30, 5, '#D93B2E'],
+        [73, 32, 4, '#F4B13A'],
+        [82, 30, 3, '#7DBA45'],
+        [66, 39, 4, '#EE6B3B'],
+        [77, 41, 5, '#C52E28'],
+        [88, 38, 3, '#F0C84D'],
+        [52, 36, 3, '#7DBA45'],
+      ].map(([cx, cy, r, color], index) => (
+        <circle key={index} cx={cx} cy={cy} r={r} fill={String(color)} stroke="#101720" strokeWidth="1" />
+      ))}
+      <circle cx="70" cy="35" r="13" fill={`url(#${fruitGradientId})`} opacity="0.25" />
+      <defs>
+        <linearGradient id={coverGradientId} x1="26" y1="18" x2="96" y2="45">
+          <stop stopColor="#263342" />
+          <stop offset="1" stopColor="#0C1219" />
+        </linearGradient>
+        <radialGradient id={fruitGradientId} cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(67 31) rotate(51.34) scale(17.8045 20.7299)">
+          <stop stopColor="#FFFFFF" />
+          <stop offset="1" stopColor="#FFFFFF" stopOpacity="0" />
+        </radialGradient>
+      </defs>
+    </svg>
+  );
+}
+
+function OpenBookIcon({ size = 64 }: { size?: number }) {
+  const coverGradientId = React.useId().replace(/:/g, '');
+
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 120 120"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      aria-hidden="true"
+    >
+      <ellipse cx="60" cy="107" rx="39" ry="5" fill="rgba(0,0,0,0.16)" />
+      <path d="M12 28L55 53V105L12 81V28Z" fill={`url(#${coverGradientId})`} stroke="#050505" strokeWidth="6" strokeLinejoin="round" />
+      <path d="M108 28L65 53V105L108 81V28Z" fill={`url(#${coverGradientId})`} stroke="#050505" strokeWidth="6" strokeLinejoin="round" />
+      <path d="M55 53C44 50 32 43 22 37L25 19C40 21 52 31 60 45C68 31 80 21 95 19L98 37C88 43 76 50 65 53H55Z" fill="#FFF8EC" stroke="#050505" strokeWidth="6" strokeLinejoin="round" />
+      <path d="M60 45C55 30 45 17 33 10L29 29C40 34 50 42 55 53" fill="#FFF8EC" stroke="#050505" strokeWidth="6" strokeLinejoin="round" />
+      <path d="M60 45C65 30 75 17 87 10L91 29C80 34 70 42 65 53" fill="#FFF8EC" stroke="#050505" strokeWidth="6" strokeLinejoin="round" />
+      <path d="M55 53H65V106C62 107 58 107 55 106V53Z" fill="#F3A51C" stroke="#050505" strokeWidth="6" strokeLinejoin="round" />
+      <path d="M64 54V106" stroke="#B86D08" strokeWidth="2" opacity="0.55" />
+      <rect x="79" y="52" width="27" height="17" rx="2" transform="rotate(-27 79 52)" fill="#F8FBFF" stroke="#050505" strokeWidth="5" />
+      <path d="M18 34V78" stroke="#FFD071" strokeWidth="3" opacity="0.75" />
+      <path d="M24 38V82" stroke="#FFD071" strokeWidth="2" opacity="0.45" />
+      <path d="M60 67V87" stroke="#050505" strokeWidth="5" strokeLinecap="round" />
+      <path d="M60 96V100" stroke="#050505" strokeWidth="5" strokeLinecap="round" />
+      <defs>
+        <linearGradient id={coverGradientId} x1="12" y1="28" x2="108" y2="105">
+          <stop stopColor="#FFC247" />
+          <stop offset="1" stopColor="#F0A018" />
+        </linearGradient>
+      </defs>
+    </svg>
+  );
+}
+
+function BananaIcon({ size = 64 }: { size?: number }) {
+  const peelGradientId = React.useId().replace(/:/g, '');
+
+  return (
+    <svg
+      width={size}
+      height={size * 0.72}
+      viewBox="0 0 120 86"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      aria-hidden="true"
+    >
+      <ellipse cx="58" cy="76" rx="41" ry="5" fill="rgba(0,0,0,0.15)" />
+      <path
+        d="M16 55C36 70 69 73 95 46C104 37 110 26 111 16C111 13 107 11 105 14C94 29 84 41 67 49C47 58 31 58 18 49C14 46 11 52 16 55Z"
+        fill={`url(#${peelGradientId})`}
+        stroke="#9A6A08"
+        strokeWidth="3"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M18 49C35 59 55 59 75 47C87 40 96 30 105 15"
+        stroke="#FFE07A"
+        strokeWidth="7"
+        strokeLinecap="round"
+        opacity="0.75"
+      />
+      <path d="M14 51C12 46 15 42 20 44L24 49C21 52 18 53 14 51Z" fill="#5A3A16" />
+      <path d="M105 13C109 8 115 9 116 14C113 17 111 18 108 18Z" fill="#6B4A24" />
+      <path d="M31 58C49 65 72 59 89 42" stroke="#D99A16" strokeWidth="2" strokeLinecap="round" opacity="0.6" />
+      <circle cx="29" cy="54" r="1.4" fill="#8A5B09" opacity="0.7" />
+      <circle cx="41" cy="61" r="1" fill="#8A5B09" opacity="0.55" />
+      <circle cx="84" cy="42" r="1.1" fill="#8A5B09" opacity="0.5" />
+      <defs>
+        <linearGradient id={peelGradientId} x1="17" y1="59" x2="111" y2="14">
+          <stop stopColor="#F7B51E" />
+          <stop offset="0.52" stopColor="#FFD759" />
+          <stop offset="1" stopColor="#F4B329" />
+        </linearGradient>
+      </defs>
+    </svg>
+  );
+}
+
+function KcalFlameIcon({ size = 64 }: { size?: number }) {
+  const flameGradientId = React.useId().replace(/:/g, '');
+  const coreGradientId = React.useId().replace(/:/g, '');
+
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 120 120"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      aria-hidden="true"
+    >
+      <ellipse cx="60" cy="106" rx="34" ry="5" fill="rgba(0,0,0,0.14)" />
+      <path
+        d="M59 108C35 103 21 85 25 63C28 45 42 39 46 22C47 16 55 15 59 20C70 34 77 45 77 61C83 54 86 44 86 34C86 28 94 27 98 33C111 52 109 78 95 94C87 103 75 109 59 108Z"
+        fill={`url(#${flameGradientId})`}
+      />
+      <path
+        d="M33 82C24 65 30 50 44 42C42 52 38 60 43 69C46 55 55 46 66 42C61 57 70 61 76 70C82 64 85 57 85 48C96 66 93 93 69 103C55 109 41 99 33 82Z"
+        fill="#FFE57D"
+        opacity="0.72"
+      />
+      <circle cx="61" cy="73" r="29" fill={`url(#${coreGradientId})`} />
+      <text x="60" y="82" textAnchor="middle" fill="#F8FBFF" fontSize="25" fontWeight="900" fontFamily="Arial, sans-serif">
+        kcal
+      </text>
+      <defs>
+        <linearGradient id={flameGradientId} x1="25" y1="18" x2="103" y2="104">
+          <stop stopColor="#FFF3A3" />
+          <stop offset="0.48" stopColor="#FFD75B" />
+          <stop offset="1" stopColor="#FF9E1B" />
+        </linearGradient>
+        <linearGradient id={coreGradientId} x1="32" y1="52" x2="91" y2="96">
+          <stop stopColor="#FF5E83" />
+          <stop offset="1" stopColor="#FF3F67" />
+        </linearGradient>
+      </defs>
+    </svg>
+  );
+}
+
+function BookStackIcon({ size = 64 }: { size?: number }) {
+  return (
+    <svg
+      width={size}
+      height={size * 0.72}
+      viewBox="0 0 120 86"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      aria-hidden="true"
+    >
+      <ellipse cx="60" cy="76" rx="45" ry="5" fill="rgba(0,0,0,0.16)" />
+      <BookLayer x={18} y={55} width={82} color="#2D8BEA" />
+      <BookLayer x={22} y={44} width={74} color="#24A148" />
+      <BookLayer x={16} y={34} width={80} color="#D7292F" />
+      <BookLayer x={25} y={24} width={66} color="#A45BC7" />
+      <BookLayer x={31} y={14} width={58} color="#F28C18" />
+      <BookLayer x={39} y={5} width={46} color="#3BBED0" />
+    </svg>
+  );
+}
+
+function BookLayer({ x, y, width, color }: { x: number; y: number; width: number; color: string }) {
+  const height = 12;
+  const right = x + width;
+
+  return (
+    <g>
+      <path d={`M${x} ${y}H${right - 7}C${right - 2} ${y} ${right} ${y + 2} ${right} ${y + 5}V${y + height - 2}H${x + 5}C${x + 1} ${y + height - 2} ${x - 1} ${y + height - 4} ${x} ${y + height - 8}V${y}Z`} fill={color} />
+      <path d={`M${x + 5} ${y + 4}H${right}V${y + height + 2}H${x + 5}C${x + 1} ${y + height + 2} ${x - 1} ${y + height} ${x} ${y + height - 4}C${x + 1} ${y + 6} ${x + 2} ${y + 4} ${x + 5} ${y + 4}Z`} fill="#EEF3F8" />
+      <path d={`M${x + 8} ${y + 7}H${right - 4}M${x + 8} ${y + 10}H${right - 7}`} stroke="#BAC4CF" strokeWidth="1" opacity="0.65" />
+      <path d={`M${x + 2} ${y + 1}H${right - 6}C${right - 2} ${y + 1} ${right} ${y + 3} ${right} ${y + 6}`} stroke="rgba(255,255,255,0.28)" strokeWidth="1.5" />
+    </g>
   );
 }
 
@@ -2197,16 +2594,6 @@ export function Home({
         cornerRadius: 22,
       },
       {
-        id: 'recovery',
-        targetId: 'home_recovery_card',
-        title: coachmarkCopy.recoveryTitle,
-        body: coachmarkCopy.recoveryBody,
-        placement: 'top',
-        shape: 'rounded',
-        padding: 8,
-        cornerRadius: 24,
-      },
-      {
         id: 'repy_ai',
         targetId: 'home_repy_ai_card',
         title: coachmarkCopy.repyAiTitle,
@@ -3225,26 +3612,18 @@ export function Home({
         </ScreenSection>
 
         <ScreenSection index={3}>
-          <RecoveryIndicator
-            coachmarkTargetId="home_recovery_card"
-            percentage={overallRecovery}
-            onClick={() => setView('recovery')}
-            themeVariant={isGirlsTheme ? 'girls' : 'default'}
-          />
-        </ScreenSection>
-
-        <ScreenSection index={4}>
           <section className="space-y-3" aria-labelledby="home-quick-actions-title">
             <h2 id="home-quick-actions-title" className={`px-1 text-[17px] font-semibold ${primaryHomeTextClass}`}>
               {homeCopy.quickActions}
             </h2>
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-2 gap-1.5">
               <HomeQuickActionButton
                 label={homeCopy.repyAi}
                 Icon={Bot}
                 onClick={() => setView('repyGames')}
                 coachmarkTargetId="home_repy_ai_card"
                 isGirlsTheme={isGirlsTheme}
+                tone="lime"
               />
               <HomeQuickActionButton
                 label={homeCopy.shop}
@@ -3252,6 +3631,8 @@ export function Home({
                 onClick={() => setView('shop')}
                 coachmarkTargetId="home_shop_card"
                 isGirlsTheme={isGirlsTheme}
+                tone="amber"
+                peekVariant="books"
               />
               <HomeQuickActionButton
                 label={homeCopy.library}
@@ -3259,6 +3640,8 @@ export function Home({
                 onClick={() => setView('exercises')}
                 coachmarkTargetId="home_learning_exercises_card"
                 isGirlsTheme={isGirlsTheme}
+                tone="sky"
+                peekVariant="gym"
               />
               <HomeQuickActionButton
                 label={homeCopy.nutrition}
@@ -3266,6 +3649,8 @@ export function Home({
                 onClick={() => setView('nutrition')}
                 coachmarkTargetId="home_nutrition_card"
                 isGirlsTheme={isGirlsTheme}
+                tone="rose"
+                peekVariant="nutrition"
               />
             </div>
           </section>

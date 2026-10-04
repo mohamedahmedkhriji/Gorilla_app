@@ -60,6 +60,8 @@ export const MuscleSvgBadge = memo(function MuscleSvgBadge({
   figureClassName = 'h-[72px]',
   showLabel = true,
   body,
+  showContext = true,
+  hideHeadContext = false,
   variant = 'card',
   themeVariant = 'default',
 }: {
@@ -69,6 +71,8 @@ export const MuscleSvgBadge = memo(function MuscleSvgBadge({
   figureClassName?: string;
   showLabel?: boolean;
   body?: BodyMapBody | string;
+  showContext?: boolean;
+  hideHeadContext?: boolean;
   variant?: 'card' | 'bare';
   themeVariant?: 'default' | 'girls';
 }) {
@@ -131,6 +135,9 @@ export const MuscleSvgBadge = memo(function MuscleSvgBadge({
     ? geometry.back
     : geometry.front;
   const selected = new Set<BodyMapMuscle>(slugs);
+  const inertSlugs = hideHeadContext
+    ? BODY_MAP_INERT.filter((slug) => slug !== 'head' && slug !== 'hair' && slug !== 'neck')
+    : BODY_MAP_INERT;
 
   return (
     <div
@@ -141,7 +148,7 @@ export const MuscleSvgBadge = memo(function MuscleSvgBadge({
     >
       <div className={figureShellClassName}>
         <svg className={`${figureClassName} w-full`} viewBox={getMuscleBadgeViewBox(view, slugs)} aria-hidden="true" focusable="false">
-          {BODY_MAP_INERT.map((slug) => (view.p[slug] || []).map((d, index) => (
+          {showContext && inertSlugs.map((slug) => (view.p[slug] || []).map((d, index) => (
             <path
               key={`${slug}-${index}`}
               className="bm-sil"
@@ -149,7 +156,7 @@ export const MuscleSvgBadge = memo(function MuscleSvgBadge({
               style={{ stroke: 'rgb(var(--color-card))', strokeWidth: 2.5, strokeLinejoin: 'round' }}
             />
           )))}
-          {BODY_MAP_MUSCLES.map((slug) => (view.p[slug] || []).map((d, index) => (
+          {(showContext ? BODY_MAP_MUSCLES : slugs).map((slug) => (view.p[slug] || []).map((d, index) => (
             <path
               key={`${slug}-${index}`}
               className={`bm-m l${selected.has(slug) ? 4 : 0}`}
