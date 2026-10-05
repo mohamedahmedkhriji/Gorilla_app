@@ -11,7 +11,6 @@ import {
   buildT2PremiumCardMeta,
   getActiveT2PremiumConfig,
 } from '../../services/premiumPlan';
-import rightArrowIcon from '../../../assets/emoji/right-arrow.png';
 
 type WorkoutOverviewCard = {
   key: string;
@@ -1231,16 +1230,6 @@ export function WorkoutOverviewScreen({
                             {stateBadge}
                           </span>
                         )}
-                        <img
-                          src={rightArrowIcon}
-                          alt=""
-                          aria-hidden="true"
-                          className={`mb-1 h-[18px] w-[18px] shrink-0 object-contain opacity-70 transition-transform ${
-                            isArabic
-                              ? 'rotate-180'
-                              : ''
-                          }`}
-                        />
                       </div>
                     </div>
                     {workout.localizedMuscles.length > 0 && (

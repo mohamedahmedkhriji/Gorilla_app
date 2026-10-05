@@ -1145,7 +1145,7 @@ export function RankingsRewardsScreen({ onBack }: RankingsRewardsScreenProps) {
   const blueProgressClassName = isGirlsTheme ? 'bg-[#CFECF3]' : 'bg-blue-400';
   const progressTrackClassName = isGirlsTheme ? 'bg-[#E2B4BD]/28' : 'bg-white/10';
   const compactCardClassName = isGirlsTheme
-    ? '!border-[#E2B4BD]/45 !bg-white/72 !shadow-[0_10px_24px_rgba(226,180,189,0.12)]'
+    ? 'rank-rewards-girls-card !border-[#E2B4BD]/75 !shadow-[0_12px_28px_rgba(249,178,215,0.28)]'
     : '';
 
   const handleCategorySelect = (category: DashboardCategory) => {

@@ -298,6 +298,19 @@ export function NutritionHealthOnboarding({
   const submitClassName = isGirlsTheme
     ? 'mt-5 min-h-12 w-full rounded-2xl bg-[#F9B2D7] px-4 text-sm font-black text-[#4A4A4A] transition hover:bg-[#F7C8DD] disabled:cursor-not-allowed disabled:opacity-45'
     : 'mt-5 min-h-12 w-full rounded-2xl bg-cyan-300 px-4 text-sm font-black text-black transition hover:bg-cyan-200 disabled:cursor-not-allowed disabled:opacity-45';
+  const kidneyWarningClassName = isGirlsTheme
+    ? 'mt-4 rounded-2xl border border-amber-300/25 bg-amber-300/8 p-3 text-black'
+    : 'mt-4 rounded-2xl border border-amber-300/25 bg-amber-300/8 p-3';
+  const kidneyWarningTextClassName = isGirlsTheme
+    ? 'flex gap-2 text-sm text-black'
+    : 'flex gap-2 text-sm text-amber-100';
+  const kidneyPlanButtonClassName = (active: boolean) => `rounded-xl px-3 py-2 text-xs font-semibold ${
+    active
+      ? 'bg-amber-200 text-black'
+      : isGirlsTheme
+        ? 'bg-white/40 text-black'
+        : 'bg-white/5 text-amber-100'
+  }`;
 
   return (
     <div className="mx-auto flex min-h-[calc(100dvh-7rem)] w-full max-w-2xl flex-col justify-center px-4 pb-[calc(env(safe-area-inset-bottom,0px)+1.5rem)] pt-4">
@@ -367,14 +380,14 @@ export function NutritionHealthOnboarding({
         ) : null}
 
         {selected.kidneyDisease ? (
-          <div className="mt-4 rounded-2xl border border-amber-300/25 bg-amber-300/8 p-3">
-            <div className="flex gap-2 text-sm text-amber-100">
+          <div className={kidneyWarningClassName}>
+            <div className={kidneyWarningTextClassName}>
               <AlertTriangle className="mt-0.5 shrink-0" size={16} />
               <p>{copy.kidneyWarning}</p>
             </div>
             <div className="mt-3 grid grid-cols-2 gap-2">
-              <button type="button" onClick={() => setKidneyClinicianPlan(true)} className={`rounded-xl px-3 py-2 text-xs font-semibold ${kidneyClinicianPlan === true ? 'bg-amber-200 text-black' : 'bg-white/5 text-amber-100'}`}>{copy.clinicianPlanYes}</button>
-              <button type="button" onClick={() => setKidneyClinicianPlan(false)} className={`rounded-xl px-3 py-2 text-xs font-semibold ${kidneyClinicianPlan === false ? 'bg-amber-200 text-black' : 'bg-white/5 text-amber-100'}`}>{copy.clinicianPlanNo}</button>
+              <button type="button" onClick={() => setKidneyClinicianPlan(true)} className={kidneyPlanButtonClassName(kidneyClinicianPlan === true)}>{copy.clinicianPlanYes}</button>
+              <button type="button" onClick={() => setKidneyClinicianPlan(false)} className={kidneyPlanButtonClassName(kidneyClinicianPlan === false)}>{copy.clinicianPlanNo}</button>
             </div>
           </div>
         ) : null}
