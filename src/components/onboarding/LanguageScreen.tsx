@@ -51,9 +51,12 @@ const LANGUAGE_OPTIONS: Array<{
 
 export function LanguageScreen({ onNext, onDataChange, onboardingData }: LanguageScreenProps) {
   const initialLanguage = useMemo<AppLanguage>(() => {
+    const active = getActiveLanguage() || getStoredLanguage();
+    if (active === 'ar' || active === 'en' || active === 'it' || active === 'de' || active === 'fr') return active;
+
     const saved = String(onboardingData?.language || '').trim().toLowerCase();
     if (saved === 'ar' || saved === 'en' || saved === 'it' || saved === 'de' || saved === 'fr') return saved;
-    return getActiveLanguage() || getStoredLanguage();
+    return 'en';
   }, [onboardingData?.language]);
 
   const [selectedLanguage, setSelectedLanguage] = useState<AppLanguage>(initialLanguage);

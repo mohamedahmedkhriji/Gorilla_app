@@ -408,11 +408,6 @@ export function Onboarding({ onComplete }: OnboardingProps) {
       if (!parsed || typeof parsed !== 'object') return;
 
       setOnboardingData((prev: any) => ({ ...parsed, ...prev }));
-
-      const savedLanguage = resolveOnboardingLanguage((parsed as { language?: unknown }).language);
-      if (isSupportedOnboardingLanguage(savedLanguage)) {
-        applyLanguage(savedLanguage, true);
-      }
     } catch (storageError) {
       console.warn('Failed to restore onboarding draft:', storageError);
     }

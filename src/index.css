@@ -987,6 +987,16 @@ video {
   z-index: 1;
 }
 
+.girls-onboarding-theme > .personal-info-modal-layer,
+.personal-info-modal-layer {
+  position: fixed !important;
+  z-index: 9999 !important;
+}
+
+.personal-info-exact-modal-layer {
+  z-index: 10000 !important;
+}
+
 .onboarding-layout--girls :is(.text-white, .text-text-primary, [class*='text-white/']),
 .onboarding-layout:has(.girls-onboarding-theme) :is(.text-white, .text-text-primary, [class*='text-white/']),
 .girls-onboarding-theme :is(.text-white, .text-text-primary, [class*='text-white/']) {
@@ -999,25 +1009,22 @@ video {
   color: #795E67 !important;
 }
 
-.onboarding-layout--girls :is(.surface-glass, .surface-card, [class*='bg-card'], [class*='bg-background'], [class*='bg-white/'], [class*='bg-black/']),
-.onboarding-layout:has(.girls-onboarding-theme) :is(.surface-glass, .surface-card, [class*='bg-card'], [class*='bg-background'], [class*='bg-white/'], [class*='bg-black/']),
-.girls-onboarding-theme :is(.surface-glass, .surface-card, [class*='bg-card'], [class*='bg-background'], [class*='bg-white/'], [class*='bg-black/']) {
-  background: linear-gradient(145deg, rgb(255 255 255 / 0.86), rgb(255 245 245 / 0.72)) !important;
+.onboarding-layout--girls :is(.surface-glass, .surface-card, [class*='bg-card'], [class*='bg-background']),
+.onboarding-layout:has(.girls-onboarding-theme) :is(.surface-glass, .surface-card, [class*='bg-card'], [class*='bg-background']),
+.girls-onboarding-theme :is(.surface-glass, .surface-card, [class*='bg-card'], [class*='bg-background']) {
   border-color: rgb(226 180 189 / 0.58) !important;
+}
+
+.girls-onboarding-theme .rank-rewards-girls-card.surface-card {
+  background: #f7c8dd !important;
+  border-color: rgb(226 180 189 / 0.75) !important;
+  box-shadow: 0 12px 28px rgb(249 178 215 / 0.28) !important;
 }
 
 .onboarding-layout--girls :is([class*='border-white'], [class*='divide-white']),
 .onboarding-layout:has(.girls-onboarding-theme) :is([class*='border-white'], [class*='divide-white']),
 .girls-onboarding-theme :is([class*='border-white'], [class*='divide-white']) {
   border-color: rgb(226 180 189 / 0.55) !important;
-}
-
-.onboarding-layout--girls :is(input, select, textarea),
-.onboarding-layout:has(.girls-onboarding-theme) :is(input, select, textarea),
-.girls-onboarding-theme :is(input, select, textarea) {
-  background: rgb(255 255 255 / 0.72) !important;
-  border-color: rgb(226 180 189 / 0.62) !important;
-  color: #4A4A4A !important;
 }
 
 .onboarding-layout--girls :is(input, select, textarea)::placeholder,

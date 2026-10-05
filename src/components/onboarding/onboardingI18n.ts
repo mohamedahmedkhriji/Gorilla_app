@@ -12,6 +12,12 @@ import type {
 } from '../../config/onboardingConfig';
 
 export const getOnboardingLanguage = (): AppLanguage => {
+  const active = getActiveLanguage();
+  if (active) return active;
+
+  const stored = getStoredLanguage();
+  if (stored) return stored;
+
   if (typeof window !== 'undefined') {
     try {
       const raw = window.localStorage.getItem('onboardingData');
@@ -27,8 +33,7 @@ export const getOnboardingLanguage = (): AppLanguage => {
     }
   }
 
-  const active = getActiveLanguage();
-  return active || getStoredLanguage();
+  return 'en';
 };
 
 export const isArabicLanguage = (language: AppLanguage) => language === 'ar';
