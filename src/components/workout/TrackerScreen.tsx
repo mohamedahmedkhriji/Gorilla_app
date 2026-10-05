@@ -975,42 +975,44 @@ export function TrackerScreen({
   const getTotalVolume = () => sets.filter(s => s.completed).reduce((acc, set) => acc + (set.reps * set.weight), 0);
   const areAllSetsCompleted = sets.length > 0 && sets.every((set) => set.completed);
   const timerText = formatTime(setTimerSeconds);
-  const restTimerText = formatTime(restTime);
+  const restTimerRemainingSeconds = Math.max(0, REST_WINDOW_MAX_SECONDS - restTime);
+  const restTimerText = formatTime(restTimerRemainingSeconds);
   const firstIncompleteIndex = sets.findIndex((set) => !set.completed);
   const activeTimerText = isResting ? restTimerText : timerText;
-  const timerRows = sets.map((set, index) => {
-    const isActiveSet = isRunning && index === firstIncompleteIndex;
-    const isRestAfterSet = isResting && index === firstIncompleteIndex - 1;
-    const workSeconds = isActiveSet ? setTimerSeconds : Math.max(0, set.duration || 0);
-    const restSeconds = isRestAfterSet ? restTime : Math.max(0, set.restTime || 0);
-
-    return {
-      set,
-      label: `REP ${set.set}`,
-      workText: formatTime(workSeconds),
-      restText: formatTime(restSeconds),
-      isActiveSet,
-      isRestAfterSet,
-      isDone: set.completed,
-      workWidth: Math.max(8, Math.min(100, (workSeconds / 90) * 100)),
-      restLeft: Math.max(0, Math.min(84, (workSeconds / 180) * 100)),
-      restWidth: Math.max(10, Math.min(54, (restSeconds / 120) * 100)),
-    };
-  });
-  const timelineTotalSeconds = timerRows.reduce((total, row) => total + Math.max(1, row.isActiveSet ? setTimerSeconds : row.set.duration || 0), 0);
+  const timerTiles = [
+    {
+      key: 'set',
+      label: copy.setLabel,
+      value: timerText,
+      isActive: isRunning,
+      isDone: areAllSetsCompleted,
+    },
+    {
+      key: 'rest',
+      label: copy.restLabel,
+      value: restTimerText,
+      isActive: isResting,
+      isDone: isResting && restTimerRemainingSeconds === 0,
+    },
+  ];
+  const timelineTotalSeconds = sets.reduce((total, set, index) => {
+    const seconds = isRunning && index === firstIncompleteIndex
+      ? setTimerSeconds
+      : Number(set.duration || 0);
+    return total + Math.max(1, seconds);
+  }, 0);
   let timelineCursor = 0;
-  const timelineSegments = timerRows.map((row) => {
-    const seconds = Math.max(1, row.isActiveSet ? setTimerSeconds : row.set.duration || 0);
+  const timelineSegments = sets.map((set, index) => {
+    const seconds = Math.max(1, isRunning && index === firstIncompleteIndex ? setTimerSeconds : Number(set.duration || 0));
     const left = timelineTotalSeconds > 0 ? (timelineCursor / timelineTotalSeconds) * 100 : 0;
     const width = timelineTotalSeconds > 0 ? (seconds / timelineTotalSeconds) * 100 : 0;
     timelineCursor += seconds;
 
     return {
-      key: row.set.set,
+      key: set.set,
       left,
       width,
-      isActive: row.isActiveSet,
-      isDone: row.isDone,
+      opacity: set.completed || (isRunning && index === firstIncompleteIndex) ? 1 : 0.5,
     };
   });
   const completedSetRowsForChart = useMemo(() => sets
@@ -1092,27 +1094,31 @@ export function TrackerScreen({
             data-coachmark-target="workout_tracker_timer"
           >
             <div className="workout-timer-top">
-              <span className="workout-timer-title">REP TIMERS</span>
+              <span className="workout-timer-title">TIMERS</span>
             </div>
             <div className="workout-timer-tiles">
-              {timerRows.map((row) => (
+              {timerTiles.map((tile) => (
                 <div
-                  key={row.set.set}
+                  key={tile.key}
                   className={`workout-timer-tile ${
-                    row.isActiveSet ? 'is-active' : row.isRestAfterSet ? 'is-resting' : row.isDone ? 'is-done' : ''
+                    tile.isActive ? 'is-active' : tile.isDone ? 'is-done' : ''
                   }`}
                 >
-                  <span className="timer-label">{row.label}</span>
-                  <span className="timer-value lcd" aria-label={row.workText}>{renderLcdDigits(row.workText)}</span>
+                  <span className="timer-label">{tile.label}</span>
+                  <span className="timer-value lcd" aria-label={tile.value}>{renderLcdDigits(tile.value)}</span>
                 </div>
               ))}
             </div>
-            <div className="workout-timeline-viewer" aria-hidden="true">
+            <div className="medium tl-viewer row" style={{ '--x': '300px' } as React.CSSProperties} aria-hidden="true">
               {timelineSegments.map((segment) => (
                 <div
                   key={segment.key}
-                  className={`tl-child ${segment.isActive ? 'is-active' : ''} ${segment.isDone ? 'is-done' : ''}`}
-                  style={{ left: `${segment.left}%`, width: `${segment.width}%` }}
+                  className="tl-child"
+                  style={{
+                    left: `${segment.left}%`,
+                    width: `${segment.width}%`,
+                    opacity: segment.opacity,
+                  }}
                 />
               ))}
             </div>
@@ -1617,8 +1623,8 @@ export function TrackerScreen({
 
         .workout-timer-tiles {
           display: grid;
-          grid-template-columns: repeat(auto-fit, minmax(72px, 1fr));
-          gap: 8px;
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+          gap: 10px;
         }
 
         .timer-label {
@@ -1639,13 +1645,11 @@ export function TrackerScreen({
         }
 
         .workout-timer-tile.is-done,
-        .workout-timer-tile.is-active,
-        .workout-timer-tile.is-resting {
+        .workout-timer-tile.is-active {
           opacity: 1;
         }
 
-        .workout-timer-tile.is-active .timer-value.lcd,
-        .workout-timer-tile.is-resting .timer-value.lcd {
+        .workout-timer-tile.is-active .timer-value.lcd {
           box-shadow:
             inset 0 0 0 1px color-mix(in srgb, var(--timer-accent) 32%, transparent),
             inset 0 0 18px rgba(0, 0, 0, 0.34),
@@ -1690,6 +1694,36 @@ export function TrackerScreen({
             );
           opacity: 0.34;
           pointer-events: none;
+        }
+
+        .tl-viewer.row {
+          position: relative;
+          height: 24px;
+          margin-top: 18px;
+          border-left: 1px solid var(--timer-accent);
+          border-right: 2px solid var(--timer-accent);
+          --x: 300px;
+        }
+
+        .tl-viewer.medium {
+          min-height: 24px;
+        }
+
+        .tl-viewer .tl-child {
+          position: absolute;
+          top: 50%;
+          height: 8px;
+          min-width: 3px;
+          border-radius: 999px;
+          background: var(--timer-accent);
+          box-shadow:
+            0 0 2px var(--timer-led-shadow),
+            0 0 12px var(--timer-led-soft-shadow);
+          transform: translateY(-50%);
+          transition:
+            left 220ms linear,
+            width 220ms linear,
+            opacity 180ms ease;
         }
 
         .lcd-digit {
@@ -1825,37 +1859,6 @@ export function TrackerScreen({
             0 0 2px var(--timer-led-shadow),
             0 0 8px var(--timer-led-soft-shadow),
             0 0 14px var(--timer-led-soft-shadow);
-        }
-
-        .workout-timeline-viewer {
-          position: relative;
-          height: 24px;
-          margin-top: 24px;
-          border-left: 1px solid var(--timer-accent);
-          border-right: 2px solid var(--timer-accent);
-        }
-
-        .tl-child {
-          position: absolute;
-          top: 0;
-          height: 8px;
-          min-width: 3px;
-          border-radius: 999px;
-          background: var(--timer-accent-muted);
-          transform: translateY(0);
-        }
-
-        .tl-child:nth-child(2n) {
-          top: 9px;
-        }
-
-        .tl-child:nth-child(3n) {
-          top: 15px;
-        }
-
-        .tl-child.is-active,
-        .tl-child.is-done {
-          background: var(--timer-accent);
         }
 
         [data-theme='light'] .workout-timer-board {
