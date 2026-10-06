@@ -3,15 +3,13 @@ import { createPortal } from 'react-dom';
 import { Header } from '../ui/Header';
 import { api } from '../../services/api';
 import { CalendarX2, Check, Flag, FlagTriangleRight, Play, Search, TriangleAlert, X } from 'lucide-react';
-import { getBodyPartImage } from '../../services/bodyPartTheme';
-import { resolveExerciseCategoryVideo, resolveExerciseVideo } from '../../services/exerciseVideos';
+import { resolveExerciseVideo } from '../../services/exerciseVideos';
 import { AppLanguage, LocalizedLanguageRecord, getActiveLanguage, getStoredLanguage } from '../../services/language';
 import { formatWorkoutDayLabel, normalizeWorkoutDayKey } from '../../services/workoutDayLabel';
 import { stripExercisePrefix } from '../../services/exerciseName';
 import { translateProgramText } from '../../services/programI18n';
 import { useScreenshotProtection } from '../../shared/useScreenshotProtection';
 import { MuscleSvgBadge } from './MuscleSvgBadge';
-import { ExerciseMedia } from './ExerciseMedia';
 import { playMyPlanSound } from '../../services/appSounds';
 import type { ExerciseRemoteMedia } from '../../services/exerciseVideos';
 
@@ -118,10 +116,21 @@ const canonicalizeMuscleLabel = (value: unknown) => {
   if (key.includes('bicep') || key.includes('biceps brachii') || key.includes('brachialis')) return 'Biceps';
   if (key.includes('chest') || key.includes('pect')) return 'Chest';
   if (key.includes('back') || key.includes('lat') || key.includes('trap') || key.includes('rhomboid')) return 'Back';
+  if (key === 'gambe' || key === 'gamba' || key === 'beine' || key === 'jambes') return 'Legs';
+  if (key === 'glutei' || key.includes('fessier') || key.includes('fessee')) return 'Glutes';
   if (key.includes('adductor') || key.includes('adducteur') || key.includes('addicteur') || key.includes('inner thigh')) return 'Adductors';
+  if (key.includes('abductor') || key.includes('abducteur') || key.includes('outer thigh')) return 'Glutes';
   if (key.includes('quad') || key.includes('thigh')) return 'Quadriceps';
   if (key.includes('hamstring')) return 'Hamstrings';
-  if (key.includes('calf') || key.includes('calves') || key.includes('claves') || key.includes('mollet') || key.includes('moulet')) return 'Calves';
+  if (
+    key.includes('calf')
+    || key.includes('calves')
+    || key.includes('gastrocnemius')
+    || key.includes('soleus')
+    || key.includes('claves')
+    || key.includes('mollet')
+    || key.includes('moulet')
+  ) return 'Calves';
   if (key.includes('shin') || key.includes('tibia') || key.includes('tibialis') || key.includes('tibial')) return 'Tibialis';
   if (key.includes('abs') || key.includes('core') || key.includes('oblique') || key.includes('abdom')) return 'Abs';
   if (key.includes('glute')) return 'Glutes';
@@ -140,6 +149,8 @@ const inferMusclesFromExerciseName = (exerciseName = '') => {
   if (/deadlift|row|pull-up|pull up|pullup|chin-up|chin up|chinup|pulldown|pullover|lat pulldown|lat pull|rack pull/.test(name)) matches.push('Back', 'Biceps', 'Forearms');
   if (/squat|leg press|leg extension|lunge|split squat|step up|hip thrust/.test(name)) matches.push('Quadriceps', 'Hamstrings', 'Calves');
   if (/romanian deadlift|rdl|leg curl|hamstring/.test(name)) matches.push('Hamstrings');
+  if (/adductor|adduction|inner thigh/.test(name)) matches.push('Adductors');
+  if (/abductor|abduction|hip abduction|outer thigh/.test(name)) matches.push('Glutes');
   if (isShoulderIsolation) matches.push('Shoulders');
   if (isShoulderPress) matches.push('Shoulders', 'Triceps');
   if (/curl/.test(name)) matches.push('Biceps', 'Forearms');
@@ -149,8 +160,6 @@ const inferMusclesFromExerciseName = (exerciseName = '') => {
 
   return [...new Set(matches.map((entry) => canonicalizeMuscleLabel(entry)).filter(Boolean))];
 };
-
-const getMuscleImage = (muscle: string) => getBodyPartImage(muscle);
 
 type TargetMuscleDisplay = {
   name: string;
@@ -1156,36 +1165,24 @@ export function WorkoutPlanScreen({
                       }`}
                     >
                       <div className={`relative h-[54%] overflow-hidden rounded-2xl border ${isGirlsTheme ? 'border-[#E2B4BD]/40 bg-white/65' : 'border-white/10 bg-white/5'}`}>
+                        <MuscleSvgBadge
+                          muscle={{ label: toLocalizedMuscleLabel(primaryMuscle), sourceName: canonicalizeMuscleLabel(primaryMuscle) }}
+                          className="h-full w-full"
+                          figureClassName="h-full"
+                          showLabel={false}
+                          variant="bare"
+                          themeVariant={isGirlsTheme ? 'girls' : 'default'}
+                        />
                         {videoUrl ? (
-                          <>
-                            <ExerciseMedia
-                              src={videoUrl}
-                              mediaType={visual?.videoMatch?.mediaType}
-                              alt={stripExercisePrefix(exercise.name)}
-                              poster={getMuscleImage(primaryMuscle)}
-                              className="block h-full w-full bg-black object-cover"
-                              videoProps={{ autoPlay: true }}
-                            />
-                            <div className={`pointer-events-none absolute inset-0 flex items-center justify-center ${isGirlsTheme ? 'bg-[#4A4A4A]/12' : 'bg-black/28'}`}>
-                              <div className={`flex h-7 w-7 items-center justify-center rounded-full ${isGirlsTheme ? 'bg-white/80 text-[#A87884]' : 'bg-black/55 text-white'}`}>
-                                <Play size={11} fill="currentColor" />
-                              </div>
+                          <div className={`pointer-events-none absolute inset-0 flex items-center justify-center ${isGirlsTheme ? 'bg-[#4A4A4A]/12' : 'bg-black/28'}`}>
+                            <div className={`flex h-7 w-7 items-center justify-center rounded-full ${isGirlsTheme ? 'bg-white/80 text-[#A87884]' : 'bg-black/55 text-white'}`}>
+                              <Play size={11} fill="currentColor" />
                             </div>
-                          </>
+                          </div>
                         ) : (
-                          <>
-                            <MuscleSvgBadge
-                              muscle={{ label: toLocalizedMuscleLabel(primaryMuscle), sourceName: canonicalizeMuscleLabel(primaryMuscle) }}
-                              className="h-full w-full"
-                              figureClassName="h-full"
-                              showLabel={false}
-                              variant="bare"
-                              themeVariant={isGirlsTheme ? 'girls' : 'default'}
-                            />
-                            <div className={`pointer-events-none absolute inset-x-0 bottom-0 px-1.5 py-1 text-center text-[8px] font-semibold uppercase tracking-[0.1em] ${isGirlsTheme ? 'bg-white/84 text-[#A87884]' : 'bg-black/70 text-amber-200'}`}>
-                              {copy.videoMissing}
-                            </div>
-                          </>
+                          <div className={`pointer-events-none absolute inset-x-0 bottom-0 px-1.5 py-1 text-center text-[8px] font-semibold uppercase tracking-[0.1em] ${isGirlsTheme ? 'bg-white/84 text-[#A87884]' : 'bg-black/70 text-amber-200'}`}>
+                            {copy.videoMissing}
+                          </div>
                         )}
                       </div>
 
@@ -1281,36 +1278,24 @@ export function WorkoutPlanScreen({
               >
                 <div className="flex items-center gap-3">
                   <div className={`relative h-20 w-20 shrink-0 overflow-hidden rounded-2xl border ${isGirlsTheme ? 'border-[#E2B4BD]/40 bg-white/65' : 'border-white/10 bg-white/5'}`}>
+                    <MuscleSvgBadge
+                      muscle={{ label: toLocalizedMuscleLabel(primaryMuscle), sourceName: canonicalizeMuscleLabel(primaryMuscle) }}
+                      className="h-full w-full"
+                      figureClassName="h-full"
+                      showLabel={false}
+                      variant="bare"
+                      themeVariant={isGirlsTheme ? 'girls' : 'default'}
+                    />
                     {videoUrl ? (
-                      <>
-                        <ExerciseMedia
-                          src={videoUrl}
-                          mediaType={visual?.videoMatch?.mediaType}
-                          alt={stripExercisePrefix(exercise.name)}
-                          poster={getMuscleImage(primaryMuscle)}
-                          className="block h-full w-full bg-black object-cover"
-                          videoProps={{ autoPlay: true }}
-                        />
-                        <div className={`pointer-events-none absolute inset-0 flex items-center justify-center ${isGirlsTheme ? 'bg-[#4A4A4A]/16' : 'bg-black/30'}`}>
-                          <div className={`flex h-7 w-7 items-center justify-center rounded-full ${isGirlsTheme ? 'bg-white/75 text-[#A87884]' : 'bg-black/55 text-white'}`}>
-                            <Play size={11} fill="currentColor" />
-                          </div>
+                      <div className={`pointer-events-none absolute inset-0 flex items-center justify-center ${isGirlsTheme ? 'bg-[#4A4A4A]/16' : 'bg-black/30'}`}>
+                        <div className={`flex h-7 w-7 items-center justify-center rounded-full ${isGirlsTheme ? 'bg-white/75 text-[#A87884]' : 'bg-black/55 text-white'}`}>
+                          <Play size={11} fill="currentColor" />
                         </div>
-                      </>
+                      </div>
                     ) : (
-                      <>
-                        <MuscleSvgBadge
-                          muscle={{ label: toLocalizedMuscleLabel(primaryMuscle), sourceName: canonicalizeMuscleLabel(primaryMuscle) }}
-                          className="h-full w-full"
-                          figureClassName="h-full"
-                          showLabel={false}
-                          variant="bare"
-                          themeVariant={isGirlsTheme ? 'girls' : 'default'}
-                        />
-                        <div className={`pointer-events-none absolute inset-x-0 bottom-0 px-2 py-1 text-center text-[9px] font-semibold uppercase tracking-[0.12em] ${isGirlsTheme ? 'bg-white/82 text-[#A87884]' : 'bg-black/70 text-amber-200'}`}>
-                          {copy.videoMissing}
-                        </div>
-                      </>
+                      <div className={`pointer-events-none absolute inset-x-0 bottom-0 px-2 py-1 text-center text-[9px] font-semibold uppercase tracking-[0.12em] ${isGirlsTheme ? 'bg-white/82 text-[#A87884]' : 'bg-black/70 text-amber-200'}`}>
+                        {copy.videoMissing}
+                      </div>
                     )}
                   </div>
 
@@ -1443,16 +1428,6 @@ export function WorkoutPlanScreen({
                       <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3">
                         {filteredCatalog.map((exercise) => {
                           const muscleLabel = toTitleCase(exercise.muscle || exercise.bodyPart || selectedCatalogMuscle || 'General');
-                          const videoMatch = resolveExerciseVideo({
-                            name: exercise.name,
-                            muscle: muscleLabel,
-                            bodyPart: exercise.bodyPart || selectedCatalogMuscle || muscleLabel,
-                            targetMuscles: [muscleLabel],
-                            primaryMedia: exercise.primaryMedia,
-                            media: exercise.media,
-                            preferredAudience: preferredMediaAudience,
-                          });
-                          const previewUrl = videoMatch.url || null;
                           return (
                             <button
                               key={exercise.id}
@@ -1468,22 +1443,14 @@ export function WorkoutPlanScreen({
                               className={`rounded-2xl border p-3 transition-colors group ${isGirlsTheme ? 'border-[#E2B4BD]/45 bg-white/70 shadow-[0_10px_24px_rgba(226,180,189,0.12)] hover:border-[#F9B2D7]/70' : 'surface-card hover:border-accent/20'} ${isArabic ? 'text-right' : 'text-left'}`}
                             >
                               <div className={`relative -mx-3 -mt-3 mb-3 aspect-video overflow-hidden rounded-t-2xl border-b ${isGirlsTheme ? 'border-[#E2B4BD]/35 bg-white/65' : 'border-white/[0.08] bg-white/5'}`}>
-                                {previewUrl ? (
-                                  <ExerciseMedia
-                                    src={previewUrl}
-                                    mediaType={videoMatch.mediaType}
-                                    alt={exercise.name}
-                                    poster={getMuscleImage(muscleLabel)}
-                                    className="h-full w-full bg-black object-cover transition-transform duration-200 group-hover:scale-105"
-                                    videoProps={{ autoPlay: true }}
-                                  />
-                                ) : (
-                                  <img
-                                    src={getMuscleImage(muscleLabel)}
-                                    alt={exercise.name}
-                                    className="h-full w-full object-cover transition-transform duration-200 group-hover:scale-105"
-                                  />
-                                )}
+                                <MuscleSvgBadge
+                                  muscle={{ label: toLocalizedMuscleLabel(muscleLabel), sourceName: canonicalizeMuscleLabel(muscleLabel) }}
+                                  className="h-full w-full transition-transform duration-200 group-hover:scale-105"
+                                  figureClassName="h-full"
+                                  showLabel={false}
+                                  variant="bare"
+                                  themeVariant={isGirlsTheme ? 'girls' : 'default'}
+                                />
                               <div className={`absolute inset-0 flex items-center justify-center ${isGirlsTheme ? 'bg-[#4A4A4A]/16' : 'bg-black/35'}`}>
                                 <button
                                   type="button"
@@ -1539,7 +1506,6 @@ export function WorkoutPlanScreen({
                       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
                         {catalogMuscles.map((muscle) => {
                           const isSelected = selectedCatalogMuscle === muscle.name;
-                          const categoryVideo = resolveExerciseCategoryVideo(muscle.name);
                           return (
                             <button
                               key={muscle.name}
@@ -1559,22 +1525,14 @@ export function WorkoutPlanScreen({
                               }`}
                             >
                               <div className={`-mx-3 -mt-3 mb-3 aspect-[4/3] overflow-hidden rounded-t-2xl border-b ${isGirlsTheme ? 'border-[#E2B4BD]/35 bg-white/65' : 'border-white/[0.08] bg-white/5'}`}>
-                                {categoryVideo ? (
-                                  <ExerciseMedia
-                                    src={categoryVideo.url}
-                                    mediaType="video"
-                                    alt={toLocalizedMuscleLabel(muscle.name)}
-                                    poster={getMuscleImage(muscle.name)}
-                                    className="h-full w-full bg-black object-cover"
-                                    videoProps={{ autoPlay: true }}
-                                  />
-                                ) : (
-                                  <img
-                                    src={getMuscleImage(muscle.name)}
-                                    alt={toLocalizedMuscleLabel(muscle.name)}
-                                    className="h-full w-full object-contain p-3"
-                                  />
-                                )}
+                                <MuscleSvgBadge
+                                  muscle={{ label: toLocalizedMuscleLabel(muscle.name), sourceName: canonicalizeMuscleLabel(muscle.name) }}
+                                  className="h-full w-full"
+                                  figureClassName="h-full"
+                                  showLabel={false}
+                                  variant="bare"
+                                  themeVariant={isGirlsTheme ? 'girls' : 'default'}
+                                />
                               </div>
                               <div className="mt-3">
                                 <div className={`truncate text-sm font-semibold ${isGirlsTheme ? 'text-[#4A4A4A]' : 'text-white'}`}>{toLocalizedMuscleLabel(muscle.name)}</div>

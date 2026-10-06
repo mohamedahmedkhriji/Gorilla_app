@@ -55,6 +55,38 @@ export type ExerciseVideoMatch = {
   remoteMedia: ExerciseRemoteMedia | null;
 };
 
+const SUPABASE_EXERCISE_PREVIEWS_BASE =
+  'https://lubnxnffvdnconouixzm.supabase.co/storage/v1/object/public/exercise-previews';
+
+const makeSupabaseGifMatch = (
+  storagePath: string,
+  assetName: string,
+  bodyPart: string | null = null,
+): ExerciseVideoMatch => ({
+  url: `${SUPABASE_EXERCISE_PREVIEWS_BASE}/${storagePath.split('/').map(encodeURIComponent).join('/')}`,
+  assetName,
+  bodyPart,
+  matchType: 'alias',
+  mediaType: 'gif',
+  remoteMedia: null,
+});
+
+const makeAdductorMachineMatch = (preferredAudience?: string | null): ExerciseVideoMatch => {
+  if (normalizeMediaAudience(preferredAudience) === 'female') {
+    return makeSupabaseGifMatch(
+      'video/full legs/gif-female/adductor machine femme.gif',
+      'full legs/gif-female/adductor machine femme.gif',
+      'legs',
+    );
+  }
+
+  return makeSupabaseGifMatch(
+    'video/full legs/gif-male/adductor machine male.gif',
+    'full legs/gif-male/adductor machine male.gif',
+    'legs',
+  );
+};
+
 const DIRECT_VIDEO_OVERRIDES: Record<string, ExerciseVideoMatch> = {
   'liss cardio': {
     url: genericCardioVideoUrl,
@@ -123,7 +155,7 @@ const DIRECT_VIDEO_OVERRIDES: Record<string, ExerciseVideoMatch> = {
 };
 
 const stripMediaAudienceSuffix = (value: string) =>
-  value.replace(/\s+(male|man|men|female|woman|women|girl|girls)$/i, '').trim();
+  value.replace(/\s+(male|man|men|female|femme|woman|women|girl|girls)$/i, '').trim();
 
 const singularizeLookupPhrase = (value: string) =>
   value
@@ -136,7 +168,7 @@ const singularizeLookupPhrase = (value: string) =>
     .join(' ')
     .trim();
 
-const resolveDirectVideoOverride = (normalizedName: string) => {
+const resolveDirectVideoOverride = (normalizedName: string, preferredAudience?: string | null) => {
   const withoutAudience = stripMediaAudienceSuffix(normalizedName);
   const candidates = [
     normalizedName,
@@ -144,6 +176,25 @@ const resolveDirectVideoOverride = (normalizedName: string) => {
     singularizeLookupPhrase(normalizedName),
     singularizeLookupPhrase(withoutAudience),
   ];
+
+  if (candidates.some((key) => (
+    key === 'adductor machine'
+    || key === 'adduction machine'
+    || key === 'abductor machine'
+    || key === 'abduction machine'
+    || key === 'machine seated hip abduction'
+    || key === 'machine seated hip adduction'
+    || key === 'machine hip abduction'
+    || key === 'machine hip adduction'
+    || key === 'seated hip abduction'
+    || key === 'seated hip adduction'
+    || key === 'hip abduction'
+    || key === 'hip adduction'
+    || key === 'thigh abductor'
+    || key === 'thigh adductor'
+  ))) {
+    return makeAdductorMachineMatch(preferredAudience);
+  }
 
   return candidates.map((key) => DIRECT_VIDEO_OVERRIDES[key]).find(Boolean) || null;
 };
@@ -365,7 +416,7 @@ const normalizeRemoteMediaType = (value: unknown): ExerciseVideoMatch['mediaType
 
 const normalizeMediaAudience = (value: unknown) => {
   const key = String(value || '').trim().toLowerCase();
-  if (key === 'woman' || key === 'women' || key === 'female' || key === 'girl' || key === 'girls' || key === 'f') return 'female';
+  if (key === 'woman' || key === 'women' || key === 'female' || key === 'femme' || key === 'girl' || key === 'girls' || key === 'f') return 'female';
   if (key === 'man' || key === 'men' || key === 'male' || key === 'boy' || key === 'boys' || key === 'm') return 'male';
   if (key === 'unisex' || key === 'all' || key === 'both') return 'unisex';
   return '';
@@ -526,7 +577,7 @@ export const resolveExerciseVideo = ({
     };
   }
 
-  const directOverride = resolveDirectVideoOverride(normalizedName);
+  const directOverride = resolveDirectVideoOverride(normalizedName, preferredAudience);
   if (directOverride) return directOverride;
 
   const hyroxFallback = resolveHyroxPlanFallback(normalizedName, preferredAudience);

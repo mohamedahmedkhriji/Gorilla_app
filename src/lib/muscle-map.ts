@@ -84,14 +84,30 @@ export function recoveryMuscleToBodyMapSlugs(value: unknown): BodyMapMuscle[] {
     || key.includes('grip')
   ) return ['forearm'];
   if (key.includes('quad')) return ['quadriceps'];
-  if (key === 'leg' || key === 'legs' || key.includes('lower body') || key.includes('lower-body')) {
+  if (
+    key === 'leg'
+    || key === 'legs'
+    || key === 'gambe'
+    || key === 'gamba'
+    || key === 'beine'
+    || key === 'jambes'
+    || key.includes('lower body')
+    || key.includes('lower-body')
+  ) {
     return LOWER_BODY_MUSCLES;
   }
   if (key.includes('hamstring')) return ['hamstring'];
-  if (key.includes('glute')) return ['gluteal'];
+  if (
+    key.includes('glute')
+    || key.includes('glutei')
+    || key.includes('fessier')
+    || key.includes('fessee')
+  ) return ['gluteal'];
   if (
     key.includes('calf')
     || key.includes('calves')
+    || key.includes('gastrocnemius')
+    || key.includes('soleus')
     || key.includes('claves')
     || key.includes('mollet')
     || key.includes('moulet')
@@ -108,6 +124,11 @@ export function recoveryMuscleToBodyMapSlugs(value: unknown): BodyMapMuscle[] {
     || key.includes('addicteur')
     || key.includes('inner thigh')
   ) return ['adductors'];
+  if (
+    key.includes('abductor')
+    || key.includes('abducteur')
+    || key.includes('outer thigh')
+  ) return ['gluteal'];
   if (key.includes('hip flexor')) return ['hip-flexors'];
   if (key.includes('serratus')) return ['serratus'];
   if (

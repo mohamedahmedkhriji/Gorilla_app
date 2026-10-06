@@ -7,6 +7,7 @@ type ExerciseMediaProps = {
   alt?: string;
   className?: string;
   poster?: string;
+  staticPreview?: boolean;
   videoProps?: Omit<VideoHTMLAttributes<HTMLVideoElement>, 'src' | 'poster' | 'className'>;
   imageProps?: Omit<ImgHTMLAttributes<HTMLImageElement>, 'src' | 'alt' | 'className'>;
 };
@@ -23,6 +24,7 @@ export function ExerciseMedia({
   alt = 'Exercise media',
   className,
   poster,
+  staticPreview = false,
   videoProps,
   imageProps,
 }: ExerciseMediaProps) {
@@ -40,9 +42,11 @@ export function ExerciseMedia({
   };
 
   if (normalizeMediaType(mediaType) === 'image') {
+    const imageSource = staticPreview && poster ? poster : src;
+
     return (
       <img
-        src={src}
+        src={imageSource}
         alt={alt}
         className={className}
         loading="lazy"

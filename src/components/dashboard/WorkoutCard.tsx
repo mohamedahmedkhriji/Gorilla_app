@@ -542,8 +542,8 @@ export function WorkoutCard({
   const primaryTextClass = isGirlsTheme ? 'text-[#4A4A4A]' : 'text-text-primary';
   const tertiaryTextClass = isGirlsTheme ? 'text-[#A87884]' : 'text-text-tertiary';
   const actionClassName = isGirlsTheme
-    ? 'mt-5 mx-auto flex w-fit items-center justify-center whitespace-nowrap rounded-full border border-[#E2B4BD]/60 bg-[#F9B2D7]/32 px-7 py-2.5 text-center text-[1rem] font-electrolize font-bold leading-none text-[#4A4A4A] shadow-[inset_0_1px_0_rgba(255,255,255,0.72),0_8px_18px_rgba(226,180,189,0.18)]'
-    : 'mt-5 mx-auto flex w-fit items-center justify-center whitespace-nowrap rounded-full border border-accent/30 bg-accent/20 px-7 py-2.5 text-center text-[1rem] font-electrolize font-bold leading-none text-text-primary shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_8px_18px_rgba(0,0,0,0.18)]';
+    ? 'workout-plan-action-button workout-plan-action-button--girls mt-5 mx-auto flex w-fit items-center justify-center whitespace-nowrap rounded-full border border-[#E2B4BD]/65 bg-white/65 px-7 py-2.5 text-center text-[1rem] font-electrolize font-bold leading-none text-[#4A4A4A] shadow-[inset_0_1px_0_rgba(255,255,255,0.82),0_10px_22px_rgba(226,180,189,0.22)]'
+    : 'workout-plan-action-button mt-5 mx-auto flex w-fit items-center justify-center whitespace-nowrap rounded-full border border-accent/35 bg-[#0B111B]/72 px-7 py-2.5 text-center text-[1rem] font-electrolize font-bold leading-none text-text-primary shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_10px_22px_rgba(0,0,0,0.24)]';
 
   return (
     <motion.div
@@ -618,7 +618,12 @@ export function WorkoutCard({
               data-coachmark-target={coachmarkActionTargetId}
               className={actionClassName}
             >
-              {resolvedActionLabel}
+              <span className="workout-plan-action-button__label">
+                {resolvedActionLabel}
+              </span>
+              <span className="workout-plan-action-button__effect" aria-hidden="true">
+                <span />
+              </span>
             </button>
           )}
         </div>

@@ -672,6 +672,25 @@ const TEMPLATE_VIDEO_MANIFEST = [
   },
   {
     bodyPart: 'legs',
+    fileName: '45 Degree Leg Press calves.mp4',
+    priority: 98,
+    aliases: [
+      '45 degree leg press calf raise',
+      '45-degree leg press calf raise',
+      '45 degree leg press calf raise male',
+      '45-degree leg press calf raise male',
+      '45 degree leg press calves',
+      '45-degree leg press calves',
+      '45 degree leg press calves male',
+      '45-degree leg press calves male',
+      'leg press calf raise',
+      'leg press calf raise male',
+      'leg press calves',
+      'leg press calves male',
+    ],
+  },
+  {
+    bodyPart: 'legs',
     fileName: 'Lying Leg Curl Machine.mp4',
     priority: 97,
     aliases: [
